@@ -44,6 +44,7 @@ struct ConversationListFeatureTests {
       ConversationListFeature()
     } withDependencies: {
       $0.chatDatabase = .constant(database)
+      $0.chatDatabaseChanges = ChatDatabaseChanges { AsyncStream { $0.finish() } }
     }
 
     await store.send(.task) {
@@ -87,11 +88,65 @@ struct ConversationListFeatureTests {
   }
 
   @Test
+  func reloadsWhenChatDatabaseChanges() async throws {
+    let database = try makeInMemoryChatDatabase()
+    try await database.write { db in
+      try db.seed {
+        Chat(
+          id: 1,
+          guid: "iMessage;-;+15550000001",
+          style: .oneOnOne,
+          chatIdentifier: "+15550000001",
+          serviceName: "iMessage",
+          displayName: nil,
+          isArchived: false
+        )
+        message(id: 1, text: "Hi", at: 100)
+        ChatMessageJoin(chatID: 1, messageID: 1, messageDate: date(100))
+      }
+    }
+    let (changes, change) = AsyncStream.makeStream(of: Void.self)
+    let store = TestStore(initialState: ConversationListFeature.State(selection: 1)) {
+      ConversationListFeature()
+    } withDependencies: {
+      $0.chatDatabase = .constant(database)
+      $0.chatDatabaseChanges = ChatDatabaseChanges { changes }
+    }
+
+    let task = await store.send(.task) {
+      $0.isLoading = true
+    }
+    await store.receive(\.conversationsLoaded.success) {
+      $0.isLoading = false
+      $0.conversations = [
+        conversation(id: 1, guid: "iMessage;-;+15550000001", text: "Hi", at: 100)
+      ]
+    }
+
+    try await database.write { db in
+      try db.seed {
+        message(id: 2, text: "New message", at: 200)
+        ChatMessageJoin(chatID: 1, messageID: 2, messageDate: date(200))
+      }
+    }
+    change.yield()
+    await store.receive(\.conversationsLoaded.success) {
+      $0.conversations = [
+        conversation(id: 1, guid: "iMessage;-;+15550000001", text: "New message", at: 200)
+      ]
+    }
+
+    change.finish()
+    await task.finish()
+  }
+
+  @Test
   func loadFailure() async {
     let store = TestStore(initialState: ConversationListFeature.State()) {
       ConversationListFeature()
     } withDependencies: {
       $0.chatDatabase = ChatDatabase { throw DatabaseUnavailable() }
+      $0.chatDatabaseChanges = ChatDatabaseChanges { AsyncStream { $0.finish() } }
     }
 
     await store.send(.task) {
@@ -160,17 +215,22 @@ private func message(id: Message.ID, text: String, at seconds: TimeInterval) -> 
   )
 }
 
-private func conversation(id: Chat.ID) -> Conversation {
+private func conversation(
+  id: Chat.ID,
+  guid: String? = nil,
+  text: String = "Hi",
+  at seconds: TimeInterval = 0
+) -> Conversation {
   Conversation(
     id: id,
-    guid: "iMessage;-;chat\(id.rawValue)",
+    guid: guid ?? "iMessage;-;chat\(id.rawValue)",
     style: .oneOnOne,
-    chatIdentifier: "chat\(id.rawValue)",
+    chatIdentifier: guid.map { String($0.split(separator: ";").last!) } ?? "chat\(id.rawValue)",
     displayName: nil,
     participants: [],
     latestMessage: Conversation.LatestMessage(
-      date: date(0),
-      text: "Hi",
+      date: date(seconds),
+      text: text,
       attributedBody: nil,
       isFromMe: false,
       hasAttachments: false
