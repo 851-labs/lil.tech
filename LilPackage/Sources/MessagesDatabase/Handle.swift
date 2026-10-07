@@ -10,4 +10,10 @@ public struct Handle: Identifiable, Sendable {
   @Column("id")
   public var address: String
   public var service: String
+
+  public init(id: ID, address: String, service: String) {
+    self.id = id
+    self.address = address
+    self.service = service
+  }
 }

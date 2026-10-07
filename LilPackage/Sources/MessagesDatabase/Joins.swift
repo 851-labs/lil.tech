@@ -7,6 +7,11 @@ public struct ChatHandleJoin: Sendable {
   public var chatID: Chat.ID
   @Column("handle_id")
   public var handleID: Handle.ID
+
+  public init(chatID: Chat.ID, handleID: Handle.ID) {
+    self.chatID = chatID
+    self.handleID = handleID
+  }
 }
 
 @Table("chat_message_join")
@@ -17,4 +22,10 @@ public struct ChatMessageJoin: Sendable {
   public var messageID: Message.ID
   @Column("message_date", as: Date.AppleTimestampRepresentation.self)
   public var messageDate: Date
+
+  public init(chatID: Chat.ID, messageID: Message.ID, messageDate: Date) {
+    self.chatID = chatID
+    self.messageID = messageID
+    self.messageDate = messageDate
+  }
 }

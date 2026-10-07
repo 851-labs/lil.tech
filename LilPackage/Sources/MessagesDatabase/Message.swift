@@ -26,4 +26,32 @@ public struct Message: Identifiable, Sendable {
   public var itemType: Int
   @Column("associated_message_type")
   public var associatedMessageType: Int
+
+  public init(
+    id: ID,
+    guid: String,
+    text: String?,
+    attributedBody: Data?,
+    handleID: Handle.ID,
+    service: String?,
+    date: Date,
+    isFromMe: Bool,
+    isRead: Bool,
+    hasAttachments: Bool,
+    itemType: Int,
+    associatedMessageType: Int
+  ) {
+    self.id = id
+    self.guid = guid
+    self.text = text
+    self.attributedBody = attributedBody
+    self.handleID = handleID
+    self.service = service
+    self.date = date
+    self.isFromMe = isFromMe
+    self.isRead = isRead
+    self.hasAttachments = hasAttachments
+    self.itemType = itemType
+    self.associatedMessageType = associatedMessageType
+  }
 }
