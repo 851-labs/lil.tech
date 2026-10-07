@@ -11,6 +11,7 @@ let package = Package(
     .library(name: "ConversationListFeature", targets: ["ConversationListFeature"]),
     .library(name: "MessagesApp", targets: ["MessagesApp"]),
     .library(name: "MessagesDatabase", targets: ["MessagesDatabase"]),
+    .library(name: "MessageThreadFeature", targets: ["MessageThreadFeature"]),
     .library(name: "OnboardingFeature", targets: ["OnboardingFeature"]),
   ],
   dependencies: [
@@ -47,6 +48,7 @@ let package = Package(
       name: "MessagesApp",
       dependencies: [
         "ConversationListFeature",
+        "MessageThreadFeature",
         "MessagesDatabase",
         "OnboardingFeature",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
@@ -71,6 +73,21 @@ let package = Package(
       dependencies: [
         "MessagesDatabase",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+      ]
+    ),
+    .target(
+      name: "MessageThreadFeature",
+      dependencies: [
+        "MessagesDatabase",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
+        .product(name: "Tagged", package: "swift-tagged"),
+      ]
+    ),
+    .testTarget(
+      name: "MessageThreadFeatureTests",
+      dependencies: [
+        "MessageThreadFeature"
       ]
     ),
     .target(

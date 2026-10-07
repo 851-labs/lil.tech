@@ -1,7 +1,11 @@
 import ComposableArchitecture
+import ConversationListFeature
+import Foundation
+import MessageThreadFeature
 import MessagesApp
 import MessagesDatabase
 import OnboardingFeature
+import Tagged
 import Testing
 
 @MainActor
@@ -50,6 +54,43 @@ struct AppFeatureTests {
     await store.receive(\.fullDiskAccess.delegate.accessGranted) {
       $0.hasFullDiskAccess = true
       $0.fullDiskAccess = nil
+    }
+  }
+}
+
+extension AppFeatureTests {
+  @Test
+  func selectingAConversationOpensItsThread() async {
+    let conversations = [
+      Conversation(
+        id: 1,
+        guid: "iMessage;+;chat000000000000000001",
+        style: .group,
+        chatIdentifier: "chat000000000000000001",
+        displayName: "Book Club",
+        participants: ["+15550000001", "+15550000002"],
+        latestMessage: Conversation.LatestMessage(
+          date: Date(timeIntervalSinceReferenceDate: 800_000_000),
+          text: "Hi",
+          attributedBody: nil,
+          isFromMe: false,
+          hasAttachments: false
+        )
+      )
+    ]
+    var state = AppFeature.State()
+    state.conversationList = ConversationListFeature.State(conversations: conversations)
+    let store = TestStore(initialState: state) {
+      AppFeature()
+    }
+
+    await store.send(\.conversationList.selectionChanged, 1) {
+      $0.conversationList.selection = 1
+      $0.thread = MessageThreadFeature.State(chatID: 1, title: "Book Club", isGroup: true)
+    }
+    await store.send(\.conversationList.selectionChanged, nil) {
+      $0.conversationList.selection = nil
+      $0.thread = nil
     }
   }
 }
