@@ -22,6 +22,7 @@ let package = Package(
       from: "1.12.0",
       traits: ["Tagged"]
     ),
+    .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.17.0"),
     .package(url: "https://github.com/pointfreeco/swift-tagged", from: "0.10.0"),
   ],
   targets: [
@@ -40,6 +41,7 @@ let package = Package(
     .target(
       name: "MessagesDatabase",
       dependencies: [
+        .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "SQLiteData", package: "sqlite-data"),
         .product(name: "Tagged", package: "swift-tagged"),
       ]
