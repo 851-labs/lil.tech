@@ -1,0 +1,169 @@
+import CustomDump
+import Foundation
+import MessagesDatabase
+import SQLiteData
+import Tagged
+import Testing
+
+struct ConversationsRequestTests {
+  @Test
+  func newestFirstWithPreviewsAndParticipants() throws {
+    let database = try makeInMemoryChatDatabase()
+    try database.write { db in
+      try db.seed {
+        Handle(id: 1, address: "+15550000001", service: "iMessage")
+        Handle(id: 2, address: "+15550000002", service: "iMessage")
+        Handle(id: 3, address: "friend@example.com", service: "iMessage")
+
+        Chat(
+          id: 1,
+          guid: "iMessage;-;+15550000001",
+          style: .oneOnOne,
+          chatIdentifier: "+15550000001",
+          serviceName: "iMessage",
+          displayName: nil,
+          isArchived: false
+        )
+        Chat(
+          id: 2,
+          guid: "iMessage;-;friend@example.com",
+          style: .oneOnOne,
+          chatIdentifier: "friend@example.com",
+          serviceName: "iMessage",
+          displayName: nil,
+          isArchived: false
+        )
+        Chat(
+          id: 3,
+          guid: "iMessage;+;chat000000000000000001",
+          style: .group,
+          chatIdentifier: "chat000000000000000001",
+          serviceName: "iMessage",
+          displayName: "Weekend Plans",
+          isArchived: false
+        )
+        Chat(
+          id: 4,
+          guid: "iMessage;-;+15550000009",
+          style: .oneOnOne,
+          chatIdentifier: "+15550000009",
+          serviceName: "iMessage",
+          displayName: nil,
+          isArchived: false
+        )
+
+        ChatHandleJoin(chatID: 1, handleID: 1)
+        ChatHandleJoin(chatID: 2, handleID: 3)
+        ChatHandleJoin(chatID: 3, handleID: 2)
+        ChatHandleJoin(chatID: 3, handleID: 1)
+
+        message(id: 1, text: "Hey there", handleID: 1, at: 100)
+        message(id: 2, text: nil, attributedBody: Data([0x04, 0x0B]), isFromMe: true, at: 160)
+        message(id: 3, text: "Saturday works for me", handleID: 2, at: 220)
+        message(
+          id: 4, text: "Loved “Saturday works for me”", handleID: 1, at: 300,
+          associatedMessageType: 2000)
+        message(id: 5, text: nil, handleID: 3, at: 50, hasAttachments: true)
+        message(id: 6, text: nil, handleID: 1, at: 400, itemType: 1)
+
+        ChatMessageJoin(chatID: 1, messageID: 1, messageDate: date(100))
+        ChatMessageJoin(chatID: 1, messageID: 2, messageDate: date(160))
+        ChatMessageJoin(chatID: 3, messageID: 3, messageDate: date(220))
+        ChatMessageJoin(chatID: 3, messageID: 4, messageDate: date(300))
+        ChatMessageJoin(chatID: 2, messageID: 5, messageDate: date(50))
+        ChatMessageJoin(chatID: 3, messageID: 6, messageDate: date(400))
+      }
+    }
+
+    let conversations = try database.read { db in try ConversationsRequest().fetch(db) }
+
+    expectNoDifference(
+      conversations,
+      [
+        Conversation(
+          id: 3,
+          guid: "iMessage;+;chat000000000000000001",
+          style: .group,
+          chatIdentifier: "chat000000000000000001",
+          displayName: "Weekend Plans",
+          participants: ["+15550000001", "+15550000002"],
+          latestMessage: Conversation.LatestMessage(
+            date: date(220),
+            text: "Saturday works for me",
+            attributedBody: nil,
+            isFromMe: false,
+            hasAttachments: false
+          )
+        ),
+        Conversation(
+          id: 1,
+          guid: "iMessage;-;+15550000001",
+          style: .oneOnOne,
+          chatIdentifier: "+15550000001",
+          displayName: nil,
+          participants: ["+15550000001"],
+          latestMessage: Conversation.LatestMessage(
+            date: date(160),
+            text: nil,
+            attributedBody: Data([0x04, 0x0B]),
+            isFromMe: true,
+            hasAttachments: false
+          )
+        ),
+        Conversation(
+          id: 2,
+          guid: "iMessage;-;friend@example.com",
+          style: .oneOnOne,
+          chatIdentifier: "friend@example.com",
+          displayName: nil,
+          participants: ["friend@example.com"],
+          latestMessage: Conversation.LatestMessage(
+            date: date(50),
+            text: nil,
+            attributedBody: nil,
+            isFromMe: false,
+            hasAttachments: true
+          )
+        ),
+      ]
+    )
+  }
+
+  @Test
+  func emptyDatabase() throws {
+    let database = try makeInMemoryChatDatabase()
+    let conversations = try database.read { db in try ConversationsRequest().fetch(db) }
+    #expect(conversations.isEmpty)
+  }
+}
+
+private func date(_ seconds: TimeInterval) -> Date {
+  Date(timeIntervalSinceReferenceDate: 800_000_000 + seconds)
+}
+
+private func message(
+  id: Message.ID,
+  text: String?,
+  attributedBody: Data? = nil,
+  handleID: Handle.ID = 0,
+  isFromMe: Bool = false,
+  at seconds: TimeInterval,
+  hasAttachments: Bool = false,
+  itemType: Int = 0,
+  associatedMessageType: Int = 0
+) -> Message {
+  Message(
+    id: id,
+    guid: "00000000-0000-0000-0000-\(String(format: "%012d", id.rawValue))",
+    text: text,
+    attributedBody: attributedBody,
+    handleID: handleID,
+    service: "iMessage",
+    date: date(seconds),
+    isFromMe: isFromMe,
+    isRead: true,
+    hasAttachments: hasAttachments,
+    itemType: itemType,
+    associatedMessageType: associatedMessageType
+  )
+}
