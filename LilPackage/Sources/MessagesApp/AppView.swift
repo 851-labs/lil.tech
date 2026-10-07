@@ -1,4 +1,5 @@
 public import ComposableArchitecture
+import ConversationListFeature
 import OnboardingFeature
 public import SwiftUI
 
@@ -14,8 +15,7 @@ public struct AppView: View {
       if let fullDiskAccessStore = store.scope(\.fullDiskAccess, action: \.fullDiskAccess) {
         FullDiskAccessView(store: fullDiskAccessStore)
       } else if store.hasFullDiskAccess == true {
-        Text("Conversations")
-          .frame(minWidth: 480, minHeight: 320)
+        ConversationListView(store: store.scope(\.conversationList, action: \.conversationList))
       } else {
         ProgressView()
           .frame(minWidth: 480, minHeight: 320)

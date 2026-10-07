@@ -8,6 +8,7 @@ let package = Package(
     .macOS(.v26)
   ],
   products: [
+    .library(name: "ConversationListFeature", targets: ["ConversationListFeature"]),
     .library(name: "MessagesApp", targets: ["MessagesApp"]),
     .library(name: "MessagesDatabase", targets: ["MessagesDatabase"]),
     .library(name: "OnboardingFeature", targets: ["OnboardingFeature"]),
@@ -28,8 +29,24 @@ let package = Package(
   ],
   targets: [
     .target(
+      name: "ConversationListFeature",
+      dependencies: [
+        "MessagesDatabase",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
+        .product(name: "Tagged", package: "swift-tagged"),
+      ]
+    ),
+    .testTarget(
+      name: "ConversationListFeatureTests",
+      dependencies: [
+        "ConversationListFeature"
+      ]
+    ),
+    .target(
       name: "MessagesApp",
       dependencies: [
+        "ConversationListFeature",
         "MessagesDatabase",
         "OnboardingFeature",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
