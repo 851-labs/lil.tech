@@ -18,6 +18,24 @@ public struct Chat: Identifiable, Sendable {
   @Column("is_archived")
   public var isArchived: Bool
 
+  public init(
+    id: ID,
+    guid: String,
+    style: Style,
+    chatIdentifier: String,
+    serviceName: String?,
+    displayName: String?,
+    isArchived: Bool
+  ) {
+    self.id = id
+    self.guid = guid
+    self.style = style
+    self.chatIdentifier = chatIdentifier
+    self.serviceName = serviceName
+    self.displayName = displayName
+    self.isArchived = isArchived
+  }
+
   public struct Style: Hashable, QueryBindable, RawRepresentable, Sendable {
     public var rawValue: Int
 
