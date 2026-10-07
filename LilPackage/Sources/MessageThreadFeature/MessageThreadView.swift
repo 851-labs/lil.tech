@@ -53,64 +53,28 @@ private struct MessageList: NSViewControllerRepresentable {
 
 #Preview(
   traits: .dependencies {
-    let database = try makeInMemoryChatDatabase()
-    let start = Date().addingTimeInterval(-3600)
-    try database.write { db in
-      try db.seed {
-        Handle(id: 1, address: "+15550000001", service: "iMessage")
-        Handle(id: 2, address: "+15550000002", service: "iMessage")
-        Chat(
-          id: 1,
-          guid: "iMessage;+;chat000000000000000001",
-          style: .group,
-          chatIdentifier: "chat000000000000000001",
-          serviceName: "iMessage",
-          displayName: "Weekend Plans",
-          isArchived: false
-        )
-        for (index, (handleID, text)) in [
-          (Handle.ID(1), "Anyone up for a hike on Saturday?"),
-          (Handle.ID(0), "I’m in! Which trail?"),
-          (Handle.ID(2), "How about the coastal one? It’s supposed to be sunny all weekend."),
-          (Handle.ID(1), "Perfect, let’s meet at 9"),
-          (Handle.ID(0), "See you there 🥾"),
-        ].enumerated() {
-          Message(
-            id: Message.ID(Int64(index + 1)),
-            guid: "preview-\(index)",
-            text: text,
-            attributedBody: nil,
-            handleID: handleID,
-            service: "iMessage",
-            date: start.addingTimeInterval(Double(index) * 60),
-            isFromMe: handleID == 0,
-            isRead: true,
-            hasAttachments: false,
-            itemType: 0,
-            associatedMessageType: 0
-          )
-          ChatMessageJoin(
-            chatID: 1,
-            messageID: Message.ID(Int64(index + 1)),
-            messageDate: start.addingTimeInterval(Double(index) * 60)
-          )
-        }
-      }
-    }
-    $0.chatDatabase = .constant(database)
+    $0.chatDatabase = .constant(try makePreviewChatDatabase())
   }
 ) {
+  let messages = try! makePreviewChatDatabase().read { db in
+    try MessageThreadRequest(chatID: PreviewChatDatabase.groupChatID).fetch(db)
+  }
   MessageThreadView(
     store: Store(
       initialState: MessageThreadFeature.State(
-        chatID: 1,
+        chatID: PreviewChatDatabase.groupChatID,
         chatGUID: "iMessage;+;chat000000000000000001",
         title: "Weekend Plans",
-        isGroup: true
+        isGroup: true,
+        messages: messages,
+        senderNames: Dictionary(
+          uniqueKeysWithValues: PreviewChatDatabase.contactNames.map { ($0.address, $0.name) }
+        ),
+        hasEarlierMessages: false
       )
     ) {
       MessageThreadFeature()
     }
   )
-  .frame(width: 500, height: 400)
+  .frame(width: 500, height: 420)
 }
