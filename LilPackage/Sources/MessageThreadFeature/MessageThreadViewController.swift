@@ -63,7 +63,10 @@ final class MessageThreadViewController: NSViewController {
       case .message(let id):
         if let message = messagesByID[id] {
           let sender = isGroup && !message.isFromMe ? message.senderAddress : nil
-          cell.configure(with: message, senderName: sender.map { senderNames[$0] ?? $0 })
+          cell.configure(
+            with: message,
+            senderName: sender.map { senderNames[$0] ?? formattedHandle($0) }
+          )
         }
       case .pending(let id):
         if let pending = pendingByID[id] {

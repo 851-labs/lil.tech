@@ -13,7 +13,7 @@ struct ConversationDisplayTests {
 
   @Test
   func titleFallsBackToParticipants() {
-    #expect(makeConversation(participants: ["+15550000001"]).title() == "+15550000001")
+    #expect(makeConversation(participants: ["+15550000001"]).title() == "+1 (555) 000-0001")
     #expect(
       makeConversation(displayName: "", participants: ["a@example.com", "b@example.com"]).title()
         == "a@example.com & b@example.com"
@@ -27,6 +27,12 @@ struct ConversationDisplayTests {
       conversation.title(contactNames: ["+14155550100": "Grace Hopper"])
         == "Grace Hopper & b@example.com"
     )
+  }
+
+  @Test
+  func titleFormatsUnnamedGroupParticipants() {
+    let conversation = makeConversation(participants: ["+14155550100", "+442079460958"])
+    #expect(conversation.title() == "+1 (415) 555-0100 & +442079460958")
   }
 
   @Test

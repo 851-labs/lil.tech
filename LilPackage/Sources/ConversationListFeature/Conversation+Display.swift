@@ -2,8 +2,8 @@ public import Foundation
 public import MessagesDatabase
 
 extension Conversation {
-  /// The group name if it has one, otherwise the participants (by contact name when known),
-  /// otherwise the chat identifier.
+  /// The group name if it has one, otherwise the participants (by contact name when known, else as
+  /// a formatted phone number or email), otherwise the chat identifier.
   public func title(contactNames: [String: String] = [:]) -> String {
     if let displayName, !displayName.isEmpty {
       return displayName
@@ -11,10 +11,10 @@ extension Conversation {
     if !participants.isEmpty {
       return
         participants
-        .map { contactNames[$0] ?? $0 }
+        .map { contactNames[$0] ?? formattedHandle($0) }
         .formatted(.list(type: .and, width: .short))
     }
-    return contactNames[chatIdentifier] ?? chatIdentifier
+    return contactNames[chatIdentifier] ?? formattedHandle(chatIdentifier)
   }
 
   /// The latest message's text, falling back to the text archived in `attributedBody`, then to
