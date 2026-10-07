@@ -31,6 +31,7 @@ public struct ConversationListFeature {
   }
 
   @Dependency(\.chatDatabase) var chatDatabase
+  @Dependency(\.chatDatabaseChanges) var chatDatabaseChanges
 
   public init() {}
 
@@ -57,18 +58,24 @@ public struct ConversationListFeature {
 
       case .task:
         state.isLoading = true
-        return .run { [chatDatabase] send in
-          await send(
-            .conversationsLoaded(
-              Result {
-                try await chatDatabase.reader().read { db in
-                  try ConversationsRequest().fetch(db)
-                }
-              }
-            )
-          )
+        return .run { [chatDatabase, chatDatabaseChanges] send in
+          let changes = chatDatabaseChanges.stream()
+          await send(.conversationsLoaded(await loadConversations(from: chatDatabase)))
+          for await _ in changes {
+            await send(.conversationsLoaded(await loadConversations(from: chatDatabase)))
+          }
         }
       }
+    }
+  }
+}
+
+private func loadConversations(from chatDatabase: ChatDatabase) async -> Result<
+  [Conversation], any Error
+> {
+  await Result {
+    try await chatDatabase.reader().read { db in
+      try ConversationsRequest().fetch(db)
     }
   }
 }
