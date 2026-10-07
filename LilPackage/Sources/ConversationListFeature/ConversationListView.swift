@@ -12,30 +12,23 @@ public struct ConversationListView: View {
   }
 
   public var body: some View {
-    NavigationSplitView {
-      List(selection: $store.selection.sending(\.selectionChanged)) {
-        ForEach(store.conversations) { conversation in
-          ConversationRow(conversation: conversation)
-            .tag(conversation.id)
-        }
+    List(selection: $store.selection.sending(\.selectionChanged)) {
+      ForEach(store.conversations) { conversation in
+        ConversationRow(conversation: conversation)
+          .tag(conversation.id)
       }
-      .navigationSplitViewColumnWidth(min: 240, ideal: 300)
-      .overlay {
-        if store.loadFailed {
-          ContentUnavailableView(
-            "Couldn’t Load Conversations",
-            systemImage: "exclamationmark.bubble",
-            description: Text("The Messages database couldn’t be read.")
-          )
-        } else if store.conversations.isEmpty, !store.isLoading {
-          ContentUnavailableView("No Conversations", systemImage: "bubble.left.and.bubble.right")
-        }
-      }
-    } detail: {
-      ContentUnavailableView(
-        "No Conversation Selected", systemImage: "bubble.left.and.bubble.right")
     }
-    .frame(minWidth: 720, minHeight: 480)
+    .overlay {
+      if store.loadFailed {
+        ContentUnavailableView(
+          "Couldn’t Load Conversations",
+          systemImage: "exclamationmark.bubble",
+          description: Text("The Messages database couldn’t be read.")
+        )
+      } else if store.conversations.isEmpty, !store.isLoading {
+        ContentUnavailableView("No Conversations", systemImage: "bubble.left.and.bubble.right")
+      }
+    }
     .task { await store.send(.task).finish() }
   }
 }
