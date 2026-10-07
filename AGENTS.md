@@ -11,6 +11,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   2. Branch off `main` using the ticket's Linear branch name.
   3. Open one PR per ticket, with the ticket ID in the title.
   4. Move the ticket to In Review.
+- Run `scripts/format` before committing. `scripts/format --lint` must pass.
 - Don't bundle unrelated changes. If you find extra work, file a new ticket.
 
 ## Privacy: Messages data

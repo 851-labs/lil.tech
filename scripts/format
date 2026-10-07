@@ -1,0 +1,20 @@
+#!/bin/sh
+# Formats every Swift file in the repo with swift-format.
+# Usage: scripts/format [--lint]
+#   --lint  Check formatting without changing files; exits non-zero on violations.
+set -eu
+
+cd "$(dirname "$0")/.."
+
+files=$(find . -name '*.swift' \
+  -not -path '*/.build/*' \
+  -not -path '*/DerivedData/*' \
+  -not -path '*/.swiftpm/*')
+
+if [ "${1:-}" = "--lint" ]; then
+  # shellcheck disable=SC2086
+  exec xcrun swift-format lint --strict --parallel $files
+else
+  # shellcheck disable=SC2086
+  exec xcrun swift-format format --in-place --parallel $files
+fi
