@@ -15,8 +15,8 @@ public struct FullDiskAccessView: View {
     } description: {
       Text(
         """
-        Lil Messages reads your conversations from the Messages database on this Mac. \
-        In System Settings, open Privacy & Security › Full Disk Access and turn on Lil Messages.
+        lil messages reads your conversations from the Messages database on this Mac. \
+        In System Settings, open Privacy & Security › Full Disk Access and turn on lil messages.
         """
       )
     } actions: {

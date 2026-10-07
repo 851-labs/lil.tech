@@ -24,7 +24,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 
 ## Privacy: Messages data
 
-This repo is public. Lil Messages reads `~/Library/Messages/chat.db`, and dev machines with Full Disk Access can read the real file.
+This repo is public. lil messages reads `~/Library/Messages/chat.db`, and dev machines with Full Disk Access can read the real file.
 
 - **Never** commit `chat.db`, copies of it, or anything extracted from it.
 - Reading the real `chat.db` locally to debug or explore is fine. Just never let its contents end up in commits, PRs, tickets, or other public places.

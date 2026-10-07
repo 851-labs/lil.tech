@@ -15,7 +15,7 @@ public struct MessageSender: Sendable {
 }
 
 public enum MessageSendError: Error, Equatable, Sendable {
-  /// The user hasn't allowed Lil Messages to control Messages.app (System Settings › Privacy &
+  /// The user hasn't allowed lil messages to control Messages.app (System Settings › Privacy &
   /// Security › Automation).
   case automationDenied
   /// Messages.app doesn't know the chat, e.g. it was deleted.

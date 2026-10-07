@@ -2,7 +2,7 @@ public import ComposableArchitecture
 public import Foundation
 import MessagesDatabase
 
-/// Explains why Lil Messages needs Full Disk Access and re-checks until it's granted.
+/// Explains why lil messages needs Full Disk Access and re-checks until it's granted.
 ///
 /// Reading `~/Library/Messages/chat.db` is the only thing Full Disk Access unlocks for us, so
 /// "granted" means the Messages database can be opened.
