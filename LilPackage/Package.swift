@@ -8,14 +8,21 @@ let package = Package(
     .macOS(.v26)
   ],
   products: [
-    .library(name: "MessagesApp", targets: ["MessagesApp"])
+    .library(name: "MessagesApp", targets: ["MessagesApp"]),
+    .library(name: "MessagesDatabase", targets: ["MessagesDatabase"]),
   ],
   dependencies: [
     .package(
       url: "https://github.com/pointfreeco/swift-composable-architecture",
       from: "1.26.0",
       traits: ["ComposableArchitecture2Deprecations"]
-    )
+    ),
+    .package(
+      url: "https://github.com/pointfreeco/sqlite-data",
+      from: "1.12.0",
+      traits: ["Tagged"]
+    ),
+    .package(url: "https://github.com/pointfreeco/swift-tagged", from: "0.10.0"),
   ],
   targets: [
     .target(
@@ -28,6 +35,19 @@ let package = Package(
       name: "MessagesAppTests",
       dependencies: [
         "MessagesApp"
+      ]
+    ),
+    .target(
+      name: "MessagesDatabase",
+      dependencies: [
+        .product(name: "SQLiteData", package: "sqlite-data"),
+        .product(name: "Tagged", package: "swift-tagged"),
+      ]
+    ),
+    .testTarget(
+      name: "MessagesDatabaseTests",
+      dependencies: [
+        "MessagesDatabase"
       ]
     ),
   ],
