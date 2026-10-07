@@ -1,4 +1,5 @@
 public import ComposableArchitecture
+public import ConversationListFeature
 import MessagesDatabase
 public import OnboardingFeature
 
@@ -6,6 +7,7 @@ public import OnboardingFeature
 public struct AppFeature {
   @ObservableState
   public struct State: Equatable {
+    public var conversationList = ConversationListFeature.State()
     public var fullDiskAccess: FullDiskAccessFeature.State?
     public var hasFullDiskAccess: Bool?
 
@@ -14,6 +16,7 @@ public struct AppFeature {
 
   public enum Action {
     case accessChecked(isGranted: Bool)
+    case conversationList(ConversationListFeature.Action)
     case fullDiskAccess(FullDiskAccessFeature.Action)
     case task
   }
@@ -23,11 +26,17 @@ public struct AppFeature {
   public init() {}
 
   public var body: some ReducerOf<Self> {
+    Scope(\.conversationList, action: \.conversationList) {
+      ConversationListFeature()
+    }
     Reduce { state, action in
       switch action {
       case .accessChecked(let isGranted):
         state.hasFullDiskAccess = isGranted
         state.fullDiskAccess = isGranted ? nil : FullDiskAccessFeature.State()
+        return .none
+
+      case .conversationList:
         return .none
 
       case .fullDiskAccess(.delegate(.accessGranted)):
