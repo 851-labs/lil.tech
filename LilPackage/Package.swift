@@ -69,7 +69,8 @@ let package = Package(
     .testTarget(
       name: "MessagesDatabaseTests",
       dependencies: [
-        "MessagesDatabase"
+        "MessagesDatabase",
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ]
     ),
     .target(
