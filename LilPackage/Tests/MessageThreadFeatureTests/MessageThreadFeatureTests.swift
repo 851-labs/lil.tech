@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import MessageSending
 import MessageThreadFeature
 import MessagesDatabase
 import SQLiteData
@@ -12,7 +13,12 @@ struct MessageThreadFeatureTests {
   func loadsLatestMessages() async throws {
     let database = try await makeDatabase(messageCount: 3)
     let store = TestStore(
-      initialState: MessageThreadFeature.State(chatID: 1, title: "+15550000001", isGroup: false)
+      initialState: MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;-;+15550000001",
+        title: "+15550000001",
+        isGroup: false
+      )
     ) {
       MessageThreadFeature()
     } withDependencies: {
@@ -32,7 +38,12 @@ struct MessageThreadFeatureTests {
     let database = try await makeDatabase(messageCount: 2)
     let (changes, change) = AsyncStream.makeStream(of: Void.self)
     let store = TestStore(
-      initialState: MessageThreadFeature.State(chatID: 1, title: "+15550000001", isGroup: false)
+      initialState: MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;-;+15550000001",
+        title: "+15550000001",
+        isGroup: false
+      )
     ) {
       MessageThreadFeature()
     } withDependencies: {
@@ -65,7 +76,12 @@ struct MessageThreadFeatureTests {
   func loadsEarlierPagesWhenScrolledNearTop() async throws {
     let database = try await makeDatabase(messageCount: 150)
     let store = TestStore(
-      initialState: MessageThreadFeature.State(chatID: 1, title: "+15550000001", isGroup: false)
+      initialState: MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;-;+15550000001",
+        title: "+15550000001",
+        isGroup: false
+      )
     ) {
       MessageThreadFeature()
     } withDependencies: {
@@ -93,7 +109,12 @@ struct MessageThreadFeatureTests {
   @Test
   func loadFailure() async {
     let store = TestStore(
-      initialState: MessageThreadFeature.State(chatID: 1, title: "+15550000001", isGroup: false)
+      initialState: MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;-;+15550000001",
+        title: "+15550000001",
+        isGroup: false
+      )
     ) {
       MessageThreadFeature()
     } withDependencies: {
@@ -104,6 +125,132 @@ struct MessageThreadFeatureTests {
     await store.send(.task)
     await store.receive(\.latestMessagesLoaded.failure) {
       $0.loadFailed = true
+    }
+  }
+}
+
+extension MessageThreadFeatureTests {
+  @Test
+  func sendShowsPendingMessageUntilItAppearsInChatDatabase() async {
+    let sent = LockIsolated<[(String, String)]>([])
+    let store = TestStore(
+      initialState: MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;-;+15550000001",
+        title: "+15550000001",
+        isGroup: false,
+        draft: "  Hello there \n"
+      )
+    ) {
+      MessageThreadFeature()
+    } withDependencies: {
+      $0.date.now = date(10)
+      $0.uuid = .incrementing
+      $0.messageSender = MessageSender { text, chatGUID in
+        sent.withValue { $0.append((text, chatGUID)) }
+      }
+    }
+
+    await store.send(.returnKeyPressed) {
+      $0.draft = ""
+      $0.pendingMessages = [
+        MessageThreadFeature.PendingMessage(
+          id: UUID(0),
+          text: "Hello there",
+          sentAt: date(10)
+        )
+      ]
+    }
+    await store.receive(\.sendResponse)
+    #expect(sent.value.map(\.0) == ["Hello there"])
+    #expect(sent.value.map(\.1) == ["iMessage;-;+15550000001"])
+
+    var confirmed = threadMessage(11)
+    confirmed.text = "Hello there"
+    confirmed.isFromMe = true
+    confirmed.senderAddress = nil
+    await store.send(.latestMessagesLoaded(.success([confirmed]))) {
+      $0.hasEarlierMessages = false
+      $0.messages = [confirmed]
+      $0.pendingMessages = []
+    }
+  }
+
+  @Test
+  func failedSendCanBeRetried() async {
+    let attempts = LockIsolated(0)
+    let store = TestStore(
+      initialState: MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;-;+15550000001",
+        title: "+15550000001",
+        isGroup: false,
+        draft: "Hello"
+      )
+    ) {
+      MessageThreadFeature()
+    } withDependencies: {
+      $0.date.now = date(10)
+      $0.uuid = .incrementing
+      $0.messageSender = MessageSender { _, _ in
+        attempts.withValue { $0 += 1 }
+        if attempts.value == 1 {
+          throw MessageSendError.automationDenied
+        }
+      }
+    }
+
+    await store.send(.returnKeyPressed) {
+      $0.draft = ""
+      $0.pendingMessages = [
+        MessageThreadFeature.PendingMessage(id: UUID(0), text: "Hello", sentAt: date(10))
+      ]
+    }
+    await store.receive(\.sendResponse) {
+      $0.pendingMessages[0].isFailed = true
+    }
+
+    store.dependencies.date.now = date(20)
+    await store.send(.failedMessageTapped(UUID(0))) {
+      $0.pendingMessages[0].isFailed = false
+      $0.pendingMessages[0].sentAt = date(20)
+    }
+    await store.receive(\.sendResponse)
+    #expect(attempts.value == 2)
+  }
+
+  @Test
+  func blankDraftDoesNotSend() async {
+    let store = TestStore(
+      initialState: MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;-;+15550000001",
+        title: "+15550000001",
+        isGroup: false,
+        draft: "  \n "
+      )
+    ) {
+      MessageThreadFeature()
+    }
+
+    await store.send(.returnKeyPressed)
+  }
+
+  @Test
+  func draftChanged() async {
+    let store = TestStore(
+      initialState: MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;-;+15550000001",
+        title: "+15550000001",
+        isGroup: false
+      )
+    ) {
+      MessageThreadFeature()
+    }
+
+    await store.send(.draftChanged("Hi")) {
+      $0.draft = "Hi"
     }
   }
 }

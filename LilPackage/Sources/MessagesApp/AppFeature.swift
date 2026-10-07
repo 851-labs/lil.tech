@@ -57,6 +57,7 @@ public struct AppFeature {
         if state.thread?.chatID != conversation.id {
           state.thread = MessageThreadFeature.State(
             chatID: conversation.id,
+            chatGUID: conversation.guid,
             title: conversation.title(contactNames: contactNames),
             isGroup: conversation.style == .group,
             senderNames: contactNames

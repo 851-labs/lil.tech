@@ -89,7 +89,12 @@ extension AppFeatureTests {
 
     await store.send(\.conversationList.selectionChanged, 1) {
       $0.conversationList.selection = 1
-      $0.thread = MessageThreadFeature.State(chatID: 1, title: "Book Club", isGroup: true)
+      $0.thread = MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;+;chat000000000000000001",
+        title: "Book Club",
+        isGroup: true
+      )
     }
     await store.send(\.conversationList.selectionChanged, nil) {
       $0.conversationList.selection = nil

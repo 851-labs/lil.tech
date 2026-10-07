@@ -106,6 +106,7 @@ let package = Package(
     .target(
       name: "MessageThreadFeature",
       dependencies: [
+        "MessageSending",
         "MessagesDatabase",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "SQLiteData", package: "sqlite-data"),

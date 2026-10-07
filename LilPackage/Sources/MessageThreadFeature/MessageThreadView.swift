@@ -12,18 +12,32 @@ public struct MessageThreadView: View {
   }
 
   public var body: some View {
-    MessageList(store: store)
-      .overlay {
-        if store.loadFailed {
-          ContentUnavailableView(
-            "Couldn’t Load Messages",
-            systemImage: "exclamationmark.bubble",
-            description: Text("The Messages database couldn’t be read.")
-          )
+    VStack(spacing: 0) {
+      MessageList(store: store)
+      Divider()
+      ComposerView(store: store)
+        .frame(height: 64)
+        .overlay(alignment: .topLeading) {
+          if store.draft.isEmpty {
+            Text("iMessage")
+              .foregroundStyle(.tertiary)
+              .padding(.horizontal, 13)
+              .padding(.vertical, 8)
+              .allowsHitTesting(false)
+          }
         }
+    }
+    .overlay {
+      if store.loadFailed {
+        ContentUnavailableView(
+          "Couldn’t Load Messages",
+          systemImage: "exclamationmark.bubble",
+          description: Text("The Messages database couldn’t be read.")
+        )
       }
-      .navigationTitle(store.title)
-      .task { await store.send(.task).finish() }
+    }
+    .navigationTitle(store.title)
+    .task { await store.send(.task).finish() }
   }
 }
 
@@ -88,7 +102,12 @@ private struct MessageList: NSViewControllerRepresentable {
 ) {
   MessageThreadView(
     store: Store(
-      initialState: MessageThreadFeature.State(chatID: 1, title: "Weekend Plans", isGroup: true)
+      initialState: MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;+;chat000000000000000001",
+        title: "Weekend Plans",
+        isGroup: true
+      )
     ) {
       MessageThreadFeature()
     }
