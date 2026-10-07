@@ -66,10 +66,11 @@ struct ConversationRow: View {
               locale: locale
             )
           )
-          .font(.caption)
+          .font(.callout)
           .foregroundStyle(.secondary)
         }
         Text(conversation.previewText)
+          .font(.callout)
           .foregroundStyle(.secondary)
           .lineLimit(2)
       }
