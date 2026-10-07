@@ -1,4 +1,5 @@
 public import ComposableArchitecture
+import OnboardingFeature
 public import SwiftUI
 
 public struct AppView: View {
@@ -9,10 +10,18 @@ public struct AppView: View {
   }
 
   public var body: some View {
-    Text(store.greeting)
-      .font(.largeTitle)
-      .frame(minWidth: 480, minHeight: 320)
-      .onAppear { store.send(.onAppear) }
+    Group {
+      if let fullDiskAccessStore = store.scope(\.fullDiskAccess, action: \.fullDiskAccess) {
+        FullDiskAccessView(store: fullDiskAccessStore)
+      } else if store.hasFullDiskAccess == true {
+        Text("Conversations")
+          .frame(minWidth: 480, minHeight: 320)
+      } else {
+        ProgressView()
+          .frame(minWidth: 480, minHeight: 320)
+      }
+    }
+    .task { await store.send(.task).finish() }
   }
 }
 

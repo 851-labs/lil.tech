@@ -17,6 +17,18 @@ struct ChatDatabaseTests {
   }
 
   @Test
+  func liveThrowsWhenFileIsUnreadable() throws {
+    let url = try makeChatDatabaseFile()
+    defer { try? FileManager.default.removeItem(at: url) }
+    try FileManager.default.setAttributes(
+      [.posixPermissions: 0o000], ofItemAtPath: url.path(percentEncoded: false))
+
+    #expect(throws: ChatDatabaseUnavailable.self) {
+      try ChatDatabase.live(url: url).reader()
+    }
+  }
+
+  @Test
   func liveOpensReadOnly() throws {
     let url = try makeChatDatabaseFile()
     defer { try? FileManager.default.removeItem(at: url) }

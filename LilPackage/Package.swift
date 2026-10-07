@@ -10,6 +10,7 @@ let package = Package(
   products: [
     .library(name: "MessagesApp", targets: ["MessagesApp"]),
     .library(name: "MessagesDatabase", targets: ["MessagesDatabase"]),
+    .library(name: "OnboardingFeature", targets: ["OnboardingFeature"]),
   ],
   dependencies: [
     .package(
@@ -29,7 +30,9 @@ let package = Package(
     .target(
       name: "MessagesApp",
       dependencies: [
-        .product(name: "ComposableArchitecture", package: "swift-composable-architecture")
+        "MessagesDatabase",
+        "OnboardingFeature",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
       ]
     ),
     .testTarget(
@@ -50,6 +53,19 @@ let package = Package(
       name: "MessagesDatabaseTests",
       dependencies: [
         "MessagesDatabase"
+      ]
+    ),
+    .target(
+      name: "OnboardingFeature",
+      dependencies: [
+        "MessagesDatabase",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+      ]
+    ),
+    .testTarget(
+      name: "OnboardingFeatureTests",
+      dependencies: [
+        "OnboardingFeature"
       ]
     ),
   ],

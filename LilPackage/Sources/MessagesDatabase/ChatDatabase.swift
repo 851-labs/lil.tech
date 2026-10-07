@@ -42,6 +42,7 @@ extension ChatDatabase {
         do {
           let reader = try DatabaseQueue(
             path: url.path(percentEncoded: false), configuration: configuration)
+          _ = try reader.read { db in try db.tableExists("message") }
           openedReader = reader
           return reader
         } catch {
