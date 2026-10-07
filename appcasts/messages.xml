@@ -3,6 +3,21 @@
   <channel>
     <title>lil messages</title>
     <item>
+      <title>0.1.1</title>
+      <pubDate>Wed, 07 Oct 2026 23:13:39 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/messages%2Fv0.1.1</link>
+      <sparkle:version>27</sparkle:version>
+      <sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<p>Fixed: “Open System Settings” on the Full Disk Access screen now opens Privacy &amp; Security › Full Disk Access.</p>]]></description>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/messages%2Fv0.1.1/lil-messages-0.1.1.dmg"
+        length="9925067"
+        type="application/octet-stream"
+        sparkle:edSignature="xOQdYp+LEWxhkRX3indkM9Uv9bGE1rEtIYIt/YjvhUQD7d3Eby/YvRaeJFcJ0ktDI6UKEOkg2syxWoGkEAPQDg=="
+      />
+    </item>
+    <item>
       <title>0.1.0</title>
       <pubDate>Wed, 07 Oct 2026 21:44:09 +0000</pubDate>
       <link>https://github.com/851-labs/lil.tech/releases/tag/messages%2Fv0.1.0</link>
