@@ -1,0 +1,100 @@
+#!/bin/bash
+# Builds a signed, notarized DMG for one of the lil apps.
+# Usage: scripts/release <app> <version> [--skip-notarize]
+#   app      Which app to release (currently: messages).
+#   version  Marketing version, e.g. 0.1.0.
+#
+# The build number (CFBundleVersion) is the number of commits on HEAD, so it always increases,
+# which Sparkle relies on to order updates.
+#
+# Requires the "Developer ID Application" certificate and a notarytool keychain profile named
+# lil-notary (see docs/RELEASING.md). Output goes to build/releases/<app>/<version>/.
+set -euo pipefail
+
+if [ $# -lt 2 ]; then
+  echo "usage: scripts/release <app> <version> [--skip-notarize]" >&2
+  exit 64
+fi
+app=$1
+version=$2
+notarize=true
+[ "${3:-}" = "--skip-notarize" ] && notarize=false
+
+case "$app" in
+  messages)
+    scheme=LilMessages
+    product="Lil Messages"
+    dmg_name=LilMessages
+    ;;
+  *)
+    echo "unknown app: $app" >&2
+    exit 64
+    ;;
+esac
+
+cd "$(dirname "$0")/.."
+team=WH4QW9ND3J
+build_number=$(git rev-list --count HEAD)
+out="build/releases/$app/$version"
+archive="$out/$scheme.xcarchive"
+export_dir="$out/export"
+dmg="$out/$dmg_name-$version.dmg"
+
+rm -rf "$out"
+mkdir -p "$out"
+
+echo "==> Archiving $product $version ($build_number)"
+xcodebuild archive \
+  -workspace Lil.xcworkspace \
+  -scheme "$scheme" \
+  -configuration Release \
+  -destination 'generic/platform=macOS' \
+  -archivePath "$archive" \
+  -skipMacroValidation \
+  MARKETING_VERSION="$version" \
+  CURRENT_PROJECT_VERSION="$build_number" \
+  -quiet
+
+echo "==> Exporting with Developer ID"
+cat > "$out/ExportOptions.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key>
+  <string>developer-id</string>
+  <key>signingStyle</key>
+  <string>manual</string>
+  <key>signingCertificate</key>
+  <string>Developer ID Application</string>
+  <key>teamID</key>
+  <string>$team</string>
+</dict>
+</plist>
+PLIST
+xcodebuild -exportArchive \
+  -archivePath "$archive" \
+  -exportPath "$export_dir" \
+  -exportOptionsPlist "$out/ExportOptions.plist" \
+  -quiet
+
+echo "==> Building DMG"
+staging="$out/dmg"
+mkdir -p "$staging"
+cp -R "$export_dir/$product.app" "$staging/"
+ln -s /Applications "$staging/Applications"
+hdiutil create -volname "$product" -srcfolder "$staging" -fs HFS+ -format UDZO -ov "$dmg" -quiet
+rm -rf "$staging"
+codesign --sign "Developer ID Application: Alexandru Turcanu ($team)" --timestamp "$dmg"
+
+if $notarize; then
+  echo "==> Notarizing"
+  xcrun notarytool submit "$dmg" --keychain-profile lil-notary --wait
+  xcrun stapler staple "$dmg"
+  echo "==> Verifying"
+  spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
+else
+  echo "==> Skipping notarization"
+fi
+
+echo "==> $dmg"
