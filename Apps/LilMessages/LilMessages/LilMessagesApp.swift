@@ -11,6 +11,12 @@ struct LilMessagesApp: App {
 
   @State private var updater = AppUpdater()
 
+  init() {
+    prepareDependencies {
+      $0.openURL = .workspace
+    }
+  }
+
   var body: some Scene {
     WindowGroup {
       AppView(store: Self.store)
