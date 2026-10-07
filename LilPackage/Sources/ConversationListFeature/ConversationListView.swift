@@ -14,7 +14,7 @@ public struct ConversationListView: View {
   public var body: some View {
     List(selection: $store.selection.sending(\.selectionChanged)) {
       ForEach(store.conversations) { conversation in
-        ConversationRow(conversation: conversation)
+        ConversationRow(conversation: conversation, contactNames: store.contactNames)
           .tag(conversation.id)
       }
     }
@@ -35,6 +35,7 @@ public struct ConversationListView: View {
 
 struct ConversationRow: View {
   let conversation: Conversation
+  let contactNames: [String: String]
 
   @Dependency(\.calendar) var calendar
   @Dependency(\.date.now) var now
@@ -52,7 +53,7 @@ struct ConversationRow: View {
 
       VStack(alignment: .leading, spacing: 2) {
         HStack(alignment: .firstTextBaseline) {
-          Text(conversation.title)
+          Text(conversation.title(contactNames: contactNames))
             .font(.headline)
             .lineLimit(1)
           Spacer()

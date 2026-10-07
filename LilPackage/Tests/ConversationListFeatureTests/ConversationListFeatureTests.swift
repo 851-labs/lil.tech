@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import ContactNames
 import ConversationListFeature
 import Foundation
 import MessagesDatabase
@@ -45,6 +46,7 @@ struct ConversationListFeatureTests {
     } withDependencies: {
       $0.chatDatabase = .constant(database)
       $0.chatDatabaseChanges = ChatDatabaseChanges { AsyncStream { $0.finish() } }
+      $0.contactNames = .constant(contactIndex)
     }
 
     await store.send(.task) {
@@ -85,6 +87,9 @@ struct ConversationListFeatureTests {
         ),
       ]
     }
+    await store.receive(\.contactNamesLoaded) {
+      $0.contactNames = ["+15550000001": "Ada Lovelace"]
+    }
   }
 
   @Test
@@ -111,6 +116,7 @@ struct ConversationListFeatureTests {
     } withDependencies: {
       $0.chatDatabase = .constant(database)
       $0.chatDatabaseChanges = ChatDatabaseChanges { changes }
+      $0.contactNames = .constant(contactIndex)
     }
 
     let task = await store.send(.task) {
@@ -122,6 +128,7 @@ struct ConversationListFeatureTests {
         conversation(id: 1, guid: "iMessage;-;+15550000001", text: "Hi", at: 100)
       ]
     }
+    await store.receive(\.contactNamesLoaded)
 
     try await database.write { db in
       try db.seed {
@@ -135,6 +142,7 @@ struct ConversationListFeatureTests {
         conversation(id: 1, guid: "iMessage;-;+15550000001", text: "New message", at: 200)
       ]
     }
+    await store.receive(\.contactNamesLoaded)
 
     change.finish()
     await task.finish()
@@ -147,6 +155,7 @@ struct ConversationListFeatureTests {
     } withDependencies: {
       $0.chatDatabase = ChatDatabase { throw DatabaseUnavailable() }
       $0.chatDatabaseChanges = ChatDatabaseChanges { AsyncStream { $0.finish() } }
+      $0.contactNames = .constant(contactIndex)
     }
 
     await store.send(.task) {
@@ -183,16 +192,42 @@ struct ConversationListFeatureTests {
       )
     ) {
       ConversationListFeature()
+    } withDependencies: {
+      $0.contactNames = .constant(contactIndex)
     }
 
     await store.send(.conversationsLoaded(.success([conversation(id: 1)]))) {
       $0.conversations = [conversation(id: 1)]
       $0.selection = nil
     }
+    await store.receive(\.contactNamesLoaded)
+  }
+
+  @Test
+  func reloadsContactNamesWhenAccessChanges() async {
+    var conversation = conversation(id: 1)
+    conversation.participants = ["+14155550100", "friend@example.com"]
+    let store = TestStore(
+      initialState: ConversationListFeature.State(conversations: [conversation])
+    ) {
+      ConversationListFeature()
+    } withDependencies: {
+      $0.contactNames = .constant(contactIndex)
+    }
+
+    await store.send(.contactsAccessChanged)
+    await store.receive(\.contactNamesLoaded) {
+      $0.contactNames = ["+14155550100": "Grace Hopper"]
+    }
   }
 }
 
 private struct DatabaseUnavailable: Error {}
+
+private let contactIndex = ContactIndex([
+  ContactIndex.Contact(name: "Ada Lovelace", phoneNumbers: ["+1 (555) 000-0001"]),
+  ContactIndex.Contact(name: "Grace Hopper", phoneNumbers: ["(415) 555-0100"]),
+])
 
 private func date(_ seconds: TimeInterval) -> Date {
   Date(timeIntervalSinceReferenceDate: 800_000_000 + seconds)

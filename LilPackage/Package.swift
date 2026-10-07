@@ -8,6 +8,7 @@ let package = Package(
     .macOS(.v26)
   ],
   products: [
+    .library(name: "ContactNames", targets: ["ContactNames"]),
     .library(name: "ConversationListFeature", targets: ["ConversationListFeature"]),
     .library(name: "MessagesApp", targets: ["MessagesApp"]),
     .library(name: "MessageSending", targets: ["MessageSending"]),
@@ -31,8 +32,21 @@ let package = Package(
   ],
   targets: [
     .target(
+      name: "ContactNames",
+      dependencies: [
+        .product(name: "Dependencies", package: "swift-dependencies")
+      ]
+    ),
+    .testTarget(
+      name: "ContactNamesTests",
+      dependencies: [
+        "ContactNames"
+      ]
+    ),
+    .target(
       name: "ConversationListFeature",
       dependencies: [
+        "ContactNames",
         "MessagesDatabase",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "SQLiteData", package: "sqlite-data"),
@@ -48,6 +62,7 @@ let package = Package(
     .target(
       name: "MessagesApp",
       dependencies: [
+        "ContactNames",
         "ConversationListFeature",
         "MessageThreadFeature",
         "MessagesDatabase",

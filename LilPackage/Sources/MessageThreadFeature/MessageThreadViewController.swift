@@ -11,6 +11,7 @@ final class MessageThreadViewController: NSViewController {
   private var dataSource: NSTableViewDiffableDataSource<Int, Message.ID>!
   private var messagesByID: [Message.ID: ThreadMessage] = [:]
   private var isGroup = false
+  private var senderNames: [String: String] = [:]
 
   init(store: StoreOf<MessageThreadFeature>) {
     self.store = store
@@ -48,7 +49,8 @@ final class MessageThreadViewController: NSViewController {
         tableView.makeView(withIdentifier: MessageCellView.identifier, owner: nil)
         as? MessageCellView ?? MessageCellView()
       if let message = messagesByID[id] {
-        cell.configure(with: message, showsSender: isGroup)
+        let sender = isGroup && !message.isFromMe ? message.senderAddress : nil
+        cell.configure(with: message, senderName: sender.map { senderNames[$0] ?? $0 })
       }
       return cell
     }
@@ -62,11 +64,11 @@ final class MessageThreadViewController: NSViewController {
 
     observe { [weak self] in
       guard let self else { return }
-      apply(messages: store.messages, isGroup: store.isGroup)
+      apply(messages: store.messages, isGroup: store.isGroup, senderNames: store.senderNames)
     }
   }
 
-  private func apply(messages: [ThreadMessage], isGroup: Bool) {
+  private func apply(messages: [ThreadMessage], isGroup: Bool, senderNames: [String: String]) {
     let previousIDs = dataSource.snapshot().itemIdentifiers
     let wasAtBottom = isScrolledToBottom
     let distanceFromBottom =
@@ -75,9 +77,14 @@ final class MessageThreadViewController: NSViewController {
       previousIDs.first.map { first in messages.first?.id != first } ?? false
       && previousIDs.last == messages.last?.id
 
+    let senderNamesChanged = senderNames != self.senderNames
     self.isGroup = isGroup
+    self.senderNames = senderNames
     let changedIDs = messages.compactMap { message in
-      messagesByID[message.id].map { $0 != message ? message.id : nil } ?? nil
+      if senderNamesChanged, messagesByID[message.id] != nil {
+        return message.id
+      }
+      return messagesByID[message.id].map { $0 != message ? message.id : nil } ?? nil
     }
     messagesByID = Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0) })
 
@@ -171,7 +178,7 @@ final class MessageCellView: NSTableCellView {
     fatalError("init(coder:) has not been implemented")
   }
 
-  func configure(with message: ThreadMessage, showsSender: Bool) {
+  func configure(with message: ThreadMessage, senderName: String?) {
     let body = message.body
     bodyLabel.stringValue = body.isEmpty && message.hasAttachments ? "Attachment" : body
     bodyLabel.textColor = message.isFromMe ? .white : .labelColor
@@ -180,9 +187,8 @@ final class MessageCellView: NSTableCellView {
       ? NSColor.controlAccentColor.cgColor
       : NSColor.unemphasizedSelectedContentBackgroundColor.cgColor
 
-    let sender = showsSender && !message.isFromMe ? message.senderAddress : nil
-    senderLabel.stringValue = sender ?? ""
-    senderHeightConstraint.isActive = sender == nil
+    senderLabel.stringValue = senderName ?? ""
+    senderHeightConstraint.isActive = senderName == nil
 
     leadingConstraint.isActive = !message.isFromMe
     trailingConstraint.isActive = message.isFromMe

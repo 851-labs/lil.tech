@@ -194,6 +194,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Lil Messages";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Lil Messages sends your messages through the Messages app.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Lil Messages shows the names of the people you message.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -227,6 +228,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Lil Messages";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Lil Messages sends your messages through the Messages app.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Lil Messages shows the names of the people you message.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

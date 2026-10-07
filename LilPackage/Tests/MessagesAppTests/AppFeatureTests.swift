@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import ContactNames
 import ConversationListFeature
 import Foundation
 import MessageThreadFeature
@@ -17,6 +18,7 @@ struct AppFeatureTests {
       AppFeature()
     } withDependencies: {
       $0.chatDatabase = .constant(database)
+      $0.contactNames = .constant(ContactIndex([]))
     }
 
     await store.send(.task)
@@ -36,6 +38,7 @@ struct AppFeatureTests {
         guard isGranted.value else { throw AccessDenied() }
         return database
       }
+      $0.contactNames = .constant(ContactIndex([]))
     }
 
     await store.send(.task)
@@ -91,6 +94,57 @@ extension AppFeatureTests {
     await store.send(\.conversationList.selectionChanged, nil) {
       $0.conversationList.selection = nil
       $0.thread = nil
+    }
+  }
+}
+
+extension AppFeatureTests {
+  @Test
+  func requestsContactsAccessAfterFullDiskAccessThenLoadsNames() async throws {
+    let database = try makeInMemoryChatDatabase()
+    let isContactsAccessDetermined = LockIsolated(false)
+    var state = AppFeature.State()
+    state.conversationList = ConversationListFeature.State(
+      conversations: [
+        Conversation(
+          id: 1,
+          guid: "iMessage;-;+14155550100",
+          style: .oneOnOne,
+          chatIdentifier: "+14155550100",
+          displayName: nil,
+          participants: ["+14155550100"],
+          latestMessage: Conversation.LatestMessage(
+            date: Date(timeIntervalSinceReferenceDate: 800_000_000),
+            text: "Hi",
+            attributedBody: nil,
+            isFromMe: false,
+            hasAttachments: false
+          )
+        )
+      ]
+    )
+    let store = TestStore(initialState: state) {
+      AppFeature()
+    } withDependencies: {
+      $0.chatDatabase = .constant(database)
+      $0.contactNames = ContactNames(
+        isAccessDetermined: { isContactsAccessDetermined.value },
+        requestAccess: {
+          isContactsAccessDetermined.setValue(true)
+          return true
+        },
+        names: { _ in ["+14155550100": "Grace Hopper"] }
+      )
+    }
+
+    await store.send(.task)
+    await store.receive(\.accessChecked) {
+      $0.hasFullDiskAccess = true
+    }
+    await store.receive(\.contactsAccessResolved)
+    await store.receive(\.conversationList.contactsAccessChanged)
+    await store.receive(\.conversationList.contactNamesLoaded) {
+      $0.conversationList.contactNames = ["+14155550100": "Grace Hopper"]
     }
   }
 }
