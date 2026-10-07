@@ -1,4 +1,3 @@
-import CoreServices
 public import Dependencies
 public import Foundation
 
@@ -7,6 +6,9 @@ public import Foundation
 /// SQLite observation only sees writes made through our own connection, so we watch the files
 /// instead. Messages writes to `chat.db-wal` on every change and to `chat.db` on checkpoints, often
 /// in bursts, so events are debounced before they're delivered.
+///
+/// Files are watched with kqueue vnode events rather than FSEvents: FSEvents doesn't deliver events
+/// for `~/Library/Messages`, which is a privacy-protected location.
 public struct ChatDatabaseChanges: Sendable {
   public var stream: @Sendable () -> AsyncStream<Void>
 
@@ -22,9 +24,9 @@ extension ChatDatabaseChanges {
   ) -> Self {
     Self {
       @Dependency(\.continuousClock) var clock
-      let fileNames: Set = [url.lastPathComponent, url.lastPathComponent + "-wal"]
+      let walURL = url.deletingLastPathComponent().appending(path: url.lastPathComponent + "-wal")
       return debounce(
-        fileSystemEvents(in: url.deletingLastPathComponent(), fileNames: fileNames),
+        fileChanges(at: [url, walURL]),
         for: debounceInterval,
         clock: clock
       )
@@ -81,64 +83,83 @@ public func debounce(
   }
 }
 
-private func fileSystemEvents(in directory: URL, fileNames: Set<String>) -> AsyncStream<Void> {
+private func fileChanges(at urls: [URL]) -> AsyncStream<Void> {
   AsyncStream { continuation in
-    let box = Unmanaged.passRetained(EventsBox(continuation: continuation, fileNames: fileNames))
-    var context = FSEventStreamContext(
-      version: 0,
-      info: box.toOpaque(),
-      retain: nil,
-      release: { Unmanaged<EventsBox>.fromOpaque($0!).release() },
-      copyDescription: nil
-    )
-    let callback: FSEventStreamCallback = { _, info, count, paths, _, _ in
-      let box = Unmanaged<EventsBox>.fromOpaque(info!).takeUnretainedValue()
-      let paths = unsafeBitCast(paths, to: NSArray.self)
-      for case let path as String in paths.prefix(count)
-      where box.fileNames.contains((path as NSString).lastPathComponent) {
-        box.continuation.yield()
-        return
+    let queue = DispatchQueue(label: "tech.lil.chat-database-changes")
+    let watchers = urls.map { url in
+      FileWatcher(url: url, queue: queue) { continuation.yield() }
+    }
+    queue.async {
+      for watcher in watchers {
+        watcher.start()
       }
     }
-    guard
-      let stream = FSEventStreamCreate(
-        nil,
-        callback,
-        &context,
-        [directory.path(percentEncoded: false)] as CFArray,
-        FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
-        0.05,
-        FSEventStreamCreateFlags(
-          kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes
-            | kFSEventStreamCreateFlagNoDefer
-        )
-      )
-    else {
-      box.release()
-      continuation.finish()
+    continuation.onTermination = { _ in
+      queue.async {
+        for watcher in watchers {
+          watcher.stop()
+        }
+      }
+    }
+  }
+}
+
+/// Watches a single file with a kqueue vnode source, reopening it whenever it's deleted, renamed,
+/// or doesn't exist yet.
+private final class FileWatcher: @unchecked Sendable {
+  private let url: URL
+  private let queue: DispatchQueue
+  private let onChange: @Sendable () -> Void
+  // Only accessed on `queue`.
+  private var source: (any DispatchSourceFileSystemObject)?
+  private var isStopped = false
+
+  init(url: URL, queue: DispatchQueue, onChange: @escaping @Sendable () -> Void) {
+    self.url = url
+    self.queue = queue
+    self.onChange = onChange
+  }
+
+  func start(isReopening: Bool = false) {
+    guard !isStopped else { return }
+    let descriptor = open(url.path(percentEncoded: false), O_EVTONLY)
+    guard descriptor >= 0 else {
+      scheduleReopen()
       return
     }
-    let eventStream = EventStream(rawValue: stream)
-    FSEventStreamSetDispatchQueue(stream, DispatchQueue(label: "tech.lil.chat-database-changes"))
-    FSEventStreamStart(stream)
-    continuation.onTermination = { _ in
-      FSEventStreamStop(eventStream.rawValue)
-      FSEventStreamInvalidate(eventStream.rawValue)
-      FSEventStreamRelease(eventStream.rawValue)
+    let source = DispatchSource.makeFileSystemObjectSource(
+      fileDescriptor: descriptor,
+      eventMask: [.write, .extend, .delete, .rename, .revoke],
+      queue: queue
+    )
+    source.setEventHandler { [weak self, unowned source] in
+      guard let self else { return }
+      onChange()
+      if !source.data.isDisjoint(with: [.delete, .rename, .revoke]) {
+        source.cancel()
+        self.source = nil
+        scheduleReopen()
+      }
+    }
+    source.setCancelHandler {
+      close(descriptor)
+    }
+    source.resume()
+    self.source = source
+    if isReopening {
+      onChange()
     }
   }
-}
 
-private final class EventsBox: Sendable {
-  let continuation: AsyncStream<Void>.Continuation
-  let fileNames: Set<String>
-
-  init(continuation: AsyncStream<Void>.Continuation, fileNames: Set<String>) {
-    self.continuation = continuation
-    self.fileNames = fileNames
+  func stop() {
+    isStopped = true
+    source?.cancel()
+    source = nil
   }
-}
 
-private struct EventStream: @unchecked Sendable {
-  let rawValue: FSEventStreamRef
+  private func scheduleReopen() {
+    queue.asyncAfter(deadline: .now() + 1) { [weak self] in
+      self?.start(isReopening: true)
+    }
+  }
 }

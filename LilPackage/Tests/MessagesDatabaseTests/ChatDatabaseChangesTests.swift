@@ -66,15 +66,16 @@ struct ChatDatabaseChangesTests {
   }
 
   @Test(.dependency(\.continuousClock, ContinuousClock()))
-  func liveWatchesOnlyTheDatabaseFiles() async throws {
+  func liveWatchesTheDatabaseFiles() async throws {
     let directory = URL.temporaryDirectory.appending(path: UUID().uuidString)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
+    let databaseURL = directory.appending(path: "chat.db")
+    let walURL = directory.appending(path: "chat.db-wal")
+    try Data().write(to: databaseURL)
+    try Data().write(to: walURL)
 
-    let changes = ChatDatabaseChanges.live(
-      url: directory.appending(path: "chat.db"),
-      debounceInterval: .milliseconds(50)
-    )
+    let changes = ChatDatabaseChanges.live(url: databaseURL, debounceInterval: .milliseconds(50))
     let count = LockIsolated(0)
     let task = Task {
       for await _ in changes.stream() {
@@ -82,16 +83,43 @@ struct ChatDatabaseChangesTests {
       }
     }
     defer { task.cancel() }
-    try await Task.sleep(for: .milliseconds(500))
+    try await Task.sleep(for: .milliseconds(300))
 
     try Data("unrelated".utf8).write(to: directory.appending(path: "other.db-wal"))
-    try await Task.sleep(for: .seconds(1))
+    try await Task.sleep(for: .milliseconds(500))
     #expect(count.value == 0)
 
-    try Data("change".utf8).write(to: directory.appending(path: "chat.db-wal"))
-    for _ in 0..<50 where count.value == 0 {
-      try await Task.sleep(for: .milliseconds(100))
-    }
+    try append("change", to: walURL)
+    try await waitUntil { count.value == 1 }
     #expect(count.value == 1)
+
+    try FileManager.default.removeItem(at: walURL)
+    try await waitUntil { count.value == 2 }
+    #expect(count.value == 2)
+
+    try Data("recreated".utf8).write(to: walURL)
+    try await waitUntil { count.value == 3 }
+    #expect(count.value == 3)
+
+    try append("after reopening", to: walURL)
+    try await waitUntil { count.value == 4 }
+    #expect(count.value == 4)
+  }
+}
+
+private func append(_ string: String, to url: URL) throws {
+  let handle = try FileHandle(forWritingTo: url)
+  defer { try? handle.close() }
+  try handle.seekToEnd()
+  try handle.write(contentsOf: Data(string.utf8))
+}
+
+private func waitUntil(
+  timeout: Duration = .seconds(5),
+  _ condition: () -> Bool
+) async throws {
+  let deadline = ContinuousClock.now + timeout
+  while !condition(), ContinuousClock.now < deadline {
+    try await Task.sleep(for: .milliseconds(20))
   }
 }
