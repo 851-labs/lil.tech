@@ -1,0 +1,17 @@
+# Never commit real Messages data
+chat.db
+chat.db-*
+*.db-wal
+*.db-shm
+
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
+
+# SwiftPM
+.build/
+.swiftpm/
