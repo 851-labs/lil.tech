@@ -39,8 +39,13 @@
 ## Distribution
 
 - **Direct download only**, never the Mac App Store. Not sandboxed.
-- **Signing and updates:** Developer ID (account provided by Alexandru), notarized, updated through Sparkle.
-- **Releases:** GitHub Releases host both the downloads and Sparkle's update feed (appcast).
+- **Signing:** team `WH4QW9ND3J`.
+  - Debug builds are signed with Apple Development, so macOS keeps privacy permissions across rebuilds.
+  - Release builds are signed with Developer ID, with the hardened runtime and a secure timestamp.
+- **Notarization:** `notarytool` with an App Store Connect API key, saved in the keychain profile `lil-notary`.
+- **Packaging:** a signed, notarized DMG, used both for first downloads and as the Sparkle update.
+- **Updates:** Sparkle, with EdDSA-signed updates. The private key lives only in Alexandru's login keychain (backed up); the public key is in the app's Info.plist.
+- **Releases:** GitHub Releases host the DMGs. Each app's appcast is committed to the repo (`appcasts/<app>.xml`) and served from `raw.githubusercontent.com`, because GitHub's "latest release" URL is repo-wide.
 - **Versioning:** each app has its own version, tagged like `messages/v0.1.0`.
 - **CI:** a self-hosted macOS runner, once we need one.
 - **No analytics or crash reporting.**
