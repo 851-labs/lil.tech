@@ -14,6 +14,14 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - Run `scripts/format` before committing. `scripts/format --lint` must pass.
 - Don't bundle unrelated changes. If you find extra work, file a new ticket.
 
+## Building
+
+- Open `Lil.xcworkspace` in Xcode, not the individual `.xcodeproj`.
+- From the command line:
+  - Package tests: `cd LilPackage && swift test`
+  - App: `xcodebuild -workspace Lil.xcworkspace -scheme LilMessages -destination 'platform=macOS' -skipMacroValidation build`
+- `-skipMacroValidation` skips Xcode's one-time "trust this macro" prompt for package macros (TCA, CasePaths, etc.) in command-line builds.
+
 ## Privacy: Messages data
 
 This repo is public. Lil Messages reads `~/Library/Messages/chat.db`, and dev machines with Full Disk Access can read the real file.
