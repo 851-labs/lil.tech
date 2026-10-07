@@ -8,6 +8,7 @@ let package = Package(
     .macOS(.v26)
   ],
   products: [
+    .library(name: "AppUpdates", targets: ["AppUpdates"]),
     .library(name: "ContactNames", targets: ["ContactNames"]),
     .library(name: "ConversationListFeature", targets: ["ConversationListFeature"]),
     .library(name: "MessagesApp", targets: ["MessagesApp"]),
@@ -29,8 +30,15 @@ let package = Package(
     ),
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.17.0"),
     .package(url: "https://github.com/pointfreeco/swift-tagged", from: "0.10.0"),
+    .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.10.0"),
   ],
   targets: [
+    .target(
+      name: "AppUpdates",
+      dependencies: [
+        .product(name: "Sparkle", package: "Sparkle")
+      ]
+    ),
     .target(
       name: "ContactNames",
       dependencies: [
