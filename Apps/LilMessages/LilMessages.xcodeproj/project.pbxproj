@@ -12,7 +12,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		1A0000000000000000000004 /* Lil Messages.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Lil Messages.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A0000000000000000000004 /* lil messages.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "lil messages.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -47,7 +47,7 @@
 		1A0000000000000000000003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				1A0000000000000000000004 /* Lil Messages.app */,
+				1A0000000000000000000004 /* lil messages.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -76,7 +76,7 @@
 				1A0000000000000000000013 /* AppUpdates */,
 			);
 			productName = LilMessages;
-			productReference = 1A0000000000000000000004 /* Lil Messages.app */;
+			productReference = 1A0000000000000000000004 /* lil messages.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -196,10 +196,10 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Lil Messages";
+				INFOPLIST_KEY_CFBundleDisplayName = "lil messages";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Lil Messages sends your messages through the Messages app.";
-				INFOPLIST_KEY_NSContactsUsageDescription = "Lil Messages shows the names of the people you message.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "lil messages sends your messages through the Messages app.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "lil messages shows the names of the people you message.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -209,7 +209,7 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) -enable-upcoming-feature ExistentialAny -enable-upcoming-feature ImmutableWeakCaptures -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature InternalImportsByDefault -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature NonisolatedNonsendingByDefault";
 				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.messages;
 				PRODUCT_MODULE_NAME = LilMessages;
-				PRODUCT_NAME = "Lil Messages";
+				PRODUCT_NAME = "lil messages";
 				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
@@ -232,10 +232,10 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Lil Messages";
+				INFOPLIST_KEY_CFBundleDisplayName = "lil messages";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Lil Messages sends your messages through the Messages app.";
-				INFOPLIST_KEY_NSContactsUsageDescription = "Lil Messages shows the names of the people you message.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "lil messages sends your messages through the Messages app.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "lil messages shows the names of the people you message.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -246,7 +246,7 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) -enable-upcoming-feature ExistentialAny -enable-upcoming-feature ImmutableWeakCaptures -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature InternalImportsByDefault -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature NonisolatedNonsendingByDefault";
 				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.messages;
 				PRODUCT_MODULE_NAME = LilMessages;
-				PRODUCT_NAME = "Lil Messages";
+				PRODUCT_NAME = "lil messages";
 				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;

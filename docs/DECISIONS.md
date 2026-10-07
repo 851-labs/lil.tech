@@ -2,7 +2,8 @@
 
 ## Repo
 
-- **Monorepo:** lil.tech holds all our apps, written in Swift. Lil Messages comes first, then Lil Mail, Lil Browser, and others.
+- **Monorepo:** lil.tech holds all our apps, written in Swift. lil messages comes first, then lil mail, lil browser, and others.
+- **Naming:** app names are lowercase everywhere users see them, even at the start of a sentence: "lil messages", "lil mail". Code identifiers keep Swift casing (`LilMessages`).
 - **Open source:** Apache 2.0. Real user data (e.g. `chat.db`) is never committed. Test fixtures are synthetic.
 - **Layout:**
   - `Lil.xcworkspace`
@@ -16,7 +17,7 @@
 ## Platform and language
 
 - **Platforms:** macOS only for now, with a minimum of macOS 26. No Perception needed.
-  - Some future lil apps may also ship on iOS, but Lil Messages won't.
+  - Some future lil apps may also ship on iOS, but lil messages won't.
   - Shared modules should avoid AppKit where it's cheap to do so.
 - **Swift:** latest toolchain (Swift 6.4, Xcode 27), Swift 6 language mode with complete strict concurrency, on every target.
   - All upcoming Swift 7 features are on: `ExistentialAny`, `MemberImportVisibility`, `InternalImportsByDefault`, `InferIsolatedConformances`, `NonisolatedNonsendingByDefault`, `ImmutableWeakCaptures`.
@@ -50,7 +51,7 @@
 - **CI:** a self-hosted macOS runner, once we need one.
 - **No analytics or crash reporting.**
 
-## Lil Messages
+## lil messages
 
 - **What it is:** an iMessage client and a front end to Messages.app. Messages.app stays signed in and does the actual sending and receiving.
   - No unified inbox for now.
@@ -67,7 +68,7 @@
 
 ## Open questions
 
-- What "lil" means as a product idea, and what v1 of Lil Messages includes.
+- What "lil" means as a product idea, and what v1 of lil messages includes.
 
 ## Notes
 

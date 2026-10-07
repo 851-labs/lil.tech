@@ -23,8 +23,8 @@ notarize=true
 case "$app" in
   messages)
     scheme=LilMessages
-    product="Lil Messages"
-    dmg_name=LilMessages
+    product="lil messages"
+    dmg_name=lil-messages
     ;;
   *)
     echo "unknown app: $app" >&2

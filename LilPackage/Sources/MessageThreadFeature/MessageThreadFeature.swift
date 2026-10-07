@@ -52,7 +52,7 @@ public struct MessageThreadFeature {
     }
   }
 
-  /// A message sent from Lil Messages that hasn't shown up in `chat.db` yet.
+  /// A message sent from lil messages that hasn't shown up in `chat.db` yet.
   public struct PendingMessage: Equatable, Identifiable, Sendable {
     public let id: UUID
     public var text: String
