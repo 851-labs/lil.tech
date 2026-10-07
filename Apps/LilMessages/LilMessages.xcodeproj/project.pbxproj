@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		1A000000000000000000000A /* MessagesApp in Frameworks */ = {isa = PBXBuildFile; productRef = 1A000000000000000000000B /* MessagesApp */; };
+		1A0000000000000000000012 /* AppUpdates in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0000000000000000000013 /* AppUpdates */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1A000000000000000000000A /* MessagesApp in Frameworks */,
+				1A0000000000000000000012 /* AppUpdates in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +73,7 @@
 			name = LilMessages;
 			packageProductDependencies = (
 				1A000000000000000000000B /* MessagesApp */,
+				1A0000000000000000000013 /* AppUpdates */,
 			);
 			productName = LilMessages;
 			productReference = 1A0000000000000000000004 /* Lil Messages.app */;
@@ -192,6 +195,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Lil Messages";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Lil Messages sends your messages through the Messages app.";
@@ -227,6 +231,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Lil Messages";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Lil Messages sends your messages through the Messages app.";
@@ -275,6 +280,10 @@
 		1A000000000000000000000B /* MessagesApp */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = MessagesApp;
+		};
+		1A0000000000000000000013 /* AppUpdates */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AppUpdates;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

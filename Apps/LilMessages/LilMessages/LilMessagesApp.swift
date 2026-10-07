@@ -1,3 +1,4 @@
+import AppUpdates
 import ComposableArchitecture
 import MessagesApp
 import SwiftUI
@@ -8,9 +9,14 @@ struct LilMessagesApp: App {
     AppFeature()
   }
 
+  @State private var updater = AppUpdater()
+
   var body: some Scene {
     WindowGroup {
       AppView(store: Self.store)
+    }
+    .commands {
+      CheckForUpdatesCommands(updater: updater)
     }
   }
 }
