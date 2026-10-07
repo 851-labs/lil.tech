@@ -70,6 +70,27 @@ struct MessageThreadRequestTests {
   }
 
   @Test
+  func textMessagesAreSMSOrRCS() {
+    func message(service: String?) -> ThreadMessage {
+      ThreadMessage(
+        id: 1,
+        guid: "message-1",
+        date: date(0),
+        text: "Hi",
+        attributedBody: nil,
+        isFromMe: true,
+        senderAddress: nil,
+        hasAttachments: false,
+        service: service
+      )
+    }
+    #expect(message(service: "SMS").isTextMessage)
+    #expect(message(service: "RCS").isTextMessage)
+    #expect(!message(service: "iMessage").isTextMessage)
+    #expect(!message(service: nil).isTextMessage)
+  }
+
+  @Test
   func bodyDropsAttachmentPlaceholders() {
     let message = ThreadMessage(
       id: 1,

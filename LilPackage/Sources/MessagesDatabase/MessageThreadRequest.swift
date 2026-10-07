@@ -11,6 +11,7 @@ public struct ThreadMessage: Equatable, Identifiable, Sendable {
   public var isFromMe: Bool
   public var senderAddress: String?
   public var hasAttachments: Bool
+  public var service: String?
 
   public init(
     id: Message.ID,
@@ -20,7 +21,8 @@ public struct ThreadMessage: Equatable, Identifiable, Sendable {
     attributedBody: Data?,
     isFromMe: Bool,
     senderAddress: String?,
-    hasAttachments: Bool
+    hasAttachments: Bool,
+    service: String? = "iMessage"
   ) {
     self.id = id
     self.guid = guid
@@ -30,6 +32,14 @@ public struct ThreadMessage: Equatable, Identifiable, Sendable {
     self.isFromMe = isFromMe
     self.senderAddress = senderAddress
     self.hasAttachments = hasAttachments
+    self.service = service
+  }
+
+  /// Whether the message went over SMS or RCS rather than iMessage, which Messages shows in green.
+  public var isTextMessage: Bool {
+    guard let service else { return false }
+    return service.caseInsensitiveCompare("SMS") == .orderedSame
+      || service.caseInsensitiveCompare("RCS") == .orderedSame
   }
 
   /// The message text, falling back to the text archived in `attributedBody`, without attachment
@@ -108,7 +118,8 @@ public struct MessageThreadRequest: FetchKeyRequest {
         attributedBody: row.message.attributedBody,
         isFromMe: row.message.isFromMe,
         senderAddress: row.message.isFromMe ? nil : row.senderAddress,
-        hasAttachments: row.message.hasAttachments
+        hasAttachments: row.message.hasAttachments,
+        service: row.message.service
       )
     }
   }

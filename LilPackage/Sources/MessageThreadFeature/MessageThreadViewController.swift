@@ -13,6 +13,7 @@ final class MessageThreadViewController: NSViewController {
   private var messagesByID: [Message.ID: ThreadMessage] = [:]
   private var pendingByID: [UUID: MessageThreadFeature.PendingMessage] = [:]
   private var isGroup = false
+  private var isTextChat = false
   private var senderNames: [String: String] = [:]
 
   enum Item: Hashable {
@@ -46,6 +47,7 @@ final class MessageThreadViewController: NSViewController {
     scrollView.hasVerticalScroller = true
     scrollView.drawsBackground = false
     scrollView.contentView.postsBoundsChangedNotifications = true
+    scrollView.contentView.postsFrameChangedNotifications = true
     view = scrollView
   }
 
@@ -65,7 +67,7 @@ final class MessageThreadViewController: NSViewController {
         }
       case .pending(let id):
         if let pending = pendingByID[id] {
-          cell.configure(with: pending)
+          cell.configure(with: pending, isTextMessage: isTextChat)
         }
       }
       return cell
@@ -78,8 +80,16 @@ final class MessageThreadViewController: NSViewController {
       object: scrollView.contentView
     )
 
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(updateBubbleGradients),
+      name: NSView.frameDidChangeNotification,
+      object: scrollView.contentView
+    )
+
     observe { [weak self] in
       guard let self else { return }
+      isTextChat = store.chatGUID.hasPrefix("SMS;") || store.chatGUID.hasPrefix("RCS;")
       apply(
         messages: store.messages,
         pendingMessages: store.pendingMessages,
@@ -138,6 +148,7 @@ final class MessageThreadViewController: NSViewController {
       )
       scrollView.reflectScrolledClipView(scrollView.contentView)
     }
+    updateBubbleGradients()
   }
 
   private var isScrolledToBottom: Bool {
@@ -147,8 +158,18 @@ final class MessageThreadViewController: NSViewController {
   }
 
   @objc private func boundsDidChange() {
+    updateBubbleGradients()
     if scrollView.contentView.bounds.minY < 300 {
       store.send(.scrolledNearTop)
+    }
+  }
+
+  @objc private func updateBubbleGradients() {
+    let clipView = scrollView.contentView
+    let visibleRect = clipView.bounds
+    tableView.enumerateAvailableRowViews { rowView, _ in
+      (rowView.view(atColumn: 0) as? MessageCellView)?
+        .updateViewportPosition(in: clipView, visibleRect: visibleRect)
     }
   }
 
@@ -231,34 +252,44 @@ final class MessageCellView: NSTableCellView {
     let body = message.body
     configure(
       text: body.isEmpty && message.hasAttachments ? "Attachment" : body,
-      isFromMe: message.isFromMe,
+      style: message.isFromMe ? (message.isTextMessage ? .textMessage : .iMessage) : .received,
       senderName: senderName,
       status: nil
     )
     bubble.alphaValue = 1
   }
 
-  func configure(with pending: MessageThreadFeature.PendingMessage) {
+  func configure(with pending: MessageThreadFeature.PendingMessage, isTextMessage: Bool) {
     configure(
       text: pending.text,
-      isFromMe: true,
+      style: pending.isFailed ? .failed : (isTextMessage ? .textMessage : .iMessage),
       senderName: nil,
       status: pending.isFailed ? "Not Delivered · Click to Retry" : "Sending…"
     )
     bubble.alphaValue = pending.isFailed ? 1 : 0.6
     if pending.isFailed {
-      bubble.layer?.backgroundColor = NSColor.systemRed.cgColor
       statusLabel.textColor = .systemRed
     }
   }
 
-  private func configure(text: String, isFromMe: Bool, senderName: String?, status: String?) {
+  /// Updates the iMessage gradient for the bubble's position within `visibleRect`, in the
+  /// coordinates of `container`.
+  func updateViewportPosition(in container: NSView, visibleRect: NSRect) {
+    guard bubble.style == .iMessage, visibleRect.height > 0 else { return }
+    let frame = bubble.convert(bubble.bounds, to: container)
+    bubble.viewportFraction = (frame.midY - visibleRect.minY) / visibleRect.height
+  }
+
+  private func configure(
+    text: String,
+    style: BubbleView.Style,
+    senderName: String?,
+    status: String?
+  ) {
+    let isFromMe = style != .received
     bodyLabel.stringValue = text
     bodyLabel.textColor = isFromMe ? .white : .labelColor
-    bubble.layer?.backgroundColor =
-      isFromMe
-      ? NSColor.controlAccentColor.cgColor
-      : NSColor.unemphasizedSelectedContentBackgroundColor.cgColor
+    bubble.style = style
 
     senderLabel.stringValue = senderName ?? ""
     senderHeightConstraint.isActive = senderName == nil
@@ -280,9 +311,41 @@ final class MessageCellView: NSTableCellView {
 final class BubbleView: NSView {
   nonisolated static let maximumCornerRadius: CGFloat = 16
 
+  enum Style: Equatable {
+    case failed
+    case iMessage
+    case received
+    case textMessage
+  }
+
+  var style = Style.received {
+    didSet { needsDisplay = true }
+  }
+
+  /// Where the bubble sits in the visible thread, from 0 (top) to 1 (bottom). Only affects iMessage
+  /// bubbles, whose blue is a gradient across the viewport.
+  var viewportFraction: CGFloat = 1 {
+    didSet {
+      if style == .iMessage, viewportFraction != oldValue { needsDisplay = true }
+    }
+  }
+
+  override var wantsUpdateLayer: Bool { true }
+
   override init(frame: NSRect) {
     super.init(frame: frame)
     wantsLayer = true
+  }
+
+  override func updateLayer() {
+    let color: NSColor =
+      switch style {
+      case .failed: BubbleColors.failed
+      case .iMessage: BubbleColors.iMessage(atFraction: viewportFraction)
+      case .received: BubbleColors.received
+      case .textMessage: BubbleColors.textMessage
+      }
+    layer?.backgroundColor = color.cgColor
   }
 
   @available(*, unavailable)
