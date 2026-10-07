@@ -1,4 +1,5 @@
 public import ComposableArchitecture
+import ContactNames
 public import MessagesDatabase
 import SQLiteData
 
@@ -6,17 +7,20 @@ import SQLiteData
 public struct ConversationListFeature {
   @ObservableState
   public struct State: Equatable {
+    public var contactNames: [String: String]
     public var conversations: [Conversation]
     public var isLoading: Bool
     public var loadFailed: Bool
     public var selection: Chat.ID?
 
     public init(
+      contactNames: [String: String] = [:],
       conversations: [Conversation] = [],
       isLoading: Bool = false,
       loadFailed: Bool = false,
       selection: Chat.ID? = nil
     ) {
+      self.contactNames = contactNames
       self.conversations = conversations
       self.isLoading = isLoading
       self.loadFailed = loadFailed
@@ -25,6 +29,8 @@ public struct ConversationListFeature {
   }
 
   public enum Action {
+    case contactNamesLoaded([String: String])
+    case contactsAccessChanged
     case conversationsLoaded(Result<[Conversation], any Error>)
     case selectionChanged(Chat.ID?)
     case task
@@ -32,12 +38,20 @@ public struct ConversationListFeature {
 
   @Dependency(\.chatDatabase) var chatDatabase
   @Dependency(\.chatDatabaseChanges) var chatDatabaseChanges
+  @Dependency(\.contactNames) var contactNames
 
   public init() {}
 
   public var body: some ReducerOf<Self> {
     Reduce { state, action in
       switch action {
+      case .contactNamesLoaded(let contactNames):
+        state.contactNames = contactNames
+        return .none
+
+      case .contactsAccessChanged:
+        return loadContactNames(for: state.conversations)
+
       case .conversationsLoaded(.success(let conversations)):
         state.isLoading = false
         state.loadFailed = false
@@ -45,7 +59,7 @@ public struct ConversationListFeature {
         if let selection = state.selection, !conversations.contains(where: { $0.id == selection }) {
           state.selection = nil
         }
-        return .none
+        return loadContactNames(for: conversations)
 
       case .conversationsLoaded(.failure):
         state.isLoading = false
@@ -66,6 +80,15 @@ public struct ConversationListFeature {
           }
         }
       }
+    }
+  }
+}
+
+extension ConversationListFeature {
+  private func loadContactNames(for conversations: [Conversation]) -> Effect<Action> {
+    let addresses = Set(conversations.flatMap(\.participants))
+    return .run { [contactNames] send in
+      await send(.contactNamesLoaded(await contactNames.names(addresses)))
     }
   }
 }

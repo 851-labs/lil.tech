@@ -2,15 +2,19 @@ public import Foundation
 public import MessagesDatabase
 
 extension Conversation {
-  /// The group name if it has one, otherwise the participants, otherwise the chat identifier.
-  public var title: String {
+  /// The group name if it has one, otherwise the participants (by contact name when known),
+  /// otherwise the chat identifier.
+  public func title(contactNames: [String: String] = [:]) -> String {
     if let displayName, !displayName.isEmpty {
       return displayName
     }
     if !participants.isEmpty {
-      return participants.formatted(.list(type: .and, width: .short))
+      return
+        participants
+        .map { contactNames[$0] ?? $0 }
+        .formatted(.list(type: .and, width: .short))
     }
-    return chatIdentifier
+    return contactNames[chatIdentifier] ?? chatIdentifier
   }
 
   /// The latest message's text, falling back to the text archived in `attributedBody`, then to

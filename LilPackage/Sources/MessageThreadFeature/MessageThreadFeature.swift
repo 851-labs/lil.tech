@@ -15,6 +15,7 @@ public struct MessageThreadFeature {
     public var isLoadingEarlier: Bool
     public var loadFailed: Bool
     public var messages: [ThreadMessage]
+    public var senderNames: [String: String]
     public var title: String
 
     public var id: Chat.ID { chatID }
@@ -24,6 +25,7 @@ public struct MessageThreadFeature {
       title: String,
       isGroup: Bool,
       messages: [ThreadMessage] = [],
+      senderNames: [String: String] = [:],
       hasEarlierMessages: Bool = true,
       isLoadingEarlier: Bool = false,
       loadFailed: Bool = false
@@ -34,6 +36,7 @@ public struct MessageThreadFeature {
       self.isLoadingEarlier = isLoadingEarlier
       self.loadFailed = loadFailed
       self.messages = messages
+      self.senderNames = senderNames
       self.title = title
     }
   }

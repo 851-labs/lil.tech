@@ -8,21 +8,30 @@ struct ConversationDisplayTests {
   @Test
   func titlePrefersDisplayName() {
     let conversation = makeConversation(displayName: "Book Club", participants: ["+15550000001"])
-    #expect(conversation.title == "Book Club")
+    #expect(conversation.title() == "Book Club")
   }
 
   @Test
   func titleFallsBackToParticipants() {
-    #expect(makeConversation(participants: ["+15550000001"]).title == "+15550000001")
+    #expect(makeConversation(participants: ["+15550000001"]).title() == "+15550000001")
     #expect(
-      makeConversation(displayName: "", participants: ["a@example.com", "b@example.com"]).title
+      makeConversation(displayName: "", participants: ["a@example.com", "b@example.com"]).title()
         == "a@example.com & b@example.com"
     )
   }
 
   @Test
+  func titleUsesContactNamesForParticipants() {
+    let conversation = makeConversation(participants: ["+14155550100", "b@example.com"])
+    #expect(
+      conversation.title(contactNames: ["+14155550100": "Grace Hopper"])
+        == "Grace Hopper & b@example.com"
+    )
+  }
+
+  @Test
   func titleFallsBackToChatIdentifier() {
-    #expect(makeConversation(chatIdentifier: "chat123").title == "chat123")
+    #expect(makeConversation(chatIdentifier: "chat123").title() == "chat123")
   }
 
   @Test
