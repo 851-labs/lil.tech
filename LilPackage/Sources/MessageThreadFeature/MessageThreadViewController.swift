@@ -165,7 +165,7 @@ final class MessageThreadViewController: NSViewController {
 final class MessageCellView: NSTableCellView {
   static let identifier = NSUserInterfaceItemIdentifier("MessageCellView")
 
-  private let bubble = NSView()
+  private let bubble = BubbleView()
   private let bodyLabel = NSTextField(wrappingLabelWithString: "")
   private let senderLabel = NSTextField(labelWithString: "")
   private let statusLabel = NSTextField(labelWithString: "")
@@ -177,10 +177,6 @@ final class MessageCellView: NSTableCellView {
   init() {
     super.init(frame: .zero)
     identifier = Self.identifier
-
-    bubble.wantsLayer = true
-    bubble.layer?.cornerRadius = 16
-    bubble.layer?.cornerCurve = .continuous
 
     bodyLabel.isSelectable = true
     bodyLabel.font = .preferredFont(forTextStyle: .body)
@@ -273,5 +269,40 @@ final class MessageCellView: NSTableCellView {
 
     leadingConstraint.isActive = !isFromMe
     trailingConstraint.isActive = isFromMe
+  }
+}
+
+/// A message bubble background whose corners stay clean at any height.
+///
+/// Bubbles use a 16pt continuous corner, but a single line of text is shorter than 32pt. A radius
+/// larger than half the height makes the continuous curve overshoot, so short bubbles become
+/// circular-cornered capsules instead.
+final class BubbleView: NSView {
+  nonisolated static let maximumCornerRadius: CGFloat = 16
+
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    wantsLayer = true
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func layout() {
+    super.layout()
+    let corner = Self.corner(forHeight: bounds.height)
+    layer?.cornerRadius = corner.radius
+    layer?.cornerCurve = corner.curve
+  }
+
+  nonisolated static func corner(forHeight height: CGFloat) -> (
+    radius: CGFloat, curve: CALayerCornerCurve
+  ) {
+    let halfHeight = height / 2
+    return halfHeight > maximumCornerRadius
+      ? (maximumCornerRadius, .continuous)
+      : (halfHeight, .circular)
   }
 }
