@@ -10,6 +10,7 @@ let package = Package(
   products: [
     .library(name: "ConversationListFeature", targets: ["ConversationListFeature"]),
     .library(name: "MessagesApp", targets: ["MessagesApp"]),
+    .library(name: "MessageSending", targets: ["MessageSending"]),
     .library(name: "MessagesDatabase", targets: ["MessagesDatabase"]),
     .library(name: "MessageThreadFeature", targets: ["MessageThreadFeature"]),
     .library(name: "OnboardingFeature", targets: ["OnboardingFeature"]),
@@ -73,6 +74,18 @@ let package = Package(
       dependencies: [
         "MessagesDatabase",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+      ]
+    ),
+    .target(
+      name: "MessageSending",
+      dependencies: [
+        .product(name: "Dependencies", package: "swift-dependencies")
+      ]
+    ),
+    .testTarget(
+      name: "MessageSendingTests",
+      dependencies: [
+        "MessageSending"
       ]
     ),
     .target(
