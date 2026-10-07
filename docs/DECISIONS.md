@@ -67,4 +67,5 @@
 ## Notes
 
 - `chat.db` is in WAL mode, so we can read it live while Messages.app writes to it.
-- Some message text lives only in `attributedBody`, a serialized blob, not in `text`. We'll need a decoder.
+- Some message text lives only in `attributedBody`, an `NSAttributedString` archived in the legacy typedstream format, not in `text`. `AttributedBody.text(from:)` reads just the string payload in pure Swift, instead of using the deprecated, non-secure `NSUnarchiver`. It matched `NSUnarchiver` on all ~70k blobs in a real `chat.db` and runs about 20× faster.
+- `attributedBody` is the more complete source of text. `text` sometimes omits leading content (e.g. mentions), and differs by U+FFFC attachment placeholders.
