@@ -43,3 +43,24 @@ This:
 The DMG is written to `build/releases/<app>/<version>/`.
 
 Pass `--skip-notarize` to test everything except notarization.
+
+## Publishing a release
+
+1. **Build.** Build the notarized DMG with `scripts/release <app> <version>` from a clean `main`. Note the build number it prints; it's the commit count.
+2. **Sign for Sparkle.** Run `sign_update --account lil.tech build/releases/<app>/<version>/<file>.dmg`. It prints the `sparkle:edSignature` and `length` attributes for the appcast.
+3. **Create the GitHub Release.**
+
+   ```
+   git tag -a <app>/v<version> <commit> -m "lil <app> <version>"
+   git push origin <app>/v<version>
+   gh release create <app>/v<version> <dmg> --verify-tag --title "lil <app> <version>"
+   ```
+
+4. **Add an `<item>` to the top of `appcasts/<app>.xml`.** Set:
+   - `sparkle:version` to the build number;
+   - `sparkle:shortVersionString` to the version;
+   - the `enclosure` to the signature and length from step 2.
+
+   Merge it to `main`. Installed apps pick it up from `raw.githubusercontent.com`.
+
+**Escape the slash in the tag.** Download URLs must spell it as `%2F`, e.g. `releases/download/messages%2Fv0.1.0/...`. GitHub returns 404 for the unescaped form, even though the API reports it.
