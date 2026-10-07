@@ -2,5 +2,19 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>lil messages</title>
+    <item>
+      <title>0.1.0</title>
+      <pubDate>Wed, 07 Oct 2026 21:44:09 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/messages%2Fv0.1.0</link>
+      <sparkle:version>23</sparkle:version>
+      <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/messages%2Fv0.1.0/lil-messages-0.1.0.dmg"
+        length="9918158"
+        type="application/octet-stream"
+        sparkle:edSignature="g+MluJ5l9O8IQWqXzvflKOzNkOEdrKxplt1ff13HkPIETVci+YMWGNmO/lBZn3b0LxSkAL8wAhYr3dw+Jxh9Aw=="
+      />
+    </item>
   </channel>
 </rss>
