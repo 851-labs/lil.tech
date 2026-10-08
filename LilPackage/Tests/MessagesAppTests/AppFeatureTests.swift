@@ -148,7 +148,7 @@ extension AppFeatureTests {
     }
     await store.receive(\.contactsAccessResolved)
     await store.receive(\.conversationList.contactsAccessChanged)
-    await store.receive(\.conversationList.contactNamesLoaded) {
+    await store.receive(\.conversationList.contactsLoaded) {
       $0.conversationList.contactNames = ["+14155550100": "Grace Hopper"]
     }
   }

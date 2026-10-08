@@ -15,8 +15,12 @@ public struct ConversationListView: View {
     List(selection: $store.selection.sending(\.selectionChanged)) {
       Section {
         ForEach(store.conversations) { conversation in
-          ConversationRow(conversation: conversation, contactNames: store.contactNames)
-            .tag(conversation.id)
+          ConversationRow(
+            conversation: conversation,
+            contactNames: store.contactNames,
+            contactPhoto: conversation.avatarAddress.flatMap { store.contactPhotos[$0] }
+          )
+          .tag(conversation.id)
         }
       } header: {
         if store.filter != .messages {
@@ -80,6 +84,7 @@ extension ConversationFilter {
 struct ConversationRow: View {
   let conversation: Conversation
   let contactNames: [String: String]
+  let contactPhoto: Data?
 
   @Dependency(\.calendar) var calendar
   @Dependency(\.date.now) var now
@@ -87,13 +92,11 @@ struct ConversationRow: View {
 
   var body: some View {
     HStack(alignment: .top, spacing: 10) {
-      Image(
-        systemName: conversation.style == .group
-          ? "person.2.circle.fill"
-          : "person.crop.circle.fill"
+      ConversationAvatar(
+        isGroup: conversation.style == .group,
+        name: conversation.avatarAddress.flatMap { contactNames[$0] },
+        photo: contactPhoto
       )
-      .font(.system(size: 36))
-      .foregroundStyle(.secondary)
 
       VStack(alignment: .leading, spacing: 2) {
         HStack(alignment: .firstTextBaseline) {
@@ -119,5 +122,59 @@ struct ConversationRow: View {
       }
     }
     .padding(.vertical, 4)
+  }
+}
+
+/// A conversation's avatar, like Messages: the contact's photo, their initials when they have no
+/// photo, or a stock silhouette for unknown senders and groups.
+struct ConversationAvatar: View {
+  let isGroup: Bool
+  let name: String?
+  let photo: Data?
+
+  private let size: CGFloat = 36
+
+  var body: some View {
+    if let photo, let image = ContactPhotoCache.image(for: photo) {
+      Image(nsImage: image)
+        .resizable()
+        .scaledToFill()
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+    } else if !isGroup, let initials = name.flatMap(monogramInitials) {
+      Circle()
+        .fill(
+          LinearGradient(
+            colors: [Color(white: 0.66), Color(white: 0.53)],
+            startPoint: .top,
+            endPoint: .bottom
+          )
+        )
+        .frame(width: size, height: size)
+        .overlay {
+          Text(initials)
+            .font(.system(size: size * 0.42, weight: .medium, design: .rounded))
+            .foregroundStyle(.white)
+        }
+    } else {
+      Image(systemName: isGroup ? "person.2.circle.fill" : "person.crop.circle.fill")
+        .resizable()
+        .scaledToFit()
+        .frame(width: size, height: size)
+        .foregroundStyle(.secondary)
+    }
+  }
+}
+
+/// Decoded contact photos, so rows don't decode image data on every render.
+enum ContactPhotoCache {
+  nonisolated(unsafe) private static let cache = NSCache<NSData, NSImage>()
+
+  static func image(for data: Data) -> NSImage? {
+    let key = data as NSData
+    if let image = cache.object(forKey: key) { return image }
+    guard let image = NSImage(data: data) else { return nil }
+    cache.setObject(image, forKey: key)
+    return image
   }
 }

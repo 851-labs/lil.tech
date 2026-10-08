@@ -1,21 +1,25 @@
 import Contacts
 public import Dependencies
-import Foundation
+public import Foundation
 
-/// Resolves the addresses Messages uses for handles to names from the user's contacts.
+/// Resolves the addresses Messages uses for handles to names and photos from the user's contacts.
 public struct ContactNames: Sendable {
   public var isAccessDetermined: @Sendable () -> Bool
   public var requestAccess: @Sendable () async -> Bool
   public var names: @Sendable (_ addresses: Set<String>) async -> [String: String]
+  /// Photo thumbnails, as image data, for the addresses whose contacts have one.
+  public var photos: @Sendable (_ addresses: Set<String>) async -> [String: Data]
 
   public init(
     isAccessDetermined: @escaping @Sendable () -> Bool,
     requestAccess: @escaping @Sendable () async -> Bool,
-    names: @escaping @Sendable (_ addresses: Set<String>) async -> [String: String]
+    names: @escaping @Sendable (_ addresses: Set<String>) async -> [String: String],
+    photos: @escaping @Sendable (_ addresses: Set<String>) async -> [String: Data] = { _ in [:] }
   ) {
     self.isAccessDetermined = isAccessDetermined
     self.requestAccess = requestAccess
     self.names = names
+    self.photos = photos
   }
 }
 
@@ -38,6 +42,14 @@ extension ContactNames {
           names[address] = index.name(for: address)
         }
         return names
+      },
+      photos: { addresses in
+        let index = await cache.index()
+        var photos: [String: Data] = [:]
+        for address in addresses {
+          photos[address] = index.thumbnail(for: address)
+        }
+        return photos
       }
     )
   }
@@ -52,6 +64,13 @@ extension ContactNames {
           names[address] = index.name(for: address)
         }
         return names
+      },
+      photos: { addresses in
+        var photos: [String: Data] = [:]
+        for address in addresses {
+          photos[address] = index.thumbnail(for: address)
+        }
+        return photos
       }
     )
   }
@@ -66,7 +85,8 @@ extension ContactNames: DependencyKey {
     Self(
       isAccessDetermined: unimplemented("ContactNames.isAccessDetermined", placeholder: true),
       requestAccess: unimplemented("ContactNames.requestAccess", placeholder: false),
-      names: unimplemented("ContactNames.names", placeholder: [:])
+      names: unimplemented("ContactNames.names", placeholder: [:]),
+      photos: unimplemented("ContactNames.photos", placeholder: [:])
     )
   }
 
@@ -120,6 +140,7 @@ private actor ContactIndexCache {
       CNContactNicknameKey as NSString,
       CNContactPhoneNumbersKey as NSString,
       CNContactEmailAddressesKey as NSString,
+      CNContactThumbnailImageDataKey as NSString,
     ]
     var contacts: [ContactIndex.Contact] = []
     try? CNContactStore().enumerateContacts(with: CNContactFetchRequest(keysToFetch: keys)) {
@@ -134,7 +155,8 @@ private actor ContactIndexCache {
         ContactIndex.Contact(
           name: name,
           phoneNumbers: contact.phoneNumbers.map(\.value.stringValue),
-          emails: contact.emailAddresses.map { $0.value as String }
+          emails: contact.emailAddresses.map { $0.value as String },
+          thumbnailImageData: contact.thumbnailImageData
         )
       )
     }

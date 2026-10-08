@@ -1,4 +1,5 @@
 import ContactNames
+import Foundation
 import Testing
 
 struct ContactIndexTests {
@@ -6,7 +7,8 @@ struct ContactIndexTests {
     ContactIndex.Contact(
       name: "Ada Lovelace",
       phoneNumbers: ["(415) 555-0100"],
-      emails: ["Ada@Example.com"]
+      emails: ["Ada@Example.com"],
+      thumbnailImageData: Data([1, 2, 3])
     ),
     ContactIndex.Contact(name: "Charles Babbage", phoneNumbers: ["+44 20 7946 0958"]),
     ContactIndex.Contact(name: "Short Code", phoneNumbers: ["72727"]),
@@ -48,5 +50,19 @@ struct ContactIndexTests {
       ContactIndex.Contact(name: "Second", phoneNumbers: ["415-555-0100"]),
     ])
     #expect(index.name(for: "+14155550100") == "First")
+  }
+
+  @Test
+  func thumbnailsMatchLikeNames() {
+    #expect(index.thumbnail(for: "+14155550100") == Data([1, 2, 3]))
+    #expect(index.thumbnail(for: "ada@example.com") == Data([1, 2, 3]))
+    #expect(index.thumbnail(for: "+442079460958") == nil)
+    #expect(index.thumbnail(for: "+15550000000") == nil)
+  }
+
+  @Test
+  func constantDependencyReturnsOnlyKnownPhotos() async {
+    let photos = await ContactNames.constant(index).photos(["+14155550100", "+442079460958"])
+    #expect(photos == ["+14155550100": Data([1, 2, 3])])
   }
 }

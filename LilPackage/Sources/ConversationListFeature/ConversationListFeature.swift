@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 import ContactNames
+public import Foundation
 public import MessagesDatabase
 import SQLiteData
 
@@ -8,6 +9,8 @@ public struct ConversationListFeature {
   @ObservableState
   public struct State: Equatable {
     public var contactNames: [String: String]
+    /// Contact photo thumbnails by address, for one-on-one conversations.
+    public var contactPhotos: [String: Data]
     public var conversations: [Conversation]
     public var filter: ConversationFilter
     public var isLoading: Bool
@@ -16,6 +19,7 @@ public struct ConversationListFeature {
 
     public init(
       contactNames: [String: String] = [:],
+      contactPhotos: [String: Data] = [:],
       conversations: [Conversation] = [],
       filter: ConversationFilter = .messages,
       isLoading: Bool = false,
@@ -23,6 +27,7 @@ public struct ConversationListFeature {
       selection: Chat.ID? = nil
     ) {
       self.contactNames = contactNames
+      self.contactPhotos = contactPhotos
       self.conversations = conversations
       self.filter = filter
       self.isLoading = isLoading
@@ -32,8 +37,8 @@ public struct ConversationListFeature {
   }
 
   public enum Action {
-    case contactNamesLoaded([String: String])
     case contactsAccessChanged
+    case contactsLoaded(names: [String: String], photos: [String: Data])
     case conversationsLoaded(Result<[Conversation], any Error>)
     case filterChanged(ConversationFilter)
     case selectionChanged(Chat.ID?)
@@ -49,12 +54,13 @@ public struct ConversationListFeature {
   public var body: some ReducerOf<Self> {
     Reduce { state, action in
       switch action {
-      case .contactNamesLoaded(let contactNames):
-        state.contactNames = contactNames
-        return .none
-
       case .contactsAccessChanged:
-        return loadContactNames(for: state.conversations)
+        return loadContacts(for: state.conversations)
+
+      case .contactsLoaded(let names, let photos):
+        state.contactNames = names
+        state.contactPhotos = photos
+        return .none
 
       case .conversationsLoaded(.success(let conversations)):
         state.isLoading = false
@@ -63,7 +69,7 @@ public struct ConversationListFeature {
         if let selection = state.selection, !conversations.contains(where: { $0.id == selection }) {
           state.selection = nil
         }
-        return loadContactNames(for: conversations)
+        return loadContacts(for: conversations)
 
       case .conversationsLoaded(.failure):
         state.isLoading = false
@@ -98,10 +104,14 @@ public struct ConversationListFeature {
 }
 
 extension ConversationListFeature {
-  private func loadContactNames(for conversations: [Conversation]) -> Effect<Action> {
+  /// Loads names for every participant, and photos for one-on-one conversations.
+  private func loadContacts(for conversations: [Conversation]) -> Effect<Action> {
     let addresses = Set(conversations.flatMap(\.participants))
+    let photoAddresses = Set(conversations.compactMap(\.avatarAddress))
     return .run { [contactNames] send in
-      await send(.contactNamesLoaded(await contactNames.names(addresses)))
+      async let names = contactNames.names(addresses)
+      async let photos = contactNames.photos(photoAddresses)
+      await send(.contactsLoaded(names: names, photos: photos))
     }
   }
 }
