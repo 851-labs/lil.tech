@@ -18,10 +18,40 @@ final class MessageThreadViewController: NSViewController {
   private var isTextChat = false
   private var senderNames: [String: String] = [:]
   private var receiptMessageID: Message.ID?
+  private var hasScrolledToBottomAfterLayout = false
 
   enum Item: Hashable {
     case message(Message.ID)
     case pending(UUID)
+    case separator(Date)
+  }
+
+  /// The table's rows: messages, then pending messages, with a timestamp separator wherever
+  /// Messages shows one.
+  static func items(
+    messages: [ThreadMessage],
+    pendingMessages: [MessageThreadFeature.PendingMessage]
+  ) -> [Item] {
+    var items: [Item] = []
+    var seenItems = Set<Item>()
+    var previousDate: Date?
+    func append(_ item: Item, at date: Date) {
+      guard seenItems.insert(item).inserted else { return }
+      if needsThreadSeparator(at: date, after: previousDate),
+        seenItems.insert(.separator(date)).inserted
+      {
+        items.append(.separator(date))
+      }
+      items.append(item)
+      previousDate = date
+    }
+    for message in messages {
+      append(.message(message.id), at: message.date)
+    }
+    for pending in pendingMessages {
+      append(.pending(pending.id), at: pending.sentAt)
+    }
+    return items
   }
 
   init(store: StoreOf<MessageThreadFeature>) {
@@ -59,6 +89,13 @@ final class MessageThreadViewController: NSViewController {
 
     dataSource = NSTableViewDiffableDataSource(tableView: tableView) {
       [unowned self] tableView, _, _, item in
+      if case .separator(let date) = item {
+        let cell =
+          tableView.makeView(withIdentifier: SeparatorCellView.identifier, owner: nil)
+          as? SeparatorCellView ?? SeparatorCellView()
+        cell.configure(with: ThreadTimestamp(date, now: Date()))
+        return cell
+      }
       let cell =
         tableView.makeView(withIdentifier: MessageCellView.identifier, owner: nil)
         as? MessageCellView ?? MessageCellView()
@@ -82,6 +119,8 @@ final class MessageThreadViewController: NSViewController {
         if let pending = pendingByID[id] {
           cell.configure(with: pending, isTextMessage: isTextChat, maxTextWidth: maxTextWidth)
         }
+      case .separator:
+        break
       }
       return cell
     }
@@ -120,9 +159,7 @@ final class MessageThreadViewController: NSViewController {
     senderNames: [String: String],
     receiptMessageID: Message.ID?
   ) {
-    var seenItems = Set<Item>()
-    let items = (messages.map { Item.message($0.id) } + pendingMessages.map { Item.pending($0.id) })
-      .filter { seenItems.insert($0).inserted }
+    let items = Self.items(messages: messages, pendingMessages: pendingMessages)
     let previousItems = dataSource.snapshot().itemIdentifiers
     let wasAtBottom = isScrolledToBottom
     let distanceFromBottom =
@@ -181,6 +218,18 @@ final class MessageThreadViewController: NSViewController {
     updateBubbleGradients()
   }
 
+  /// Messages applied before the table has a size can't be scrolled to; scroll to the latest once
+  /// the first layout happens.
+  override func viewDidLayout() {
+    super.viewDidLayout()
+    guard !hasScrolledToBottomAfterLayout, view.bounds.height > 0, tableView.numberOfRows > 0
+    else { return }
+    hasScrolledToBottomAfterLayout = true
+    tableView.layoutSubtreeIfNeeded()
+    tableView.scrollRowToVisible(tableView.numberOfRows - 1)
+    updateBubbleGradients()
+  }
+
   private var isScrolledToBottom: Bool {
     guard let documentView = scrollView.documentView else { return true }
     let visible = scrollView.contentView.bounds
@@ -228,6 +277,54 @@ final class MessageThreadViewController: NSViewController {
       pendingByID[id]?.isFailed == true
     else { return }
     store.send(.failedMessageTapped(id))
+  }
+}
+
+/// A centered timestamp between messages, like "Today 12:06 PM".
+final class SeparatorCellView: NSTableCellView {
+  static let identifier = NSUserInterfaceItemIdentifier("SeparatorCellView")
+
+  private let label = NSTextField(labelWithString: "")
+
+  init() {
+    super.init(frame: .zero)
+    identifier = Self.identifier
+    label.alignment = .center
+    label.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(label)
+    NSLayoutConstraint.activate([
+      label.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+      label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
+      label.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 16),
+      label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16),
+      label.centerXAnchor.constraint(equalTo: centerXAnchor),
+    ])
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  func configure(with timestamp: ThreadTimestamp) {
+    let size = NSFont.preferredFont(forTextStyle: .caption1).pointSize
+    let text = NSMutableAttributedString(
+      string: timestamp.day,
+      attributes: [
+        .font: NSFont.systemFont(ofSize: size, weight: .semibold),
+        .foregroundColor: NSColor.secondaryLabelColor,
+      ]
+    )
+    text.append(
+      NSAttributedString(
+        string: timestamp.time,
+        attributes: [
+          .font: NSFont.systemFont(ofSize: size),
+          .foregroundColor: NSColor.secondaryLabelColor,
+        ]
+      )
+    )
+    label.attributedStringValue = text
   }
 }
 

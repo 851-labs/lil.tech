@@ -87,6 +87,20 @@ import Tagged
   ])
 }
 
+#Preview("Date Separators", traits: .emptyChatDatabase) {
+  let day: TimeInterval = 24 * 3_600
+  let now = Date()
+  ThreadPreview(messages: [
+    .preview(1, "Happy new year!", date: now.addingTimeInterval(-400 * day)),
+    .preview(2, "Did you see the launch?", isFromMe: true, date: now.addingTimeInterval(-9 * day)),
+    .preview(3, "Lunch Thursday?", date: now.addingTimeInterval(-3 * day)),
+    .preview(4, "Sure!", isFromMe: true, date: now.addingTimeInterval(-3 * day + 20 * 60)),
+    .preview(5, "Running late", date: now.addingTimeInterval(-day)),
+    .preview(6, "Morning!", isFromMe: true, date: now.addingTimeInterval(-3 * 3_600)),
+    .preview(7, "Hey 👋", date: now.addingTimeInterval(-60)),
+  ])
+}
+
 #Preview("Text Message", traits: .emptyChatDatabase) {
   ThreadPreview(
     chatGUID: "SMS;-;+14155550101",
@@ -152,12 +166,13 @@ extension ThreadMessage {
     dateRead: Date? = nil,
     dateEdited: Date? = nil,
     hasError: Bool = false,
-    service: String = "iMessage"
+    service: String = "iMessage",
+    date: Date? = nil
   ) -> Self {
     ThreadMessage(
       id: Message.ID(900 + id),
       guid: "preview-thread-\(id)",
-      date: Date().addingTimeInterval(Double(id - 10) * 60),
+      date: date ?? Date().addingTimeInterval(Double(id - 10) * 60),
       text: text,
       attributedBody: nil,
       isFromMe: isFromMe,
