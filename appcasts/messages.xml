@@ -3,6 +3,30 @@
   <channel>
     <title>lil messages</title>
     <item>
+      <title>0.2.0</title>
+      <pubDate>Thu, 08 Oct 2026 01:17:16 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/messages%2Fv0.2.0</link>
+      <sparkle:version>42</sparkle:version>
+      <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<ul>
+<li>Clickable links and phone numbers in messages</li>
+<li>Delivered, Read, Not Delivered and Edited status labels</li>
+<li>Date and time separators in threads</li>
+<li>Tapback and attachment previews in the sidebar</li>
+<li>Messages / Spam / Recently Deleted filter; spam no longer shows in the main list</li>
+<li>Contact photos and initials in the sidebar</li>
+<li>“Text Message” composer in SMS and RCS chats</li>
+<li>Fixed: threads opening short of the latest message, and jumps when loading earlier messages</li>
+</ul>]]></description>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/messages%2Fv0.2.0/lil-messages-0.2.0.dmg"
+        length="10168104"
+        type="application/octet-stream"
+        sparkle:edSignature="jdMWKzF7RyGzoPbgHNzKUi1CQlFuhjY8625ZWuQ/X7vXguvZ2dyILhIpw/MdJKBEKWsM4iHO2v7LUB3owOyFBA=="
+      />
+    </item>
+    <item>
       <title>0.1.1</title>
       <pubDate>Wed, 07 Oct 2026 23:13:39 +0000</pubDate>
       <link>https://github.com/851-labs/lil.tech/releases/tag/messages%2Fv0.1.1</link>
