@@ -41,6 +41,10 @@ public struct Conversation: Equatable, Identifiable, Sendable {
     public var tapback: Tapback?
     /// For a tapback, the message it reacts to, or `nil` if that message is gone.
     public var reactedTo: ReactedMessage?
+    /// The visible attachments, in order.
+    public var attachments: [AttachmentSummary]
+    /// Whether it's a voice message recorded in Messages.
+    public var isAudioMessage: Bool
 
     public init(
       date: Date,
@@ -50,7 +54,9 @@ public struct Conversation: Equatable, Identifiable, Sendable {
       hasAttachments: Bool,
       senderAddress: String? = nil,
       tapback: Tapback? = nil,
-      reactedTo: ReactedMessage? = nil
+      reactedTo: ReactedMessage? = nil,
+      attachments: [AttachmentSummary] = [],
+      isAudioMessage: Bool = false
     ) {
       self.date = date
       self.text = text
@@ -60,6 +66,22 @@ public struct Conversation: Equatable, Identifiable, Sendable {
       self.senderAddress = senderAddress
       self.tapback = tapback
       self.reactedTo = reactedTo
+      self.attachments = attachments
+      self.isAudioMessage = isAudioMessage
+    }
+  }
+
+  public struct AttachmentSummary: Equatable, Sendable {
+    public var mimeType: String?
+    public var uti: String?
+    public var transferName: String?
+    public var isSticker: Bool
+
+    public init(mimeType: String?, uti: String?, transferName: String?, isSticker: Bool = false) {
+      self.mimeType = mimeType
+      self.uti = uti
+      self.transferName = transferName
+      self.isSticker = isSticker
     }
   }
 
@@ -100,6 +122,7 @@ public struct ConversationsRequest: FetchKeyRequest {
       .select { chat, _, message, handle in
         LatestMessageRow.Columns(
           chat: chat,
+          messageID: message.id,
           date: message.date.max(),
           text: message.text,
           attributedBody: message.attributedBody,
@@ -108,7 +131,8 @@ public struct ConversationsRequest: FetchKeyRequest {
           senderAddress: handle.address,
           associatedMessageType: message.associatedMessageType,
           associatedMessageGUID: message.associatedMessageGUID,
-          associatedMessageEmoji: message.associatedMessageEmoji
+          associatedMessageEmoji: message.associatedMessageEmoji,
+          isAudioMessage: message.isAudioMessage
         )
       }
       .fetchAll(db)
@@ -125,6 +149,29 @@ public struct ConversationsRequest: FetchKeyRequest {
       reactedToByGUID[message.guid] = Conversation.ReactedMessage(
         body: messageBody(text: message.text, attributedBody: message.attributedBody),
         hasAttachments: message.hasAttachments
+      )
+    }
+
+    let messageIDsWithAttachments = latestMessages.filter(\.hasAttachments).map(\.messageID)
+    let attachmentRows =
+      messageIDsWithAttachments.isEmpty
+      ? []
+      : try MessageAttachmentJoin
+        .where { $0.messageID.in(messageIDsWithAttachments) }
+        .join(Attachment.all) { $0.attachmentID.eq($1.id) }
+        .where { _, attachment in !attachment.isHidden }
+        .order { join, _ in join.attachmentID }
+        .select { join, attachment in (join.messageID, attachment) }
+        .fetchAll(db)
+    var attachmentsByMessageID: [Message.ID: [Conversation.AttachmentSummary]] = [:]
+    for (messageID, attachment) in attachmentRows {
+      attachmentsByMessageID[messageID, default: []].append(
+        Conversation.AttachmentSummary(
+          mimeType: attachment.mimeType,
+          uti: attachment.uti,
+          transferName: attachment.transferName,
+          isSticker: attachment.isSticker
+        )
       )
     }
 
@@ -161,7 +208,9 @@ public struct ConversationsRequest: FetchKeyRequest {
             ? nil
             : row.associatedMessageGUID.flatMap {
               reactedToByGUID[Tapback.reactedToGUID(fromAssociatedGUID: $0)]
-            }
+            },
+          attachments: attachmentsByMessageID[row.messageID] ?? [],
+          isAudioMessage: row.isAudioMessage
         )
       )
     }
@@ -171,6 +220,7 @@ public struct ConversationsRequest: FetchKeyRequest {
 @Selection
 private struct LatestMessageRow {
   let chat: Chat
+  let messageID: Message.ID
   @Column(as: Date.AppleTimestampRepresentation?.self)
   let date: Date?
   let text: String?
@@ -181,4 +231,5 @@ private struct LatestMessageRow {
   let associatedMessageType: Int
   let associatedMessageGUID: String?
   let associatedMessageEmoji: String?
+  let isAudioMessage: Bool
 }

@@ -1,5 +1,6 @@
 public import Foundation
 public import MessagesDatabase
+import UniformTypeIdentifiers
 
 extension Conversation {
   /// The group name if it has one, otherwise the participants (by contact name when known, else as
@@ -17,8 +18,8 @@ extension Conversation {
     return contactNames[chatIdentifier] ?? formattedHandle(chatIdentifier)
   }
 
-  /// The latest message's text, falling back to the text archived in `attributedBody`, then to
-  /// "Attachment". Tapbacks read like Messages: "Ada loved “See you there”".
+  /// The latest message's text, falling back to the text archived in `attributedBody`, then to a
+  /// description of its attachments ("Photo", "Attachments: 2 Photos"). Tapbacks read like Messages: "Ada loved “See you there”".
   public func previewText(contactNames: [String: String] = [:]) -> String {
     if let tapback = latestMessage.tapback {
       return tapbackPreview(tapback, contactNames: contactNames)
@@ -26,7 +27,8 @@ extension Conversation {
     let preview = messageBody(
       text: latestMessage.text, attributedBody: latestMessage.attributedBody)
     if preview.isEmpty, latestMessage.hasAttachments {
-      return "Attachment"
+      return attachmentsDescription(
+        latestMessage.attachments, isAudioMessage: latestMessage.isAudioMessage)
     }
     return preview
   }
@@ -60,6 +62,79 @@ extension Conversation {
       target = "a message"
     }
     return "\(sender) \(verb) \(target)"
+  }
+}
+
+/// Describes attachments like Messages: "Photo", "Video", "Audio Message", "Sticker" or the file
+/// name for one, and "Attachments: 2 Photos, 1 Video" for several.
+func attachmentsDescription(
+  _ attachments: [Conversation.AttachmentSummary],
+  isAudioMessage: Bool
+) -> String {
+  let kinds = attachments.map { AttachmentKind($0, isAudioMessage: isAudioMessage) }
+  switch kinds.count {
+  case 0:
+    return isAudioMessage ? "Audio Message" : "Attachment"
+  case 1:
+    return kinds[0] == .file
+      ? attachments[0].transferName.flatMap { $0.isEmpty ? nil : $0 } ?? "File"
+      : kinds[0].singular
+  default:
+    var counts: [(kind: AttachmentKind, count: Int)] = []
+    for kind in kinds {
+      if let index = counts.firstIndex(where: { $0.kind == kind }) {
+        counts[index].count += 1
+      } else {
+        counts.append((kind, 1))
+      }
+    }
+    let parts = counts.map { "\($0.count) \($0.count == 1 ? $0.kind.singular : $0.kind.plural)" }
+    return "Attachments: \(parts.joined(separator: ", "))"
+  }
+}
+
+private enum AttachmentKind {
+  case audioMessage
+  case file
+  case photo
+  case sticker
+  case video
+
+  init(_ attachment: Conversation.AttachmentSummary, isAudioMessage: Bool) {
+    let type =
+      attachment.mimeType.flatMap { UTType(mimeType: $0) }
+      ?? attachment.uti.flatMap { UTType($0) }
+    if attachment.isSticker {
+      self = .sticker
+    } else if let type, type.conforms(to: .image) {
+      self = .photo
+    } else if let type, type.conforms(to: .movie) {
+      self = .video
+    } else if isAudioMessage {
+      self = .audioMessage
+    } else {
+      self = .file
+    }
+  }
+
+  var singular: String {
+    switch self {
+    case .audioMessage: "Audio Message"
+    case .file: "File"
+    case .photo: "Photo"
+    case .sticker: "Sticker"
+    case .video: "Video"
+    }
+  }
+
+  var plural: String {
+    switch self {
+    case .audioMessage: "Audio Messages"
+    case .file: "Files"
+    case .photo: "Photos"
+    case .sticker: "Stickers"
+    case .video: "Videos"
+    }
   }
 }
 

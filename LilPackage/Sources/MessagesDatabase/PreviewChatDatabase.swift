@@ -42,6 +42,41 @@ public func makePreviewChatDatabase() throws -> DatabaseQueue {
         }
       }
     }
+    var attachmentID: Int64 = 0
+    for (chatID, handleID, files, minutes) in PreviewChatDatabase.attachmentMessages {
+      messageID += 1
+      let date = minutesAgo(minutes)
+      try db.seed {
+        Message(
+          id: Message.ID(messageID),
+          guid: "preview-\(messageID)",
+          text: "\u{FFFC}",
+          attributedBody: nil,
+          handleID: handleID,
+          service: "iMessage",
+          date: date,
+          isFromMe: handleID == 0,
+          isRead: true,
+          hasAttachments: true,
+          itemType: 0,
+          associatedMessageType: 0
+        )
+        ChatMessageJoin(chatID: chatID, messageID: Message.ID(messageID), messageDate: date)
+      }
+      for (mimeType, name) in files {
+        attachmentID += 1
+        try db.seed {
+          Attachment(
+            id: Attachment.ID(attachmentID),
+            guid: "preview-attachment-\(attachmentID)",
+            mimeType: mimeType,
+            transferName: name
+          )
+          MessageAttachmentJoin(
+            messageID: Message.ID(messageID), attachmentID: Attachment.ID(attachmentID))
+        }
+      }
+    }
     for (chatID, handleID, type, reactedToID, minutes) in PreviewChatDatabase.tapbacks {
       messageID += 1
       let date = minutesAgo(minutes)
@@ -105,6 +140,15 @@ public enum PreviewChatDatabase {
       isArchived: false
     ),
     Chat(
+      id: 4,
+      guid: "iMessage;-;+14155550102",
+      style: .oneOnOne,
+      chatIdentifier: "+14155550102",
+      serviceName: "iMessage",
+      displayName: nil,
+      isArchived: false
+    ),
+    Chat(
       id: 3,
       guid: "iMessage;-;katherine@example.com",
       style: .oneOnOne,
@@ -120,6 +164,13 @@ public enum PreviewChatDatabase {
     ChatHandleJoin(chatID: 2, handleID: 1),
     ChatHandleJoin(chatID: 2, handleID: 2),
     ChatHandleJoin(chatID: 3, handleID: 3),
+    ChatHandleJoin(chatID: 4, handleID: 2),
+  ]
+
+  /// Attachment-only messages as (chat, sender handle or 0 for me, files as (MIME type, name),
+  /// minutes ago), seeded after `messages`.
+  static let attachmentMessages: [(Chat.ID, Handle.ID, [(String, String)], Double)] = [
+    (4, 2, [("image/heic", "IMG_0001.HEIC"), ("image/heic", "IMG_0002.HEIC")], 2_900)
   ]
 
   /// Tapbacks as (chat, sender handle or 0 for me, `associated_message_type`, reacted-to message
@@ -154,6 +205,12 @@ public enum PreviewChatDatabase {
       [
         (3, "The launch window moved to Thursday.", 4_400),
         (0, "Thanks for the heads up, I’ll update the plan.", 4_380),
+      ]
+    ),
+    (
+      4,
+      [
+        (2, "Sending you the photos from the hike", 2_905)
       ]
     ),
   ]
