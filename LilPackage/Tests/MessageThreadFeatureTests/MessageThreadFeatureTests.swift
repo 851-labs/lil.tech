@@ -282,6 +282,17 @@ extension MessageThreadFeatureTests {
   }
 
   @Test
+  func textChatsAreSMSOrRCS() {
+    func state(_ guid: String) -> MessageThreadFeature.State {
+      MessageThreadFeature.State(chatID: 1, chatGUID: guid, title: "Ada", isGroup: false)
+    }
+    #expect(state("SMS;-;+15550000001").isTextChat)
+    #expect(state("RCS;-;+15550000001").isTextChat)
+    #expect(!state("iMessage;-;+15550000001").isTextChat)
+    #expect(!state("any;-;+15550000001").isTextChat)
+  }
+
+  @Test
   func linkTappedOpensURL() async {
     let opened = LockIsolated<[URL]>([])
     let store = TestStore(
