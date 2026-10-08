@@ -78,11 +78,19 @@ public struct MessageThreadRequest: FetchKeyRequest {
   public var chatID: Chat.ID
   public var before: Cursor?
   public var limit: Int
+  /// Reads the chat's messages in Recently Deleted (`chat_recoverable_message_join`) instead.
+  public var recentlyDeleted: Bool
 
-  public init(chatID: Chat.ID, before: Cursor? = nil, limit: Int = 100) {
+  public init(
+    chatID: Chat.ID,
+    before: Cursor? = nil,
+    limit: Int = 100,
+    recentlyDeleted: Bool = false
+  ) {
     self.chatID = chatID
     self.before = before
     self.limit = limit
+    self.recentlyDeleted = recentlyDeleted
   }
 
   public struct Cursor: Equatable, Hashable, Sendable {
@@ -96,8 +104,28 @@ public struct MessageThreadRequest: FetchKeyRequest {
   }
 
   public func fetch(_ db: Database) throws -> [ThreadMessage] {
-    let rows =
-      try ChatMessageJoin
+    let found = recentlyDeleted ? try deletedRows(db) : try rows(db)
+    return found.reversed().map { row in
+      ThreadMessage(
+        id: row.message.id,
+        guid: row.message.guid,
+        date: row.message.date,
+        text: row.message.text,
+        attributedBody: row.message.attributedBody,
+        isFromMe: row.message.isFromMe,
+        senderAddress: row.message.isFromMe ? nil : row.senderAddress,
+        hasAttachments: row.message.hasAttachments,
+        service: row.message.service,
+        isDelivered: row.message.isDelivered,
+        dateRead: row.message.dateRead,
+        dateEdited: row.message.dateEdited,
+        hasError: row.message.error != 0
+      )
+    }
+  }
+
+  private func rows(_ db: Database) throws -> [ThreadMessageRow] {
+    try ChatMessageJoin
       .where { $0.chatID.eq(chatID) }
       .where {
         if let before {
@@ -119,24 +147,33 @@ public struct MessageThreadRequest: FetchKeyRequest {
         ThreadMessageRow.Columns(message: messages, senderAddress: handles.address)
       }
       .fetchAll(db)
+  }
 
-    return rows.reversed().map { row in
-      ThreadMessage(
-        id: row.message.id,
-        guid: row.message.guid,
-        date: row.message.date,
-        text: row.message.text,
-        attributedBody: row.message.attributedBody,
-        isFromMe: row.message.isFromMe,
-        senderAddress: row.message.isFromMe ? nil : row.senderAddress,
-        hasAttachments: row.message.hasAttachments,
-        service: row.message.service,
-        isDelivered: row.message.isDelivered,
-        dateRead: row.message.dateRead,
-        dateEdited: row.message.dateEdited,
-        hasError: row.message.error != 0
-      )
-    }
+  /// Recently Deleted messages have no `message_date` in their join, so they're ordered by the
+  /// message's own date.
+  private func deletedRows(_ db: Database) throws -> [ThreadMessageRow] {
+    let messages =
+      ChatRecoverableMessageJoin
+      .where { $0.chatID.eq(chatID) }
+      .join(Message.all) { $0.messageID.eq($1.id) }
+      .leftJoin(Handle.all) { $1.handleID.eq($2.id) }
+      .where { _, message, _ in message.associatedMessageType.eq(0) && message.itemType.eq(0) }
+    return
+      try messages
+      .where { _, message, _ in
+        if let before {
+          let beforeDate = Date.AppleTimestampRepresentation(queryOutput: before.date)
+          message.date.lt(beforeDate) || (message.date.eq(beforeDate) && message.id.lt(before.id))
+        } else {
+          true
+        }
+      }
+      .order { _, message, _ in (message.date.desc(), message.id.desc()) }
+      .limit(limit)
+      .select { _, message, handle in
+        ThreadMessageRow.Columns(message: message, senderAddress: handle.address)
+      }
+      .fetchAll(db)
   }
 }
 

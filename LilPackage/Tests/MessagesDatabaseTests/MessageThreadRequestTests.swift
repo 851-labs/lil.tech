@@ -70,6 +70,35 @@ struct MessageThreadRequestTests {
   }
 
   @Test
+  func recentlyDeletedReadsRecoverableMessagesWithPaging() throws {
+    let database = try makeSeededDatabase()
+    try database.write { db in
+      try db.seed {
+        message(id: 20, text: "Deleted first", handleID: 1, at: 1_000)
+        message(id: 21, text: "Deleted second", isFromMe: true, at: 1_100)
+        message(id: 22, text: "Deleted third", handleID: 1, at: 1_200)
+        message(id: 23, text: "Deleted elsewhere", handleID: 1, at: 1_300)
+        ChatRecoverableMessageJoin(chatID: 1, messageID: 20, deleteDate: date(5_000))
+        ChatRecoverableMessageJoin(chatID: 1, messageID: 21, deleteDate: date(5_000))
+        ChatRecoverableMessageJoin(chatID: 1, messageID: 22, deleteDate: date(5_000))
+        ChatRecoverableMessageJoin(chatID: 2, messageID: 23, deleteDate: date(5_000))
+      }
+    }
+
+    let latest = try database.read { db in
+      try MessageThreadRequest(chatID: 1, limit: 2, recentlyDeleted: true).fetch(db)
+    }
+    #expect(latest.map(\.text) == ["Deleted second", "Deleted third"])
+
+    let earlier = try database.read { db in
+      try MessageThreadRequest(
+        chatID: 1, before: latest[0].cursor, limit: 2, recentlyDeleted: true
+      ).fetch(db)
+    }
+    #expect(earlier.map(\.text) == ["Deleted first"])
+  }
+
+  @Test
   func pageBeforeCursor() throws {
     let database = try makeSeededDatabase()
 

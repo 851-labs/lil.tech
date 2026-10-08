@@ -23,7 +23,7 @@ public struct AppView: View {
         } detail: {
           if let threadStore = store.scope(\.thread, action: \.thread) {
             MessageThreadView(store: threadStore)
-              .id(threadStore.chatID)
+              .id(ThreadIdentity(chatID: threadStore.chatID, filter: threadStore.filter))
           } else {
             ContentUnavailableView(
               "No Conversation Selected",
@@ -39,4 +39,10 @@ public struct AppView: View {
     }
     .task { await store.send(.task).finish() }
   }
+}
+
+/// Recreates the thread view when either the chat or the filter it was opened from changes.
+private struct ThreadIdentity: Hashable {
+  let chatID: Chat.ID
+  let filter: ConversationFilter
 }

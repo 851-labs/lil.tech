@@ -54,13 +54,16 @@ public struct AppFeature {
           state.thread = nil
           return .none
         }
-        if state.thread?.chatID != conversation.id {
+        let filter = state.conversationList.filter
+        // A partly deleted chat is in both Messages and Recently Deleted, so the filter matters too.
+        if state.thread?.chatID != conversation.id || state.thread?.filter != filter {
           state.thread = MessageThreadFeature.State(
             chatID: conversation.id,
             chatGUID: conversation.guid,
             title: conversation.title(contactNames: contactNames),
             isGroup: conversation.style == .group,
-            senderNames: contactNames
+            senderNames: contactNames,
+            filter: filter
           )
         } else {
           state.thread?.title = conversation.title(contactNames: contactNames)
