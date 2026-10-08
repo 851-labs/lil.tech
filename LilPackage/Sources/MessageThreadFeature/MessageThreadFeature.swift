@@ -25,6 +25,13 @@ public struct MessageThreadFeature {
 
     public var id: Chat.ID { chatID }
 
+    /// The message that shows a delivery or read receipt: my latest message, while nothing has
+    /// come after it.
+    public var receiptMessageID: Message.ID? {
+      guard pendingMessages.isEmpty, let last = messages.last, last.isFromMe else { return nil }
+      return last.id
+    }
+
     public init(
       chatID: Chat.ID,
       chatGUID: String,

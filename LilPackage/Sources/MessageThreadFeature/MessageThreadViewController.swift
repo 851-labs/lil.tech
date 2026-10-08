@@ -17,6 +17,7 @@ final class MessageThreadViewController: NSViewController {
   private var isGroup = false
   private var isTextChat = false
   private var senderNames: [String: String] = [:]
+  private var receiptMessageID: Message.ID?
 
   enum Item: Hashable {
     case message(Message.ID)
@@ -73,6 +74,7 @@ final class MessageThreadViewController: NSViewController {
             with: message,
             links: links(for: message),
             senderName: sender.map { senderNames[$0] ?? formattedHandle($0) },
+            status: MessageStatus.of(message, showsReceipt: id == receiptMessageID),
             maxTextWidth: maxTextWidth
           )
         }
@@ -105,7 +107,8 @@ final class MessageThreadViewController: NSViewController {
         messages: store.messages,
         pendingMessages: store.pendingMessages,
         isGroup: store.isGroup,
-        senderNames: store.senderNames
+        senderNames: store.senderNames,
+        receiptMessageID: store.receiptMessageID
       )
     }
   }
@@ -114,7 +117,8 @@ final class MessageThreadViewController: NSViewController {
     messages: [ThreadMessage],
     pendingMessages: [MessageThreadFeature.PendingMessage],
     isGroup: Bool,
-    senderNames: [String: String]
+    senderNames: [String: String],
+    receiptMessageID: Message.ID?
   ) {
     var seenItems = Set<Item>()
     let items = (messages.map { Item.message($0.id) } + pendingMessages.map { Item.pending($0.id) })
@@ -128,11 +132,17 @@ final class MessageThreadViewController: NSViewController {
       && previousItems.last == items.last
 
     let senderNamesChanged = senderNames != self.senderNames
+    let previousReceiptMessageID = self.receiptMessageID
     self.isGroup = isGroup
     self.senderNames = senderNames
+    self.receiptMessageID = receiptMessageID
     var changedItems = messages.compactMap { message -> Item? in
       guard let previous = messagesByID[message.id] else { return nil }
-      return senderNamesChanged || previous != message ? .message(message.id) : nil
+      let receiptChanged =
+        previousReceiptMessageID != receiptMessageID
+        && (message.id == previousReceiptMessageID || message.id == receiptMessageID)
+      return senderNamesChanged || receiptChanged || previous != message
+        ? .message(message.id) : nil
     }
     changedItems += pendingMessages.compactMap { pending -> Item? in
       guard let previous = pendingByID[pending.id], previous != pending else { return nil }
@@ -232,6 +242,8 @@ final class MessageCellView: NSTableCellView {
   private var trailingConstraint: NSLayoutConstraint!
   private var senderHeightConstraint: NSLayoutConstraint!
   private var statusHeightConstraint: NSLayoutConstraint!
+  private var statusLeadingConstraint: NSLayoutConstraint!
+  private var statusTrailingConstraint: NSLayoutConstraint!
 
   init() {
     super.init(frame: .zero)
@@ -244,6 +256,7 @@ final class MessageCellView: NSTableCellView {
       label.textColor = .secondaryLabelColor
       label.lineBreakMode = .byTruncatingTail
     }
+    statusLabel.maximumNumberOfLines = 2
 
     for subview in [bubble, bodyText, senderLabel, statusLabel] {
       subview.translatesAutoresizingMaskIntoConstraints = false
@@ -257,6 +270,10 @@ final class MessageCellView: NSTableCellView {
     trailingConstraint = bubble.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16)
     senderHeightConstraint = senderLabel.heightAnchor.constraint(equalToConstant: 0)
     statusHeightConstraint = statusLabel.heightAnchor.constraint(equalToConstant: 0)
+    statusLeadingConstraint = statusLabel.leadingAnchor.constraint(
+      equalTo: leadingAnchor, constant: 28)
+    statusTrailingConstraint = statusLabel.trailingAnchor.constraint(
+      equalTo: trailingAnchor, constant: -28)
 
     NSLayoutConstraint.activate([
       senderLabel.topAnchor.constraint(equalTo: topAnchor, constant: 2),
@@ -269,7 +286,6 @@ final class MessageCellView: NSTableCellView {
       bubble.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16),
 
       statusLabel.topAnchor.constraint(equalTo: bubble.bottomAnchor, constant: 2),
-      statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
       statusLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
 
       bodyText.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 7),
@@ -305,6 +321,7 @@ final class MessageCellView: NSTableCellView {
     with message: ThreadMessage,
     links: [MessageLink],
     senderName: String?,
+    status: MessageStatus?,
     maxTextWidth: CGFloat
   ) {
     let body = message.body
@@ -315,7 +332,7 @@ final class MessageCellView: NSTableCellView {
       links: links,
       style: message.isFromMe ? (message.isTextMessage ? .textMessage : .iMessage) : .received,
       senderName: senderName,
-      status: nil
+      status: Self.statusText(isEdited: message.dateEdited != nil, status: status)
     )
     bubble.alphaValue = 1
   }
@@ -332,12 +349,43 @@ final class MessageCellView: NSTableCellView {
       links: [],
       style: pending.isFailed ? .failed : (isTextMessage ? .textMessage : .iMessage),
       senderName: nil,
-      status: pending.isFailed ? "Not Delivered · Click to Retry" : "Sending…"
+      status: NSAttributedString(
+        string: pending.isFailed ? "Not Delivered · Click to Retry" : "Sending…",
+        attributes: Self.statusAttributes(
+          color: pending.isFailed ? .systemRed : .secondaryLabelColor)
+      )
     )
     bubble.alphaValue = pending.isFailed ? 1 : 0.6
-    if pending.isFailed {
-      statusLabel.textColor = .systemRed
+  }
+
+  /// "Edited" under edited messages, then the delivery status, with failures in red.
+  static func statusText(isEdited: Bool, status: MessageStatus?) -> NSAttributedString? {
+    var lines: [NSAttributedString] = []
+    if isEdited {
+      lines.append(NSAttributedString(string: "Edited", attributes: statusAttributes()))
     }
+    if let status {
+      lines.append(
+        NSAttributedString(
+          string: status.text(now: Date()),
+          attributes: statusAttributes(
+            color: status == .notDelivered ? .systemRed : .secondaryLabelColor)
+        )
+      )
+    }
+    guard !lines.isEmpty else { return nil }
+    let text = NSMutableAttributedString()
+    for (index, line) in lines.enumerated() {
+      if index > 0 { text.append(NSAttributedString(string: "\n", attributes: statusAttributes())) }
+      text.append(line)
+    }
+    return text
+  }
+
+  private static func statusAttributes(
+    color: NSColor = .secondaryLabelColor
+  ) -> [NSAttributedString.Key: Any] {
+    [.font: NSFont.preferredFont(forTextStyle: .caption1), .foregroundColor: color]
   }
 
   /// Updates the iMessage gradient for the bubble's position within `visibleRect`, in the
@@ -353,7 +401,7 @@ final class MessageCellView: NSTableCellView {
     links: [MessageLink],
     style: BubbleView.Style,
     senderName: String?,
-    status: String?
+    status: NSAttributedString?
   ) {
     let isFromMe = style != .received
     bodyText.configure(
@@ -367,12 +415,18 @@ final class MessageCellView: NSTableCellView {
     senderLabel.stringValue = senderName ?? ""
     senderHeightConstraint.isActive = senderName == nil
 
-    statusLabel.stringValue = status ?? ""
-    statusLabel.textColor = .secondaryLabelColor
+    let alignedStatus = NSMutableAttributedString(attributedString: status ?? NSAttributedString())
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = isFromMe ? .right : .left
+    alignedStatus.addAttribute(
+      .paragraphStyle, value: paragraph, range: NSRange(location: 0, length: alignedStatus.length))
+    statusLabel.attributedStringValue = alignedStatus
     statusHeightConstraint.isActive = status == nil
 
     leadingConstraint.isActive = !isFromMe
     trailingConstraint.isActive = isFromMe
+    statusLeadingConstraint.isActive = !isFromMe
+    statusTrailingConstraint.isActive = isFromMe
   }
 }
 

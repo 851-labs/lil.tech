@@ -12,6 +12,11 @@ public struct ThreadMessage: Equatable, Identifiable, Sendable {
   public var senderAddress: String?
   public var hasAttachments: Bool
   public var service: String?
+  public var isDelivered: Bool
+  public var dateRead: Date?
+  public var dateEdited: Date?
+  /// Whether an outgoing message failed to send.
+  public var hasError: Bool
 
   public init(
     id: Message.ID,
@@ -22,7 +27,11 @@ public struct ThreadMessage: Equatable, Identifiable, Sendable {
     isFromMe: Bool,
     senderAddress: String?,
     hasAttachments: Bool,
-    service: String? = "iMessage"
+    service: String? = "iMessage",
+    isDelivered: Bool = false,
+    dateRead: Date? = nil,
+    dateEdited: Date? = nil,
+    hasError: Bool = false
   ) {
     self.id = id
     self.guid = guid
@@ -33,6 +42,10 @@ public struct ThreadMessage: Equatable, Identifiable, Sendable {
     self.senderAddress = senderAddress
     self.hasAttachments = hasAttachments
     self.service = service
+    self.isDelivered = isDelivered
+    self.dateRead = dateRead
+    self.dateEdited = dateEdited
+    self.hasError = hasError
   }
 
   /// Whether the message went over SMS or RCS rather than iMessage, which Messages shows in green.
@@ -119,7 +132,11 @@ public struct MessageThreadRequest: FetchKeyRequest {
         isFromMe: row.message.isFromMe,
         senderAddress: row.message.isFromMe ? nil : row.senderAddress,
         hasAttachments: row.message.hasAttachments,
-        service: row.message.service
+        service: row.message.service,
+        isDelivered: row.message.isDelivered,
+        dateRead: row.message.dateRead,
+        dateEdited: row.message.dateEdited,
+        hasError: row.message.error != 0
       )
     }
   }
