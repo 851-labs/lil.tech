@@ -64,6 +64,7 @@ public struct ConversationListView: View {
         } label: {
           Label("Filter", systemImage: "line.3.horizontal.decrease")
         }
+        .menuIndicator(.hidden)
         .help("Filter Conversations")
       }
     }
