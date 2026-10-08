@@ -237,6 +237,53 @@ extension MessageThreadFeatureTests {
   }
 
   @Test
+  func mergingLatestMessagesNeverDuplicatesIDs() async {
+    let store = TestStore(
+      initialState: MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;-;+15550000001",
+        title: "+15550000001",
+        isGroup: false,
+        messages: [threadMessage(1), threadMessage(2)]
+      )
+    ) {
+      MessageThreadFeature()
+    }
+
+    var older = threadMessage(1)
+    older.date = date(-100)
+    await store.send(.latestMessagesLoaded(.success([threadMessage(2), threadMessage(3)]))) {
+      $0.messages = [threadMessage(1), threadMessage(2), threadMessage(3)]
+    }
+    await store.send(.earlierMessagesLoaded(.success([older]))) {
+      $0.hasEarlierMessages = false
+    }
+  }
+
+  @Test
+  func linkTappedOpensURL() async {
+    let opened = LockIsolated<[URL]>([])
+    let store = TestStore(
+      initialState: MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;-;+15550000001",
+        title: "+15550000001",
+        isGroup: false
+      )
+    ) {
+      MessageThreadFeature()
+    } withDependencies: {
+      $0.openURL = OpenURLEffect { url in
+        opened.withValue { $0.append(url) }
+        return true
+      }
+    }
+
+    await store.send(.linkTapped(URL(string: "tel:4155550100")!))
+    #expect(opened.value == [URL(string: "tel:4155550100")!])
+  }
+
+  @Test
   func draftChanged() async {
     let store = TestStore(
       initialState: MessageThreadFeature.State(
