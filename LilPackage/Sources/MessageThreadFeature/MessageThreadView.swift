@@ -52,6 +52,7 @@ private struct MessageList: NSViewControllerRepresentable {
 }
 
 #Preview(
+  "Group",
   traits: .dependencies {
     $0.chatDatabase = .constant(try makePreviewChatDatabase())
   }
@@ -77,4 +78,52 @@ private struct MessageList: NSViewControllerRepresentable {
     }
   )
   .frame(width: 500, height: 420)
+}
+
+#Preview(
+  "Links",
+  traits: .dependencies {
+    $0.chatDatabase = .constant(try makeInMemoryChatDatabase())
+  }
+) {
+  let start = Date(timeIntervalSinceReferenceDate: 800_000_000)
+  func message(_ id: Int64, _ text: String, isFromMe: Bool) -> ThreadMessage {
+    ThreadMessage(
+      id: Message.ID(900 + id),
+      guid: "links-\(id)",
+      date: start.addingTimeInterval(Double(id) * 60),
+      text: text,
+      attributedBody: nil,
+      isFromMe: isFromMe,
+      senderAddress: isFromMe ? nil : "+14155550101",
+      hasAttachments: false
+    )
+  }
+  return MessageThreadView(
+    store: Store(
+      initialState: MessageThreadFeature.State(
+        chatID: 900,
+        chatGUID: "iMessage;-;+14155550101",
+        title: "Ada Lovelace",
+        isGroup: false,
+        messages: [
+          message(
+            1, "Your appointment is at 10:30 AM. Call (415) 555-0100 for changes.", isFromMe: false),
+          message(
+            2, "Details here: https://example.com/appointments/confirm?id=8f3a2c", isFromMe: false),
+          message(
+            3,
+            "https://example.com/a/really/long/path/that/keeps/going/and/going/to/check/wrapping?with=query&params=true",
+            isFromMe: false
+          ),
+          message(4, "Thanks! I’ll call +1 415 555 0123 if I’m late", isFromMe: true),
+          message(5, "Sharing the menu: example.com/menu", isFromMe: true),
+        ],
+        hasEarlierMessages: false
+      )
+    ) {
+      MessageThreadFeature()
+    }
+  )
+  .frame(width: 520, height: 480)
 }

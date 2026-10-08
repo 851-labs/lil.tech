@@ -12,6 +12,8 @@ final class MessageThreadViewController: NSViewController {
   private var dataSource: NSTableViewDiffableDataSource<Int, Item>!
   private var messagesByID: [Message.ID: ThreadMessage] = [:]
   private var pendingByID: [UUID: MessageThreadFeature.PendingMessage] = [:]
+  private var linksByID: [Message.ID: [MessageLink]] = [:]
+  private var lastTableWidth: CGFloat = 0
   private var isGroup = false
   private var isTextChat = false
   private var senderNames: [String: String] = [:]
@@ -59,18 +61,24 @@ final class MessageThreadViewController: NSViewController {
       let cell =
         tableView.makeView(withIdentifier: MessageCellView.identifier, owner: nil)
         as? MessageCellView ?? MessageCellView()
+      let maxTextWidth = MessageCellView.maxTextWidth(forRowWidth: tableView.bounds.width)
+      cell.onLinkClicked = { [weak self] url in
+        self?.store.send(.linkTapped(url))
+      }
       switch item {
       case .message(let id):
         if let message = messagesByID[id] {
           let sender = isGroup && !message.isFromMe ? message.senderAddress : nil
           cell.configure(
             with: message,
-            senderName: sender.map { senderNames[$0] ?? formattedHandle($0) }
+            links: links(for: message),
+            senderName: sender.map { senderNames[$0] ?? formattedHandle($0) },
+            maxTextWidth: maxTextWidth
           )
         }
       case .pending(let id):
         if let pending = pendingByID[id] {
-          cell.configure(with: pending, isTextMessage: isTextChat)
+          cell.configure(with: pending, isTextMessage: isTextChat, maxTextWidth: maxTextWidth)
         }
       }
       return cell
@@ -85,7 +93,7 @@ final class MessageThreadViewController: NSViewController {
 
     NotificationCenter.default.addObserver(
       self,
-      selector: #selector(updateBubbleGradients),
+      selector: #selector(scrollViewFrameDidChange),
       name: NSView.frameDidChangeNotification,
       object: scrollView.contentView
     )
@@ -108,7 +116,9 @@ final class MessageThreadViewController: NSViewController {
     isGroup: Bool,
     senderNames: [String: String]
   ) {
-    let items = messages.map { Item.message($0.id) } + pendingMessages.map { Item.pending($0.id) }
+    var seenItems = Set<Item>()
+    let items = (messages.map { Item.message($0.id) } + pendingMessages.map { Item.pending($0.id) })
+      .filter { seenItems.insert($0).inserted }
     let previousItems = dataSource.snapshot().itemIdentifiers
     let wasAtBottom = isScrolledToBottom
     let distanceFromBottom =
@@ -128,8 +138,15 @@ final class MessageThreadViewController: NSViewController {
       guard let previous = pendingByID[pending.id], previous != pending else { return nil }
       return .pending(pending.id)
     }
-    messagesByID = Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0) })
-    pendingByID = Dictionary(uniqueKeysWithValues: pendingMessages.map { ($0.id, $0) })
+    for case .message(let id) in changedItems {
+      linksByID[id] = nil
+    }
+    messagesByID = Dictionary(
+      messages.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+    pendingByID = Dictionary(
+      pendingMessages.map { ($0.id, $0) },
+      uniquingKeysWith: { _, latest in latest }
+    )
 
     var snapshot = NSDiffableDataSourceSnapshot<Int, Item>()
     snapshot.appendSections([0])
@@ -167,6 +184,24 @@ final class MessageThreadViewController: NSViewController {
     }
   }
 
+  /// Data detection runs once per message; the result is cached until the message changes.
+  private func links(for message: ThreadMessage) -> [MessageLink] {
+    if let links = linksByID[message.id] { return links }
+    let links = MessageLink.detect(in: message.body)
+    linksByID[message.id] = links
+    return links
+  }
+
+  @objc private func scrollViewFrameDidChange() {
+    let width = tableView.bounds.width
+    if width != lastTableWidth {
+      lastTableWidth = width
+      tableView.noteHeightOfRows(
+        withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
+    }
+    updateBubbleGradients()
+  }
+
   @objc private func updateBubbleGradients() {
     let clipView = scrollView.contentView
     let visibleRect = clipView.bounds
@@ -190,7 +225,7 @@ final class MessageCellView: NSTableCellView {
   static let identifier = NSUserInterfaceItemIdentifier("MessageCellView")
 
   private let bubble = BubbleView()
-  private let bodyLabel = NSTextField(wrappingLabelWithString: "")
+  private let bodyText = MessageTextView()
   private let senderLabel = NSTextField(labelWithString: "")
   private let statusLabel = NSTextField(labelWithString: "")
   private var leadingConstraint: NSLayoutConstraint!
@@ -202,9 +237,7 @@ final class MessageCellView: NSTableCellView {
     super.init(frame: .zero)
     identifier = Self.identifier
 
-    bodyLabel.isSelectable = true
-    bodyLabel.font = .preferredFont(forTextStyle: .body)
-    bodyLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    bodyText.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
     for label in [senderLabel, statusLabel] {
       label.font = .preferredFont(forTextStyle: .caption1)
@@ -212,13 +245,13 @@ final class MessageCellView: NSTableCellView {
       label.lineBreakMode = .byTruncatingTail
     }
 
-    for subview in [bubble, bodyLabel, senderLabel, statusLabel] {
+    for subview in [bubble, bodyText, senderLabel, statusLabel] {
       subview.translatesAutoresizingMaskIntoConstraints = false
     }
     addSubview(senderLabel)
     addSubview(bubble)
     addSubview(statusLabel)
-    bubble.addSubview(bodyLabel)
+    bubble.addSubview(bodyText)
 
     leadingConstraint = bubble.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16)
     trailingConstraint = bubble.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16)
@@ -239,10 +272,10 @@ final class MessageCellView: NSTableCellView {
       statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
       statusLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
 
-      bodyLabel.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 7),
-      bodyLabel.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -7),
-      bodyLabel.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
-      bodyLabel.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12),
+      bodyText.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 7),
+      bodyText.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -7),
+      bodyText.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
+      bodyText.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12),
     ])
   }
 
@@ -251,10 +284,35 @@ final class MessageCellView: NSTableCellView {
     fatalError("init(coder:) has not been implemented")
   }
 
-  func configure(with message: ThreadMessage, senderName: String?) {
+  var onLinkClicked: ((URL) -> Void)? {
+    get { bodyText.onLinkClicked }
+    set { bodyText.onLinkClicked = newValue }
+  }
+
+  /// The widest the message text may get: bubbles are at most 70% of the row, minus padding.
+  static func maxTextWidth(forRowWidth width: CGFloat) -> CGFloat {
+    max(floor(width * 0.7) - 24, 0)
+  }
+
+  override func layout() {
+    if bounds.width > 0 {
+      bodyText.preferredMaxLayoutWidth = Self.maxTextWidth(forRowWidth: bounds.width)
+    }
+    super.layout()
+  }
+
+  func configure(
+    with message: ThreadMessage,
+    links: [MessageLink],
+    senderName: String?,
+    maxTextWidth: CGFloat
+  ) {
     let body = message.body
+    bodyText.preferredMaxLayoutWidth = maxTextWidth
+    bodyText.isSelectable = true
     configure(
       text: body.isEmpty && message.hasAttachments ? "Attachment" : body,
+      links: links,
       style: message.isFromMe ? (message.isTextMessage ? .textMessage : .iMessage) : .received,
       senderName: senderName,
       status: nil
@@ -262,9 +320,16 @@ final class MessageCellView: NSTableCellView {
     bubble.alphaValue = 1
   }
 
-  func configure(with pending: MessageThreadFeature.PendingMessage, isTextMessage: Bool) {
+  func configure(
+    with pending: MessageThreadFeature.PendingMessage,
+    isTextMessage: Bool,
+    maxTextWidth: CGFloat
+  ) {
+    bodyText.preferredMaxLayoutWidth = maxTextWidth
+    bodyText.isSelectable = !pending.isFailed
     configure(
       text: pending.text,
+      links: [],
       style: pending.isFailed ? .failed : (isTextMessage ? .textMessage : .iMessage),
       senderName: nil,
       status: pending.isFailed ? "Not Delivered · Click to Retry" : "Sending…"
@@ -285,13 +350,18 @@ final class MessageCellView: NSTableCellView {
 
   private func configure(
     text: String,
+    links: [MessageLink],
     style: BubbleView.Style,
     senderName: String?,
     status: String?
   ) {
     let isFromMe = style != .received
-    bodyLabel.stringValue = text
-    bodyLabel.textColor = isFromMe ? .white : .labelColor
+    bodyText.configure(
+      text: text,
+      links: links,
+      textColor: isFromMe ? .white : .labelColor,
+      linkColor: isFromMe ? .white : .linkColor
+    )
     bubble.style = style
 
     senderLabel.stringValue = senderName ?? ""

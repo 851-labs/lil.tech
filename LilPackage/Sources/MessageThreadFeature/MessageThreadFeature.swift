@@ -72,6 +72,7 @@ public struct MessageThreadFeature {
     case earlierMessagesLoaded(Result<[ThreadMessage], any Error>)
     case failedMessageTapped(UUID)
     case latestMessagesLoaded(Result<[ThreadMessage], any Error>)
+    case linkTapped(URL)
     case returnKeyPressed
     case scrolledNearTop
     case sendResponse(id: UUID, Result<Void, any Error>)
@@ -82,6 +83,7 @@ public struct MessageThreadFeature {
   @Dependency(\.chatDatabaseChanges) var chatDatabaseChanges
   @Dependency(\.date.now) var now
   @Dependency(\.messageSender) var messageSender
+  @Dependency(\.openURL) var openURL
   @Dependency(\.uuid) var uuid
 
   public init() {}
@@ -96,7 +98,8 @@ public struct MessageThreadFeature {
       case .earlierMessagesLoaded(.success(let earlier)):
         state.isLoadingEarlier = false
         state.hasEarlierMessages = earlier.count == Self.pageSize
-        state.messages.insert(contentsOf: earlier, at: 0)
+        let existingIDs = Set(state.messages.map(\.id))
+        state.messages.insert(contentsOf: earlier.filter { !existingIDs.contains($0.id) }, at: 0)
         return .none
 
       case .earlierMessagesLoaded(.failure):
@@ -115,8 +118,11 @@ public struct MessageThreadFeature {
         if state.messages.isEmpty {
           state.hasEarlierMessages = latest.count == Self.pageSize
         }
-        if let oldestLatest = latest.first?.cursor {
-          state.messages.removeAll { !$0.cursor.isBefore(oldestLatest) }
+        let latestIDs = Set(latest.map(\.id))
+        let oldestLatest = latest.first?.cursor
+        state.messages.removeAll { message in
+          latestIDs.contains(message.id)
+            || oldestLatest.map { !message.cursor.isBefore($0) } ?? false
         }
         state.messages.append(contentsOf: latest)
         state.pendingMessages.removeAll { pending in
@@ -127,6 +133,11 @@ public struct MessageThreadFeature {
       case .latestMessagesLoaded(.failure):
         state.loadFailed = true
         return .none
+
+      case .linkTapped(let url):
+        return .run { [openURL] _ in
+          await openURL(url)
+        }
 
       case .returnKeyPressed:
         let text = state.draft.trimmingCharacters(in: .whitespacesAndNewlines)
