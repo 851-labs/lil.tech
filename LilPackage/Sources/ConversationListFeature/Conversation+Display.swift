@@ -18,21 +18,61 @@ extension Conversation {
   }
 
   /// The latest message's text, falling back to the text archived in `attributedBody`, then to
-  /// "Attachment".
-  public var previewText: String {
-    let text =
-      latestMessage.text
-      ?? latestMessage.attributedBody.flatMap(AttributedBody.text(from:))
-      ?? ""
-    let preview =
-      text
-      .replacing("\u{FFFC}", with: "")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+  /// "Attachment". Tapbacks read like Messages: "Ada loved “See you there”".
+  public func previewText(contactNames: [String: String] = [:]) -> String {
+    if let tapback = latestMessage.tapback {
+      return tapbackPreview(tapback, contactNames: contactNames)
+    }
+    let preview = messageBody(
+      text: latestMessage.text, attributedBody: latestMessage.attributedBody)
     if preview.isEmpty, latestMessage.hasAttachments {
       return "Attachment"
     }
     return preview
   }
+
+  private func tapbackPreview(_ tapback: Tapback, contactNames: [String: String]) -> String {
+    let sender: String
+    if latestMessage.isFromMe {
+      sender = "You"
+    } else {
+      let address = latestMessage.senderAddress ?? chatIdentifier
+      sender = contactNames[address].map(firstName) ?? formattedHandle(address)
+    }
+
+    let verb =
+      switch tapback {
+      case .loved: "loved"
+      case .liked: "liked"
+      case .disliked: "disliked"
+      case .laughed: "laughed at"
+      case .emphasized: "emphasized"
+      case .questioned: "questioned"
+      case .emoji(let emoji): "reacted \(emoji) to"
+      }
+
+    let target: String
+    if let reactedTo = latestMessage.reactedTo, !reactedTo.body.isEmpty {
+      target = "“\(truncatedQuote(reactedTo.body))”"
+    } else if latestMessage.reactedTo?.hasAttachments == true {
+      target = "an attachment"
+    } else {
+      target = "a message"
+    }
+    return "\(sender) \(verb) \(target)"
+  }
+}
+
+/// The first word of a contact's name, like Messages uses in tapback previews.
+private func firstName(_ name: String) -> String {
+  name.split(separator: " ").first.map(String.init) ?? name
+}
+
+/// Messages quotes at most 50 characters of the reacted-to message.
+private func truncatedQuote(_ text: String) -> String {
+  let singleLine = text.split(whereSeparator: \.isNewline).joined(separator: " ")
+  guard singleLine.count > 50 else { return singleLine }
+  return singleLine.prefix(50).trimmingCharacters(in: .whitespaces) + "…"
 }
 
 /// Formats a message date like Messages does in its sidebar: the time for today, "Yesterday", the

@@ -35,18 +35,40 @@ public struct Conversation: Equatable, Identifiable, Sendable {
     public var attributedBody: Data?
     public var isFromMe: Bool
     public var hasAttachments: Bool
+    /// Who sent it, for messages that aren't from me.
+    public var senderAddress: String?
+    /// Set when the latest message is a tapback.
+    public var tapback: Tapback?
+    /// For a tapback, the message it reacts to, or `nil` if that message is gone.
+    public var reactedTo: ReactedMessage?
 
     public init(
       date: Date,
       text: String?,
       attributedBody: Data?,
       isFromMe: Bool,
-      hasAttachments: Bool
+      hasAttachments: Bool,
+      senderAddress: String? = nil,
+      tapback: Tapback? = nil,
+      reactedTo: ReactedMessage? = nil
     ) {
       self.date = date
       self.text = text
       self.attributedBody = attributedBody
       self.isFromMe = isFromMe
+      self.hasAttachments = hasAttachments
+      self.senderAddress = senderAddress
+      self.tapback = tapback
+      self.reactedTo = reactedTo
+    }
+  }
+
+  public struct ReactedMessage: Equatable, Sendable {
+    public var body: String
+    public var hasAttachments: Bool
+
+    public init(body: String, hasAttachments: Bool) {
+      self.body = body
       self.hasAttachments = hasAttachments
     }
   }
@@ -54,30 +76,57 @@ public struct Conversation: Equatable, Identifiable, Sendable {
 
 /// Fetches every conversation that has at least one message, newest first.
 ///
-/// The latest message ignores tapbacks and group events, so the preview always shows something
-/// that someone actually wrote.
+/// The latest message can be a tapback, like in Messages, in which case the message it reacts to is
+/// looked up too. Group events and tapback removals are ignored.
 public struct ConversationsRequest: FetchKeyRequest {
   public init() {}
 
   public func fetch(_ db: Database) throws -> [Conversation] {
-    let latestMessages =
-      try Chat
+    let messages =
+      Chat
       .group(by: \.id)
       .join(ChatMessageJoin.all) { $0.id.eq($1.chatID) }
       .join(Message.all) { $1.messageID.eq($2.id) }
-      .where { $2.associatedMessageType.eq(0) && $2.itemType.eq(0) }
-      .order { $2.date.max().desc() }
-      .select {
+      .leftJoin(Handle.all) { $2.handleID.eq($3.id) }
+      .where { _, _, message, _ in message.itemType.eq(0) }
+    let latestMessages =
+      try messages
+      .where { _, _, message, _ in
+        // Plain messages, or tapbacks that add a reaction (`Tapback.associatedMessageTypes`).
+        message.associatedMessageType.eq(0)
+          || message.associatedMessageType.between(2000, and: 2006)
+      }
+      .order { _, _, message, _ in message.date.max().desc() }
+      .select { chat, _, message, handle in
         LatestMessageRow.Columns(
-          chat: $0,
-          date: $2.date.max(),
-          text: $2.text,
-          attributedBody: $2.attributedBody,
-          isFromMe: $2.isFromMe,
-          hasAttachments: $2.hasAttachments
+          chat: chat,
+          date: message.date.max(),
+          text: message.text,
+          attributedBody: message.attributedBody,
+          isFromMe: message.isFromMe,
+          hasAttachments: message.hasAttachments,
+          senderAddress: handle.address,
+          associatedMessageType: message.associatedMessageType,
+          associatedMessageGUID: message.associatedMessageGUID,
+          associatedMessageEmoji: message.associatedMessageEmoji
         )
       }
       .fetchAll(db)
+
+    let reactedToGUIDs = latestMessages.compactMap { row in
+      row.associatedMessageGUID.map(Tapback.reactedToGUID(fromAssociatedGUID:))
+    }
+    let reactedToMessages =
+      reactedToGUIDs.isEmpty
+      ? []
+      : try Message.where { $0.guid.in(reactedToGUIDs) }.fetchAll(db)
+    var reactedToByGUID: [String: Conversation.ReactedMessage] = [:]
+    for message in reactedToMessages {
+      reactedToByGUID[message.guid] = Conversation.ReactedMessage(
+        body: messageBody(text: message.text, attributedBody: message.attributedBody),
+        hasAttachments: message.hasAttachments
+      )
+    }
 
     let participants =
       try ChatHandleJoin
@@ -89,6 +138,10 @@ public struct ConversationsRequest: FetchKeyRequest {
 
     return latestMessages.compactMap { row in
       guard let date = row.date else { return nil }
+      let tapback = Tapback(
+        associatedMessageType: row.associatedMessageType,
+        emoji: row.associatedMessageEmoji
+      )
       return Conversation(
         id: row.chat.id,
         guid: row.chat.guid,
@@ -101,7 +154,14 @@ public struct ConversationsRequest: FetchKeyRequest {
           text: row.text,
           attributedBody: row.attributedBody,
           isFromMe: row.isFromMe,
-          hasAttachments: row.hasAttachments
+          hasAttachments: row.hasAttachments,
+          senderAddress: row.isFromMe ? nil : row.senderAddress,
+          tapback: tapback,
+          reactedTo: tapback == nil
+            ? nil
+            : row.associatedMessageGUID.flatMap {
+              reactedToByGUID[Tapback.reactedToGUID(fromAssociatedGUID: $0)]
+            }
         )
       )
     }
@@ -117,4 +177,8 @@ private struct LatestMessageRow {
   let attributedBody: Data?
   let isFromMe: Bool
   let hasAttachments: Bool
+  let senderAddress: String?
+  let associatedMessageType: Int
+  let associatedMessageGUID: String?
+  let associatedMessageEmoji: String?
 }

@@ -60,3 +60,11 @@ extension [UInt8] {
     return nil
   }
 }
+
+/// A message's text, falling back to the text archived in `attributedBody`, without attachment
+/// placeholders or surrounding whitespace.
+public func messageBody(text: String?, attributedBody: Data?) -> String {
+  (text ?? attributedBody.flatMap(AttributedBody.text(from:)) ?? "")
+    .replacing("\u{FFFC}", with: "")
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+}

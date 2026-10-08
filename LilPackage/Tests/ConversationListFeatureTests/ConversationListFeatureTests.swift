@@ -67,7 +67,8 @@ struct ConversationListFeatureTests {
             text: "Newer",
             attributedBody: nil,
             isFromMe: false,
-            hasAttachments: false
+            hasAttachments: false,
+            senderAddress: "+15550000001"
           )
         ),
         Conversation(
@@ -82,7 +83,8 @@ struct ConversationListFeatureTests {
             text: "Older",
             attributedBody: nil,
             isFromMe: false,
-            hasAttachments: false
+            hasAttachments: false,
+            senderAddress: "+15550000001"
           )
         ),
       ]

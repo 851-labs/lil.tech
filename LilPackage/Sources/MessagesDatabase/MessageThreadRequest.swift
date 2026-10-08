@@ -58,9 +58,7 @@ public struct ThreadMessage: Equatable, Identifiable, Sendable {
   /// The message text, falling back to the text archived in `attributedBody`, without attachment
   /// placeholders.
   public var body: String {
-    (text ?? attributedBody.flatMap(AttributedBody.text(from:)) ?? "")
-      .replacing("\u{FFFC}", with: "")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+    messageBody(text: text, attributedBody: attributedBody)
   }
 
   /// The position of this message in its thread, for loading the page of messages before it.

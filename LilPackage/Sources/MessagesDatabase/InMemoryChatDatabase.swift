@@ -54,6 +54,8 @@ public func makeInMemoryChatDatabase() throws -> DatabaseQueue {
         cache_has_attachments INTEGER DEFAULT 0,
         item_type INTEGER DEFAULT 0,
         associated_message_type INTEGER DEFAULT 0,
+        associated_message_guid TEXT DEFAULT NULL,
+        associated_message_emoji TEXT DEFAULT NULL,
         is_delivered INTEGER DEFAULT 0,
         date_read INTEGER DEFAULT 0,
         date_edited INTEGER DEFAULT 0,

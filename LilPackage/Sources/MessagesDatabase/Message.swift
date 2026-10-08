@@ -26,6 +26,12 @@ public struct Message: Identifiable, Sendable {
   public var itemType: Int
   @Column("associated_message_type")
   public var associatedMessageType: Int
+  /// For a tapback, the message it reacts to, e.g. "p:0/<guid>".
+  @Column("associated_message_guid")
+  public var associatedMessageGUID: String?
+  /// For an emoji tapback, the emoji.
+  @Column("associated_message_emoji")
+  public var associatedMessageEmoji: String?
   @Column("is_delivered")
   public var isDelivered: Bool
   @Column("date_read", as: Date.OptionalAppleTimestampRepresentation.self)
@@ -48,6 +54,8 @@ public struct Message: Identifiable, Sendable {
     hasAttachments: Bool,
     itemType: Int,
     associatedMessageType: Int,
+    associatedMessageGUID: String? = nil,
+    associatedMessageEmoji: String? = nil,
     isDelivered: Bool = false,
     dateRead: Date? = nil,
     dateEdited: Date? = nil,
@@ -65,6 +73,8 @@ public struct Message: Identifiable, Sendable {
     self.hasAttachments = hasAttachments
     self.itemType = itemType
     self.associatedMessageType = associatedMessageType
+    self.associatedMessageGUID = associatedMessageGUID
+    self.associatedMessageEmoji = associatedMessageEmoji
     self.isDelivered = isDelivered
     self.dateRead = dateRead
     self.dateEdited = dateEdited
