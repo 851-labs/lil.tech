@@ -185,6 +185,44 @@ struct ConversationsRequestTests {
   }
 
   @Test
+  func latestMessageAttachmentsSkipHiddenOnes() throws {
+    let database = try makeInMemoryChatDatabase()
+    try database.write { db in
+      try db.seed {
+        Handle(id: 1, address: "+15550000001", service: "iMessage")
+        Chat(
+          id: 1,
+          guid: "iMessage;-;+15550000001",
+          style: .oneOnOne,
+          chatIdentifier: "+15550000001",
+          serviceName: "iMessage",
+          displayName: nil,
+          isArchived: false
+        )
+        message(id: 1, text: nil, handleID: 1, at: 100, hasAttachments: true)
+        Attachment(id: 1, guid: "a1", mimeType: "image/heic", transferName: "IMG_0001.HEIC")
+        Attachment(id: 2, guid: "a2", mimeType: nil, transferName: nil, isHidden: true)
+        Attachment(id: 3, guid: "a3", mimeType: "video/quicktime", transferName: "IMG_0002.MOV")
+        MessageAttachmentJoin(messageID: 1, attachmentID: 1)
+        MessageAttachmentJoin(messageID: 1, attachmentID: 2)
+        MessageAttachmentJoin(messageID: 1, attachmentID: 3)
+        ChatMessageJoin(chatID: 1, messageID: 1, messageDate: date(100))
+      }
+    }
+
+    let conversations = try database.read { db in try ConversationsRequest().fetch(db) }
+
+    #expect(
+      conversations.first?.latestMessage.attachments == [
+        Conversation.AttachmentSummary(
+          mimeType: "image/heic", uti: nil, transferName: "IMG_0001.HEIC"),
+        Conversation.AttachmentSummary(
+          mimeType: "video/quicktime", uti: nil, transferName: "IMG_0002.MOV"),
+      ]
+    )
+  }
+
+  @Test
   func reactedToGUIDs() {
     #expect(Tapback.reactedToGUID(fromAssociatedGUID: "p:0/ABC-123") == "ABC-123")
     #expect(Tapback.reactedToGUID(fromAssociatedGUID: "p:12/ABC-123") == "ABC-123")

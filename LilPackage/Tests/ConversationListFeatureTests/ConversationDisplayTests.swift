@@ -63,6 +63,47 @@ struct ConversationDisplayTests {
   }
 
   @Test
+  func attachmentPreviews() {
+    func preview(
+      _ attachments: [Conversation.AttachmentSummary],
+      text: String? = nil,
+      isAudioMessage: Bool = false
+    ) -> String {
+      var conversation = makeConversation(text: text, hasAttachments: true)
+      conversation.latestMessage.attachments = attachments
+      conversation.latestMessage.isAudioMessage = isAudioMessage
+      return conversation.previewText()
+    }
+    let photo = Conversation.AttachmentSummary(
+      mimeType: "image/heic", uti: "public.heic", transferName: "IMG_0001.HEIC")
+    let video = Conversation.AttachmentSummary(
+      mimeType: "video/quicktime", uti: "com.apple.quicktime-movie", transferName: "IMG_0002.MOV")
+    let pdf = Conversation.AttachmentSummary(
+      mimeType: "application/pdf", uti: "com.adobe.pdf", transferName: "Plan.pdf")
+
+    #expect(preview([photo]) == "Photo")
+    #expect(preview([video]) == "Video")
+    #expect(preview([pdf]) == "Plan.pdf")
+    #expect(
+      preview([.init(mimeType: nil, uti: "public.jpeg", transferName: "photo.jpg")]) == "Photo")
+    #expect(preview([.init(mimeType: "application/zip", uti: nil, transferName: nil)]) == "File")
+    #expect(
+      preview([.init(mimeType: "image/png", uti: nil, transferName: nil, isSticker: true)])
+        == "Sticker"
+    )
+    #expect(
+      preview(
+        [.init(mimeType: "audio/x-caf", uti: "com.apple.coreaudio-format", transferName: nil)],
+        isAudioMessage: true
+      ) == "Audio Message"
+    )
+    #expect(preview([photo, photo]) == "Attachments: 2 Photos")
+    #expect(preview([photo, video, photo]) == "Attachments: 2 Photos, 1 Video")
+    #expect(preview([photo], text: "Look at this") == "Look at this")
+    #expect(preview([]) == "Attachment")
+  }
+
+  @Test
   func tapbackPreviewsForEachType() {
     let cases: [(Tapback, String)] = [
       (.loved, "Ada loved “See you there”"),

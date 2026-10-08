@@ -32,6 +32,9 @@ public struct Message: Identifiable, Sendable {
   /// For an emoji tapback, the emoji.
   @Column("associated_message_emoji")
   public var associatedMessageEmoji: String?
+  /// A voice message recorded in Messages.
+  @Column("is_audio_message")
+  public var isAudioMessage: Bool
   @Column("is_delivered")
   public var isDelivered: Bool
   @Column("date_read", as: Date.OptionalAppleTimestampRepresentation.self)
@@ -56,6 +59,7 @@ public struct Message: Identifiable, Sendable {
     associatedMessageType: Int,
     associatedMessageGUID: String? = nil,
     associatedMessageEmoji: String? = nil,
+    isAudioMessage: Bool = false,
     isDelivered: Bool = false,
     dateRead: Date? = nil,
     dateEdited: Date? = nil,
@@ -75,6 +79,7 @@ public struct Message: Identifiable, Sendable {
     self.associatedMessageType = associatedMessageType
     self.associatedMessageGUID = associatedMessageGUID
     self.associatedMessageEmoji = associatedMessageEmoji
+    self.isAudioMessage = isAudioMessage
     self.isDelivered = isDelivered
     self.dateRead = dateRead
     self.dateEdited = dateEdited

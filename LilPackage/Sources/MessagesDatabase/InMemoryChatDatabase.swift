@@ -56,6 +56,7 @@ public func makeInMemoryChatDatabase() throws -> DatabaseQueue {
         associated_message_type INTEGER DEFAULT 0,
         associated_message_guid TEXT DEFAULT NULL,
         associated_message_emoji TEXT DEFAULT NULL,
+        is_audio_message INTEGER DEFAULT 0,
         is_delivered INTEGER DEFAULT 0,
         date_read INTEGER DEFAULT 0,
         date_edited INTEGER DEFAULT 0,
@@ -70,6 +71,31 @@ public func makeInMemoryChatDatabase() throws -> DatabaseQueue {
         chat_id INTEGER REFERENCES chat (ROWID) ON DELETE CASCADE,
         handle_id INTEGER REFERENCES handle (ROWID) ON DELETE CASCADE,
         UNIQUE(chat_id, handle_id)
+      )
+      """
+    )
+    .execute(db)
+    try #sql(
+      """
+      CREATE TABLE attachment (
+        ROWID INTEGER PRIMARY KEY AUTOINCREMENT,
+        guid TEXT UNIQUE NOT NULL,
+        filename TEXT,
+        uti TEXT,
+        mime_type TEXT,
+        transfer_name TEXT,
+        is_sticker INTEGER DEFAULT 0,
+        hide_attachment INTEGER DEFAULT 0
+      )
+      """
+    )
+    .execute(db)
+    try #sql(
+      """
+      CREATE TABLE message_attachment_join (
+        message_id INTEGER REFERENCES message (ROWID) ON DELETE CASCADE,
+        attachment_id INTEGER REFERENCES attachment (ROWID) ON DELETE CASCADE,
+        UNIQUE(message_id, attachment_id)
       )
       """
     )
