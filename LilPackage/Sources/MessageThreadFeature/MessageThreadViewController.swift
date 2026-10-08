@@ -126,7 +126,7 @@ final class MessageThreadViewController: NSViewController {
 
     observe { [weak self] in
       guard let self else { return }
-      isTextChat = store.chatGUID.hasPrefix("SMS;") || store.chatGUID.hasPrefix("RCS;")
+      isTextChat = store.isTextChat
       apply(
         messages: store.messages,
         pendingMessages: store.pendingMessages,

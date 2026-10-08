@@ -25,6 +25,12 @@ public struct MessageThreadFeature {
 
     public var id: Chat.ID { chatID }
 
+    /// Whether the chat goes over SMS or RCS, which Messages shows in green with a "Text Message"
+    /// composer.
+    public var isTextChat: Bool {
+      chatGUID.hasPrefix("SMS;") || chatGUID.hasPrefix("RCS;")
+    }
+
     /// The message that shows a delivery or read receipt: my latest message, while nothing has
     /// come after it.
     public var receiptMessageID: Message.ID? {

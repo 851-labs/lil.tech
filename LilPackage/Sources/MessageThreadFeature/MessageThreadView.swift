@@ -19,7 +19,7 @@ public struct MessageThreadView: View {
         .frame(height: 64)
         .overlay(alignment: .topLeading) {
           if store.draft.isEmpty {
-            Text("iMessage")
+            Text(store.isTextChat ? "Text Message" : "iMessage")
               .foregroundStyle(.tertiary)
               .padding(.horizontal, 13)
               .padding(.vertical, 8)
