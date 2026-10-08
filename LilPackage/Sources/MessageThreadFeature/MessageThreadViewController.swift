@@ -19,6 +19,10 @@ final class MessageThreadViewController: NSViewController {
   private var senderNames: [String: String] = [:]
   private var receiptMessageID: Message.ID?
   private var hasScrolledToBottomAfterLayout = false
+  private var rowHeights: [Item: CGFloat] = [:]
+  private var rowHeightsWidth: CGFloat = 0
+  private lazy var sizingMessageCell = MessageCellView()
+  private lazy var sizingSeparatorCell = SeparatorCellView()
 
   enum Item: Hashable {
     case message(Message.ID)
@@ -68,7 +72,6 @@ final class MessageThreadViewController: NSViewController {
     let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("message"))
     tableView.addTableColumn(column)
     tableView.headerView = nil
-    tableView.usesAutomaticRowHeights = true
     tableView.selectionHighlightStyle = .none
     tableView.intercellSpacing = NSSize(width: 0, height: 2)
     tableView.backgroundColor = .clear
@@ -99,31 +102,13 @@ final class MessageThreadViewController: NSViewController {
       let cell =
         tableView.makeView(withIdentifier: MessageCellView.identifier, owner: nil)
         as? MessageCellView ?? MessageCellView()
-      let maxTextWidth = MessageCellView.maxTextWidth(forRowWidth: tableView.bounds.width)
       cell.onLinkClicked = { [weak self] url in
         self?.store.send(.linkTapped(url))
       }
-      switch item {
-      case .message(let id):
-        if let message = messagesByID[id] {
-          let sender = isGroup && !message.isFromMe ? message.senderAddress : nil
-          cell.configure(
-            with: message,
-            links: links(for: message),
-            senderName: sender.map { senderNames[$0] ?? formattedHandle($0) },
-            status: MessageStatus.of(message, showsReceipt: id == receiptMessageID),
-            maxTextWidth: maxTextWidth
-          )
-        }
-      case .pending(let id):
-        if let pending = pendingByID[id] {
-          cell.configure(with: pending, isTextMessage: isTextChat, maxTextWidth: maxTextWidth)
-        }
-      case .separator:
-        break
-      }
+      configure(cell, for: item, rowWidth: tableView.bounds.width)
       return cell
     }
+    tableView.delegate = self
 
     NotificationCenter.default.addObserver(
       self,
@@ -188,6 +173,9 @@ final class MessageThreadViewController: NSViewController {
     for case .message(let id) in changedItems {
       linksByID[id] = nil
     }
+    for item in changedItems {
+      rowHeights[item] = nil
+    }
     messagesByID = Dictionary(
       messages.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
     pendingByID = Dictionary(
@@ -200,6 +188,10 @@ final class MessageThreadViewController: NSViewController {
     snapshot.appendItems(items)
     snapshot.reloadItems(changedItems)
     dataSource.apply(snapshot, animatingDifferences: false)
+    let changedRows = IndexSet(changedItems.compactMap { dataSource.row(forItemIdentifier: $0) })
+    if !changedRows.isEmpty {
+      tableView.noteHeightOfRows(withIndexesChanged: changedRows)
+    }
     tableView.layoutSubtreeIfNeeded()
 
     let appendedPendingMessage = pendingMessages.contains {
@@ -243,6 +235,54 @@ final class MessageThreadViewController: NSViewController {
     }
   }
 
+  private func configure(_ cell: MessageCellView, for item: Item, rowWidth: CGFloat) {
+    let maxTextWidth = MessageCellView.maxTextWidth(forRowWidth: rowWidth)
+    switch item {
+    case .message(let id):
+      if let message = messagesByID[id] {
+        let sender = isGroup && !message.isFromMe ? message.senderAddress : nil
+        cell.configure(
+          with: message,
+          links: links(for: message),
+          senderName: sender.map { senderNames[$0] ?? formattedHandle($0) },
+          status: MessageStatus.of(message, showsReceipt: id == receiptMessageID),
+          maxTextWidth: maxTextWidth
+        )
+      }
+    case .pending(let id):
+      if let pending = pendingByID[id] {
+        cell.configure(with: pending, isTextMessage: isTextChat, maxTextWidth: maxTextWidth)
+      }
+    case .separator:
+      break
+    }
+  }
+
+  /// Measures a row with an offscreen cell configured like the real one. Heights are explicit, not
+  /// automatic, so the document height is exact before anything scrolls: automatic heights only
+  /// measure visible rows and estimate the rest, which made scroll-to-bottom and the anchoring of
+  /// prepended pages land in the wrong place.
+  private func measureHeight(of item: Item, rowWidth: CGFloat) -> CGFloat {
+    let cell: NSView
+    if case .separator(let date) = item {
+      sizingSeparatorCell.configure(with: ThreadTimestamp(date, now: Date()))
+      cell = sizingSeparatorCell
+    } else {
+      configure(sizingMessageCell, for: item, rowWidth: rowWidth)
+      cell = sizingMessageCell
+    }
+    let width = cell.widthAnchor.constraint(equalToConstant: rowWidth)
+    width.isActive = true
+    defer { width.isActive = false }
+    cell.layoutSubtreeIfNeeded()
+    return max(ceil(cell.fittingSize.height), 1)
+  }
+
+  /// The table row showing the message with `id`.
+  func row(forMessage id: Message.ID) -> Int? {
+    dataSource.row(forItemIdentifier: .message(id))
+  }
+
   /// Data detection runs once per message; the result is cached until the message changes.
   private func links(for message: ThreadMessage) -> [MessageLink] {
     if let links = linksByID[message.id] { return links }
@@ -255,6 +295,7 @@ final class MessageThreadViewController: NSViewController {
     let width = tableView.bounds.width
     if width != lastTableWidth {
       lastTableWidth = width
+      rowHeights = [:]
       tableView.noteHeightOfRows(
         withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
     }
@@ -277,6 +318,21 @@ final class MessageThreadViewController: NSViewController {
       pendingByID[id]?.isFailed == true
     else { return }
     store.send(.failedMessageTapped(id))
+  }
+}
+
+extension MessageThreadViewController: NSTableViewDelegate {
+  func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+    guard let item = dataSource.itemIdentifier(forRow: row) else { return 1 }
+    let width = tableView.bounds.width
+    if width != rowHeightsWidth {
+      rowHeights = [:]
+      rowHeightsWidth = width
+    }
+    if let height = rowHeights[item] { return height }
+    let height = measureHeight(of: item, rowWidth: width)
+    rowHeights[item] = height
+    return height
   }
 }
 
