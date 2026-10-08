@@ -92,12 +92,31 @@ final class MessageTextView: NSTextView {
     invalidateIntrinsicContentSize()
   }
 
+  /// Measured with a separate TextKit stack: once Auto Layout gives this view a wide frame, its own
+  /// layout reports that width for short text, which locked every bubble at its maximum width.
   override var intrinsicContentSize: NSSize {
-    guard let textContainer, let layoutManager else { return .zero }
     let maxWidth = preferredMaxLayoutWidth > 0 ? preferredMaxLayoutWidth : 10_000
-    textContainer.containerSize = NSSize(width: maxWidth, height: .greatestFiniteMagnitude)
-    layoutManager.ensureLayout(for: textContainer)
-    let used = layoutManager.usedRect(for: textContainer)
+    let size = Self.measure(storage, maxWidth: maxWidth)
+    textContainer?.containerSize = NSSize(width: maxWidth, height: .greatestFiniteMagnitude)
+    return size
+  }
+
+  private static let sizingStorage = NSTextStorage()
+  private static let sizingLayoutManager = NSLayoutManager()
+  private static let sizingContainer: NSTextContainer = {
+    let container = NSTextContainer()
+    container.lineFragmentPadding = 0
+    sizingStorage.addLayoutManager(sizingLayoutManager)
+    sizingLayoutManager.addTextContainer(container)
+    return container
+  }()
+
+  static func measure(_ text: NSAttributedString, maxWidth: CGFloat) -> NSSize {
+    let container = sizingContainer
+    container.containerSize = NSSize(width: maxWidth, height: .greatestFiniteMagnitude)
+    sizingStorage.setAttributedString(text)
+    sizingLayoutManager.ensureLayout(for: container)
+    let used = sizingLayoutManager.usedRect(for: container)
     return NSSize(width: ceil(used.width), height: ceil(used.height))
   }
 

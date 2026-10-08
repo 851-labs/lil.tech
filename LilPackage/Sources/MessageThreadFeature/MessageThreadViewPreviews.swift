@@ -130,6 +130,19 @@ import Tagged
   )
 }
 
+#Preview("Wide Window", traits: .emptyChatDatabase) {
+  ThreadPreview(
+    messages: [
+      .preview(1, "So it’s a boy or girl"),
+      .preview(2, "boy", isFromMe: true),
+      .preview(3, "due in 3 weeks", isFromMe: true),
+      .preview(4, "Omg she’s super pregnant"),
+      .preview(5, "yes", isFromMe: true, isDelivered: true),
+    ],
+    width: 1_100
+  )
+}
+
 #Preview("Empty", traits: .emptyChatDatabase) {
   ThreadPreview(messages: [])
 }
@@ -144,6 +157,7 @@ private struct ThreadPreview: View {
   var messages: [ThreadMessage]
   var pendingMessages: [MessageThreadFeature.PendingMessage] = []
   var loadFailed = false
+  var width: CGFloat = 520
 
   var body: some View {
     MessageThreadView(
@@ -162,7 +176,7 @@ private struct ThreadPreview: View {
         MessageThreadFeature()
       }
     )
-    .frame(width: 520, height: 420)
+    .frame(width: width, height: 420)
   }
 }
 

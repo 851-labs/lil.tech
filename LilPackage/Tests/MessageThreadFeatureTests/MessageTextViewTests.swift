@@ -25,4 +25,16 @@ struct MessageTextViewTests {
     #expect(wrapped.width <= 120)
     #expect(wrapped.height > oneLine.height * 2)
   }
+
+  @Test
+  func shortTextStaysNarrowAfterAWideFrame() {
+    let textView = MessageTextView()
+    textView.preferredMaxLayoutWidth = 489
+    textView.configure(text: "boy", links: [], textColor: .labelColor, linkColor: .linkColor)
+    let narrow = textView.intrinsicContentSize.width
+    #expect(narrow < 60)
+    textView.frame = NSRect(x: 0, y: 0, width: 489, height: 20)
+    textView.layoutManager?.ensureLayout(for: textView.textContainer!)
+    #expect(textView.intrinsicContentSize.width == narrow)
+  }
 }
