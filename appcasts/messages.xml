@@ -3,6 +3,24 @@
   <channel>
     <title>lil messages</title>
     <item>
+      <title>0.2.2</title>
+      <pubDate>Thu, 08 Oct 2026 02:40:59 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/messages%2Fv0.2.2</link>
+      <sparkle:version>47</sparkle:version>
+      <sparkle:shortVersionString>0.2.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<ul>
+<li>The sidebar filter button no longer shows a chevron</li>
+<li>Smoother thread resizing: hiding the sidebar and dragging the divider now run at full frame rate, and messages no longer drift after the width changes</li>
+</ul>]]></description>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/messages%2Fv0.2.2/lil-messages-0.2.2.dmg"
+        length="10174750"
+        type="application/octet-stream"
+        sparkle:edSignature="xv265hRKRShmIBviahpSrr4uPChaIoCH9CNMCevqmeuFIo8/4qlOr3DgQsY7bapebmYScwSp/Sox7+U+XzIyBg=="
+      />
+    </item>
+    <item>
       <title>0.2.1</title>
       <pubDate>Thu, 08 Oct 2026 01:56:34 +0000</pubDate>
       <link>https://github.com/851-labs/lil.tech/releases/tag/messages%2Fv0.2.1</link>
