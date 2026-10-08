@@ -10,9 +10,11 @@ import MessagesDatabase
 public struct FullDiskAccessFeature {
   @ObservableState
   public struct State: Equatable {
-    public var isChecking = false
+    public var isChecking: Bool
 
-    public init() {}
+    public init(isChecking: Bool = false) {
+      self.isChecking = isChecking
+    }
   }
 
   public enum Action {

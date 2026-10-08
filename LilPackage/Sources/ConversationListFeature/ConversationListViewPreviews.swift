@@ -21,27 +21,67 @@ import SwiftUI
   ConversationListPreview(filter: .recentlyDeleted)
 }
 
+#Preview("Selection", traits: .previewChatDatabase) {
+  ConversationListPreview(selection: PreviewChatDatabase.groupChatID)
+}
+
+#Preview("Without Contact Names", traits: .previewChatDatabase) {
+  ConversationListPreview(showsContactNames: false)
+}
+
+#Preview("Empty", traits: .emptyChatDatabase) {
+  ConversationListPreview(isEmpty: true)
+}
+
+#Preview("Empty Spam", traits: .emptyChatDatabase) {
+  ConversationListPreview(filter: .spam, isEmpty: true)
+}
+
+#Preview("Load Failed", traits: .emptyChatDatabase) {
+  ConversationListPreview(isEmpty: true, loadFailed: true)
+}
+
 /// The sidebar showing `filter`, seeded from the preview `chat.db`.
 private struct ConversationListPreview: View {
-  let filter: ConversationFilter
+  var filter = ConversationFilter.messages
+  var selection: Chat.ID?
+  var showsContactNames = true
+  var isEmpty = false
+  var loadFailed = false
+  /// Static previews skip the reducer, so the view's `.task` can't replace the seeded state
+  /// (loading sets `isLoading`, which hides the empty state) before the snapshot.
+  var isStatic: Bool { isEmpty || loadFailed }
 
   var body: some View {
-    let conversations = try! makePreviewChatDatabase().read { db in
-      try ConversationsRequest(filter: filter).fetch(db)
-    }
+    let conversations =
+      isEmpty
+      ? []
+      : try! makePreviewChatDatabase().read { db in
+        try ConversationsRequest(filter: filter).fetch(db)
+      }
+    let contactNames =
+      showsContactNames
+      ? Dictionary(
+        uniqueKeysWithValues: PreviewChatDatabase.contactNames.map { ($0.address, $0.name) }
+      )
+      : [:]
     NavigationSplitView {
       ConversationListView(
         store: Store(
           initialState: ConversationListFeature.State(
-            contactNames: Dictionary(
-              uniqueKeysWithValues: PreviewChatDatabase.contactNames.map { ($0.address, $0.name) }
-            ),
-            contactPhotos: ["+14155550101": previewContactPhoto],
+            contactNames: contactNames,
+            contactPhotos: showsContactNames ? ["+14155550101": previewContactPhoto] : [:],
             conversations: conversations,
-            filter: filter
+            filter: filter,
+            loadFailed: loadFailed,
+            selection: selection
           )
         ) {
-          ConversationListFeature()
+          if isStatic {
+            EmptyReducer()
+          } else {
+            ConversationListFeature()
+          }
         }
       )
       .navigationSplitViewColumnWidth(min: 240, ideal: 300)
@@ -53,6 +93,14 @@ private struct ConversationListPreview: View {
 }
 
 extension PreviewTrait where T == Preview.ViewTraits {
+  /// An empty `chat.db`, so the list's `.task` load keeps the seeded empty state.
+  fileprivate static var emptyChatDatabase: Self {
+    .dependencies {
+      $0.chatDatabase = .constant(try makeInMemoryChatDatabase())
+      $0.contactNames = .constant(ContactIndex([]))
+    }
+  }
+
   fileprivate static var previewChatDatabase: Self {
     .dependencies {
       $0.chatDatabase = .constant(try makePreviewChatDatabase())

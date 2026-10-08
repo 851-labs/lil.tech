@@ -130,11 +130,20 @@ import Tagged
   )
 }
 
+#Preview("Empty", traits: .emptyChatDatabase) {
+  ThreadPreview(messages: [])
+}
+
+#Preview("Load Failed", traits: .emptyChatDatabase) {
+  ThreadPreview(messages: [], loadFailed: true)
+}
+
 /// A one-on-one thread with Ada, seeded with `messages`.
 private struct ThreadPreview: View {
   var chatGUID = "iMessage;-;+14155550101"
   var messages: [ThreadMessage]
   var pendingMessages: [MessageThreadFeature.PendingMessage] = []
+  var loadFailed = false
 
   var body: some View {
     MessageThreadView(
@@ -146,7 +155,8 @@ private struct ThreadPreview: View {
           isGroup: false,
           messages: messages,
           pendingMessages: pendingMessages,
-          hasEarlierMessages: false
+          hasEarlierMessages: false,
+          loadFailed: loadFailed
         )
       ) {
         MessageThreadFeature()
