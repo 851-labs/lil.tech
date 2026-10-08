@@ -402,7 +402,11 @@ final class MessageCellView: NSTableCellView {
     super.init(frame: .zero)
     identifier = Self.identifier
 
+    // Bubbles hug their text; the 70% width cap is only a maximum. Without high hugging the
+    // bubble's width is ambiguous and Auto Layout stretches every bubble to the cap.
     bodyText.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    bodyText.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+    bodyText.setContentHuggingPriority(.defaultHigh, for: .vertical)
 
     for label in [senderLabel, statusLabel] {
       label.font = .preferredFont(forTextStyle: .caption1)
@@ -452,6 +456,9 @@ final class MessageCellView: NSTableCellView {
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
   }
+
+  /// The bubble's frame in the cell.
+  var bubbleFrame: NSRect { bubble.frame }
 
   var onLinkClicked: ((URL) -> Void)? {
     get { bodyText.onLinkClicked }
