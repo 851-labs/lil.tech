@@ -4,6 +4,8 @@ import MessagesDatabase
 import Tagged
 import Testing
 
+@testable import ConversationListFeature
+
 struct ConversationDisplayTests {
   @Test
   func titlePrefersDisplayName() {
@@ -60,6 +62,15 @@ struct ConversationDisplayTests {
     #expect(
       makeConversation(text: "\u{FFFC}", hasAttachments: true).previewText() == "Attachment"
     )
+  }
+
+  @Test
+  func avatarAddressIsTheOneOnOneParticipant() {
+    #expect(makeConversation(participants: ["+15550000002"]).avatarAddress == "+15550000002")
+    #expect(makeConversation(chatIdentifier: "+15550000003").avatarAddress == "+15550000003")
+    var group = makeConversation(participants: ["+15550000001", "+15550000002"])
+    group.style = .group
+    #expect(group.avatarAddress == nil)
   }
 
   @Test
@@ -232,3 +243,14 @@ private let helloArchive: [UInt8] = [
   0x84, 0x02, 0x69, 0x49, 0x01, 0x05, 0x92, 0x84, 0x84, 0x84, 0x0C, 0x4E, 0x53, 0x44, 0x69, 0x63,
   0x74, 0x69, 0x6F, 0x6E, 0x61, 0x72, 0x79, 0x00, 0x94, 0x84, 0x01, 0x69, 0x00, 0x86, 0x86,
 ]
+
+struct MonogramTests {
+  @Test
+  func initials() {
+    #expect(monogramInitials("Ada Lovelace") == "AL")
+    #expect(monogramInitials("Grace Brewster Hopper") == "GH")
+    #expect(monogramInitials("mami") == "M")
+    #expect(monogramInitials("+1 (415) 555-0100") == nil)
+    #expect(monogramInitials("") == nil)
+  }
+}

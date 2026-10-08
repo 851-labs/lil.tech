@@ -18,6 +18,12 @@ extension Conversation {
     return contactNames[chatIdentifier] ?? formattedHandle(chatIdentifier)
   }
 
+  /// The address whose contact photo represents a one-on-one conversation; `nil` for groups.
+  public var avatarAddress: String? {
+    guard style != .group else { return nil }
+    return participants.first ?? chatIdentifier
+  }
+
   /// The latest message's text, falling back to the text archived in `attributedBody`, then to a
   /// description of its attachments ("Photo", "Attachments: 2 Photos"). Tapbacks read like Messages: "Ada loved “See you there”".
   public func previewText(contactNames: [String: String] = [:]) -> String {
@@ -136,6 +142,15 @@ private enum AttachmentKind {
     case .video: "Videos"
     }
   }
+}
+
+/// A contact's initials for a monogram avatar, e.g. "AL" for "Ada Lovelace". `nil` when the name
+/// has no letters, like a phone number saved as a name.
+func monogramInitials(_ name: String) -> String? {
+  let words = name.split(separator: " ").filter { $0.first?.isLetter == true }
+  guard let first = words.first?.first else { return nil }
+  let last = words.count > 1 ? words.last?.first : nil
+  return String([first, last].compactMap(\.self)).uppercased()
 }
 
 /// The first word of a contact's name, like Messages uses in tapback previews.

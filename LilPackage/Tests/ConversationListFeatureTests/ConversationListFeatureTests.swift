@@ -89,7 +89,7 @@ struct ConversationListFeatureTests {
         ),
       ]
     }
-    await store.receive(\.contactNamesLoaded) {
+    await store.receive(\.contactsLoaded) {
       $0.contactNames = ["+15550000001": "Ada Lovelace"]
     }
   }
@@ -166,7 +166,7 @@ struct ConversationListFeatureTests {
         )
       ]
     }
-    await store.receive(\.contactNamesLoaded)
+    await store.receive(\.contactsLoaded)
     await store.send(.filterChanged(.spam))
   }
 
@@ -206,7 +206,7 @@ struct ConversationListFeatureTests {
         conversation(id: 1, guid: "iMessage;-;+15550000001", text: "Hi", at: 100)
       ]
     }
-    await store.receive(\.contactNamesLoaded)
+    await store.receive(\.contactsLoaded)
 
     try await database.write { db in
       try db.seed {
@@ -220,7 +220,7 @@ struct ConversationListFeatureTests {
         conversation(id: 1, guid: "iMessage;-;+15550000001", text: "New message", at: 200)
       ]
     }
-    await store.receive(\.contactNamesLoaded)
+    await store.receive(\.contactsLoaded)
 
     change.finish()
     await task.finish()
@@ -278,7 +278,7 @@ struct ConversationListFeatureTests {
       $0.conversations = [conversation(id: 1)]
       $0.selection = nil
     }
-    await store.receive(\.contactNamesLoaded)
+    await store.receive(\.contactsLoaded)
   }
 
   @Test
@@ -294,7 +294,7 @@ struct ConversationListFeatureTests {
     }
 
     await store.send(.contactsAccessChanged)
-    await store.receive(\.contactNamesLoaded) {
+    await store.receive(\.contactsLoaded) {
       $0.contactNames = ["+14155550100": "Grace Hopper"]
     }
   }
