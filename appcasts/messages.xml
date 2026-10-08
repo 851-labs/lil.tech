@@ -3,6 +3,21 @@
   <channel>
     <title>lil messages</title>
     <item>
+      <title>0.2.3</title>
+      <pubDate>Thu, 08 Oct 2026 21:54:34 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/messages%2Fv0.2.3</link>
+      <sparkle:version>49</sparkle:version>
+      <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<p>Threads opened from Spam or Recently Deleted are read-only, and fully deleted conversations now show their recoverable messages.</p>]]></description>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/messages%2Fv0.2.3/lil-messages-0.2.3.dmg"
+        length="10180871"
+        type="application/octet-stream"
+        sparkle:edSignature="T1TxAk+ou8vf/XvzP6ZKiAMiPQFoCl3hNoc+DKI0+16IK7cmrBp8Lmjb3gsdDuD2KdxGRnF4vFYHm3E5hQXgAw=="
+      />
+    </item>
+    <item>
       <title>0.2.2</title>
       <pubDate>Thu, 08 Oct 2026 02:40:59 +0000</pubDate>
       <link>https://github.com/851-labs/lil.tech/releases/tag/messages%2Fv0.2.2</link>
