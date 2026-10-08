@@ -26,6 +26,14 @@ public struct Message: Identifiable, Sendable {
   public var itemType: Int
   @Column("associated_message_type")
   public var associatedMessageType: Int
+  @Column("is_delivered")
+  public var isDelivered: Bool
+  @Column("date_read", as: Date.OptionalAppleTimestampRepresentation.self)
+  public var dateRead: Date?
+  @Column("date_edited", as: Date.OptionalAppleTimestampRepresentation.self)
+  public var dateEdited: Date?
+  /// A nonzero error code when an outgoing message failed to send.
+  public var error: Int
 
   public init(
     id: ID,
@@ -39,7 +47,11 @@ public struct Message: Identifiable, Sendable {
     isRead: Bool,
     hasAttachments: Bool,
     itemType: Int,
-    associatedMessageType: Int
+    associatedMessageType: Int,
+    isDelivered: Bool = false,
+    dateRead: Date? = nil,
+    dateEdited: Date? = nil,
+    error: Int = 0
   ) {
     self.id = id
     self.guid = guid
@@ -53,5 +65,9 @@ public struct Message: Identifiable, Sendable {
     self.hasAttachments = hasAttachments
     self.itemType = itemType
     self.associatedMessageType = associatedMessageType
+    self.isDelivered = isDelivered
+    self.dateRead = dateRead
+    self.dateEdited = dateEdited
+    self.error = error
   }
 }

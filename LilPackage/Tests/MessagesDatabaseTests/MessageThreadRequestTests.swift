@@ -25,6 +25,51 @@ struct MessageThreadRequestTests {
   }
 
   @Test
+  func readsDeliveryReadEditedAndErrorColumns() throws {
+    let database = try makeInMemoryChatDatabase()
+    try database.write { db in
+      var delivered = message(id: 1, text: "Delivered", isFromMe: true, at: 100)
+      delivered.isDelivered = true
+      var read = message(id: 2, text: "Read", isFromMe: true, at: 200)
+      read.isDelivered = true
+      read.dateRead = date(250)
+      var edited = message(id: 3, text: "Edited", handleID: 1, at: 300)
+      edited.dateEdited = date(350)
+      var failed = message(id: 4, text: "Failed", isFromMe: true, at: 400)
+      failed.error = 22
+      try db.seed {
+        Handle(id: 1, address: "+15550000001", service: "iMessage")
+        Chat(
+          id: 1,
+          guid: "iMessage;-;+15550000001",
+          style: .oneOnOne,
+          chatIdentifier: "+15550000001",
+          serviceName: "iMessage",
+          displayName: nil,
+          isArchived: false
+        )
+        delivered
+        read
+        edited
+        failed
+        for id in 1...4 {
+          ChatMessageJoin(
+            chatID: 1, messageID: Message.ID(Int64(id)), messageDate: date(Double(id) * 100))
+        }
+      }
+    }
+
+    let page = try database.read { db in
+      try MessageThreadRequest(chatID: 1).fetch(db)
+    }
+
+    #expect(page.map(\.isDelivered) == [true, true, false, false])
+    #expect(page.map(\.dateRead) == [nil, date(250), nil, nil])
+    #expect(page.map(\.dateEdited) == [nil, nil, date(350), nil])
+    #expect(page.map(\.hasError) == [false, false, false, true])
+  }
+
+  @Test
   func pageBeforeCursor() throws {
     let database = try makeSeededDatabase()
 

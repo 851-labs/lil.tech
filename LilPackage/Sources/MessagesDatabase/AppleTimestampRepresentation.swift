@@ -46,3 +46,37 @@ extension Date.AppleTimestampRepresentation: SQLiteType {
     Int64.typeAffinity
   }
 }
+
+extension Date {
+  /// A query representation of optional `chat.db` timestamps, such as `date_read`, which Messages
+  /// stores as 0 when unset.
+  public struct OptionalAppleTimestampRepresentation: QueryRepresentable {
+    public var queryOutput: Date?
+
+    public init(queryOutput: Date?) {
+      self.queryOutput = queryOutput
+    }
+  }
+}
+
+extension Date.OptionalAppleTimestampRepresentation: QueryBindable {
+  public var queryBinding: QueryBinding {
+    queryOutput.map { Date.AppleTimestampRepresentation(queryOutput: $0).queryBinding } ?? .int(0)
+  }
+}
+
+extension Date.OptionalAppleTimestampRepresentation: QueryDecodable {
+  public init(decoder: inout some QueryDecoder) throws {
+    let rawValue = try decoder.decode(Int64.self) ?? 0
+    self.init(
+      queryOutput: rawValue == 0
+        ? nil : Date.AppleTimestampRepresentation(rawValue: rawValue).queryOutput
+    )
+  }
+}
+
+extension Date.OptionalAppleTimestampRepresentation: SQLiteType {
+  public static var typeAffinity: SQLiteTypeAffinity {
+    Int64.typeAffinity
+  }
+}

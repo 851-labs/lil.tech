@@ -261,6 +261,27 @@ extension MessageThreadFeatureTests {
   }
 
   @Test
+  func receiptShowsUnderMyLatestMessageUntilSomethingComesAfterIt() {
+    var state = MessageThreadFeature.State(
+      chatID: 1,
+      chatGUID: "iMessage;-;+15550000001",
+      title: "+15550000001",
+      isGroup: false,
+      messages: [threadMessage(1), threadMessage(2)]
+    )
+    #expect(state.receiptMessageID == 2)
+
+    state.pendingMessages = [
+      MessageThreadFeature.PendingMessage(id: UUID(0), text: "Hi", sentAt: date(3))
+    ]
+    #expect(state.receiptMessageID == nil)
+
+    state.pendingMessages = []
+    state.messages.append(threadMessage(3))
+    #expect(state.receiptMessageID == nil)
+  }
+
+  @Test
   func linkTappedOpensURL() async {
     let opened = LockIsolated<[URL]>([])
     let store = TestStore(
