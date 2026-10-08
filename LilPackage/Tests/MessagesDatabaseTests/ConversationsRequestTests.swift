@@ -62,7 +62,7 @@ struct ConversationsRequestTests {
         message(id: 3, text: "Saturday works for me", handleID: 2, at: 220)
         message(
           id: 4, text: "Loved “Saturday works for me”", handleID: 1, at: 300,
-          associatedMessageType: 2000)
+          associatedMessageType: 2000, associatedMessageGUID: "p:0/\(guid(3))")
         message(id: 5, text: nil, handleID: 3, at: 50, hasAttachments: true)
         message(id: 6, text: nil, handleID: 1, at: 400, itemType: 1)
 
@@ -88,11 +88,15 @@ struct ConversationsRequestTests {
           displayName: "Weekend Plans",
           participants: ["+15550000001", "+15550000002"],
           latestMessage: Conversation.LatestMessage(
-            date: date(220),
-            text: "Saturday works for me",
+            date: date(300),
+            text: "Loved “Saturday works for me”",
             attributedBody: nil,
             isFromMe: false,
-            hasAttachments: false
+            hasAttachments: false,
+            senderAddress: "+15550000001",
+            tapback: .loved,
+            reactedTo: Conversation.ReactedMessage(
+              body: "Saturday works for me", hasAttachments: false)
           )
         ),
         Conversation(
@@ -122,11 +126,84 @@ struct ConversationsRequestTests {
             text: nil,
             attributedBody: nil,
             isFromMe: false,
-            hasAttachments: true
+            hasAttachments: true,
+            senderAddress: "friend@example.com"
           )
         ),
       ]
     )
+  }
+
+  @Test
+  func tapbacksWithMissingOriginalsAndIgnoredRemovals() throws {
+    let database = try makeInMemoryChatDatabase()
+    try database.write { db in
+      try db.seed {
+        Handle(id: 1, address: "+15550000001", service: "iMessage")
+        Chat(
+          id: 1,
+          guid: "iMessage;-;+15550000001",
+          style: .oneOnOne,
+          chatIdentifier: "+15550000001",
+          serviceName: "iMessage",
+          displayName: nil,
+          isArchived: false
+        )
+        Chat(
+          id: 2,
+          guid: "iMessage;-;+15550000002",
+          style: .oneOnOne,
+          chatIdentifier: "+15550000002",
+          serviceName: "iMessage",
+          displayName: nil,
+          isArchived: false
+        )
+        message(id: 1, text: "Hello", handleID: 1, at: 100)
+        message(
+          id: 2, text: "Reacted 🔥 to a message", isFromMe: true, at: 200,
+          associatedMessageType: 2006, associatedMessageGUID: "p:0/deleted-message",
+          associatedMessageEmoji: "🔥")
+        message(id: 3, text: "Hi", handleID: 1, at: 300)
+        message(
+          id: 4, text: "Removed a heart from “Hi”", isFromMe: true, at: 400,
+          associatedMessageType: 3000, associatedMessageGUID: "p:0/\(guid(3))")
+        ChatMessageJoin(chatID: 1, messageID: 1, messageDate: date(100))
+        ChatMessageJoin(chatID: 1, messageID: 2, messageDate: date(200))
+        ChatMessageJoin(chatID: 2, messageID: 3, messageDate: date(300))
+        ChatMessageJoin(chatID: 2, messageID: 4, messageDate: date(400))
+      }
+    }
+
+    let conversations = try database.read { db in try ConversationsRequest().fetch(db) }
+
+    #expect(conversations.map(\.id) == [2, 1])
+    #expect(conversations[0].latestMessage.tapback == nil)
+    #expect(conversations[0].latestMessage.text == "Hi")
+    #expect(conversations[1].latestMessage.tapback == .emoji("🔥"))
+    #expect(conversations[1].latestMessage.isFromMe)
+    #expect(conversations[1].latestMessage.reactedTo == nil)
+  }
+
+  @Test
+  func reactedToGUIDs() {
+    #expect(Tapback.reactedToGUID(fromAssociatedGUID: "p:0/ABC-123") == "ABC-123")
+    #expect(Tapback.reactedToGUID(fromAssociatedGUID: "p:12/ABC-123") == "ABC-123")
+    #expect(Tapback.reactedToGUID(fromAssociatedGUID: "bp:ABC-123") == "ABC-123")
+    #expect(Tapback.reactedToGUID(fromAssociatedGUID: "ABC-123") == "ABC-123")
+  }
+
+  @Test
+  func tapbackTypes() {
+    #expect(Tapback(associatedMessageType: 2000, emoji: nil) == .loved)
+    #expect(Tapback(associatedMessageType: 2001, emoji: nil) == .liked)
+    #expect(Tapback(associatedMessageType: 2002, emoji: nil) == .disliked)
+    #expect(Tapback(associatedMessageType: 2003, emoji: nil) == .laughed)
+    #expect(Tapback(associatedMessageType: 2004, emoji: nil) == .emphasized)
+    #expect(Tapback(associatedMessageType: 2005, emoji: nil) == .questioned)
+    #expect(Tapback(associatedMessageType: 2006, emoji: "🎉") == .emoji("🎉"))
+    #expect(Tapback(associatedMessageType: 2006, emoji: nil) == nil)
+    #expect(Tapback(associatedMessageType: 0, emoji: nil) == nil)
+    #expect(Tapback(associatedMessageType: 3000, emoji: nil) == nil)
   }
 
   @Test
@@ -150,11 +227,13 @@ private func message(
   at seconds: TimeInterval,
   hasAttachments: Bool = false,
   itemType: Int = 0,
-  associatedMessageType: Int = 0
+  associatedMessageType: Int = 0,
+  associatedMessageGUID: String? = nil,
+  associatedMessageEmoji: String? = nil
 ) -> Message {
   Message(
     id: id,
-    guid: "00000000-0000-0000-0000-\(String(format: "%012d", id.rawValue))",
+    guid: guid(id),
     text: text,
     attributedBody: attributedBody,
     handleID: handleID,
@@ -164,6 +243,12 @@ private func message(
     isRead: true,
     hasAttachments: hasAttachments,
     itemType: itemType,
-    associatedMessageType: associatedMessageType
+    associatedMessageType: associatedMessageType,
+    associatedMessageGUID: associatedMessageGUID,
+    associatedMessageEmoji: associatedMessageEmoji
   )
+}
+
+private func guid(_ id: Message.ID) -> String {
+  "00000000-0000-0000-0000-\(String(format: "%012d", id.rawValue))"
 }

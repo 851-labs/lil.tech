@@ -69,7 +69,7 @@ struct ConversationRow: View {
           .font(.callout)
           .foregroundStyle(.secondary)
         }
-        Text(conversation.previewText)
+        Text(conversation.previewText(contactNames: contactNames))
           .font(.callout)
           .foregroundStyle(.secondary)
           .lineLimit(2)

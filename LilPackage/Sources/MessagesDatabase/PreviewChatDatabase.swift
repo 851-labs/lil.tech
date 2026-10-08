@@ -42,6 +42,28 @@ public func makePreviewChatDatabase() throws -> DatabaseQueue {
         }
       }
     }
+    for (chatID, handleID, type, reactedToID, minutes) in PreviewChatDatabase.tapbacks {
+      messageID += 1
+      let date = minutesAgo(minutes)
+      try db.seed {
+        Message(
+          id: Message.ID(messageID),
+          guid: "preview-\(messageID)",
+          text: nil,
+          attributedBody: nil,
+          handleID: handleID,
+          service: "iMessage",
+          date: date,
+          isFromMe: handleID == 0,
+          isRead: true,
+          hasAttachments: false,
+          itemType: 0,
+          associatedMessageType: type,
+          associatedMessageGUID: "p:0/preview-\(reactedToID)"
+        )
+        ChatMessageJoin(chatID: chatID, messageID: Message.ID(messageID), messageDate: date)
+      }
+    }
   }
   return database
 }
@@ -98,6 +120,13 @@ public enum PreviewChatDatabase {
     ChatHandleJoin(chatID: 2, handleID: 1),
     ChatHandleJoin(chatID: 2, handleID: 2),
     ChatHandleJoin(chatID: 3, handleID: 3),
+  ]
+
+  /// Tapbacks as (chat, sender handle or 0 for me, `associated_message_type`, reacted-to message
+  /// ID, minutes ago). Message IDs count up through `messages` in order.
+  static let tapbacks: [(Chat.ID, Handle.ID, Int, Int64, Double)] = [
+    (1, 0, 2001, 3, 8),
+    (3, 3, 2000, 10, 4_370),
   ]
 
   /// Messages per chat as (sender handle, or 0 for me; text; minutes ago).

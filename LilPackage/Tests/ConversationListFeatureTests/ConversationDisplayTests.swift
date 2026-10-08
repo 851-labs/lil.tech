@@ -42,23 +42,78 @@ struct ConversationDisplayTests {
 
   @Test
   func previewUsesText() {
-    #expect(makeConversation(text: "  Hello  ").previewText == "Hello")
+    #expect(makeConversation(text: "  Hello  ").previewText() == "Hello")
   }
 
   @Test
   func previewDecodesAttributedBody() {
-    #expect(makeConversation(attributedBody: Data(helloArchive)).previewText == "Hello")
+    #expect(makeConversation(attributedBody: Data(helloArchive)).previewText() == "Hello")
   }
 
   @Test
   func previewDropsAttachmentPlaceholders() {
-    #expect(makeConversation(text: "Look \u{FFFC}").previewText == "Look")
+    #expect(makeConversation(text: "Look \u{FFFC}").previewText() == "Look")
   }
 
   @Test
   func previewForAttachmentOnlyMessage() {
     #expect(
-      makeConversation(text: "\u{FFFC}", hasAttachments: true).previewText == "Attachment"
+      makeConversation(text: "\u{FFFC}", hasAttachments: true).previewText() == "Attachment"
+    )
+  }
+
+  @Test
+  func tapbackPreviewsForEachType() {
+    let cases: [(Tapback, String)] = [
+      (.loved, "Ada loved “See you there”"),
+      (.liked, "Ada liked “See you there”"),
+      (.disliked, "Ada disliked “See you there”"),
+      (.laughed, "Ada laughed at “See you there”"),
+      (.emphasized, "Ada emphasized “See you there”"),
+      (.questioned, "Ada questioned “See you there”"),
+      (.emoji("🔥"), "Ada reacted 🔥 to “See you there”"),
+    ]
+    for (tapback, expected) in cases {
+      let conversation = makeTapbackConversation(
+        tapback, reactedTo: .init(body: "See you there", hasAttachments: false))
+      #expect(conversation.previewText(contactNames: contactNames) == expected)
+    }
+  }
+
+  @Test
+  func tapbackPreviewFromMe() {
+    let conversation = makeTapbackConversation(
+      .loved, isFromMe: true, reactedTo: .init(body: "excited 2 see u", hasAttachments: false))
+    #expect(conversation.previewText(contactNames: contactNames) == "You loved “excited 2 see u”")
+  }
+
+  @Test
+  func tapbackPreviewFromUnknownSenderUsesFormattedHandle() {
+    let conversation = makeTapbackConversation(
+      .laughed, reactedTo: .init(body: "bruh", hasAttachments: false))
+    #expect(conversation.previewText() == "+1 (555) 000-0001 laughed at “bruh”")
+  }
+
+  @Test
+  func tapbackPreviewForMissingOrAttachmentOriginal() {
+    #expect(
+      makeTapbackConversation(.liked, reactedTo: nil).previewText(contactNames: contactNames)
+        == "Ada liked a message"
+    )
+    #expect(
+      makeTapbackConversation(.liked, reactedTo: .init(body: "", hasAttachments: true))
+        .previewText(contactNames: contactNames) == "Ada liked an attachment"
+    )
+  }
+
+  @Test
+  func tapbackPreviewTruncatesLongQuotes() {
+    let long = String(repeating: "a", count: 60)
+    let conversation = makeTapbackConversation(
+      .loved, reactedTo: .init(body: long, hasAttachments: false))
+    #expect(
+      conversation.previewText(contactNames: contactNames)
+        == "Ada loved “\(String(repeating: "a", count: 50))…”"
     )
   }
 
@@ -109,6 +164,21 @@ private func makeConversation(
       hasAttachments: hasAttachments
     )
   )
+}
+
+private let contactNames = ["+15550000001": "Ada Lovelace"]
+
+private func makeTapbackConversation(
+  _ tapback: Tapback,
+  isFromMe: Bool = false,
+  reactedTo: Conversation.ReactedMessage?
+) -> Conversation {
+  var conversation = makeConversation(text: "Loved “something”")
+  conversation.latestMessage.isFromMe = isFromMe
+  conversation.latestMessage.senderAddress = isFromMe ? nil : "+15550000001"
+  conversation.latestMessage.tapback = tapback
+  conversation.latestMessage.reactedTo = reactedTo
+  return conversation
 }
 
 /// `NSArchiver.archivedData(withRootObject: NSAttributedString(string: "Hello"))`
