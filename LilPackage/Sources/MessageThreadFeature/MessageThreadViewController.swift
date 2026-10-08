@@ -21,8 +21,6 @@ final class MessageThreadViewController: NSViewController {
   private var hasScrolledToBottomAfterLayout = false
   private var rowHeights: [Item: CGFloat] = [:]
   private var rowHeightsWidth: CGFloat = 0
-  private lazy var sizingMessageCell = MessageCellView()
-  private lazy var sizingSeparatorCell = SeparatorCellView()
 
   enum Item: Hashable {
     case message(Message.ID)
@@ -258,18 +256,48 @@ final class MessageThreadViewController: NSViewController {
     }
   }
 
-  /// Measures a row with an offscreen cell configured like the real one. Heights are explicit, not
-  /// automatic, so the document height is exact before anything scrolls: automatic heights only
-  /// measure visible rows and estimate the rest, which made scroll-to-bottom and the anchoring of
-  /// prepended pages land in the wrong place.
-  private func measureHeight(of item: Item, rowWidth: CGFloat) -> CGFloat {
+  /// A row's height. Heights are explicit, not automatic, so the document height is exact before
+  /// anything scrolls: automatic heights only measure visible rows and estimate the rest, which made
+  /// scroll-to-bottom and the anchoring of prepended pages land in the wrong place. They're computed
+  /// arithmetically, so re-measuring a long thread on a width change doesn't stall animations.
+  func measureHeight(of item: Item, rowWidth: CGFloat) -> CGFloat {
+    let maxTextWidth = MessageCellView.maxTextWidth(forRowWidth: rowWidth)
+    switch item {
+    case .separator(let date):
+      return SeparatorCellView.height(for: ThreadTimestamp(date, now: Date()))
+    case .message(let id):
+      guard let message = messagesByID[id] else { return 1 }
+      let sender = isGroup && !message.isFromMe ? message.senderAddress : nil
+      let status = MessageStatus.of(message, showsReceipt: id == receiptMessageID)
+      return MessageCellView.height(
+        text: MessageCellView.displayText(for: message),
+        senderName: sender.map { senderNames[$0] ?? formattedHandle($0) },
+        status: MessageCellView.statusText(isEdited: message.dateEdited != nil, status: status),
+        maxTextWidth: maxTextWidth
+      )
+    case .pending(let id):
+      guard let pending = pendingByID[id] else { return 1 }
+      return MessageCellView.height(
+        text: pending.text,
+        senderName: nil,
+        status: MessageCellView.statusText(for: pending),
+        maxTextWidth: maxTextWidth
+      )
+    }
+  }
+
+  /// A row's height from a full Auto Layout pass on an offscreen cell. Tests compare this with
+  /// `measureHeight(of:rowWidth:)` to keep the arithmetic in sync with the cell's constraints.
+  func fittingHeight(of item: Item, rowWidth: CGFloat) -> CGFloat {
     let cell: NSView
     if case .separator(let date) = item {
-      sizingSeparatorCell.configure(with: ThreadTimestamp(date, now: Date()))
-      cell = sizingSeparatorCell
+      let separator = SeparatorCellView()
+      separator.configure(with: ThreadTimestamp(date, now: Date()))
+      cell = separator
     } else {
-      configure(sizingMessageCell, for: item, rowWidth: rowWidth)
-      cell = sizingMessageCell
+      let messageCell = MessageCellView()
+      configure(messageCell, for: item, rowWidth: rowWidth)
+      cell = messageCell
     }
     let width = cell.widthAnchor.constraint(equalToConstant: rowWidth)
     width.isActive = true
@@ -295,11 +323,26 @@ final class MessageThreadViewController: NSViewController {
     let width = tableView.bounds.width
     if width != lastTableWidth {
       lastTableWidth = width
-      rowHeights = [:]
+      remeasureRows()
+    }
+    updateBubbleGradients()
+  }
+
+  /// Re-measures every row for a new width. Row heights don't animate: `noteHeightOfRows` animates
+  /// by default, which made rows drift after the sidebar opened. The thread stays on the latest
+  /// message if it was there.
+  private func remeasureRows() {
+    let wasAtBottom = isScrolledToBottom
+    rowHeights = [:]
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0
+      context.allowsImplicitAnimation = false
       tableView.noteHeightOfRows(
         withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
     }
-    updateBubbleGradients()
+    if wasAtBottom, tableView.numberOfRows > 0 {
+      tableView.scrollRowToVisible(tableView.numberOfRows - 1)
+    }
   }
 
   @objc private func updateBubbleGradients() {
@@ -363,6 +406,18 @@ final class SeparatorCellView: NSTableCellView {
   }
 
   func configure(with timestamp: ThreadTimestamp) {
+    label.attributedStringValue = Self.text(for: timestamp)
+  }
+
+  /// The row height, from the layout's constants (10pt above the label, 4pt below).
+  static func height(for timestamp: ThreadTimestamp) -> CGFloat {
+    sizingLabel.attributedStringValue = text(for: timestamp)
+    return 10 + ceil(sizingLabel.intrinsicContentSize.height) + 4
+  }
+
+  private static let sizingLabel = NSTextField(labelWithString: "")
+
+  private static func text(for timestamp: ThreadTimestamp) -> NSAttributedString {
     let size = NSFont.preferredFont(forTextStyle: .caption1).pointSize
     let text = NSMutableAttributedString(
       string: timestamp.day,
@@ -380,7 +435,7 @@ final class SeparatorCellView: NSTableCellView {
         ]
       )
     )
-    label.attributedStringValue = text
+    return text
   }
 }
 
@@ -477,6 +532,62 @@ final class MessageCellView: NSTableCellView {
     super.layout()
   }
 
+  /// The text a message's bubble shows.
+  static func displayText(for message: ThreadMessage) -> String {
+    let body = message.body
+    return body.isEmpty && message.hasAttachments ? "Attachment" : body
+  }
+
+  /// The label under a pending message.
+  static func statusText(for pending: MessageThreadFeature.PendingMessage) -> NSAttributedString {
+    NSAttributedString(
+      string: pending.isFailed ? "Not Delivered · Click to Retry" : "Sending…",
+      attributes: statusAttributes(color: pending.isFailed ? .systemRed : .secondaryLabelColor)
+    )
+  }
+
+  /// The row height for this content, computed from the layout's constants rather than an Auto
+  /// Layout pass, so re-measuring a whole thread when its width changes stays cheap:
+  /// 2pt + sender + 2pt + (text + 14pt bubble padding) + 2pt + status + 2pt.
+  static func height(
+    text: String,
+    senderName: String?,
+    status: NSAttributedString?,
+    maxTextWidth: CGFloat
+  ) -> CGFloat {
+    let textHeight = MessageTextView.measure(
+      NSAttributedString(
+        string: text, attributes: [.font: NSFont.preferredFont(forTextStyle: .body)]),
+      maxWidth: maxTextWidth
+    ).height
+    var senderHeight: CGFloat = 0
+    if let senderName {
+      sizingSenderLabel.stringValue = senderName
+      senderHeight = ceil(sizingSenderLabel.intrinsicContentSize.height)
+    }
+    var statusHeight: CGFloat = 0
+    if let status {
+      sizingStatusLabel.attributedStringValue = status
+      statusHeight = ceil(sizingStatusLabel.intrinsicContentSize.height)
+    }
+    return 2 + senderHeight + 2 + textHeight + 14 + 2 + statusHeight + 2
+  }
+
+  private static let sizingSenderLabel = makeSecondaryLabel()
+  private static let sizingStatusLabel: NSTextField = {
+    let label = makeSecondaryLabel()
+    label.maximumNumberOfLines = 2
+    return label
+  }()
+
+  private static func makeSecondaryLabel() -> NSTextField {
+    let label = NSTextField(labelWithString: "")
+    label.font = .preferredFont(forTextStyle: .caption1)
+    label.textColor = .secondaryLabelColor
+    label.lineBreakMode = .byTruncatingTail
+    return label
+  }
+
   func configure(
     with message: ThreadMessage,
     links: [MessageLink],
@@ -484,11 +595,10 @@ final class MessageCellView: NSTableCellView {
     status: MessageStatus?,
     maxTextWidth: CGFloat
   ) {
-    let body = message.body
     bodyText.preferredMaxLayoutWidth = maxTextWidth
     bodyText.isSelectable = true
     configure(
-      text: body.isEmpty && message.hasAttachments ? "Attachment" : body,
+      text: Self.displayText(for: message),
       links: links,
       style: message.isFromMe ? (message.isTextMessage ? .textMessage : .iMessage) : .received,
       senderName: senderName,
@@ -509,11 +619,7 @@ final class MessageCellView: NSTableCellView {
       links: [],
       style: pending.isFailed ? .failed : (isTextMessage ? .textMessage : .iMessage),
       senderName: nil,
-      status: NSAttributedString(
-        string: pending.isFailed ? "Not Delivered · Click to Retry" : "Sending…",
-        attributes: Self.statusAttributes(
-          color: pending.isFailed ? .systemRed : .secondaryLabelColor)
-      )
+      status: Self.statusText(for: pending)
     )
     bubble.alphaValue = pending.isFailed ? 1 : 0.6
   }
