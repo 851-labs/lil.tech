@@ -223,6 +223,51 @@ struct ConversationsRequestTests {
   }
 
   @Test
+  func filtersSeparateSpamAndRecentlyDeleted() throws {
+    let database = try makeInMemoryChatDatabase()
+    try database.write { db in
+      try db.seed {
+        Handle(id: 1, address: "+15550000001", service: "iMessage")
+        for (id, isFiltered) in [(1, 0), (2, 1), (3, Chat.spamFilterValue), (4, 0)] {
+          Chat(
+            id: Chat.ID(Int64(id)),
+            guid: "iMessage;-;+1555000000\(id)",
+            style: .oneOnOne,
+            chatIdentifier: "+1555000000\(id)",
+            serviceName: "iMessage",
+            displayName: nil,
+            isArchived: false,
+            isFiltered: isFiltered
+          )
+        }
+        message(id: 1, text: "Known sender", handleID: 1, at: 100)
+        message(id: 2, text: "Unknown sender", handleID: 1, at: 200)
+        message(id: 3, text: "Spam", handleID: 1, at: 300)
+        message(id: 4, text: "Kept", handleID: 1, at: 400)
+        message(id: 5, text: "Deleted", handleID: 1, at: 500)
+        message(id: 6, text: "Deleted conversation", handleID: 1, at: 50)
+        ChatMessageJoin(chatID: 1, messageID: 1, messageDate: date(100))
+        ChatMessageJoin(chatID: 2, messageID: 2, messageDate: date(200))
+        ChatMessageJoin(chatID: 3, messageID: 3, messageDate: date(300))
+        ChatMessageJoin(chatID: 4, messageID: 4, messageDate: date(400))
+        ChatRecoverableMessageJoin(chatID: 4, messageID: 5, deleteDate: date(600))
+        ChatRecoverableMessageJoin(chatID: 1, messageID: 6, deleteDate: date(600))
+      }
+    }
+
+    func fetch(_ filter: ConversationFilter) throws -> [(Chat.ID, String?)] {
+      try database.read { db in
+        try ConversationsRequest(filter: filter).fetch(db).map { ($0.id, $0.latestMessage.text) }
+      }
+    }
+    #expect(try fetch(.messages).map(\.0) == [4, 2, 1])
+    #expect(try fetch(.messages).map(\.1) == ["Kept", "Unknown sender", "Known sender"])
+    #expect(try fetch(.spam).map(\.0) == [3])
+    #expect(try fetch(.recentlyDeleted).map(\.0) == [4, 1])
+    #expect(try fetch(.recentlyDeleted).map(\.1) == ["Deleted", "Deleted conversation"])
+  }
+
+  @Test
   func reactedToGUIDs() {
     #expect(Tapback.reactedToGUID(fromAssociatedGUID: "p:0/ABC-123") == "ABC-123")
     #expect(Tapback.reactedToGUID(fromAssociatedGUID: "p:12/ABC-123") == "ABC-123")

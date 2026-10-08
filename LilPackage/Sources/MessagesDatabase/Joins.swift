@@ -29,3 +29,20 @@ public struct ChatMessageJoin: Sendable {
     self.messageDate = messageDate
   }
 }
+
+/// Messages in Recently Deleted, removed from `chat_message_join` until they're recovered or purged.
+@Table("chat_recoverable_message_join")
+public struct ChatRecoverableMessageJoin: Sendable {
+  @Column("chat_id")
+  public var chatID: Chat.ID
+  @Column("message_id")
+  public var messageID: Message.ID
+  @Column("delete_date", as: Date.AppleTimestampRepresentation.self)
+  public var deleteDate: Date
+
+  public init(chatID: Chat.ID, messageID: Message.ID, deleteDate: Date) {
+    self.chatID = chatID
+    self.messageID = messageID
+    self.deleteDate = deleteDate
+  }
+}

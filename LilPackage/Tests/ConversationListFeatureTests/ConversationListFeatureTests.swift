@@ -95,6 +95,82 @@ struct ConversationListFeatureTests {
   }
 
   @Test
+  func switchingFiltersReloadsThatFilter() async throws {
+    let database = try makeInMemoryChatDatabase()
+    try await database.write { db in
+      try db.seed {
+        Chat(
+          id: 1,
+          guid: "iMessage;-;+15550000001",
+          style: .oneOnOne,
+          chatIdentifier: "+15550000001",
+          serviceName: "iMessage",
+          displayName: nil,
+          isArchived: false
+        )
+        Chat(
+          id: 2,
+          guid: "SMS;-;+15550000002",
+          style: .oneOnOne,
+          chatIdentifier: "+15550000002",
+          serviceName: "SMS",
+          displayName: nil,
+          isArchived: false,
+          isFiltered: Chat.spamFilterValue
+        )
+        message(id: 1, text: "Hi", at: 100)
+        message(id: 2, text: "You won!", at: 200)
+        ChatMessageJoin(chatID: 1, messageID: 1, messageDate: date(100))
+        ChatMessageJoin(chatID: 2, messageID: 2, messageDate: date(200))
+      }
+    }
+    let store = TestStore(
+      initialState: ConversationListFeature.State(
+        conversations: [conversation(id: 1, guid: "iMessage;-;+15550000001", text: "Hi", at: 100)],
+        selection: 1
+      )
+    ) {
+      ConversationListFeature()
+    } withDependencies: {
+      $0.chatDatabase = .constant(database)
+      $0.chatDatabaseChanges = ChatDatabaseChanges { AsyncStream { $0.finish() } }
+      $0.contactNames = .constant(contactIndex)
+    }
+
+    await store.send(.filterChanged(.spam)) {
+      $0.filter = .spam
+      $0.conversations = []
+      $0.selection = nil
+    }
+    // The view restarts its task when the filter changes.
+    await store.send(.task) {
+      $0.isLoading = true
+    }
+    await store.receive(\.conversationsLoaded.success) {
+      $0.isLoading = false
+      $0.conversations = [
+        Conversation(
+          id: 2,
+          guid: "SMS;-;+15550000002",
+          style: .oneOnOne,
+          chatIdentifier: "+15550000002",
+          displayName: nil,
+          participants: [],
+          latestMessage: Conversation.LatestMessage(
+            date: date(200),
+            text: "You won!",
+            attributedBody: nil,
+            isFromMe: false,
+            hasAttachments: false
+          )
+        )
+      ]
+    }
+    await store.receive(\.contactNamesLoaded)
+    await store.send(.filterChanged(.spam))
+  }
+
+  @Test
   func reloadsWhenChatDatabaseChanges() async throws {
     let database = try makeInMemoryChatDatabase()
     try await database.write { db in

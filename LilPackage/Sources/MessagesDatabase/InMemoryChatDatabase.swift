@@ -20,7 +20,8 @@ public func makeInMemoryChatDatabase() throws -> DatabaseQueue {
         room_name TEXT,
         is_archived INTEGER DEFAULT 0,
         display_name TEXT,
-        group_id TEXT
+        group_id TEXT,
+        is_filtered INTEGER DEFAULT 0
       )
       """
     )
@@ -96,6 +97,18 @@ public func makeInMemoryChatDatabase() throws -> DatabaseQueue {
         message_id INTEGER REFERENCES message (ROWID) ON DELETE CASCADE,
         attachment_id INTEGER REFERENCES attachment (ROWID) ON DELETE CASCADE,
         UNIQUE(message_id, attachment_id)
+      )
+      """
+    )
+    .execute(db)
+    try #sql(
+      """
+      CREATE TABLE chat_recoverable_message_join (
+        chat_id INTEGER REFERENCES chat (ROWID) ON DELETE CASCADE,
+        message_id INTEGER REFERENCES message (ROWID) ON DELETE CASCADE,
+        delete_date INTEGER,
+        PRIMARY KEY (chat_id, message_id),
+        CHECK (delete_date != 0)
       )
       """
     )
