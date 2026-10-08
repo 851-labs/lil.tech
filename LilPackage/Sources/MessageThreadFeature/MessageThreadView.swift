@@ -15,17 +15,26 @@ public struct MessageThreadView: View {
     VStack(spacing: 0) {
       MessageList(store: store)
       Divider()
-      ComposerView(store: store)
-        .frame(height: 64)
-        .overlay(alignment: .topLeading) {
-          if store.draft.isEmpty {
-            Text(store.isTextChat ? "Text Message" : "iMessage")
-              .foregroundStyle(.tertiary)
-              .padding(.horizontal, 13)
-              .padding(.vertical, 8)
-              .allowsHitTesting(false)
+      if let note = store.filter.readOnlyNote {
+        Text(note)
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: .infinity, minHeight: 64)
+          .padding(.horizontal)
+      } else {
+        ComposerView(store: store)
+          .frame(height: 64)
+          .overlay(alignment: .topLeading) {
+            if store.draft.isEmpty {
+              Text(store.isTextChat ? "Text Message" : "iMessage")
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 8)
+                .allowsHitTesting(false)
+            }
           }
-        }
+      }
     }
     .overlay {
       if store.loadFailed {
@@ -49,4 +58,15 @@ private struct MessageList: NSViewControllerRepresentable {
   }
 
   func updateNSViewController(_ viewController: MessageThreadViewController, context: Context) {}
+}
+
+extension ConversationFilter {
+  /// Shown in place of the composer for read-only threads.
+  fileprivate var readOnlyNote: String? {
+    switch self {
+    case .messages: nil
+    case .spam: "This conversation is in Spam."
+    case .recentlyDeleted: "These messages were deleted. Messages keeps them for up to 30 days."
+    }
+  }
 }

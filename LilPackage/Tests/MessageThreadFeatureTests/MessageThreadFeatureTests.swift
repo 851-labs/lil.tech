@@ -282,6 +282,90 @@ extension MessageThreadFeatureTests {
   }
 
   @Test
+  func readOnlyThreadsDontSend() async {
+    for filter in [ConversationFilter.spam, .recentlyDeleted] {
+      let store = TestStore(
+        initialState: MessageThreadFeature.State(
+          chatID: 1,
+          chatGUID: "iMessage;-;+15550000001",
+          title: "+15550000001",
+          isGroup: false,
+          draft: "Hello",
+          filter: filter
+        )
+      ) {
+        MessageThreadFeature()
+      }
+      #expect(store.state.isReadOnly)
+      await store.send(.returnKeyPressed)
+    }
+  }
+
+  @Test
+  func recentlyDeletedThreadLoadsRecoverableMessages() async throws {
+    let database = try makeInMemoryChatDatabase()
+    try await database.write { db in
+      try db.seed {
+        Chat(
+          id: 1,
+          guid: "iMessage;-;+15550000001",
+          style: .oneOnOne,
+          chatIdentifier: "+15550000001",
+          serviceName: "iMessage",
+          displayName: nil,
+          isArchived: false
+        )
+        Message(
+          id: 1,
+          guid: "message-1",
+          text: "Deleted",
+          attributedBody: nil,
+          handleID: 0,
+          service: "iMessage",
+          date: date(1),
+          isFromMe: true,
+          isRead: true,
+          hasAttachments: false,
+          itemType: 0,
+          associatedMessageType: 0
+        )
+        ChatRecoverableMessageJoin(chatID: 1, messageID: 1, deleteDate: date(2))
+      }
+    }
+    let store = TestStore(
+      initialState: MessageThreadFeature.State(
+        chatID: 1,
+        chatGUID: "iMessage;-;+15550000001",
+        title: "+15550000001",
+        isGroup: false,
+        filter: .recentlyDeleted
+      )
+    ) {
+      MessageThreadFeature()
+    } withDependencies: {
+      $0.chatDatabase = .constant(database)
+      $0.chatDatabaseChanges = ChatDatabaseChanges { AsyncStream { $0.finish() } }
+    }
+
+    await store.send(.task)
+    await store.receive(\.latestMessagesLoaded.success) {
+      $0.messages = [
+        ThreadMessage(
+          id: 1,
+          guid: "message-1",
+          date: date(1),
+          text: "Deleted",
+          attributedBody: nil,
+          isFromMe: true,
+          senderAddress: nil,
+          hasAttachments: false
+        )
+      ]
+      $0.hasEarlierMessages = false
+    }
+  }
+
+  @Test
   func textChatsAreSMSOrRCS() {
     func state(_ guid: String) -> MessageThreadFeature.State {
       MessageThreadFeature.State(chatID: 1, chatGUID: guid, title: "Ada", isGroup: false)

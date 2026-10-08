@@ -143,6 +143,27 @@ import Tagged
   )
 }
 
+#Preview("Spam", traits: .emptyChatDatabase) {
+  ThreadPreview(
+    chatGUID: "SMS;-;+18885550123",
+    messages: [
+      .preview(
+        1, "Your package is on hold. Confirm your address at example.com/track", service: "SMS")
+    ],
+    filter: .spam
+  )
+}
+
+#Preview("Recently Deleted", traits: .emptyChatDatabase) {
+  ThreadPreview(
+    messages: [
+      .preview(1, "Want to grab coffee next week?"),
+      .preview(2, "Sure, Tuesday works", isFromMe: true, isDelivered: true),
+    ],
+    filter: .recentlyDeleted
+  )
+}
+
 #Preview("Empty", traits: .emptyChatDatabase) {
   ThreadPreview(messages: [])
 }
@@ -158,6 +179,7 @@ private struct ThreadPreview: View {
   var pendingMessages: [MessageThreadFeature.PendingMessage] = []
   var loadFailed = false
   var width: CGFloat = 520
+  var filter = ConversationFilter.messages
 
   var body: some View {
     MessageThreadView(
@@ -170,7 +192,8 @@ private struct ThreadPreview: View {
           messages: messages,
           pendingMessages: pendingMessages,
           hasEarlierMessages: false,
-          loadFailed: loadFailed
+          loadFailed: loadFailed,
+          filter: filter
         )
       ) {
         MessageThreadFeature()

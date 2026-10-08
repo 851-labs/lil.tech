@@ -14,6 +14,8 @@ public struct MessageThreadFeature {
     public let chatGUID: String
     public let chatID: Chat.ID
     public var draft: String
+    /// The sidebar filter the conversation was opened from. Spam and Recently Deleted are read-only.
+    public let filter: ConversationFilter
     public var hasEarlierMessages: Bool
     public var isGroup: Bool
     public var isLoadingEarlier: Bool
@@ -24,6 +26,11 @@ public struct MessageThreadFeature {
     public var title: String
 
     public var id: Chat.ID { chatID }
+
+    /// Spam and Recently Deleted threads can't be replied to.
+    public var isReadOnly: Bool {
+      filter != .messages
+    }
 
     /// Whether the chat goes over SMS or RCS, which Messages shows in green with a "Text Message"
     /// composer.
@@ -49,11 +56,13 @@ public struct MessageThreadFeature {
       pendingMessages: [PendingMessage] = [],
       hasEarlierMessages: Bool = true,
       isLoadingEarlier: Bool = false,
-      loadFailed: Bool = false
+      loadFailed: Bool = false,
+      filter: ConversationFilter = .messages
     ) {
       self.chatGUID = chatGUID
       self.chatID = chatID
       self.draft = draft
+      self.filter = filter
       self.hasEarlierMessages = hasEarlierMessages
       self.isGroup = isGroup
       self.isLoadingEarlier = isLoadingEarlier
@@ -154,7 +163,7 @@ public struct MessageThreadFeature {
 
       case .returnKeyPressed:
         let text = state.draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return .none }
+        guard !state.isReadOnly, !text.isEmpty else { return .none }
         let pending = PendingMessage(id: uuid(), text: text, sentAt: now)
         state.draft = ""
         state.pendingMessages.append(pending)
@@ -168,7 +177,11 @@ public struct MessageThreadFeature {
         else { return .none }
         state.isLoadingEarlier = true
         let request = MessageThreadRequest(
-          chatID: state.chatID, before: oldest, limit: Self.pageSize)
+          chatID: state.chatID,
+          before: oldest,
+          limit: Self.pageSize,
+          recentlyDeleted: state.filter == .recentlyDeleted
+        )
         return .run { [chatDatabase] send in
           await send(.earlierMessagesLoaded(await fetch(request, from: chatDatabase)))
         }
@@ -183,7 +196,11 @@ public struct MessageThreadFeature {
         return .none
 
       case .task:
-        let request = MessageThreadRequest(chatID: state.chatID, limit: Self.pageSize)
+        let request = MessageThreadRequest(
+          chatID: state.chatID,
+          limit: Self.pageSize,
+          recentlyDeleted: state.filter == .recentlyDeleted
+        )
         return .run { [chatDatabase, chatDatabaseChanges] send in
           let changes = chatDatabaseChanges.stream()
           await send(.latestMessagesLoaded(await fetch(request, from: chatDatabase)))
