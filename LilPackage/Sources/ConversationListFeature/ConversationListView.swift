@@ -13,9 +13,15 @@ public struct ConversationListView: View {
 
   public var body: some View {
     List(selection: $store.selection.sending(\.selectionChanged)) {
-      ForEach(store.conversations) { conversation in
-        ConversationRow(conversation: conversation, contactNames: store.contactNames)
-          .tag(conversation.id)
+      Section {
+        ForEach(store.conversations) { conversation in
+          ConversationRow(conversation: conversation, contactNames: store.contactNames)
+            .tag(conversation.id)
+        }
+      } header: {
+        if store.filter != .messages {
+          Text(store.filter.title)
+        }
       }
     }
     .listStyle(.sidebar)
@@ -27,10 +33,47 @@ public struct ConversationListView: View {
           description: Text("The Messages database couldn’t be read.")
         )
       } else if store.conversations.isEmpty, !store.isLoading {
-        ContentUnavailableView("No Conversations", systemImage: "bubble.left.and.bubble.right")
+        switch store.filter {
+        case .messages:
+          ContentUnavailableView("No Conversations", systemImage: "bubble.left.and.bubble.right")
+        case .spam:
+          ContentUnavailableView("No Spam", systemImage: "xmark.bin")
+        case .recentlyDeleted:
+          ContentUnavailableView(
+            "No Recently Deleted Messages",
+            systemImage: "trash",
+            description: Text("Deleted messages stay here for up to 30 days.")
+          )
+        }
       }
     }
-    .task { await store.send(.task).finish() }
+    .toolbar {
+      ToolbarItem {
+        Menu {
+          Picker("Filter", selection: $store.filter.sending(\.filterChanged)) {
+            ForEach(ConversationFilter.allCases, id: \.self) { filter in
+              Text(filter.title).tag(filter)
+            }
+          }
+          .pickerStyle(.inline)
+          .labelsHidden()
+        } label: {
+          Label("Filter", systemImage: "line.3.horizontal.decrease")
+        }
+        .help("Filter Conversations")
+      }
+    }
+    .task(id: store.filter) { await store.send(.task).finish() }
+  }
+}
+
+extension ConversationFilter {
+  var title: String {
+    switch self {
+    case .messages: "Messages"
+    case .spam: "Spam"
+    case .recentlyDeleted: "Recently Deleted"
+    }
   }
 }
 

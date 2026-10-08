@@ -9,6 +9,7 @@ public struct ConversationListFeature {
   public struct State: Equatable {
     public var contactNames: [String: String]
     public var conversations: [Conversation]
+    public var filter: ConversationFilter
     public var isLoading: Bool
     public var loadFailed: Bool
     public var selection: Chat.ID?
@@ -16,12 +17,14 @@ public struct ConversationListFeature {
     public init(
       contactNames: [String: String] = [:],
       conversations: [Conversation] = [],
+      filter: ConversationFilter = .messages,
       isLoading: Bool = false,
       loadFailed: Bool = false,
       selection: Chat.ID? = nil
     ) {
       self.contactNames = contactNames
       self.conversations = conversations
+      self.filter = filter
       self.isLoading = isLoading
       self.loadFailed = loadFailed
       self.selection = selection
@@ -32,6 +35,7 @@ public struct ConversationListFeature {
     case contactNamesLoaded([String: String])
     case contactsAccessChanged
     case conversationsLoaded(Result<[Conversation], any Error>)
+    case filterChanged(ConversationFilter)
     case selectionChanged(Chat.ID?)
     case task
   }
@@ -66,17 +70,26 @@ public struct ConversationListFeature {
         state.loadFailed = true
         return .none
 
+      case .filterChanged(let filter):
+        guard filter != state.filter else { return .none }
+        state.filter = filter
+        state.conversations = []
+        state.loadFailed = false
+        state.selection = nil
+        return .none
+
       case .selectionChanged(let selection):
         state.selection = selection
         return .none
 
+      // The view restarts this task whenever the filter changes.
       case .task:
         state.isLoading = true
-        return .run { [chatDatabase, chatDatabaseChanges] send in
+        return .run { [chatDatabase, chatDatabaseChanges, filter = state.filter] send in
           let changes = chatDatabaseChanges.stream()
-          await send(.conversationsLoaded(await loadConversations(from: chatDatabase)))
+          await send(.conversationsLoaded(await loadConversations(filter, from: chatDatabase)))
           for await _ in changes {
-            await send(.conversationsLoaded(await loadConversations(from: chatDatabase)))
+            await send(.conversationsLoaded(await loadConversations(filter, from: chatDatabase)))
           }
         }
       }
@@ -93,12 +106,13 @@ extension ConversationListFeature {
   }
 }
 
-private func loadConversations(from chatDatabase: ChatDatabase) async -> Result<
-  [Conversation], any Error
-> {
+private func loadConversations(
+  _ filter: ConversationFilter,
+  from chatDatabase: ChatDatabase
+) async -> Result<[Conversation], any Error> {
   await Result {
     try await chatDatabase.reader().read { db in
-      try ConversationsRequest().fetch(db)
+      try ConversationsRequest(filter: filter).fetch(db)
     }
   }
 }

@@ -17,6 +17,13 @@ public struct Chat: Identifiable, Sendable {
   public var displayName: String?
   @Column("is_archived")
   public var isArchived: Bool
+  /// How Messages filtered the chat: 0 for known senders, 1 for unknown senders, and
+  /// `Chat.spamFilterValue` for spam.
+  @Column("is_filtered")
+  public var isFiltered: Int
+
+  /// The `is_filtered` value of chats Messages moved to Spam.
+  public static let spamFilterValue = 2
 
   public init(
     id: ID,
@@ -25,7 +32,8 @@ public struct Chat: Identifiable, Sendable {
     chatIdentifier: String,
     serviceName: String?,
     displayName: String?,
-    isArchived: Bool
+    isArchived: Bool,
+    isFiltered: Int = 0
   ) {
     self.id = id
     self.guid = guid
@@ -34,6 +42,7 @@ public struct Chat: Identifiable, Sendable {
     self.serviceName = serviceName
     self.displayName = displayName
     self.isArchived = isArchived
+    self.isFiltered = isFiltered
   }
 
   public struct Style: Hashable, QueryBindable, RawRepresentable, Sendable {

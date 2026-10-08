@@ -96,46 +96,33 @@ public struct Conversation: Equatable, Identifiable, Sendable {
   }
 }
 
-/// Fetches every conversation that has at least one message, newest first.
+/// The sidebar's filters, matching Messages.
+public enum ConversationFilter: CaseIterable, Sendable {
+  /// Every conversation except spam.
+  case messages
+  /// Conversations Messages moved to Spam.
+  case spam
+  /// Conversations with messages in Recently Deleted, previewing the latest deleted one.
+  case recentlyDeleted
+}
+
+/// Fetches every conversation in `filter` that has at least one message, newest first.
 ///
 /// The latest message can be a tapback, like in Messages, in which case the message it reacts to is
 /// looked up too. Group events and tapback removals are ignored.
 public struct ConversationsRequest: FetchKeyRequest {
-  public init() {}
+  public var filter: ConversationFilter
+
+  public init(filter: ConversationFilter = .messages) {
+    self.filter = filter
+  }
 
   public func fetch(_ db: Database) throws -> [Conversation] {
-    let messages =
-      Chat
-      .group(by: \.id)
-      .join(ChatMessageJoin.all) { $0.id.eq($1.chatID) }
-      .join(Message.all) { $1.messageID.eq($2.id) }
-      .leftJoin(Handle.all) { $2.handleID.eq($3.id) }
-      .where { _, _, message, _ in message.itemType.eq(0) }
     let latestMessages =
-      try messages
-      .where { _, _, message, _ in
-        // Plain messages, or tapbacks that add a reaction (`Tapback.associatedMessageTypes`).
-        message.associatedMessageType.eq(0)
-          || message.associatedMessageType.between(2000, and: 2006)
+      switch filter {
+      case .messages, .spam: try latestMessageRows(db, spam: filter == .spam)
+      case .recentlyDeleted: try latestDeletedMessageRows(db)
       }
-      .order { _, _, message, _ in message.date.max().desc() }
-      .select { chat, _, message, handle in
-        LatestMessageRow.Columns(
-          chat: chat,
-          messageID: message.id,
-          date: message.date.max(),
-          text: message.text,
-          attributedBody: message.attributedBody,
-          isFromMe: message.isFromMe,
-          hasAttachments: message.hasAttachments,
-          senderAddress: handle.address,
-          associatedMessageType: message.associatedMessageType,
-          associatedMessageGUID: message.associatedMessageGUID,
-          associatedMessageEmoji: message.associatedMessageEmoji,
-          isAudioMessage: message.isAudioMessage
-        )
-      }
-      .fetchAll(db)
 
     let reactedToGUIDs = latestMessages.compactMap { row in
       row.associatedMessageGUID.map(Tapback.reactedToGUID(fromAssociatedGUID:))
@@ -217,6 +204,59 @@ public struct ConversationsRequest: FetchKeyRequest {
   }
 }
 
+extension ConversationsRequest {
+  private func latestMessageRows(_ db: Database, spam: Bool) throws -> [LatestMessageRow] {
+    let chats = Chat.where {
+      if spam {
+        $0.isFiltered.eq(Chat.spamFilterValue)
+      } else {
+        $0.isFiltered.neq(Chat.spamFilterValue)
+      }
+    }
+    let messages =
+      chats
+      .group(by: \.id)
+      .join(ChatMessageJoin.all) { $0.id.eq($1.chatID) }
+      .join(Message.all) { $1.messageID.eq($2.id) }
+      .leftJoin(Handle.all) { $2.handleID.eq($3.id) }
+      .where { _, _, message, _ in message.itemType.eq(0) }
+    return
+      try messages
+      .where { _, _, message, _ in
+        // Plain messages, or tapbacks that add a reaction (`Tapback.associatedMessageTypes`).
+        message.associatedMessageType.eq(0)
+          || message.associatedMessageType.between(2000, and: 2006)
+      }
+      .order { _, _, message, _ in message.date.max().desc() }
+      .select { chat, _, message, handle in
+        LatestMessageRow.columns(chat: chat, message: message, handle: handle)
+      }
+      .fetchAll(db)
+  }
+
+  /// Like `latestMessageRows`, over the messages in Recently Deleted.
+  private func latestDeletedMessageRows(_ db: Database) throws -> [LatestMessageRow] {
+    let messages =
+      Chat
+      .group(by: \.id)
+      .join(ChatRecoverableMessageJoin.all) { $0.id.eq($1.chatID) }
+      .join(Message.all) { $1.messageID.eq($2.id) }
+      .leftJoin(Handle.all) { $2.handleID.eq($3.id) }
+      .where { _, _, message, _ in message.itemType.eq(0) }
+    return
+      try messages
+      .where { _, _, message, _ in
+        message.associatedMessageType.eq(0)
+          || message.associatedMessageType.between(2000, and: 2006)
+      }
+      .order { _, _, message, _ in message.date.max().desc() }
+      .select { chat, _, message, handle in
+        LatestMessageRow.columns(chat: chat, message: message, handle: handle)
+      }
+      .fetchAll(db)
+  }
+}
+
 @Selection
 private struct LatestMessageRow {
   let chat: Chat
@@ -232,4 +272,28 @@ private struct LatestMessageRow {
   let associatedMessageGUID: String?
   let associatedMessageEmoji: String?
   let isAudioMessage: Bool
+}
+
+extension LatestMessageRow {
+  /// The row for the latest of `message`, grouped by chat.
+  fileprivate static func columns(
+    chat: Chat.TableColumns,
+    message: Message.TableColumns,
+    handle: Optional<Handle>.TableColumns
+  ) -> Columns {
+    Columns(
+      chat: chat,
+      messageID: message.id,
+      date: message.date.max(),
+      text: message.text,
+      attributedBody: message.attributedBody,
+      isFromMe: message.isFromMe,
+      hasAttachments: message.hasAttachments,
+      senderAddress: handle.address,
+      associatedMessageType: message.associatedMessageType,
+      associatedMessageGUID: message.associatedMessageGUID,
+      associatedMessageEmoji: message.associatedMessageEmoji,
+      isAudioMessage: message.isAudioMessage
+    )
+  }
 }

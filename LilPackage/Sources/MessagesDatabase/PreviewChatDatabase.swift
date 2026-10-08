@@ -42,6 +42,28 @@ public func makePreviewChatDatabase() throws -> DatabaseQueue {
         }
       }
     }
+    for (chatID, handleID, text, minutes) in PreviewChatDatabase.deletedMessages {
+      messageID += 1
+      let date = minutesAgo(minutes)
+      try db.seed {
+        Message(
+          id: Message.ID(messageID),
+          guid: "preview-\(messageID)",
+          text: text,
+          attributedBody: nil,
+          handleID: handleID,
+          service: "iMessage",
+          date: date,
+          isFromMe: handleID == 0,
+          isRead: true,
+          hasAttachments: false,
+          itemType: 0,
+          associatedMessageType: 0
+        )
+        ChatRecoverableMessageJoin(
+          chatID: chatID, messageID: Message.ID(messageID), deleteDate: minutesAgo(60))
+      }
+    }
     var attachmentID: Int64 = 0
     for (chatID, handleID, files, minutes) in PreviewChatDatabase.attachmentMessages {
       messageID += 1
@@ -118,6 +140,8 @@ public enum PreviewChatDatabase {
     Handle(id: 1, address: "+14155550101", service: "iMessage"),
     Handle(id: 2, address: "+14155550102", service: "iMessage"),
     Handle(id: 3, address: "katherine@example.com", service: "iMessage"),
+    Handle(id: 4, address: "+18885550123", service: "SMS"),
+    Handle(id: 5, address: "+14155550103", service: "iMessage"),
   ]
 
   static let chats = [
@@ -149,6 +173,25 @@ public enum PreviewChatDatabase {
       isArchived: false
     ),
     Chat(
+      id: 5,
+      guid: "SMS;-;+18885550123",
+      style: .oneOnOne,
+      chatIdentifier: "+18885550123",
+      serviceName: "SMS",
+      displayName: nil,
+      isArchived: false,
+      isFiltered: Chat.spamFilterValue
+    ),
+    Chat(
+      id: 6,
+      guid: "iMessage;-;+14155550103",
+      style: .oneOnOne,
+      chatIdentifier: "+14155550103",
+      serviceName: "iMessage",
+      displayName: nil,
+      isArchived: false
+    ),
+    Chat(
       id: 3,
       guid: "iMessage;-;katherine@example.com",
       style: .oneOnOne,
@@ -165,6 +208,14 @@ public enum PreviewChatDatabase {
     ChatHandleJoin(chatID: 2, handleID: 2),
     ChatHandleJoin(chatID: 3, handleID: 3),
     ChatHandleJoin(chatID: 4, handleID: 2),
+    ChatHandleJoin(chatID: 5, handleID: 4),
+    ChatHandleJoin(chatID: 6, handleID: 5),
+  ]
+
+  /// Messages in Recently Deleted as (chat, sender handle or 0 for me, text, minutes ago).
+  static let deletedMessages: [(Chat.ID, Handle.ID, String, Double)] = [
+    (6, 5, "Want to grab coffee next week?", 9_000),
+    (6, 0, "Sure, Tuesday works", 8_990),
   ]
 
   /// Attachment-only messages as (chat, sender handle or 0 for me, files as (MIME type, name),
@@ -211,6 +262,12 @@ public enum PreviewChatDatabase {
       4,
       [
         (2, "Sending you the photos from the hike", 2_905)
+      ]
+    ),
+    (
+      5,
+      [
+        (4, "Your package is on hold. Confirm your address at example.com/track", 600)
       ]
     ),
   ]
