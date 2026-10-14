@@ -1,7 +1,11 @@
 import { Column, defineEntity } from "../store/Entities.ts";
 
-// Generic HealthKit data in the user's store. Records are keyed by HealthKit's UUID (lowercased),
-// so the same sample uploaded by two iPhones is one record. Times are Unix milliseconds.
+// Generic HealthKit data in the user's store. Records are keyed by HealthKit's UUID, lowercased
+// (and checked), so the same sample uploaded by two iPhones is one record. Times are Unix
+// milliseconds.
+
+/** `HKObject.uuid`, lowercased. */
+const healthKitUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** Where a sample or correlation came from. */
 const provenance = {
@@ -20,12 +24,13 @@ const provenance = {
 /** Quantity and category samples. */
 export const HealthSample = defineEntity("health_sample", {
   clientWritable: false,
+  id: healthKitUUID,
   fields: {
     /** The HealthKit type identifier, e.g. `HKQuantityTypeIdentifierStepCount`. */
     type: Column.text,
     startDate: Column.integer,
     endDate: Column.integer,
-    /** A quantity sample's value, in the type's unit from `HealthCatalog`. */
+    /** A quantity sample's value, in the type's unit from the Swift `HealthCatalog` module. */
     value: Column.nullable(Column.real),
     /** The unit `value` is in, as an `HKUnit` string. */
     unit: Column.nullable(Column.text),
@@ -40,6 +45,7 @@ export const HealthSample = defineEntity("health_sample", {
 /** Blood pressure and food correlations. Their member samples point at them. */
 export const HealthCorrelation = defineEntity("health_correlation", {
   clientWritable: false,
+  id: healthKitUUID,
   fields: {
     type: Column.text,
     startDate: Column.integer,
@@ -54,6 +60,7 @@ export const HealthCorrelation = defineEntity("health_correlation", {
  */
 export const HealthCharacteristic = defineEntity("health_characteristic", {
   clientWritable: false,
+  id: /^HKCharacteristicTypeIdentifier[A-Za-z]+$/,
   fields: {
     /** E.g. `{ "year": 1990, "month": 4, "day": 2 }` for date of birth, or an enum case's name. */
     value: Column.json,
@@ -63,6 +70,7 @@ export const HealthCharacteristic = defineEntity("health_characteristic", {
 /** The Activity rings for one day, keyed by the day (`YYYY-MM-DD`, in the iPhone's calendar). */
 export const HealthActivitySummary = defineEntity("health_activity_summary", {
   clientWritable: false,
+  id: /^\d{4}-\d{2}-\d{2}$/,
   fields: {
     /** Kilocalories. */
     activeEnergyBurned: Column.nullable(Column.real),

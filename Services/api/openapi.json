@@ -527,15 +527,8 @@
           "type",
           "startDate",
           "endDate",
-          "value",
-          "unit",
-          "categoryValue",
-          "correlationId",
           "sourceName",
-          "sourceBundleId",
-          "sourceRevision",
-          "device",
-          "metadata"
+          "sourceBundleId"
         ],
         "additionalProperties": true
       },
@@ -574,10 +567,7 @@
           "startDate",
           "endDate",
           "sourceName",
-          "sourceBundleId",
-          "sourceRevision",
-          "device",
-          "metadata"
+          "sourceBundleId"
         ],
         "additionalProperties": true
       },
@@ -663,17 +653,7 @@
           }
         },
         "required": [
-          "id",
-          "activeEnergyBurned",
-          "activeEnergyBurnedGoal",
-          "appleMoveTime",
-          "appleMoveTimeGoal",
-          "appleExerciseTime",
-          "appleExerciseTimeGoal",
-          "appleStandHours",
-          "appleStandHoursGoal",
-          "activityMoveMode",
-          "paused"
+          "id"
         ],
         "additionalProperties": true
       }

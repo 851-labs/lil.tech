@@ -70,6 +70,9 @@ export const applyMutations = (
       if (entity === undefined) {
         throw new InvalidMutation({ index, message: `Unknown entity ${mutation.entity}` });
       }
+      if (!entity.isValidId(mutation.id)) {
+        throw new InvalidMutation({ index, message: `Invalid ${entity.name} ID ${mutation.id}` });
+      }
       if (mutation.op === "delete") {
         if (sql.exec(entity.statements.delete, mutation.id).length > 0)
           append(++head, mutation, null);

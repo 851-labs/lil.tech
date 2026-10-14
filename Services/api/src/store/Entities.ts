@@ -62,11 +62,16 @@ export interface Entity {
     readonly column: string;
     readonly type: Column;
   }>;
+  /** The name of its row schema in OpenAPI (`health_sample` → `HealthSample`). */
+  readonly schemaName: string;
   /**
-   * A whole record as the change log carries it: `id` and every field, `null` where unset.
-   * Published in OpenAPI, named after the entity (`health_sample` → `HealthSample`).
+   * A whole record as the change log carries it: `id` and its fields. Nullable fields are
+   * optional keys, so rows written before a field was added still decode. Built on demand, since
+   * only the OpenAPI generator needs it.
    */
-  readonly rowSchema: Schema.Top;
+  readonly rowSchema: () => Schema.Top;
+  /** Checks a record ID, e.g. that a HealthKit UUID is lowercase. */
+  readonly isValidId: (id: string) => boolean;
   /** Decodes the fields an upsert sets. Any may be missing, since upserts merge. */
   readonly decodeFields: (
     row: unknown,
@@ -85,7 +90,12 @@ export interface Entity {
  */
 export const defineEntity = (
   name: string,
-  options: { readonly clientWritable: boolean; readonly fields: Record<string, Column> },
+  options: {
+    readonly clientWritable: boolean;
+    readonly fields: Record<string, Column>;
+    /** The form record IDs must have. Any non-empty string by default. */
+    readonly id?: RegExp;
+  },
 ): Entity => {
   if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new Error(`Invalid entity name: ${name}`);
   const fields = Object.entries(options.fields).map(([field, type]) => {
@@ -108,10 +118,21 @@ export const defineEntity = (
     name,
     clientWritable: options.clientWritable,
     fields,
-    rowSchema: Schema.Struct({
-      id: Schema.String,
-      ...Object.fromEntries(fields.map(({ field, type }) => [field, fieldSchema(type)])),
-    }).annotate({ identifier: `lil/api/sync/${schemaName(name)}` }),
+    schemaName: schemaName(name),
+    rowSchema: () =>
+      Schema.Struct({
+        id: Schema.String,
+        ...Object.fromEntries(
+          fields.map(({ field, type }) => [
+            field,
+            type.nullable
+              ? // `Schema.Json` already includes null, and renders as `{}` like `NonNullJson`.
+                Schema.optionalKey(type.type === "json" ? Schema.Json : fieldSchema(type))
+              : fieldSchema(type),
+          ]),
+        ),
+      }).annotate({ identifier: `lil/api/sync/${schemaName(name)}` }),
+    isValidId: (id) => id !== "" && (options.id?.test(id) ?? true),
     decodeFields: Schema.decodeUnknownResult(fieldsSchema) as Entity["decodeFields"],
     statements: {
       select: `SELECT ${["id", ...columns].join(", ")} FROM "${name}" WHERE id = ?`,

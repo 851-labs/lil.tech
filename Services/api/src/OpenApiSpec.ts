@@ -27,9 +27,8 @@ export const makeOpenApiSpec = <Id extends string, Groups extends HttpApiGroup.C
   api: HttpApi.HttpApi<Id, Groups> = Api as unknown as HttpApi.HttpApi<Id, Groups>,
 ) => {
   const owners = new Map<string, string>();
-  const name = (identifier: string) => {
-    const source = identifier.replace(/Encoded$/, "");
-    const short = source.split("/").at(-1) ?? source;
+  /** Claims a component name for a source, failing if another source already has it. */
+  const claim = (short: string, source: string) => {
     const owner = owners.get(short);
     if (owner !== undefined && owner !== source) {
       throw new Error(`OpenAPI schema name "${short}" is used by both ${owner} and ${source}`);
@@ -38,9 +37,13 @@ export const makeOpenApiSpec = <Id extends string, Groups extends HttpApiGroup.C
     return short;
   };
   const spec = OpenApi.fromApi(api, {
-    referencePolicy: ({ identifier }) => (identifier === undefined ? undefined : name(identifier)),
+    referencePolicy: ({ identifier }) => {
+      if (identifier === undefined) return undefined;
+      const source = identifier.replace(/Encoded$/, "");
+      return claim(source.split("/").at(-1) ?? source, source);
+    },
   });
-  return normalize(withEntitySchemas(spec, name));
+  return normalize(withEntitySchemas(spec, claim));
 };
 
 /**
@@ -49,16 +52,17 @@ export const makeOpenApiSpec = <Id extends string, Groups extends HttpApiGroup.C
  */
 const withEntitySchemas = <S extends { components: { schemas: Record<string, unknown> } }>(
   spec: S,
-  name: (identifier: string) => string,
+  claim: (short: string, source: string) => string,
 ): S => {
   const schemas = { ...spec.components.schemas };
   for (const entity of entities) {
-    const document = Schema.toJsonSchemaDocument(entity.rowSchema);
+    const document = Schema.toJsonSchemaDocument(entity.rowSchema());
     const [identifier, ...others] = Object.keys(document.definitions);
     if (identifier === undefined || others.length > 0) {
       throw new Error(`Entity ${entity.name}'s row schema must be one named, flat schema`);
     }
-    schemas[name(identifier)] = document.definitions[identifier];
+    // Keyed by entity name, so two entities whose names map to the same schema name collide.
+    schemas[claim(entity.schemaName, `entity ${entity.name}`)] = document.definitions[identifier];
   }
   return { ...spec, components: { ...spec.components, schemas } };
 };
@@ -83,11 +87,7 @@ const normalize = <A>(value: A): A => {
     const [schema, ...rest] = anyOf.filter((option) => !isNullSchema(option)) as Array<
       Record<string, unknown> | undefined
     >;
-    const { anyOf: _any, ...outer } = object;
-    // `{}` is any JSON value, null included.
-    if (rest.length === 0 && schema !== undefined && Object.keys(schema).length === 0) {
-      return outer as A;
-    }
+    const { anyOf: _, ...outer } = object;
     const type = schema?.["type"];
     if (rest.length > 0 || typeof type !== "string" || schema?.["const"] !== undefined) {
       throw new Error(`Unsupported nullable schema: ${JSON.stringify(object)}`);

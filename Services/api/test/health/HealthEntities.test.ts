@@ -120,7 +120,12 @@ describe("health entities", () => {
         );
         assert.deepInclude(deleted, { entity: record.entity, id: record.id, op: "delete" });
       });
-      for (const table of ["health_sample", "health_correlation", "health_characteristic"]) {
+      for (const table of [
+        "health_sample",
+        "health_correlation",
+        "health_characteristic",
+        "health_activity_summary",
+      ]) {
         assert.deepStrictEqual(sql.exec(`SELECT count(*) AS n FROM ${table}`), [{ n: 0 }]);
       }
     }),
@@ -148,10 +153,37 @@ describe("health entities", () => {
       const { sourceName: _, ...withoutSource } = steps;
       const error = yield* Effect.flip(
         store.applyMutations([
-          { entity: "health_sample", op: "upsert", id: "x", row: withoutSource },
+          {
+            entity: "health_sample",
+            op: "upsert",
+            id: "6f1c2a40-0000-4000-8000-000000000009",
+            row: withoutSource,
+          },
         ]),
       );
       assert.include(error.message, "sourceName");
+    }),
+  );
+
+  it.effect("rejects IDs that aren't in each entity's form", () =>
+    Effect.gen(function* () {
+      const store = makeUserStore(makeTestStoreSql());
+      const invalid: ReadonlyArray<Mutation> = [
+        // HealthKit's `uuidString` is uppercase; records use it lowercased.
+        {
+          entity: "health_sample",
+          op: "upsert",
+          id: "6F1C2A40-0000-4000-8000-000000000001",
+          row: steps,
+        },
+        { entity: "health_sample", op: "delete", id: "not-a-uuid" },
+        { entity: "health_characteristic", op: "upsert", id: "DateOfBirth", row: { value: 1 } },
+        { entity: "health_activity_summary", op: "upsert", id: "14/10/2026", row: {} },
+      ];
+      for (const mutation of invalid) {
+        const error = yield* Effect.flip(store.applyMutations([mutation]));
+        assert.include(error.message, "Invalid", mutation.id);
+      }
     }),
   );
 

@@ -366,11 +366,11 @@ extension Components {
             /// - Remark: Generated from `#/components/schemas/HealthSample/sourceBundleId`.
             public var sourceBundleId: Swift.String
             /// - Remark: Generated from `#/components/schemas/HealthSample/sourceRevision`.
-            public var sourceRevision: OpenAPIRuntime.OpenAPIValueContainer
+            public var sourceRevision: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthSample/device`.
-            public var device: OpenAPIRuntime.OpenAPIValueContainer
+            public var device: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthSample/metadata`.
-            public var metadata: OpenAPIRuntime.OpenAPIValueContainer
+            public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthSample`.
@@ -401,9 +401,9 @@ extension Components {
                 correlationId: Swift.String? = nil,
                 sourceName: Swift.String,
                 sourceBundleId: Swift.String,
-                sourceRevision: OpenAPIRuntime.OpenAPIValueContainer,
-                device: OpenAPIRuntime.OpenAPIValueContainer,
-                metadata: OpenAPIRuntime.OpenAPIValueContainer,
+                sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -478,15 +478,15 @@ extension Components {
                     Swift.String.self,
                     forKey: .sourceBundleId
                 )
-                self.sourceRevision = try container.decode(
+                self.sourceRevision = try container.decodeIfPresent(
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .sourceRevision
                 )
-                self.device = try container.decode(
+                self.device = try container.decodeIfPresent(
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .device
                 )
-                self.metadata = try container.decode(
+                self.metadata = try container.decodeIfPresent(
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .metadata
                 )
@@ -548,15 +548,15 @@ extension Components {
                     self.sourceBundleId,
                     forKey: .sourceBundleId
                 )
-                try container.encode(
+                try container.encodeIfPresent(
                     self.sourceRevision,
                     forKey: .sourceRevision
                 )
-                try container.encode(
+                try container.encodeIfPresent(
                     self.device,
                     forKey: .device
                 )
-                try container.encode(
+                try container.encodeIfPresent(
                     self.metadata,
                     forKey: .metadata
                 )
@@ -578,11 +578,11 @@ extension Components {
             /// - Remark: Generated from `#/components/schemas/HealthCorrelation/sourceBundleId`.
             public var sourceBundleId: Swift.String
             /// - Remark: Generated from `#/components/schemas/HealthCorrelation/sourceRevision`.
-            public var sourceRevision: OpenAPIRuntime.OpenAPIValueContainer
+            public var sourceRevision: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthCorrelation/device`.
-            public var device: OpenAPIRuntime.OpenAPIValueContainer
+            public var device: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthCorrelation/metadata`.
-            public var metadata: OpenAPIRuntime.OpenAPIValueContainer
+            public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthCorrelation`.
@@ -605,9 +605,9 @@ extension Components {
                 endDate: Swift.Int,
                 sourceName: Swift.String,
                 sourceBundleId: Swift.String,
-                sourceRevision: OpenAPIRuntime.OpenAPIValueContainer,
-                device: OpenAPIRuntime.OpenAPIValueContainer,
-                metadata: OpenAPIRuntime.OpenAPIValueContainer,
+                sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -658,15 +658,15 @@ extension Components {
                     Swift.String.self,
                     forKey: .sourceBundleId
                 )
-                self.sourceRevision = try container.decode(
+                self.sourceRevision = try container.decodeIfPresent(
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .sourceRevision
                 )
-                self.device = try container.decode(
+                self.device = try container.decodeIfPresent(
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .device
                 )
-                self.metadata = try container.decode(
+                self.metadata = try container.decodeIfPresent(
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .metadata
                 )
@@ -708,15 +708,15 @@ extension Components {
                     self.sourceBundleId,
                     forKey: .sourceBundleId
                 )
-                try container.encode(
+                try container.encodeIfPresent(
                     self.sourceRevision,
                     forKey: .sourceRevision
                 )
-                try container.encode(
+                try container.encodeIfPresent(
                     self.device,
                     forKey: .device
                 )
-                try container.encode(
+                try container.encodeIfPresent(
                     self.metadata,
                     forKey: .metadata
                 )
