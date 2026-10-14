@@ -159,14 +159,19 @@ public struct GoogleOAuth: Sendable {
     init(statusCode: Int, body: Data) {
       struct Body: Decodable {
         let error: String?
-        let error_description: String?
+        let description: String?
+
+        enum CodingKeys: String, CodingKey {
+          case error
+          case description = "error_description"
+        }
       }
       let decoded = try? JSONDecoder().decode(Body.self, from: body)
       self.statusCode = statusCode
       self.error = decoded?.error
       self.errorDescription =
         "Google answered HTTP \(statusCode)"
-        + [decoded?.error, decoded?.error_description].compactMap { $0 }.map { ": \($0)" }
+        + [decoded?.error, decoded?.description].compactMap { $0 }.map { ": \($0)" }
         .joined()
     }
   }
@@ -183,8 +188,14 @@ extension GoogleOAuth: DependencyKey {
           for: request.tokenRequest(code: code))
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard statusCode == 200 else { throw RedeemFailed(statusCode: statusCode, body: data) }
-        struct Tokens: Decodable { let id_token: String }
-        return try JSONDecoder().decode(Tokens.self, from: data).id_token
+        struct Tokens: Decodable {
+          let idToken: String
+
+          enum CodingKeys: String, CodingKey {
+            case idToken = "id_token"
+          }
+        }
+        return try JSONDecoder().decode(Tokens.self, from: data).idToken
       }
     )
   }
