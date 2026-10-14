@@ -20,6 +20,21 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
     // otherwise force one).
     sql: "CREATE TABLE meta (key TEXT PRIMARY KEY, value ANY NOT NULL) STRICT;",
   },
+  {
+    version: 2,
+    name: "changes",
+    // The change log (`docs/SYNC.md`). `seq` is assigned from `meta.head`, never by SQLite, so it
+    // isn't reused when compaction deletes the newest changes.
+    sql: `CREATE TABLE changes (
+      seq INTEGER PRIMARY KEY,
+      entity TEXT NOT NULL,
+      id TEXT NOT NULL,
+      op TEXT NOT NULL CHECK (op IN ('upsert', 'delete')),
+      row TEXT,
+      at INTEGER NOT NULL,
+      CHECK ((op = 'upsert') = (row IS NOT NULL))
+    ) STRICT;`,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */
