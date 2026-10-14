@@ -1,0 +1,28 @@
+#!/bin/sh
+# Generates the Swift API client (LilPackage/Sources/LilAPIGenerated/Generated) from the committed
+# OpenAPI spec (Services/api/openapi.json) with Apple's swift-openapi-generator, pinned in Tools/.
+# Usage: scripts/generate-api-client [--check]
+#   --check  Don't write files; exit non-zero if the generated client is out of date.
+set -eu
+
+cd "$(dirname "$0")/.."
+
+output=LilPackage/Sources/LilAPIGenerated/Generated
+if [ "${1:-}" = "--check" ]; then
+  target=$(mktemp -d)
+  trap 'rm -rf "$target"' EXIT
+else
+  target=$output
+fi
+
+swift run --quiet --package-path Tools swift-openapi-generator generate \
+  --config Tools/openapi-generator-config.yaml \
+  --output-directory "$target" \
+  Services/api/openapi.json
+
+if [ "${1:-}" = "--check" ]; then
+  if ! diff -r "$target" "$output" > /dev/null; then
+    echo "error: $output is out of date. Run scripts/generate-api-client." >&2
+    exit 1
+  fi
+fi
