@@ -1,7 +1,9 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
+import * as SQL from "alchemy/SQL/D1";
 import { Effect, Layer, Option } from "effect";
 import { HttpRouter } from "effect/http";
+import { CoreDatabase, CoreRepositories } from "./core/CoreDatabase.ts";
 import { Deployment, environmentForStage } from "./Deployment.ts";
 import { WorkerHttpLayer } from "./Http.ts";
 
@@ -37,10 +39,14 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
   apiWorkerProps,
   Effect.gen(function* () {
     const deployment = yield* Deployment.config;
+    const core = yield* Cloudflare.D1.QueryDatabase(CoreDatabase);
     return {
       fetch: yield* HttpRouter.toHttpEffect(
-        WorkerHttpLayer.pipe(Layer.provide(Layer.succeed(Deployment, deployment))),
+        WorkerHttpLayer.pipe(
+          Layer.provide(Layer.succeed(Deployment, deployment)),
+          Layer.provide(CoreRepositories.pipe(Layer.provideMerge(SQL.D1Layer(core)))),
+        ),
       ),
     };
-  }),
+  }).pipe(Effect.provide(Cloudflare.D1.QueryDatabaseBinding)),
 ) {}

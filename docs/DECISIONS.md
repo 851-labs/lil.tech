@@ -74,6 +74,7 @@
 - **API contract:** Effect HttpApi publishes OpenAPI, with routes versioned under `/v1`. The spec is committed, and the Swift client is generated from it with `swift-openapi-generator`.
 - **Storage:**
   - D1 holds data shared across users: users, identities, sessions, devices and connections.
+  - IDs are a type prefix plus a 26-character time-sortable code (e.g. `usr_01jb…`), with branded Effect Schema types. Times are Unix milliseconds.
   - Each user's own data (health now, mail and calendar later) lives in that user's SQLite-backed Durable Object.
   - Large blobs (ECG voltages, workout routes, sync snapshots) live in R2.
   - R2 blobs are immutable and addressed by content hash. They're only deleted with a grace period (or when an account is deleted), and snapshots can be rebuilt from the Durable Object.
