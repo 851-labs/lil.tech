@@ -19,8 +19,8 @@ extension DependencyValues {
 
 private enum AuthSessionsKey: DependencyKey {
   static var liveValue: AuthSessions { AuthSessions() }
+  // A real one: it only talks to `sessionStore` and `api`, which tests control.
   static var testValue: AuthSessions { AuthSessions() }
-  static var previewValue: AuthSessions { AuthSessions() }
 }
 
 /// The signed-in session, kept in the `sessionStore`. Hands out access tokens, refreshing one
@@ -34,8 +34,10 @@ public actor AuthSessions {
   private let api: any APIProtocol
   private let now: @Sendable () -> Date
   private var session: AuthSession?
+  /// Whether `session` reflects the store. A failed read (e.g. the Keychain before the first
+  /// unlock after a restart) is tried again next time.
   private var loaded = false
-  private var refreshing: Task<AuthSession?, any Error>?
+  private var refreshing: (refreshToken: String, task: Task<Void, any Error>)?
   private var observers: [UUID: AsyncStream<Bool>.Continuation] = [:]
 
   public init() {
@@ -58,13 +60,22 @@ public actor AuthSessions {
   }
 
   /// A current access token, refreshed first if it's about to expire, or `nil` when signed out.
-  /// Throws if a refresh fails for a reason worth retrying (e.g. no network).
+  /// Throws if the session can't be read or refreshed for a reason worth retrying (e.g. no
+  /// network), unless the token it has hasn't quite expired yet.
   public func accessToken() async throws -> String? {
-    guard let session = current() else { return nil }
+    guard let session = current() else {
+      if loaded { return nil }
+      throw SessionUnavailable()
+    }
     if session.accessTokenExpiresAt.timeIntervalSince(now()) > Self.refreshMargin {
       return session.accessToken
     }
-    return try await refresh(from: session)?.accessToken
+    do {
+      return try await refresh(from: session)?.accessToken
+    } catch {
+      guard session.accessTokenExpiresAt > now() else { throw error }
+      return session.accessToken
+    }
   }
 
   /// The server rejected `token`: the next ``accessToken()`` refreshes, unless it already has.
@@ -79,12 +90,19 @@ public actor AuthSessions {
     set(session)
   }
 
-  /// Ends the session: tells the server, then forgets the tokens even if that fails.
+  /// Ends the session: forgets the tokens, then tells the server (best effort) so it can revoke
+  /// them.
   public func signOut() async {
-    if current() != nil {
+    let token = current()?.accessToken
+    let expiresAt = current()?.accessTokenExpiresAt
+    set(nil)
+    // An expired token can't sign out; the forgotten refresh token then just expires unused.
+    guard let token, let expiresAt, expiresAt > now() else { return }
+    await withDependencies {
+      $0.apiAuthentication = APIAuthentication(accessToken: { token }, rejected: { _ in })
+    } operation: { [api] in
       _ = try? await api.authSignOut()
     }
-    set(nil)
   }
 
   /// For `@Dependency(\.apiAuthentication)`, so API requests use this session.
@@ -95,27 +113,38 @@ public actor AuthSessions {
     )
   }
 
+  /// Refreshes `stale`, or waits for the refresh already in flight for it, and returns the
+  /// session as it then is. A sign-in or sign-out meanwhile wins over the refresh.
   private func refresh(from stale: AuthSession) async throws -> AuthSession? {
-    if let refreshing { return try await refreshing.value }
-    // Isolated to this actor, so it can't start before `refreshing` is set, and it settles the
-    // session before anyone waiting on it resumes.
-    let task = Task { () async throws -> AuthSession? in
-      defer { refreshing = nil }
-      let refreshed = try await exchange(stale.refreshToken)
-      // A sign-in or sign-out meanwhile wins over this refresh.
-      guard current()?.refreshToken == stale.refreshToken else { return current() }
-      set(refreshed)
-      return refreshed
+    while let refreshing, refreshing.refreshToken != stale.refreshToken {
+      // A refresh for an earlier session (before a sign-in): let it settle first.
+      _ = try? await refreshing.task.value
     }
-    refreshing = task
-    return try await task.value
+    let task: Task<Void, any Error>
+    if let refreshing {
+      task = refreshing.task
+    } else {
+      guard current()?.refreshToken == stale.refreshToken else { return current() }
+      // Isolated to this actor, so it can't start before `refreshing` is set, and it settles
+      // the session before anyone waiting on it resumes.
+      task = Task {
+        defer { refreshing = nil }
+        let refreshed = try await exchange(stale.refreshToken)
+        guard current()?.refreshToken == stale.refreshToken else { return }
+        set(refreshed)
+      }
+      refreshing = (stale.refreshToken, task)
+    }
+    try await task.value
+    return current()
   }
 
   /// A new session for `refreshToken`, or `nil` if the server won't refresh it.
   private func exchange(_ refreshToken: String) async throws -> AuthSession? {
-    switch try await api.authRefresh(body: .json(.init(refreshToken: refreshToken))) {
+    let output = try await api.authRefresh(body: .json(.init(refreshToken: refreshToken)))
+    switch output {
     case .ok(let ok):
-      return AuthSession(try ok.body.json)
+      return AuthSession(try ok.body.json, receivedAt: now())
     case .unauthorized:
       // Expired, revoked or already used: the user signs in again.
       return nil
@@ -128,10 +157,24 @@ public actor AuthSessions {
     let statusCode: Int
   }
 
+  /// The session store couldn't be read.
+  struct SessionUnavailable: Error {}
+
   private func current() -> AuthSession? {
     if !loaded {
+      let stored: AuthSession?
+      do {
+        stored = try store.load()
+      } catch {
+        reportIssue(error)
+        return nil
+      }
       loaded = true
-      session = withErrorReporting { try store.load() } ?? nil
+      session = stored
+      if stored != nil {
+        // Observers may have been told "signed out" while the store couldn't be read.
+        for observer in observers.values { observer.yield(true) }
+      }
     }
     return session
   }
@@ -139,6 +182,7 @@ public actor AuthSessions {
   private func set(_ session: AuthSession?) {
     let wasSignedIn = current() != nil
     self.session = session
+    loaded = true
     withErrorReporting { try store.save(session) }
     if wasSignedIn != (session != nil) {
       for observer in observers.values { observer.yield(session != nil) }

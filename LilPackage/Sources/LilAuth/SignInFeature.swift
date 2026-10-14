@@ -19,6 +19,11 @@ public struct SignInFeature {
       case signedIn
     }
 
+    /// The name from Apple's first authorization. Apple only gives it once, so it's kept for
+    /// tries after a failed sign-in.
+    public var givenName: String?
+    public var familyName: String?
+
     public init(status: Status = .signedOut, nonce: String? = nil) {
       self.status = status
       self.nonce = nonce
@@ -67,13 +72,20 @@ public struct SignInFeature {
         }
         return .none
 
-      case .appleAuthorizationFinished(.success(let credential)):
+      case .appleAuthorizationFinished(.success(var credential)):
+        if credential.givenName != nil || credential.familyName != nil {
+          state.givenName = credential.givenName
+          state.familyName = credential.familyName
+        } else {
+          credential.givenName = state.givenName
+          credential.familyName = state.familyName
+        }
         guard let nonce = state.nonce else {
           state.status = .failed(SignInError.rejected.message)
           return .none
         }
         state.status = .signingIn
-        return .run { [auth] send in
+        return .run { [auth, credential] send in
           do throws(SignInError) {
             try await auth.signInWithApple(credential, nonce)
             await send(.signInSucceeded)
@@ -93,6 +105,8 @@ public struct SignInFeature {
 
       case .signInSucceeded:
         state.nonce = nil
+        state.givenName = nil
+        state.familyName = nil
         state.status = .signedIn
         return .send(.delegate(.signedIn))
 

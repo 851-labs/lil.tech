@@ -69,23 +69,31 @@ struct SignInFeatureTests {
   }
 
   @Test
-  func theServerFailingThenTryingAgain() async {
+  func theServerFailingThenTryingAgainKeepsApplesName() async {
     let attempts = LockIsolated(0)
     let store = TestStore(initialState: SignInFeature.State()) {
       SignInFeature()
     } withDependencies: {
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(Zeros())
-      $0.auth.signInWithApple = { _, _ throws(SignInError) in
+      $0.auth.signInWithApple = { credential, _ throws(SignInError) in
+        #expect(credential.givenName == "Ada")
+        #expect(credential.familyName == "Lovelace")
         attempts.withValue { $0 += 1 }
         if attempts.value == 1 { throw .unavailable }
       }
     }
-    let credential = AppleCredential(identityToken: "apple-token")
 
     await store.send(.appleButtonTapped) {
       $0.nonce = zeroNonce
     }
-    await store.send(.appleAuthorizationFinished(.success(credential))) {
+    await store.send(
+      .appleAuthorizationFinished(
+        .success(
+          AppleCredential(identityToken: "apple-token", givenName: "Ada", familyName: "Lovelace"))
+      )
+    ) {
+      $0.givenName = "Ada"
+      $0.familyName = "Lovelace"
       $0.status = .signingIn
     }
     await store.receive(\.signInFailed) {
@@ -93,14 +101,19 @@ struct SignInFeatureTests {
       $0.status = .failed("Signing in isn't available right now. Please try again later.")
     }
 
+    // Apple only gives the name the first time.
     await store.send(.appleButtonTapped) {
       $0.nonce = zeroNonce
     }
-    await store.send(.appleAuthorizationFinished(.success(credential))) {
+    await store.send(
+      .appleAuthorizationFinished(.success(AppleCredential(identityToken: "apple-token-2")))
+    ) {
       $0.status = .signingIn
     }
     await store.receive(\.signInSucceeded) {
       $0.nonce = nil
+      $0.givenName = nil
+      $0.familyName = nil
       $0.status = .signedIn
     }
     await store.receive(\.delegate.signedIn)

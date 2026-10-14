@@ -101,6 +101,8 @@
     - The session lives in the data protection Keychain, readable after first unlock, on this device only.
     - The `LilAPI` client adds the access token through transport middleware. It refreshes a token a minute before it expires, one refresh at a time. A 401 refreshes and retries the request once.
     - A refresh token the server rejects signs the app out. Other refresh failures (no network, 5xx) keep the session for the next try.
+    - Expiry is tracked on the device's clock: the server's times, shifted by how far the device's clock was from the server's when the access token was issued (its `iat`). That way, a clock that's off doesn't make every token look expired.
+    - Signing out forgets the session first, then tells the server with the access token it had.
     - The sign-in screen uses the stock Sign in with Apple button.
 - **Identities and connections are separate:**
   - An identity is a way to sign in. Signing in with Google requests identity scopes only.

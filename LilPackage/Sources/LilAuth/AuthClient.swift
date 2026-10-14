@@ -2,6 +2,10 @@ public import Dependencies
 import Foundation
 public import LilAPI
 
+#if os(macOS)
+  import SystemConfiguration
+#endif
+
 /// What Sign in with Apple hands the app.
 public struct AppleCredential: Equatable, Sendable {
   public var identityToken: String
@@ -50,9 +54,10 @@ public struct AuthDevice: Equatable, Sendable {
     #if os(iOS)
       Self(app: app ?? Bundle.main.bundleIdentifier ?? "lil", platform: .ios, name: nil)
     #else
+      // The computer's name from System Settings, without `Host`'s slow name lookups.
       Self(
         app: app ?? Bundle.main.bundleIdentifier ?? "lil", platform: .macos,
-        name: Host.current().localizedName)
+        name: SCDynamicStoreCopyComputerName(nil, nil) as String?)
     #endif
   }
 }
@@ -104,6 +109,7 @@ extension AuthClient: DependencyKey {
     @Dependency(\.api) var api
     @Dependency(\.authSessions) var sessions
     @Dependency(\.authDevice) var device
+    @Dependency(\.date) var date
     return Self(
       signInWithApple: { credential, nonce throws(SignInError) in
         let request = Components.Schemas.AppleSignInRequest(
@@ -121,7 +127,7 @@ extension AuthClient: DependencyKey {
         switch output {
         case .ok(let ok):
           guard let pair = try? ok.body.json else { throw .failed("Unexpected response") }
-          await sessions.signedIn(AuthSession(pair))
+          await sessions.signedIn(AuthSession(pair, receivedAt: date.now))
         case .unauthorized:
           throw .rejected
         case .serviceUnavailable:

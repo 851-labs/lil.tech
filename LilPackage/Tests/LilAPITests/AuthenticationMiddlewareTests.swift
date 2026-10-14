@@ -74,6 +74,25 @@ struct AuthenticationMiddlewareTests {
   }
 
   @Test
+  func aFailedRefreshAnswersWithThe401() async throws {
+    struct Offline: Error {}
+    let tokens = LockIsolated(0)
+    let api = Client.authenticatedMock { _, _ in unauthorized }
+    let output = try await withDependencies {
+      $0.apiAuthentication = APIAuthentication(
+        accessToken: {
+          tokens.withValue { $0 += 1 }
+          if tokens.value > 1 { throw Offline() }
+          return "a1"
+        },
+        rejected: { _ in })
+    } operation: {
+      try await api.me()
+    }
+    #expect(throws: Never.self) { try output.unauthorized }
+  }
+
+  @Test
   func givesUpWhenTheTokenDoesntChange() async throws {
     let requests = LockIsolated(0)
     let api = Client.authenticatedMock { _, _ in

@@ -70,7 +70,8 @@ struct AuthenticationMiddleware: ClientMiddleware {
     else { return (response, responseBody) }
 
     await authentication.rejected(token)
-    guard let fresh = try await authentication.accessToken(), fresh != token else {
+    // If refreshing fails too, the caller gets the 401 it would have.
+    guard let fresh = try? await authentication.accessToken(), fresh != token else {
       return (response, responseBody)
     }
     authorized.headerFields[.authorization] = "Bearer \(fresh)"

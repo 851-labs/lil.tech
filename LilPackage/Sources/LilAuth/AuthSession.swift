@@ -22,13 +22,37 @@ public struct AuthSession: Codable, Equatable, Sendable {
     self.refreshTokenExpiresAt = refreshTokenExpiresAt
   }
 
-  init(_ pair: Components.Schemas.TokenPair) {
+  /// The session in `pair`, with its expiry times moved to this device's clock: the server's
+  /// times, shifted by how far the device's clock was from the server's when the access token
+  /// was issued (its `iat`). A clock that's off by more than a token's lifetime would otherwise
+  /// make every token look expired.
+  init(_ pair: Components.Schemas.TokenPair, receivedAt: Date) {
+    let issuedAt = Self.issuedAt(pair.accessToken)
+    let skew = issuedAt.map { receivedAt.timeIntervalSince($0) } ?? 0
+    let local = { (milliseconds: Int) in
+      Date(timeIntervalSince1970: Double(milliseconds) / 1000).addingTimeInterval(skew)
+    }
     self.init(
       accessToken: pair.accessToken,
-      accessTokenExpiresAt: Date(timeIntervalSince1970: Double(pair.accessTokenExpiresAt) / 1000),
+      accessTokenExpiresAt: local(pair.accessTokenExpiresAt),
       refreshToken: pair.refreshToken,
-      refreshTokenExpiresAt: Date(timeIntervalSince1970: Double(pair.refreshTokenExpiresAt) / 1000)
+      refreshTokenExpiresAt: local(pair.refreshTokenExpiresAt)
     )
+  }
+
+  /// When the server issued an access token: its JWT `iat` claim, read without verifying it.
+  static func issuedAt(_ accessToken: String) -> Date? {
+    let parts = accessToken.split(separator: ".")
+    guard parts.count == 3 else { return nil }
+    var payload = parts[1].replacingOccurrences(of: "-", with: "+")
+      .replacingOccurrences(of: "_", with: "/")
+    payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
+    struct Claims: Decodable { let iat: Double }
+    guard
+      let data = Data(base64Encoded: payload),
+      let claims = try? JSONDecoder().decode(Claims.self, from: data)
+    else { return nil }
+    return Date(timeIntervalSince1970: claims.iat)
   }
 }
 
@@ -64,6 +88,9 @@ public struct SessionStore: Sendable {
   }
 
   /// The Keychain, readable after the device's first unlock, so background uploads can use it.
+  ///
+  /// It's the data protection Keychain, which on macOS needs an app with an application
+  /// identifier. Sign in with Apple needs a provisioning profile, which gives it one.
   public static let keychain = Self(
     load: {
       var item: CFTypeRef?
@@ -80,15 +107,26 @@ public struct SessionStore: Sendable {
       return try JSONDecoder().decode(AuthSession.self, from: data)
     },
     save: { session in
-      SecItemDelete(keychainQuery as CFDictionary)
-      guard let session else { return }
-      let status = SecItemAdd(
-        keychainQuery.merging([
-          kSecValueData: try JSONEncoder().encode(session),
-          kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-        ]) { $1 } as CFDictionary,
-        nil
-      )
+      guard let session else {
+        let status = SecItemDelete(keychainQuery as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+          throw KeychainError(status: status)
+        }
+        return
+      }
+      // Updated in place, so a failed write keeps the previous session.
+      let data = try JSONEncoder().encode(session)
+      var status = SecItemUpdate(
+        keychainQuery as CFDictionary, [kSecValueData: data] as CFDictionary)
+      if status == errSecItemNotFound {
+        status = SecItemAdd(
+          keychainQuery.merging([
+            kSecValueData: data,
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+          ]) { $1 } as CFDictionary,
+          nil
+        )
+      }
       guard status == errSecSuccess else { throw KeychainError(status: status) }
     }
   )

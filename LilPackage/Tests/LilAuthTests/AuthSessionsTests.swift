@@ -4,6 +4,7 @@ import Foundation
 import HTTPTypes
 import LilAPI
 import OpenAPIRuntime
+import Security
 import Testing
 
 @testable import LilAuth
@@ -106,19 +107,140 @@ struct AuthSessionsTests {
   }
 
   @Test
-  func signingOutForgetsTheSessionEvenIfTheServerFails() async throws {
+  func signingOutForgetsTheSessionThenTellsTheServer() async throws {
+    let store = SessionStore.inMemory(session(1))
     let calls = LockIsolated<[String?]>([])
-    let (sessions, store) = makeSessions(stored: session(1)) { request, _ in
-      calls.withValue { $0.append(request.path) }
-      return (HTTPResponse(status: .internalServerError), nil)
+    let sessions = withDependencies {
+      $0.sessionStore = store
+      $0.date.now = now
+      $0.api = Client.authenticatedMock { request, _ in
+        // Sent with the session's token, though the session is already gone.
+        #expect(request.headerFields[.authorization] == "Bearer access-1")
+        let stored = try store.load()
+        #expect(stored == nil)
+        calls.withValue { $0.append(request.path) }
+        return (HTTPResponse(status: .internalServerError), nil)
+      }
+    } operation: {
+      AuthSessions()
     }
     var updates = await sessions.signedInUpdates().makeAsyncIterator()
     #expect(await updates.next() == true)
     await sessions.signOut()
     #expect(await updates.next() == false)
     #expect(calls.value == ["/v1/auth/sign-out"])
-    #expect(try store.load() == nil)
     #expect(try await sessions.accessToken() == nil)
+  }
+
+  @Test
+  func signingOutWithAnExpiredTokenDoesntAskTheServer() async throws {
+    let (sessions, store) = makeSessions(stored: session(1, expiresIn: -1)) { _, _ in
+      Issue.record("Unexpected request")
+      return (HTTPResponse(status: .internalServerError), nil)
+    }
+    await sessions.signOut()
+    #expect(try store.load() == nil)
+  }
+
+  @Test
+  func aFailedRefreshFallsBackToATokenThatHasntExpired() async throws {
+    let (sessions, store) = makeSessions(stored: session(1, expiresIn: 30)) { _, _ in
+      (HTTPResponse(status: .serviceUnavailable), nil)
+    }
+    #expect(try await sessions.accessToken() == "access-1")
+    #expect(try store.load() == session(1, expiresIn: 30))
+  }
+
+  @Test
+  func aStoreThatCouldntBeReadIsReadAgain() async throws {
+    // The first two reads fail, like the Keychain before the first unlock after a restart.
+    let reads = LockIsolated(0)
+    let sessions = withDependencies {
+      $0.sessionStore = SessionStore(
+        load: {
+          reads.withValue { $0 += 1 }
+          if reads.value <= 2 {
+            throw SessionStore.KeychainError(status: errSecInteractionNotAllowed)
+          }
+          return session(1)
+        },
+        save: { _ in })
+      $0.date.now = now
+    } operation: {
+      AuthSessions()
+    }
+    let stream = LockIsolated<AsyncStream<Bool>?>(nil)
+    await withKnownIssue {
+      let updates = await sessions.signedInUpdates()
+      stream.setValue(updates)
+    }
+    var updates = try #require(stream.value).makeAsyncIterator()
+    #expect(await updates.next() == false)
+    await withKnownIssue {
+      await #expect(throws: AuthSessions.SessionUnavailable.self) {
+        try await sessions.accessToken()
+      }
+    }
+    #expect(try await sessions.accessToken() == "access-1")
+    #expect(await updates.next() == true)
+  }
+
+  @Test
+  func aRefreshForAnEarlierSessionDoesntAnswerALaterOne() async throws {
+    let (started, didStart) = AsyncStream<Void>.makeStream()
+    let (release, finish) = AsyncStream<Void>.makeStream()
+    let (sessions, store) = makeSessions(stored: session(1, expiresIn: 0)) { _, body in
+      let sent = try JSONDecoder().decode(
+        Components.Schemas.RefreshRequest.self, from: Data(try await string(body).utf8))
+      if sent.refreshToken == "refresh-1" {
+        didStart.yield()
+        for await _ in release {}
+        return tokenPair(2)
+      }
+      #expect(sent.refreshToken == "refresh-3")
+      return tokenPair(4)
+    }
+    async let first = sessions.accessToken()
+    for await _ in started { break }
+    // Signed in again, and that session's token was rejected.
+    await sessions.signedIn(session(3))
+    await sessions.rejected("access-3")
+    async let second = sessions.accessToken()
+    finish.finish()
+    _ = try await first
+    #expect(try await second == "access-4")
+    #expect(try store.load() == session(4))
+  }
+}
+
+struct AuthSessionTests {
+  @Test
+  func expiryFollowsTheDevicesClock() throws {
+    // The device's clock is 20 minutes ahead of the server's.
+    let serverNow = now.addingTimeInterval(-1200)
+    let claims = #"{"iat":\#(Int(serverNow.timeIntervalSince1970)),"exp":0}"#
+    let payload = Data(claims.utf8).base64EncodedString()
+      .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
+      .replacingOccurrences(of: "=", with: "")
+    let milliseconds = { (date: Date) in Int(date.timeIntervalSince1970 * 1000) }
+    let pair = Components.Schemas.TokenPair(
+      accessToken: "e30.\(payload).signature",
+      accessTokenExpiresAt: milliseconds(serverNow.addingTimeInterval(900)),
+      refreshToken: "refresh",
+      refreshTokenExpiresAt: milliseconds(serverNow.addingTimeInterval(86_400))
+    )
+    let session = AuthSession(pair, receivedAt: now)
+    #expect(session.accessTokenExpiresAt == now.addingTimeInterval(900))
+    #expect(session.refreshTokenExpiresAt == now.addingTimeInterval(86_400))
+  }
+
+  @Test
+  func expiryWithoutAReadableTokenIsTheServers() {
+    let pair = Components.Schemas.TokenPair(
+      accessToken: "opaque", accessTokenExpiresAt: 1_800_000_900_000,
+      refreshToken: "refresh", refreshTokenExpiresAt: 1_800_086_400_000)
+    let session = AuthSession(pair, receivedAt: now)
+    #expect(session.accessTokenExpiresAt == Date(timeIntervalSince1970: 1_800_000_900))
   }
 }
 
