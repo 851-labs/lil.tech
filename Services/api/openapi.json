@@ -26,10 +26,238 @@
           }
         }
       }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authRefresh",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "An access token for API requests and a refresh token to get the next pair",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "InvalidRefreshToken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRefreshToken"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/auth/sign-out": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authSignOut",
+        "parameters": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "<No Content>"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "operationId": "me",
+        "parameters": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "lil/api/auth/Me",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "Unauthorized": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "Unauthorized"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "message"
+        ]
+      },
+      "Me": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "identities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MeIdentity"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "identities"
+        ]
+      },
+      "MeIdentity": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "apple",
+              "google"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "provider",
+          "email"
+        ]
+      },
+      "InvalidRefreshToken": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "InvalidRefreshToken"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "message"
+        ]
+      },
+      "TokenPair": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "accessTokenExpiresAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "refreshTokenExpiresAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "accessToken",
+          "accessTokenExpiresAt",
+          "refreshToken",
+          "refreshTokenExpiresAt"
+        ]
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
       "Status": {
         "type": "object",
         "properties": {
@@ -53,12 +281,23 @@
         ]
       }
     },
-    "securitySchemes": {}
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "Bearer"
+      }
+    }
   },
   "security": [],
   "tags": [
     {
       "name": "system"
+    },
+    {
+      "name": "auth"
+    },
+    {
+      "name": "me"
     }
   ]
 }

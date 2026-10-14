@@ -3,6 +3,7 @@ import { Layer } from "effect";
 import { Connections } from "./Connections.ts";
 import { Devices } from "./Devices.ts";
 import { Identities } from "./Identities.ts";
+import { Sessions } from "./Sessions.ts";
 import { Users } from "./Users.ts";
 
 /**
@@ -19,4 +20,5 @@ export const CoreRepositories = Layer.mergeAll(
   Identities.layer,
   Devices.layer,
   Connections.layer,
+  Sessions.layer,
 );

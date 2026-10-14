@@ -113,4 +113,476 @@ public enum Operations {
             }
         }
     }
+    /// - Remark: HTTP `POST /v1/auth/refresh`.
+    /// - Remark: Generated from `#/paths//v1/auth/refresh/post(authRefresh)`.
+    public enum AuthRefresh {
+        public static let id: Swift.String = "authRefresh"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/auth/refresh/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.AuthRefresh.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.AuthRefresh.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.AuthRefresh.Input.Headers
+            /// - Remark: Generated from `#/paths/v1/auth/refresh/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/auth/refresh/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.RefreshRequest)
+            }
+            public var body: Operations.AuthRefresh.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.AuthRefresh.Input.Headers = .init(),
+                body: Operations.AuthRefresh.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/auth/refresh/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/auth/refresh/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.TokenPair)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.TokenPair {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.AuthRefresh.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.AuthRefresh.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// An access token for API requests and a refresh token to get the next pair
+            ///
+            /// - Remark: Generated from `#/paths//v1/auth/refresh/post(authRefresh)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.AuthRefresh.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.AuthRefresh.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/auth/refresh/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/auth/refresh/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas.InvalidRefreshToken)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.InvalidRefreshToken {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.AuthRefresh.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.AuthRefresh.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// InvalidRefreshToken
+            ///
+            /// - Remark: Generated from `#/paths//v1/auth/refresh/post(authRefresh)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.AuthRefresh.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.AuthRefresh.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// - Remark: HTTP `POST /v1/auth/sign-out`.
+    /// - Remark: Generated from `#/paths//v1/auth/sign-out/post(authSignOut)`.
+    public enum AuthSignOut {
+        public static let id: Swift.String = "authSignOut"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/auth/sign-out/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.AuthSignOut.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.AuthSignOut.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.AuthSignOut.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.AuthSignOut.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// <No Content>
+            ///
+            /// - Remark: Generated from `#/paths//v1/auth/sign-out/post(authSignOut)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.AuthSignOut.Output.NoContent)
+            /// <No Content>
+            ///
+            /// - Remark: Generated from `#/paths//v1/auth/sign-out/post(authSignOut)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.AuthSignOut.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/auth/sign-out/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/auth/sign-out/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas.Unauthorized)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.Unauthorized {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.AuthSignOut.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.AuthSignOut.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// Unauthorized
+            ///
+            /// - Remark: Generated from `#/paths//v1/auth/sign-out/post(authSignOut)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.AuthSignOut.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.AuthSignOut.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// - Remark: HTTP `GET /v1/me`.
+    /// - Remark: Generated from `#/paths//v1/me/get(me)`.
+    public enum Me {
+        public static let id: Swift.String = "me"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/v1/me/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.Me.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.Me.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.Me.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.Me.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/me/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/me/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Me)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.Me {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.Me.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.Me.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// lil/api/auth/Me
+            ///
+            /// - Remark: Generated from `#/paths//v1/me/get(me)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.Me.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.Me.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/me/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/me/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas.Unauthorized)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.Unauthorized {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.Me.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.Me.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// Unauthorized
+            ///
+            /// - Remark: Generated from `#/paths//v1/me/get(me)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.Me.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.Me.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
 }
