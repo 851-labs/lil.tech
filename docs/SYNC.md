@@ -10,7 +10,7 @@ How lil apps keep a local copy of a user's data in sync with `api.lil.tech`. The
 - **Change:** one entry in the store's change log, recording that a record was upserted or deleted.
 - **Cursor:** the `seq` of the last change a client has applied.
 - **Snapshot:** a copy of every record in a store as of a given `seq`, used to start a new device.
-- **Epoch:** a number that changes when the store's data is rewritten without going through the change log. Clients on an older epoch start over from a snapshot.
+- **Epoch:** a number that changes when the store's data changes without going through the change log, such as a bulk migration or a restore from backup. Clients on an older epoch start over from a snapshot.
 
 ## The change log
 
@@ -18,17 +18,17 @@ Every write to a store goes through `applyMutations`, which updates the entity t
 
 | Field | Type | Meaning |
 |---|---|---|
-| `seq` | integer | Position in the log. Starts at 1, increases by exactly 1 per change, never reused. |
+| `seq` | integer | Position in the log. Starts at 1, increases by exactly 1 per change, and is never reused within an epoch. |
 | `entity` | string | Entity name. |
 | `id` | string | Record ID. |
 | `op` | `"upsert"` \| `"delete"` | What happened to the record. |
 | `row` | object | The full record after an upsert, encoded with the entity's schema. Absent for deletes. |
 | `at` | integer | When the change was written, in Unix milliseconds. |
 
-- **No gaps:** a Durable Object handles one request at a time and each write is a single transaction, so `seq` values are dense. Clients can rely on that to detect missed changes.
-- **Full rows, not patches:** an upsert always carries the whole record. Applying the same change twice, or applying changes on top of a newer snapshot, gives the same result. This makes every step below safe to retry.
-- **No-op upserts are dropped:** if an upsert's encoded row equals the stored row, nothing is written and no change is appended. Retried uploads don't grow the log.
-- **Last write wins per record:** the server's order of arrival decides. There's no field-level merge.
+- **No gaps:** a Durable Object interleaves requests at every `await`, so `applyMutations` must read `head`, write the entity rows and insert the changes inside one synchronous transaction (`transactionSync`) with no `await` inside it. Then `seq` values are dense, and clients can rely on that to detect missed changes.
+- **Full rows in the log:** every upsert in the log carries the whole record. Applying the same change twice, or applying changes on top of a newer snapshot, gives the same result. This makes every step below safe to retry.
+- **No-op upserts are dropped:** if an upsert leaves the stored row unchanged, nothing is written and no change is appended. Retried uploads don't grow the log.
+- **Last write wins per record:** the server's order of arrival decides. There's no field-level merge between concurrent writers.
 
 ## Wire format
 
@@ -69,10 +69,13 @@ GET /v1/sync/changes?after=<seq>&limit=<n>
 ```
 loop:
   page = GET /v1/sync/changes?after=cursor
-  if page.epoch != local.epoch: bootstrap(); continue
+  if local.epoch == null and cursor == 0: local.epoch = page.epoch   # brand-new client, nothing to replace
+  if page.epoch != local.epoch or cursor > page.head: bootstrap(); continue
   transaction { apply(page.changes); cursor = page.next }
   if !page.hasMore: wait for a live notice (or 60 s), then loop
 ```
+
+A cursor ahead of `head` means the store went back in time (e.g. a restore that didn't bump the epoch), so the client starts over rather than waiting for `seq` values it already has.
 
 ## Bootstrapping a new device
 
@@ -80,36 +83,55 @@ Replaying the whole log is too slow for a store with millions of records, so new
 
 ```
 GET /v1/sync/snapshot
+GET /v1/sync/snapshots/<id>
 ```
 
-- Returns the latest snapshot's manifest, with short-lived download URLs (about 15 minutes) for each part. A client whose URLs expire mid-download asks again.
-- If the store has no snapshot yet, it answers `204`, and the client pulls from `after=0`.
-- Manifest:
+- `GET /v1/sync/snapshot` returns the store's current epoch and the latest snapshot whose epoch matches it:
 
   ```json
   {
-    "seq": 95000,
     "epoch": 3,
-    "createdAt": 1760400000000,
-    "entities": [
-      {
-        "entity": "health_sample",
-        "parts": [{ "url": "https://…", "records": 250000, "bytes": 18734211, "sha256": "…" }]
-      }
-    ]
+    "snapshot": {
+      "id": "snp_01J…",
+      "seq": 95000,
+      "epoch": 3,
+      "createdAt": 1760400000000,
+      "entities": [
+        {
+          "entity": "health_sample",
+          "parts": [{ "url": "https://…", "records": 250000, "bytes": 18734211, "sha256": "…" }]
+        }
+      ]
+    }
   }
   ```
 
+  - `snapshot` is `null` when the store has none yet (a new user). The client sets `epoch`, keeps `cursor = 0` and pulls the whole log.
+  - The endpoint never returns a snapshot from an older epoch. While a new epoch's snapshot is still being written, it answers `503` with `Retry-After`.
+- Part URLs are short-lived (about 15 minutes). When they expire mid-download, the client asks for **the same snapshot** with `GET /v1/sync/snapshots/<id>`, which re-signs the URLs. A snapshot stays available for 7 days after a newer one replaces it. If it's gone (`410`), the client starts the bootstrap over, so it never mixes parts from two snapshots.
 - **Format:** each part is gzip-compressed NDJSON, one record per line in the same encoding as a change's `row`. Parts hold at most 250,000 records, so a failed download only retries one part.
 - **Why not a SQLite file:** the client's tables don't mirror the server's (each app keeps only what it renders, in its own layout). A Durable Object also can't hand out its database as a file. NDJSON streams straight into batched inserts.
-- **Loading:** the client downloads and checks each part, then inserts it in batches, into a fresh local database or after clearing synced tables. When every part is loaded, it sets `cursor = manifest.seq` and `epoch = manifest.epoch` and resumes pulling.
+- **Loading:**
+  1. Download and check each part (`sha256`).
+  2. Clear the synced tables (or start a fresh local database) and insert every part in batches.
+  3. Set `cursor = snapshot.seq` and `epoch = snapshot.epoch`, then resume pulling.
+  4. Reapply the pending-mutation queue on top (see [Pushing changes](#pushing-changes)). Bootstrapping never discards unsent local writes.
 
 ### Writing snapshots
 
 - An alarm in the store writes a new snapshot when at least 50,000 changes or 7 days have passed since the last one, if anything changed.
-- The snapshot is tagged with `S`, the store's `head` when it started. It pages through each entity table and writes the parts to R2.
-- Writes keep flowing while the snapshot is written, so some rows in it may be newer than `S`. That's safe: the client pulls everything after `S` next, and full-row upserts and deletes give the same result when applied again.
-- The manifest is written last, and only then becomes the latest snapshot. Older snapshots are deleted 7 days later, so downloads in progress can finish.
+- The snapshot is tagged with `S`, the store's `head` when it started. It pages through each entity table **by `id`** (`WHERE id > :last ORDER BY id LIMIT :n`), never by offset, and writes the parts to R2.
+- Writes keep flowing while the snapshot is written, so some rows in it may be newer than `S`. That's safe: the client pulls everything after `S` next, and full-row upserts and deletes give the same result when applied again. Keyset paging makes sure no row that existed at `S` is skipped when earlier rows are deleted between pages.
+- The manifest is written last, and only then becomes the latest snapshot.
+
+### Migrations and restores
+
+A bulk server-side migration, or restoring a store from point-in-time recovery, changes data without appending changes. Either one:
+
+1. Writes a snapshot of the resulting data, tagged with the next epoch.
+2. Then, in one transaction, increments the store's epoch and publishes that snapshot as the latest.
+
+Clients see the new epoch on their next pull and bootstrap from a snapshot that already contains the new data.
 
 ### Compaction
 
@@ -124,7 +146,8 @@ GET /v1/sync/live   (WebSocket)
 
 - Authenticated with the access token in the `Authorization` header, like every other request.
 - Lives on the user's store as a hibernatable WebSocket, so idle connections cost nothing.
-- The server sends `{ "type": "head", "seq": <n> }` when the socket opens, and after each write that appended changes, at most every 250 ms.
+- The server sends `{ "type": "head", "seq": <n> }` when the socket opens and after writes that appended changes.
+  - Notices are coalesced to at most one every 250 ms. The **latest** `head` is always sent at the end of the window, so the last write in a burst is never left unannounced.
 - When `seq` is greater than its cursor, the client runs the pull loop. Notices carry no data; pulling is the only way data arrives.
 - Keep-alive pings are answered automatically by the runtime, without waking the object.
 - The server closes the socket with code `4001` when the access token expires. The client refreshes its token and reconnects with backoff.
@@ -146,24 +169,34 @@ POST /v1/sync/mutations
 
 - `mutationId` is a UUID the client generates. The store remembers it for 7 days and answers a repeat with the original result, so retries are safe.
 - Every mutation in a request is applied in one transaction, or none are. The response is `{ "seq": <n> }`, the `seq` of the last change it produced (or `head` if nothing changed).
+- **Client upserts merge:** fields missing from `row` keep their stored values, and `null` clears a field. An older app that doesn't know a field can't erase it. The change appended to the log still carries the full merged row.
 - Each entity declares whether clients may write it. Most synced data, such as health samples, can only be written by the server; app state such as pins and settings can be written by clients.
-- **Optimistic local writes:** the client writes to its local tables and queues the mutation. Pulled changes overwrite local rows, and queued mutations are reapplied on top until the client's cursor reaches their `seq`.
+- **Optimistic local writes:**
+  - The client writes to its local tables and adds the mutation to a pending queue, together with the record's previous local state.
+  - Pulled changes overwrite local rows, and pending mutations are reapplied on top until the client's cursor reaches the `seq` returned for them.
+  - The queue lives outside the synced tables, so it survives a bootstrap.
+  - If the server rejects a mutation permanently (see [Errors](#errors)), the client drops it from the queue and restores the record's previous state.
 - **Health ingestion** is a specialized push for large volumes. The iPhone uploads batch files to `POST /v1/health/batches`, which go through R2 and a queue into `applyMutations`. The resulting changes are ordinary log entries.
 
 ## Schema changes
 
 - **Entity schemas only grow:** new optional fields and new entities are fine. Renaming, removing or changing the type of a field isn't. That needs a new entity (e.g. `health_sample_v2`) and a migration.
-- **Clients ignore what they don't know:** unknown fields are dropped and unknown entities are skipped. An older app keeps working against a newer server.
+- **Clients ignore what they don't know:** unknown fields are dropped and unknown entities are skipped. An older app keeps working against a newer server, and merge-on-upsert keeps it from erasing newer fields.
 - **Catching up after an update:** each app has a `syncSchema` number, bumped when a release starts storing a new field or entity. A client whose local database was synced with a lower `syncSchema` bootstraps again from a snapshot. Snapshots carry every field, so the new data arrives without the server knowing anything about client versions.
-- **Server-side migrations:** a migration that rewrites many rows doesn't append a change per row. It increments the store's **epoch** and writes a new snapshot. Clients see the new epoch on their next pull and bootstrap.
+- **Server-side migrations** go through a new epoch, as described in [Migrations and restores](#migrations-and-restores).
 
 ## Errors
 
 | Status | Meaning | Client does |
 |---|---|---|
+| `400` | A mutation or request is invalid. The body lists each rejected mutation and why. | Permanent: drop the mutation and restore the record's previous local state. |
 | `401` | The access token expired or is invalid. | Refresh the token, then retry. If refreshing fails, sign out. |
-| `410` | The cursor is older than the horizon. | Bootstrap from a snapshot. |
+| `403` | The entity can't be written by clients. | Permanent, like `400`. |
+| `410` | The cursor is older than the horizon, or the requested snapshot was deleted. | Bootstrap from a snapshot. |
+| `413` | Too many mutations or too large a request. | Split the request (a client bug if it happens). |
 | `429` | Rate limited. | Wait for `Retry-After`, then retry. |
+| `503` | A new epoch's snapshot is still being written. | Wait for `Retry-After`, then retry. |
+| `507` | The user's storage quota is full. | Stop pushing and show the quota state. Pulls keep working. |
 | `5xx`, network errors | Transient failure. | Retry with exponential backoff and jitter, from 1 s up to 5 minutes. |
 
 An epoch mismatch isn't an error status: pulls always return the store's `epoch`, and the client compares it with its own.
@@ -182,6 +215,7 @@ An epoch mismatch isn't an error status: pulls always return the store's `epoch`
 | Mutations per push | 500 |
 | Records per snapshot part | 250,000 |
 | Change log retention | Covered by a snapshot and older than 30 days |
+| Replaced snapshot retention | 7 days |
 | Mutation ID memory | 7 days |
-| Live notice rate | At most one every 250 ms per store |
+| Live notice rate | At most one every 250 ms per store, always including the latest `head` |
 | Store size | Below the 10 GB Durable Object cap, enforced by a per-user quota |
