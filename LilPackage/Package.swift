@@ -14,6 +14,7 @@ let package = Package(
     .library(name: "ConversationListFeature", targets: ["ConversationListFeature"]),
     .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
     .library(name: "LilAPI", targets: ["LilAPI"]),
+    .library(name: "LilAuth", targets: ["LilAuth"]),
     .library(name: "LilSync", targets: ["LilSync"]),
     .library(name: "MessagesApp", targets: ["MessagesApp"]),
     .library(name: "MessageSending", targets: ["MessageSending"]),
@@ -111,6 +112,24 @@ let package = Package(
       dependencies: [
         "LilAPI",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+      ]
+    ),
+    .target(
+      name: "LilAuth",
+      dependencies: [
+        "LilAPI",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "IssueReporting", package: "swift-issue-reporting"),
+      ]
+    ),
+    .testTarget(
+      name: "LilAuthTests",
+      dependencies: [
+        "LilAuth",
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+        .product(name: "HTTPTypes", package: "swift-http-types"),
+        .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
       ]
     ),
     .target(

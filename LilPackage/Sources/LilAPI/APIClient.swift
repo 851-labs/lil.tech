@@ -19,7 +19,11 @@ extension DependencyValues {
 
 private enum APIKey: DependencyKey {
   static var liveValue: any APIProtocol {
-    Client(serverURL: APIEnvironment.current().baseURL, transport: URLSessionTransport())
+    Client(
+      serverURL: APIEnvironment.current().baseURL,
+      transport: URLSessionTransport(),
+      middlewares: [AuthenticationMiddleware()]
+    )
   }
   static var testValue: any APIProtocol {
     Client(serverURL: APIEnvironment.staging.baseURL, transport: UnimplementedTransport())
@@ -36,6 +40,19 @@ extension Client {
       @escaping @Sendable (HTTPRequest, HTTPBody?) async throws -> (HTTPResponse, HTTPBody?)
   ) -> Self {
     Client(serverURL: APIEnvironment.staging.baseURL, transport: MockTransport(respond: respond))
+  }
+
+  /// Like ``mock(_:)``, but authenticated the way the live client is, from
+  /// `@Dependency(\.apiAuthentication)`.
+  public static func authenticatedMock(
+    _ respond:
+      @escaping @Sendable (HTTPRequest, HTTPBody?) async throws -> (HTTPResponse, HTTPBody?)
+  ) -> Self {
+    Client(
+      serverURL: APIEnvironment.staging.baseURL,
+      transport: MockTransport(respond: respond),
+      middlewares: [AuthenticationMiddleware()]
+    )
   }
 }
 

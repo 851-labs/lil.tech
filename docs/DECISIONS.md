@@ -97,6 +97,11 @@
   - **No transactions:** D1 has none over HTTP, so a refresh stores the new token before conditionally revoking the old one. A refresh that fails partway leaves the old token working. Concurrent refreshes, or a refresh racing sign-out, end with the whole family revoked.
   - **Dev sign-in:** previews and personal stages have `POST /v1/auth/dev`, which signs in as a new synthetic user. That's how previews are checked end to end, since provider sign-in needs real accounts. Staging and prod never register the route.
   - Signing out deletes the device's session family. Refreshing deletes the family's expired tokens. Deleting a device or user deletes its sessions.
+  - **In the apps** (`LilAuth`):
+    - The session lives in the data protection Keychain, readable after first unlock, on this device only.
+    - The `LilAPI` client adds the access token through transport middleware. It refreshes a token a minute before it expires, one refresh at a time. A 401 refreshes and retries the request once.
+    - A refresh token the server rejects signs the app out. Other refresh failures (no network, 5xx) keep the session for the next try.
+    - The sign-in screen uses the stock Sign in with Apple button.
 - **Identities and connections are separate:**
   - An identity is a way to sign in. Signing in with Google requests identity scopes only.
   - A connection is a data source the user grants access to, with its own scopes, credentials and sync state: Apple Health now, Gmail, IMAP and calendars later.
