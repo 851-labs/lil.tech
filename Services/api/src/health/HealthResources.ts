@@ -10,11 +10,13 @@ import {
 } from "./HealthIngestion.ts";
 import { UserStores } from "../store/UserStores.ts";
 
+// Resource IDs are also the Worker's binding names, so they must differ from each other.
+
 /**
  * Uploaded batch files, kept until they're applied. Any left behind (a failed batch, an upload
  * whose queueing failed) expire after 7 days.
  */
-export const HealthBatchBucket = Cloudflare.R2.Bucket("HealthBatches", {
+export const HealthBatchBucket = Cloudflare.R2.Bucket("HealthBatchFiles", {
   lifecycleRules: [
     {
       id: "expire-batch-files",
@@ -22,9 +24,9 @@ export const HealthBatchBucket = Cloudflare.R2.Bucket("HealthBatches", {
     },
   ],
 });
-export const HealthBatchQueueResource = Cloudflare.Queues.Queue("HealthBatches");
+export const HealthBatchQueueResource = Cloudflare.Queues.Queue("HealthBatchQueue");
 /** Where a batch's message goes after its last failed attempt, to be looked at by hand. */
-export const HealthBatchDeadLetters = Cloudflare.Queues.Queue("HealthBatchesDead");
+export const HealthBatchDeadLetters = Cloudflare.Queues.Queue("HealthBatchDeadLetters");
 
 /**
  * Retries per batch after its first delivery fails. Cloudflare counts retries, so a message is
