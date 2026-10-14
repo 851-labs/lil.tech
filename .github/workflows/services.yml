@@ -16,7 +16,7 @@ on:
     types: [opened, synchronize, reopened, closed]
   push:
     branches: [main]
-    paths: ["Services/**", "scripts/check-deploy", ".github/workflows/services.yml", ".github/actions/setup-services/**"]
+    paths: ["Services/**", "scripts/check-deploy", "scripts/generate-api-client", "LilPackage/Sources/LilAPIGenerated/**", ".github/workflows/services.yml", ".github/actions/setup-services/**"]
 
 # One run per PR (or per ref on main) at a time. Deploys are never cancelled halfway.
 concurrency:
@@ -48,7 +48,7 @@ jobs:
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          if git diff --name-only "$BASE" HEAD | grep -qE '^(Services/|scripts/check-deploy$|\.github/workflows/services\.yml$|\.github/actions/setup-services/)'; then
+          if git diff --name-only "$BASE" HEAD | grep -qE '^(Services/|scripts/(check-deploy|generate-api-client)$|LilPackage/Sources/LilAPIGenerated/|\.github/workflows/services\.yml$|\.github/actions/setup-services/)'; then
             echo "services=true" >> "$GITHUB_OUTPUT"
           else
             echo "services=false" >> "$GITHUB_OUTPUT"
@@ -65,6 +65,8 @@ jobs:
         working-directory: Services
       - run: pnpm run openapi:check
         working-directory: Services/api
+      # The Swift client is generated on macOS; this only checks its stamp against the spec.
+      - run: scripts/generate-api-client --check-stamp
 
   preview:
     needs: check

@@ -15,7 +15,7 @@ files=$(find . -name '*.swift' \
   -not -path '*/DerivedData/*' \
   -not -path '*/.swiftpm/*' \
   -not -path '*/node_modules/*' \
-  -not -path '*/Generated/*')
+  -not -path './LilPackage/Sources/LilAPIGenerated/*')
 
 status=0
 
@@ -41,7 +41,7 @@ fi
 if [ "${1:-}" = "--lint" ]; then
   (cd Services && vp check) || status=1
   (cd Services/api && node scripts/openapi.ts --check) || status=1
-  scripts/generate-api-client --check || status=1
+  scripts/generate-api-client --check-stamp || status=1
 else
   (cd Services && vp fmt) || status=1
   (cd Services/api && node scripts/openapi.ts) || status=1

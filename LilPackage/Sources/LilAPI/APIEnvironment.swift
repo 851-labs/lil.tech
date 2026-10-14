@@ -15,22 +15,46 @@ public enum APIEnvironment: Hashable, Sendable {
     }
   }
 
+  /// Whether this build may talk to a deployment other than its default. Device builds carry
+  /// real Health data, which must only go to prod, so only simulator and Debug Mac builds may.
+  #if targetEnvironment(simulator) || (os(macOS) && DEBUG)
+    public static let allowsOverride = true
+  #else
+    public static let allowsOverride = false
+  #endif
+
   /// The environment for this build.
   ///
-  /// - `LIL_API_URL` in the environment (e.g. a scheme's environment variables) points the app at
-  ///   any deployment, such as a PR preview.
-  /// - Otherwise simulator builds and Debug Mac builds use staging, which only ever holds
-  ///   synthetic data, and everything else uses prod.
+  /// - Simulator builds and Debug Mac builds use staging, which only ever holds synthetic data.
+  ///   `LIL_API_URL` in the environment (e.g. a scheme's environment variables) points them at
+  ///   another deployment, such as a PR preview.
+  /// - Everything else uses prod, and ignores `LIL_API_URL`.
   public static func current(
-    environment: [String: String] = ProcessInfo.processInfo.environment
+    environment: [String: String] = ProcessInfo.processInfo.environment,
+    allowsOverride: Bool = allowsOverride
   ) -> Self {
-    if let override = environment["LIL_API_URL"], let url = URL(string: override) {
-      return url == prod.baseURL ? .prod : url == staging.baseURL ? .staging : .preview(url)
+    guard allowsOverride else { return .prod }
+    guard let override = environment["LIL_API_URL"] else { return .staging }
+    return Self(url: override) ?? .staging
+  }
+
+  /// Parses a deployment URL, keeping only its scheme, host and port, so pasted links with a path
+  /// or trailing slash (e.g. `https://…workers.dev/v1/status`) still work.
+  public init?(url string: String) {
+    guard
+      let components = URLComponents(string: string),
+      let scheme = components.scheme, scheme == "https" || scheme == "http",
+      let host = components.host, !host.isEmpty
+    else { return nil }
+    var base = URLComponents()
+    base.scheme = scheme
+    base.host = host
+    base.port = components.port
+    guard let url = base.url else { return nil }
+    switch url {
+    case Self.prod.baseURL: self = .prod
+    case Self.staging.baseURL: self = .staging
+    default: self = .preview(url)
     }
-    #if targetEnvironment(simulator) || (os(macOS) && DEBUG)
-      return .staging
-    #else
-      return .prod
-    #endif
   }
 }

@@ -99,8 +99,10 @@ let package = Package(
     .target(
       name: "LilAPIGenerated",
       dependencies: [
-        .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime")
+        .product(name: "HTTPTypes", package: "swift-http-types"),
+        .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
       ],
+      exclude: ["openapi.sha256"],
       swiftSettings: [.unsafeFlags(["-suppress-warnings"])]
     ),
     .testTarget(

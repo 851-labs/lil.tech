@@ -35,21 +35,6 @@ extension Components {
                 case environment
                 case version
             }
-            public init(from decoder: any Swift.Decoder) throws {
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.environment = try container.decode(
-                    Components.Schemas.Status.EnvironmentPayload.self,
-                    forKey: .environment
-                )
-                self.version = try container.decode(
-                    Swift.String.self,
-                    forKey: .version
-                )
-                try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "environment",
-                    "version"
-                ])
-            }
         }
     }
 }

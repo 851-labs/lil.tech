@@ -8,12 +8,16 @@ import { Api } from "./Api.ts";
  * (`lil/api/Status` becomes `Status`), so generated clients get clean type names. Two schemas
  * that would get the same name fail generation instead of being renamed silently, because
  * renaming would change generated client types.
+ *
+ * Effect marks objects `additionalProperties: false`, but its decoders ignore unknown properties,
+ * so the spec drops that: generated clients then tolerate fields added later, and an additive
+ * server change doesn't break apps that are already installed.
  */
 export const makeOpenApiSpec = <Id extends string, Groups extends HttpApiGroup.Constraint>(
   api: HttpApi.HttpApi<Id, Groups> = Api as unknown as HttpApi.HttpApi<Id, Groups>,
 ) => {
   const owners = new Map<string, string>();
-  return OpenApi.fromApi(api, {
+  const spec = OpenApi.fromApi(api, {
     referencePolicy: ({ identifier }) => {
       if (identifier === undefined) return undefined;
       const source = identifier.replace(/Encoded$/, "");
@@ -26,4 +30,15 @@ export const makeOpenApiSpec = <Id extends string, Groups extends HttpApiGroup.C
       return name;
     },
   });
+  return allowAdditionalProperties(spec);
+};
+
+const allowAdditionalProperties = <A>(value: A): A => {
+  if (Array.isArray(value)) return value.map(allowAdditionalProperties) as A;
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key, child]) => !(key === "additionalProperties" && child === false))
+      .map(([key, child]) => [key, allowAdditionalProperties(child)]),
+  ) as A;
 };

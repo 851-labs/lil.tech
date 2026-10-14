@@ -50,8 +50,7 @@
         "required": [
           "environment",
           "version"
-        ],
-        "additionalProperties": false
+        ]
       }
     },
     "securitySchemes": {}
