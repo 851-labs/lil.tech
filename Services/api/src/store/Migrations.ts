@@ -35,6 +35,21 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CHECK ((op = 'upsert') = (row IS NOT NULL))
     ) STRICT;`,
   },
+  {
+    version: 3,
+    name: "health",
+    // `src/health/HealthEntities.ts`. Written out rather than generated, so that editing an entity
+    // later can't change a migration that stores already ran.
+    sql: `
+      CREATE TABLE "health_sample" (id TEXT PRIMARY KEY, "type" TEXT NOT NULL, "start_date" INTEGER NOT NULL, "end_date" INTEGER NOT NULL, "value" REAL, "unit" TEXT, "category_value" INTEGER, "correlation_id" TEXT, "source_name" TEXT NOT NULL, "source_bundle_id" TEXT NOT NULL, "source_revision" TEXT, "device" TEXT, "metadata" TEXT) STRICT;
+      CREATE INDEX health_sample_type_start ON health_sample (type, start_date);
+      CREATE INDEX health_sample_correlation ON health_sample (correlation_id) WHERE correlation_id IS NOT NULL;
+      CREATE TABLE "health_correlation" (id TEXT PRIMARY KEY, "type" TEXT NOT NULL, "start_date" INTEGER NOT NULL, "end_date" INTEGER NOT NULL, "source_name" TEXT NOT NULL, "source_bundle_id" TEXT NOT NULL, "source_revision" TEXT, "device" TEXT, "metadata" TEXT) STRICT;
+      CREATE INDEX health_correlation_type_start ON health_correlation (type, start_date);
+      CREATE TABLE "health_characteristic" (id TEXT PRIMARY KEY, "value" TEXT NOT NULL) STRICT;
+      CREATE TABLE "health_activity_summary" (id TEXT PRIMARY KEY, "active_energy_burned" REAL, "active_energy_burned_goal" REAL, "apple_move_time" REAL, "apple_move_time_goal" REAL, "apple_exercise_time" REAL, "apple_exercise_time_goal" REAL, "apple_stand_hours" REAL, "apple_stand_hours_goal" REAL, "activity_move_mode" TEXT, "paused" INTEGER) STRICT;
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

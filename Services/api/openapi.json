@@ -466,6 +466,196 @@
           "environment",
           "version"
         ]
+      },
+      "HealthSample": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "endDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "categoryValue": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "correlationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "sourceBundleId": {
+            "type": "string"
+          },
+          "sourceRevision": {},
+          "device": {},
+          "metadata": {}
+        },
+        "required": [
+          "id",
+          "type",
+          "startDate",
+          "endDate",
+          "sourceName",
+          "sourceBundleId"
+        ],
+        "additionalProperties": true
+      },
+      "HealthCorrelation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "endDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "sourceBundleId": {
+            "type": "string"
+          },
+          "sourceRevision": {},
+          "device": {},
+          "metadata": {}
+        },
+        "required": [
+          "id",
+          "type",
+          "startDate",
+          "endDate",
+          "sourceName",
+          "sourceBundleId"
+        ],
+        "additionalProperties": true
+      },
+      "HealthCharacteristic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "value": {}
+        },
+        "required": [
+          "id",
+          "value"
+        ],
+        "additionalProperties": true
+      },
+      "HealthActivitySummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "activeEnergyBurned": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "activeEnergyBurnedGoal": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "appleMoveTime": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "appleMoveTimeGoal": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "appleExerciseTime": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "appleExerciseTimeGoal": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "appleStandHours": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "appleStandHoursGoal": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "activityMoveMode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paused": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": true
       }
     },
     "securitySchemes": {
