@@ -41,7 +41,13 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 ### API contract
 
 - `Services/api/openapi.json` is the API's OpenAPI spec, generated from the HttpApi definition by `Services/api/scripts/openapi.ts` and served at `/v1/openapi.json`. Generated clients (the Swift `LilAPI` module) are built from the committed file.
-- `scripts/format` regenerates it and `scripts/format --lint` fails if it's stale, so commit it with any API change.
+- The Swift client is generated from that file into `LilPackage/Sources/LilAPIGenerated/Generated` by `scripts/generate-api-client`, which runs Apple's swift-openapi-generator pinned in `Tools/Package.swift`. Don't edit generated files.
+- `scripts/format` regenerates both the spec and the client, in that order, and `scripts/format --lint` fails if either is stale. Commit them with any API change.
+- **Compatibility:** installed apps keep running old clients.
+  - Adding response fields is safe, because the spec allows additional properties.
+  - Adding a case to a response enum, or removing or renaming anything, breaks them. Add a new field or a new endpoint instead.
+  - CI checks the client's stamp (`scripts/generate-api-client --check-stamp`), since it can't run the generator on Linux.
+- Apps use the client through `@Dependency(\.api)` (from `LilAPI`). Tests get a client that fails every request and reports an issue; answer requests with `Client.mock { request, body in … }`. `LIL_API_URL` in a scheme's environment points an app at another deployment, such as a PR preview.
 
 ### Deploying the API
 

@@ -1,0 +1,66 @@
+#!/bin/sh
+# Generates the Swift API client (LilPackage/Sources/LilAPIGenerated/Generated) from the committed
+# OpenAPI spec (Services/api/openapi.json) with Apple's swift-openapi-generator, pinned in Tools/.
+#
+# A stamp (openapi.sha256 next to Generated/) records a hash of the spec, the generator config and
+# the pinned generator version, so staleness is cheap to check without Swift (e.g. on CI's Linux).
+#
+# Usage: scripts/generate-api-client [--check-stamp | --check]
+#   (none)         Regenerate if the stamp is stale.
+#   --check-stamp  Exit non-zero if the stamp is stale (fast).
+#   --check        Regenerate into a temporary directory and exit non-zero if anything differs.
+set -eu
+
+cd "$(dirname "$0")/.."
+
+target_dir=LilPackage/Sources/LilAPIGenerated
+output=$target_dir/Generated
+stamp=$target_dir/openapi.sha256
+
+# shasum on macOS, sha256sum on Linux.
+hash() {
+  if command -v shasum > /dev/null; then shasum -a 256 "$@"; else sha256sum "$@"; fi
+}
+expected=$(cat Services/api/openapi.json Tools/openapi-generator-config.yaml Tools/Package.resolved | hash | cut -d' ' -f1)
+
+generate() {
+  swift run --quiet --package-path Tools swift-openapi-generator generate \
+    --config Tools/openapi-generator-config.yaml \
+    --output-directory "$1" \
+    Services/api/openapi.json > /dev/null
+}
+
+stale() {
+  [ "$(cat "$stamp" 2>/dev/null || true)" != "$expected" ]
+}
+
+case "${1:-}" in
+  --check-stamp)
+    if stale; then
+      echo "error: $output is out of date. Run scripts/generate-api-client." >&2
+      exit 1
+    fi
+    ;;
+  --check)
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    generate "$tmp"
+    if stale || ! diff -r "$tmp" "$output" > /dev/null; then
+      echo "error: $output is out of date. Run scripts/generate-api-client." >&2
+      exit 1
+    fi
+    ;;
+  "")
+    if stale; then
+      # Start from an empty directory, so files the generator no longer writes don't linger.
+      rm -rf "$output"
+      mkdir -p "$output"
+      generate "$output"
+      echo "$expected" > "$stamp"
+    fi
+    ;;
+  *)
+    echo "usage: scripts/generate-api-client [--check-stamp | --check]" >&2
+    exit 2
+    ;;
+esac

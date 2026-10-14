@@ -149,6 +149,10 @@ describe("makeOpenApiSpec", () => {
     assert.strictEqual(committedSpec, `${JSON.stringify(makeOpenApiSpec(), null, 2)}\n`);
   });
 
+  it("lets clients tolerate fields added later", () => {
+    assert.notInclude(JSON.stringify(makeOpenApiSpec()), '"additionalProperties":false');
+  });
+
   it("names schemas without namespaces or the Encoded suffix", () => {
     assert.deepStrictEqual(Object.keys(makeOpenApiSpec().components.schemas), ["Status"]);
   });
