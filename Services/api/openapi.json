@@ -69,6 +69,48 @@
         }
       }
     },
+    "/v1/auth/apple": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authApple",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "An access token for API requests and a refresh token to get the next pair",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "InvalidIdentityToken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidIdentityToken"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppleSignInRequest"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/v1/auth/sign-out": {
       "post": {
         "tags": [
@@ -685,13 +727,13 @@
           "email"
         ]
       },
-      "InvalidRefreshToken": {
+      "InvalidIdentityToken": {
         "type": "object",
         "properties": {
           "_tag": {
             "type": "string",
             "enum": [
-              "InvalidRefreshToken"
+              "InvalidIdentityToken"
             ]
           },
           "message": {
@@ -728,6 +770,92 @@
           "accessTokenExpiresAt",
           "refreshToken",
           "refreshTokenExpiresAt"
+        ]
+      },
+      "AppleSignInRequest": {
+        "type": "object",
+        "properties": {
+          "identityToken": {
+            "type": "string",
+            "maxLength": 8192
+          },
+          "nonce": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "fullName": {
+            "type": "object",
+            "properties": {
+              "givenName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              },
+              "familyName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              }
+            }
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          }
+        },
+        "required": [
+          "identityToken",
+          "nonce",
+          "device"
+        ]
+      },
+      "DeviceInfo": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ios",
+              "macos"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "app",
+          "platform"
+        ]
+      },
+      "InvalidRefreshToken": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "InvalidRefreshToken"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "message"
         ]
       },
       "RefreshRequest": {

@@ -1,5 +1,6 @@
 import { Context, Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSecurity } from "effect/http-api";
+import { DevicePlatform } from "../core/Devices.ts";
 import { IdentityProvider } from "../core/Identities.ts";
 import { DeviceId, SessionId, UserId } from "../core/Ids.ts";
 
@@ -58,12 +59,53 @@ export class InvalidRefreshToken extends Schema.TaggedError<InvalidRefreshToken>
   { httpApiStatus: 401 },
 ) {}
 
+/** The app install signing in. */
+export const DeviceInfo = Schema.Struct({
+  /** Which app, e.g. `health-ios` or `health-mac`. */
+  app: Schema.NonEmptyString.check(Schema.isMaxLength(64)),
+  platform: DevicePlatform,
+  /** The device's name, e.g. "Alexandru's iPhone". */
+  name: Schema.optionalKey(Schema.NullOr(Schema.String.check(Schema.isMaxLength(200)))),
+}).annotate({ identifier: "lil/api/auth/DeviceInfo" });
+
+export class AppleSignInRequest extends Schema.Class<AppleSignInRequest>(
+  "lil/api/auth/AppleSignInRequest",
+)({
+  /** `ASAuthorizationAppleIDCredential.identityToken`, as a string. */
+  identityToken: Schema.String.check(Schema.isMaxLength(8192)),
+  /** The random nonce whose SHA-256 (hex) the app passed to Apple as the request's nonce. */
+  nonce: Schema.String.check(Schema.isMaxLength(256)),
+  /** Apple only gives the app the user's name on their first sign-in. */
+  fullName: Schema.optionalKey(
+    Schema.Struct({
+      givenName: Schema.optionalKey(Schema.NullOr(Schema.String.check(Schema.isMaxLength(200)))),
+      familyName: Schema.optionalKey(Schema.NullOr(Schema.String.check(Schema.isMaxLength(200)))),
+    }),
+  ),
+  device: DeviceInfo,
+}) {}
+
+/** A provider's ID token didn't verify. The app signs in with the provider again. */
+export class InvalidIdentityToken extends Schema.TaggedError<InvalidIdentityToken>()(
+  "InvalidIdentityToken",
+  { message: Schema.String },
+  { httpApiStatus: 401 },
+) {}
+
 export class AuthApi extends HttpApiGroup.make("auth")
   .add(
     HttpApiEndpoint.post("refresh", "/v1/auth/refresh", {
       payload: RefreshRequest,
       success: TokenPair,
       error: InvalidRefreshToken,
+    }),
+  )
+  .add(
+    // Signs in (creating the account on first sign-in) with a Sign in with Apple identity token.
+    HttpApiEndpoint.post("apple", "/v1/auth/apple", {
+      payload: AppleSignInRequest,
+      success: TokenPair,
+      error: InvalidIdentityToken,
     }),
   )
   .add(

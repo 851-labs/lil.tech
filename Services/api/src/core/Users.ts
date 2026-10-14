@@ -19,6 +19,11 @@ export class Users extends Context.Service<
     readonly findById: (id: UserId) => Effect.Effect<Option.Option<User>, SqlError.SqlError>;
     /** Deletes the user and, through foreign keys, their identities, devices, sessions and connections. */
     readonly delete: (id: UserId) => Effect.Effect<void, SqlError.SqlError>;
+    /** Sets the display name, unless the user already has one. */
+    readonly setDisplayNameIfMissing: (
+      id: UserId,
+      displayName: string,
+    ) => Effect.Effect<void, SqlError.SqlError>;
     /** How many users there are. */
     readonly count: Effect.Effect<number, SqlError.SqlError>;
   }
@@ -49,6 +54,12 @@ export class Users extends Context.Service<
         delete: Effect.fn("Users.delete")(function* (id) {
           yield* sql`DELETE FROM users WHERE id = ${id}`;
         }),
+        setDisplayNameIfMissing: Effect.fn("Users.setDisplayNameIfMissing")(
+          function* (id, displayName) {
+            yield* sql`UPDATE users SET display_name = ${displayName}
+            WHERE id = ${id} AND display_name IS NULL`;
+          },
+        ),
         count: Effect.gen(function* () {
           const rows = yield* sql`SELECT count(*) AS n FROM users`;
           return Number(rows[0]?.["n"] ?? 0);
