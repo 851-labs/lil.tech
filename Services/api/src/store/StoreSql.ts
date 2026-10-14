@@ -14,6 +14,10 @@ export interface StoreSql {
   readonly transaction: <A>(body: () => A) => A;
   /** Deletes the whole database (and anything else the store keeps). */
   readonly deleteAll: () => Promise<void>;
+  /** When the store's alarm is set for, in Unix milliseconds, or `null`. */
+  readonly getAlarm: () => Promise<number | null>;
+  /** Sets the store's one alarm, replacing any other. */
+  readonly setAlarm: (at: number) => Promise<void>;
 }
 
 /** The parts of workerd's `DurableObjectStorage` the store uses. */
@@ -22,6 +26,8 @@ interface DurableObjectStorageLike {
     exec(query: string, ...bindings: Array<unknown>): { toArray(): Array<SqlRow> };
   };
   transactionSync<T>(body: () => T): T;
+  getAlarm(): Promise<number | null>;
+  setAlarm(scheduledTime: number): Promise<void>;
   deleteAlarm(): Promise<void>;
   deleteAll(): Promise<void>;
 }
@@ -37,4 +43,6 @@ export const fromDurableObjectStorage = (storage: DurableObjectStorageLike): Sto
     await storage.deleteAlarm();
     await storage.deleteAll();
   },
+  getAlarm: () => storage.getAlarm(),
+  setAlarm: (at) => storage.setAlarm(at),
 });

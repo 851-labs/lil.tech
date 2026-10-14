@@ -124,6 +124,8 @@ GET /v1/sync/snapshots/<id>
 - The snapshot is tagged with `S`, the store's `head` when it started. It pages through each entity table **by `id`** (`WHERE id > :last ORDER BY id LIMIT :n`), never by offset, and writes the parts to R2.
 - Writes keep flowing while the snapshot is written, so some rows in it may be newer than `S`. That's safe: the client pulls everything after `S` next, and full-row upserts and deletes give the same result when applied again. Keyset paging makes sure no row that existed at `S` is skipped when earlier rows are deleted between pages.
 - The manifest is written last, and only then becomes the latest snapshot.
+- It's written one part per alarm, and the alarm is set again right away until it's done. No single invocation runs long, and requests are served in between.
+- Publishing a snapshot runs compaction (below) and deletes snapshots replaced more than 7 days ago, with their parts.
 
 ### Migrations and restores
 
