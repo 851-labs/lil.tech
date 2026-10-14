@@ -21,12 +21,22 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
   },
 ];
 
+/** The store's schema version: its newest applied migration. */
+export const schemaVersion = (sql: StoreSql): number =>
+  Number(sql.exec("SELECT max(version) AS version FROM store_migrations")[0]?.["version"] ?? 0);
+
 /**
  * Applies the migrations the store doesn't have yet, each in its own transaction with its
- * `store_migrations` row, and returns the store's schema version. Throws if the store's history
- * doesn't match `migrations`, or if a migration fails (the store keeps the versions before it).
+ * `store_migrations` row, and returns the store's schema version. Throws if `migrations` isn't
+ * numbered 1, 2, 3…, if the store's history doesn't match it, or if a migration fails (the store
+ * keeps the versions before it).
  */
 export const migrate = (sql: StoreSql, migrations = storeMigrations): number => {
+  for (const [index, migration] of migrations.entries()) {
+    if (migration.version !== index + 1) {
+      throw new Error(`Store migration ${index + 1} is numbered ${migration.version}`);
+    }
+  }
   sql.script(`CREATE TABLE IF NOT EXISTS store_migrations (
     version INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
@@ -34,10 +44,12 @@ export const migrate = (sql: StoreSql, migrations = storeMigrations): number => 
   ) STRICT;`);
   const applied = sql.exec("SELECT version, name FROM store_migrations ORDER BY version");
   for (const [index, row] of applied.entries()) {
-    const migration = migrations[index];
     // Newer code may have applied migrations this code doesn't know about yet.
-    if (migration === undefined) break;
-    if (row["version"] !== migration.version || row["name"] !== migration.name) {
+    const migration = migrations[index];
+    if (
+      row["version"] !== index + 1 ||
+      (migration !== undefined && row["name"] !== migration.name)
+    ) {
       throw new Error(`Store migration history conflict: applied ${JSON.stringify(row)}`);
     }
   }
@@ -52,5 +64,5 @@ export const migrate = (sql: StoreSql, migrations = storeMigrations): number => 
       );
     });
   }
-  return Math.max(applied.length, migrations.length);
+  return schemaVersion(sql);
 };

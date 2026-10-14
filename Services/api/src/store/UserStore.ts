@@ -1,36 +1,40 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Effect } from "effect";
-import { migrate } from "./Migrations.ts";
+import { migrate, schemaVersion } from "./Migrations.ts";
 import { fromDurableObjectStorage, type StoreSql } from "./StoreSql.ts";
 
 /**
- * A store's RPC methods over its database. Every method first brings the schema up to date, so a
- * store is migrated the first time it's used after a deploy, and again after `deleteAll`.
+ * A store's RPC methods over its database. The schema is brought up to date before any method can
+ * run: here, when the object starts, and again after `deleteAll`.
  */
 export const makeUserStore = (sql: StoreSql) => {
-  let schemaVersion: number | undefined;
-  const ready = () => (schemaVersion ??= migrate(sql));
-
+  migrate(sql);
   return {
-    schemaVersion: () => Effect.sync(ready),
-    /** Deletes everything in the store, for account deletion. */
+    /** The store's schema version, which can be newer than this code's after a rollback. */
+    schemaVersion: () => Effect.sync(() => schemaVersion(sql)),
+    /**
+     * Deletes everything in the store, for account deletion, leaving it empty at the latest
+     * schema. It's idempotent, so a call that fails partway can be retried.
+     */
     deleteAll: () =>
-      Effect.promise(async () => {
-        schemaVersion = undefined;
-        await sql.deleteAll();
-        // A request that interleaved at the `await` may have migrated the old database.
-        schemaVersion = undefined;
-      }),
+      Effect.promise(() => sql.deleteAll()).pipe(Effect.andThen(Effect.sync(() => migrate(sql)))),
   };
 };
 
 export type UserStoreMethods = ReturnType<typeof makeUserStore>;
 
-/** One user's data, in a SQLite-backed Durable Object. Reach it through `UserStores`. */
+/**
+ * One user's data, in a SQLite-backed Durable Object. Reach it through `UserStores`.
+ *
+ * It uses workerd's storage directly (`state.raw`), not Alchemy's wrapper, because writes must run
+ * in a synchronous `transactionSync`. So it can't use Alchemy's alarm callbacks, which keep their
+ * own bookkeeping in that wrapper.
+ */
 export class UserStore extends Cloudflare.DurableObject<UserStore>()(
   "UserStore",
   Effect.gen(function* () {
     const state = yield* Cloudflare.DurableObjectState;
+    // A migration that fails stops the object from starting, rather than serving an old schema.
     return Effect.sync(() => makeUserStore(fromDurableObjectStorage(state.raw.storage)));
   }),
 ) {}
