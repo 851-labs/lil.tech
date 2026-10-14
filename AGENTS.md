@@ -38,6 +38,11 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - Lint and format settings live only in the root `Services/vite.config.ts`. Vite+ doesn't apply per-package lint or format configs.
 - Vite+'s own docs ship in `Services/node_modules/vite-plus/docs`.
 
+### API contract
+
+- `Services/api/openapi.json` is the API's OpenAPI spec, generated from the HttpApi definition by `Services/api/scripts/openapi.ts` and served at `/v1/openapi.json`. Generated clients (the Swift `LilAPI` module) are built from the committed file.
+- `scripts/format` regenerates it and `scripts/format --lint` fails if it's stale, so commit it with any API change.
+
 ### Deploying the API
 
 - The API is an Alchemy stack in `Services/api/alchemy.run.ts`. Its state lives in Cloudflare (an `alchemy-state-store` Worker in account 851), so every machine and CI share it.
