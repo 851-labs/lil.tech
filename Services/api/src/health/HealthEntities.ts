@@ -91,9 +91,62 @@ export const HealthActivitySummary = defineEntity("health_activity_summary", {
   },
 });
 
+/** Statistics buckets are 30 minutes, starting on UTC half-hours (Unix milliseconds). */
+export const statisticsBucketMillis = 30 * 60 * 1000;
+
+/** A server device ID (`src/core/Ids.ts`). */
+const deviceId = "dev_[0-9a-z]{26}";
+const quantityType = "HKQuantityTypeIdentifier[A-Za-z]+";
+
+/**
+ * A cumulative type's sum over one 30-minute bucket, as one iPhone's HealthKit computed it. Health
+ * de-duplicates overlapping sources (iPhone and Watch steps) in ways only HealthKit can, so the
+ * Mac sums these instead of raw samples. Each iPhone uploads its own: `<type>@<bucketStart>`,
+ * stored as `<device>/<type>@<bucketStart>`.
+ */
+export const HealthStatistic = defineEntity("health_statistic", {
+  clientWritable: false,
+  id: new RegExp(`^${deviceId}/${quantityType}@\\d+$`),
+  deviceScoped: { id: new RegExp(`^${quantityType}@\\d+$`) },
+  fields: {
+    /** The iPhone that computed it. */
+    device: Column.text,
+    type: Column.text,
+    /** The bucket's start, a multiple of `statisticsBucketMillis`. */
+    bucketStart: Column.integer,
+    sum: Column.real,
+    /** The unit `sum` is in, as an `HKUnit` string. */
+    unit: Column.text,
+  },
+  checkRow: (row) =>
+    typeof row.bucketStart === "number" && row.bucketStart % statisticsBucketMillis !== 0
+      ? "bucketStart must be a multiple of 30 minutes"
+      : undefined,
+});
+
+/**
+ * One iPhone's statistics status (`self`, stored under its device ID). The Mac uses the
+ * statistics of the iPhone paired with an Apple Watch, otherwise of the one that reported most
+ * recently, so a phone that's behind on Health's iCloud sync can't overwrite complete numbers.
+ */
+export const HealthStatisticsDevice = defineEntity("health_statistics_device", {
+  clientWritable: false,
+  id: new RegExp(`^${deviceId}$`),
+  deviceScoped: { id: /^self$/ },
+  fields: {
+    device: Column.text,
+    /** Whether the iPhone is paired with an Apple Watch (`WCSession.isPaired`). */
+    pairedWithWatch: Column.boolean,
+    /** When it last uploaded statistics (Unix milliseconds). */
+    reportedAt: Column.integer,
+  },
+});
+
 export const healthEntities = [
   HealthSample,
   HealthCorrelation,
   HealthCharacteristic,
   HealthActivitySummary,
+  HealthStatistic,
+  HealthStatisticsDevice,
 ] as const;

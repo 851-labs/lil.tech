@@ -199,7 +199,7 @@ export const HealthHandlers = HttpApiBuilder.group(
     return handlers
       .handle("uploadBatch", ({ params, payload }) =>
         Effect.gen(function* () {
-          const { userId } = yield* CurrentSession;
+          const { userId, deviceId } = yield* CurrentSession;
           // Per request: in the Worker they're built from each request's runtime context.
           const files = yield* HealthBatchFiles;
           const queue = yield* HealthBatchQueue;
@@ -212,7 +212,7 @@ export const HealthHandlers = HttpApiBuilder.group(
           // The file and the message come before the status, so a batch recorded as queued is
           // always really queued. A failure in between leaves no status, and the client retries.
           yield* files.put(healthBatchKey(userId, params.id), payload);
-          yield* queue.send({ userId, batchId: params.id });
+          yield* queue.send({ userId, batchId: params.id, deviceId });
           return yield* store.receiveHealthBatch(params.id);
         }),
       )

@@ -1,6 +1,7 @@
 import { Clock, Context, Effect, Option, Result, Schema } from "effect";
-import type { UserId } from "../core/Ids.ts";
+import type { DeviceId, UserId } from "../core/Ids.ts";
 import { Mutation } from "../store/Changes.ts";
+import { stampDevice } from "../store/Entities.ts";
 import { UserStores } from "../store/UserStores.ts";
 import type { HealthBatch, RejectedLine } from "./HealthBatches.ts";
 import { healthEntities } from "./HealthEntities.ts";
@@ -12,6 +13,11 @@ import { healthEntities } from "./HealthEntities.ts";
 export interface HealthBatchMessage {
   readonly userId: UserId;
   readonly batchId: string;
+  /**
+   * The uploading device, which device-scoped records are stamped with. Missing from messages
+   * queued before it was added; their device-scoped lines are rejected.
+   */
+  readonly deviceId?: DeviceId;
 }
 
 /** Where an uploaded batch file is kept until it's applied. */
@@ -59,12 +65,26 @@ class BatchUnreadable extends Schema.TaggedError<BatchUnreadable>()("BatchUnread
  * an upsert a full row (ingestion sends whole records). Checking here means the store rarely
  * rejects a chunk.
  */
-const parseLine = (content: string): Result.Result<Mutation, string> => {
+const parseLine = (
+  content: string,
+  deviceId: DeviceId | undefined,
+): Result.Result<Mutation, string> => {
   const decoded = decodeMutation(content);
   if (Result.isFailure(decoded)) return Result.fail(decoded.failure.message);
-  const mutation = decoded.success;
+  let mutation = decoded.success;
   const entity = healthEntitiesByName.get(mutation.entity);
   if (entity === undefined) return Result.fail(`Not a health entity: ${mutation.entity}`);
+  if (entity.deviceScoped !== undefined) {
+    if (deviceId === undefined) return Result.fail(`${entity.name} needs the uploading device`);
+    if (!entity.deviceScoped.id.test(mutation.id)) {
+      return Result.fail(`Invalid ${entity.name} ID ${mutation.id}`);
+    }
+    const id = stampDevice(deviceId, mutation.id);
+    mutation =
+      mutation.op === "upsert"
+        ? { ...mutation, id, row: { ...mutation.row, device: deviceId } }
+        : { ...mutation, id };
+  }
   if (!entity.isValidId(mutation.id))
     return Result.fail(`Invalid ${entity.name} ID ${mutation.id}`);
   if (mutation.op === "upsert") {
@@ -74,6 +94,8 @@ const parseLine = (content: string): Result.Result<Mutation, string> => {
       ({ field, type }) => !type.nullable && fields.success[field] === undefined,
     );
     if (missing !== undefined) return Result.fail(`Missing ${missing.field}`);
+    const invalid = entity.checkRow?.(fields.success);
+    if (invalid !== undefined) return Result.fail(invalid);
   }
   return Result.succeed(mutation);
 };
@@ -197,7 +219,7 @@ export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
         rejected.push({ line, message: `Longer than ${maxBatchLineLength} characters` });
         return;
       }
-      const parsed = parseLine(content);
+      const parsed = parseLine(content, message.deviceId);
       if (Result.isFailure(parsed)) {
         rejected.push({ line, message: parsed.failure });
         return;

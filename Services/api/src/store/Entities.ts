@@ -72,6 +72,13 @@ export interface Entity {
   readonly rowSchema: () => Schema.Top;
   /** Checks a record ID, e.g. that a HealthKit UUID is lowercase. */
   readonly isValidId: (id: string) => boolean;
+  /**
+   * For records that belong to the device uploading them. Clients send IDs in this form, and the
+   * server stamps them with the device (see `stampDevice`).
+   */
+  readonly deviceScoped?: { readonly id: RegExp };
+  /** Checks a whole row beyond its fields' types, returning why it's invalid. */
+  readonly checkRow?: (row: Readonly<Record<string, Schema.Json>>) => string | undefined;
   /** Decodes the fields an upsert sets. Any may be missing, since upserts merge. */
   readonly decodeFields: (
     row: unknown,
@@ -95,8 +102,13 @@ export const defineEntity = (
     readonly fields: Record<string, Column>;
     /** The form record IDs must have. Any non-empty string by default. */
     readonly id?: RegExp;
+    readonly deviceScoped?: { readonly id: RegExp };
+    readonly checkRow?: (row: Readonly<Record<string, Schema.Json>>) => string | undefined;
   },
 ): Entity => {
+  if (options.deviceScoped !== undefined && options.fields.device?.type !== "text") {
+    throw new Error(`Device-scoped entity ${name} needs a text device field`);
+  }
   if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new Error(`Invalid entity name: ${name}`);
   const fields = Object.entries(options.fields).map(([field, type]) => {
     if (!/^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]+)*$/.test(field) || field === "id") {
@@ -133,6 +145,8 @@ export const defineEntity = (
         ),
       }).annotate({ identifier: `lil/api/sync/${schemaName(name)}` }),
     isValidId: (id) => id !== "" && (options.id?.test(id) ?? true),
+    ...(options.deviceScoped === undefined ? {} : { deviceScoped: options.deviceScoped }),
+    ...(options.checkRow === undefined ? {} : { checkRow: options.checkRow }),
     decodeFields: Schema.decodeUnknownResult(fieldsSchema) as Entity["decodeFields"],
     statements: {
       select: `SELECT ${["id", ...columns].join(", ")} FROM "${name}" WHERE id = ?`,
@@ -143,6 +157,14 @@ export const defineEntity = (
     },
   };
 };
+
+/**
+ * A device-scoped record's ID as stored: the device's own record (`self`) is keyed by the device,
+ * and anything else by the device and the client's ID (`<device>/<id>`), so two devices' records
+ * never collide.
+ */
+export const stampDevice = (deviceId: string, id: string) =>
+  id === "self" ? deviceId : `${deviceId}/${id}`;
 
 /** The `CREATE TABLE` statement for an entity's first migration. */
 export const createEntityTable = (entity: Entity) => {

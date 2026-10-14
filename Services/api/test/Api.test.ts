@@ -823,7 +823,10 @@ describe("/v1/health/batches", () => {
         const first = yield* upload(handler, tokens.accessToken, batchId, batchFile(lines));
         assert.strictEqual(first.status, 202);
         assert.deepInclude(first.body, { id: batchId, status: "queued" });
-        assert.deepStrictEqual(outbox.sent, [{ userId: user.id, batchId }]);
+        assert.strictEqual(outbox.sent.length, 1);
+        assert.deepInclude(outbox.sent[0], { userId: user.id, batchId });
+        // The uploading device, for device-scoped records.
+        assert.match(outbox.sent[0]?.deviceId ?? "", /^dev_/);
         assert.isTrue(outbox.files.has(`health-batches/${user.id}/${batchId}.ndjson.gz`));
 
         // A retried upload is answered with the batch's status and isn't queued again.
