@@ -317,6 +317,118 @@
         }
       }
     },
+    "/v1/sync/snapshot": {
+      "get": {
+        "tags": [
+          "sync"
+        ],
+        "operationId": "syncSnapshot",
+        "parameters": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "lil/api/sync/LatestSnapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LatestSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UserStoreUnavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserStoreUnavailable"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sync/snapshots/{id}": {
+      "get": {
+        "tags": [
+          "sync"
+        ],
+        "operationId": "syncSnapshotById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A snapshot to bootstrap from",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotManifest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "SnapshotGone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotGone"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UserStoreUnavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserStoreUnavailable"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/health/batches/{id}": {
       "put": {
         "tags": [
@@ -651,6 +763,122 @@
           "receivedAt"
         ],
         "description": "An uploaded health batch"
+      },
+      "SnapshotGone": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "SnapshotGone"
+            ]
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "id"
+        ]
+      },
+      "SnapshotManifest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "epoch": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "createdAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "entities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SnapshotEntity"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "epoch",
+          "createdAt",
+          "entities"
+        ],
+        "description": "A snapshot to bootstrap from"
+      },
+      "SnapshotEntity": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SnapshotPart"
+            }
+          }
+        },
+        "required": [
+          "entity",
+          "parts"
+        ]
+      },
+      "SnapshotPart": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "records": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "records",
+          "bytes",
+          "sha256"
+        ]
+      },
+      "LatestSnapshot": {
+        "type": "object",
+        "properties": {
+          "epoch": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotManifest"
+          }
+        },
+        "required": [
+          "epoch"
+        ]
       },
       "ChangesCompacted": {
         "type": "object",

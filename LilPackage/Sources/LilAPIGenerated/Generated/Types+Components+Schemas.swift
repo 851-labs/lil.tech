@@ -271,6 +271,157 @@ extension Components {
                 case failure
             }
         }
+        /// - Remark: Generated from `#/components/schemas/SnapshotGone`.
+        public struct SnapshotGone: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnapshotGone/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case snapshotGone = "SnapshotGone"
+            }
+            /// - Remark: Generated from `#/components/schemas/SnapshotGone/_tag`.
+            public var _tag: Components.Schemas.SnapshotGone._TagPayload
+            /// - Remark: Generated from `#/components/schemas/SnapshotGone/id`.
+            public var id: Swift.String
+            /// Creates a new `SnapshotGone`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - id:
+            public init(
+                _tag: Components.Schemas.SnapshotGone._TagPayload,
+                id: Swift.String
+            ) {
+                self._tag = _tag
+                self.id = id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case id
+            }
+        }
+        /// A snapshot to bootstrap from
+        ///
+        /// - Remark: Generated from `#/components/schemas/SnapshotManifest`.
+        public struct SnapshotManifest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnapshotManifest/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SnapshotManifest/seq`.
+            public var seq: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SnapshotManifest/epoch`.
+            public var epoch: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SnapshotManifest/createdAt`.
+            public var createdAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SnapshotManifest/entities`.
+            public var entities: [Components.Schemas.SnapshotEntity]
+            /// Creates a new `SnapshotManifest`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - seq:
+            ///   - epoch:
+            ///   - createdAt:
+            ///   - entities:
+            public init(
+                id: Swift.String,
+                seq: Swift.Int,
+                epoch: Swift.Int,
+                createdAt: Swift.Int,
+                entities: [Components.Schemas.SnapshotEntity]
+            ) {
+                self.id = id
+                self.seq = seq
+                self.epoch = epoch
+                self.createdAt = createdAt
+                self.entities = entities
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case seq
+                case epoch
+                case createdAt
+                case entities
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SnapshotEntity`.
+        public struct SnapshotEntity: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnapshotEntity/entity`.
+            public var entity: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SnapshotEntity/parts`.
+            public var parts: [Components.Schemas.SnapshotPart]
+            /// Creates a new `SnapshotEntity`.
+            ///
+            /// - Parameters:
+            ///   - entity:
+            ///   - parts:
+            public init(
+                entity: Swift.String,
+                parts: [Components.Schemas.SnapshotPart]
+            ) {
+                self.entity = entity
+                self.parts = parts
+            }
+            public enum CodingKeys: String, CodingKey {
+                case entity
+                case parts
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SnapshotPart`.
+        public struct SnapshotPart: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnapshotPart/url`.
+            public var url: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SnapshotPart/records`.
+            public var records: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SnapshotPart/bytes`.
+            public var bytes: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SnapshotPart/sha256`.
+            public var sha256: Swift.String
+            /// Creates a new `SnapshotPart`.
+            ///
+            /// - Parameters:
+            ///   - url:
+            ///   - records:
+            ///   - bytes:
+            ///   - sha256:
+            public init(
+                url: Swift.String,
+                records: Swift.Int,
+                bytes: Swift.Int,
+                sha256: Swift.String
+            ) {
+                self.url = url
+                self.records = records
+                self.bytes = bytes
+                self.sha256 = sha256
+            }
+            public enum CodingKeys: String, CodingKey {
+                case url
+                case records
+                case bytes
+                case sha256
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/LatestSnapshot`.
+        public struct LatestSnapshot: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/LatestSnapshot/epoch`.
+            public var epoch: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/LatestSnapshot/snapshot`.
+            public var snapshot: Components.Schemas.SnapshotManifest?
+            /// Creates a new `LatestSnapshot`.
+            ///
+            /// - Parameters:
+            ///   - epoch:
+            ///   - snapshot:
+            public init(
+                epoch: Swift.Int,
+                snapshot: Components.Schemas.SnapshotManifest? = nil
+            ) {
+                self.epoch = epoch
+                self.snapshot = snapshot
+            }
+            public enum CodingKeys: String, CodingKey {
+                case epoch
+                case snapshot
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/ChangesCompacted`.
         public struct ChangesCompacted: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/ChangesCompacted/_tag`.

@@ -26,6 +26,12 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /v1/sync/changes`.
     /// - Remark: Generated from `#/paths//v1/sync/changes/get(syncChanges)`.
     func syncChanges(_ input: Operations.SyncChanges.Input) async throws -> Operations.SyncChanges.Output
+    /// - Remark: HTTP `GET /v1/sync/snapshot`.
+    /// - Remark: Generated from `#/paths//v1/sync/snapshot/get(syncSnapshot)`.
+    func syncSnapshot(_ input: Operations.SyncSnapshot.Input) async throws -> Operations.SyncSnapshot.Output
+    /// - Remark: HTTP `GET /v1/sync/snapshots/{id}`.
+    /// - Remark: Generated from `#/paths//v1/sync/snapshots/{id}/get(syncSnapshotById)`.
+    func syncSnapshotById(_ input: Operations.SyncSnapshotById.Input) async throws -> Operations.SyncSnapshotById.Output
     /// - Remark: HTTP `GET /v1/health/batches/{id}`.
     /// - Remark: Generated from `#/paths//v1/health/batches/{id}/get(healthBatch)`.
     func healthBatch(_ input: Operations.HealthBatch.Input) async throws -> Operations.HealthBatch.Output
@@ -92,6 +98,22 @@ extension APIProtocol {
     ) async throws -> Operations.SyncChanges.Output {
         try await syncChanges(Operations.SyncChanges.Input(
             query: query,
+            headers: headers
+        ))
+    }
+    /// - Remark: HTTP `GET /v1/sync/snapshot`.
+    /// - Remark: Generated from `#/paths//v1/sync/snapshot/get(syncSnapshot)`.
+    public func syncSnapshot(headers: Operations.SyncSnapshot.Input.Headers = .init()) async throws -> Operations.SyncSnapshot.Output {
+        try await syncSnapshot(Operations.SyncSnapshot.Input(headers: headers))
+    }
+    /// - Remark: HTTP `GET /v1/sync/snapshots/{id}`.
+    /// - Remark: Generated from `#/paths//v1/sync/snapshots/{id}/get(syncSnapshotById)`.
+    public func syncSnapshotById(
+        path: Operations.SyncSnapshotById.Input.Path,
+        headers: Operations.SyncSnapshotById.Input.Headers = .init()
+    ) async throws -> Operations.SyncSnapshotById.Output {
+        try await syncSnapshotById(Operations.SyncSnapshotById.Input(
+            path: path,
             headers: headers
         ))
     }

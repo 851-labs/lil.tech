@@ -8,7 +8,7 @@ import {
 } from "../health/HealthBatchStore.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
 import { provideRuntime } from "../Runtime.ts";
-import { applyMutations, readChanges } from "./ChangeLog.ts";
+import { applyMutations, readChanges, readEpoch } from "./ChangeLog.ts";
 import { ChangesCompacted, InvalidMutation, type Mutation } from "./Changes.ts";
 import type { Entity } from "./Entities.ts";
 import { migrate, schemaVersion } from "./Migrations.ts";
@@ -101,6 +101,8 @@ export const makeUserStore = (
         if (applied.appended > 0) yield* scheduleAlarm(at);
         return applied;
       }),
+    /** The store's epoch (`docs/SYNC.md`). */
+    epoch: () => Effect.sync(() => readEpoch(sql)),
     /** The latest published snapshot of the current epoch, or `null`. */
     latestSnapshot: () => Effect.sync(() => latestSnapshot(sql)),
     /** A published snapshot of the current epoch by ID, or `null` (see `readSnapshot`). */
