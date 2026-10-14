@@ -76,6 +76,7 @@
   - D1 holds data shared across users: users, identities, sessions, devices and connections.
   - IDs are a type prefix plus a 26-character time-sortable code (e.g. `usr_01jb…`), with branded Effect Schema types. Times are Unix milliseconds.
   - Each user's own data (health now, mail and calendar later) lives in that user's SQLite-backed Durable Object.
+  - A store migrates its own schema the first time it's used after a deploy, from migrations listed in code (`src/store/Migrations.ts`). Migrations are additive only, because a rolled-back Worker can meet a store that newer code already migrated. The migrator is ours, not Alchemy's `SqlMigrations`, so it runs in tests on `node:sqlite`.
   - Large blobs (ECG voltages, workout routes, sync snapshots) live in R2.
   - R2 blobs are immutable and addressed by content hash. They're only deleted with a grace period (or when an account is deleted), and snapshots can be rebuilt from the Durable Object.
   - Not D1 for user data, because one D1 database has a hard 10 GB cap shared by everyone, and a Worker can't bind a new database per user at runtime.
