@@ -1,5 +1,6 @@
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/http-api";
 import { AuthApi, MeApi } from "./auth/AuthApi.ts";
+import { HealthApi } from "./health/HealthApi.ts";
 import { Status } from "./Status.ts";
 import { SyncApi } from "./sync/SyncApi.ts";
 
@@ -14,4 +15,5 @@ export class Api extends HttpApi.make("lil-api")
   .add(AuthApi)
   .add(MeApi)
   .add(SyncApi)
+  .add(HealthApi)
   .annotateMerge(OpenApi.annotations({ title: "lil API" })) {}

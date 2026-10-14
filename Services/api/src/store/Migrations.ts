@@ -50,6 +50,23 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CREATE TABLE "health_activity_summary" (id TEXT PRIMARY KEY, "active_energy_burned" REAL, "active_energy_burned_goal" REAL, "apple_move_time" REAL, "apple_move_time_goal" REAL, "apple_exercise_time" REAL, "apple_exercise_time_goal" REAL, "apple_stand_hours" REAL, "apple_stand_hours_goal" REAL, "activity_move_mode" TEXT, "paused" INTEGER) STRICT;
     `,
   },
+  {
+    version: 4,
+    name: "health_batches",
+    // Upload status for `PUT /v1/health/batches/{id}` (`src/health/HealthBatchStore.ts`).
+    sql: `CREATE TABLE health_batches (
+      id TEXT PRIMARY KEY,
+      status TEXT NOT NULL,
+      received_at INTEGER NOT NULL,
+      finished_at INTEGER,
+      lines INTEGER,
+      applied INTEGER,
+      rejected INTEGER,
+      rejected_lines TEXT,
+      failure TEXT,
+      updated_at INTEGER NOT NULL
+    ) STRICT;`,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */
