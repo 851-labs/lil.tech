@@ -5,12 +5,14 @@ import PackageDescription
 let package = Package(
   name: "LilPackage",
   platforms: [
-    .macOS(.v26)
+    .iOS(.v26),
+    .macOS(.v26),
   ],
   products: [
     .library(name: "AppUpdates", targets: ["AppUpdates"]),
     .library(name: "ContactNames", targets: ["ContactNames"]),
     .library(name: "ConversationListFeature", targets: ["ConversationListFeature"]),
+    .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
     .library(name: "MessagesApp", targets: ["MessagesApp"]),
     .library(name: "MessageSending", targets: ["MessageSending"]),
     .library(name: "MessagesDatabase", targets: ["MessagesDatabase"]),
@@ -65,6 +67,15 @@ let package = Package(
       name: "ConversationListFeatureTests",
       dependencies: [
         "ConversationListFeature"
+      ]
+    ),
+    .target(
+      name: "HealthCatalog"
+    ),
+    .testTarget(
+      name: "HealthCatalogTests",
+      dependencies: [
+        "HealthCatalog"
       ]
     ),
     .target(
