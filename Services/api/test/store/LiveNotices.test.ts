@@ -3,7 +3,12 @@ import { Effect } from "effect";
 import { TestClock } from "effect/testing";
 import type { Mutation } from "../../src/store/Changes.ts";
 import { createEntityTable } from "../../src/store/Entities.ts";
-import { type LiveSocket, type LiveSockets, noticeWindowMs } from "../../src/store/LiveNotices.ts";
+import {
+  answerCloseCode,
+  type LiveSocket,
+  type LiveSockets,
+  noticeWindowMs,
+} from "../../src/store/LiveNotices.ts";
 import { entities } from "../../src/store/Registry.ts";
 import { makeUserStore } from "../../src/store/UserStore.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
@@ -95,6 +100,50 @@ describe("live notices", () => {
     }),
   );
 
+  it.effect("don't send a late window's notice again after a newer one went out", () =>
+    Effect.gen(function* () {
+      const live = makeSockets();
+      const { store } = makeStore(live.sockets);
+      live.connect("phone", 15 * 60 * 1000);
+      yield* write(store, "a");
+      yield* TestClock.adjust("100 millis");
+      live.setNow(100);
+      yield* write(store, "b");
+      // The window's flush is late; a write after the window is announced right away.
+      yield* TestClock.adjust("160 millis");
+      live.setNow(260);
+      yield* write(store, "c");
+      yield* live.runUntil(260);
+      assert.deepStrictEqual(live.sent.get("phone"), [
+        { type: "head", seq: 1 },
+        { type: "head", seq: 3 },
+      ]);
+    }),
+  );
+
+  it.effect("a broken socket fails neither the write nor the other clients' notices", () =>
+    Effect.gen(function* () {
+      const live = makeSockets();
+      const { store } = makeStore(live.sockets);
+      const broken = live.connect("broken", 15 * 60 * 1000);
+      Object.assign(broken, { send: () => Effect.die("The socket is gone") });
+      live.connect("phone", 15 * 60 * 1000);
+      assert.deepStrictEqual(yield* write(store, "a"), { head: 1, appended: 1 });
+      assert.deepStrictEqual(live.sent.get("phone"), [{ type: "head", seq: 1 }]);
+    }),
+  );
+
+  it.effect("tell clients the store started over when it's deleted", () =>
+    Effect.gen(function* () {
+      const live = makeSockets();
+      const { store } = makeStore(live.sockets);
+      live.connect("phone", 15 * 60 * 1000);
+      yield* write(store, "a");
+      yield* store.deleteAll();
+      assert.deepStrictEqual(live.sent.get("phone")?.at(-1), { type: "head", seq: 0 });
+    }),
+  );
+
   it.effect("only reach the store's own clients", () =>
     Effect.gen(function* () {
       const ada = makeSockets();
@@ -141,4 +190,15 @@ describe("live notices", () => {
       assert.lengthOf(live.sent.get("mac") ?? [], 2);
     }),
   );
+});
+
+describe("answerCloseCode", () => {
+  it("answers codes that can't be sent with 1000", () => {
+    assert.strictEqual(answerCloseCode(1000), 1000);
+    assert.strictEqual(answerCloseCode(1001), 1001);
+    assert.strictEqual(answerCloseCode(4001), 4001);
+    assert.strictEqual(answerCloseCode(1005), 1000);
+    assert.strictEqual(answerCloseCode(1006), 1000);
+    assert.strictEqual(answerCloseCode(1015), 1000);
+  });
 });

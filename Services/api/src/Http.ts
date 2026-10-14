@@ -28,7 +28,7 @@ import { HealthBatchFiles, HealthBatchQueue, healthBatchKey } from "./health/Hea
 import { Users } from "./core/Users.ts";
 import { Deployment } from "./Deployment.ts";
 import { Status } from "./Status.ts";
-import { sessionExpiresHeader } from "./store/UserStore.ts";
+import { sessionExpiresHeader } from "./store/LiveNotices.ts";
 import { UserStores } from "./store/UserStores.ts";
 import {
   InvalidPartUrl,
@@ -314,10 +314,10 @@ export const LiveRoute = HttpRouter.use((router) =>
             ? Option.none()
             : yield* accessTokens.verifyWithExpiry(token).pipe(Effect.option);
         if (Option.isNone(session)) {
-          return HttpServerResponse.jsonUnsafe(
-            { _tag: "Unauthorized", message: "Missing, invalid or expired access token" },
+          return yield* HttpServerResponse.schemaJson(Unauthorized)(
+            new Unauthorized({ message: "Missing, invalid or expired access token" }),
             { status: 401 },
-          );
+          ).pipe(Effect.orDie);
         }
         if (request.headers["upgrade"]?.toLowerCase() !== "websocket") {
           return HttpServerResponse.jsonUnsafe(

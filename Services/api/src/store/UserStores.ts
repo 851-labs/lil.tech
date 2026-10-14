@@ -1,5 +1,5 @@
 import { Context, Effect, Predicate, Schema } from "effect";
-import type { HttpServerRequest, HttpServerResponse } from "effect/http";
+import { type HttpServerRequest, HttpServerResponse } from "effect/http";
 import type { UserId } from "../core/Ids.ts";
 import type { UserStoreMethods } from "./UserStore.ts";
 
@@ -56,8 +56,26 @@ export class UserStores extends Context.Service<
     };
   }) =>
     UserStores.of({
+      // A transient failure is a 503, like the store's other calls; anything else a 500.
       live: (userId, request) =>
-        namespace.getByName(userStoreName(userId)).fetch(request).pipe(Effect.orDie),
+        namespace
+          .getByName(userStoreName(userId))
+          .fetch(request)
+          .pipe(
+            Effect.catch((error) => {
+              const cause = Predicate.isTagged(error, "RpcCallError")
+                ? (error as { readonly cause?: unknown }).cause
+                : error;
+              return isTransient(cause)
+                ? Effect.succeed(
+                    HttpServerResponse.jsonUnsafe(
+                      { _tag: "UserStoreUnavailable", message: String(cause) },
+                      { status: 503 },
+                    ),
+                  )
+                : Effect.die(error);
+            }),
+          ),
       forUser: (userId) => {
         const stub = namespace.getByName(userStoreName(userId));
         return new Proxy({} as UserStoreClient, {

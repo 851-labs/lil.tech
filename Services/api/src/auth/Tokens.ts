@@ -41,7 +41,9 @@ export class AccessTokens extends Context.Service<
     Effect.gen(function* () {
       const secret = new TextEncoder().encode(Redacted.value(yield* SessionKey));
       const decodeClaims = Schema.decodeUnknownEffect(AccessTokenClaims);
-      const verifyWithExpiry = Effect.fn("AccessTokens.verify")(function* (token: string) {
+      const verifyWithExpiry = Effect.fn("AccessTokens.verifyWithExpiry")(function* (
+        token: string,
+      ) {
         const now = yield* Clock.currentTimeMillis;
         const { payload } = yield* Effect.tryPromise({
           try: () =>
@@ -49,6 +51,7 @@ export class AccessTokens extends Context.Service<
               issuer,
               audience,
               algorithms: ["HS256"],
+              requiredClaims: ["exp"],
               currentDate: new Date(now),
             }),
           catch: (error) => new InvalidAccessToken({ reason: String(error) }),
@@ -58,7 +61,7 @@ export class AccessTokens extends Context.Service<
           deviceId: payload["dev"],
           sessionId: payload["sid"],
         }).pipe(Effect.mapError((error) => new InvalidAccessToken({ reason: error.message })));
-        return { claims, expiresAt: (payload.exp ?? 0) * 1000 };
+        return { claims, expiresAt: (payload.exp as number) * 1000 };
       });
       return AccessTokens.of({
         sign: Effect.fn("AccessTokens.sign")(function* (claims) {

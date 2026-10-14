@@ -11,11 +11,8 @@ import {
 import type { StoreSql } from "../../src/store/StoreSql.ts";
 import { SnapshotParts } from "../../src/sync/SnapshotParts.ts";
 import { entities } from "../../src/store/Registry.ts";
-import {
-  makeUserStore,
-  sessionExpiresHeader,
-  type UserStoreMethods,
-} from "../../src/store/UserStore.ts";
+import { sessionExpiresHeader } from "../../src/store/LiveNotices.ts";
+import { makeUserStore, type UserStoreMethods } from "../../src/store/UserStore.ts";
 import { UserStores, userStoreName } from "../../src/store/UserStores.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
 

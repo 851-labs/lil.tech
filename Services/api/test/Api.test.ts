@@ -16,7 +16,7 @@ import { Identities } from "../src/core/Identities.ts";
 import type { UserId } from "../src/core/Ids.ts";
 import { Users } from "../src/core/Users.ts";
 import { snapshotPolicy } from "../src/store/Snapshots.ts";
-import { sessionExpiresHeader } from "../src/store/UserStore.ts";
+import { sessionExpiresHeader } from "../src/store/LiveNotices.ts";
 import { UserStores } from "../src/store/UserStores.ts";
 import { PartUrls } from "../src/sync/SnapshotParts.ts";
 import { WorkerHttpLayer } from "../src/Http.ts";
