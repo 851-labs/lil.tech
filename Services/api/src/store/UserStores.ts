@@ -6,14 +6,19 @@ import type { UserStoreMethods } from "./UserStore.ts";
 export const userStoreName = (userId: UserId) => `user:${userId}`;
 
 /**
- * A call to a store failed before the store answered, e.g. because the object was restarting
- * during a deploy. Retrying later can succeed.
+ * A call to a store failed in a way Cloudflare marks as transient, e.g. the object was restarting
+ * during a deploy or was overloaded. Retrying later can succeed.
  */
 export class UserStoreUnavailable extends Schema.TaggedError<UserStoreUnavailable>()(
   "UserStoreUnavailable",
   { message: Schema.String },
   { httpApiStatus: 503 },
 ) {}
+
+/** Cloudflare sets `retryable` or `overloaded` on Durable Object errors worth retrying. */
+const isTransient = (cause: unknown) =>
+  (Predicate.hasProperty(cause, "retryable") && cause.retryable === true) ||
+  (Predicate.hasProperty(cause, "overloaded") && cause.overloaded === true);
 
 /** A store's methods as callers see them: every call can also fail with `UserStoreUnavailable`. */
 export type UserStoreClient = {
@@ -31,8 +36,9 @@ export class UserStores extends Context.Service<
 >()("lil/api/store/UserStores") {
   /**
    * Stores addressed by name in a Durable Object namespace. Alchemy's stubs are typed like the
-   * store's own methods, but fail with `RpcCallError` when the call itself fails, which becomes
-   * `UserStoreUnavailable`.
+   * store's own methods, but fail with `RpcCallError` when the call itself fails. That becomes
+   * `UserStoreUnavailable` if Cloudflare marks the failure `retryable` or `overloaded`, and a
+   * defect (a 500) otherwise, such as a bug that throws inside the store, which retrying won't fix.
    */
   static readonly fromNamespace = (namespace: {
     readonly getByName: (name: string) => UserStoreMethods;
@@ -49,12 +55,16 @@ export class UserStores extends Context.Service<
               call(...args).pipe(
                 Effect.catchIf(
                   (error) => Predicate.isTagged(error, "RpcCallError"),
-                  (error) =>
-                    Effect.fail(
-                      new UserStoreUnavailable({
-                        message: `Store call ${String(method)} failed: ${String((error as { cause?: unknown }).cause)}`,
-                      }),
-                    ),
+                  (error) => {
+                    const cause = (error as { readonly cause?: unknown }).cause;
+                    return isTransient(cause)
+                      ? Effect.fail(
+                          new UserStoreUnavailable({
+                            message: `Store call ${String(method)} failed: ${String(cause)}`,
+                          }),
+                        )
+                      : Effect.die(cause);
+                  },
                 ),
               );
           },

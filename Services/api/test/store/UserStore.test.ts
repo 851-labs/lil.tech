@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Effect, Exit } from "effect";
 import type { UserId } from "../../src/core/Ids.ts";
 import { migrate, type StoreMigration, storeMigrations } from "../../src/store/Migrations.ts";
 import { fromDurableObjectStorage, type StoreSql } from "../../src/store/StoreSql.ts";
@@ -170,12 +170,28 @@ describe("UserStores", () => {
     Effect.gen(function* () {
       const failing = {
         schemaVersion: () =>
-          Effect.fail({ _tag: "RpcCallError", method: "schemaVersion", cause: "reset" }),
+          Effect.fail({
+            _tag: "RpcCallError",
+            method: "schemaVersion",
+            cause: Object.assign(new Error("reset"), { retryable: true }),
+          }),
       } as unknown as UserStoreMethods;
       const stores = UserStores.fromNamespace({ getByName: () => failing });
       const error = yield* Effect.flip(stores.forUser(ada).schemaVersion());
       assert.strictEqual(error._tag, "UserStoreUnavailable");
       assert.include(error.message, "reset");
+    }),
+  );
+
+  it.effect("reports a store that threw as a defect, since retrying won't help", () =>
+    Effect.gen(function* () {
+      const failing = {
+        schemaVersion: () =>
+          Effect.fail({ _tag: "RpcCallError", method: "schemaVersion", cause: new Error("bug") }),
+      } as unknown as UserStoreMethods;
+      const stores = UserStores.fromNamespace({ getByName: () => failing });
+      const exit = yield* Effect.exit(stores.forUser(ada).schemaVersion());
+      assert.isTrue(Exit.hasDies(exit));
     }),
   );
 });

@@ -33,6 +33,152 @@ extension Components {
                 case message
             }
         }
+        /// - Remark: Generated from `#/components/schemas/UserStoreUnavailable`.
+        public struct UserStoreUnavailable: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/UserStoreUnavailable/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case userStoreUnavailable = "UserStoreUnavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/UserStoreUnavailable/_tag`.
+            public var _tag: Components.Schemas.UserStoreUnavailable._TagPayload
+            /// - Remark: Generated from `#/components/schemas/UserStoreUnavailable/message`.
+            public var message: Swift.String
+            /// Creates a new `UserStoreUnavailable`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.UserStoreUnavailable._TagPayload,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ChangesCompacted`.
+        public struct ChangesCompacted: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ChangesCompacted/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case changesCompacted = "ChangesCompacted"
+            }
+            /// - Remark: Generated from `#/components/schemas/ChangesCompacted/_tag`.
+            public var _tag: Components.Schemas.ChangesCompacted._TagPayload
+            /// - Remark: Generated from `#/components/schemas/ChangesCompacted/reason`.
+            public var reason: Swift.String
+            /// Creates a new `ChangesCompacted`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - reason:
+            public init(
+                _tag: Components.Schemas.ChangesCompacted._TagPayload,
+                reason: Swift.String
+            ) {
+                self._tag = _tag
+                self.reason = reason
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case reason
+            }
+        }
+        /// A page of the change log
+        ///
+        /// - Remark: Generated from `#/components/schemas/ChangesPage`.
+        public struct ChangesPage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ChangesPage/epoch`.
+            public var epoch: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/ChangesPage/changes`.
+            public var changes: [Components.Schemas.Change]
+            /// - Remark: Generated from `#/components/schemas/ChangesPage/next`.
+            public var next: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/ChangesPage/head`.
+            public var head: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/ChangesPage/hasMore`.
+            public var hasMore: Swift.Bool
+            /// Creates a new `ChangesPage`.
+            ///
+            /// - Parameters:
+            ///   - epoch:
+            ///   - changes:
+            ///   - next:
+            ///   - head:
+            ///   - hasMore:
+            public init(
+                epoch: Swift.Int,
+                changes: [Components.Schemas.Change],
+                next: Swift.Int,
+                head: Swift.Int,
+                hasMore: Swift.Bool
+            ) {
+                self.epoch = epoch
+                self.changes = changes
+                self.next = next
+                self.head = head
+                self.hasMore = hasMore
+            }
+            public enum CodingKeys: String, CodingKey {
+                case epoch
+                case changes
+                case next
+                case head
+                case hasMore
+            }
+        }
+        /// One entry of the change log
+        ///
+        /// - Remark: Generated from `#/components/schemas/Change`.
+        public struct Change: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Change/seq`.
+            public var seq: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/Change/entity`.
+            public var entity: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Change/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Change/op`.
+            public var op: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Change/row`.
+            public var row: OpenAPIRuntime.OpenAPIObjectContainer?
+            /// - Remark: Generated from `#/components/schemas/Change/at`.
+            public var at: Swift.Int
+            /// Creates a new `Change`.
+            ///
+            /// - Parameters:
+            ///   - seq:
+            ///   - entity:
+            ///   - id:
+            ///   - op:
+            ///   - row:
+            ///   - at:
+            public init(
+                seq: Swift.Int,
+                entity: Swift.String,
+                id: Swift.String,
+                op: Swift.String,
+                row: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
+                at: Swift.Int
+            ) {
+                self.seq = seq
+                self.entity = entity
+                self.id = id
+                self.op = op
+                self.row = row
+                self.at = at
+            }
+            public enum CodingKeys: String, CodingKey {
+                case seq
+                case entity
+                case id
+                case op
+                case row
+                case at
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/Me`.
         public struct Me: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Me/id`.

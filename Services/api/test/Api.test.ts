@@ -11,10 +11,12 @@ import { AccessTokens } from "../src/auth/Tokens.ts";
 import { Devices } from "../src/core/Devices.ts";
 import { Identities } from "../src/core/Identities.ts";
 import { Users } from "../src/core/Users.ts";
+import { UserStores } from "../src/store/UserStores.ts";
 import { WorkerHttpLayer } from "../src/Http.ts";
 import { makeOpenApiSpec } from "../src/OpenApiSpec.ts";
 import { makeApiWorkerProps } from "../src/Worker.ts";
 import { TestAuth } from "./auth/TestAuth.ts";
+import { TestStores, TestUserStores } from "./store/TestUserStores.ts";
 
 const committedSpec = readFileSync(new URL("../openapi.json", import.meta.url), "utf8");
 
@@ -40,7 +42,7 @@ const withApi = <A, E>(
     return yield* use((request) => handler(request)).pipe(Effect.provide(context));
   }).pipe(Effect.scoped);
 
-const TestServices = TestAuth;
+const TestServices = Layer.mergeAll(TestAuth, TestUserStores);
 
 const send = (handler: Handler, request: Request) =>
   Effect.promise(async () => {
@@ -59,7 +61,7 @@ const signIn = Effect.gen(function* () {
   yield* (yield* Identities).create({
     userId: user.id,
     provider: "apple",
-    subject: "001234.abcd",
+    subject: crypto.randomUUID(),
     email: "ada@privaterelay.appleid.com",
     emailVerified: true,
   });
@@ -245,6 +247,116 @@ describe("WorkerHttpLayer", () => {
   );
 });
 
+describe("GET /v1/sync/changes", () => {
+  const note = (id: string, title = "Note") => ({
+    entity: "test_note",
+    op: "upsert" as const,
+    id,
+    row: { title, pinned: false, score: null, tags: [], createdAt: 1 },
+  });
+  const pull = (handler: Handler, token: string, query = "") =>
+    send(
+      handler,
+      new Request(`https://api.lil.tech/v1/sync/changes${query}`, { headers: bearer(token) }),
+    );
+
+  it.live("pages through the signed-in user's change log", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const store = (yield* UserStores).forUser(user.id);
+        yield* store.applyMutations([note("n1"), note("n2"), note("n3")]);
+
+        const first = yield* pull(handler, tokens.accessToken, "?limit=2");
+        assert.strictEqual(first.status, 200);
+        assert.deepInclude(first.body, { epoch: 1, next: 2, head: 3, hasMore: true });
+        const changes = (first.body as { changes: Array<Record<string, unknown>> }).changes;
+        assert.deepStrictEqual(
+          changes.map((change) => [change["seq"], change["id"], change["op"]]),
+          [
+            [1, "n1", "upsert"],
+            [2, "n2", "upsert"],
+          ],
+        );
+        assert.deepStrictEqual(changes[0]?.["row"], { id: "n1", ...note("n1").row });
+
+        const rest = yield* pull(handler, tokens.accessToken, "?after=2&limit=2");
+        assert.deepInclude(rest.body, { next: 3, head: 3, hasMore: false });
+
+        // A cursor at the head gets an empty page.
+        const atHead = yield* pull(handler, tokens.accessToken, "?after=3");
+        assert.deepStrictEqual(atHead.body, {
+          epoch: 1,
+          changes: [],
+          next: 3,
+          head: 3,
+          hasMore: false,
+        });
+      }),
+    ),
+  );
+
+  it.live("returns an empty log for a new user", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* signIn;
+        const response = yield* pull(handler, tokens.accessToken);
+        assert.deepStrictEqual(response, {
+          status: 200,
+          body: { epoch: 1, changes: [], next: 0, head: 0, hasMore: false },
+        });
+      }),
+    ),
+  );
+
+  it.live("answers 410 for a cursor older than the compaction horizon", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const store = (yield* UserStores).forUser(user.id);
+        yield* store.applyMutations([note("n1"), note("n2")]);
+        // Compaction deleted the first change.
+        const sql = (yield* TestStores).sqlFor(user.id);
+        sql?.exec("DELETE FROM changes WHERE seq <= 1");
+        sql?.exec("INSERT INTO meta (key, value) VALUES ('horizon', 1)");
+        const response = yield* pull(handler, tokens.accessToken, "?after=0");
+        assert.strictEqual(response.status, 410);
+        assert.deepInclude(response.body, { _tag: "ChangesCompacted", reason: "compacted" });
+        assert.strictEqual((yield* pull(handler, tokens.accessToken, "?after=1")).status, 200);
+      }),
+    ),
+  );
+
+  it.live("never returns another user's changes", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const ada = yield* signIn;
+        const bob = yield* signIn;
+        yield* (yield* UserStores).forUser(ada.user.id).applyMutations([note("ada")]);
+        const response = yield* pull(handler, bob.tokens.accessToken);
+        assert.deepInclude(response.body, { changes: [], head: 0 });
+      }),
+    ),
+  );
+
+  it.live("requires a session and a valid cursor and limit", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* signIn;
+        const unauthenticated = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/sync/changes"),
+        );
+        assert.strictEqual(unauthenticated.status, 401);
+        for (const query of ["?after=-1", "?after=x", "?limit=0", "?limit=5001", "?limit=1.5"]) {
+          assert.strictEqual((yield* pull(handler, tokens.accessToken, query)).status, 400, query);
+        }
+        assert.strictEqual((yield* pull(handler, tokens.accessToken, "?limit=5000")).status, 200);
+      }),
+    ),
+  );
+});
+
 describe("Deployment.config", () => {
   const withEnv = (env: Record<string, string>) =>
     Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnvRecord(env)));
@@ -379,6 +491,29 @@ describe("makeOpenApiSpec", () => {
     assert.include(kind, '"type":["string","null"]');
     assert.include(kind, '"enum":["a","b",null]');
     assert.include(kind, '"description":"Kind"');
+  });
+
+  it("documents query parameters by their decoded schemas", () => {
+    const spec = makeOpenApiSpec();
+    assert.deepStrictEqual(
+      spec.paths["/v1/sync/changes"]?.get?.parameters?.map((parameter) => [
+        parameter.name,
+        parameter.schema,
+      ]),
+      [
+        ["after", { type: "integer", minimum: 0, maximum: 9007199254740991, default: 0 }],
+        ["limit", { type: "integer", minimum: 1, maximum: 5000, default: 1000 }],
+      ],
+    );
+    // Every endpoint with query parameters needs `documentQuery`.
+    for (const [path, operations] of Object.entries(spec.paths)) {
+      for (const operation of Object.values(operations ?? {})) {
+        for (const parameter of (operation as { parameters?: Array<{ schema: object }> })
+          .parameters ?? []) {
+          assert.notProperty(parameter.schema, "pattern", path);
+        }
+      }
+    }
   });
 
   it("names grouped operations in camel case", () => {

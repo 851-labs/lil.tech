@@ -35,7 +35,7 @@ Every write to a store goes through `applyMutations`, which updates the entity t
 - JSON, with `camelCase` field names. The server stores `snake_case` columns and maps between them in the entity's schema.
 - Timestamps are integers in Unix milliseconds, and durations are in seconds. Record IDs are strings.
 - Health records use the HealthKit UUID, lowercased, as their `id`. Records created by our apps use a prefixed, sortable ID (e.g. `pin_01J…`).
-- Every response that carries changes is gzip-compressed.
+- Every response that carries changes is compressed. Cloudflare's edge compresses JSON responses with gzip or brotli, whichever the client accepts, so the Worker sends plain JSON.
 
 ## Pulling changes
 
@@ -58,6 +58,7 @@ GET /v1/sync/changes?after=<seq>&limit=<n>
   }
   ```
 
+  - `op` is `upsert` or `delete` today. Clients skip ops they don't know (like unknown entities), so new ones can be added.
   - `next` is the cursor to send on the next request: the `seq` of the last change returned, or `after` if none were.
   - `head` is the newest `seq` in the store, so clients can show progress.
   - `hasMore` is true when `next < head`.
@@ -196,7 +197,7 @@ POST /v1/sync/mutations
 | `410` | The cursor is older than the horizon, or the requested snapshot was deleted. | Bootstrap from a snapshot. |
 | `413` | Too many mutations or too large a request. | Split the request (a client bug if it happens). |
 | `429` | Rate limited. | Wait for `Retry-After`, then retry. |
-| `503` | A new epoch's snapshot is still being written. | Wait for `Retry-After`, then retry. |
+| `503` | A new epoch's snapshot is still being written (with `Retry-After`), or the user's store is briefly unavailable (e.g. during a deploy). | Wait for `Retry-After` if there is one, otherwise back off as for other `5xx`, then retry. |
 | `507` | The user's storage quota is full. | Stop pushing and show the quota state. Pulls keep working. |
 | `5xx`, network errors | Transient failure. | Retry with exponential backoff and jitter, from 1 s up to 5 minutes. |
 

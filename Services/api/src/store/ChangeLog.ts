@@ -1,34 +1,25 @@
-import { Result, Schema } from "effect";
+import { Result, type Schema } from "effect";
+import {
+  type Change,
+  ChangesCompacted,
+  type ChangesPage,
+  InvalidMutation,
+  type Mutation,
+} from "./Changes.ts";
 import { type Entity, fromColumnValue, toColumnValue } from "./Entities.ts";
 import type { SqlValue, StoreSql } from "./StoreSql.ts";
 
-/** One write to a store, as clients push it (`docs/SYNC.md`). */
-export const Mutation = Schema.Union([
-  Schema.Struct({
-    entity: Schema.String,
-    op: Schema.Literal("upsert"),
-    id: Schema.NonEmptyString,
-    /** The fields to set. Missing fields keep their stored values, and `null` clears one. */
-    row: Schema.Record(Schema.String, Schema.Json),
-  }),
-  Schema.Struct({
-    entity: Schema.String,
-    op: Schema.Literal("delete"),
-    id: Schema.NonEmptyString,
-  }),
-]);
-export type Mutation = typeof Mutation.Type;
-
-/** A mutation can never be applied, e.g. its row is invalid. Retrying won't help. */
-export class InvalidMutation extends Schema.TaggedError<InvalidMutation>()("InvalidMutation", {
-  /** The mutation's position in the call. */
-  index: Schema.Int,
-  message: Schema.String,
-}) {}
+const readMeta = (sql: StoreSql, key: string, fallback: number): number =>
+  Number(sql.exec("SELECT value FROM meta WHERE key = ?", key)[0]?.["value"] ?? fallback);
 
 /** The newest `seq` in the store's change log, or 0 before the first change. */
-export const readHead = (sql: StoreSql): number =>
-  Number(sql.exec("SELECT value FROM meta WHERE key = 'head'")[0]?.["value"] ?? 0);
+export const readHead = (sql: StoreSql) => readMeta(sql, "head", 0);
+
+/** The store's epoch (`docs/SYNC.md`), which starts at 1. */
+export const readEpoch = (sql: StoreSql) => readMeta(sql, "epoch", 1);
+
+/** The highest `seq` compaction has deleted, or 0. */
+export const readHorizon = (sql: StoreSql) => readMeta(sql, "horizon", 0);
 
 export interface AppliedMutations {
   /** The store's `head` afterwards: the `seq` of the last change appended, if any. */
@@ -123,4 +114,36 @@ export const applyMutations = (
       );
     }
     return { head, appended: head - start };
+  });
+
+/**
+ * Up to `limit` changes after `after`, or `ChangesCompacted` if some of them were deleted. Reads
+ * in one transaction, so `epoch`, `head` and the page agree.
+ */
+export const readChanges = (
+  sql: StoreSql,
+  after: number,
+  limit: number,
+): ChangesPage | ChangesCompacted =>
+  sql.transaction(() => {
+    if (after < readHorizon(sql)) return new ChangesCompacted({ reason: "compacted" });
+    const changes = sql
+      .exec(
+        "SELECT seq, entity, id, op, row, at FROM changes WHERE seq > ? ORDER BY seq LIMIT ?",
+        after,
+        limit,
+      )
+      .map((change): Change => ({
+        seq: change["seq"] as number,
+        entity: change["entity"] as string,
+        id: change["id"] as string,
+        op: change["op"] as Change["op"],
+        ...(change["row"] === null
+          ? {}
+          : { row: JSON.parse(change["row"] as string) as Record<string, Schema.Json> }),
+        at: change["at"] as number,
+      }));
+    const head = readHead(sql);
+    const next = changes.at(-1)?.seq ?? after;
+    return { epoch: readEpoch(sql), changes, next, head, hasMore: next < head };
   });
