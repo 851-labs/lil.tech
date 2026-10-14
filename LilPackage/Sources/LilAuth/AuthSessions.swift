@@ -39,24 +39,49 @@ public actor AuthSessions {
   private var loaded = false
   private var refreshing: (refreshToken: String, task: Task<Void, any Error>)?
   private var observers: [UUID: AsyncStream<Bool>.Continuation] = [:]
+  private let clock: any Clock<Duration>
+  /// Reads the store again until it can, while someone's waiting to know if the app is signed in.
+  private var rereading: Task<Void, Never>?
+
+  /// How long to wait before reading a store that couldn't be read again.
+  static let rereadInterval: Duration = .seconds(2)
 
   public init() {
     @Dependency(\.sessionStore) var store
     @Dependency(\.api) var api
     @Dependency(\.date) var date
+    @Dependency(\.continuousClock) var clock
     self.store = store
     self.api = api
     self.now = { date.now }
+    self.clock = clock
   }
 
-  /// Whether the app is signed in, now and after every change.
+  /// Whether the app is signed in, now and after every change. Nothing is yielded until the
+  /// session store can be read (e.g. the Keychain before the first unlock after a restart).
   public func signedInUpdates() -> AsyncStream<Bool> {
     let (stream, continuation) = AsyncStream<Bool>.makeStream(bufferingPolicy: .bufferingNewest(1))
     let id = UUID()
     observers[id] = continuation
-    continuation.yield(current() != nil)
+    let session = current()
+    if loaded {
+      continuation.yield(session != nil)
+    } else {
+      rereadUntilLoaded()
+    }
     continuation.onTermination = { [weak self] _ in Task { await self?.removeObserver(id) } }
     return stream
+  }
+
+  private func rereadUntilLoaded() {
+    guard rereading == nil else { return }
+    rereading = Task {
+      while !loaded, !Task.isCancelled {
+        try? await clock.sleep(for: Self.rereadInterval)
+        _ = current()
+      }
+      rereading = nil
+    }
   }
 
   /// A current access token, refreshed first if it's about to expire, or `nil` when signed out.
@@ -171,10 +196,8 @@ public actor AuthSessions {
       }
       loaded = true
       session = stored
-      if stored != nil {
-        // Observers may have been told "signed out" while the store couldn't be read.
-        for observer in observers.values { observer.yield(true) }
-      }
+      // Observers subscribed while the store couldn't be read are waiting for an answer.
+      for observer in observers.values { observer.yield(stored != nil) }
     }
     return session
   }

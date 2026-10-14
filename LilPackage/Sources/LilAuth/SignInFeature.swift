@@ -27,13 +27,18 @@ public struct SignInFeature {
     /// The Google sign-in in the browser, while it's open.
     public var googleRequest: GoogleAuthorizationRequest?
 
+    /// Whether the app has a Google OAuth client, so the Google button is shown.
+    public var isGoogleAvailable: Bool
+
     public init(
       status: Status = .signedOut, nonce: String? = nil,
       googleRequest: GoogleAuthorizationRequest? = nil
     ) {
+      @Dependency(\.googleOAuth) var googleOAuth
       self.status = status
       self.nonce = nonce
       self.googleRequest = googleRequest
+      self.isGoogleAvailable = googleOAuth.clientID != nil
     }
 
     /// Starting another try clears the last one's error.

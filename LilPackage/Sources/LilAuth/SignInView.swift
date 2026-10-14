@@ -40,16 +40,18 @@ public struct SignInView: View {
             .frame(maxWidth: 320)
             .frame(height: 44)
 
-            Button {
-              store.send(.googleButtonTapped)
-            } label: {
-              Text("Sign in with Google")
-                .frame(maxWidth: .infinity)
+            if store.isGoogleAvailable {
+              Button {
+                store.send(.googleButtonTapped)
+              } label: {
+                Text("Sign in with Google")
+                  .frame(maxWidth: .infinity)
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.extraLarge)
+              .frame(maxWidth: 320)
+              .disabled(store.googleRequest != nil)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.extraLarge)
-            .frame(maxWidth: 320)
-            .disabled(store.googleRequest != nil)
           }
           .opacity(showsButtons ? 1 : 0)
           .disabled(!showsButtons)

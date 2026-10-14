@@ -27,17 +27,6 @@ struct AppFeatureTests {
   }
 
   @Test
-  func signingInShowsHome() async {
-    let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
-      AppFeature()
-    }
-
-    await store.send(.signIn(.delegate(.signedIn))) {
-      $0.isSignedIn = true
-    }
-  }
-
-  @Test
   func signingOutStartsSignInAfresh() async {
     let signedOut = LockIsolated(false)
     var state = AppFeature.State(isSignedIn: true)
@@ -48,7 +37,7 @@ struct AppFeatureTests {
       $0.auth.signOut = { signedOut.setValue(true) }
     }
 
-    await store.send(.signOutButtonTapped)
+    await store.send(.signOutButtonTapped).finish()
     #expect(signedOut.value)
     await store.send(.signedInChanged(false)) {
       $0.isSignedIn = false

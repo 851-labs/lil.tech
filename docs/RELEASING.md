@@ -90,6 +90,6 @@ xcodebuild -exportArchive -archivePath build/LilHealthiOS.xcarchive \
   -authenticationKeyID XXXXXXXXXX -authenticationKeyIssuerID <issuer-uuid>
 ```
 
-- The archive's build number is the commit count, as with the Mac apps.
+- The archive's build number is the commit count, as with the Mac apps. `ExportOptions.plist` keeps Xcode from renumbering it.
 - `ExportOptions.plist` exports for App Store Connect and uploads in the same step.
 - After App Store Connect processes the build, add it to a TestFlight group. Builds for external testers also need Beta App Review.

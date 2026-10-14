@@ -39,11 +39,8 @@ public struct AppFeature {
         }
         return .none
 
-      case .signIn(.delegate(.signedIn)):
-        state.isSignedIn = true
-        return .none
-
       case .signIn:
+        // The session's updates say when signing in worked.
         return .none
 
       case .signOutButtonTapped:

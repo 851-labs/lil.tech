@@ -156,16 +156,32 @@ struct AuthSessionsTests {
     // The first two reads fail, like the Keychain before the first unlock after a restart.
     let reads = LockIsolated(0)
     let sessions = withDependencies {
-      $0.sessionStore = SessionStore(
-        load: {
-          reads.withValue { $0 += 1 }
-          if reads.value <= 2 {
-            throw SessionStore.KeychainError(status: errSecInteractionNotAllowed)
-          }
-          return session(1)
-        },
-        save: { _ in })
+      $0.sessionStore = failingFirst(2, reads: reads)
       $0.date.now = now
+      $0.continuousClock = TestClock()
+    } operation: {
+      AuthSessions()
+    }
+    await withKnownIssue {
+      await #expect(throws: AuthSessions.SessionUnavailable.self) {
+        try await sessions.accessToken()
+      }
+      await #expect(throws: AuthSessions.SessionUnavailable.self) {
+        try await sessions.accessToken()
+      }
+    }
+    #expect(try await sessions.accessToken() == "access-1")
+    #expect(reads.value == 3)
+  }
+
+  @Test
+  func signedInIsntKnownUntilTheStoreCanBeRead() async throws {
+    let reads = LockIsolated(0)
+    let clock = TestClock()
+    let sessions = withDependencies {
+      $0.sessionStore = failingFirst(1, reads: reads)
+      $0.date.now = now
+      $0.continuousClock = clock
     } operation: {
       AuthSessions()
     }
@@ -175,14 +191,10 @@ struct AuthSessionsTests {
       stream.setValue(updates)
     }
     var updates = try #require(stream.value).makeAsyncIterator()
-    #expect(await updates.next() == false)
-    await withKnownIssue {
-      await #expect(throws: AuthSessions.SessionUnavailable.self) {
-        try await sessions.accessToken()
-      }
-    }
-    #expect(try await sessions.accessToken() == "access-1")
+    // Not "signed out": the store is read again a little later.
+    await clock.advance(by: AuthSessions.rereadInterval)
     #expect(await updates.next() == true)
+    #expect(reads.value == 2)
   }
 
   @Test
@@ -276,6 +288,19 @@ func tokenPair(_ n: Int) -> (HTTPResponse, HTTPBody?) {
 func string(_ body: HTTPBody?) async throws -> String {
   guard let body else { return "" }
   return try await String(collecting: body, upTo: 1 << 20)
+}
+
+/// A store holding session 1 whose first `failures` reads fail.
+func failingFirst(_ failures: Int, reads: LockIsolated<Int>) -> SessionStore {
+  SessionStore(
+    load: {
+      reads.withValue { $0 += 1 }
+      if reads.value <= failures {
+        throw SessionStore.KeychainError(status: errSecInteractionNotAllowed)
+      }
+      return session(1)
+    },
+    save: { _ in })
 }
 
 /// Sessions starting from `stored`, talking to a server that answers with `respond`.

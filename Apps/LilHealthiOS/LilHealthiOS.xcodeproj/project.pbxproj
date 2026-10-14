@@ -192,6 +192,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "lil health";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "lil health copies your Health data to your lil health account, so you can see it on your Mac.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "lil health only reads your Health data. It never adds to or changes it.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
@@ -229,6 +230,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "lil health";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "lil health copies your Health data to your lil health account, so you can see it on your Mac.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "lil health only reads your Health data. It never adds to or changes it.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
