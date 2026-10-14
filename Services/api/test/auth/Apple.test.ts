@@ -1,5 +1,5 @@
 import { assert, layer } from "@effect/vitest";
-import { Effect, Exit, Option } from "effect";
+import { Effect, Option } from "effect";
 import { TestClock } from "effect/testing";
 import { generateKeyPair } from "jose";
 import { AppleSignIn } from "../../src/auth/Apple.ts";
@@ -8,7 +8,7 @@ import { AccessTokens } from "../../src/auth/Tokens.ts";
 import { Devices } from "../../src/core/Devices.ts";
 import { Identities } from "../../src/core/Identities.ts";
 import { Users } from "../../src/core/Users.ts";
-import { appleIdentityToken, TestAppleKeysControl, TestAppleSignIn } from "./TestApple.ts";
+import { appleIdentityToken, TestAppleSignIn, testAppleKeysControl } from "./TestApple.ts";
 
 // Synthetic identities only (AGENTS.md).
 const iPhone = { app: "health-ios", platform: "ios" as const, name: "Test iPhone" };
@@ -144,25 +144,26 @@ layer(TestAppleSignIn)("Sign in with Apple", (it) => {
 
   it.effect("fetches Apple's keys again for a key ID it hasn't seen", () =>
     Effect.gen(function* () {
-      const control = yield* TestAppleKeysControl;
+      const control = testAppleKeysControl;
       control.mode = "staleCache";
+      const before = control.freshFetches;
       yield* signIn(newSubject()).pipe(
         Effect.ensuring(Effect.sync(() => (control.mode = "normal"))),
       );
-      assert.strictEqual(control.freshFetches, 1);
+      assert.strictEqual(control.freshFetches, before + 1);
     }),
   );
 
-  it.effect("treats unreachable keys as a server error, not a bad token", () =>
+  it.effect("answers that sign-in is unavailable when Apple's keys can't be fetched", () =>
     Effect.gen(function* () {
-      const control = yield* TestAppleKeysControl;
+      const control = testAppleKeysControl;
       control.mode = "down";
       const nonce = crypto.randomUUID();
       const token = yield* appleIdentityToken({ sub: newSubject(), nonce });
-      const exit = yield* (yield* AppleSignIn)
-        .verify(token, nonce, undefined)
-        .pipe(Effect.exit, Effect.ensuring(Effect.sync(() => (control.mode = "normal"))));
-      assert.isTrue(Exit.hasDies(exit));
+      const error = yield* Effect.flip((yield* AppleSignIn).verify(token, nonce, undefined)).pipe(
+        Effect.ensuring(Effect.sync(() => (control.mode = "normal"))),
+      );
+      assert.strictEqual(error._tag, "SignInUnavailable");
     }),
   );
 

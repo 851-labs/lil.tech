@@ -97,6 +97,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "SignInUnavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInUnavailable"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -104,6 +114,58 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AppleSignInRequest"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/auth/google": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authGoogle",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "An access token for API requests and a refresh token to get the next pair",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "InvalidIdentityToken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidIdentityToken"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SignInUnavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInUnavailable"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleSignInRequest"
               }
             }
           },
@@ -727,6 +789,24 @@
           "email"
         ]
       },
+      "SignInUnavailable": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "SignInUnavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "message"
+        ]
+      },
       "InvalidIdentityToken": {
         "type": "object",
         "properties": {
@@ -772,6 +852,55 @@
           "refreshTokenExpiresAt"
         ]
       },
+      "GoogleSignInRequest": {
+        "type": "object",
+        "properties": {
+          "idToken": {
+            "type": "string",
+            "maxLength": 8192
+          },
+          "nonce": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          }
+        },
+        "required": [
+          "idToken",
+          "nonce",
+          "device"
+        ]
+      },
+      "DeviceInfo": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ios",
+              "macos"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "app",
+          "platform"
+        ]
+      },
       "AppleSignInRequest": {
         "type": "object",
         "properties": {
@@ -810,34 +939,6 @@
           "identityToken",
           "nonce",
           "device"
-        ]
-      },
-      "DeviceInfo": {
-        "type": "object",
-        "properties": {
-          "app": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64
-          },
-          "platform": {
-            "type": "string",
-            "enum": [
-              "ios",
-              "macos"
-            ]
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 200
-          }
-        },
-        "required": [
-          "app",
-          "platform"
         ]
       },
       "InvalidRefreshToken": {

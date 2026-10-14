@@ -4,6 +4,7 @@ import * as SQL from "alchemy/SQL/D1";
 import { Config, Effect, Layer, Option, Redacted } from "effect";
 import { HttpRouter } from "effect/http";
 import { AppleKeys } from "./auth/Apple.ts";
+import { GoogleClients, GoogleKeys } from "./auth/Google.ts";
 import { SessionKey } from "./auth/Tokens.ts";
 import { CoreDatabase, CoreRepositories } from "./core/CoreDatabase.ts";
 import { Deployment, environmentForStage } from "./Deployment.ts";
@@ -74,7 +75,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       WorkerHttpLayer.pipe(
         Layer.provide(Layer.succeed(Deployment, deployment)),
         Layer.provide(Layer.succeed(SessionKey, key)),
-        Layer.provide(AppleKeys.layer),
+        Layer.provide([AppleKeys.layer, GoogleKeys.layer, GoogleClients.layer]),
         Layer.provide(Layer.succeed(UserStores, userStores)),
         Layer.provide(CoreRepositories.pipe(Layer.provideMerge(SQL.D1Layer(core)))),
       ),

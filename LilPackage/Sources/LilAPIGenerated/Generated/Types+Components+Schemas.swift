@@ -447,6 +447,33 @@ extension Components {
                 case email
             }
         }
+        /// - Remark: Generated from `#/components/schemas/SignInUnavailable`.
+        public struct SignInUnavailable: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SignInUnavailable/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case signInUnavailable = "SignInUnavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/SignInUnavailable/_tag`.
+            public var _tag: Components.Schemas.SignInUnavailable._TagPayload
+            /// - Remark: Generated from `#/components/schemas/SignInUnavailable/message`.
+            public var message: Swift.String
+            /// Creates a new `SignInUnavailable`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.SignInUnavailable._TagPayload,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case message
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken`.
         public struct InvalidIdentityToken: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken/_tag`.
@@ -509,6 +536,69 @@ extension Components {
                 case refreshTokenExpiresAt
             }
         }
+        /// - Remark: Generated from `#/components/schemas/GoogleSignInRequest`.
+        public struct GoogleSignInRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/GoogleSignInRequest/idToken`.
+            public var idToken: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GoogleSignInRequest/nonce`.
+            public var nonce: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GoogleSignInRequest/device`.
+            public var device: Components.Schemas.DeviceInfo
+            /// Creates a new `GoogleSignInRequest`.
+            ///
+            /// - Parameters:
+            ///   - idToken:
+            ///   - nonce:
+            ///   - device:
+            public init(
+                idToken: Swift.String,
+                nonce: Swift.String,
+                device: Components.Schemas.DeviceInfo
+            ) {
+                self.idToken = idToken
+                self.nonce = nonce
+                self.device = device
+            }
+            public enum CodingKeys: String, CodingKey {
+                case idToken
+                case nonce
+                case device
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/DeviceInfo`.
+        public struct DeviceInfo: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/DeviceInfo/app`.
+            public var app: Swift.String
+            /// - Remark: Generated from `#/components/schemas/DeviceInfo/platform`.
+            @frozen public enum PlatformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case ios = "ios"
+                case macos = "macos"
+            }
+            /// - Remark: Generated from `#/components/schemas/DeviceInfo/platform`.
+            public var platform: Components.Schemas.DeviceInfo.PlatformPayload
+            /// - Remark: Generated from `#/components/schemas/DeviceInfo/name`.
+            public var name: Swift.String?
+            /// Creates a new `DeviceInfo`.
+            ///
+            /// - Parameters:
+            ///   - app:
+            ///   - platform:
+            ///   - name:
+            public init(
+                app: Swift.String,
+                platform: Components.Schemas.DeviceInfo.PlatformPayload,
+                name: Swift.String? = nil
+            ) {
+                self.app = app
+                self.platform = platform
+                self.name = name
+            }
+            public enum CodingKeys: String, CodingKey {
+                case app
+                case platform
+                case name
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/AppleSignInRequest`.
         public struct AppleSignInRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/AppleSignInRequest/identityToken`.
@@ -565,40 +655,6 @@ extension Components {
                 case nonce
                 case fullName
                 case device
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/DeviceInfo`.
-        public struct DeviceInfo: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/DeviceInfo/app`.
-            public var app: Swift.String
-            /// - Remark: Generated from `#/components/schemas/DeviceInfo/platform`.
-            @frozen public enum PlatformPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case ios = "ios"
-                case macos = "macos"
-            }
-            /// - Remark: Generated from `#/components/schemas/DeviceInfo/platform`.
-            public var platform: Components.Schemas.DeviceInfo.PlatformPayload
-            /// - Remark: Generated from `#/components/schemas/DeviceInfo/name`.
-            public var name: Swift.String?
-            /// Creates a new `DeviceInfo`.
-            ///
-            /// - Parameters:
-            ///   - app:
-            ///   - platform:
-            ///   - name:
-            public init(
-                app: Swift.String,
-                platform: Components.Schemas.DeviceInfo.PlatformPayload,
-                name: Swift.String? = nil
-            ) {
-                self.app = app
-                self.platform = platform
-                self.name = name
-            }
-            public enum CodingKeys: String, CodingKey {
-                case app
-                case platform
-                case name
             }
         }
         /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken`.
