@@ -15,6 +15,7 @@ const fromNode = (value: unknown): SqlValue =>
 export const makeTestStoreSql = (): StoreSql => {
   let db = new DatabaseSync(":memory:");
   let depth = 0;
+  let alarm: number | null = null;
   return {
     exec: (query, ...bindings) =>
       (db.prepare(query).all(...bindings.map(toNode)) as Array<Record<string, unknown>>).map(
@@ -42,6 +43,11 @@ export const makeTestStoreSql = (): StoreSql => {
     deleteAll: async () => {
       db.close();
       db = new DatabaseSync(":memory:");
+      alarm = null;
+    },
+    getAlarm: async () => alarm,
+    setAlarm: async (at) => {
+      alarm = at;
     },
   };
 };

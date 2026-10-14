@@ -67,6 +67,30 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       updated_at INTEGER NOT NULL
     ) STRICT;`,
   },
+  {
+    version: 5,
+    name: "snapshots",
+    // `src/store/Snapshots.ts`. A snapshot is published (becomes the latest) once `finished_at`
+    // is set; `snapshot_job` is the one being written.
+    sql: `
+      CREATE TABLE snapshots (
+        id TEXT PRIMARY KEY,
+        seq INTEGER NOT NULL,
+        epoch INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        finished_at INTEGER,
+        replaced_at INTEGER,
+        entities TEXT NOT NULL
+      ) STRICT;
+      CREATE TABLE snapshot_job (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        snapshot_id TEXT NOT NULL REFERENCES snapshots (id),
+        entity_index INTEGER NOT NULL,
+        after_id TEXT,
+        part INTEGER NOT NULL
+      ) STRICT;
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

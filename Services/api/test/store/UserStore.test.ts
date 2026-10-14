@@ -118,6 +118,13 @@ describe("fromDurableObjectStorage", () => {
         deleteAll: async () => {
           calls.push("deleteAll");
         },
+        getAlarm: async () => {
+          calls.push("getAlarm");
+          return 7;
+        },
+        setAlarm: async (at) => {
+          calls.push(`setAlarm ${at}`);
+        },
       });
       assert.deepStrictEqual(sql.exec("SELECT ?", 1), [{ n: 1 }]);
       sql.script("CREATE TABLE t (x);");
@@ -126,12 +133,16 @@ describe("fromDurableObjectStorage", () => {
         "done",
       );
       yield* Effect.promise(() => sql.deleteAll());
+      assert.strictEqual(yield* Effect.promise(() => sql.getAlarm()), 7);
+      yield* Effect.promise(() => sql.setAlarm(9));
       assert.deepStrictEqual(calls, [
         "exec SELECT ? [1]",
         "exec CREATE TABLE t (x); []",
         "transactionSync",
         "deleteAlarm",
         "deleteAll",
+        "getAlarm",
+        "setAlarm 9",
       ]);
     }),
   );
