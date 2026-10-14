@@ -54,6 +54,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   - Closing a PR destroys its preview.
   - Merging to `main` deploys staging, then prod, and `scripts/check-deploy` waits until each serves the new commit.
   - CI authenticates with the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets (token "lil.tech CI (Alchemy deploys)": account 851, zone `lil.tech`).
+  - Previews run PR code with that deploy token, and Cloudflare can't limit `Workers Scripts:Edit` to particular Workers. Only branches pushed to this repo get previews (fork PRs get no secrets), so only give push access to people you'd trust with prod.
 - **Deploying by hand** (from `Services/api`), rarely needed since CI deploys `main`:
   - `vp run deploy:staging` deploys to `api.staging.lil.tech`.
   - `vp run deploy:prod` deploys to `api.lil.tech`.
