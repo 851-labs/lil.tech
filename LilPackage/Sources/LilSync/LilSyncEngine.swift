@@ -1,5 +1,6 @@
+import CryptoKit
 import Dependencies
-import Foundation
+public import Foundation
 import IssueReporting
 import LilAPI
 import SQLiteData
@@ -9,11 +10,11 @@ public enum SyncStatus: Equatable, Sendable {
   case idle
   /// Catching up. `cursor` and `head` give progress.
   case syncing(cursor: Int, head: Int)
+  /// Starting over from a snapshot (`docs/SYNC.md`), as a new device does, or one whose local
+  /// data is from another epoch or behind compacted changes: parts downloaded so far, of how many.
+  case bootstrapping(downloadedParts: Int, totalParts: Int)
   /// The last pull failed. Sync retries with backoff.
   case failed(String)
-  /// The local data is from another epoch (or the server went back in time, or the changes after
-  /// the cursor were compacted), so it must start over from a snapshot.
-  case needsBootstrap
 }
 
 /// Pulls a user's change log into the local database (`docs/SYNC.md`): each page is applied
@@ -31,6 +32,10 @@ public actor LilSyncEngine {
   private let api: any APIProtocol
   private let clock: any Clock<Duration>
   private let random: WithRandomNumberGenerator
+  private let downloader: SnapshotDownloader
+  /// Where downloaded snapshot parts are kept until they're loaded, by SHA-256, so an
+  /// interrupted bootstrap doesn't download them again.
+  private let partsDirectory: URL
 
   private var status = SyncStatus.idle
   private var observers: [UUID: AsyncStream<SyncStatus>.Continuation] = [:]
@@ -38,11 +43,21 @@ public actor LilSyncEngine {
   private var syncRequested = false
   private var wake: CheckedContinuation<Void, Never>?
 
-  public init(entities: [SyncEntity]) {
+  /// - Parameters:
+  ///   - partsDirectory: Where to keep downloaded snapshot parts until they're loaded. Defaults
+  ///     to a folder in the app's caches.
+  public init(entities: [SyncEntity], partsDirectory: URL? = nil) {
     @Dependency(\.defaultDatabase) var database
     @Dependency(\.api) var api
     @Dependency(\.continuousClock) var clock
     @Dependency(\.withRandomNumberGenerator) var random
+    @Dependency(\.snapshotDownloader) var downloader
+    self.downloader = downloader
+    self.partsDirectory =
+      partsDirectory
+      ?? URL.cachesDirectory.appending(
+        path: "\(Bundle.main.bundleIdentifier ?? "lil")/LilSync/SnapshotParts",
+        directoryHint: .isDirectory)
     self.entities = Dictionary(
       entities.map { ($0.name, $0) },
       uniquingKeysWith: { first, _ in
@@ -74,21 +89,34 @@ public actor LilSyncEngine {
   /// exponential backoff and jitter, from 1 second up to 5 minutes.
   public func run() async {
     var failures = 0
+    var justBootstrapped = false
     while !Task.isCancelled {
       let delay: Duration
       do {
         syncRequested = false
         try await pull()
         failures = 0
+        justBootstrapped = false
         delay = Self.idleInterval
       } catch {
         // Cancellation can come back wrapped, e.g. as a client error around `URLError.cancelled`.
         if Task.isCancelled { return }
-        if error as? SyncError == .needsBootstrap {
-          setStatus(.needsBootstrap)
-          delay = Self.idleInterval
+        // Needing another bootstrap right after one is a failure, so it backs off.
+        if error as? SyncError == .needsBootstrap, !justBootstrapped {
+          // Start over from a snapshot, then pull right away.
+          do {
+            try await bootstrap()
+            justBootstrapped = true
+            continue
+          } catch {
+            if Task.isCancelled { return }
+            failures += 1
+            setStatus(.failed(String(describing: error)))
+            delay = backoff(afterFailures: failures)
+          }
         } else {
           failures += 1
+          justBootstrapped = false
           setStatus(.failed(String(describing: error)))
           delay = backoff(afterFailures: failures)
         }
@@ -104,12 +132,32 @@ public actor LilSyncEngine {
     endWait()
   }
 
+  /// The pull or bootstrap in progress. The actor runs other work while they wait, so they take
+  /// turns: a pull that read the cursor before a bootstrap committed mustn't write after it.
+  private var operation: Task<Void, Never>?
+
+  private func exclusively(_ body: @escaping @Sendable () async throws -> Void) async throws {
+    let previous = operation
+    let task = Task<Result<Void, any Error>, Never> {
+      await previous?.value
+      return await Result { try await body() }
+    }
+    operation = Task { _ = await task.value }
+    try await task.value.get()
+  }
+
   /// Pulls pages until caught up. Throws ``SyncError/needsBootstrap`` when the local data must be
   /// replaced from a snapshot, and other errors for failures worth retrying.
   public func pull() async throws {
+    try await exclusively { try await self.pullPages() }
+  }
+
+  private func pullPages() async throws {
     while true {
       try Task.checkCancellation()
       let state = try await database.read { try SyncState.fetch($0) }
+      // A new device starts from a snapshot rather than replaying the whole log.
+      if state.epoch == nil, state.cursor == 0 { throw SyncError.needsBootstrap }
       let page = try await fetchPage(after: state.cursor)
       if let epoch = state.epoch, epoch != page.epoch { throw SyncError.needsBootstrap }
       if state.cursor > page.head { throw SyncError.needsBootstrap }
@@ -142,6 +190,162 @@ public actor LilSyncEngine {
         return
       }
       setStatus(.syncing(cursor: page.next, head: page.head))
+    }
+  }
+
+  /// Replaces the local data with the latest snapshot (`docs/SYNC.md`):
+  ///
+  /// 1. Downloads every part of the registered entities and checks its SHA-256. Verified parts are
+  ///    kept on disk until loaded, so an interrupted bootstrap only downloads what's missing.
+  ///    Expired URLs are refreshed for the same snapshot.
+  /// 2. Resets the client to a new device's state and clears the entities' tables, so a load
+  ///    that's interrupted starts over.
+  /// 3. Loads the parts in batches, then sets the cursor and epoch to the snapshot's.
+  ///
+  /// If the store has no snapshot yet, the tables are cleared and the whole log is pulled.
+  public func bootstrap() async throws {
+    try await exclusively { try await self.replaceFromSnapshot() }
+  }
+
+  /// Records per write transaction while loading, so other writes aren't held up for long.
+  static let loadBatchSize = 5_000
+
+  private func replaceFromSnapshot() async throws {
+    setStatus(.bootstrapping(downloadedParts: 0, totalParts: 0))
+    let latest = try await fetchLatestSnapshot()
+    guard var manifest = latest.snapshot else {
+      try await database.write { [entities] db in
+        for entity in entities.values { try entity.clear(db) }
+        try SyncState(id: SyncState.singletonID, cursor: 0, epoch: latest.epoch).save(db)
+      }
+      removeDownloadedParts(keeping: [])
+      return
+    }
+
+    let wanted = manifest.entities.filter { entities[$0.entity] != nil }
+    let hashes = Set(wanted.flatMap { $0.parts.map(\.sha256) })
+    // Parts left by an older bootstrap aren't needed any more.
+    removeDownloadedParts(keeping: hashes)
+    let totalParts = hashes.count
+    var downloaded = 0
+    var files: [(entity: String, file: URL)] = []
+    for entity in wanted {
+      for original in entity.parts {
+        let file = partsDirectory.appending(path: "\(original.sha256).ndjson.gz")
+        if !isVerified(file, sha256: original.sha256) {
+          // Use the latest manifest's URL for the part, refreshing it once if it expired.
+          func currentURL() -> String {
+            manifest.entities.first { $0.entity == entity.entity }?
+              .parts.first { $0.sha256 == original.sha256 }?.url ?? original.url
+          }
+          let data: Data
+          do {
+            data = try await download(url: currentURL(), sha256: original.sha256)
+          } catch is SnapshotDownloader.Expired {
+            manifest = try await fetchSnapshot(id: manifest.id)
+            data = try await download(url: currentURL(), sha256: original.sha256)
+          }
+          try FileManager.default.createDirectory(
+            at: partsDirectory, withIntermediateDirectories: true)
+          try data.write(to: file, options: .atomic)
+        }
+        files.append((entity.entity, file))
+        downloaded += 1
+        setStatus(.bootstrapping(downloadedParts: downloaded, totalParts: totalParts))
+      }
+    }
+
+    try await database.write { [entities] db in
+      // Until the load finishes, this client is a new device, which bootstraps again.
+      try SyncState.find(SyncState.singletonID).delete().execute(db)
+      for entity in entities.values { try entity.clear(db) }
+    }
+    for (name, file) in files {
+      guard let entity = entities[name] else { continue }
+      let records: Data
+      do {
+        records = try Gzip.decompress(Data(contentsOf: file))
+      } catch {
+        // A damaged file is downloaded again next time.
+        try? FileManager.default.removeItem(at: file)
+        throw error
+      }
+      let lines = records.split(separator: UInt8(ascii: "\n"))
+      for start in stride(from: 0, to: lines.count, by: Self.loadBatchSize) {
+        let batch = lines[start..<min(start + Self.loadBatchSize, lines.count)]
+        try await database.write { db in
+          for line in batch where !line.isEmpty {
+            do {
+              try entity.loadRecord(Data(line), db)
+            } catch let error as DecodingError {
+              // As when pulling: a record this app can't read mustn't block the rest.
+              reportIssue("Skipped a \(name) record from the snapshot: \(error)")
+            }
+          }
+        }
+      }
+    }
+    try await database.write { [manifest] db in
+      try SyncState(id: SyncState.singletonID, cursor: manifest.seq, epoch: manifest.epoch).save(db)
+    }
+    removeDownloadedParts(keeping: [])
+  }
+
+  /// Whether `file` holds a part with this hash, as downloaded.
+  private func isVerified(_ file: URL, sha256: String) -> Bool {
+    guard let data = try? Data(contentsOf: file) else { return false }
+    return Self.sha256Hex(data) == sha256
+  }
+
+  /// Deletes downloaded parts, except those with the given hashes.
+  private func removeDownloadedParts(keeping hashes: Set<String>) {
+    let files =
+      (try? FileManager.default.contentsOfDirectory(
+        at: partsDirectory, includingPropertiesForKeys: nil)) ?? []
+    for file in files
+    where !hashes.contains(file.lastPathComponent.replacing(".ndjson.gz", with: "")) {
+      try? FileManager.default.removeItem(at: file)
+    }
+  }
+
+  private static func sha256Hex(_ data: Data) -> String {
+    SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+  }
+
+  /// Downloads a part and checks its hash.
+  private func download(url: String, sha256: String) async throws -> Data {
+    guard let url = URL(string: url) else { throw SyncError.unexpectedPage }
+    let data = try await downloader.download(url)
+    guard Self.sha256Hex(data) == sha256 else { throw SyncError.corruptPart }
+    return data
+  }
+
+  private func fetchLatestSnapshot() async throws -> Components.Schemas.LatestSnapshot {
+    switch try await api.syncSnapshot() {
+    case .ok(let ok):
+      return try ok.body.json
+    case .unauthorized:
+      throw SyncError.unauthorized
+    case .serviceUnavailable:
+      throw SyncError.unavailable
+    case .undocumented(let statusCode, _):
+      throw SyncError.unexpectedStatus(statusCode)
+    }
+  }
+
+  private func fetchSnapshot(id: String) async throws -> Components.Schemas.SnapshotManifest {
+    switch try await api.syncSnapshotById(path: .init(id: id)) {
+    case .ok(let ok):
+      return try ok.body.json
+    case .gone:
+      // Replaced and deleted meanwhile: start over with the latest.
+      throw SyncError.needsBootstrap
+    case .unauthorized:
+      throw SyncError.unauthorized
+    case .serviceUnavailable:
+      throw SyncError.unavailable
+    case .undocumented(let statusCode, _):
+      throw SyncError.unexpectedStatus(statusCode)
     }
   }
 
@@ -227,4 +431,6 @@ public enum SyncError: Error, Equatable {
   case missingRow(seq: Int)
   /// The server sent a page that makes no progress or doesn't match its `next`.
   case unexpectedPage
+  /// A downloaded snapshot part doesn't match its hash.
+  case corruptPart
 }
