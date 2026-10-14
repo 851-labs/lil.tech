@@ -13,6 +13,7 @@ let package = Package(
     .library(name: "ContactNames", targets: ["ContactNames"]),
     .library(name: "ConversationListFeature", targets: ["ConversationListFeature"]),
     .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
+    .library(name: "HealthPhoneApp", targets: ["HealthPhoneApp"]),
     .library(name: "LilAPI", targets: ["LilAPI"]),
     .library(name: "LilAuth", targets: ["LilAuth"]),
     .library(name: "LilSync", targets: ["LilSync"]),
@@ -83,6 +84,19 @@ let package = Package(
       name: "HealthCatalogTests",
       dependencies: [
         "HealthCatalog"
+      ]
+    ),
+    .target(
+      name: "HealthPhoneApp",
+      dependencies: [
+        "LilAuth",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+      ]
+    ),
+    .testTarget(
+      name: "HealthPhoneAppTests",
+      dependencies: [
+        "HealthPhoneApp"
       ]
     ),
     .target(

@@ -64,3 +64,32 @@ Pass `--skip-notarize` to test everything except notarization.
    Merge it to `main`. Installed apps pick it up from `raw.githubusercontent.com`.
 
 **Escape the slash in the tag.** Download URLs must spell it as `%2F`, e.g. `releases/download/messages%2Fv0.1.0/...`. GitHub returns 404 for the unescaped form, even though the API reports it.
+
+## lil health on iOS (TestFlight)
+
+The iOS app ships through App Store Connect. Testers get builds through TestFlight. Builds from an archive run on devices, so they talk to prod (`api.lil.tech`).
+
+### One-time setup
+
+1. **App ID and app record.** The App ID `tech.lil.health` needs HealthKit (with background delivery) and Sign in with Apple, which is 851-2538. Create the app in App Store Connect with that bundle ID.
+2. **Upload key.** Uploads use an App Store Connect API key with the App Manager role. Keep its `.p8` in `~/.appstoreconnect/private_keys/`.
+
+### Uploading a build
+
+From the repo root, with a clean tree:
+
+```
+xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS -configuration Release \
+  -destination 'generic/platform=iOS' -skipMacroValidation -allowProvisioningUpdates \
+  -archivePath build/LilHealthiOS.xcarchive \
+  CURRENT_PROJECT_VERSION=$(git rev-list --count HEAD) archive
+
+xcodebuild -exportArchive -archivePath build/LilHealthiOS.xcarchive \
+  -exportOptionsPlist Apps/LilHealthiOS/ExportOptions.plist -allowProvisioningUpdates \
+  -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_XXXXXXXXXX.p8 \
+  -authenticationKeyID XXXXXXXXXX -authenticationKeyIssuerID <issuer-uuid>
+```
+
+- The archive's build number is the commit count, as with the Mac apps. `ExportOptions.plist` keeps Xcode from renumbering it.
+- `ExportOptions.plist` exports for App Store Connect and uploads in the same step.
+- After App Store Connect processes the build, add it to a TestFlight group. Builds for external testers also need Beta App Review.
