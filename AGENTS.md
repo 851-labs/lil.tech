@@ -34,11 +34,13 @@ All visual validation goes through SwiftUI previews rendered with `RenderPreview
 - A UI change comes with previews for each state it affects. Render them, check the snapshots, and attach them to both the PR and the Linear ticket (as a comment).
 - `scripts/contact-sheet <out.png> <columns> <images…>` combines snapshots into one labeled image for the ticket.
 
-## Privacy: Messages data
+## Privacy: user data
 
-This repo is public. lil messages reads `~/Library/Messages/chat.db`, and dev machines with Full Disk Access can read the real file.
+This repo is public. lil messages reads `~/Library/Messages/chat.db`, and dev machines with Full Disk Access can read the real file. lil health reads Apple Health on a developer's iPhone and stores it on our servers.
 
 - **Never** commit `chat.db`, copies of it, or anything extracted from it.
 - Reading the real `chat.db` locally to debug or explore is fine. Just never let its contents end up in commits, PRs, tickets, or other public places.
 - Test fixtures and previews use synthetic data only, e.g. built from hand-written SQL.
 - Before committing, check that no `.db` files or real message content are staged.
+- **Health data** follows the same rules. Never commit, paste or attach real Health data (exports, samples, screenshots of real values, server rows), and never copy it into staging or preview environments.
+- Testing lil health on your own iPhone is fine. Keep that data in your own account, and use synthetic data in tests, previews and tickets.
