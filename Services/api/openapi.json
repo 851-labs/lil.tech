@@ -111,6 +111,58 @@
         }
       }
     },
+    "/v1/auth/google": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authGoogle",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "An access token for API requests and a refresh token to get the next pair",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "InvalidIdentityToken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidIdentityToken"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "GoogleSignInUnavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleSignInUnavailable"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleSignInRequest"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/v1/auth/sign-out": {
       "post": {
         "tags": [
@@ -727,6 +779,24 @@
           "email"
         ]
       },
+      "GoogleSignInUnavailable": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "GoogleSignInUnavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "message"
+        ]
+      },
       "InvalidIdentityToken": {
         "type": "object",
         "properties": {
@@ -772,6 +842,50 @@
           "refreshTokenExpiresAt"
         ]
       },
+      "GoogleSignInRequest": {
+        "type": "object",
+        "properties": {
+          "idToken": {
+            "type": "string",
+            "maxLength": 8192
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          }
+        },
+        "required": [
+          "idToken",
+          "device"
+        ]
+      },
+      "DeviceInfo": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ios",
+              "macos"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "app",
+          "platform"
+        ]
+      },
       "AppleSignInRequest": {
         "type": "object",
         "properties": {
@@ -810,34 +924,6 @@
           "identityToken",
           "nonce",
           "device"
-        ]
-      },
-      "DeviceInfo": {
-        "type": "object",
-        "properties": {
-          "app": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64
-          },
-          "platform": {
-            "type": "string",
-            "enum": [
-              "ios",
-              "macos"
-            ]
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 200
-          }
-        },
-        "required": [
-          "app",
-          "platform"
         ]
       },
       "InvalidRefreshToken": {

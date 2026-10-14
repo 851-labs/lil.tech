@@ -4,6 +4,7 @@ import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
 import { AppleSignIn } from "./auth/Apple.ts";
+import { GoogleSignIn } from "./auth/Google.ts";
 import { Auth } from "./auth/Auth.ts";
 import { ProviderSignIn } from "./auth/ProviderSignIn.ts";
 import { DevSignInRoute } from "./auth/DevSignIn.ts";
@@ -59,6 +60,7 @@ export const AuthHandlers = HttpApiBuilder.group(
   Effect.fn(function* (handlers) {
     const auth = yield* Auth;
     const apple = yield* AppleSignIn;
+    const google = yield* GoogleSignIn;
     const providerSignIn = yield* ProviderSignIn;
     return handlers
       .handle("refresh", ({ payload }) =>
@@ -66,6 +68,19 @@ export const AuthHandlers = HttpApiBuilder.group(
       )
       .handle("apple", ({ payload }) =>
         apple.verify(payload.identityToken, payload.nonce, payload.fullName).pipe(
+          Effect.flatMap((identity) =>
+            providerSignIn
+              .signIn(identity, {
+                app: payload.device.app,
+                platform: payload.device.platform,
+                name: payload.device.name ?? null,
+              })
+              .pipe(Effect.orDie),
+          ),
+        ),
+      )
+      .handle("google", ({ payload }) =>
+        google.verify(payload.idToken).pipe(
           Effect.flatMap((identity) =>
             providerSignIn
               .signIn(identity, {
@@ -186,8 +201,9 @@ const OpenApiRoute = HttpRouter.add(
 /**
  * Every route of the API, with the platform services a Worker can provide: Alchemy's
  * `Http.Platform` stubs file responses and gives `HttpApiBuilder` a no-op `FileSystem`, since
- * Workers have no file system. Needs `Deployment`, `SessionKey`, `AppleKeys`, the core
- * repositories and `UserStores`, and `HealthBatchFiles` and `HealthBatchQueue` per request.
+ * Workers have no file system. Needs `Deployment`, `SessionKey`, `AppleKeys`, `GoogleKeys`,
+ * `GoogleClients`, the core repositories and `UserStores`, and `HealthBatchFiles` and
+ * `HealthBatchQueue` per request.
  */
 export const WorkerHttpLayer = Layer.mergeAll(
   HttpApiBuilder.layer(Api),
@@ -196,7 +212,7 @@ export const WorkerHttpLayer = Layer.mergeAll(
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),
   Layer.provide([AuthorizationLayer, UploadSizeLimitLayer]),
-  Layer.provide([AppleSignIn.layer, ProviderSignIn.layer]),
+  Layer.provide([AppleSignIn.layer, GoogleSignIn.layer, ProviderSignIn.layer]),
   Layer.provide(Auth.layer),
   Layer.provide(AccessTokens.layer),
   Layer.provide(Http.Platform),

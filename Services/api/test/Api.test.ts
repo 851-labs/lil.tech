@@ -18,6 +18,7 @@ import { WorkerHttpLayer } from "../src/Http.ts";
 import { makeOpenApiSpec } from "../src/OpenApiSpec.ts";
 import { makeApiWorkerProps } from "../src/Worker.ts";
 import { appleIdentityToken, TestAppleKeys } from "./auth/TestApple.ts";
+import { googleIdToken, TestGoogleKeys } from "./auth/TestGoogle.ts";
 import { TestAuth } from "./auth/TestAuth.ts";
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./health/TestHealthIngestion.ts";
 import { TestStores, TestUserStores } from "./store/TestUserStores.ts";
@@ -46,7 +47,13 @@ const withApi = <A, E>(
     return yield* use((request) => handler(request, context)).pipe(Effect.provide(context));
   }).pipe(Effect.scoped);
 
-const TestServices = Layer.mergeAll(TestAuth, TestAppleKeys, TestUserStores, TestHealthIngestion);
+const TestServices = Layer.mergeAll(
+  TestAuth,
+  TestAppleKeys,
+  TestGoogleKeys,
+  TestUserStores,
+  TestHealthIngestion,
+);
 
 const send = (handler: Handler, request: Request) =>
   Effect.promise(async () => {
@@ -296,6 +303,33 @@ describe("POST /v1/auth/apple", () => {
         assert.propertyVal(response.body, "_tag", "InvalidIdentityToken");
         const malformed = yield* appleSignIn(handler, { identityToken: "nope", device });
         assert.strictEqual(malformed.status, 400);
+      }),
+    ),
+  );
+});
+
+describe("POST /v1/auth/google", () => {
+  it.live("signs in with a Google ID token", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const idToken = yield* googleIdToken({ sub: "100000000000000000001" });
+        const response = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/auth/google", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ idToken, device: { app: "health-mac", platform: "macos" } }),
+          }),
+        );
+        assert.strictEqual(response.status, 200);
+        const { accessToken } = response.body as { accessToken: string };
+        const me = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/me", { headers: bearer(accessToken) }),
+        );
+        assert.deepInclude(me.body, {
+          identities: [{ provider: "google", email: "ada@example.com" }],
+        });
       }),
     ),
   );

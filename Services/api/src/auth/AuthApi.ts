@@ -85,6 +85,21 @@ export class AppleSignInRequest extends Schema.Class<AppleSignInRequest>(
   device: DeviceInfo,
 }) {}
 
+export class GoogleSignInRequest extends Schema.Class<GoogleSignInRequest>(
+  "lil/api/auth/GoogleSignInRequest",
+)({
+  /** The ID token from Google's native sign-in (PKCE). */
+  idToken: Schema.String.check(Schema.isMaxLength(8192)),
+  device: DeviceInfo,
+}) {}
+
+/** Google sign-in isn't available on this server yet. */
+export class GoogleSignInUnavailable extends Schema.TaggedError<GoogleSignInUnavailable>()(
+  "GoogleSignInUnavailable",
+  { message: Schema.String },
+  { httpApiStatus: 503 },
+) {}
+
 /** A provider's ID token didn't verify. The app signs in with the provider again. */
 export class InvalidIdentityToken extends Schema.TaggedError<InvalidIdentityToken>()(
   "InvalidIdentityToken",
@@ -106,6 +121,15 @@ export class AuthApi extends HttpApiGroup.make("auth")
       payload: AppleSignInRequest,
       success: TokenPair,
       error: InvalidIdentityToken,
+    }),
+  )
+  .add(
+    // Signs in (creating the account on first sign-in) with a Google ID token. Requests only
+    // identity scopes; Gmail and Calendar access goes through connections, not sign-in.
+    HttpApiEndpoint.post("google", "/v1/auth/google", {
+      payload: GoogleSignInRequest,
+      success: TokenPair,
+      error: [InvalidIdentityToken, GoogleSignInUnavailable],
     }),
   )
   .add(

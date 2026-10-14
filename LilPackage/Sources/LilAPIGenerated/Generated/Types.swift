@@ -14,6 +14,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /v1/auth/apple`.
     /// - Remark: Generated from `#/paths//v1/auth/apple/post(authApple)`.
     func authApple(_ input: Operations.AuthApple.Input) async throws -> Operations.AuthApple.Output
+    /// - Remark: HTTP `POST /v1/auth/google`.
+    /// - Remark: Generated from `#/paths//v1/auth/google/post(authGoogle)`.
+    func authGoogle(_ input: Operations.AuthGoogle.Input) async throws -> Operations.AuthGoogle.Output
     /// - Remark: HTTP `POST /v1/auth/sign-out`.
     /// - Remark: Generated from `#/paths//v1/auth/sign-out/post(authSignOut)`.
     func authSignOut(_ input: Operations.AuthSignOut.Input) async throws -> Operations.AuthSignOut.Output
@@ -56,6 +59,17 @@ extension APIProtocol {
         body: Operations.AuthApple.Input.Body
     ) async throws -> Operations.AuthApple.Output {
         try await authApple(Operations.AuthApple.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `POST /v1/auth/google`.
+    /// - Remark: Generated from `#/paths//v1/auth/google/post(authGoogle)`.
+    public func authGoogle(
+        headers: Operations.AuthGoogle.Input.Headers = .init(),
+        body: Operations.AuthGoogle.Input.Body
+    ) async throws -> Operations.AuthGoogle.Output {
+        try await authGoogle(Operations.AuthGoogle.Input(
             headers: headers,
             body: body
         ))

@@ -71,7 +71,7 @@ const AppleClaims = Schema.Struct({
 });
 
 /** `jose` errors that mean the token itself is bad, rather than that verifying it failed. */
-const invalidTokenCodes = new Set([
+export const verificationErrorCodes: ReadonlySet<string> = new Set([
   "ERR_JWT_EXPIRED",
   "ERR_JWT_CLAIM_VALIDATION_FAILED",
   "ERR_JWT_INVALID",
@@ -83,7 +83,7 @@ const invalidTokenCodes = new Set([
   "ERR_JOSE_NOT_SUPPORTED",
 ]);
 
-const joseCode = (error: unknown) =>
+export const joseCode = (error: unknown) =>
   typeof error === "object" && error !== null && "code" in error ? String(error.code) : undefined;
 
 /** Verifies Sign in with Apple identity tokens. */
@@ -140,7 +140,7 @@ export class AppleSignIn extends Context.Service<
                 () => verifyWith(identityToken, true, now),
               ),
               Effect.catchIf(
-                (error) => invalidTokenCodes.has(joseCode(error) ?? ""),
+                (error) => verificationErrorCodes.has(joseCode(error) ?? ""),
                 (error) => invalid(`The Apple identity token isn't valid: ${String(error)}`),
               ),
             );
