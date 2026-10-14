@@ -1,4 +1,4 @@
-import { Config, Context, Effect, Layer } from "effect";
+import { Config, Context, Effect } from "effect";
 import { Environment } from "./Status.ts";
 
 /** Which deployment is serving requests. */
@@ -16,6 +16,10 @@ export class Deployment extends Context.Service<
       version: yield* Config.NonEmptyString("LIL_VERSION"),
     };
   });
-
-  static readonly layerConfig = Layer.effect(Deployment, Deployment.config);
 }
+
+/** The environment an Alchemy stage deploys. `alchemy dev` stages are named `dev_<user>`. */
+export const environmentForStage = (stage: string): Environment => {
+  if (stage === "prod" || stage === "staging") return stage;
+  return stage.startsWith("dev_") ? "local" : "preview";
+};

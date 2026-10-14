@@ -1,9 +1,9 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import { Effect, Layer, Path } from "effect";
-import { Etag, HttpPlatform, HttpRouter } from "effect/http";
-import { Deployment } from "./Deployment.ts";
-import { ApiRoutes } from "./Http.ts";
+import { Effect, Layer } from "effect";
+import { HttpRouter } from "effect/http";
+import { Deployment, environmentForStage } from "./Deployment.ts";
+import { WorkerHttpLayer } from "./Http.ts";
 
 /** Custom domains per stage. Other stages (PR previews, personal stages) use workers.dev. */
 const domains: Partial<Record<string, string>> = {
@@ -11,32 +11,26 @@ const domains: Partial<Record<string, string>> = {
   staging: "api.staging.lil.tech",
 };
 
-// Workers have no file system, so file responses aren't supported. Compression is left to
-// Cloudflare's edge, so the platform advertises no algorithms.
-const HttpPlatformStub = Layer.succeed(HttpPlatform.HttpPlatform, {
-  platform: "web",
-  compression: {
-    algorithms: new Set<HttpPlatform.CompressionAlgorithm>(),
-    compressResponse: (response) => Effect.succeed(response),
-  },
-  fileResponse: () => Effect.die("HttpPlatform.fileResponse isn't supported on Workers"),
-  fileWebResponse: () => Effect.die("HttpPlatform.fileWebResponse isn't supported on Workers"),
-});
-
-export class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
+// Alchemy's Effect Worker entry imports the module's default export.
+export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
   "Api",
+  // Props run only at deploy time, so this is where the deploy's configuration is checked.
   Effect.gen(function* () {
-    const domain = domains[yield* Alchemy.Stage];
+    const stage = yield* Alchemy.Stage;
+    const { environment } = yield* Deployment.config;
+    if (environment !== environmentForStage(stage)) {
+      return yield* Effect.die(
+        `LIL_ENVIRONMENT is "${environment}" but stage "${stage}" expects "${environmentForStage(stage)}"`,
+      );
+    }
+    const domain = domains[stage];
     return { main: import.meta.url, ...(domain === undefined ? {} : { domain }) };
   }),
   Effect.gen(function* () {
     const deployment = yield* Deployment.config;
     return {
       fetch: yield* HttpRouter.toHttpEffect(
-        ApiRoutes.pipe(
-          Layer.provide(Layer.succeed(Deployment, deployment)),
-          Layer.provide([Etag.layer, HttpPlatformStub, Path.layer]),
-        ),
+        WorkerHttpLayer.pipe(Layer.provide(Layer.succeed(Deployment, deployment))),
       ),
     };
   }),
