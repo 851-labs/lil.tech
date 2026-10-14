@@ -40,6 +40,10 @@ const fieldSchemas = {
 /** A record as it travels in the change log: JSON with `id` and `camelCase` fields. */
 export type EntityRow = { readonly id: string } & { readonly [field: string]: Schema.Json };
 
+/** `health_sample` → `HealthSample`. */
+const schemaName = (entity: string) =>
+  entity.replace(/(?:^|_)([a-z0-9])/g, (_, letter: string) => letter.toUpperCase());
+
 /** `startDate` → `start_date`. */
 export const columnName = (field: string) =>
   field.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
@@ -58,6 +62,11 @@ export interface Entity {
     readonly column: string;
     readonly type: Column;
   }>;
+  /**
+   * A whole record as the change log carries it: `id` and every field, `null` where unset.
+   * Published in OpenAPI, named after the entity (`health_sample` → `HealthSample`).
+   */
+  readonly rowSchema: Schema.Top;
   /** Decodes the fields an upsert sets. Any may be missing, since upserts merge. */
   readonly decodeFields: (
     row: unknown,
@@ -85,26 +94,31 @@ export const defineEntity = (
     }
     return { field, column: columnName(field), type };
   });
-  const columns = fields.map(({ column }) => column);
+  const columns = fields.map(({ column }) => `"${column}"`);
+  const fieldSchema = (type: Column) => {
+    const schema = fieldSchemas[type.type];
+    return type.nullable ? Schema.NullOr(schema) : schema;
+  };
   const fieldsSchema = Schema.Struct(
     Object.fromEntries(
-      fields.map(({ field, type }) => {
-        const schema = fieldSchemas[type.type];
-        return [field, Schema.optionalKey(type.nullable ? Schema.NullOr(schema) : schema)];
-      }),
+      fields.map(({ field, type }) => [field, Schema.optionalKey(fieldSchema(type))]),
     ),
   );
   return {
     name,
     clientWritable: options.clientWritable,
     fields,
+    rowSchema: Schema.Struct({
+      id: Schema.String,
+      ...Object.fromEntries(fields.map(({ field, type }) => [field, fieldSchema(type)])),
+    }).annotate({ identifier: `lil/api/sync/${schemaName(name)}` }),
     decodeFields: Schema.decodeUnknownResult(fieldsSchema) as Entity["decodeFields"],
     statements: {
-      select: `SELECT ${["id", ...columns].join(", ")} FROM ${name} WHERE id = ?`,
-      upsert: `INSERT INTO ${name} (${["id", ...columns].join(", ")})
+      select: `SELECT ${["id", ...columns].join(", ")} FROM "${name}" WHERE id = ?`,
+      upsert: `INSERT INTO "${name}" (${["id", ...columns].join(", ")})
         VALUES (${["?", ...columns.map(() => "?")].join(", ")})
         ON CONFLICT (id) DO UPDATE SET ${columns.map((column) => `${column} = excluded.${column}`).join(", ")}`,
-      delete: `DELETE FROM ${name} WHERE id = ? RETURNING id`,
+      delete: `DELETE FROM "${name}" WHERE id = ? RETURNING id`,
     },
   };
 };
@@ -112,9 +126,9 @@ export const defineEntity = (
 /** The `CREATE TABLE` statement for an entity's first migration. */
 export const createEntityTable = (entity: Entity) => {
   const columns = entity.fields.map(
-    ({ column, type }) => `${column} ${sqlTypes[type.type]}${type.nullable ? "" : " NOT NULL"}`,
+    ({ column, type }) => `"${column}" ${sqlTypes[type.type]}${type.nullable ? "" : " NOT NULL"}`,
   );
-  return `CREATE TABLE ${entity.name} (id TEXT PRIMARY KEY, ${columns.join(", ")}) STRICT;`;
+  return `CREATE TABLE "${entity.name}" (id TEXT PRIMARY KEY, ${columns.join(", ")}) STRICT;`;
 };
 
 /** JSON with object keys sorted, so equal values are stored identically. */
@@ -140,9 +154,3 @@ export const fromColumnValue = (type: Column, value: SqlValue | undefined): Sche
   if (type.type === "json") return JSON.parse(value as string) as Schema.Json;
   return value as Schema.Json;
 };
-
-/**
- * Every entity the store holds. Adding one also needs a store migration that creates its table
- * (`createEntityTable`); a test checks they match.
- */
-export const entities: ReadonlyArray<Entity> = [];

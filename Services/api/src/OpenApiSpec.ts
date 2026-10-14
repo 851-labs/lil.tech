@@ -1,5 +1,7 @@
+import { Schema } from "effect";
 import { type HttpApi, type HttpApiGroup, OpenApi } from "effect/http-api";
 import { Api } from "./Api.ts";
+import { entities } from "./store/Registry.ts";
 
 /**
  * Generates the API's OpenAPI spec, which `scripts/openapi.ts` commits as `openapi.json`.
@@ -25,20 +27,40 @@ export const makeOpenApiSpec = <Id extends string, Groups extends HttpApiGroup.C
   api: HttpApi.HttpApi<Id, Groups> = Api as unknown as HttpApi.HttpApi<Id, Groups>,
 ) => {
   const owners = new Map<string, string>();
+  const name = (identifier: string) => {
+    const source = identifier.replace(/Encoded$/, "");
+    const short = source.split("/").at(-1) ?? source;
+    const owner = owners.get(short);
+    if (owner !== undefined && owner !== source) {
+      throw new Error(`OpenAPI schema name "${short}" is used by both ${owner} and ${source}`);
+    }
+    owners.set(short, source);
+    return short;
+  };
   const spec = OpenApi.fromApi(api, {
-    referencePolicy: ({ identifier }) => {
-      if (identifier === undefined) return undefined;
-      const source = identifier.replace(/Encoded$/, "");
-      const name = source.split("/").at(-1) ?? source;
-      const owner = owners.get(name);
-      if (owner !== undefined && owner !== source) {
-        throw new Error(`OpenAPI schema name "${name}" is used by both ${owner} and ${source}`);
-      }
-      owners.set(name, source);
-      return name;
-    },
+    referencePolicy: ({ identifier }) => (identifier === undefined ? undefined : name(identifier)),
   });
-  return normalize(spec);
+  return normalize(withEntitySchemas(spec, name));
+};
+
+/**
+ * Adds each store entity's row schema (`Entity.rowSchema`) to the spec's components, so clients
+ * get types for the `row` of a change. Change rows themselves are untyped JSON in the spec.
+ */
+const withEntitySchemas = <S extends { components: { schemas: Record<string, unknown> } }>(
+  spec: S,
+  name: (identifier: string) => string,
+): S => {
+  const schemas = { ...spec.components.schemas };
+  for (const entity of entities) {
+    const document = Schema.toJsonSchemaDocument(entity.rowSchema);
+    const [identifier, ...others] = Object.keys(document.definitions);
+    if (identifier === undefined || others.length > 0) {
+      throw new Error(`Entity ${entity.name}'s row schema must be one named, flat schema`);
+    }
+    schemas[name(identifier)] = document.definitions[identifier];
+  }
+  return { ...spec, components: { ...spec.components, schemas } };
 };
 
 const isNullSchema = (schema: unknown) =>
@@ -61,15 +83,19 @@ const normalize = <A>(value: A): A => {
     const [schema, ...rest] = anyOf.filter((option) => !isNullSchema(option)) as Array<
       Record<string, unknown> | undefined
     >;
+    const { anyOf: _any, ...outer } = object;
+    // `{}` is any JSON value, null included.
+    if (rest.length === 0 && schema !== undefined && Object.keys(schema).length === 0) {
+      return outer as A;
+    }
     const type = schema?.["type"];
     if (rest.length > 0 || typeof type !== "string" || schema?.["const"] !== undefined) {
       throw new Error(`Unsupported nullable schema: ${JSON.stringify(object)}`);
     }
-    const { anyOf: _, ...others } = object;
     const values = schema?.["enum"];
     return {
       ...schema,
-      ...others,
+      ...outer,
       type: [type, "null"],
       ...(Array.isArray(values) ? { enum: [...values, null] } : {}),
     } as A;

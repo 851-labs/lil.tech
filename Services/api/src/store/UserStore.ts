@@ -2,8 +2,9 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import { Clock, Effect } from "effect";
 import { applyMutations, readChanges } from "./ChangeLog.ts";
 import { ChangesCompacted, InvalidMutation, type Mutation } from "./Changes.ts";
-import { type Entity, entities } from "./Entities.ts";
+import type { Entity } from "./Entities.ts";
 import { migrate, schemaVersion } from "./Migrations.ts";
+import { entities } from "./Registry.ts";
 import { fromDurableObjectStorage, type StoreSql } from "./StoreSql.ts";
 
 /**

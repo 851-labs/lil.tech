@@ -2,13 +2,8 @@ import { assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
 import { applyMutations, readChanges, readHead } from "../../src/store/ChangeLog.ts";
 import type { Mutation } from "../../src/store/Changes.ts";
-import {
-  Column,
-  columnName,
-  createEntityTable,
-  defineEntity,
-  entities,
-} from "../../src/store/Entities.ts";
+import { entities } from "../../src/store/Registry.ts";
+import { Column, columnName, createEntityTable, defineEntity } from "../../src/store/Entities.ts";
 import type { StoreSql } from "../../src/store/StoreSql.ts";
 import { makeUserStore } from "../../src/store/UserStore.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
@@ -287,7 +282,7 @@ describe("entities", () => {
     assert.strictEqual(columnName("startDate"), "start_date");
     assert.strictEqual(
       createEntityTable(note),
-      "CREATE TABLE test_note (id TEXT PRIMARY KEY, title TEXT NOT NULL, pinned INTEGER NOT NULL, score REAL, tags TEXT NOT NULL, created_at INTEGER NOT NULL) STRICT;",
+      'CREATE TABLE "test_note" (id TEXT PRIMARY KEY, "title" TEXT NOT NULL, "pinned" INTEGER NOT NULL, "score" REAL, "tags" TEXT NOT NULL, "created_at" INTEGER NOT NULL) STRICT;',
     );
   });
 
