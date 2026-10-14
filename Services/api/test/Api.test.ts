@@ -1,8 +1,10 @@
 import { assert, describe, it } from "@effect/vitest";
-import { ConfigProvider, Effect, Layer } from "effect";
+import * as Alchemy from "alchemy";
+import { ConfigProvider, Effect, Exit, Layer } from "effect";
 import { HttpRouter } from "effect/http";
 import { Deployment, environmentForStage } from "../src/Deployment.ts";
 import { WorkerHttpLayer } from "../src/Http.ts";
+import { apiWorkerProps } from "../src/Worker.ts";
 
 describe("WorkerHttpLayer", () => {
   // The same layer the Worker serves, driven with real Requests.
@@ -86,4 +88,37 @@ describe("environmentForStage", () => {
     assert.strictEqual(environmentForStage("live_tuftlord"), "preview");
     assert.strictEqual(environmentForStage("dev_tuftlord"), "local");
   });
+});
+
+describe("apiWorkerProps", () => {
+  const withEnv = (env: Record<string, string>) =>
+    Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnvRecord(env)));
+
+  it.effect("runs without a Stage, as it does inside the deployed Worker", () =>
+    Effect.gen(function* () {
+      const props = yield* apiWorkerProps;
+      assert.isUndefined((props as { domain?: string }).domain);
+    }),
+  );
+
+  it.effect("picks the custom domain for the stage at deploy time", () =>
+    Effect.gen(function* () {
+      const props = yield* apiWorkerProps.pipe(
+        Effect.provideService(Alchemy.Stage, "staging"),
+        withEnv({ LIL_ENVIRONMENT: "staging", LIL_VERSION: "45aa829" }),
+      );
+      assert.strictEqual((props as { domain?: string }).domain, "api.staging.lil.tech");
+    }),
+  );
+
+  it.effect("refuses an environment that doesn't match the stage", () =>
+    Effect.gen(function* () {
+      const exit = yield* apiWorkerProps.pipe(
+        Effect.provideService(Alchemy.Stage, "prod"),
+        withEnv({ LIL_ENVIRONMENT: "staging", LIL_VERSION: "45aa829" }),
+        Effect.exit,
+      );
+      assert.isTrue(Exit.isFailure(exit));
+    }),
+  );
 });
