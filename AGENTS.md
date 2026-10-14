@@ -58,6 +58,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - **CI** (`.github/workflows/services.yml`) runs on changes to `Services/`:
   - Pull requests are checked (`vp check`, tests, OpenAPI freshness) and deployed to a preview stage, `pr-<number>`, on workers.dev. A PR comment links the preview.
   - Closing a PR destroys its preview.
+  - To try a preview as a signed-in user, `POST /v1/auth/dev` (optionally with `{"displayName": "…"}`) creates a synthetic user and returns tokens. The route only exists in the `preview` environment (PR previews, and personal stages from `vp run deploy`, named `live_<user>`) and the `local` one (`alchemy dev`, `dev_<user>`). Each stage allows at most 1,000 users.
   - Merging to `main` deploys staging, then prod, and `scripts/check-deploy` waits until each serves the new commit.
   - CI authenticates with the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets (token "lil.tech CI (Alchemy deploys)": account 851, zone `lil.tech`).
   - Previews run PR code with that deploy token, and Cloudflare can't limit `Workers Scripts:Edit` to particular Workers. Only branches pushed to this repo get previews (fork PRs get no secrets), so only give push access to people you'd trust with prod.

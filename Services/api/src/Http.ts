@@ -4,6 +4,7 @@ import { HttpRouter, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
 import { Auth } from "./auth/Auth.ts";
+import { DevSignInRoute } from "./auth/DevSignIn.ts";
 import { Authorization, CurrentSession, Me, MeIdentity, Unauthorized } from "./auth/AuthApi.ts";
 import { AccessTokens } from "./auth/Tokens.ts";
 import { Identities } from "./core/Identities.ts";
@@ -115,7 +116,11 @@ const OpenApiRoute = HttpRouter.add(
  * Workers have no file system. Needs `Deployment`, `SessionKey`, the core repositories and
  * `UserStores`.
  */
-export const WorkerHttpLayer = Layer.mergeAll(HttpApiBuilder.layer(Api), OpenApiRoute).pipe(
+export const WorkerHttpLayer = Layer.mergeAll(
+  HttpApiBuilder.layer(Api),
+  OpenApiRoute,
+  DevSignInRoute,
+).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers]),
   Layer.provide(AuthorizationLayer),
   Layer.provide(Auth.layer),
