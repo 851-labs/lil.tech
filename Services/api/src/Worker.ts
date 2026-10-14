@@ -7,6 +7,8 @@ import { SessionKey } from "./auth/Tokens.ts";
 import { CoreDatabase, CoreRepositories } from "./core/CoreDatabase.ts";
 import { Deployment, environmentForStage } from "./Deployment.ts";
 import { WorkerHttpLayer } from "./Http.ts";
+import { UserStore } from "./store/UserStore.ts";
+import { UserStores } from "./store/UserStores.ts";
 
 /** Custom domains per stage. Other stages (PR previews, personal stages) use workers.dev. */
 const domains: Partial<Record<string, string>> = {
@@ -63,11 +65,13 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
     const deployment = yield* Deployment.config;
     const key = yield* readSessionKey;
     const core = yield* Cloudflare.D1.QueryDatabase(CoreDatabase);
+    const userStores = yield* UserStore;
     return {
       fetch: yield* HttpRouter.toHttpEffect(
         WorkerHttpLayer.pipe(
           Layer.provide(Layer.succeed(Deployment, deployment)),
           Layer.provide(Layer.succeed(SessionKey, key)),
+          Layer.provide(Layer.succeed(UserStores, UserStores.fromNamespace(userStores))),
           Layer.provide(CoreRepositories.pipe(Layer.provideMerge(SQL.D1Layer(core)))),
         ),
       ),
