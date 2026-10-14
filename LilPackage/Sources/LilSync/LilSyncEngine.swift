@@ -1,5 +1,6 @@
+import CryptoKit
 import Dependencies
-import Foundation
+public import Foundation
 import IssueReporting
 import LilAPI
 import SQLiteData
@@ -9,6 +10,8 @@ public enum SyncStatus: Equatable, Sendable {
   case idle
   /// Catching up. `cursor` and `head` give progress.
   case syncing(cursor: Int, head: Int)
+  /// Loading a snapshot (`docs/SYNC.md`): parts downloaded so far, of how many.
+  case bootstrapping(downloadedParts: Int, totalParts: Int)
   /// The last pull failed. Sync retries with backoff.
   case failed(String)
   /// The local data is from another epoch (or the server went back in time, or the changes after
@@ -31,6 +34,10 @@ public actor LilSyncEngine {
   private let api: any APIProtocol
   private let clock: any Clock<Duration>
   private let random: WithRandomNumberGenerator
+  private let downloader: SnapshotDownloader
+  /// Where downloaded snapshot parts are kept until they're loaded, by SHA-256, so an
+  /// interrupted bootstrap doesn't download them again.
+  private let partsDirectory: URL
 
   private var status = SyncStatus.idle
   private var observers: [UUID: AsyncStream<SyncStatus>.Continuation] = [:]
@@ -38,11 +45,19 @@ public actor LilSyncEngine {
   private var syncRequested = false
   private var wake: CheckedContinuation<Void, Never>?
 
-  public init(entities: [SyncEntity]) {
+  /// - Parameters:
+  ///   - partsDirectory: Where to keep downloaded snapshot parts until they're loaded. Defaults
+  ///     to a folder in the user's caches.
+  public init(entities: [SyncEntity], partsDirectory: URL? = nil) {
     @Dependency(\.defaultDatabase) var database
     @Dependency(\.api) var api
     @Dependency(\.continuousClock) var clock
     @Dependency(\.withRandomNumberGenerator) var random
+    @Dependency(\.snapshotDownloader) var downloader
+    self.downloader = downloader
+    self.partsDirectory =
+      partsDirectory
+      ?? URL.cachesDirectory.appending(path: "LilSync/SnapshotParts", directoryHint: .isDirectory)
     self.entities = Dictionary(
       entities.map { ($0.name, $0) },
       uniquingKeysWith: { first, _ in
@@ -85,8 +100,17 @@ public actor LilSyncEngine {
         // Cancellation can come back wrapped, e.g. as a client error around `URLError.cancelled`.
         if Task.isCancelled { return }
         if error as? SyncError == .needsBootstrap {
-          setStatus(.needsBootstrap)
-          delay = Self.idleInterval
+          // Start over from a snapshot, then pull right away.
+          do {
+            try await bootstrap()
+            failures = 0
+            continue
+          } catch {
+            if Task.isCancelled { return }
+            failures += 1
+            setStatus(.failed(String(describing: error)))
+            delay = backoff(afterFailures: failures)
+          }
         } else {
           failures += 1
           setStatus(.failed(String(describing: error)))
@@ -110,6 +134,8 @@ public actor LilSyncEngine {
     while true {
       try Task.checkCancellation()
       let state = try await database.read { try SyncState.fetch($0) }
+      // A new device starts from a snapshot rather than replaying the whole log.
+      if state.epoch == nil, state.cursor == 0 { throw SyncError.needsBootstrap }
       let page = try await fetchPage(after: state.cursor)
       if let epoch = state.epoch, epoch != page.epoch { throw SyncError.needsBootstrap }
       if state.cursor > page.head { throw SyncError.needsBootstrap }
@@ -142,6 +168,105 @@ public actor LilSyncEngine {
         return
       }
       setStatus(.syncing(cursor: page.next, head: page.head))
+    }
+  }
+
+  /// Replaces the local data with the latest snapshot (`docs/SYNC.md`): downloads and checks
+  /// every part of the registered entities, then, in one transaction, clears their tables, loads
+  /// the parts and sets the cursor to the snapshot's `seq`. Parts already downloaded are kept on
+  /// disk, so an interrupted bootstrap resumes. If the store has no snapshot yet, the local data
+  /// is cleared and the whole log is pulled.
+  public func bootstrap() async throws {
+    setStatus(.bootstrapping(downloadedParts: 0, totalParts: 0))
+    let latest = try await fetchLatestSnapshot()
+    guard var manifest = latest.snapshot else {
+      try await database.write { [entities] db in
+        for entity in entities.values { try entity.clear(db) }
+        try SyncState(id: SyncState.singletonID, cursor: 0, epoch: latest.epoch).save(db)
+      }
+      return
+    }
+
+    let wanted = manifest.entities.filter { entities[$0.entity] != nil }
+    let totalParts = wanted.reduce(0) { $0 + $1.parts.count }
+    var files: [(entity: String, file: URL)] = []
+    for (entityIndex, entity) in wanted.enumerated() {
+      for partIndex in entity.parts.indices {
+        var part = entity.parts[partIndex]
+        let file = partsDirectory.appending(path: "\(part.sha256).ndjson.gz")
+        if !FileManager.default.fileExists(atPath: file.path()) {
+          let data: Data
+          do {
+            data = try await download(part)
+          } catch is SnapshotDownloader.Expired {
+            // The URLs expired midway: get fresh ones for the same snapshot.
+            manifest = try await fetchSnapshot(id: manifest.id)
+            guard
+              let refreshed = manifest.entities.first(where: { $0.entity == entity.entity })?
+                .parts.first(where: { $0.sha256 == part.sha256 })
+            else { throw SyncError.needsBootstrap }
+            part = refreshed
+            data = try await download(part)
+          }
+          try FileManager.default.createDirectory(
+            at: partsDirectory, withIntermediateDirectories: true)
+          try data.write(to: file, options: .atomic)
+        }
+        files.append((entity.entity, file))
+        let done = wanted[..<entityIndex].reduce(0) { $0 + $1.parts.count } + partIndex + 1
+        setStatus(.bootstrapping(downloadedParts: done, totalParts: totalParts))
+      }
+    }
+
+    try await database.write { [entities, manifest, files] db in
+      for entity in entities.values { try entity.clear(db) }
+      for (name, file) in files {
+        guard let entity = entities[name] else { continue }
+        let records = try Gzip.decompress(Data(contentsOf: file))
+        for line in records.split(separator: UInt8(ascii: "\n")) where !line.isEmpty {
+          try entity.loadRecord(Data(line), db)
+        }
+      }
+      try SyncState(id: SyncState.singletonID, cursor: manifest.seq, epoch: manifest.epoch).save(db)
+    }
+    for (_, file) in files { try? FileManager.default.removeItem(at: file) }
+  }
+
+  /// Downloads a part and checks its hash.
+  private func download(_ part: Components.Schemas.SnapshotPart) async throws -> Data {
+    guard let url = URL(string: part.url) else { throw SyncError.unexpectedPage }
+    let data = try await downloader.download(url)
+    let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    guard hash == part.sha256 else { throw SyncError.corruptPart }
+    return data
+  }
+
+  private func fetchLatestSnapshot() async throws -> Components.Schemas.LatestSnapshot {
+    switch try await api.syncSnapshot() {
+    case .ok(let ok):
+      return try ok.body.json
+    case .unauthorized:
+      throw SyncError.unauthorized
+    case .serviceUnavailable:
+      throw SyncError.unavailable
+    case .undocumented(let statusCode, _):
+      throw SyncError.unexpectedStatus(statusCode)
+    }
+  }
+
+  private func fetchSnapshot(id: String) async throws -> Components.Schemas.SnapshotManifest {
+    switch try await api.syncSnapshotById(path: .init(id: id)) {
+    case .ok(let ok):
+      return try ok.body.json
+    case .gone:
+      // Replaced and deleted meanwhile: start over with the latest.
+      throw SyncError.needsBootstrap
+    case .unauthorized:
+      throw SyncError.unauthorized
+    case .serviceUnavailable:
+      throw SyncError.unavailable
+    case .undocumented(let statusCode, _):
+      throw SyncError.unexpectedStatus(statusCode)
     }
   }
 
@@ -227,4 +352,6 @@ public enum SyncError: Error, Equatable {
   case missingRow(seq: Int)
   /// The server sent a page that makes no progress or doesn't match its `next`.
   case unexpectedPage
+  /// A downloaded snapshot part doesn't match its hash.
+  case corruptPart
 }

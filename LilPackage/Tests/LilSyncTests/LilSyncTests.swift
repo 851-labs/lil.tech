@@ -1,12 +1,14 @@
+import CryptoKit
 import Dependencies
 import DependenciesTestSupport
 import Foundation
 import HTTPTypes
 import LilAPI
-import LilSync
 import OpenAPIRuntime
 import SQLiteData
 import Testing
+
+@testable import LilSync
 
 @Table("note")
 struct Note: Equatable {
@@ -27,10 +29,14 @@ private let notes = SyncEntity.decoding(
   },
   delete: { id, db in
     try Note.find(id).delete().execute(db)
+  },
+  clear: { db in
+    try Note.delete().execute(db)
   }
 )
 
-private func makeDatabase() throws -> any DatabaseWriter {
+/// A database for a client that already started on epoch 1 (`bootstrapped`), or a new one.
+private func makeDatabase(bootstrapped: Bool = true) throws -> any DatabaseWriter {
   let database = try DatabaseQueue()
   var migrator = DatabaseMigrator()
   LilSyncEngine.registerMigrations(in: &migrator)
@@ -39,6 +45,11 @@ private func makeDatabase() throws -> any DatabaseWriter {
       .execute(db)
   }
   try migrator.migrate(database)
+  if bootstrapped {
+    try database.write { db in
+      try #sql("INSERT INTO lilSyncState (id, cursor, epoch) VALUES (1, 0, 1)").execute(db)
+    }
+  }
   return database
 }
 
@@ -53,8 +64,60 @@ private final class FakeServer: Sendable {
     /// Answer with an empty page that claims there's more, like a broken server.
     var stuck = false
     var requests: [Int] = []
+    /// The store's latest snapshot: its manifest and each part's bytes by URL.
+    var snapshot: Components.Schemas.SnapshotManifest?
+    var partBytes: [String: Data] = [:]
+    /// URLs that answer as expired; `GET /v1/sync/snapshots/{id}` hands out fresh ones.
+    var expiredURLs: Set<String> = []
+    /// URLs whose next download fails as a dropped connection.
+    var interrupted: Set<String> = []
+    var downloads: [String] = []
+    var snapshotRequests = 0
   }
   let state = LockIsolated(State())
+
+  /// Publishes a snapshot of `notes` as of `seq`, `perPart` records per part.
+  func publishSnapshot(id: String = "snp_1", seq: Int, notes: [Note], perPart: Int = 2) throws {
+    var parts: [Components.Schemas.SnapshotPart] = []
+    var bytes: [String: Data] = [:]
+    for (index, start) in stride(from: 0, to: notes.count, by: perPart).enumerated() {
+      let lines = notes[start..<min(start + perPart, notes.count)]
+        .map { #"{"id":"\#($0.id)","title":"\#($0.title)"}"# }
+        .joined(separator: "\n")
+      let gzip = try Gzip.compress(Data(lines.utf8))
+      let url = "https://api.test/v1/sync/parts?token=\(id)-\(index)"
+      bytes[url] = gzip
+      let sha = SHA256.hash(data: gzip).map { String(format: "%02x", $0) }.joined()
+      parts.append(
+        .init(url: url, records: lines.split(separator: "\n").count, bytes: gzip.count, sha256: sha)
+      )
+    }
+    let (finalParts, finalBytes) = (parts, bytes)
+    state.withValue {
+      $0.snapshot = .init(
+        id: id, seq: seq, epoch: $0.epoch, createdAt: 0,
+        entities: [
+          .init(entity: "note", parts: finalParts), .init(entity: "unknown_entity", parts: []),
+        ])
+      $0.partBytes = finalBytes
+    }
+  }
+
+  var downloader: SnapshotDownloader {
+    SnapshotDownloader { [self] url in
+      try state.withValue { state in
+        state.downloads.append(url.absoluteString)
+        if state.expiredURLs.contains(url.absoluteString) { throw SnapshotDownloader.Expired() }
+        if state.interrupted.remove(url.absoluteString) != nil {
+          throw URLError(.networkConnectionLost)
+        }
+        guard let data = state.partBytes[url.absoluteString] else {
+          throw SnapshotDownloader.Failed(statusCode: 404)
+        }
+        return data
+      }
+    }
+  }
   let pageSize = 2
 
   func append(_ change: (_ seq: Int) -> Components.Schemas.Change) {
@@ -65,6 +128,34 @@ private final class FakeServer: Sendable {
 
   var client: Client {
     .mock { [self] request, _ in
+      let path = request.path ?? ""
+      if path.hasPrefix("/v1/sync/snapshot") {
+        return try state.withValue { state in
+          state.snapshotRequests += 1
+          if path == "/v1/sync/snapshot" {
+            return try json(
+              .ok, Components.Schemas.LatestSnapshot(epoch: state.epoch, snapshot: state.snapshot))
+          }
+          guard var snapshot = state.snapshot, path.hasSuffix("/\(snapshot.id)") else {
+            return try json(.gone, ["_tag": "SnapshotGone", "id": "x"])
+          }
+          // Fresh URLs for the same parts.
+          var fresh: [String: Data] = [:]
+          snapshot.entities = snapshot.entities.map { entity in
+            var entity = entity
+            entity.parts = entity.parts.map { part in
+              var part = part
+              let url = part.url + "&fresh"
+              fresh[url] = state.partBytes[part.url]
+              part.url = url
+              return part
+            }
+            return entity
+          }
+          state.partBytes.merge(fresh) { _, new in new }
+          return try json(.ok, snapshot)
+        }
+      }
       let after =
         Int(
           URLComponents(string: request.path ?? "")?.queryItems?
@@ -194,7 +285,8 @@ struct LilSyncEngineTests {
         if id == "n4" { throw Broken() }
         try notes.upsertForTesting(id, row, db)
       },
-      delete: { _, _ in }
+      delete: { _, _ in },
+      clear: { _ in }
     )
 
     let engine = engine(entities: [failing])
@@ -234,7 +326,7 @@ struct LilSyncEngineTests {
     server.state.withValue { $0.horizon = 1 }
     await #expect(throws: SyncError.needsBootstrap) { try await engine().pull() }
 
-    let caughtUp = try makeDatabase()
+    let caughtUp = try makeDatabase(bootstrapped: false)
     try await caughtUp.write { db in
       try #sql("INSERT INTO lilSyncState (id, cursor, epoch) VALUES (1, 10, 1)").execute(db)
     }
@@ -352,6 +444,147 @@ struct LilSyncEngineTests {
   }
 }
 
+@Suite
+struct LilSyncBootstrapTests {
+  fileprivate let server = FakeServer()
+  let partsDirectory = URL.temporaryDirectory.appending(path: "lilsync-\(UUID().uuidString)")
+
+  private func engine(database: any DatabaseWriter) -> LilSyncEngine {
+    withDependencies {
+      $0.defaultDatabase = database
+      $0.api = server.client
+      $0.snapshotDownloader = server.downloader
+      $0.continuousClock = ImmediateClock()
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+    } operation: {
+      LilSyncEngine(entities: [notes], partsDirectory: partsDirectory)
+    }
+  }
+
+  private func storedNotes(_ database: any DatabaseWriter) throws -> [Note] {
+    try database.read { try Note.order(by: \.id).fetchAll($0) }
+  }
+
+  private func state(_ database: any DatabaseWriter) throws -> [Int?] {
+    try database.read { db in
+      let row = try #sql("SELECT cursor, epoch FROM lilSyncState", as: (Int, Int?).self).fetchOne(
+        db)
+      return [row?.0, row?.1 ?? nil]
+    }
+  }
+
+  @Test
+  func aNewDeviceStartsFromTheSnapshotThenPullsTheChangesAfterIt() async throws {
+    let notesAtSnapshot = ["a", "b", "c", "d", "e"].map { Note(id: $0, title: "Note \($0)") }
+    for note in notesAtSnapshot { server.append(upsert(note.id, note.title)) }
+    try server.publishSnapshot(seq: 5, notes: notesAtSnapshot)
+    server.append(upsert("f", "Note f"))
+    server.append(delete("a"))
+    let database = try makeDatabase(bootstrapped: false)
+
+    let engine = engine(database: database)
+    await #expect(throws: SyncError.needsBootstrap) { try await engine.pull() }
+    try await engine.bootstrap()
+    #expect(try state(database) == [5, 1])
+    try await engine.pull()
+
+    #expect(try storedNotes(database).map(\.id) == ["b", "c", "d", "e", "f"])
+    #expect(try state(database) == [7, 1])
+    // The log before the snapshot was never pulled, and parts aren't kept after loading.
+    #expect(server.state.requests == [5])
+    #expect(server.state.downloads.count == 3)
+    #expect(
+      (try? FileManager.default.contentsOfDirectory(atPath: partsDirectory.path()))?.isEmpty ?? true
+    )
+  }
+
+  @Test
+  func anInterruptedBootstrapResumesWithoutDownloadingPartsAgain() async throws {
+    let all = (1...6).map { Note(id: "n\($0)", title: "Note \($0)") }
+    try server.publishSnapshot(seq: 6, notes: all)
+    let urls = server.state.value.snapshot?.entities[0].parts.map(\.url) ?? []
+    server.state.withValue { $0.interrupted = [urls[1]] }
+    let database = try makeDatabase(bootstrapped: false)
+    let engine = engine(database: database)
+
+    await #expect(throws: URLError.self) { try await engine.bootstrap() }
+    // Nothing was loaded: the local data and cursor change together, at the end.
+    #expect(try storedNotes(database).isEmpty)
+    #expect(try state(database) == [nil, nil])
+
+    try await engine.bootstrap()
+    #expect(try storedNotes(database).count == 6)
+    // The first part came from disk the second time.
+    #expect(server.state.downloads == [urls[0], urls[1], urls[1], urls[2]])
+  }
+
+  @Test
+  func expiredPartURLsAreRefreshedForTheSameSnapshot() async throws {
+    let all = (1...4).map { Note(id: "n\($0)", title: "Note \($0)") }
+    try server.publishSnapshot(seq: 4, notes: all)
+    let urls = server.state.value.snapshot?.entities[0].parts.map(\.url) ?? []
+    server.state.withValue { $0.expiredURLs = Set(urls) }
+    let database = try makeDatabase(bootstrapped: false)
+
+    try await engine(database: database).bootstrap()
+    #expect(try storedNotes(database).count == 4)
+    #expect(server.state.value.downloads.contains(urls[0] + "&fresh"))
+  }
+
+  @Test
+  func aCorruptPartIsntLoaded() async throws {
+    try server.publishSnapshot(
+      seq: 2, notes: [Note(id: "a", title: "A"), Note(id: "b", title: "B")])
+    server.state.withValue { state in
+      for key in state.partBytes.keys { state.partBytes[key] = try! Gzip.compress(Data("{}".utf8)) }
+    }
+    let database = try makeDatabase(bootstrapped: false)
+    await #expect(throws: SyncError.corruptPart) {
+      try await engine(database: database).bootstrap()
+    }
+    #expect(try storedNotes(database).isEmpty)
+  }
+
+  @Test
+  func aNewEpochReplacesTheLocalData() async throws {
+    server.append(upsert("old", "From epoch 1"))
+    let database = try makeDatabase(bootstrapped: false)
+    let engine = engine(database: database)
+    // No snapshot yet: the whole log is pulled.
+    try await engine.bootstrap()
+    try await engine.pull()
+    #expect(try storedNotes(database).map(\.id) == ["old"])
+
+    server.state.withValue { $0.epoch = 2 }
+    try server.publishSnapshot(id: "snp_2", seq: 1, notes: [Note(id: "new", title: "From epoch 2")])
+    await #expect(throws: SyncError.needsBootstrap) { try await engine.pull() }
+    try await engine.bootstrap()
+    #expect(try storedNotes(database).map(\.id) == ["new"])
+    #expect(try state(database) == [1, 2])
+  }
+
+  @Test
+  func runBootstrapsANewDeviceAndReportsProgress() async throws {
+    let all = (1...4).map { Note(id: "n\($0)", title: "\($0)") }
+    for note in all { server.append(upsert(note.id, note.title)) }
+    try server.publishSnapshot(seq: 4, notes: all)
+    let database = try makeDatabase(bootstrapped: false)
+    let engine = engine(database: database)
+    let statuses = LockIsolated<[SyncStatus]>([])
+    let updates = await engine.statusUpdates()
+    let observing = Task {
+      for await status in updates { statuses.withValue { $0.append(status) } }
+    }
+    let running = Task { await engine.run() }
+    try await eventually { try storedNotes(database).count == 4 }
+    try await eventually { statuses.value.last == .idle }
+    running.cancel()
+    await running.value
+    observing.cancel()
+    #expect(statuses.value.contains(.bootstrapping(downloadedParts: 2, totalParts: 2)))
+  }
+}
+
 /// Waits for `condition`, which other tasks make true, yielding in between.
 private func eventually(
   _ condition: () throws -> Bool,
@@ -381,5 +614,35 @@ private struct LCRNG: RandomNumberGenerator {
   mutating func next() -> UInt64 {
     seed = 2_862_933_555_777_941_757 &* seed &+ 3_037_000_493
     return seed
+  }
+}
+
+@Suite
+struct GzipTests {
+  @Test
+  func readsFilesFromTheSystemGzip() throws {
+    // `gzip` writes a header with the file's name, which snapshot parts don't have.
+    let directory = URL.temporaryDirectory.appending(path: "gzip-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let file = directory.appending(path: "records.ndjson")
+    let text = (1...500).map { #"{"id":"n\#($0)","title":"Note \#($0)"}"# }.joined(separator: "\n")
+    try Data(text.utf8).write(to: file)
+    let process = Process()
+    process.executableURL = URL(filePath: "/usr/bin/gzip")
+    process.arguments = ["-N", file.path()]
+    try process.run()
+    process.waitUntilExit()
+
+    let compressed = try Data(contentsOf: directory.appending(path: "records.ndjson.gz"))
+    #expect(try Gzip.decompress(compressed) == Data(text.utf8))
+    #expect(try Gzip.decompress(Gzip.compress(Data(text.utf8))) == Data(text.utf8))
+  }
+
+  @Test
+  func rejectsDamagedFiles() throws {
+    var compressed = try Gzip.compress(Data("hello".utf8))
+    compressed[compressed.count - 5] ^= 0xff
+    #expect(throws: Gzip.InvalidData.self) { try Gzip.decompress(compressed) }
+    #expect(throws: Gzip.InvalidData.self) { try Gzip.decompress(Data("plain".utf8)) }
   }
 }
