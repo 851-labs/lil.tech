@@ -38,6 +38,23 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - Lint and format settings live only in the root `Services/vite.config.ts`. Vite+ doesn't apply per-package lint or format configs.
 - Vite+'s own docs ship in `Services/node_modules/vite-plus/docs`.
 
+### Deploying the API
+
+- The API is an Alchemy stack in `Services/api/alchemy.run.ts`. Its state lives in Cloudflare (an `alchemy-state-store` Worker in account 851), so every machine and CI share it.
+- Run Alchemy from `Services/api` (`npx alchemy …`), where it's installed. From anywhere else, `npx` fetches a separate copy that can't find its peer dependencies.
+- **Credentials:** once per machine, from `Services/api`, run `ALCHEMY_TUI=1 DO_NOT_TRACK=1 npx alchemy profile edit --add Cloudflare`. Choose OAuth, then **Basic Scopes**, then sign in with a Cloudflare user that's a member of account **851**, and pick that account. Credentials are saved in `~/.alchemy/profiles.json`. Alchemy hides its interactive prompts when it detects a coding agent, and `ALCHEMY_TUI=1` shows them again. Check credentials with `npx alchemy profile show`. The bare `npx alchemy profile` dashboard crashes in this beta, because `react` isn't installed.
+- **Telemetry:** Alchemy reports usage to `otel.alchemy.run` unless `DO_NOT_TRACK=1` is set. Set it in your shell.
+- **Deploying** (from `Services/api`):
+  - `vp run deploy:staging` deploys to `api.staging.lil.tech`.
+  - `vp run deploy:prod` deploys to `api.lil.tech`.
+  - `vp run deploy` deploys your personal stage, on workers.dev only.
+  - Each script sets `LIL_ENVIRONMENT` and `LIL_VERSION` (the git SHA, with `-dirty` for uncommitted changes), which the Worker reads at deploy time. Deploy prod from a clean tree.
+- A Worker's props Effect runs at deploy **and** inside the running Worker, where Alchemy services like `Stage` don't exist. Read them with `Effect.serviceOption`.
+- **Alchemy is in beta and pinned exactly** (`alchemy` in the catalog). Before writing Alchemy code, look resources and APIs up in [alchemy.run/llms.txt](https://alchemy.run/llms.txt) (and `llms-full.txt`). If they disagree with the installed types in `Services/api/node_modules/alchemy`, the installed types win. Don't install third-party Alchemy skills.
+- Workers with stage-dependent props (e.g. a domain per stage) use the class form, `Cloudflare.Worker<Self>()(id, propsEffect, impl)`. The plain `Cloudflare.Worker(id, props, impl)` form only accepts plain props.
+- Alchemy's Effect Worker entry imports the module's **default** export, so Worker modules `export default class … extends Cloudflare.Worker<…>()(…)`.
+- An `HttpApiBuilder` layer in a Worker gets its platform services from Alchemy's `Http.Platform` (`alchemy/Http`), which includes the no-op `FileSystem` Workers need.
+
 ### Learning more about Effect
 
 This repository uses the Effect TypeScript library. The `effect-ts` skill (`.claude/skills/effect-ts`) sets this up.
