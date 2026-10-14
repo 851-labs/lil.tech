@@ -4,6 +4,7 @@ import { ConfigProvider, Effect, Exit, Layer } from "effect";
 import { HttpRouter } from "effect/http";
 import { Deployment, environmentForStage } from "../src/Deployment.ts";
 import { WorkerHttpLayer } from "../src/Http.ts";
+import { openApiSpec } from "../src/OpenApiSpec.ts";
 import { apiWorkerProps } from "../src/Worker.ts";
 
 describe("WorkerHttpLayer", () => {
@@ -23,6 +24,24 @@ describe("WorkerHttpLayer", () => {
       const body = yield* Effect.promise(() => response.json());
       assert.deepStrictEqual(body, { environment: "staging", version: "45aa829" });
     }).pipe(Effect.ensuring(Effect.promise(() => dispose()))),
+  );
+
+  it.live("GET /v1/openapi.json serves the committed spec", () =>
+    Effect.gen(function* () {
+      const { handler, dispose } = HttpRouter.toWebHandler(
+        WorkerHttpLayer.pipe(
+          Layer.provide(Layer.succeed(Deployment, { environment: "prod", version: "1" })),
+        ),
+      );
+      const response = yield* Effect.promise(() =>
+        handler(new Request("https://api.lil.tech/v1/openapi.json")),
+      );
+      assert.strictEqual(response.status, 200);
+      const body = yield* Effect.promise(() => response.json());
+      assert.deepStrictEqual(body, JSON.parse(JSON.stringify(openApiSpec)));
+      assert.property(openApiSpec.components.schemas, "Status");
+      yield* Effect.promise(() => dispose());
+    }),
   );
 
   it.live("unknown paths return 404", () =>

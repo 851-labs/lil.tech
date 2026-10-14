@@ -1,8 +1,10 @@
 import * as Http from "alchemy/Http";
 import { Effect, Layer } from "effect";
+import { HttpRouter, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
 import { Deployment } from "./Deployment.ts";
+import { openApiSpec } from "./OpenApiSpec.ts";
 import { Status } from "./Status.ts";
 
 export const SystemHandlers = HttpApiBuilder.group(
@@ -19,7 +21,13 @@ export const SystemHandlers = HttpApiBuilder.group(
  * `Http.Platform` stubs file responses and gives `HttpApiBuilder` a no-op `FileSystem`, since
  * Workers have no file system. Needs `Deployment`.
  */
-export const WorkerHttpLayer = HttpApiBuilder.layer(Api).pipe(
+const OpenApiRoute = HttpRouter.add(
+  "GET",
+  "/v1/openapi.json",
+  HttpServerResponse.jsonUnsafe(openApiSpec),
+);
+
+export const WorkerHttpLayer = Layer.mergeAll(HttpApiBuilder.layer(Api), OpenApiRoute).pipe(
   Layer.provide(SystemHandlers),
   Layer.provide(Http.Platform),
 );
