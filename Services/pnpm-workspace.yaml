@@ -4,8 +4,10 @@ packages:
 catalogMode: prefer
 
 catalog:
+  "@effect/platform-node": 4.0.4
   "@effect/vitest": 4.0.4
   "@types/node": ^24
+  alchemy: 2.0.0-beta.83
   effect: 4.0.4
   typescript: ^7.0.2
   vite-plus: 1.1.0
@@ -18,3 +20,8 @@ peerDependencyRules:
   allowedVersions:
     # Vite+ core reports its own version (1.x), which satisfies Vitest's `vite` peer.
     vite: "*"
+    # Alchemy's capnp-es (Worker config encoding) declares TypeScript 5/6; it runs fine with 7.
+    capnp-es>typescript: "*"
+allowBuilds:
+  # Downloads the local Workers runtime used by `alchemy dev`.
+  workerd: true

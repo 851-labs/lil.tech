@@ -5,14 +5,20 @@
   "type": "module",
   "scripts": {
     "test": "vp test",
-    "check": "vp check"
+    "check": "vp check",
+    "dev": "LIL_ENVIRONMENT=local LIL_VERSION=dev alchemy dev",
+    "deploy": "LIL_ENVIRONMENT=preview LIL_VERSION=$(git rev-parse --short HEAD) alchemy deploy",
+    "deploy:staging": "LIL_ENVIRONMENT=staging LIL_VERSION=$(git rev-parse --short HEAD) alchemy deploy --stage staging",
+    "deploy:prod": "LIL_ENVIRONMENT=prod LIL_VERSION=$(git rev-parse --short HEAD) alchemy deploy --stage prod"
   },
   "dependencies": {
     "effect": "catalog:"
   },
   "devDependencies": {
+    "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
     "@types/node": "catalog:",
+    "alchemy": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
   }

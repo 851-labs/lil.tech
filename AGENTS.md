@@ -38,6 +38,19 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - Lint and format settings live only in the root `Services/vite.config.ts`. Vite+ doesn't apply per-package lint or format configs.
 - Vite+'s own docs ship in `Services/node_modules/vite-plus/docs`.
 
+### Deploying the API
+
+- The API is an Alchemy stack in `Services/api/alchemy.run.ts`. Its state lives in Cloudflare (an `alchemy-state-store` Worker in account 851), so every machine and CI share it.
+- **Credentials:** once per machine, from `Services/api`, run `ALCHEMY_TUI=1 DO_NOT_TRACK=1 npx alchemy profile edit --add Cloudflare`. Choose OAuth, then **Basic Scopes**, then sign in as alexandru@851.sh and pick account 851. Credentials are saved in `~/.alchemy/profiles.json`. Alchemy hides its interactive prompts when it detects a coding agent, and `ALCHEMY_TUI=1` shows them again.
+- **Telemetry:** Alchemy reports usage to `otel.alchemy.run` unless `DO_NOT_TRACK=1` is set. Set it in your shell.
+- **Deploying** (from `Services/api`):
+  - `vp run deploy:staging` deploys to `api.staging.lil.tech`.
+  - `vp run deploy:prod` deploys to `api.lil.tech`.
+  - `vp run deploy` deploys your personal stage, on workers.dev only.
+  - Each script sets `LIL_ENVIRONMENT` and `LIL_VERSION` (the git SHA), which the Worker reads at deploy time.
+- **Alchemy is in beta and pinned exactly** (`alchemy` in the catalog). Before writing Alchemy code, look resources and APIs up in [alchemy.run/llms.txt](https://alchemy.run/llms.txt) (and `llms-full.txt`). If they disagree with the installed types in `Services/api/node_modules/alchemy`, the installed types win. Don't install third-party Alchemy skills.
+- Workers with stage-dependent props (e.g. a domain per stage) use the class form, `Cloudflare.Worker<Self>()(id, propsEffect, impl)`. The plain `Cloudflare.Worker(id, props, impl)` form only accepts plain props.
+
 ### Learning more about Effect
 
 This repository uses the Effect TypeScript library. The `effect-ts` skill (`.claude/skills/effect-ts`) sets this up.
