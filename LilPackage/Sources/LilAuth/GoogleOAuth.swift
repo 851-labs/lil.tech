@@ -38,7 +38,7 @@ public struct GoogleAuthorizationRequest: Equatable, Sendable {
       URLQueryItem(name: "scope", value: "openid email profile"),
       URLQueryItem(name: "code_challenge", value: Self.codeChallenge(for: codeVerifier)),
       URLQueryItem(name: "code_challenge_method", value: "S256"),
-      URLQueryItem(name: "nonce", value: Self.sha256Hex(nonce)),
+      URLQueryItem(name: "nonce", value: Nonce.sha256Hex(nonce)),
       URLQueryItem(name: "state", value: state),
       URLQueryItem(name: "prompt", value: "select_account"),
     ]
@@ -80,23 +80,17 @@ public struct GoogleAuthorizationRequest: Equatable, Sendable {
   public static func make(
     clientID: String, using generator: inout some RandomNumberGenerator
   ) -> Self {
-    func bytes(_ count: Int) -> [UInt8] {
-      (0..<count).map { _ in UInt8.random(in: .min ... .max, using: &generator) }
-    }
+    let verifier = (0..<32).map { _ in UInt8.random(in: .min ... .max, using: &generator) }
     return Self(
       clientID: clientID,
-      codeVerifier: base64URL(Data(bytes(32))),
-      nonce: bytes(32).map { String(format: "%02x", $0) }.joined(),
-      state: bytes(16).map { String(format: "%02x", $0) }.joined()
+      codeVerifier: base64URL(Data(verifier)),
+      nonce: Nonce.randomHex(bytes: 32, using: &generator),
+      state: Nonce.randomHex(bytes: 16, using: &generator)
     )
   }
 
   static func codeChallenge(for verifier: String) -> String {
     base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
-  }
-
-  static func sha256Hex(_ string: String) -> String {
-    SHA256.hash(data: Data(string.utf8)).map { String(format: "%02x", $0) }.joined()
   }
 
   static func base64URL(_ data: Data) -> String {
@@ -106,10 +100,11 @@ public struct GoogleAuthorizationRequest: Equatable, Sendable {
       .replacingOccurrences(of: "=", with: "")
   }
 
+  /// Percent-encodes everything but OAuth's unreserved characters (ASCII only).
   private static func formEncoded(_ value: String) -> String {
-    var allowed = CharacterSet.alphanumerics
-    allowed.insert(charactersIn: "-._~")
-    return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+    let unreserved = CharacterSet(
+      charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+    return value.addingPercentEncoding(withAllowedCharacters: unreserved) ?? value
   }
 }
 
@@ -132,23 +127,48 @@ extension DependencyValues {
 public struct GoogleOAuth: Sendable {
   /// The app's OAuth client ID, or `nil` if it has none (Google sign-in is then unavailable).
   public var clientID: String?
+  /// Shows Google's sign-in page for `request` until Google redirects back with the result.
+  public var authorize:
+    @Sendable (_ request: GoogleAuthorizationRequest) async -> Result<URL, GoogleAuthorizationError>
   /// Redeems an authorization code for Google's ID token.
   public var redeem:
     @Sendable (_ code: String, _ request: GoogleAuthorizationRequest) async throws -> String
 
   public init(
     clientID: String?,
+    authorize:
+      @escaping @Sendable (_ request: GoogleAuthorizationRequest) async -> Result<
+        URL, GoogleAuthorizationError
+      >,
     redeem:
       @escaping @Sendable (_ code: String, _ request: GoogleAuthorizationRequest) async throws
       -> String
   ) {
     self.clientID = clientID
+    self.authorize = authorize
     self.redeem = redeem
   }
 
+  /// Google's token endpoint didn't redeem the code.
   struct RedeemFailed: LocalizedError {
     let statusCode: Int
-    var errorDescription: String? { "Google answered HTTP \(statusCode)" }
+    /// Google's `error` and `error_description`, e.g. `invalid_grant`.
+    let error: String?
+    let errorDescription: String?
+
+    init(statusCode: Int, body: Data) {
+      struct Body: Decodable {
+        let error: String?
+        let error_description: String?
+      }
+      let decoded = try? JSONDecoder().decode(Body.self, from: body)
+      self.statusCode = statusCode
+      self.error = decoded?.error
+      self.errorDescription =
+        "Google answered HTTP \(statusCode)"
+        + [decoded?.error, decoded?.error_description].compactMap { $0 }.map { ": \($0)" }
+        .joined()
+    }
   }
 }
 
@@ -157,11 +177,12 @@ extension GoogleOAuth: DependencyKey {
   public static var liveValue: Self {
     Self(
       clientID: Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String,
+      authorize: { request in await authorizeInBrowser(request) },
       redeem: { code, request in
         let (data, response) = try await URLSession.shared.data(
           for: request.tokenRequest(code: code))
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard statusCode == 200 else { throw RedeemFailed(statusCode: statusCode) }
+        guard statusCode == 200 else { throw RedeemFailed(statusCode: statusCode, body: data) }
         struct Tokens: Decodable { let id_token: String }
         return try JSONDecoder().decode(Tokens.self, from: data).id_token
       }
@@ -171,6 +192,10 @@ extension GoogleOAuth: DependencyKey {
   public static var testValue: Self {
     Self(
       clientID: nil,
+      authorize: { _ in
+        reportIssue("Unimplemented: @Dependency(\\.googleOAuth).authorize")
+        return .failure(.canceled)
+      },
       redeem: { _, _ in
         reportIssue("Unimplemented: @Dependency(\\.googleOAuth).redeem")
         return ""
@@ -178,7 +203,15 @@ extension GoogleOAuth: DependencyKey {
     )
   }
 
+  /// Google's page stays "open": previews show the state without opening a browser.
   public static var previewValue: Self {
-    Self(clientID: "preview.apps.googleusercontent.com", redeem: { _, _ in "" })
+    Self(
+      clientID: "preview.apps.googleusercontent.com",
+      authorize: { _ in
+        while !Task.isCancelled { try? await Task.sleep(for: .seconds(60)) }
+        return .failure(.canceled)
+      },
+      redeem: { _, _ in "" }
+    )
   }
 }

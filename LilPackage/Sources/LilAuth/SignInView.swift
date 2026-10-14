@@ -8,7 +8,6 @@ public struct SignInView: View {
   let store: StoreOf<SignInFeature>
   let appName: String
   @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.webAuthenticationSession) private var webAuthenticationSession
 
   public init(store: StoreOf<SignInFeature>, appName: String) {
     self.store = store
@@ -26,18 +25,10 @@ public struct SignInView: View {
         .multilineTextAlignment(.center)
       Spacer()
 
-      // Fixed space for the button and the message, so the screen doesn't shift between states.
+      // The buttons keep their space while hidden, so the screen doesn't shift between states.
       VStack(spacing: 12) {
-        VStack(spacing: 12) {
-          switch store.status {
-          case .signedIn:
-            Label("Signed in", systemImage: "checkmark.circle.fill")
-              .foregroundStyle(.green)
-          case .signingIn:
-            ProgressView()
-              .controlSize(.small)
-              .accessibilityLabel("Signing in")
-          case .signedOut, .failed:
+        ZStack {
+          VStack(spacing: 12) {
             SignInWithAppleButton(.signIn) { request in
               store.send(.appleButtonTapped)
               request.requestedScopes = [.fullName, .email]
@@ -47,7 +38,7 @@ public struct SignInView: View {
             }
             .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
             .frame(maxWidth: 320)
-            .frame(height: 40)
+            .frame(height: 44)
 
             Button {
               store.send(.googleButtonTapped)
@@ -60,11 +51,21 @@ public struct SignInView: View {
             .frame(maxWidth: 320)
             .disabled(store.googleRequest != nil)
           }
-        }
-        .frame(height: 100)
-        .task(id: store.googleRequest) {
-          guard let request = store.googleRequest else { return }
-          store.send(.googleAuthorizationFinished(await authorize(request)))
+          .opacity(showsButtons ? 1 : 0)
+          .disabled(!showsButtons)
+          .accessibilityHidden(!showsButtons)
+
+          switch store.status {
+          case .signedIn:
+            Label("Signed in", systemImage: "checkmark.circle.fill")
+              .foregroundStyle(.green)
+          case .signingIn:
+            ProgressView()
+              .controlSize(.small)
+              .accessibilityLabel("Signing in")
+          case .signedOut, .failed:
+            EmptyView()
+          }
         }
 
         Text(failureMessage ?? "")
@@ -79,26 +80,16 @@ public struct SignInView: View {
     .frame(minWidth: 360, minHeight: 420)
   }
 
+  private var showsButtons: Bool {
+    switch store.status {
+    case .signedOut, .failed: true
+    case .signingIn, .signedIn: false
+    }
+  }
+
   private var failureMessage: String? {
     guard case .failed(let message) = store.status else { return nil }
     return message
-  }
-
-  /// Google's sign-in page in a browser sheet, until it redirects back to the app.
-  private func authorize(
-    _ request: GoogleAuthorizationRequest
-  ) async -> Result<URL, GoogleAuthorizationError> {
-    do {
-      return .success(
-        try await webAuthenticationSession.authenticate(
-          using: request.url,
-          callback: .customScheme(request.callbackScheme),
-          additionalHeaderFields: [:]))
-    } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
-      return .failure(.canceled)
-    } catch {
-      return .failure(.failed(error.localizedDescription))
-    }
   }
 
   private static func credential(
@@ -151,7 +142,6 @@ public struct SignInView: View {
 }
 
 #Preview("Google sheet open") {
-  // `EmptyReducer`: the view's task would open Google's real sign-in page.
   SignInView(
     store: Store(
       initialState: SignInFeature.State(
@@ -159,7 +149,7 @@ public struct SignInView: View {
           clientID: "preview.apps.googleusercontent.com", codeVerifier: "verifier",
           nonce: "nonce", state: "state"))
     ) {
-      EmptyReducer()
+      SignInFeature()
     },
     appName: "lil health")
 }

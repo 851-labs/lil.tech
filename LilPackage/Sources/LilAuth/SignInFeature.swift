@@ -1,5 +1,4 @@
 public import ComposableArchitecture
-import CryptoKit
 public import Foundation
 
 /// Signing in with Apple (the stock button) or Google (in the browser), then exchanging the
@@ -37,9 +36,14 @@ public struct SignInFeature {
       self.googleRequest = googleRequest
     }
 
+    /// Starting another try clears the last one's error.
+    mutating func clearFailure() {
+      if case .failed = status { status = .signedOut }
+    }
+
     /// What the Apple request's `nonce` is set to.
     public var nonceHash: String? {
-      nonce.map { SHA256.hash(data: Data($0.utf8)).map { String(format: "%02x", $0) }.joined() }
+      nonce.map(Nonce.sha256Hex)
     }
   }
 
@@ -66,6 +70,8 @@ public struct SignInFeature {
     case failed(String)
   }
 
+  enum CancelID { case google }
+
   @Dependency(\.auth) var auth
   @Dependency(\.googleOAuth) var googleOAuth
   @Dependency(\.withRandomNumberGenerator) var withRandomNumberGenerator
@@ -76,12 +82,8 @@ public struct SignInFeature {
     Reduce { state, action in
       switch action {
       case .appleButtonTapped:
-        state.nonce = withRandomNumberGenerator { generator in
-          (0..<32).map { _ in
-            String(format: "%02x", UInt8.random(in: .min ... .max, using: &generator))
-          }
-          .joined()
-        }
+        state.clearFailure()
+        state.nonce = withRandomNumberGenerator { Nonce.randomHex(bytes: 32, using: &$0) }
         return .none
 
       case .appleAuthorizationFinished(.success(var credential)):
@@ -117,13 +119,19 @@ public struct SignInFeature {
 
       case .googleButtonTapped:
         guard let clientID = googleOAuth.clientID else {
+          reportIssue("No Google OAuth client ID: set GIDClientID in the app's Info.plist")
           state.status = .failed(SignInError.unavailable.message)
           return .none
         }
-        state.googleRequest = withRandomNumberGenerator { generator in
+        state.clearFailure()
+        let request = withRandomNumberGenerator { generator in
           GoogleAuthorizationRequest.make(clientID: clientID, using: &generator)
         }
-        return .none
+        state.googleRequest = request
+        return .run { [googleOAuth] send in
+          await send(.googleAuthorizationFinished(await googleOAuth.authorize(request)))
+        }
+        .cancellable(id: CancelID.google, cancelInFlight: true)
 
       case .googleAuthorizationFinished(.success(let callback)):
         guard let request = state.googleRequest else { return .none }

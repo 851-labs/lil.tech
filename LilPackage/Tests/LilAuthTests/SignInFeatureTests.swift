@@ -105,6 +105,7 @@ struct SignInFeatureTests {
     // Apple only gives the name the first time.
     await store.send(.appleButtonTapped) {
       $0.nonce = zeroNonce
+      $0.status = .signedOut
     }
     await store.send(
       .appleAuthorizationFinished(.success(AppleCredential(identityToken: "apple-token-2")))
@@ -126,12 +127,17 @@ struct SignInFeatureTests {
       SignInFeature()
     } withDependencies: {
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(Zeros())
-      $0.googleOAuth = GoogleOAuth(clientID: "123-abc.apps.googleusercontent.com") {
-        code, request in
-        #expect(code == "4/abc")
-        #expect(request == zeroGoogleRequest)
-        return "google-id-token"
-      }
+      $0.googleOAuth = GoogleOAuth(
+        clientID: "123-abc.apps.googleusercontent.com",
+        authorize: { request in
+          #expect(request == zeroGoogleRequest)
+          return .success(googleCallback(state: zeroState))
+        },
+        redeem: { code, request in
+          #expect(code == "4/abc")
+          #expect(request == zeroGoogleRequest)
+          return "google-id-token"
+        })
       $0.auth.signInWithGoogle = { idToken, nonce in
         #expect(idToken == "google-id-token")
         #expect(nonce == zeroNonce)
@@ -141,7 +147,7 @@ struct SignInFeatureTests {
     await store.send(.googleButtonTapped) {
       $0.googleRequest = zeroGoogleRequest
     }
-    await store.send(.googleAuthorizationFinished(.success(googleCallback(state: zeroState)))) {
+    await store.receive(\.googleAuthorizationFinished.success) {
       $0.googleRequest = nil
       $0.status = .signingIn
     }
@@ -155,12 +161,32 @@ struct SignInFeatureTests {
   func googleWithoutAClientIsUnavailable() async {
     let store = TestStore(initialState: SignInFeature.State()) {
       SignInFeature()
-    } withDependencies: {
-      $0.googleOAuth.clientID = nil
     }
 
+    await withKnownIssue {
+      await store.send(.googleButtonTapped) {
+        $0.status = .failed("Signing in isn't available right now. Please try again later.")
+      }
+    }
+  }
+
+  @Test
+  func closingGooglesSheetAfterAFailure() async {
+    let store = TestStore(initialState: SignInFeature.State(status: .failed("Earlier error"))) {
+      SignInFeature()
+    } withDependencies: {
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(Zeros())
+      $0.googleOAuth.clientID = "123-abc.apps.googleusercontent.com"
+      $0.googleOAuth.authorize = { _ in .failure(.canceled) }
+    }
+
+    // A new try clears the last one's error.
     await store.send(.googleButtonTapped) {
-      $0.status = .failed("Signing in isn't available right now. Please try again later.")
+      $0.status = .signedOut
+      $0.googleRequest = zeroGoogleRequest
+    }
+    await store.receive(\.googleAuthorizationFinished.failure) {
+      $0.googleRequest = nil
     }
   }
 

@@ -40,7 +40,7 @@ struct GoogleOAuthTests {
         "code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
         "code_challenge_method": "S256",
         // Google gets the nonce's SHA-256, like Apple.
-        "nonce": GoogleAuthorizationRequest.sha256Hex("raw-nonce"),
+        "nonce": Nonce.sha256Hex("raw-nonce"),
         "state": "state-1",
         "prompt": "select_account",
       ])
@@ -85,6 +85,25 @@ struct GoogleOAuthTests {
         + "&client_id=123-abc.apps.googleusercontent.com"
         + "&redirect_uri=com.googleusercontent.apps.123-abc%3A%2Foauth2redirect"
         + "&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")
+  }
+
+  @Test
+  func aFailedRedeemSaysWhatGoogleSaid() {
+    let error = GoogleOAuth.RedeemFailed(
+      statusCode: 400,
+      body: Data(#"{"error":"invalid_grant","error_description":"Bad Request"}"#.utf8))
+    #expect(error.error == "invalid_grant")
+    #expect(error.errorDescription == "Google answered HTTP 400: invalid_grant: Bad Request")
+    #expect(
+      GoogleOAuth.RedeemFailed(statusCode: 502, body: Data()).errorDescription
+        == "Google answered HTTP 502")
+  }
+
+  @Test
+  func formEncodingEscapesNonASCII() throws {
+    let tokenRequest = request.tokenRequest(code: "é")
+    let body = String(decoding: try #require(tokenRequest.httpBody), as: UTF8.self)
+    #expect(body.contains("&code=%C3%A9&"))
   }
 
   @Test
