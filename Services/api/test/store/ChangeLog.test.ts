@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { applyMutations, type Mutation, readHead } from "../../src/store/ChangeLog.ts";
+import { applyMutations, type Mutation, readChanges, readHead } from "../../src/store/ChangeLog.ts";
 import {
   Column,
   columnName,
@@ -11,17 +11,9 @@ import {
 import type { StoreSql } from "../../src/store/StoreSql.ts";
 import { makeUserStore } from "../../src/store/UserStore.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
+import { makeTestStore, testNote } from "./TestUserStores.ts";
 
-const note = defineEntity("test_note", {
-  clientWritable: true,
-  fields: {
-    title: Column.text,
-    pinned: Column.boolean,
-    score: Column.nullable(Column.real),
-    tags: Column.json,
-    createdAt: Column.integer,
-  },
-});
+const note = testNote;
 
 const fields = (overrides: Record<string, unknown> = {}) => ({
   title: "Note",
@@ -36,13 +28,7 @@ const upsert = (id: string, row: Record<string, unknown> = fields()) =>
   ({ entity: "test_note", op: "upsert", id, row }) as Mutation;
 const remove = (id: string): Mutation => ({ entity: "test_note", op: "delete", id });
 
-/** A store holding `test_note`, whose table a real entity's migration would create. */
-const makeStore = () => {
-  const sql = makeTestStoreSql();
-  const store = makeUserStore(sql, [note]);
-  sql.script(createEntityTable(note));
-  return { sql, store };
-};
+const makeStore = makeTestStore;
 
 const changes = (sql: StoreSql): Array<Record<string, unknown>> =>
   sql.exec("SELECT seq, entity, id, op, row, at FROM changes ORDER BY seq").map((change) => ({
@@ -226,6 +212,72 @@ describe("applyMutations", () => {
       head: 3,
       appended: 1,
     });
+  });
+});
+
+describe("readChanges", () => {
+  it("pages through the log", () => {
+    const { sql } = makeStore();
+    const entities = new Map([[note.name, note]]);
+    applyMutations(sql, entities, [upsert("n1"), upsert("n2"), remove("n1")], 7);
+    assert.deepStrictEqual(readChanges(sql, 0, 2), {
+      epoch: 1,
+      changes: [
+        {
+          seq: 1,
+          entity: "test_note",
+          id: "n1",
+          op: "upsert",
+          row: { id: "n1", ...fields() },
+          at: 7,
+        },
+        {
+          seq: 2,
+          entity: "test_note",
+          id: "n2",
+          op: "upsert",
+          row: { id: "n2", ...fields() },
+          at: 7,
+        },
+      ],
+      next: 2,
+      head: 3,
+      hasMore: true,
+    });
+    assert.deepStrictEqual(readChanges(sql, 2, 2), {
+      epoch: 1,
+      changes: [{ seq: 3, entity: "test_note", id: "n1", op: "delete", at: 7 }],
+      next: 3,
+      head: 3,
+      hasMore: false,
+    });
+    assert.deepStrictEqual(readChanges(sql, 3, 2), {
+      epoch: 1,
+      changes: [],
+      next: 3,
+      head: 3,
+      hasMore: false,
+    });
+  });
+
+  it("returns an empty page for an empty log", () => {
+    const { sql } = makeStore();
+    assert.deepStrictEqual(readChanges(sql, 0, 1000), {
+      epoch: 1,
+      changes: [],
+      next: 0,
+      head: 0,
+      hasMore: false,
+    });
+  });
+
+  it("refuses a cursor older than the compaction horizon", () => {
+    const { sql } = makeStore();
+    applyMutations(sql, new Map([[note.name, note]]), [upsert("n1"), upsert("n2")], 0);
+    sql.exec("DELETE FROM changes WHERE seq <= 1");
+    sql.exec("INSERT INTO meta (key, value) VALUES ('horizon', 1)");
+    assert.strictEqual((readChanges(sql, 0, 10) as { _tag?: string })._tag, "ChangesCompacted");
+    assert.lengthOf((readChanges(sql, 1, 10) as unknown as { changes: Array<unknown> }).changes, 1);
   });
 });
 

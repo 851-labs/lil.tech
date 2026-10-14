@@ -10,6 +10,8 @@ import { Identities } from "./core/Identities.ts";
 import { Users } from "./core/Users.ts";
 import { Deployment } from "./Deployment.ts";
 import { Status } from "./Status.ts";
+import { UserStores } from "./store/UserStores.ts";
+import { defaultChangesLimit } from "./sync/SyncApi.ts";
 // The committed spec (see scripts/openapi.ts), so the served contract is exactly the committed one.
 import openApiSpec from "../openapi.json" with { type: "json" };
 
@@ -87,6 +89,23 @@ export const MeHandlers = HttpApiBuilder.group(
   }),
 );
 
+export const SyncHandlers = HttpApiBuilder.group(
+  Api,
+  "sync",
+  Effect.fn(function* (handlers) {
+    const stores = yield* UserStores;
+    return handlers.handle("changes", ({ query }) =>
+      Effect.gen(function* () {
+        // The store comes from the session, never from the request (`docs/SYNC.md`).
+        const session = yield* CurrentSession;
+        return yield* stores
+          .forUser(session.userId)
+          .readChanges(query.after ?? 0, query.limit ?? defaultChangesLimit);
+      }),
+    );
+  }),
+);
+
 const OpenApiRoute = HttpRouter.add(
   "GET",
   "/v1/openapi.json",
@@ -96,10 +115,11 @@ const OpenApiRoute = HttpRouter.add(
 /**
  * Every route of the API, with the platform services a Worker can provide: Alchemy's
  * `Http.Platform` stubs file responses and gives `HttpApiBuilder` a no-op `FileSystem`, since
- * Workers have no file system. Needs `Deployment`, `SessionKey` and the core repositories.
+ * Workers have no file system. Needs `Deployment`, `SessionKey`, the core repositories and
+ * `UserStores`.
  */
 export const WorkerHttpLayer = Layer.mergeAll(HttpApiBuilder.layer(Api), OpenApiRoute).pipe(
-  Layer.provide([SystemHandlers, AuthHandlers, MeHandlers]),
+  Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers]),
   Layer.provide(AuthorizationLayer),
   Layer.provide(Auth.layer),
   Layer.provide(AccessTokens.layer),

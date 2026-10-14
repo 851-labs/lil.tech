@@ -1,6 +1,12 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Clock, Effect } from "effect";
-import { applyMutations, InvalidMutation, type Mutation } from "./ChangeLog.ts";
+import {
+  applyMutations,
+  ChangesCompacted,
+  InvalidMutation,
+  type Mutation,
+  readChanges,
+} from "./ChangeLog.ts";
 import { type Entity, entities } from "./Entities.ts";
 import { migrate, schemaVersion } from "./Migrations.ts";
 import { fromDurableObjectStorage, type StoreSql } from "./StoreSql.ts";
@@ -21,6 +27,12 @@ export const makeUserStore = (sql: StoreSql, registry: ReadonlyArray<Entity> = e
      */
     deleteAll: () =>
       Effect.promise(() => sql.deleteAll()).pipe(Effect.andThen(Effect.sync(() => migrate(sql)))),
+    /** A page of the change log (see `readChanges`). */
+    readChanges: (after: number, limit: number) =>
+      Effect.suspend(() => {
+        const page = readChanges(sql, after, limit);
+        return page instanceof ChangesCompacted ? Effect.fail(page) : Effect.succeed(page);
+      }),
     /** Applies mutations in one transaction (see `applyMutations`). */
     applyMutations: (mutations: ReadonlyArray<Mutation>) =>
       Effect.gen(function* () {
@@ -49,7 +61,7 @@ export type UserStoreMethods = ReturnType<typeof makeUserStore>;
  */
 export class UserStore extends Cloudflare.DurableObject<UserStore, UserStoreMethods>()(
   "UserStore",
-  { errors: [InvalidMutation] },
+  { errors: [InvalidMutation, ChangesCompacted] },
 ) {}
 
 export const UserStoreLive = UserStore.make(

@@ -17,6 +17,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /v1/me`.
     /// - Remark: Generated from `#/paths//v1/me/get(me)`.
     func me(_ input: Operations.Me.Input) async throws -> Operations.Me.Output
+    /// - Remark: HTTP `GET /v1/sync/changes`.
+    /// - Remark: Generated from `#/paths//v1/sync/changes/get(syncChanges)`.
+    func syncChanges(_ input: Operations.SyncChanges.Input) async throws -> Operations.SyncChanges.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -46,6 +49,17 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//v1/me/get(me)`.
     public func me(headers: Operations.Me.Input.Headers = .init()) async throws -> Operations.Me.Output {
         try await me(Operations.Me.Input(headers: headers))
+    }
+    /// - Remark: HTTP `GET /v1/sync/changes`.
+    /// - Remark: Generated from `#/paths//v1/sync/changes/get(syncChanges)`.
+    public func syncChanges(
+        query: Operations.SyncChanges.Input.Query = .init(),
+        headers: Operations.SyncChanges.Input.Headers = .init()
+    ) async throws -> Operations.SyncChanges.Output {
+        try await syncChanges(Operations.SyncChanges.Input(
+            query: query,
+            headers: headers
+        ))
     }
 }
 
