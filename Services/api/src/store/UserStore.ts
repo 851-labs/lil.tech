@@ -1,14 +1,28 @@
 import * as Cloudflare from "alchemy/Cloudflare";
-import { Effect } from "effect";
+import { Clock, Effect, Schema } from "effect";
+import { applyMutations } from "./ChangeLog.ts";
+import { type Entity, entities } from "./Entities.ts";
 import { migrate, schemaVersion } from "./Migrations.ts";
 import { fromDurableObjectStorage, type StoreSql } from "./StoreSql.ts";
+
+export class UnknownEntity extends Schema.TaggedError<UnknownEntity>()("UnknownEntity", {
+  entity: Schema.String,
+}) {}
+
+export class InvalidRow extends Schema.TaggedError<InvalidRow>()("InvalidRow", {
+  entity: Schema.String,
+  /** The position of the row in `upserts`. */
+  index: Schema.Int,
+  message: Schema.String,
+}) {}
 
 /**
  * A store's RPC methods over its database. The schema is brought up to date before any method can
  * run: here, when the object starts, and again after `deleteAll`.
  */
-export const makeUserStore = (sql: StoreSql) => {
+export const makeUserStore = (sql: StoreSql, registry: ReadonlyArray<Entity> = entities) => {
   migrate(sql);
+  const entitiesByName = new Map(registry.map((entity) => [entity.name, entity]));
   return {
     /** The store's schema version, which can be newer than this code's after a rollback. */
     schemaVersion: () => Effect.sync(() => schemaVersion(sql)),
@@ -18,6 +32,29 @@ export const makeUserStore = (sql: StoreSql) => {
      */
     deleteAll: () =>
       Effect.promise(() => sql.deleteAll()).pipe(Effect.andThen(Effect.sync(() => migrate(sql)))),
+    /**
+     * Upserts full rows of an entity and deletes records by ID, appending a change for each record
+     * that changed (see `applyMutations`). Rows are validated first; one invalid row rejects the
+     * whole call.
+     */
+    applyMutations: (
+      entityName: string,
+      upserts: ReadonlyArray<unknown>,
+      deletes: ReadonlyArray<string>,
+    ) =>
+      Effect.gen(function* () {
+        const entity = entitiesByName.get(entityName);
+        if (entity === undefined) return yield* new UnknownEntity({ entity: entityName });
+        const rows = yield* Effect.forEach(upserts, (row, index) =>
+          Schema.decodeUnknownEffect(entity.row)(row).pipe(
+            Effect.mapError(
+              (error) => new InvalidRow({ entity: entityName, index, message: error.message }),
+            ),
+          ),
+        );
+        const at = yield* Clock.currentTimeMillis;
+        return applyMutations(sql, entity, rows, deletes, at);
+      }),
   };
 };
 
