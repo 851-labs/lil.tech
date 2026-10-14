@@ -14,10 +14,12 @@
     "openapi:check": "node scripts/openapi.ts --check"
   },
   "dependencies": {
+    "@effect/sql-d1": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",
+    "@effect/sql-sqlite-node": "catalog:",
     "@effect/vitest": "catalog:",
     "@types/node": "catalog:",
     "alchemy": "catalog:",

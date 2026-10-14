@@ -167,6 +167,12 @@ catalogs:
     '@effect/platform-node':
       specifier: 4.0.4
       version: 4.0.4
+    '@effect/sql-d1':
+      specifier: 4.0.4
+      version: 4.0.4
+    '@effect/sql-sqlite-node':
+      specifier: 4.0.4
+      version: 4.0.4
     '@effect/vitest':
       specifier: 4.0.4
       version: 4.0.4
@@ -202,6 +208,9 @@ importers:
 
   api:
     dependencies:
+      '@effect/sql-d1':
+        specifier: 'catalog:'
+        version: 4.0.4(effect@4.0.4)
       effect:
         specifier: 'catalog:'
         version: 4.0.4
@@ -209,6 +218,9 @@ importers:
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.4(effect@4.0.4)(redis@6.3.0)
+      '@effect/sql-sqlite-node':
+        specifier: 'catalog:'
+        version: 4.0.4(effect@4.0.4)
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.0.4(effect@4.0.4)(vitest@5.0.3)
@@ -442,6 +454,11 @@ packages:
 
   '@effect/sql-sqlite-do@4.0.4':
     resolution: {integrity: sha512-6Uqa6zbm5GPTWjoIVVty8msQ5C+8coPQDzj8qZM9Mk4NXUWa/RVlaziW335mXZ/8tCnQsFj2iJ/CJdv54JXuew==}
+    peerDependencies:
+      effect: ^4.0.4
+
+  '@effect/sql-sqlite-node@4.0.4':
+    resolution: {integrity: sha512-dKPaiab7UpRvD+CfkcT2qavV83h9k2Vz5cjvNvwa7DyxZWuf10LQiSl8tJDtXMcz69BMLdy7skUUFFnlXVNROw==}
     peerDependencies:
       effect: ^4.0.4
 
@@ -2588,6 +2605,10 @@ snapshots:
       effect: 4.0.4
 
   '@effect/sql-sqlite-do@4.0.4(effect@4.0.4)':
+    dependencies:
+      effect: 4.0.4
+
+  '@effect/sql-sqlite-node@4.0.4(effect@4.0.4)':
     dependencies:
       effect: 4.0.4
 
