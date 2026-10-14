@@ -3,13 +3,12 @@ import { Effect, Layer, Option, Redacted } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
-import { AppleKeys, verifyAppleToken } from "./auth/Apple.ts";
+import { AppleSignIn } from "./auth/Apple.ts";
 import { Auth } from "./auth/Auth.ts";
-import { signInWithIdentity } from "./auth/ProviderSignIn.ts";
+import { ProviderSignIn } from "./auth/ProviderSignIn.ts";
 import { DevSignInRoute } from "./auth/DevSignIn.ts";
 import { Authorization, CurrentSession, Me, MeIdentity, Unauthorized } from "./auth/AuthApi.ts";
 import { AccessTokens } from "./auth/Tokens.ts";
-import { Devices } from "./core/Devices.ts";
 import { Identities } from "./core/Identities.ts";
 import {
   HealthBatchNotFound,
@@ -59,22 +58,23 @@ export const AuthHandlers = HttpApiBuilder.group(
   "auth",
   Effect.fn(function* (handlers) {
     const auth = yield* Auth;
-    // What signing in with a provider needs, captured once for its handlers.
-    const signInServices = yield* Effect.context<AppleKeys | Auth | Devices | Identities | Users>();
+    const apple = yield* AppleSignIn;
+    const providerSignIn = yield* ProviderSignIn;
     return handlers
       .handle("refresh", ({ payload }) =>
         auth.refresh(payload.refreshToken).pipe(Effect.catchTag("SqlError", Effect.die)),
       )
       .handle("apple", ({ payload }) =>
-        verifyAppleToken(payload.identityToken, payload.nonce, payload.fullName).pipe(
+        apple.verify(payload.identityToken, payload.nonce, payload.fullName).pipe(
           Effect.flatMap((identity) =>
-            signInWithIdentity(identity, {
-              app: payload.device.app,
-              platform: payload.device.platform,
-              name: payload.device.name ?? null,
-            }).pipe(Effect.orDie),
+            providerSignIn
+              .signIn(identity, {
+                app: payload.device.app,
+                platform: payload.device.platform,
+                name: payload.device.name ?? null,
+              })
+              .pipe(Effect.orDie),
           ),
-          Effect.provide(signInServices),
         ),
       )
       .handle("signOut", () =>
@@ -196,6 +196,7 @@ export const WorkerHttpLayer = Layer.mergeAll(
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),
   Layer.provide([AuthorizationLayer, UploadSizeLimitLayer]),
+  Layer.provide([AppleSignIn.layer, ProviderSignIn.layer]),
   Layer.provide(Auth.layer),
   Layer.provide(AccessTokens.layer),
   Layer.provide(Http.Platform),

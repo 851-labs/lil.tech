@@ -776,10 +776,12 @@
         "type": "object",
         "properties": {
           "identityToken": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 8192
           },
           "nonce": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 256
           },
           "fullName": {
             "type": "object",
@@ -788,13 +790,15 @@
                 "type": [
                   "string",
                   "null"
-                ]
+                ],
+                "maxLength": 200
               },
               "familyName": {
                 "type": [
                   "string",
                   "null"
-                ]
+                ],
+                "maxLength": 200
               }
             }
           },
@@ -813,7 +817,8 @@
         "properties": {
           "app": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 64
           },
           "platform": {
             "type": "string",
@@ -826,7 +831,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "maxLength": 200
           }
         },
         "required": [

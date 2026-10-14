@@ -62,24 +62,24 @@ export class InvalidRefreshToken extends Schema.TaggedError<InvalidRefreshToken>
 /** The app install signing in. */
 export const DeviceInfo = Schema.Struct({
   /** Which app, e.g. `health-ios` or `health-mac`. */
-  app: Schema.NonEmptyString,
+  app: Schema.NonEmptyString.check(Schema.isMaxLength(64)),
   platform: DevicePlatform,
   /** The device's name, e.g. "Alexandru's iPhone". */
-  name: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  name: Schema.optionalKey(Schema.NullOr(Schema.String.check(Schema.isMaxLength(200)))),
 }).annotate({ identifier: "lil/api/auth/DeviceInfo" });
 
 export class AppleSignInRequest extends Schema.Class<AppleSignInRequest>(
   "lil/api/auth/AppleSignInRequest",
 )({
   /** `ASAuthorizationAppleIDCredential.identityToken`, as a string. */
-  identityToken: Schema.String,
+  identityToken: Schema.String.check(Schema.isMaxLength(8192)),
   /** The random nonce whose SHA-256 (hex) the app passed to Apple as the request's nonce. */
-  nonce: Schema.String,
+  nonce: Schema.String.check(Schema.isMaxLength(256)),
   /** Apple only gives the app the user's name on their first sign-in. */
   fullName: Schema.optionalKey(
     Schema.Struct({
-      givenName: Schema.optionalKey(Schema.NullOr(Schema.String)),
-      familyName: Schema.optionalKey(Schema.NullOr(Schema.String)),
+      givenName: Schema.optionalKey(Schema.NullOr(Schema.String.check(Schema.isMaxLength(200)))),
+      familyName: Schema.optionalKey(Schema.NullOr(Schema.String.check(Schema.isMaxLength(200)))),
     }),
   ),
   device: DeviceInfo,

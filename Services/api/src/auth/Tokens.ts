@@ -88,8 +88,11 @@ export const newRefreshToken = Effect.sync(
   () => `lrt_${base64url(crypto.getRandomValues(new Uint8Array(32)))}`,
 );
 
-/** Refresh tokens are stored only as their SHA-256 hash. */
-export const hashRefreshToken = (token: string) =>
-  Effect.promise(() => crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))).pipe(
+/** The SHA-256 of a string, as lowercase hex. */
+export const sha256Hex = (value: string) =>
+  Effect.promise(() => crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))).pipe(
     Effect.map((digest) => hex(new Uint8Array(digest))),
   );
+
+/** Refresh tokens are stored only as their SHA-256 hash. */
+export const hashRefreshToken = sha256Hex;
