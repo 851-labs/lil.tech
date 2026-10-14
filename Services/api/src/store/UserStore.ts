@@ -1,5 +1,11 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Clock, Effect } from "effect";
+import {
+  readHealthBatch,
+  receiveHealthBatch,
+  saveHealthBatch,
+} from "../health/HealthBatchStore.ts";
+import type { HealthBatch } from "../health/HealthBatches.ts";
 import { applyMutations, readChanges } from "./ChangeLog.ts";
 import { ChangesCompacted, InvalidMutation, type Mutation } from "./Changes.ts";
 import type { Entity } from "./Entities.ts";
@@ -29,6 +35,12 @@ export const makeUserStore = (sql: StoreSql, registry: ReadonlyArray<Entity> = e
         const page = readChanges(sql, after, limit);
         return page instanceof ChangesCompacted ? Effect.fail(page) : Effect.succeed(page);
       }),
+    /** An uploaded health batch's status, or `null` if it was never received. */
+    healthBatch: (id: string) => Effect.sync(() => readHealthBatch(sql, id)),
+    /** Records a health batch as `queued` unless it's already known, and returns its status. */
+    receiveHealthBatch: (id: string) =>
+      Clock.currentTimeMillis.pipe(Effect.map((at) => receiveHealthBatch(sql, id, at))),
+    saveHealthBatch: (batch: HealthBatch) => Effect.sync(() => saveHealthBatch(sql, batch)),
     /** Applies mutations in one transaction (see `applyMutations`). */
     applyMutations: (mutations: ReadonlyArray<Mutation>) =>
       Effect.gen(function* () {

@@ -6,6 +6,8 @@ import { HttpRouter } from "effect/http";
 import { SessionKey } from "./auth/Tokens.ts";
 import { CoreDatabase, CoreRepositories } from "./core/CoreDatabase.ts";
 import { Deployment, environmentForStage } from "./Deployment.ts";
+import { HealthBatchFiles, HealthBatchQueue } from "./health/HealthIngestion.ts";
+import { HealthIngestionWorker } from "./health/HealthResources.ts";
 import { WorkerHttpLayer } from "./Http.ts";
 import { UserStore, UserStoreLive } from "./store/UserStore.ts";
 import { UserStores } from "./store/UserStores.ts";
@@ -65,16 +67,29 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
     const deployment = yield* Deployment.config;
     const key = yield* readSessionKey;
     const core = yield* Cloudflare.D1.QueryDatabase(CoreDatabase);
-    const userStores = yield* UserStore;
+    const userStores = UserStores.fromNamespace(yield* UserStore);
+    const health = yield* HealthIngestionWorker(userStores);
+    const fetch = yield* HttpRouter.toHttpEffect(
+      WorkerHttpLayer.pipe(
+        Layer.provide(Layer.succeed(Deployment, deployment)),
+        Layer.provide(Layer.succeed(SessionKey, key)),
+        Layer.provide(Layer.succeed(UserStores, userStores)),
+        Layer.provide(CoreRepositories.pipe(Layer.provideMerge(SQL.D1Layer(core)))),
+      ),
+    );
     return {
-      fetch: yield* HttpRouter.toHttpEffect(
-        WorkerHttpLayer.pipe(
-          Layer.provide(Layer.succeed(Deployment, deployment)),
-          Layer.provide(Layer.succeed(SessionKey, key)),
-          Layer.provide(Layer.succeed(UserStores, UserStores.fromNamespace(userStores))),
-          Layer.provide(CoreRepositories.pipe(Layer.provideMerge(SQL.D1Layer(core)))),
-        ),
+      fetch: fetch.pipe(
+        Effect.provideServiceEffect(HealthBatchFiles, health.files),
+        Effect.provideServiceEffect(HealthBatchQueue, health.queue),
       ),
     };
-  }).pipe(Effect.provide([Cloudflare.D1.QueryDatabaseBinding, UserStoreLive])),
+  }).pipe(
+    Effect.provide([
+      Cloudflare.D1.QueryDatabaseBinding,
+      Cloudflare.R2.ReadWriteBucketBinding,
+      Cloudflare.Queues.WriteQueueBinding,
+      Cloudflare.Queues.EventSourceLive,
+      UserStoreLive,
+    ]),
+  ),
 ) {}

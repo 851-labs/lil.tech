@@ -177,7 +177,12 @@ POST /v1/sync/mutations
   - Pulled changes overwrite local rows, and pending mutations are reapplied on top until the client's cursor reaches the `seq` returned for them.
   - The queue lives outside the synced tables, so it survives a bootstrap.
   - If the server rejects a mutation permanently (see [Errors](#errors)), the client drops it from the queue and restores the record's previous state.
-- **Health ingestion** is a specialized push for large volumes. The iPhone uploads batch files to `POST /v1/health/batches`, which go through R2 and a queue into `applyMutations`. The resulting changes are ordinary log entries.
+- **Health ingestion** is a specialized push for large volumes, which the iPhone can send from a background `URLSession`. The resulting changes are ordinary log entries.
+  - **Upload:** `PUT /v1/health/batches/<id>` with a client-generated lowercase UUID. The body is a gzip-compressed NDJSON file (`application/gzip`, at most 16 MB), one mutation per line in the push format. Only health entities are allowed, and rows are full records.
+  - **Queueing:** the API stores the file in R2, queues it, and answers `202` with the batch's status. Uploading the same ID again only returns its status, so retries are safe.
+  - **Applying:** a queue consumer applies the lines in chunks of 500, one transaction each. Invalid lines are rejected with their line numbers and reasons, and the rest of the batch still applies. The file is deleted once the batch is applied.
+  - **Status:** `GET /v1/health/batches/<id>` returns `queued`, `applying`, `applied` (with counts and up to 100 rejected lines) or `failed`.
+  - **Failures:** a delivery that fails (e.g. the store is briefly unavailable) is retried 5 times, 30 seconds apart. Then the batch is marked `failed` and its message goes to a dead-letter queue. The client uploads failed or rejected data again as a new batch.
 
 ## Schema changes
 

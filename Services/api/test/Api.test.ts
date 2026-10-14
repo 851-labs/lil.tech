@@ -7,6 +7,7 @@ import { TestClock } from "effect/testing";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import { Deployment, environmentForStage } from "../src/Deployment.ts";
 import { Auth } from "../src/auth/Auth.ts";
+import { ingestHealthBatch } from "../src/health/HealthIngestion.ts";
 import { maxDevUsers } from "../src/auth/DevSignIn.ts";
 import { AccessTokens } from "../src/auth/Tokens.ts";
 import { Devices } from "../src/core/Devices.ts";
@@ -17,6 +18,7 @@ import { WorkerHttpLayer } from "../src/Http.ts";
 import { makeOpenApiSpec } from "../src/OpenApiSpec.ts";
 import { makeApiWorkerProps } from "../src/Worker.ts";
 import { TestAuth } from "./auth/TestAuth.ts";
+import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./health/TestHealthIngestion.ts";
 import { TestStores, TestUserStores } from "./store/TestUserStores.ts";
 
 const committedSpec = readFileSync(new URL("../openapi.json", import.meta.url), "utf8");
@@ -40,10 +42,10 @@ const withApi = <A, E>(
       { memoMap },
     );
     yield* Effect.addFinalizer(() => Effect.promise(() => dispose()));
-    return yield* use((request) => handler(request)).pipe(Effect.provide(context));
+    return yield* use((request) => handler(request, context)).pipe(Effect.provide(context));
   }).pipe(Effect.scoped);
 
-const TestServices = Layer.mergeAll(TestAuth, TestUserStores);
+const TestServices = Layer.mergeAll(TestAuth, TestUserStores, TestHealthIngestion);
 
 const send = (handler: Handler, request: Request) =>
   Effect.promise(async () => {
@@ -435,6 +437,114 @@ describe("GET /v1/sync/changes", () => {
           assert.strictEqual((yield* pull(handler, tokens.accessToken, query)).status, 400, query);
         }
         assert.strictEqual((yield* pull(handler, tokens.accessToken, "?limit=5000")).status, 200);
+      }),
+    ),
+  );
+});
+
+describe("/v1/health/batches", () => {
+  const batchId = "00000000-0000-4000-8000-0000000000b1";
+  const lines = [
+    {
+      entity: "health_sample",
+      op: "upsert",
+      id: "6f1c2a40-0000-4000-8000-000000000001",
+      row: {
+        type: "HKQuantityTypeIdentifierStepCount",
+        startDate: 1760400000000,
+        endDate: 1760400060000,
+        value: 12,
+        unit: "count",
+        sourceName: "Test iPhone",
+        sourceBundleId: "com.apple.health.00000000",
+      },
+    },
+  ];
+  const upload = (handler: Handler, token: string, id: string, body: Uint8Array) =>
+    send(
+      handler,
+      new Request(`https://api.lil.tech/v1/health/batches/${id}`, {
+        method: "PUT",
+        headers: { ...bearer(token), "content-type": "application/gzip" },
+        body: body as Uint8Array<ArrayBuffer>,
+      }),
+    );
+  const status = (handler: Handler, token: string, id: string) =>
+    send(
+      handler,
+      new Request(`https://api.lil.tech/v1/health/batches/${id}`, { headers: bearer(token) }),
+    );
+
+  it.live("queues an upload once, and reports its status until it's applied", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const outbox = yield* TestHealthOutbox;
+
+        const first = yield* upload(handler, tokens.accessToken, batchId, batchFile(lines));
+        assert.strictEqual(first.status, 202);
+        assert.deepInclude(first.body, { id: batchId, status: "queued" });
+        assert.deepStrictEqual(outbox.sent, [{ userId: user.id, batchId }]);
+        assert.isTrue(outbox.files.has(`health-batches/${user.id}/${batchId}.ndjson.gz`));
+
+        // A retried upload is answered with the batch's status and isn't queued again.
+        const retried = yield* upload(handler, tokens.accessToken, batchId, batchFile(lines));
+        assert.deepInclude(retried.body, { id: batchId, status: "queued" });
+        assert.lengthOf(outbox.sent, 1);
+
+        // The queue consumer applies it.
+        const [message] = outbox.sent;
+        if (message !== undefined) yield* ingestHealthBatch(message);
+        const applied = yield* status(handler, tokens.accessToken, batchId);
+        assert.strictEqual(applied.status, 200);
+        assert.deepInclude(applied.body, { status: "applied", lines: 1, applied: 1, rejected: 0 });
+        const changes = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/sync/changes", {
+            headers: bearer(tokens.accessToken),
+          }),
+        );
+        assert.deepInclude(changes.body, { head: 1 });
+      }),
+    ),
+  );
+
+  it.live("keeps each user's batches to themselves", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const ada = yield* signIn;
+        const bob = yield* signIn;
+        yield* upload(handler, ada.tokens.accessToken, batchId, batchFile(lines));
+        const response = yield* status(handler, bob.tokens.accessToken, batchId);
+        assert.strictEqual(response.status, 404);
+        assert.propertyVal(response.body, "_tag", "HealthBatchNotFound");
+      }),
+    ),
+  );
+
+  it.live("rejects invalid IDs, oversized files and missing sessions", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* signIn;
+        for (const id of ["not-a-uuid", batchId.toUpperCase()]) {
+          assert.strictEqual(
+            (yield* upload(handler, tokens.accessToken, id, batchFile(lines))).status,
+            400,
+          );
+        }
+        const tooLarge = yield* upload(
+          handler,
+          tokens.accessToken,
+          batchId,
+          new Uint8Array(16 * 1024 * 1024 + 1),
+        );
+        assert.strictEqual(tooLarge.status, 413);
+        assert.lengthOf((yield* TestHealthOutbox).sent, 0);
+        const anonymous = yield* send(
+          handler,
+          new Request(`https://api.lil.tech/v1/health/batches/${batchId}`, { method: "PUT" }),
+        );
+        assert.strictEqual(anonymous.status, 401);
       }),
     ),
   );

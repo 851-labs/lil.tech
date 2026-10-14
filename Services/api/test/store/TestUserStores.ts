@@ -2,6 +2,7 @@ import { Context, Effect, Layer } from "effect";
 import type { UserId } from "../../src/core/Ids.ts";
 import { Column, createEntityTable, defineEntity } from "../../src/store/Entities.ts";
 import type { StoreSql } from "../../src/store/StoreSql.ts";
+import { entities } from "../../src/store/Registry.ts";
 import { makeUserStore, type UserStoreMethods } from "../../src/store/UserStore.ts";
 import { UserStores, userStoreName } from "../../src/store/UserStores.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
@@ -18,10 +19,11 @@ export const testNote = defineEntity("test_note", {
   },
 });
 
-/** A store holding `test_note`, whose table a real entity's migration would create. */
+/** A store holding the registered entities and `test_note`, whose table a real entity's migration
+ * would create. */
 export const makeTestStore = () => {
   const sql = makeTestStoreSql();
-  const store = makeUserStore(sql, [testNote]);
+  const store = makeUserStore(sql, [...entities, testNote]);
   sql.script(createEntityTable(testNote));
   return { sql, store };
 };

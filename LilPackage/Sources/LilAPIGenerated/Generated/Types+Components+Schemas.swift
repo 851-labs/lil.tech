@@ -60,6 +60,217 @@ extension Components {
                 case message
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound`.
+        public struct HealthBatchNotFound: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case healthBatchNotFound = "HealthBatchNotFound"
+            }
+            /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound/_tag`.
+            public var _tag: Components.Schemas.HealthBatchNotFound._TagPayload
+            /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound/id`.
+            public var id: Swift.String
+            /// Creates a new `HealthBatchNotFound`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - id:
+            public init(
+                _tag: Components.Schemas.HealthBatchNotFound._TagPayload,
+                id: Swift.String
+            ) {
+                self._tag = _tag
+                self.id = id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case id
+            }
+        }
+        /// An uploaded health batch
+        ///
+        /// - Remark: Generated from `#/components/schemas/HealthBatch_1`.
+        public struct HealthBatch1: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBatch_1/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthBatch_1/status`.
+            public var status: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthBatch_1/receivedAt`.
+            public var receivedAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthBatch_1/finishedAt`.
+            public var finishedAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HealthBatch_1/lines`.
+            public var lines: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HealthBatch_1/applied`.
+            public var applied: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HealthBatch_1/rejected`.
+            public var rejected: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HealthBatch_1/rejectedLines`.
+            public var rejectedLines: [Components.Schemas.RejectedLine]?
+            /// - Remark: Generated from `#/components/schemas/HealthBatch_1/failure`.
+            public var failure: Swift.String?
+            /// Creates a new `HealthBatch1`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - status:
+            ///   - receivedAt:
+            ///   - finishedAt:
+            ///   - lines:
+            ///   - applied:
+            ///   - rejected:
+            ///   - rejectedLines:
+            ///   - failure:
+            public init(
+                id: Swift.String,
+                status: Swift.String,
+                receivedAt: Swift.Int,
+                finishedAt: Swift.Int? = nil,
+                lines: Swift.Int? = nil,
+                applied: Swift.Int? = nil,
+                rejected: Swift.Int? = nil,
+                rejectedLines: [Components.Schemas.RejectedLine]? = nil,
+                failure: Swift.String? = nil
+            ) {
+                self.id = id
+                self.status = status
+                self.receivedAt = receivedAt
+                self.finishedAt = finishedAt
+                self.lines = lines
+                self.applied = applied
+                self.rejected = rejected
+                self.rejectedLines = rejectedLines
+                self.failure = failure
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case status
+                case receivedAt
+                case finishedAt
+                case lines
+                case applied
+                case rejected
+                case rejectedLines
+                case failure
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RejectedLine`.
+        public struct RejectedLine: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RejectedLine/line`.
+            public var line: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RejectedLine/message`.
+            public var message: Swift.String
+            /// Creates a new `RejectedLine`.
+            ///
+            /// - Parameters:
+            ///   - line:
+            ///   - message:
+            public init(
+                line: Swift.Int,
+                message: Swift.String
+            ) {
+                self.line = line
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case line
+                case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge`.
+        public struct HealthBatchTooLarge: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case healthBatchTooLarge = "HealthBatchTooLarge"
+            }
+            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/_tag`.
+            public var _tag: Components.Schemas.HealthBatchTooLarge._TagPayload
+            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/maxBytes`.
+            public var maxBytes: Swift.Int
+            /// Creates a new `HealthBatchTooLarge`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - maxBytes:
+            public init(
+                _tag: Components.Schemas.HealthBatchTooLarge._TagPayload,
+                maxBytes: Swift.Int
+            ) {
+                self._tag = _tag
+                self.maxBytes = maxBytes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case maxBytes
+            }
+        }
+        /// An uploaded health batch
+        ///
+        /// - Remark: Generated from `#/components/schemas/HealthBatch`.
+        public struct HealthBatch: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBatch/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthBatch/status`.
+            public var status: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthBatch/receivedAt`.
+            public var receivedAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthBatch/finishedAt`.
+            public var finishedAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HealthBatch/lines`.
+            public var lines: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HealthBatch/applied`.
+            public var applied: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HealthBatch/rejected`.
+            public var rejected: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HealthBatch/rejectedLines`.
+            public var rejectedLines: [Components.Schemas.RejectedLine]?
+            /// - Remark: Generated from `#/components/schemas/HealthBatch/failure`.
+            public var failure: Swift.String?
+            /// Creates a new `HealthBatch`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - status:
+            ///   - receivedAt:
+            ///   - finishedAt:
+            ///   - lines:
+            ///   - applied:
+            ///   - rejected:
+            ///   - rejectedLines:
+            ///   - failure:
+            public init(
+                id: Swift.String,
+                status: Swift.String,
+                receivedAt: Swift.Int,
+                finishedAt: Swift.Int? = nil,
+                lines: Swift.Int? = nil,
+                applied: Swift.Int? = nil,
+                rejected: Swift.Int? = nil,
+                rejectedLines: [Components.Schemas.RejectedLine]? = nil,
+                failure: Swift.String? = nil
+            ) {
+                self.id = id
+                self.status = status
+                self.receivedAt = receivedAt
+                self.finishedAt = finishedAt
+                self.lines = lines
+                self.applied = applied
+                self.rejected = rejected
+                self.rejectedLines = rejectedLines
+                self.failure = failure
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case status
+                case receivedAt
+                case finishedAt
+                case lines
+                case applied
+                case rejected
+                case rejectedLines
+                case failure
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/ChangesCompacted`.
         public struct ChangesCompacted: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/ChangesCompacted/_tag`.

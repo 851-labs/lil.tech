@@ -20,6 +20,12 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /v1/sync/changes`.
     /// - Remark: Generated from `#/paths//v1/sync/changes/get(syncChanges)`.
     func syncChanges(_ input: Operations.SyncChanges.Input) async throws -> Operations.SyncChanges.Output
+    /// - Remark: HTTP `GET /v1/health/batches/{id}`.
+    /// - Remark: Generated from `#/paths//v1/health/batches/{id}/get(healthBatch)`.
+    func healthBatch(_ input: Operations.HealthBatch.Input) async throws -> Operations.HealthBatch.Output
+    /// - Remark: HTTP `PUT /v1/health/batches/{id}`.
+    /// - Remark: Generated from `#/paths//v1/health/batches/{id}/put(healthUploadBatch)`.
+    func healthUploadBatch(_ input: Operations.HealthUploadBatch.Input) async throws -> Operations.HealthUploadBatch.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -59,6 +65,30 @@ extension APIProtocol {
         try await syncChanges(Operations.SyncChanges.Input(
             query: query,
             headers: headers
+        ))
+    }
+    /// - Remark: HTTP `GET /v1/health/batches/{id}`.
+    /// - Remark: Generated from `#/paths//v1/health/batches/{id}/get(healthBatch)`.
+    public func healthBatch(
+        path: Operations.HealthBatch.Input.Path,
+        headers: Operations.HealthBatch.Input.Headers = .init()
+    ) async throws -> Operations.HealthBatch.Output {
+        try await healthBatch(Operations.HealthBatch.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// - Remark: HTTP `PUT /v1/health/batches/{id}`.
+    /// - Remark: Generated from `#/paths//v1/health/batches/{id}/put(healthUploadBatch)`.
+    public func healthUploadBatch(
+        path: Operations.HealthUploadBatch.Input.Path,
+        headers: Operations.HealthUploadBatch.Input.Headers = .init(),
+        body: Operations.HealthUploadBatch.Input.Body
+    ) async throws -> Operations.HealthUploadBatch.Output {
+        try await healthUploadBatch(Operations.HealthUploadBatch.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
 }
