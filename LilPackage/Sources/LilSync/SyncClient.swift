@@ -28,14 +28,23 @@ public struct SyncClient: Sendable {
     self.status = status
   }
 
-  /// A client backed by a ``LilSyncEngine`` for the app's entities, using the current
-  /// `defaultDatabase`, `api` and clock.
+  /// A client backed by a ``LilSyncEngine`` for the app's entities. The engine is made on first
+  /// use, so it picks up the `defaultDatabase` and `api` that `prepareDependencies` sets
+  /// alongside this client.
   public static func live(entities: [SyncEntity]) -> Self {
-    let engine = LilSyncEngine(entities: entities)
+    let engine = LockIsolated<LilSyncEngine?>(nil)
+    let resolve: @Sendable () -> LilSyncEngine = {
+      engine.withValue { engine in
+        if let engine { return engine }
+        let made = LilSyncEngine(entities: entities)
+        engine = made
+        return made
+      }
+    }
     return Self(
-      run: { await engine.run() },
-      syncNow: { await engine.syncNow() },
-      status: { await engine.statusUpdates() }
+      run: { await resolve().run() },
+      syncNow: { await resolve().syncNow() },
+      status: { await resolve().statusUpdates() }
     )
   }
 

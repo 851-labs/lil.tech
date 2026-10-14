@@ -1,4 +1,3 @@
-import ConcurrencyExtras
 import Dependencies
 import DependenciesTestSupport
 import Foundation
@@ -51,6 +50,8 @@ private final class FakeServer: Sendable {
     var horizon = 0
     /// Request numbers (1-based) that fail with a 500.
     var failing: Set<Int> = []
+    /// Answer with an empty page that claims there's more, like a broken server.
+    var stuck = false
     var requests: [Int] = []
   }
   let state = LockIsolated(State())
@@ -76,9 +77,16 @@ private final class FakeServer: Sendable {
         if after < state.horizon {
           return try json(.gone, ["_tag": "ChangesCompacted", "reason": "compacted"])
         }
-        let page = Array(state.changes.filter { $0.seq > after }.prefix(pageSize))
+        let page =
+          state.stuck ? [] : Array(state.changes.filter { $0.seq > after }.prefix(pageSize))
         let next = page.last?.seq ?? after
         let head = state.changes.last?.seq ?? 0
+        if state.stuck {
+          return try json(
+            .ok,
+            Components.Schemas.ChangesPage(
+              epoch: state.epoch, changes: [], next: after, head: head, hasMore: true))
+        }
         return try json(
           .ok,
           Components.Schemas.ChangesPage(
@@ -241,6 +249,50 @@ struct LilSyncEngineTests {
   }
 
   @Test
+  func skipsRowsItCannotReadInsteadOfStopping() async throws {
+    server.append { seq in
+      Components.Schemas.Change(
+        seq: seq, entity: "note", id: "n1", op: "upsert",
+        row: try! OpenAPIObjectContainer(unvalidatedValue: ["id": "n1", "title": 7]), at: 0)
+    }
+    server.append(upsert("n2", "Two"))
+    let engine = engine()
+
+    try await withKnownIssue {
+      try await engine.pull()
+    } matching: {
+      $0.description.contains("Skipped note change 1")
+    }
+    #expect(try storedNotes() == [Note(id: "n2", title: "Two")])
+    #expect(try cursor() == 2)
+  }
+
+  @Test
+  func needsABootstrapWhenAPageHasAGap() async throws {
+    for n in 1...3 { server.append(upsert("n\(n)", "Note \(n)")) }
+    server.state.withValue { _ = $0.changes.remove(at: 1) }
+    await #expect(throws: SyncError.needsBootstrap) { try await engine().pull() }
+    #expect(try storedNotes().isEmpty)
+  }
+
+  @Test
+  func refusesAPageThatMakesNoProgress() async throws {
+    server.append(upsert("n1", "One"))
+    server.state.withValue { $0.stuck = true }
+    await #expect(throws: SyncError.unexpectedPage) { try await engine().pull() }
+    #expect(server.state.requests.count == 1)
+  }
+
+  @Test
+  func reportsEntitiesRegisteredTwice() {
+    withKnownIssue {
+      _ = engine(entities: [notes, notes])
+    } matching: {
+      $0.description.contains("registered more than once")
+    }
+  }
+
+  @Test
   func runRetriesWithBackoffAndReportsStatus() async throws {
     server.append(upsert("n1", "One"))
     server.state.withValue { $0.failing = [1, 2] }
@@ -261,23 +313,55 @@ struct LilSyncEngineTests {
     let running = Task { await engine.run() }
 
     // Backoff is at most 1 second after the first failure and 2 after the second.
+    try await eventually { server.state.requests.count == 1 }
     await clock.advance(by: .seconds(1))
+    try await eventually { server.state.requests.count == 2 }
     await clock.advance(by: .seconds(2))
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(try storedNotes() == [Note(id: "n1", title: "One")])
+    try await eventually { try storedNotes() == [Note(id: "n1", title: "One")] }
 
-    // An idle engine pulls again when asked.
+    // An idle engine pulls again when asked, without waiting out the interval.
     server.append(upsert("n2", "Two"))
     await engine.syncNow()
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(try storedNotes().count == 2)
+    try await eventually { try storedNotes().count == 2 }
 
+    // Cancelling ends the idle wait right away.
     running.cancel()
+    await running.value
+    try await eventually { statuses.value.last == .idle }
     observing.cancel()
     #expect(statuses.value.first == .idle)
     #expect(statuses.value.contains(.failed("unexpectedStatus(500)")))
-    #expect(statuses.value.last == .idle)
   }
+
+  @Test
+  func cancellingRunEndsABackoffRightAway() async throws {
+    server.state.withValue { $0.failing = [1] }
+    let engine = withDependencies {
+      $0.defaultDatabase = database
+      $0.api = server.client
+      $0.continuousClock = TestClock()
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+    } operation: {
+      LilSyncEngine(entities: [notes])
+    }
+    let running = Task { await engine.run() }
+    try await eventually { server.state.requests.count == 1 }
+    running.cancel()
+    // The test clock never advances, so this only returns because cancellation ends the wait.
+    await running.value
+  }
+}
+
+/// Waits for `condition`, which other tasks make true, yielding in between.
+private func eventually(
+  _ condition: () throws -> Bool,
+  sourceLocation: SourceLocation = #_sourceLocation
+) async throws {
+  for _ in 0..<10_000 {
+    if try condition() { return }
+    await Task.yield()
+  }
+  Issue.record("Condition never became true", sourceLocation: sourceLocation)
 }
 
 extension SyncEntity {

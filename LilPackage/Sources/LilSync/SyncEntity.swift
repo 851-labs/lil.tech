@@ -31,11 +31,12 @@ public struct SyncEntity: Sendable {
     upsert: @escaping @Sendable (_ row: Row, _ db: Database) throws -> Void,
     delete: @escaping @Sendable (_ id: String, _ db: Database) throws -> Void
   ) -> Self {
-    Self(
+    let encoder = JSONEncoder()
+    let decoder = JSONDecoder()
+    return Self(
       name: name,
       upsert: { _, row, db in
-        let data = try JSONEncoder().encode(row)
-        try upsert(JSONDecoder().decode(Row.self, from: data), db)
+        try upsert(decoder.decode(Row.self, from: encoder.encode(row)), db)
       },
       delete: delete
     )

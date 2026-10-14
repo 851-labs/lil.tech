@@ -7,7 +7,7 @@ import SQLiteData
 /// What the UI shows about sync.
 public enum SyncStatus: Equatable, Sendable {
   case idle
-  /// Pulling. `cursor` and `head` give progress.
+  /// Catching up. `cursor` and `head` give progress.
   case syncing(cursor: Int, head: Int)
   /// The last pull failed. Sync retries with backoff.
   case failed(String)
@@ -18,6 +18,8 @@ public enum SyncStatus: Equatable, Sendable {
 
 /// Pulls a user's change log into the local database (`docs/SYNC.md`): each page is applied
 /// together with the new cursor in one transaction, so the cursor never runs ahead of the data.
+///
+/// Named so it doesn't clash with SQLiteData's CloudKit `SyncEngine`.
 public actor LilSyncEngine {
   /// Changes per pull.
   static let pageSize = 1000
@@ -32,7 +34,9 @@ public actor LilSyncEngine {
 
   private var status = SyncStatus.idle
   private var observers: [UUID: AsyncStream<SyncStatus>.Continuation] = [:]
-  private var wait: Task<Void, any Error>?
+  /// Set by ``syncNow()``, so the next wait in ``run()`` is skipped.
+  private var syncRequested = false
+  private var wake: CheckedContinuation<Void, Never>?
 
   public init(entities: [SyncEntity]) {
     @Dependency(\.defaultDatabase) var database
@@ -40,7 +44,12 @@ public actor LilSyncEngine {
     @Dependency(\.continuousClock) var clock
     @Dependency(\.withRandomNumberGenerator) var random
     self.entities = Dictionary(
-      entities.map { ($0.name, $0) }, uniquingKeysWith: { _, last in last })
+      entities.map { ($0.name, $0) },
+      uniquingKeysWith: { first, _ in
+        reportIssue("SyncEntity \(first.name) is registered more than once; the first one is used.")
+        return first
+      }
+    )
     self.database = database
     self.api = api
     self.clock = clock
@@ -60,34 +69,39 @@ public actor LilSyncEngine {
     return stream
   }
 
-  /// Pulls until caught up, then every ``idleInterval`` or when ``syncNow()`` is called, until
-  /// cancelled. The app runs it only while signed in. Failures are retried with exponential
-  /// backoff and jitter, from 1 second up to 5 minutes.
+  /// Pulls until caught up, then every ``idleInterval`` or when ``syncNow()`` is called, until the
+  /// task running it is cancelled. The app runs it only while signed in. Failures are retried with
+  /// exponential backoff and jitter, from 1 second up to 5 minutes.
   public func run() async {
     var failures = 0
     while !Task.isCancelled {
       let delay: Duration
       do {
+        syncRequested = false
         try await pull()
         failures = 0
         delay = Self.idleInterval
-      } catch is CancellationError {
-        return
-      } catch SyncError.needsBootstrap {
-        setStatus(.needsBootstrap)
-        delay = Self.idleInterval
       } catch {
-        failures += 1
-        setStatus(.failed(String(describing: error)))
-        delay = backoff(afterFailures: failures)
+        // Cancellation can come back wrapped, e.g. as a client error around `URLError.cancelled`.
+        if Task.isCancelled { return }
+        if error as? SyncError == .needsBootstrap {
+          setStatus(.needsBootstrap)
+          delay = Self.idleInterval
+        } else {
+          failures += 1
+          setStatus(.failed(String(describing: error)))
+          delay = backoff(afterFailures: failures)
+        }
       }
-      await sleep(for: delay)
+      await wait(for: delay)
     }
   }
 
-  /// Ends the current wait in ``run()``, e.g. after a live notice that new changes exist.
+  /// Pulls again as soon as possible: ends the current wait in ``run()``, or skips the next one if
+  /// a pull is in progress. Called e.g. after a live notice that new changes exist.
   public func syncNow() {
-    wait?.cancel()
+    syncRequested = true
+    endWait()
   }
 
   /// Pulls pages until caught up. Throws ``SyncError/needsBootstrap`` when the local data must be
@@ -99,26 +113,35 @@ public actor LilSyncEngine {
       let page = try await fetchPage(after: state.cursor)
       if let epoch = state.epoch, epoch != page.epoch { throw SyncError.needsBootstrap }
       if state.cursor > page.head { throw SyncError.needsBootstrap }
-      setStatus(.syncing(cursor: state.cursor, head: page.head))
+      try Self.check(page, after: state.cursor)
       try await database.write { [entities] db in
         for change in page.changes {
           guard let entity = entities[change.entity] else { continue }
-          switch change.op {
-          case "upsert":
-            guard let row = change.row else { throw SyncError.missingRow(seq: change.seq) }
-            try entity.upsert(change.id, row, db)
-          case "delete":
-            try entity.delete(change.id, db)
-          default:
-            continue
+          do {
+            switch change.op {
+            case "upsert":
+              guard let row = change.row else { throw SyncError.missingRow(seq: change.seq) }
+              try entity.upsert(change.id, row, db)
+            case "delete":
+              try entity.delete(change.id, db)
+            default:
+              continue
+            }
+          } catch let error as DecodingError {
+            // A row this app can't read would otherwise block every later change. It's skipped;
+            // an app version that understands it bootstraps again (`docs/SYNC.md`).
+            reportIssue("Skipped \(change.entity) change \(change.seq): \(error)")
+          } catch SyncError.missingRow(let seq) {
+            reportIssue("Skipped \(change.entity) change \(seq): an upsert without a row")
           }
         }
         try SyncState(id: SyncState.singletonID, cursor: page.next, epoch: page.epoch).save(db)
       }
-      if !page.hasMore {
+      guard page.hasMore else {
         setStatus(.idle)
         return
       }
+      setStatus(.syncing(cursor: page.next, head: page.head))
     }
   }
 
@@ -137,18 +160,52 @@ public actor LilSyncEngine {
     }
   }
 
+  /// A page must continue right after the cursor with no gaps, since a gap would silently lose
+  /// changes, and must make progress when there's more.
+  private static func check(_ page: Components.Schemas.ChangesPage, after cursor: Int) throws {
+    for (offset, change) in page.changes.enumerated() where change.seq != cursor + offset + 1 {
+      throw SyncError.needsBootstrap
+    }
+    if page.next != (page.changes.last?.seq ?? cursor) || (page.hasMore && page.next <= cursor) {
+      throw SyncError.unexpectedPage
+    }
+  }
+
   private func backoff(afterFailures failures: Int) -> Duration {
     let seconds = min(300, pow(2, Double(min(failures, 10) - 1)))
     let jitter = random { Double.random(in: 0.5...1, using: &$0) }
     return .seconds(seconds * jitter)
   }
 
-  private func sleep(for duration: Duration) async {
+  /// Waits for `duration`, until ``syncNow()``, or until the task running ``run()`` is cancelled.
+  private func wait(for duration: Duration) async {
+    if syncRequested { return }
     let clock = clock
-    let task = Task { try await clock.sleep(for: duration) }
-    wait = task
-    _ = await task.result
-    wait = nil
+    await withTaskGroup(of: Void.self) { group in
+      group.addTask { try? await clock.sleep(for: duration) }
+      group.addTask { await self.waitForSyncRequest() }
+      await group.next()
+      group.cancelAll()
+    }
+  }
+
+  private func waitForSyncRequest() async {
+    await withTaskCancellationHandler {
+      await withCheckedContinuation { continuation in
+        if syncRequested || Task.isCancelled {
+          continuation.resume()
+        } else {
+          wake = continuation
+        }
+      }
+    } onCancel: {
+      Task { await self.endWait() }
+    }
+  }
+
+  private func endWait() {
+    wake?.resume()
+    wake = nil
   }
 
   private func setStatus(_ status: SyncStatus) {
@@ -168,4 +225,6 @@ public enum SyncError: Error, Equatable {
   case unavailable
   case unexpectedStatus(Int)
   case missingRow(seq: Int)
+  /// The server sent a page that makes no progress or doesn't match its `next`.
+  case unexpectedPage
 }
