@@ -87,6 +87,10 @@ public struct AuthClient: Sendable {
   /// the app gave Apple.
   public var signInWithApple:
     @Sendable (_ credential: AppleCredential, _ nonce: String) async throws(SignInError) -> Void
+  /// Exchanges Google's ID token for a session. `nonce` is the raw nonce whose SHA-256 the app
+  /// gave Google.
+  public var signInWithGoogle:
+    @Sendable (_ idToken: String, _ nonce: String) async throws(SignInError) -> Void
   public var signOut: @Sendable () async -> Void
   /// Whether the app is signed in, now and after every change.
   public var signedInUpdates: @Sendable () async -> AsyncStream<Bool>
@@ -95,10 +99,13 @@ public struct AuthClient: Sendable {
     signInWithApple:
       @escaping @Sendable (_ credential: AppleCredential, _ nonce: String) async throws(SignInError)
       -> Void,
+    signInWithGoogle:
+      @escaping @Sendable (_ idToken: String, _ nonce: String) async throws(SignInError) -> Void,
     signOut: @escaping @Sendable () async -> Void,
     signedInUpdates: @escaping @Sendable () async -> AsyncStream<Bool>
   ) {
     self.signInWithApple = signInWithApple
+    self.signInWithGoogle = signInWithGoogle
     self.signOut = signOut
     self.signedInUpdates = signedInUpdates
   }
@@ -110,6 +117,25 @@ extension AuthClient: DependencyKey {
     @Dependency(\.authSessions) var sessions
     @Dependency(\.authDevice) var device
     @Dependency(\.date) var date
+    /// Calls a sign-in endpoint and starts the session it returns.
+    @Sendable func signIn(
+      _ call: @Sendable () async throws -> SignInOutcome
+    ) async throws(SignInError) {
+      let outcome: SignInOutcome
+      do {
+        outcome = try await call()
+      } catch {
+        throw .failed(error.localizedDescription)
+      }
+      switch outcome {
+      case .signedIn(let pair):
+        guard let pair else { throw .failed("Unexpected response") }
+        await sessions.signedIn(AuthSession(pair, receivedAt: date.now))
+      case .rejected: throw .rejected
+      case .unavailable: throw .unavailable
+      case .unexpected(let statusCode): throw .failed("HTTP \(statusCode)")
+      }
+    }
     return Self(
       signInWithApple: { credential, nonce throws(SignInError) in
         let request = Components.Schemas.AppleSignInRequest(
@@ -118,22 +144,28 @@ extension AuthClient: DependencyKey {
           fullName: .init(givenName: credential.givenName, familyName: credential.familyName),
           device: .init(app: device.app, platform: device.platform, name: device.name)
         )
-        let output: Operations.AuthApple.Output
-        do {
-          output = try await api.authApple(body: .json(request))
-        } catch {
-          throw .failed(error.localizedDescription)
+        try await signIn {
+          switch try await api.authApple(body: .json(request)) {
+          case .ok(let ok): .signedIn(try? ok.body.json)
+          case .unauthorized: .rejected
+          case .serviceUnavailable: .unavailable
+          case .undocumented(let statusCode, _): .unexpected(statusCode)
+          }
         }
-        switch output {
-        case .ok(let ok):
-          guard let pair = try? ok.body.json else { throw .failed("Unexpected response") }
-          await sessions.signedIn(AuthSession(pair, receivedAt: date.now))
-        case .unauthorized:
-          throw .rejected
-        case .serviceUnavailable:
-          throw .unavailable
-        case .undocumented(let statusCode, _):
-          throw .failed("HTTP \(statusCode)")
+      },
+      signInWithGoogle: { idToken, nonce throws(SignInError) in
+        let request = Components.Schemas.GoogleSignInRequest(
+          idToken: idToken,
+          nonce: nonce,
+          device: .init(app: device.app, platform: device.platform, name: device.name)
+        )
+        try await signIn {
+          switch try await api.authGoogle(body: .json(request)) {
+          case .ok(let ok): .signedIn(try? ok.body.json)
+          case .unauthorized: .rejected
+          case .serviceUnavailable: .unavailable
+          case .undocumented(let statusCode, _): .unexpected(statusCode)
+          }
         }
       },
       signOut: { await sessions.signOut() },
@@ -143,6 +175,7 @@ extension AuthClient: DependencyKey {
 
   public static let previewValue = Self(
     signInWithApple: { _, _ throws(SignInError) in },
+    signInWithGoogle: { _, _ throws(SignInError) in },
     signOut: {},
     signedInUpdates: { AsyncStream { $0.yield(false) } }
   )
@@ -152,6 +185,9 @@ extension AuthClient: DependencyKey {
       signInWithApple: { _, _ throws(SignInError) in
         reportIssue("Unimplemented: @Dependency(\\.auth).signInWithApple")
       },
+      signInWithGoogle: { _, _ throws(SignInError) in
+        reportIssue("Unimplemented: @Dependency(\\.auth).signInWithGoogle")
+      },
       signOut: { reportIssue("Unimplemented: @Dependency(\\.auth).signOut") },
       signedInUpdates: {
         reportIssue("Unimplemented: @Dependency(\\.auth).signedInUpdates")
@@ -159,4 +195,12 @@ extension AuthClient: DependencyKey {
       }
     )
   }
+}
+
+/// How a sign-in endpoint answered.
+private enum SignInOutcome {
+  case signedIn(Components.Schemas.TokenPair?)
+  case rejected
+  case unavailable
+  case unexpected(Int)
 }

@@ -2,7 +2,8 @@ import AuthenticationServices
 public import ComposableArchitecture
 public import SwiftUI
 
-/// The sign-in screen: the app's name, the stock Sign in with Apple button, and what's happening.
+/// The sign-in screen: the app's name, the stock Sign in with Apple button, a Google button, and
+/// what's happening.
 public struct SignInView: View {
   let store: StoreOf<SignInFeature>
   let appName: String
@@ -24,18 +25,10 @@ public struct SignInView: View {
         .multilineTextAlignment(.center)
       Spacer()
 
-      // Fixed space for the button and the message, so the screen doesn't shift between states.
+      // The buttons keep their space while hidden, so the screen doesn't shift between states.
       VStack(spacing: 12) {
-        Group {
-          switch store.status {
-          case .signedIn:
-            Label("Signed in", systemImage: "checkmark.circle.fill")
-              .foregroundStyle(.green)
-          case .signingIn:
-            ProgressView()
-              .controlSize(.small)
-              .accessibilityLabel("Signing in")
-          case .signedOut, .failed:
+        ZStack {
+          VStack(spacing: 12) {
             SignInWithAppleButton(.signIn) { request in
               store.send(.appleButtonTapped)
               request.requestedScopes = [.fullName, .email]
@@ -45,9 +38,35 @@ public struct SignInView: View {
             }
             .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
             .frame(maxWidth: 320)
+            .frame(height: 44)
+
+            Button {
+              store.send(.googleButtonTapped)
+            } label: {
+              Text("Sign in with Google")
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.extraLarge)
+            .frame(maxWidth: 320)
+            .disabled(store.googleRequest != nil)
+          }
+          .opacity(showsButtons ? 1 : 0)
+          .disabled(!showsButtons)
+          .accessibilityHidden(!showsButtons)
+
+          switch store.status {
+          case .signedIn:
+            Label("Signed in", systemImage: "checkmark.circle.fill")
+              .foregroundStyle(.green)
+          case .signingIn:
+            ProgressView()
+              .controlSize(.small)
+              .accessibilityLabel("Signing in")
+          case .signedOut, .failed:
+            EmptyView()
           }
         }
-        .frame(height: 44)
 
         Text(failureMessage ?? "")
           .font(.callout)
@@ -59,6 +78,13 @@ public struct SignInView: View {
     }
     .padding(32)
     .frame(minWidth: 360, minHeight: 420)
+  }
+
+  private var showsButtons: Bool {
+    switch store.status {
+    case .signedOut, .failed: true
+    case .signingIn, .signedIn: false
+    }
   }
 
   private var failureMessage: String? {
@@ -112,5 +138,18 @@ public struct SignInView: View {
 #Preview("Signed in") {
   SignInView(
     store: Store(initialState: SignInFeature.State(status: .signedIn)) { SignInFeature() },
+    appName: "lil health")
+}
+
+#Preview("Google sheet open") {
+  SignInView(
+    store: Store(
+      initialState: SignInFeature.State(
+        googleRequest: GoogleAuthorizationRequest(
+          clientID: "preview.apps.googleusercontent.com", codeVerifier: "verifier",
+          nonce: "nonce", state: "state"))
+    ) {
+      SignInFeature()
+    },
     appName: "lil health")
 }

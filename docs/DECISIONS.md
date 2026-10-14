@@ -103,7 +103,8 @@
     - A refresh token the server rejects signs the app out. Other refresh failures (no network, 5xx) keep the session for the next try.
     - Expiry is tracked on the device's clock: the server's times, shifted by how far the device's clock was from the server's when the access token was issued (its `iat`). That way, a clock that's off doesn't make every token look expired.
     - Signing out forgets the session first, then tells the server with the access token it had.
-    - The sign-in screen uses the stock Sign in with Apple button.
+    - The sign-in screen uses the stock Sign in with Apple button, with a Google button under it.
+    - **Google without its SDK:** the apps open Google's sign-in page in `ASWebAuthenticationSession`, using the authorization code flow with PKCE. They redirect to the reversed client ID and redeem the code at Google's token endpoint for the ID token. iOS-type clients have no secret. Each app's client ID is `GIDClientID` in its Info.plist. Until it's set, the Google button reports that sign-in is unavailable.
 - **Identities and connections are separate:**
   - An identity is a way to sign in. Signing in with Google requests identity scopes only.
   - A connection is a data source the user grants access to, with its own scopes, credentials and sync state: Apple Health now, Gmail, IMAP and calendars later.

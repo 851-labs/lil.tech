@@ -1,8 +1,8 @@
 public import ComposableArchitecture
-import CryptoKit
-import Foundation
+public import Foundation
 
-/// Signing in with Apple: the stock button, then exchanging Apple's token for a session.
+/// Signing in with Apple (the stock button) or Google (in the browser), then exchanging the
+/// provider's token for a session.
 @Reducer
 public struct SignInFeature {
   @ObservableState
@@ -24,14 +24,26 @@ public struct SignInFeature {
     public var givenName: String?
     public var familyName: String?
 
-    public init(status: Status = .signedOut, nonce: String? = nil) {
+    /// The Google sign-in in the browser, while it's open.
+    public var googleRequest: GoogleAuthorizationRequest?
+
+    public init(
+      status: Status = .signedOut, nonce: String? = nil,
+      googleRequest: GoogleAuthorizationRequest? = nil
+    ) {
       self.status = status
       self.nonce = nonce
+      self.googleRequest = googleRequest
+    }
+
+    /// Starting another try clears the last one's error.
+    mutating func clearFailure() {
+      if case .failed = status { status = .signedOut }
     }
 
     /// What the Apple request's `nonce` is set to.
     public var nonceHash: String? {
-      nonce.map { SHA256.hash(data: Data($0.utf8)).map { String(format: "%02x", $0) }.joined() }
+      nonce.map(Nonce.sha256Hex)
     }
   }
 
@@ -39,6 +51,9 @@ public struct SignInFeature {
     /// The Apple button was tapped, just before Apple's sheet appears.
     case appleButtonTapped
     case appleAuthorizationFinished(Result<AppleCredential, AppleAuthorizationError>)
+    case googleButtonTapped
+    /// The browser came back with Google's redirect.
+    case googleAuthorizationFinished(Result<URL, GoogleAuthorizationError>)
     case signInSucceeded
     case signInFailed(SignInError)
     case delegate(Delegate)
@@ -55,7 +70,10 @@ public struct SignInFeature {
     case failed(String)
   }
 
+  enum CancelID { case google }
+
   @Dependency(\.auth) var auth
+  @Dependency(\.googleOAuth) var googleOAuth
   @Dependency(\.withRandomNumberGenerator) var withRandomNumberGenerator
 
   public init() {}
@@ -64,12 +82,8 @@ public struct SignInFeature {
     Reduce { state, action in
       switch action {
       case .appleButtonTapped:
-        state.nonce = withRandomNumberGenerator { generator in
-          (0..<32).map { _ in
-            String(format: "%02x", UInt8.random(in: .min ... .max, using: &generator))
-          }
-          .joined()
-        }
+        state.clearFailure()
+        state.nonce = withRandomNumberGenerator { Nonce.randomHex(bytes: 32, using: &$0) }
         return .none
 
       case .appleAuthorizationFinished(.success(var credential)):
@@ -100,6 +114,60 @@ public struct SignInFeature {
 
       case .appleAuthorizationFinished(.failure(.failed(let reason))):
         state.nonce = nil
+        state.status = .failed(SignInError.failed(reason).message)
+        return .none
+
+      case .googleButtonTapped:
+        guard let clientID = googleOAuth.clientID else {
+          reportIssue("No Google OAuth client ID: set GIDClientID in the app's Info.plist")
+          state.status = .failed(SignInError.unavailable.message)
+          return .none
+        }
+        state.clearFailure()
+        let request = withRandomNumberGenerator { generator in
+          GoogleAuthorizationRequest.make(clientID: clientID, using: &generator)
+        }
+        state.googleRequest = request
+        return .run { [googleOAuth] send in
+          await send(.googleAuthorizationFinished(await googleOAuth.authorize(request)))
+        }
+        .cancellable(id: CancelID.google, cancelInFlight: true)
+
+      case .googleAuthorizationFinished(.success(let callback)):
+        guard let request = state.googleRequest else { return .none }
+        state.googleRequest = nil
+        let code: String
+        do throws(GoogleAuthorizationError) {
+          code = try request.code(from: callback)
+        } catch {
+          switch error {
+          case .canceled: break
+          case .failed(let reason): state.status = .failed(SignInError.failed(reason).message)
+          }
+          return .none
+        }
+        state.status = .signingIn
+        return .run { [auth, googleOAuth] send in
+          do throws(SignInError) {
+            let idToken: String
+            do {
+              idToken = try await googleOAuth.redeem(code, request)
+            } catch {
+              throw .failed(error.localizedDescription)
+            }
+            try await auth.signInWithGoogle(idToken, request.nonce)
+            await send(.signInSucceeded)
+          } catch {
+            await send(.signInFailed(error))
+          }
+        }
+
+      case .googleAuthorizationFinished(.failure(.canceled)):
+        state.googleRequest = nil
+        return .none
+
+      case .googleAuthorizationFinished(.failure(.failed(let reason))):
+        state.googleRequest = nil
         state.status = .failed(SignInError.failed(reason).message)
         return .none
 
