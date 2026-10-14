@@ -6,7 +6,13 @@ import { ProviderSignIn } from "../../src/auth/ProviderSignIn.ts";
 import { AccessTokens } from "../../src/auth/Tokens.ts";
 import { Identities } from "../../src/core/Identities.ts";
 import { Users } from "../../src/core/Users.ts";
-import { googleIdToken, TestGoogleKeys, TestGoogleSignIn } from "./TestGoogle.ts";
+import {
+  googleIdToken,
+  TestGoogleKeys,
+  TestGoogleSignIn,
+  testGoogleClients,
+  testGoogleKeysControl,
+} from "./TestGoogle.ts";
 import { TestAuth } from "./TestAuth.ts";
 
 // Synthetic identities only (AGENTS.md).
@@ -16,14 +22,16 @@ const newSubject = () => `1${String(++nextSubject).padStart(20, "0")}`;
 
 const signIn = (claims: Record<string, unknown>) =>
   Effect.gen(function* () {
-    const identity = yield* (yield* GoogleSignIn).verify(yield* googleIdToken(claims));
+    const nonce = crypto.randomUUID();
+    const token = yield* googleIdToken({ ...claims, nonce });
+    const identity = yield* (yield* GoogleSignIn).verify(token, nonce);
     const tokens = yield* (yield* ProviderSignIn).signIn(identity, mac);
     return yield* (yield* AccessTokens).verify(tokens.accessToken);
   });
 
-const rejected = (token: Effect.Effect<string>) =>
+const rejected = (token: Effect.Effect<string>, nonce = "n") =>
   Effect.gen(function* () {
-    const error = yield* Effect.flip((yield* GoogleSignIn).verify(yield* token));
+    const error = yield* Effect.flip((yield* GoogleSignIn).verify(yield* token, nonce));
     assert.strictEqual(error._tag, "InvalidIdentityToken");
     return error.message;
   });
@@ -58,7 +66,8 @@ layer(TestGoogleSignIn)("Sign in with Google", (it) => {
   it.effect("accepts both of Google's issuers", () =>
     Effect.gen(function* () {
       const identity = yield* (yield* GoogleSignIn).verify(
-        yield* googleIdToken({ sub: newSubject() }, { issuer: "accounts.google.com" }),
+        yield* googleIdToken({ sub: newSubject(), nonce: "n" }, { issuer: "accounts.google.com" }),
+        "n",
       );
       assert.strictEqual(identity.provider, "google");
     }),
@@ -67,7 +76,10 @@ layer(TestGoogleSignIn)("Sign in with Google", (it) => {
   it.effect("rejects a token for another client", () =>
     Effect.gen(function* () {
       const message = yield* rejected(
-        googleIdToken({ sub: newSubject() }, { audience: "other.apps.googleusercontent.com" }),
+        googleIdToken(
+          { sub: newSubject(), nonce: "n" },
+          { audience: "other.apps.googleusercontent.com" },
+        ),
       );
       assert.include(message, "aud");
     }),
@@ -75,7 +87,7 @@ layer(TestGoogleSignIn)("Sign in with Google", (it) => {
 
   it.effect("rejects an expired token", () =>
     Effect.gen(function* () {
-      const token = yield* googleIdToken({ sub: newSubject() });
+      const token = yield* googleIdToken({ sub: newSubject(), nonce: "n" });
       yield* TestClock.adjust("61 minutes");
       const message = yield* rejected(Effect.succeed(token));
       assert.include(message, "exp");
@@ -85,19 +97,72 @@ layer(TestGoogleSignIn)("Sign in with Google", (it) => {
   it.effect("rejects an account whose email isn't verified, or has none", () =>
     Effect.gen(function* () {
       const unverified = yield* rejected(
-        googleIdToken({ sub: newSubject(), email_verified: false }),
+        googleIdToken({ sub: newSubject(), nonce: "n", email_verified: false }),
       );
       assert.include(unverified, "verified");
-      yield* rejected(googleIdToken({ sub: newSubject(), email: undefined }));
+      yield* rejected(googleIdToken({ sub: newSubject(), nonce: "n", email: undefined }));
     }),
   );
 
   it.effect("a token signs in only once", () =>
     Effect.gen(function* () {
-      const token = yield* googleIdToken({ sub: newSubject() });
-      yield* (yield* GoogleSignIn).verify(token);
+      const token = yield* googleIdToken({ sub: newSubject(), nonce: "n" });
+      yield* (yield* GoogleSignIn).verify(token, "n");
       const message = yield* rejected(Effect.succeed(token));
       assert.include(message, "already used");
+    }),
+  );
+
+  it.effect("rejects a nonce that doesn't match the token", () =>
+    Effect.gen(function* () {
+      const message = yield* rejected(
+        googleIdToken({ sub: newSubject(), nonce: "the real nonce" }),
+        "another nonce",
+      );
+      assert.include(message, "nonce");
+    }),
+  );
+
+  it.effect("accepts a token for our server client that one of our apps requested", () =>
+    Effect.gen(function* () {
+      const server = testGoogleClients.server[0] ?? "";
+      const app = testGoogleClients.apps[0] ?? "";
+      const identity = yield* (yield* GoogleSignIn).verify(
+        yield* googleIdToken({ sub: newSubject(), nonce: "n", azp: app }, { audience: server }),
+        "n",
+      );
+      assert.strictEqual(identity.provider, "google");
+      const message = yield* rejected(
+        googleIdToken(
+          { sub: newSubject(), nonce: "n", azp: "other.apps.googleusercontent.com" },
+          { audience: server },
+        ),
+      );
+      assert.include(message, "another app");
+    }),
+  );
+
+  it.effect("fetches Google's keys again for a key ID it hasn't seen", () =>
+    Effect.gen(function* () {
+      const control = testGoogleKeysControl;
+      control.mode = "staleCache";
+      const before = control.freshFetches;
+      yield* signIn({ sub: newSubject() }).pipe(
+        Effect.ensuring(Effect.sync(() => (control.mode = "normal"))),
+      );
+      assert.strictEqual(control.freshFetches, before + 1);
+    }),
+  );
+
+  it.effect("answers that sign-in is unavailable when Google's keys can't be fetched", () =>
+    Effect.gen(function* () {
+      const control = testGoogleKeysControl;
+      control.mode = "down";
+      const token = yield* googleIdToken({ sub: newSubject(), nonce: "n" });
+      const error = yield* Effect.flip((yield* GoogleSignIn).verify(token, "n")).pipe(
+        Effect.ensuring(Effect.sync(() => (control.mode = "normal"))),
+      );
+      assert.strictEqual(error._tag, "SignInUnavailable");
     }),
   );
 });
@@ -105,16 +170,16 @@ layer(TestGoogleSignIn)("Sign in with Google", (it) => {
 describe("Sign in with Google before client IDs are registered", () => {
   layer(
     GoogleSignIn.layer.pipe(
-      Layer.provide(Layer.succeed(GoogleClients, [])),
-      Layer.provideMerge(TestGoogleKeys.pipe(Layer.provide(Layer.empty))),
+      Layer.provide(Layer.succeed(GoogleClients, { apps: [], server: [] })),
+      Layer.provide(TestGoogleKeys),
       Layer.provideMerge(TestAuth),
     ),
   )((it) => {
     it.effect("answers that it isn't available", () =>
       Effect.gen(function* () {
-        const token = yield* googleIdToken({ sub: newSubject() });
-        const error = yield* Effect.flip((yield* GoogleSignIn).verify(token));
-        assert.strictEqual(error._tag, "GoogleSignInUnavailable");
+        const token = yield* googleIdToken({ sub: newSubject(), nonce: "n" });
+        const error = yield* Effect.flip((yield* GoogleSignIn).verify(token, "n"));
+        assert.strictEqual(error._tag, "SignInUnavailable");
       }),
     );
   });

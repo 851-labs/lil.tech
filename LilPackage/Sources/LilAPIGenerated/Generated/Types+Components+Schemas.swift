@@ -447,23 +447,23 @@ extension Components {
                 case email
             }
         }
-        /// - Remark: Generated from `#/components/schemas/GoogleSignInUnavailable`.
-        public struct GoogleSignInUnavailable: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/GoogleSignInUnavailable/_tag`.
+        /// - Remark: Generated from `#/components/schemas/SignInUnavailable`.
+        public struct SignInUnavailable: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SignInUnavailable/_tag`.
             @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case googleSignInUnavailable = "GoogleSignInUnavailable"
+                case signInUnavailable = "SignInUnavailable"
             }
-            /// - Remark: Generated from `#/components/schemas/GoogleSignInUnavailable/_tag`.
-            public var _tag: Components.Schemas.GoogleSignInUnavailable._TagPayload
-            /// - Remark: Generated from `#/components/schemas/GoogleSignInUnavailable/message`.
+            /// - Remark: Generated from `#/components/schemas/SignInUnavailable/_tag`.
+            public var _tag: Components.Schemas.SignInUnavailable._TagPayload
+            /// - Remark: Generated from `#/components/schemas/SignInUnavailable/message`.
             public var message: Swift.String
-            /// Creates a new `GoogleSignInUnavailable`.
+            /// Creates a new `SignInUnavailable`.
             ///
             /// - Parameters:
             ///   - _tag:
             ///   - message:
             public init(
-                _tag: Components.Schemas.GoogleSignInUnavailable._TagPayload,
+                _tag: Components.Schemas.SignInUnavailable._TagPayload,
                 message: Swift.String
             ) {
                 self._tag = _tag
@@ -540,22 +540,28 @@ extension Components {
         public struct GoogleSignInRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/GoogleSignInRequest/idToken`.
             public var idToken: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GoogleSignInRequest/nonce`.
+            public var nonce: Swift.String
             /// - Remark: Generated from `#/components/schemas/GoogleSignInRequest/device`.
             public var device: Components.Schemas.DeviceInfo
             /// Creates a new `GoogleSignInRequest`.
             ///
             /// - Parameters:
             ///   - idToken:
+            ///   - nonce:
             ///   - device:
             public init(
                 idToken: Swift.String,
+                nonce: Swift.String,
                 device: Components.Schemas.DeviceInfo
             ) {
                 self.idToken = idToken
+                self.nonce = nonce
                 self.device = device
             }
             public enum CodingKeys: String, CodingKey {
                 case idToken
+                case nonce
                 case device
             }
         }

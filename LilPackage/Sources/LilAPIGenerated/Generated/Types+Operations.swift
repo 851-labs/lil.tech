@@ -422,6 +422,57 @@ public enum Operations {
                     }
                 }
             }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/auth/apple/POST/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/auth/apple/POST/responses/503/content/application\/json`.
+                    case json(Components.Schemas.SignInUnavailable)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SignInUnavailable {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.AuthApple.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.AuthApple.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// SignInUnavailable
+            ///
+            /// - Remark: Generated from `#/paths//v1/auth/apple/post(authApple)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.AuthApple.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.AuthApple.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -596,12 +647,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/v1/auth/google/POST/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/v1/auth/google/POST/responses/503/content/application\/json`.
-                    case json(Components.Schemas.GoogleSignInUnavailable)
+                    case json(Components.Schemas.SignInUnavailable)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas.GoogleSignInUnavailable {
+                    public var json: Components.Schemas.SignInUnavailable {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -620,7 +671,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// GoogleSignInUnavailable
+            /// SignInUnavailable
             ///
             /// - Remark: Generated from `#/paths//v1/auth/google/post(authGoogle)/responses/503`.
             ///

@@ -97,6 +97,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "SignInUnavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInUnavailable"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -141,11 +151,11 @@
             }
           },
           "503": {
-            "description": "GoogleSignInUnavailable",
+            "description": "SignInUnavailable",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GoogleSignInUnavailable"
+                  "$ref": "#/components/schemas/SignInUnavailable"
                 }
               }
             }
@@ -779,13 +789,13 @@
           "email"
         ]
       },
-      "GoogleSignInUnavailable": {
+      "SignInUnavailable": {
         "type": "object",
         "properties": {
           "_tag": {
             "type": "string",
             "enum": [
-              "GoogleSignInUnavailable"
+              "SignInUnavailable"
             ]
           },
           "message": {
@@ -849,12 +859,17 @@
             "type": "string",
             "maxLength": 8192
           },
+          "nonce": {
+            "type": "string",
+            "maxLength": 256
+          },
           "device": {
             "$ref": "#/components/schemas/DeviceInfo"
           }
         },
         "required": [
           "idToken",
+          "nonce",
           "device"
         ]
       },

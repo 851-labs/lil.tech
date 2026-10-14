@@ -88,14 +88,19 @@ export class AppleSignInRequest extends Schema.Class<AppleSignInRequest>(
 export class GoogleSignInRequest extends Schema.Class<GoogleSignInRequest>(
   "lil/api/auth/GoogleSignInRequest",
 )({
-  /** The ID token from Google's native sign-in (PKCE). */
+  /** The ID token from Google's native sign-in. */
   idToken: Schema.String.check(Schema.isMaxLength(8192)),
+  /** The random nonce whose SHA-256 (hex) the app passed to Google as the sign-in's nonce. */
+  nonce: Schema.String.check(Schema.isMaxLength(256)),
   device: DeviceInfo,
 }) {}
 
-/** Google sign-in isn't available on this server yet. */
-export class GoogleSignInUnavailable extends Schema.TaggedError<GoogleSignInUnavailable>()(
-  "GoogleSignInUnavailable",
+/**
+ * Signing in with this provider can't work right now, e.g. its keys couldn't be fetched, or it
+ * isn't set up on this server yet. Retrying later can succeed.
+ */
+export class SignInUnavailable extends Schema.TaggedError<SignInUnavailable>()(
+  "SignInUnavailable",
   { message: Schema.String },
   { httpApiStatus: 503 },
 ) {}
@@ -120,7 +125,7 @@ export class AuthApi extends HttpApiGroup.make("auth")
     HttpApiEndpoint.post("apple", "/v1/auth/apple", {
       payload: AppleSignInRequest,
       success: TokenPair,
-      error: InvalidIdentityToken,
+      error: [InvalidIdentityToken, SignInUnavailable],
     }),
   )
   .add(
@@ -129,7 +134,7 @@ export class AuthApi extends HttpApiGroup.make("auth")
     HttpApiEndpoint.post("google", "/v1/auth/google", {
       payload: GoogleSignInRequest,
       success: TokenPair,
-      error: [InvalidIdentityToken, GoogleSignInUnavailable],
+      error: [InvalidIdentityToken, SignInUnavailable],
     }),
   )
   .add(

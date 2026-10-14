@@ -1,45 +1,19 @@
-import { Clock, Context, Effect, Layer } from "effect";
-import { createLocalJWKSet, exportJWK, generateKeyPair, type JWTPayload, SignJWT } from "jose";
+import { Clock, Effect, Layer } from "effect";
+import { type JWTPayload, SignJWT } from "jose";
 import { AppleKeys, appleAudiences, appleIssuer, AppleSignIn } from "../../src/auth/Apple.ts";
 import { ProviderSignIn } from "../../src/auth/ProviderSignIn.ts";
 import { sha256Hex } from "../../src/auth/Tokens.ts";
 import { TestAuth } from "./TestAuth.ts";
+import { makeTestProviderKeys } from "./TestProviderKeys.ts";
 
 // A stand-in for Apple: a key pair generated for the tests, and identity tokens signed with it.
 
-const { privateKey, publicKey } = await generateKeyPair("RS256");
-const kid = "test-apple-key";
-const keySet = createLocalJWKSet({
-  keys: [{ ...(await exportJWK(publicKey)), kid, alg: "RS256" }],
-});
-const emptyKeySet = createLocalJWKSet({ keys: [] });
+const apple = await makeTestProviderKeys("test-apple-key");
 
-/** How the test Apple key endpoint behaves, and how often it was asked for fresh keys. */
-export class TestAppleKeysControl extends Context.Service<
-  TestAppleKeysControl,
-  { mode: "normal" | "staleCache" | "down"; freshFetches: number }
->()("test/TestAppleKeysControl") {}
+/** Simulates Apple's key endpoint having a stale cache or being down. */
+export const testAppleKeysControl = apple.control;
 
-/** `AppleKeys` serving the test key, plus `TestAppleKeysControl` to simulate rotation or outages. */
-export const TestAppleKeys = Layer.unwrap(
-  Effect.sync(() => {
-    const control: TestAppleKeysControl["Service"] = { mode: "normal", freshFetches: 0 };
-    return Layer.mergeAll(
-      Layer.succeed(TestAppleKeysControl, control),
-      Layer.succeed(
-        AppleKeys,
-        AppleKeys.of({
-          keys: ({ fresh }) =>
-            Effect.suspend(() => {
-              if (fresh) control.freshFetches += 1;
-              if (control.mode === "down") return Effect.die("Apple is down");
-              return Effect.succeed(control.mode === "staleCache" && !fresh ? emptyKeySet : keySet);
-            }),
-        }),
-      ),
-    );
-  }),
-);
+export const TestAppleKeys = Layer.succeed(AppleKeys, apple.keys);
 
 /** Apple sign-in over the test keys and a test database, with `TestAuth`'s services. */
 export const TestAppleSignIn = Layer.mergeAll(AppleSignIn.layer, ProviderSignIn.layer).pipe(
@@ -66,11 +40,11 @@ export const appleIdentityToken = (
         ...claims,
         nonce,
       })
-        .setProtectedHeader({ alg: "RS256", kid })
+        .setProtectedHeader({ alg: "RS256", kid: apple.kid })
         .setIssuer(options.issuer ?? appleIssuer)
         .setAudience(options.audience ?? appleAudiences[0] ?? "")
         .setIssuedAt(now)
         .setExpirationTime(now + 600)
-        .sign(options.key ?? privateKey),
+        .sign(options.key ?? apple.privateKey),
     );
   });

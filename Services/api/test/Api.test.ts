@@ -18,7 +18,7 @@ import { WorkerHttpLayer } from "../src/Http.ts";
 import { makeOpenApiSpec } from "../src/OpenApiSpec.ts";
 import { makeApiWorkerProps } from "../src/Worker.ts";
 import { appleIdentityToken, TestAppleKeys } from "./auth/TestApple.ts";
-import { googleIdToken, TestGoogleKeys } from "./auth/TestGoogle.ts";
+import { googleIdToken, TestGoogleClients, TestGoogleKeys } from "./auth/TestGoogle.ts";
 import { TestAuth } from "./auth/TestAuth.ts";
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./health/TestHealthIngestion.ts";
 import { TestStores, TestUserStores } from "./store/TestUserStores.ts";
@@ -51,6 +51,7 @@ const TestServices = Layer.mergeAll(
   TestAuth,
   TestAppleKeys,
   TestGoogleKeys,
+  TestGoogleClients,
   TestUserStores,
   TestHealthIngestion,
 );
@@ -312,13 +313,18 @@ describe("POST /v1/auth/google", () => {
   it.live("signs in with a Google ID token", () =>
     withApi((handler) =>
       Effect.gen(function* () {
-        const idToken = yield* googleIdToken({ sub: "100000000000000000001" });
+        const nonce = crypto.randomUUID();
+        const idToken = yield* googleIdToken({ sub: "100000000000000000001", nonce });
         const response = yield* send(
           handler,
           new Request("https://api.lil.tech/v1/auth/google", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ idToken, device: { app: "health-mac", platform: "macos" } }),
+            body: JSON.stringify({
+              idToken,
+              nonce,
+              device: { app: "health-mac", platform: "macos" },
+            }),
           }),
         );
         assert.strictEqual(response.status, 200);

@@ -6,9 +6,16 @@ import { Api } from "./Api.ts";
 import { AppleSignIn } from "./auth/Apple.ts";
 import { GoogleSignIn } from "./auth/Google.ts";
 import { Auth } from "./auth/Auth.ts";
-import { ProviderSignIn } from "./auth/ProviderSignIn.ts";
+import { ProviderSignIn, type VerifiedIdentity } from "./auth/ProviderSignIn.ts";
 import { DevSignInRoute } from "./auth/DevSignIn.ts";
-import { Authorization, CurrentSession, Me, MeIdentity, Unauthorized } from "./auth/AuthApi.ts";
+import {
+  Authorization,
+  CurrentSession,
+  type DeviceInfo,
+  Me,
+  MeIdentity,
+  Unauthorized,
+} from "./auth/AuthApi.ts";
 import { AccessTokens } from "./auth/Tokens.ts";
 import { Identities } from "./core/Identities.ts";
 import {
@@ -62,35 +69,23 @@ export const AuthHandlers = HttpApiBuilder.group(
     const apple = yield* AppleSignIn;
     const google = yield* GoogleSignIn;
     const providerSignIn = yield* ProviderSignIn;
+    const signIn = (identity: VerifiedIdentity, device: typeof DeviceInfo.Type) =>
+      providerSignIn
+        .signIn(identity, { app: device.app, platform: device.platform, name: device.name ?? null })
+        .pipe(Effect.orDie);
     return handlers
       .handle("refresh", ({ payload }) =>
         auth.refresh(payload.refreshToken).pipe(Effect.catchTag("SqlError", Effect.die)),
       )
       .handle("apple", ({ payload }) =>
-        apple.verify(payload.identityToken, payload.nonce, payload.fullName).pipe(
-          Effect.flatMap((identity) =>
-            providerSignIn
-              .signIn(identity, {
-                app: payload.device.app,
-                platform: payload.device.platform,
-                name: payload.device.name ?? null,
-              })
-              .pipe(Effect.orDie),
-          ),
-        ),
+        apple
+          .verify(payload.identityToken, payload.nonce, payload.fullName)
+          .pipe(Effect.flatMap((identity) => signIn(identity, payload.device))),
       )
       .handle("google", ({ payload }) =>
-        google.verify(payload.idToken).pipe(
-          Effect.flatMap((identity) =>
-            providerSignIn
-              .signIn(identity, {
-                app: payload.device.app,
-                platform: payload.device.platform,
-                name: payload.device.name ?? null,
-              })
-              .pipe(Effect.orDie),
-          ),
-        ),
+        google
+          .verify(payload.idToken, payload.nonce)
+          .pipe(Effect.flatMap((identity) => signIn(identity, payload.device))),
       )
       .handle("signOut", () =>
         Effect.gen(function* () {
