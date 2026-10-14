@@ -1,0 +1,157 @@
+name: Services
+
+# Checks and deploys the TypeScript server in Services/.
+# - Pull requests: check, then deploy a preview stage (pr-<number>) on workers.dev and comment its URL.
+# - Closed pull requests: destroy the preview stage.
+# - main: check, then deploy staging (api.staging.lil.tech) and prod (api.lil.tech).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths: ["Services/**", ".github/workflows/services.yml"]
+  push:
+    branches: [main]
+    paths: ["Services/**", ".github/workflows/services.yml"]
+
+# One run per PR (or per ref on main) at a time. Deploys are never cancelled halfway.
+concurrency:
+  group: services-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DO_NOT_TRACK: "1"
+
+jobs:
+  check:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Services
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: Services/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: Services/.node-version
+          cache: pnpm
+          cache-dependency-path: Services/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vp check
+      - run: pnpm exec vp run -r test
+      - run: node scripts/openapi.ts --check
+        working-directory: Services/api
+
+  preview:
+    needs: check
+    # Fork PRs don't get secrets, so they only run the checks.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: Services/api
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      STAGE: pr-${{ github.event.pull_request.number }}
+      LIL_ENVIRONMENT: preview
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: Services/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: Services/.node-version
+          cache: pnpm
+          cache-dependency-path: Services/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: Services
+      - name: Deploy the preview stage
+        id: deploy
+        env:
+          LIL_VERSION: ${{ github.event.pull_request.head.sha }}
+        run: |
+          pnpm exec alchemy deploy --stage "$STAGE" --yes | tee deploy.log
+          url=$(grep -oE "url: '[^']+'" deploy.log | tail -1 | sed -E "s/url: '(.*)'/\1/")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Comment the preview URL
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ steps.deploy.outputs.url }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          body="**API preview** (\`$STAGE\`, ${SHA::7}): $URL/v1/status"
+          gh pr comment "$PR" --edit-last --body "$body" || gh pr comment "$PR" --body "$body"
+
+  destroy-preview:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Services/api
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      STAGE: pr-${{ github.event.pull_request.number }}
+      LIL_ENVIRONMENT: preview
+      LIL_VERSION: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: Services/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: Services/.node-version
+          cache: pnpm
+          cache-dependency-path: Services/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: Services
+      - run: pnpm exec alchemy destroy --stage "$STAGE" --yes
+
+  deploy:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Services/api
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      LIL_VERSION: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: Services/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: Services/.node-version
+          cache: pnpm
+          cache-dependency-path: Services/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: Services
+      - name: Deploy staging
+        run: LIL_ENVIRONMENT=staging pnpm exec alchemy deploy --stage staging --yes
+      - name: Check staging serves this commit
+        run: ../../scripts/check-deploy https://api.staging.lil.tech "$LIL_VERSION"
+      - name: Deploy prod
+        run: LIL_ENVIRONMENT=prod pnpm exec alchemy deploy --stage prod --yes
+      - name: Check prod serves this commit
+        run: ../../scripts/check-deploy https://api.lil.tech "$LIL_VERSION"
