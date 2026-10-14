@@ -49,7 +49,13 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - Run Alchemy from `Services/api` (`npx alchemy …`), where it's installed. From anywhere else, `npx` fetches a separate copy that can't find its peer dependencies.
 - **Credentials:** once per machine, from `Services/api`, run `ALCHEMY_TUI=1 DO_NOT_TRACK=1 npx alchemy profile edit --add Cloudflare`. Choose OAuth, then **Basic Scopes**, then sign in with a Cloudflare user that's a member of account **851**, and pick that account. Credentials are saved in `~/.alchemy/profiles.json`. Alchemy hides its interactive prompts when it detects a coding agent, and `ALCHEMY_TUI=1` shows them again. Check credentials with `npx alchemy profile show`. The bare `npx alchemy profile` dashboard crashes in this beta, because `react` isn't installed.
 - **Telemetry:** Alchemy reports usage to `otel.alchemy.run` unless `DO_NOT_TRACK=1` is set. Set it in your shell.
-- **Deploying** (from `Services/api`):
+- **CI** (`.github/workflows/services.yml`) runs on changes to `Services/`:
+  - Pull requests are checked (`vp check`, tests, OpenAPI freshness) and deployed to a preview stage, `pr-<number>`, on workers.dev. A PR comment links the preview.
+  - Closing a PR destroys its preview.
+  - Merging to `main` deploys staging, then prod, and `scripts/check-deploy` waits until each serves the new commit.
+  - CI authenticates with the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets (token "lil.tech CI (Alchemy deploys)": account 851, zone `lil.tech`).
+  - Previews run PR code with that deploy token, and Cloudflare can't limit `Workers Scripts:Edit` to particular Workers. Only branches pushed to this repo get previews (fork PRs get no secrets), so only give push access to people you'd trust with prod.
+- **Deploying by hand** (from `Services/api`), rarely needed since CI deploys `main`:
   - `vp run deploy:staging` deploys to `api.staging.lil.tech`.
   - `vp run deploy:prod` deploys to `api.lil.tech`.
   - `vp run deploy` deploys your personal stage, on workers.dev only.

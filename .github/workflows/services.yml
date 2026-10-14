@@ -1,0 +1,157 @@
+name: Services
+
+# Checks and deploys the TypeScript server in Services/.
+# - Pull requests that touch Services/: check, then deploy a preview stage (pr-<number>) on
+#   workers.dev and comment its URL.
+# - Closed pull requests: destroy the preview stage, if there is one.
+# - main: check, then deploy staging (api.staging.lil.tech) and prod (api.lil.tech).
+#
+# Previews run PR code with the deploy token, and Cloudflare can't limit Workers Scripts:Edit to
+# particular Workers. Only branches in this repo get previews (fork PRs get no secrets).
+
+on:
+  # No paths filter here, so closing any PR can clean up its preview. The `changes` job decides
+  # whether the rest of the workflow runs.
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  push:
+    branches: [main]
+    paths: ["Services/**", "scripts/check-deploy", ".github/workflows/services.yml", ".github/actions/setup-services/**"]
+
+# One run per PR (or per ref on main) at a time. Deploys are never cancelled halfway.
+concurrency:
+  group: services-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DO_NOT_TRACK: "1"
+
+defaults:
+  run:
+    # `shell: bash` runs with `-o pipefail`, so a failing command piped into tee fails the step.
+    shell: bash
+
+jobs:
+  changes:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.diff.outputs.services }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if git diff --name-only "$BASE" HEAD | grep -qE '^(Services/|scripts/check-deploy$|\.github/workflows/services\.yml$|\.github/actions/setup-services/)'; then
+            echo "services=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "services=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  check:
+    needs: changes
+    if: needs.changes.outputs.services == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-services
+      - run: pnpm run ready
+        working-directory: Services
+      - run: pnpm run openapi:check
+        working-directory: Services/api
+
+  preview:
+    needs: check
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      STAGE: pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-services
+      - name: Deploy the preview stage
+        id: deploy
+        working-directory: Services/api
+        run: |
+          pnpm run deploy --stage "$STAGE" --yes | tee deploy.log
+          url=$(grep -oE "https://[a-z0-9.-]+\.workers\.dev" deploy.log | tail -1)
+          if [ -z "$url" ]; then
+            echo "error: couldn't find the preview URL in the deploy output" >&2
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "version=$(git describe --always --dirty --exclude '*')" >> "$GITHUB_OUTPUT"
+      - name: Check the preview serves this commit
+        run: scripts/check-deploy "${{ steps.deploy.outputs.url }}" "${{ steps.deploy.outputs.version }}"
+      - name: Comment the preview URL
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          URL: ${{ steps.deploy.outputs.url }}
+          VERSION: ${{ steps.deploy.outputs.version }}
+        run: |
+          marker="<!-- services-preview -->"
+          body="$marker
+          **API preview** (\`$STAGE\`, \`$VERSION\`): $URL/v1/status"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq "[.[] | select(.body | startswith(\"$marker\"))][0].id // empty")
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh pr comment "$PR" --body "$body"
+          fi
+
+  destroy-preview:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      STAGE: pr-${{ github.event.pull_request.number }}
+      LIL_ENVIRONMENT: preview
+      LIL_VERSION: destroy
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-services
+      # Destroying a stage that was never deployed is a no-op.
+      - run: pnpm exec alchemy destroy --stage "$STAGE" --yes
+        working-directory: Services/api
+
+  deploy:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-services
+      - id: version
+        run: echo "version=$(git describe --always --dirty --exclude '*')" >> "$GITHUB_OUTPUT"
+      - name: Deploy staging
+        run: pnpm run deploy:staging --yes
+        working-directory: Services/api
+      - name: Check staging serves this commit
+        run: scripts/check-deploy https://api.staging.lil.tech "${{ steps.version.outputs.version }}"
+      - name: Deploy prod
+        run: pnpm run deploy:prod --yes
+        working-directory: Services/api
+      - name: Check prod serves this commit
+        run: scripts/check-deploy https://api.lil.tech "${{ steps.version.outputs.version }}"

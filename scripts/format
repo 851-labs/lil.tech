@@ -38,10 +38,10 @@ fi
 # The committed OpenAPI spec is generated from the API definition.
 if [ "${1:-}" = "--lint" ]; then
   (cd Services && vp check) || status=1
-  (cd Services/api && vp node scripts/openapi.ts --check) || status=1
+  (cd Services/api && node scripts/openapi.ts --check) || status=1
 else
   (cd Services && vp fmt) || status=1
-  (cd Services/api && vp node scripts/openapi.ts) || status=1
+  (cd Services/api && node scripts/openapi.ts) || status=1
 fi
 
 exit "$status"

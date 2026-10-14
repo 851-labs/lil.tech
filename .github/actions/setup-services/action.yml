@@ -1,0 +1,16 @@
+name: Set up Services
+description: Install the pinned pnpm and Node for Services/ and its dependencies.
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+      with:
+        package_json_file: Services/package.json
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: Services/.node-version
+        cache: pnpm
+        cache-dependency-path: Services/pnpm-lock.yaml
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+      working-directory: Services

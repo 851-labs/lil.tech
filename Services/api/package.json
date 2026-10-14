@@ -10,8 +10,8 @@
     "deploy": "LIL_ENVIRONMENT=preview LIL_VERSION=$(git describe --always --dirty --exclude '*') alchemy deploy",
     "deploy:staging": "LIL_ENVIRONMENT=staging LIL_VERSION=$(git describe --always --dirty --exclude '*') alchemy deploy --stage staging",
     "deploy:prod": "LIL_ENVIRONMENT=prod LIL_VERSION=$(git describe --always --dirty --exclude '*') alchemy deploy --stage prod",
-    "openapi": "vp node scripts/openapi.ts",
-    "openapi:check": "vp node scripts/openapi.ts --check"
+    "openapi": "node scripts/openapi.ts",
+    "openapi:check": "node scripts/openapi.ts --check"
   },
   "dependencies": {
     "effect": "catalog:"
