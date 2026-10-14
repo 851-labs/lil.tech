@@ -3,10 +3,13 @@ import { Effect, Layer, Option, Redacted } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
+import { AppleKeys, verifyAppleToken } from "./auth/Apple.ts";
 import { Auth } from "./auth/Auth.ts";
+import { signInWithIdentity } from "./auth/ProviderSignIn.ts";
 import { DevSignInRoute } from "./auth/DevSignIn.ts";
 import { Authorization, CurrentSession, Me, MeIdentity, Unauthorized } from "./auth/AuthApi.ts";
 import { AccessTokens } from "./auth/Tokens.ts";
+import { Devices } from "./core/Devices.ts";
 import { Identities } from "./core/Identities.ts";
 import {
   HealthBatchNotFound,
@@ -56,9 +59,23 @@ export const AuthHandlers = HttpApiBuilder.group(
   "auth",
   Effect.fn(function* (handlers) {
     const auth = yield* Auth;
+    // What signing in with a provider needs, captured once for its handlers.
+    const signInServices = yield* Effect.context<AppleKeys | Auth | Devices | Identities | Users>();
     return handlers
       .handle("refresh", ({ payload }) =>
         auth.refresh(payload.refreshToken).pipe(Effect.catchTag("SqlError", Effect.die)),
+      )
+      .handle("apple", ({ payload }) =>
+        verifyAppleToken(payload.identityToken, payload.nonce, payload.fullName).pipe(
+          Effect.flatMap((identity) =>
+            signInWithIdentity(identity, {
+              app: payload.device.app,
+              platform: payload.device.platform,
+              name: payload.device.name ?? null,
+            }).pipe(Effect.orDie),
+          ),
+          Effect.provide(signInServices),
+        ),
       )
       .handle("signOut", () =>
         Effect.gen(function* () {
@@ -169,8 +186,8 @@ const OpenApiRoute = HttpRouter.add(
 /**
  * Every route of the API, with the platform services a Worker can provide: Alchemy's
  * `Http.Platform` stubs file responses and gives `HttpApiBuilder` a no-op `FileSystem`, since
- * Workers have no file system. Needs `Deployment`, `SessionKey`, the core repositories and
- * `UserStores`, and `HealthBatchFiles` and `HealthBatchQueue` per request.
+ * Workers have no file system. Needs `Deployment`, `SessionKey`, `AppleKeys`, the core
+ * repositories and `UserStores`, and `HealthBatchFiles` and `HealthBatchQueue` per request.
  */
 export const WorkerHttpLayer = Layer.mergeAll(
   HttpApiBuilder.layer(Api),

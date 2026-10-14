@@ -11,6 +11,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /v1/auth/refresh`.
     /// - Remark: Generated from `#/paths//v1/auth/refresh/post(authRefresh)`.
     func authRefresh(_ input: Operations.AuthRefresh.Input) async throws -> Operations.AuthRefresh.Output
+    /// - Remark: HTTP `POST /v1/auth/apple`.
+    /// - Remark: Generated from `#/paths//v1/auth/apple/post(authApple)`.
+    func authApple(_ input: Operations.AuthApple.Input) async throws -> Operations.AuthApple.Output
     /// - Remark: HTTP `POST /v1/auth/sign-out`.
     /// - Remark: Generated from `#/paths//v1/auth/sign-out/post(authSignOut)`.
     func authSignOut(_ input: Operations.AuthSignOut.Input) async throws -> Operations.AuthSignOut.Output
@@ -42,6 +45,17 @@ extension APIProtocol {
         body: Operations.AuthRefresh.Input.Body
     ) async throws -> Operations.AuthRefresh.Output {
         try await authRefresh(Operations.AuthRefresh.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `POST /v1/auth/apple`.
+    /// - Remark: Generated from `#/paths//v1/auth/apple/post(authApple)`.
+    public func authApple(
+        headers: Operations.AuthApple.Input.Headers = .init(),
+        body: Operations.AuthApple.Input.Body
+    ) async throws -> Operations.AuthApple.Output {
+        try await authApple(Operations.AuthApple.Input(
             headers: headers,
             body: body
         ))

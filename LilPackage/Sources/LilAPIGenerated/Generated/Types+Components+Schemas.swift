@@ -447,23 +447,23 @@ extension Components {
                 case email
             }
         }
-        /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken`.
-        public struct InvalidRefreshToken: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken/_tag`.
+        /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken`.
+        public struct InvalidIdentityToken: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken/_tag`.
             @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case invalidRefreshToken = "InvalidRefreshToken"
+                case invalidIdentityToken = "InvalidIdentityToken"
             }
-            /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken/_tag`.
-            public var _tag: Components.Schemas.InvalidRefreshToken._TagPayload
-            /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken/message`.
+            /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken/_tag`.
+            public var _tag: Components.Schemas.InvalidIdentityToken._TagPayload
+            /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken/message`.
             public var message: Swift.String
-            /// Creates a new `InvalidRefreshToken`.
+            /// Creates a new `InvalidIdentityToken`.
             ///
             /// - Parameters:
             ///   - _tag:
             ///   - message:
             public init(
-                _tag: Components.Schemas.InvalidRefreshToken._TagPayload,
+                _tag: Components.Schemas.InvalidIdentityToken._TagPayload,
                 message: Swift.String
             ) {
                 self._tag = _tag
@@ -507,6 +507,125 @@ extension Components {
                 case accessTokenExpiresAt
                 case refreshToken
                 case refreshTokenExpiresAt
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AppleSignInRequest`.
+        public struct AppleSignInRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AppleSignInRequest/identityToken`.
+            public var identityToken: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AppleSignInRequest/nonce`.
+            public var nonce: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AppleSignInRequest/fullName`.
+            public struct FullNamePayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/AppleSignInRequest/fullName/givenName`.
+                public var givenName: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/AppleSignInRequest/fullName/familyName`.
+                public var familyName: Swift.String?
+                /// Creates a new `FullNamePayload`.
+                ///
+                /// - Parameters:
+                ///   - givenName:
+                ///   - familyName:
+                public init(
+                    givenName: Swift.String? = nil,
+                    familyName: Swift.String? = nil
+                ) {
+                    self.givenName = givenName
+                    self.familyName = familyName
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case givenName
+                    case familyName
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/AppleSignInRequest/fullName`.
+            public var fullName: Components.Schemas.AppleSignInRequest.FullNamePayload?
+            /// - Remark: Generated from `#/components/schemas/AppleSignInRequest/device`.
+            public var device: Components.Schemas.DeviceInfo
+            /// Creates a new `AppleSignInRequest`.
+            ///
+            /// - Parameters:
+            ///   - identityToken:
+            ///   - nonce:
+            ///   - fullName:
+            ///   - device:
+            public init(
+                identityToken: Swift.String,
+                nonce: Swift.String,
+                fullName: Components.Schemas.AppleSignInRequest.FullNamePayload? = nil,
+                device: Components.Schemas.DeviceInfo
+            ) {
+                self.identityToken = identityToken
+                self.nonce = nonce
+                self.fullName = fullName
+                self.device = device
+            }
+            public enum CodingKeys: String, CodingKey {
+                case identityToken
+                case nonce
+                case fullName
+                case device
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/DeviceInfo`.
+        public struct DeviceInfo: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/DeviceInfo/app`.
+            public var app: Swift.String
+            /// - Remark: Generated from `#/components/schemas/DeviceInfo/platform`.
+            @frozen public enum PlatformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case ios = "ios"
+                case macos = "macos"
+            }
+            /// - Remark: Generated from `#/components/schemas/DeviceInfo/platform`.
+            public var platform: Components.Schemas.DeviceInfo.PlatformPayload
+            /// - Remark: Generated from `#/components/schemas/DeviceInfo/name`.
+            public var name: Swift.String?
+            /// Creates a new `DeviceInfo`.
+            ///
+            /// - Parameters:
+            ///   - app:
+            ///   - platform:
+            ///   - name:
+            public init(
+                app: Swift.String,
+                platform: Components.Schemas.DeviceInfo.PlatformPayload,
+                name: Swift.String? = nil
+            ) {
+                self.app = app
+                self.platform = platform
+                self.name = name
+            }
+            public enum CodingKeys: String, CodingKey {
+                case app
+                case platform
+                case name
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken`.
+        public struct InvalidRefreshToken: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case invalidRefreshToken = "InvalidRefreshToken"
+            }
+            /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken/_tag`.
+            public var _tag: Components.Schemas.InvalidRefreshToken._TagPayload
+            /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken/message`.
+            public var message: Swift.String
+            /// Creates a new `InvalidRefreshToken`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.InvalidRefreshToken._TagPayload,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case message
             }
         }
         /// - Remark: Generated from `#/components/schemas/RefreshRequest`.

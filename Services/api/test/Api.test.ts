@@ -17,6 +17,7 @@ import { UserStores } from "../src/store/UserStores.ts";
 import { WorkerHttpLayer } from "../src/Http.ts";
 import { makeOpenApiSpec } from "../src/OpenApiSpec.ts";
 import { makeApiWorkerProps } from "../src/Worker.ts";
+import { appleIdentityToken, TestAppleKeys } from "./auth/TestApple.ts";
 import { TestAuth } from "./auth/TestAuth.ts";
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./health/TestHealthIngestion.ts";
 import { TestStores, TestUserStores } from "./store/TestUserStores.ts";
@@ -45,7 +46,7 @@ const withApi = <A, E>(
     return yield* use((request) => handler(request, context)).pipe(Effect.provide(context));
   }).pipe(Effect.scoped);
 
-const TestServices = Layer.mergeAll(TestAuth, TestUserStores, TestHealthIngestion);
+const TestServices = Layer.mergeAll(TestAuth, TestAppleKeys, TestUserStores, TestHealthIngestion);
 
 const send = (handler: Handler, request: Request) =>
   Effect.promise(async () => {
@@ -245,6 +246,56 @@ describe("WorkerHttpLayer", () => {
         );
         assert.strictEqual(response.status, 204);
         assert.strictEqual((yield* refresh(handler, tokens.refreshToken)).status, 401);
+      }),
+    ),
+  );
+});
+
+describe("POST /v1/auth/apple", () => {
+  const appleSignIn = (handler: Handler, body: unknown) =>
+    send(
+      handler,
+      new Request("https://api.lil.tech/v1/auth/apple", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    );
+  const device = { app: "health-mac", platform: "macos" };
+
+  it.live("signs in with an Apple identity token", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const nonce = crypto.randomUUID();
+        const identityToken = yield* appleIdentityToken({ sub: "000123.http.0001", nonce });
+        const response = yield* appleSignIn(handler, {
+          identityToken,
+          nonce,
+          fullName: { givenName: "Ada", familyName: null },
+          device,
+        });
+        assert.strictEqual(response.status, 200);
+        const { accessToken } = response.body as { accessToken: string };
+        const me = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/me", { headers: bearer(accessToken) }),
+        );
+        assert.deepInclude(me.body, {
+          displayName: "Ada",
+          identities: [{ provider: "apple", email: "x7y2@privaterelay.appleid.com" }],
+        });
+      }),
+    ),
+  );
+
+  it.live("rejects a token that doesn't verify", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const response = yield* appleSignIn(handler, { identityToken: "nope", nonce: "n", device });
+        assert.strictEqual(response.status, 401);
+        assert.propertyVal(response.body, "_tag", "InvalidIdentityToken");
+        const malformed = yield* appleSignIn(handler, { identityToken: "nope", device });
+        assert.strictEqual(malformed.status, 400);
       }),
     ),
   );
