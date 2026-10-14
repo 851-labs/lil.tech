@@ -10,14 +10,27 @@ import {
 } from "./HealthIngestion.ts";
 import { UserStores } from "../store/UserStores.ts";
 
-/** Uploaded batch files, kept until they're applied. */
-export const HealthBatchBucket = Cloudflare.R2.Bucket("HealthBatches");
+/**
+ * Uploaded batch files, kept until they're applied. Any left behind (a failed batch, an upload
+ * whose queueing failed) expire after 7 days.
+ */
+export const HealthBatchBucket = Cloudflare.R2.Bucket("HealthBatches", {
+  lifecycleRules: [
+    {
+      id: "expire-batch-files",
+      deleteObjectsTransition: { condition: { type: "Age", maxAge: 7 * 24 * 60 * 60 } },
+    },
+  ],
+});
 export const HealthBatchQueueResource = Cloudflare.Queues.Queue("HealthBatches");
 /** Where a batch's message goes after its last failed attempt, to be looked at by hand. */
 export const HealthBatchDeadLetters = Cloudflare.Queues.Queue("HealthBatchesDead");
 
-/** Delivery attempts per batch before it's marked failed and dead-lettered. */
-export const maxHealthBatchAttempts = 5;
+/**
+ * Retries per batch after its first delivery fails. Cloudflare counts retries, so a message is
+ * delivered at most this many times plus one before it's dead-lettered.
+ */
+export const maxHealthBatchRetries = 5;
 
 /**
  * Binds the batch bucket and queue and consumes the queue, in the Worker's setup. Returns
@@ -40,16 +53,17 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
         inRuntime(
           bucket.put(key, bytes, { httpMetadata: { contentType: "application/gzip" } }),
         ).pipe(Effect.asVoid, Effect.orDie),
-      get: (key) =>
-        inRuntime(
-          bucket
-            .get(key)
-            .pipe(
-              Effect.flatMap((object) =>
-                object === null ? Effect.succeedNone : object.bytes().pipe(Effect.map(Option.some)),
-              ),
-            ),
-        ).pipe(Effect.orDie),
+      open: (key) =>
+        inRuntime(bucket.get(key)).pipe(
+          Effect.map((object) =>
+            object === null
+              ? Option.none()
+              : Option.some(
+                  object.readable ?? Stream.toReadableStream(object.body.pipe(Stream.orDie)),
+                ),
+          ),
+          Effect.orDie,
+        ),
       delete: (key) => inRuntime(bucket.delete(key)).pipe(Effect.orDie),
     });
   });
@@ -67,7 +81,7 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
     {
       // One batch file per invocation, so a failure only retries that file.
       batchSize: 1,
-      maxRetries: maxHealthBatchAttempts,
+      maxRetries: maxHealthBatchRetries,
       retryDelay: "30 seconds",
       // The queue's name, resolved at deploy time.
       deadLetterQueue: deadLetters.queueName as unknown as string,
@@ -80,7 +94,8 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
             onFailure: (cause) =>
               Effect.gen(function* () {
                 yield* Effect.logWarning("Health batch failed", cause);
-                if (message.attempts >= maxHealthBatchAttempts) {
+                // `attempts` starts at 1, so the last delivery is retry number `maxRetries`.
+                if (message.attempts > maxHealthBatchRetries) {
                   yield* failHealthBatch(message.body, "Applying the batch kept failing").pipe(
                     Effect.ignore,
                   );

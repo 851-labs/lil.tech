@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
+import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSchema } from "effect/http-api";
 import { Authorization } from "../auth/AuthApi.ts";
 import { UserStoreUnavailable } from "../store/UserStores.ts";
 import {
@@ -10,6 +10,16 @@ import {
 } from "./HealthBatches.ts";
 
 // The health part of the API definition. Like `Api.ts`, it holds no server code.
+
+/**
+ * Refuses an upload whose `Content-Length` is over the limit before its body is read. Middleware
+ * runs before HttpApi decodes the payload; the handler checks the size again for uploads without
+ * a length.
+ */
+export class UploadSizeLimit extends HttpApiMiddleware.Service<UploadSizeLimit>()(
+  "lil/api/health/UploadSizeLimit",
+  { error: HealthBatchTooLarge },
+) {}
 
 export class HealthApi extends HttpApiGroup.make("health")
   .add(
@@ -24,7 +34,7 @@ export class HealthApi extends HttpApiGroup.make("health")
       ),
       success: HealthBatch.pipe(HttpApiSchema.status(202)),
       error: [HealthBatchTooLarge, UserStoreUnavailable],
-    }),
+    }).middleware(UploadSizeLimit),
   )
   .add(
     HttpApiEndpoint.get("batch", "/v1/health/batches/:id", {

@@ -1,11 +1,15 @@
+import { gzipSync } from "node:zlib";
 import { assert, describe, layer } from "@effect/vitest";
 import { Effect, Layer } from "effect";
+import { TestClock } from "effect/testing";
 import type { UserId } from "../../src/core/Ids.ts";
 import {
   failHealthBatch,
   healthBatchKey,
   healthChunkSize,
   ingestHealthBatch,
+  maxBatchLineLength,
+  maxDecompressedBatchBytes,
 } from "../../src/health/HealthIngestion.ts";
 import { UserStores } from "../../src/store/UserStores.ts";
 import { TestStores, TestUserStores } from "../store/TestUserStores.ts";
@@ -136,16 +140,94 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion))("ingestHealthBatch", 
     }),
   );
 
+  it.effect("fails a batch that decompresses to too much, without reading it all", () =>
+    Effect.gen(function* () {
+      const { files } = yield* TestHealthOutbox;
+      const batchId = newBatchId();
+      files.set(
+        healthBatchKey(userId, batchId),
+        new Uint8Array(gzipSync(Buffer.alloc(maxDecompressedBatchBytes + 1, " "))),
+      );
+      yield* ingestHealthBatch({ userId, batchId });
+      assert.deepInclude(yield* (yield* UserStores).forUser(userId).healthBatch(batchId), {
+        status: "failed",
+        failure: "The batch is too large when decompressed",
+      });
+    }),
+  );
+
+  it.effect("rejects lines that are too long without keeping them", () =>
+    Effect.gen(function* () {
+      const { batch } = yield* ingest([sample(80), "x".repeat(maxBatchLineLength + 1), sample(81)]);
+      assert.deepInclude(batch, { status: "applied", lines: 3, applied: 2, rejected: 1 });
+      assert.strictEqual(batch?.rejectedLines?.[0]?.line, 2);
+    }),
+  );
+
+  it.effect("a failed batch stays failed when it's delivered again", () =>
+    Effect.gen(function* () {
+      const { files } = yield* TestHealthOutbox;
+      const batchId = newBatchId();
+      files.set(healthBatchKey(userId, batchId), new TextEncoder().encode("plain text"));
+      yield* ingestHealthBatch({ userId, batchId });
+      files.set(healthBatchKey(userId, batchId), batchFile([sample(40)]));
+      yield* ingestHealthBatch({ userId, batchId });
+      assert.deepInclude(yield* (yield* UserStores).forUser(userId).healthBatch(batchId), {
+        status: "failed",
+      });
+      assert.lengthOf(yield* changesFor(uuid(40)), 0);
+    }),
+  );
+
+  it.effect("failHealthBatch leaves a batch another delivery already applied", () =>
+    Effect.gen(function* () {
+      const { batchId } = yield* ingest([sample(50)]);
+      yield* failHealthBatch({ userId, batchId }, "Applying the batch kept failing");
+      assert.deepInclude(yield* (yield* UserStores).forUser(userId).healthBatch(batchId), {
+        status: "applied",
+      });
+    }),
+  );
+
   it.effect("failHealthBatch marks a batch failed after its last attempt", () =>
     Effect.gen(function* () {
       const batchId = newBatchId();
       const store = (yield* UserStores).forUser(userId);
+      const { files } = yield* TestHealthOutbox;
+      files.set(healthBatchKey(userId, batchId), batchFile([sample(60)]));
       yield* store.receiveHealthBatch(batchId);
       yield* failHealthBatch({ userId, batchId }, "Applying the batch kept failing");
+      assert.isFalse(files.has(healthBatchKey(userId, batchId)));
       assert.deepInclude(yield* store.healthBatch(batchId), {
         status: "failed",
         failure: "Applying the batch kept failing",
       });
+    }),
+  );
+});
+
+layer(Layer.mergeAll(TestUserStores, TestHealthIngestion))("health batch timeouts", (it) => {
+  it.effect("a batch that stops moving is reported failed, and never applied later", () =>
+    Effect.gen(function* () {
+      const store = (yield* UserStores).forUser(userId);
+      const { files } = yield* TestHealthOutbox;
+      const batchId = newBatchId();
+      files.set(healthBatchKey(userId, batchId), batchFile([sample(70)]));
+      yield* store.receiveHealthBatch(batchId);
+      yield* TestClock.adjust("23 hours");
+      assert.deepInclude(yield* store.healthBatch(batchId), { status: "queued" });
+      yield* TestClock.adjust("2 hours");
+      assert.deepInclude(yield* store.healthBatch(batchId), {
+        status: "failed",
+        failure: "The batch timed out",
+      });
+      yield* ingestHealthBatch({ userId, batchId });
+      assert.lengthOf(yield* changesFor(uuid(70)), 0);
+
+      const applying = newBatchId();
+      yield* store.saveHealthBatch({ id: applying, status: "applying", receivedAt: 0 });
+      yield* TestClock.adjust("61 minutes");
+      assert.deepInclude(yield* store.healthBatch(applying), { status: "failed" });
     }),
   );
 });

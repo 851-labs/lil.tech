@@ -63,7 +63,8 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       applied INTEGER,
       rejected INTEGER,
       rejected_lines TEXT,
-      failure TEXT
+      failure TEXT,
+      updated_at INTEGER NOT NULL
     ) STRICT;`,
   },
 ];

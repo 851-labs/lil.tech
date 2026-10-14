@@ -1,6 +1,6 @@
 import * as Http from "alchemy/Http";
 import { Effect, Layer, Option, Redacted } from "effect";
-import { HttpRouter, HttpServerResponse } from "effect/http";
+import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
 import { Auth } from "./auth/Auth.ts";
@@ -13,6 +13,7 @@ import {
   HealthBatchTooLarge,
   maxHealthBatchBytes,
 } from "./health/HealthBatches.ts";
+import { UploadSizeLimit } from "./health/HealthApi.ts";
 import { HealthBatchFiles, HealthBatchQueue, healthBatchKey } from "./health/HealthIngestion.ts";
 import { Users } from "./core/Users.ts";
 import { Deployment } from "./Deployment.ts";
@@ -110,6 +111,19 @@ export const SyncHandlers = HttpApiBuilder.group(
   }),
 );
 
+export const UploadSizeLimitLayer = Layer.succeed(
+  UploadSizeLimit,
+  UploadSizeLimit.of((httpEffect) =>
+    Effect.gen(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest;
+      if (Number(request.headers["content-length"] ?? 0) > maxHealthBatchBytes) {
+        return yield* new HealthBatchTooLarge({ maxBytes: maxHealthBatchBytes });
+      }
+      return yield* httpEffect;
+    }),
+  ),
+);
+
 export const HealthHandlers = HttpApiBuilder.group(
   Api,
   "health",
@@ -164,7 +178,7 @@ export const WorkerHttpLayer = Layer.mergeAll(
   DevSignInRoute,
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),
-  Layer.provide(AuthorizationLayer),
+  Layer.provide([AuthorizationLayer, UploadSizeLimitLayer]),
   Layer.provide(Auth.layer),
   Layer.provide(AccessTokens.layer),
   Layer.provide(Http.Platform),

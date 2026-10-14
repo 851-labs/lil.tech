@@ -23,7 +23,12 @@ export const TestHealthIngestion = Layer.unwrap(
         HealthBatchFiles,
         HealthBatchFiles.of({
           put: (key, bytes) => Effect.sync(() => void files.set(key, bytes)),
-          get: (key) => Effect.sync(() => Option.fromNullishOr(files.get(key))),
+          open: (key) =>
+            Effect.sync(() =>
+              Option.map(Option.fromNullishOr(files.get(key)), (bytes) =>
+                new Blob([bytes as Uint8Array<ArrayBuffer>]).stream(),
+              ),
+            ),
           delete: (key) => Effect.sync(() => void files.delete(key)),
         }),
       ),

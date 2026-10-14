@@ -2,7 +2,7 @@ import { Clock, Context, Effect, Option, Result, Schema } from "effect";
 import type { UserId } from "../core/Ids.ts";
 import { Mutation } from "../store/Changes.ts";
 import { UserStores } from "../store/UserStores.ts";
-import { type HealthBatch, maxHealthBatchBytes, type RejectedLine } from "./HealthBatches.ts";
+import type { HealthBatch, RejectedLine } from "./HealthBatches.ts";
 import { healthEntities } from "./HealthEntities.ts";
 
 // Health ingestion (`docs/SYNC.md`): the iPhone uploads gzip NDJSON batch files, one mutation per
@@ -23,7 +23,8 @@ export class HealthBatchFiles extends Context.Service<
   HealthBatchFiles,
   {
     readonly put: (key: string, bytes: Uint8Array) => Effect.Effect<void>;
-    readonly get: (key: string) => Effect.Effect<Option.Option<Uint8Array>>;
+    /** The file's bytes as a stream, so a batch never has to fit in memory whole. */
+    readonly open: (key: string) => Effect.Effect<Option.Option<ReadableStream<Uint8Array>>>;
     readonly delete: (key: string) => Effect.Effect<void>;
   }
 >()("lil/api/health/HealthBatchFiles") {}
@@ -36,6 +37,8 @@ export class HealthBatchQueue extends Context.Service<
 
 /** Mutations applied per store call. Each call is one transaction in the store. */
 export const healthChunkSize = 500;
+/** The most a batch may decompress to. Lines are read as a stream, so this bounds work, not memory. */
+export const maxDecompressedBatchBytes = 64 * 1024 * 1024;
 const maxRejectedLines = 100;
 
 const healthEntitiesByName = new Map(healthEntities.map((entity) => [entity.name, entity]));
@@ -51,57 +54,95 @@ class BatchUnreadable extends Schema.TaggedError<BatchUnreadable>()("BatchUnread
   message: Schema.String,
 }) {}
 
-const gunzip = (bytes: Uint8Array) =>
-  Effect.tryPromise({
-    try: () =>
-      new Response(
-        new Blob([bytes as Uint8Array<ArrayBuffer>])
-          .stream()
-          .pipeThrough(new DecompressionStream("gzip")),
-      ).text(),
-    catch: (error) => new BatchUnreadable({ message: `Not a gzip file: ${String(error)}` }),
-  });
+/**
+ * Checks one line: valid JSON, a mutation of a health entity, an ID in the entity's form, and for
+ * an upsert a full row (ingestion sends whole records). Checking here means the store rarely
+ * rejects a chunk.
+ */
+const parseLine = (content: string): Result.Result<Mutation, string> => {
+  const decoded = decodeMutation(content);
+  if (Result.isFailure(decoded)) return Result.fail(decoded.failure.message);
+  const mutation = decoded.success;
+  const entity = healthEntitiesByName.get(mutation.entity);
+  if (entity === undefined) return Result.fail(`Not a health entity: ${mutation.entity}`);
+  if (!entity.isValidId(mutation.id))
+    return Result.fail(`Invalid ${entity.name} ID ${mutation.id}`);
+  if (mutation.op === "upsert") {
+    const fields = entity.decodeFields(mutation.row);
+    if (Result.isFailure(fields)) return Result.fail(fields.failure.message);
+    const missing = entity.fields.find(
+      ({ field, type }) => !type.nullable && fields.success[field] === undefined,
+    );
+    if (missing !== undefined) return Result.fail(`Missing ${missing.field}`);
+  }
+  return Result.succeed(mutation);
+};
+
+/** The longest line accepted. A health record is a few hundred bytes. */
+export const maxBatchLineLength = 1024 * 1024;
 
 /**
- * Splits a batch file into valid mutations of health entities and rejected lines. Rows are
- * checked against their entity here, so the store rarely rejects a chunk.
+ * Reads a gzip NDJSON stream line by line, calling `onLine` with each non-empty line (or
+ * `undefined` for one longer than `maxBatchLineLength`, which isn't kept) and its 1-based number.
+ * Only the current line is buffered. Fails if the stream isn't gzip or decompresses to more than
+ * `maxDecompressedBatchBytes`.
  */
-export const parseHealthBatch = Effect.fnUntraced(function* (bytes: Uint8Array) {
-  const text = yield* gunzip(bytes);
-  const parsed: Array<ParsedLine> = [];
-  const rejected: Array<RejectedLine> = [];
-  let lines = 0;
-  for (const [index, content] of text.split("\n").entries()) {
-    if (content.trim() === "") continue;
-    lines += 1;
-    const line = index + 1;
-    const decoded = decodeMutation(content);
-    if (Result.isFailure(decoded)) {
-      rejected.push({ line, message: decoded.failure.message });
-      continue;
+const forEachLine = Effect.fnUntraced(function* <E, R>(
+  stream: ReadableStream<Uint8Array>,
+  onLine: (content: string | undefined, line: number) => Effect.Effect<void, E, R>,
+) {
+  const reader = stream
+    .pipeThrough(new DecompressionStream("gzip"))
+    .pipeThrough(new TextDecoderStream())
+    .getReader();
+  let pending = "";
+  let tooLong = false;
+  let line = 0;
+  let size = 0;
+  const lineEnded = (rest: string) => {
+    line += 1;
+    const content = tooLong ? undefined : pending + rest;
+    pending = "";
+    tooLong = false;
+    return content === undefined || content.trim() !== "" ? onLine(content, line) : Effect.void;
+  };
+  while (true) {
+    const read = yield* Effect.tryPromise({
+      try: () => reader.read(),
+      catch: (error) => new BatchUnreadable({ message: `Not a gzip file: ${String(error)}` }),
+    });
+    if (read.done) {
+      if (pending !== "" || tooLong) yield* lineEnded("");
+      return;
     }
-    const mutation = decoded.success;
-    const entity = healthEntitiesByName.get(mutation.entity);
-    if (entity === undefined) {
-      rejected.push({ line, message: `Not a health entity: ${mutation.entity}` });
-    } else if (!entity.isValidId(mutation.id)) {
-      rejected.push({ line, message: `Invalid ${entity.name} ID ${mutation.id}` });
-    } else {
-      const fields = mutation.op === "upsert" ? entity.decodeFields(mutation.row) : undefined;
-      if (fields !== undefined && Result.isFailure(fields)) {
-        rejected.push({ line, message: fields.failure.message });
-      } else {
-        parsed.push({ line, mutation });
+    const text = read.value;
+    size += text.length;
+    if (size > maxDecompressedBatchBytes) {
+      yield* Effect.promise(() => reader.cancel());
+      return yield* new BatchUnreadable({ message: "The batch is too large when decompressed" });
+    }
+    let start = 0;
+    for (let newline = text.indexOf("\n"); newline !== -1; newline = text.indexOf("\n", start)) {
+      yield* lineEnded(tooLong ? "" : text.slice(start, newline));
+      start = newline + 1;
+    }
+    if (!tooLong) {
+      pending += text.slice(start);
+      if (pending.length > maxBatchLineLength) {
+        pending = "";
+        tooLong = true;
       }
     }
   }
-  return { lines, parsed, rejected };
 });
 
 /**
  * Applies an uploaded batch to the user's store and records the outcome. Safe to run again for
- * the same batch (queues deliver at least once): an applied batch is skipped, and re-applying
+ * the same batch (queues deliver at least once): a finished batch is skipped, and re-applying
  * rows changes nothing. Fails only when retrying could help, e.g. the store is unavailable.
+ *
+ * The file is streamed and applied a chunk at a time, so a file that turns out to be corrupt
+ * partway can be partly applied before the batch fails.
  */
 export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
   message: HealthBatchMessage,
@@ -111,7 +152,7 @@ export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
   const key = healthBatchKey(message.userId, message.batchId);
 
   const known = yield* store.healthBatch(message.batchId);
-  if (known?.status === "applied") return;
+  if (known?.status === "applied" || known?.status === "failed") return;
   const receivedAt = known?.receivedAt ?? (yield* Clock.currentTimeMillis);
   const finish = (batch: Omit<HealthBatch, "id" | "receivedAt" | "finishedAt">) =>
     Effect.gen(function* () {
@@ -121,37 +162,53 @@ export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
     });
 
   yield* store.saveHealthBatch({ id: message.batchId, status: "applying", receivedAt });
-  const bytes = yield* files.get(key);
-  if (Option.isNone(bytes)) {
+  const stream = yield* files.open(key);
+  if (Option.isNone(stream)) {
     return yield* finish({ status: "failed", failure: "The batch file is missing" });
   }
-  if (bytes.value.byteLength > maxHealthBatchBytes) {
-    return yield* finish({ status: "failed", failure: "The batch file is too large" });
-  }
-  const parsed = yield* parseHealthBatch(bytes.value).pipe(Effect.result);
-  if (Result.isFailure(parsed)) {
-    return yield* finish({ status: "failed", failure: parsed.failure.message });
-  }
-  const { lines, rejected } = parsed.success;
 
-  // Apply in chunks. If the store rejects a mutation (e.g. a new record missing a field), that
-  // line is rejected and the rest of its chunk is tried again.
+  let lines = 0;
   let applied = 0;
-  for (let start = 0; start < parsed.success.parsed.length; start += healthChunkSize) {
-    const chunk = parsed.success.parsed.slice(start, start + healthChunkSize);
+  const rejected: Array<RejectedLine> = [];
+  const chunk: Array<ParsedLine> = [];
+  // If the store rejects a mutation anyway (e.g. a field it validates differently), that line is
+  // rejected and the rest of the chunk is tried again.
+  const applyChunk = Effect.gen(function* () {
     while (chunk.length > 0) {
       const result = yield* store
         .applyMutations(chunk.map(({ mutation }) => mutation))
         .pipe(Effect.result);
       if (Result.isSuccess(result)) {
         applied += chunk.length;
-        break;
+        chunk.length = 0;
+        return;
       }
       const error = result.failure;
       if (error._tag !== "InvalidMutation") return yield* error;
       const [invalid] = chunk.splice(error.index, 1);
       if (invalid !== undefined) rejected.push({ line: invalid.line, message: error.message });
     }
+  });
+
+  const read = yield* forEachLine(stream.value, (content, line) =>
+    Effect.gen(function* () {
+      lines += 1;
+      if (content === undefined) {
+        rejected.push({ line, message: `Longer than ${maxBatchLineLength} characters` });
+        return;
+      }
+      const parsed = parseLine(content);
+      if (Result.isFailure(parsed)) {
+        rejected.push({ line, message: parsed.failure });
+        return;
+      }
+      chunk.push({ line, mutation: parsed.success });
+      if (chunk.length >= healthChunkSize) yield* applyChunk;
+    }),
+  ).pipe(Effect.andThen(applyChunk), Effect.result);
+  if (Result.isFailure(read)) {
+    if (read.failure._tag !== "BatchUnreadable") return yield* read.failure;
+    return yield* finish({ status: "failed", failure: read.failure.message });
   }
 
   rejected.sort((a, b) => a.line - b.line);
@@ -174,7 +231,10 @@ export const failHealthBatch = Effect.fn("failHealthBatch")(function* (
 ) {
   const store = (yield* UserStores).forUser(message.userId);
   const known = yield* store.healthBatch(message.batchId);
+  // A delivery that overlapped may have finished it.
+  if (known?.status === "applied" || known?.status === "failed") return;
   const now = yield* Clock.currentTimeMillis;
+  yield* (yield* HealthBatchFiles).delete(healthBatchKey(message.userId, message.batchId));
   yield* store.saveHealthBatch({
     id: message.batchId,
     status: "failed",

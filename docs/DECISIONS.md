@@ -79,6 +79,7 @@
   - A store migrates its own schema the first time it's used after a deploy, from migrations listed in code (`src/store/Migrations.ts`). Migrations are additive only, because a rolled-back Worker can meet a store that newer code already migrated. The migrator is ours, not Alchemy's `SqlMigrations`, so it runs in tests on `node:sqlite`.
   - Large blobs (ECG voltages, workout routes, sync snapshots) live in R2.
   - R2 blobs are immutable and addressed by content hash. They're only deleted with a grace period (or when an account is deleted), and snapshots can be rebuilt from the Durable Object.
+  - The exception is uploads waiting to be applied, such as health batch files. They're staging, not data: keyed by user and batch, deleted once applied, and expired by a 7-day lifecycle rule if anything leaves them behind.
   - Not D1 for user data, because one D1 database has a hard 10 GB cap shared by everyone, and a Worker can't bind a new database per user at runtime.
 - **Backups:** D1 and Durable Object point-in-time recovery (30 days). R2 has none, which is why blobs are immutable.
 

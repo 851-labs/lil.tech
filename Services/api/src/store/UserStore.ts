@@ -36,11 +36,13 @@ export const makeUserStore = (sql: StoreSql, registry: ReadonlyArray<Entity> = e
         return page instanceof ChangesCompacted ? Effect.fail(page) : Effect.succeed(page);
       }),
     /** An uploaded health batch's status, or `null` if it was never received. */
-    healthBatch: (id: string) => Effect.sync(() => readHealthBatch(sql, id)),
+    healthBatch: (id: string) =>
+      Clock.currentTimeMillis.pipe(Effect.map((now) => readHealthBatch(sql, id, now))),
     /** Records a health batch as `queued` unless it's already known, and returns its status. */
     receiveHealthBatch: (id: string) =>
       Clock.currentTimeMillis.pipe(Effect.map((at) => receiveHealthBatch(sql, id, at))),
-    saveHealthBatch: (batch: HealthBatch) => Effect.sync(() => saveHealthBatch(sql, batch)),
+    saveHealthBatch: (batch: HealthBatch) =>
+      Clock.currentTimeMillis.pipe(Effect.map((at) => saveHealthBatch(sql, batch, at))),
     /** Applies mutations in one transaction (see `applyMutations`). */
     applyMutations: (mutations: ReadonlyArray<Mutation>) =>
       Effect.gen(function* () {
