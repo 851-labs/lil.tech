@@ -351,11 +351,18 @@
             }
           },
           "503": {
-            "description": "UserStoreUnavailable",
+            "description": "SnapshotNotReady | UserStoreUnavailable",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserStoreUnavailable"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SnapshotNotReady"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UserStoreUnavailable"
+                    }
+                  ]
                 }
               }
             }
@@ -862,6 +869,26 @@
           "records",
           "bytes",
           "sha256"
+        ]
+      },
+      "SnapshotNotReady": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "SnapshotNotReady"
+            ]
+          },
+          "retryAfterSeconds": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "_tag",
+          "retryAfterSeconds"
         ]
       },
       "LatestSnapshot": {

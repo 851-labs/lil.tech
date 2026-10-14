@@ -53,6 +53,16 @@ export const LatestSnapshot = Schema.Struct({
   snapshot: Schema.optionalKey(SnapshotManifest),
 }).annotate({ identifier: "lil/api/sync/LatestSnapshot" });
 
+/**
+ * The store's current epoch has no snapshot yet; it's being written. Retry after
+ * `retryAfterSeconds`.
+ */
+export class SnapshotNotReady extends Schema.TaggedError<SnapshotNotReady>()(
+  "SnapshotNotReady",
+  { retryAfterSeconds: Schema.Int },
+  { httpApiStatus: 503 },
+) {}
+
 /** The snapshot is gone (replaced over a week ago), or isn't the current epoch's. Start over. */
 export class SnapshotGone extends Schema.TaggedError<SnapshotGone>()(
   "SnapshotGone",
@@ -72,7 +82,7 @@ export class SyncApi extends HttpApiGroup.make("sync")
     // The store's current epoch and its latest snapshot, to bootstrap a new device from.
     HttpApiEndpoint.get("snapshot", "/v1/sync/snapshot", {
       success: LatestSnapshot,
-      error: UserStoreUnavailable,
+      error: [SnapshotNotReady, UserStoreUnavailable],
     }),
   )
   .add(

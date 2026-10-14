@@ -101,8 +101,17 @@ export const makeUserStore = (
         if (applied.appended > 0) yield* scheduleAlarm(at);
         return applied;
       }),
-    /** The store's epoch (`docs/SYNC.md`). */
-    epoch: () => Effect.sync(() => readEpoch(sql)),
+    /**
+     * What a new device bootstraps from, read together so they agree: the store's epoch, whether
+     * it ever compacted, and its latest snapshot of that epoch.
+     */
+    bootstrap: () =>
+      Effect.sync(() =>
+        sql.transaction(() => ({
+          epoch: readEpoch(sql),
+          snapshot: latestSnapshot(sql),
+        })),
+      ),
     /** The latest published snapshot of the current epoch, or `null`. */
     latestSnapshot: () => Effect.sync(() => latestSnapshot(sql)),
     /** A published snapshot of the current epoch by ID, or `null` (see `readSnapshot`). */

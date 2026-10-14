@@ -1444,13 +1444,58 @@ public enum Operations {
             public struct ServiceUnavailable: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/v1/sync/snapshot/GET/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/sync/snapshot/GET/responses/503/content/json`.
+                    public struct JsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/v1/sync/snapshot/GET/responses/503/content/json/value1`.
+                        public var value1: Components.Schemas.SnapshotNotReady?
+                        /// - Remark: Generated from `#/paths/v1/sync/snapshot/GET/responses/503/content/json/value2`.
+                        public var value2: Components.Schemas.UserStoreUnavailable?
+                        /// Creates a new `JsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - value1:
+                        ///   - value2:
+                        public init(
+                            value1: Components.Schemas.SnapshotNotReady? = nil,
+                            value2: Components.Schemas.UserStoreUnavailable? = nil
+                        ) {
+                            self.value1 = value1
+                            self.value2 = value2
+                        }
+                        public init(from decoder: any Swift.Decoder) throws {
+                            var errors: [any Swift.Error] = []
+                            do {
+                                self.value1 = try .init(from: decoder)
+                            } catch {
+                                errors.append(error)
+                            }
+                            do {
+                                self.value2 = try .init(from: decoder)
+                            } catch {
+                                errors.append(error)
+                            }
+                            try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                                [
+                                    self.value1,
+                                    self.value2
+                                ],
+                                type: Self.self,
+                                codingPath: decoder.codingPath,
+                                errors: errors
+                            )
+                        }
+                        public func encode(to encoder: any Swift.Encoder) throws {
+                            try self.value1?.encode(to: encoder)
+                            try self.value2?.encode(to: encoder)
+                        }
+                    }
                     /// - Remark: Generated from `#/paths/v1/sync/snapshot/GET/responses/503/content/application\/json`.
-                    case json(Components.Schemas.UserStoreUnavailable)
+                    case json(Operations.SyncSnapshot.Output.ServiceUnavailable.Body.JsonPayload)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas.UserStoreUnavailable {
+                    public var json: Operations.SyncSnapshot.Output.ServiceUnavailable.Body.JsonPayload {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -1469,7 +1514,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// UserStoreUnavailable
+            /// SnapshotNotReady | UserStoreUnavailable
             ///
             /// - Remark: Generated from `#/paths//v1/sync/snapshot/get(syncSnapshot)/responses/503`.
             ///

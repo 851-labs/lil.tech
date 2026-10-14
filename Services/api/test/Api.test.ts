@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { assert, describe, it } from "@effect/vitest";
 import * as Alchemy from "alchemy";
-import { Clock, ConfigProvider, Effect, Exit, Layer, Redacted, Schema } from "effect";
+import { ConfigProvider, Effect, Exit, Layer, Redacted, Schema } from "effect";
 import { HttpRouter } from "effect/http";
 import { TestClock } from "effect/testing";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
@@ -15,8 +15,7 @@ import { Devices } from "../src/core/Devices.ts";
 import { Identities } from "../src/core/Identities.ts";
 import type { UserId } from "../src/core/Ids.ts";
 import { Users } from "../src/core/Users.ts";
-import { entities } from "../src/store/Registry.ts";
-import { snapshotPolicy, writeSnapshotStep } from "../src/store/Snapshots.ts";
+import { snapshotPolicy } from "../src/store/Snapshots.ts";
 import { UserStores } from "../src/store/UserStores.ts";
 import { PartUrls } from "../src/sync/SnapshotParts.ts";
 import { WorkerHttpLayer } from "../src/Http.ts";
@@ -26,7 +25,12 @@ import { appleIdentityToken, TestAppleKeys } from "./auth/TestApple.ts";
 import { googleIdToken, TestGoogleClients, TestGoogleKeys } from "./auth/TestGoogle.ts";
 import { TestAuth } from "./auth/TestAuth.ts";
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./health/TestHealthIngestion.ts";
-import { TestStores, TestUserStores, testNote } from "./store/TestUserStores.ts";
+import {
+  TestStores,
+  TestUserStores,
+  testNoteMutation,
+  writeTestSnapshot,
+} from "./store/TestUserStores.ts";
 
 const committedSpec = readFileSync(new URL("../openapi.json", import.meta.url), "utf8");
 
@@ -429,12 +433,7 @@ describe("POST /v1/auth/dev", () => {
 });
 
 describe("GET /v1/sync/changes", () => {
-  const note = (id: string, title = "Note") => ({
-    entity: "test_note",
-    op: "upsert" as const,
-    id,
-    row: { title, pinned: false, score: null, tags: [], createdAt: 1 },
-  });
+  const note = (id: string, title = "Note") => testNoteMutation(id, title);
   const pull = (handler: Handler, token: string, query = "") =>
     send(
       handler,
@@ -459,7 +458,14 @@ describe("GET /v1/sync/changes", () => {
             [2, "n2", "upsert"],
           ],
         );
-        assert.deepStrictEqual(changes[0]?.["row"], { id: "n1", ...note("n1").row });
+        assert.deepStrictEqual(changes[0]?.["row"], {
+          id: "n1",
+          title: "Note",
+          pinned: false,
+          score: null,
+          tags: [],
+          createdAt: 1,
+        });
 
         const rest = yield* pull(handler, tokens.accessToken, "?after=2&limit=2");
         assert.deepInclude(rest.body, { next: 3, head: 3, hasMore: false });
@@ -539,12 +545,7 @@ describe("GET /v1/sync/changes", () => {
 });
 
 describe("snapshot downloads", () => {
-  const note = (id: string) => ({
-    entity: "test_note",
-    op: "upsert" as const,
-    id,
-    row: { title: `Note ${id}`, pinned: false, score: null, tags: [], createdAt: 1 },
-  });
+  const note = testNoteMutation;
   const tinyParts = { ...snapshotPolicy, minChanges: 1, partRecords: 2, pageRows: 2 };
   const get = (handler: Handler, path: string, token?: string) =>
     send(
@@ -559,18 +560,8 @@ describe("snapshot downloads", () => {
     Effect.gen(function* () {
       const testStores = yield* TestStores;
       const sql = testStores.sqlFor(userId);
-      if (sql === undefined) return assert.fail("no store");
-      for (let step = 0; step < 100; step++) {
-        const now = yield* Clock.currentTimeMillis;
-        const result = yield* writeSnapshotStep(
-          sql,
-          [...entities, testNote],
-          testStores.snapshotFiles,
-          now,
-          tinyParts,
-        );
-        if (result === "finished") return;
-      }
+      if (sql === undefined) return yield* Effect.die("no store");
+      yield* writeTestSnapshot(sql, testStores.snapshotFiles, tinyParts);
     });
 
   it.live("returns no snapshot for a new user", () =>
@@ -587,7 +578,9 @@ describe("snapshot downloads", () => {
     withApi((handler) =>
       Effect.gen(function* () {
         const { user, tokens } = yield* signIn;
-        yield* (yield* UserStores).forUser(user.id).applyMutations(["a", "b", "c"].map(note));
+        yield* (yield* UserStores)
+          .forUser(user.id)
+          .applyMutations(["a", "b", "c"].map((id) => note(id)));
         yield* writeSnapshot(user.id);
 
         const latest = yield* get(handler, "/v1/sync/snapshot", tokens.accessToken);
@@ -660,6 +653,66 @@ describe("snapshot downloads", () => {
         assert.strictEqual((yield* fetchPart(expired)).status, 401);
         // An access token isn't a part URL.
         assert.strictEqual((yield* fetchPart((yield* signIn).tokens.accessToken)).status, 401);
+      }),
+    ),
+  );
+
+  it.live("serves a range of a part, so an interrupted download can resume", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user } = yield* signIn;
+        yield* (yield* UserStores)
+          .forUser(user.id)
+          .applyMutations(["a", "b"].map((id) => note(id)));
+        yield* writeSnapshot(user.id);
+        const snapshot = yield* (yield* UserStores).forUser(user.id).latestSnapshot();
+        const key =
+          snapshot?.entities.find((entity) => entity.entity === "test_note")?.parts[0]?.key ?? "";
+        const bytes = (yield* TestStores).storedSnapshotFiles.get(key) ?? new Uint8Array();
+        const token = yield* (yield* PartUrls.pipe(Effect.provide(PartUrls.layer))).sign(key);
+        const fetchRange = (range: string) =>
+          Effect.promise(() =>
+            handler(
+              new Request(`https://api.lil.tech/v1/sync/parts?token=${token}`, {
+                headers: { range },
+              }),
+            ),
+          );
+
+        const rest = yield* fetchRange("bytes=10-");
+        assert.strictEqual(rest.status, 206);
+        assert.strictEqual(
+          rest.headers.get("content-range"),
+          `bytes 10-${bytes.length - 1}/${bytes.length}`,
+        );
+        assert.strictEqual(rest.headers.get("accept-ranges"), "bytes");
+        assert.isNotNull(rest.headers.get("etag"));
+        const received = new Uint8Array(yield* Effect.promise(() => rest.arrayBuffer()));
+        assert.deepStrictEqual(received, bytes.slice(10));
+
+        const tail = yield* fetchRange("bytes=-5");
+        assert.deepStrictEqual(
+          new Uint8Array(yield* Effect.promise(() => tail.arrayBuffer())),
+          bytes.slice(-5),
+        );
+        const past = yield* fetchRange(`bytes=${bytes.length}-`);
+        assert.strictEqual(past.status, 416);
+        assert.strictEqual(past.headers.get("content-range"), `bytes */${bytes.length}`);
+      }),
+    ),
+  );
+
+  it.live("answers 503 while a later epoch's snapshot is being written", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        yield* (yield* UserStores).forUser(user.id).applyMutations([note("a")]);
+        (yield* TestStores)
+          .sqlFor(user.id)
+          ?.exec("INSERT INTO meta (key, value) VALUES ('epoch', 2)");
+        const response = yield* get(handler, "/v1/sync/snapshot", tokens.accessToken);
+        assert.strictEqual(response.status, 503);
+        assert.deepInclude(response.body, { _tag: "SnapshotNotReady", retryAfterSeconds: 60 });
       }),
     ),
   );

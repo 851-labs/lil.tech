@@ -399,6 +399,33 @@ extension Components {
                 case sha256
             }
         }
+        /// - Remark: Generated from `#/components/schemas/SnapshotNotReady`.
+        public struct SnapshotNotReady: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnapshotNotReady/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case snapshotNotReady = "SnapshotNotReady"
+            }
+            /// - Remark: Generated from `#/components/schemas/SnapshotNotReady/_tag`.
+            public var _tag: Components.Schemas.SnapshotNotReady._TagPayload
+            /// - Remark: Generated from `#/components/schemas/SnapshotNotReady/retryAfterSeconds`.
+            public var retryAfterSeconds: Swift.Int
+            /// Creates a new `SnapshotNotReady`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - retryAfterSeconds:
+            public init(
+                _tag: Components.Schemas.SnapshotNotReady._TagPayload,
+                retryAfterSeconds: Swift.Int
+            ) {
+                self._tag = _tag
+                self.retryAfterSeconds = retryAfterSeconds
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case retryAfterSeconds
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/LatestSnapshot`.
         public struct LatestSnapshot: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/LatestSnapshot/epoch`.

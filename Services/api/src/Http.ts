@@ -29,8 +29,14 @@ import { Users } from "./core/Users.ts";
 import { Deployment } from "./Deployment.ts";
 import { Status } from "./Status.ts";
 import { UserStores } from "./store/UserStores.ts";
-import { InvalidPartUrl, PartUrls, SnapshotParts, toManifest } from "./sync/SnapshotParts.ts";
-import { SnapshotGone } from "./sync/SyncApi.ts";
+import {
+  InvalidPartUrl,
+  PartUrls,
+  parseRange,
+  SnapshotParts,
+  toManifest,
+} from "./sync/SnapshotParts.ts";
+import { SnapshotGone, SnapshotNotReady } from "./sync/SyncApi.ts";
 // The committed spec (see scripts/openapi.ts), so the served contract is exactly the committed one.
 import openApiSpec from "../openapi.json" with { type: "json" };
 
@@ -135,8 +141,15 @@ export const SyncHandlers = HttpApiBuilder.group(
     const sessionStore = CurrentSession.use((session) =>
       Effect.succeed(stores.forUser(session.userId)),
     );
+    // Part URLs go to the host the client used, with its scheme (http for `alchemy dev`).
     const origin = HttpServerRequest.HttpServerRequest.use((request) =>
-      Effect.succeed(`https://${request.headers["host"] ?? "api.lil.tech"}`),
+      Effect.sync(() => {
+        try {
+          return new URL(request.originalUrl).origin;
+        } catch {
+          return `https://${request.headers["host"] ?? "api.lil.tech"}`;
+        }
+      }),
     );
     return handlers
       .handle("changes", ({ query }) =>
@@ -144,24 +157,21 @@ export const SyncHandlers = HttpApiBuilder.group(
       )
       .handle("snapshot", () =>
         Effect.gen(function* () {
-          const store = yield* sessionStore;
-          const [epoch, snapshot] = yield* Effect.all([store.epoch(), store.latestSnapshot()]);
-          if (snapshot === null) return { epoch };
-          return {
-            epoch,
-            snapshot: yield* toManifest(snapshot, yield* origin).pipe(
-              Effect.provideService(PartUrls, partUrls),
-            ),
-          };
+          const { epoch, snapshot } = yield* (yield* sessionStore).bootstrap();
+          if (snapshot !== null) {
+            return { epoch, snapshot: yield* toManifest(snapshot, yield* origin, partUrls) };
+          }
+          // A store's first epoch starts empty, so its whole log is the data. A later epoch's
+          // data came from a migration or restore, which writes its snapshot first.
+          if (epoch > 1) return yield* new SnapshotNotReady({ retryAfterSeconds: 60 });
+          return { epoch };
         }),
       )
       .handle("snapshotById", ({ params }) =>
         Effect.gen(function* () {
           const snapshot = yield* (yield* sessionStore).snapshot(params.id);
           if (snapshot === null) return yield* new SnapshotGone({ id: params.id });
-          return yield* toManifest(snapshot, yield* origin).pipe(
-            Effect.provideService(PartUrls, partUrls),
-          );
+          return yield* toManifest(snapshot, yield* origin, partUrls);
         }),
       );
   }),
@@ -232,16 +242,40 @@ export const SnapshotPartRoute = HttpRouter.use((router) =>
           Schema.Struct({ token: Schema.String }),
         ).pipe(Effect.mapError((error) => new InvalidPartUrl({ message: error.message })));
         const key = yield* partUrls.verify(token);
-        const part = yield* (yield* SnapshotParts).open(key);
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const range = parseRange(request.headers["range"]);
+        const part = yield* (yield* SnapshotParts).open(key, range);
         if (Option.isNone(part)) {
           return HttpServerResponse.jsonUnsafe({ _tag: "NotFound" }, { status: 404 });
         }
-        return HttpServerResponse.raw(part.value.body, {
-          headers: {
-            "content-type": "application/gzip",
-            "content-length": String(part.value.size),
-            "cache-control": "private, max-age=900",
-          },
+        const { body, size, etag } = part.value;
+        const headers = {
+          "content-type": "application/gzip",
+          "accept-ranges": "bytes",
+          etag,
+          "cache-control": "private, max-age=900",
+        };
+        // Resuming an interrupted download asks for the rest of the part.
+        if (range !== undefined) {
+          if (part.value.range === undefined) {
+            yield* Effect.promise(() => body.cancel());
+            return HttpServerResponse.empty({
+              status: 416,
+              headers: { "content-range": `bytes */${size}` },
+            });
+          }
+          const { offset, length } = part.value.range;
+          return HttpServerResponse.raw(body, {
+            status: 206,
+            headers: {
+              ...headers,
+              "content-length": String(length),
+              "content-range": `bytes ${offset}-${offset + length - 1}/${size}`,
+            },
+          });
+        }
+        return HttpServerResponse.raw(body, {
+          headers: { ...headers, "content-length": String(size) },
         });
       }).pipe(
         Effect.catchTag("InvalidPartUrl", () =>

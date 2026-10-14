@@ -11,7 +11,7 @@ import { Deployment, environmentForStage } from "./Deployment.ts";
 import { HealthBatchFiles, HealthBatchQueue } from "./health/HealthIngestion.ts";
 import { HealthIngestionWorker } from "./health/HealthResources.ts";
 import { WorkerHttpLayer } from "./Http.ts";
-import { provideRuntime } from "./Runtime.ts";
+import { objectBody, provideRuntime } from "./Runtime.ts";
 import { SnapshotBucket, UserStore, UserStoreLive } from "./store/UserStore.ts";
 import { SnapshotParts } from "./sync/SnapshotParts.ts";
 import { UserStores } from "./store/UserStores.ts";
@@ -77,17 +77,47 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
     // Per request: the bucket's calls need the request's runtime context.
     const snapshotParts = Effect.map(Alchemy.RuntimeContext, (runtime) =>
       SnapshotParts.of({
-        open: (key) =>
-          provideRuntime(runtime)(snapshots.get(key)).pipe(
-            Effect.map((object) =>
-              object === null
-                ? Option.none()
-                : Option.some({
-                    body:
-                      object.readable ?? Stream.toReadableStream(object.body.pipe(Stream.orDie)),
-                    size: object.size,
-                  }),
+        open: (key, range) =>
+          provideRuntime(runtime)(
+            snapshots.get(key, range === undefined ? {} : { range }).pipe(
+              // R2 may reject a range past the end; answer that with the part's size (a 416).
+              Effect.catch((error) =>
+                range === undefined
+                  ? Effect.fail(error)
+                  : snapshots.head(key).pipe(
+                      Effect.map((head) =>
+                        head === null
+                          ? null
+                          : {
+                              ...head,
+                              range: { offset: head.size },
+                              readable: new ReadableStream<Uint8Array>(),
+                              body: Stream.empty,
+                            },
+                      ),
+                    ),
+              ),
             ),
+          ).pipe(
+            Effect.map((object) => {
+              if (object === null) return Option.none();
+              const applied = object.range as
+                | { offset?: number; length?: number; suffix?: number }
+                | undefined;
+              const offset =
+                applied?.suffix !== undefined
+                  ? Math.max(0, object.size - applied.suffix)
+                  : (applied?.offset ?? 0);
+              const length = applied?.length ?? object.size - offset;
+              return Option.some({
+                body: objectBody(object),
+                size: object.size,
+                etag: object.httpEtag,
+                ...(range === undefined || offset >= object.size
+                  ? {}
+                  : { range: { offset, length } }),
+              });
+            }),
             Effect.orDie,
           ),
       }),

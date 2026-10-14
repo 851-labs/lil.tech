@@ -1,7 +1,12 @@
-import { Context, Effect, Layer, Option } from "effect";
+import { Clock, Context, Effect, Layer, Option } from "effect";
 import type { UserId } from "../../src/core/Ids.ts";
 import { Column, createEntityTable, defineEntity } from "../../src/store/Entities.ts";
-import type { SnapshotFiles } from "../../src/store/Snapshots.ts";
+import type { Mutation } from "../../src/store/Changes.ts";
+import {
+  type SnapshotFiles,
+  type SnapshotPolicy,
+  writeSnapshotStep,
+} from "../../src/store/Snapshots.ts";
 import type { StoreSql } from "../../src/store/StoreSql.ts";
 import { SnapshotParts } from "../../src/sync/SnapshotParts.ts";
 import { entities } from "../../src/store/Registry.ts";
@@ -81,15 +86,64 @@ export const TestUserStores = Layer.unwrap(
       Layer.succeed(
         SnapshotParts,
         SnapshotParts.of({
-          open: (key) =>
+          // Ranges behave like R2's: a satisfiable one is served, one past the end isn't.
+          open: (key, range) =>
             Effect.sync(() =>
-              Option.map(Option.fromNullishOr(stored.get(key)), (bytes) => ({
-                body: new Blob([bytes as Uint8Array<ArrayBuffer>]).stream(),
-                size: bytes.length,
-              })),
+              Option.map(Option.fromNullishOr(stored.get(key)), (bytes) => {
+                const size = bytes.length;
+                const offset =
+                  range === undefined
+                    ? 0
+                    : "suffix" in range
+                      ? Math.max(0, size - range.suffix)
+                      : range.offset;
+                const length =
+                  range !== undefined && "length" in range && range.length !== undefined
+                    ? Math.min(range.length, size - offset)
+                    : size - offset;
+                const served = range !== undefined && offset < size;
+                return {
+                  body: new Blob([
+                    (served
+                      ? bytes.slice(offset, offset + length)
+                      : bytes) as Uint8Array<ArrayBuffer>,
+                  ]).stream(),
+                  size,
+                  etag: `"${key}"`,
+                  ...(served ? { range: { offset, length } } : {}),
+                };
+              }),
             ),
         }),
       ),
     );
   }),
 );
+
+/** An upsert of a `test_note`. */
+export const testNoteMutation = (id: string, title = `Note ${id}`): Mutation => ({
+  entity: "test_note",
+  op: "upsert",
+  id,
+  row: { title, pinned: false, score: null, tags: [], createdAt: 1 },
+});
+
+/**
+ * Writes a whole snapshot of a test store, as its alarm would, running `between` after each part.
+ * Fails if it doesn't finish.
+ */
+export const writeTestSnapshot = (
+  sql: StoreSql,
+  files: SnapshotFiles,
+  policy: SnapshotPolicy,
+  between: (step: number) => Effect.Effect<void, unknown> = () => Effect.void,
+) =>
+  Effect.gen(function* () {
+    for (let step = 0; step < 1000; step++) {
+      const now = yield* Clock.currentTimeMillis;
+      const result = yield* writeSnapshotStep(sql, [...entities, testNote], files, now, policy);
+      if (result !== "continue") return result;
+      yield* between(step);
+    }
+    return yield* Effect.die("The snapshot never finished");
+  });

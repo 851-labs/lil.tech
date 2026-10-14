@@ -30,7 +30,13 @@ export class PartUrls extends Context.Service<
   static readonly layer = Layer.effect(
     PartUrls,
     Effect.gen(function* () {
-      const secret = new TextEncoder().encode(Redacted.value(yield* SessionKey));
+      const raw = new TextEncoder().encode(Redacted.value(yield* SessionKey));
+      const secret = yield* Effect.promise(() =>
+        crypto.subtle.importKey("raw", raw, { name: "HMAC", hash: "SHA-256" }, false, [
+          "sign",
+          "verify",
+        ]),
+      );
       return PartUrls.of({
         sign: Effect.fn("PartUrls.sign")(function* (key) {
           const now = yield* Clock.currentTimeMillis;
@@ -64,32 +70,70 @@ export class PartUrls extends Context.Service<
   );
 }
 
+/** A byte range of a part: `offset` and an optional `length`, or the last `suffix` bytes. */
+export type PartRange =
+  | { readonly offset: number; readonly length?: number }
+  | { readonly suffix: number };
+
+/**
+ * The range in a `Range` header, if it's one we serve: a single `bytes` range. Anything else is
+ * ignored, and the whole part is sent.
+ */
+export const parseRange = (header: string | undefined): PartRange | undefined => {
+  const match = header?.match(/^bytes=(\d*)-(\d*)$/);
+  if (match === undefined || match === null) return undefined;
+  const [, start = "", end = ""] = match;
+  if (start === "" && end === "") return undefined;
+  if (start === "") return { suffix: Number(end) };
+  if (end === "") return { offset: Number(start) };
+  if (Number(end) < Number(start)) return undefined;
+  return { offset: Number(start), length: Number(end) - Number(start) + 1 };
+};
+
+/** An opened part, or the requested range of one. */
+export interface OpenedPart {
+  readonly body: ReadableStream<Uint8Array>;
+  /** The whole part's size. */
+  readonly size: number;
+  /** Which bytes `body` holds, if a range was asked for and satisfiable. */
+  readonly range?: { readonly offset: number; readonly length: number };
+  readonly etag: string;
+}
+
 /** Reading snapshot parts (R2 in the Worker, built per request). */
 export class SnapshotParts extends Context.Service<
   SnapshotParts,
   {
     readonly open: (
       key: string,
-    ) => Effect.Effect<
-      Option.Option<{ readonly body: ReadableStream<Uint8Array>; readonly size: number }>
-    >;
+      range: PartRange | undefined,
+    ) => Effect.Effect<Option.Option<OpenedPart>>;
   }
 >()("lil/api/sync/SnapshotParts") {}
 
 /** A stored snapshot as clients get it, with part URLs on `origin`. */
-export const toManifest = Effect.fnUntraced(function* (snapshot: Snapshot, origin: string) {
-  const urls = yield* PartUrls;
-  const entities = yield* Effect.forEach(snapshot.entities, (entity) =>
-    Effect.forEach(entity.parts, (part) =>
-      urls.sign(part.key).pipe(
-        Effect.map((token) => ({
-          url: `${origin}/v1/sync/parts?token=${token}`,
-          records: part.records,
-          bytes: part.bytes,
-          sha256: part.sha256,
-        })),
-      ),
-    ).pipe(Effect.map((parts) => ({ entity: entity.entity, parts }))),
+export const toManifest = Effect.fnUntraced(function* (
+  snapshot: Snapshot,
+  origin: string,
+  urls: PartUrls["Service"],
+) {
+  const entities = yield* Effect.forEach(
+    snapshot.entities,
+    (entity) =>
+      Effect.forEach(
+        entity.parts,
+        (part) =>
+          urls.sign(part.key).pipe(
+            Effect.map((token) => ({
+              url: `${origin}/v1/sync/parts?token=${token}`,
+              records: part.records,
+              bytes: part.bytes,
+              sha256: part.sha256,
+            })),
+          ),
+        { concurrency: "unbounded" },
+      ).pipe(Effect.map((parts) => ({ entity: entity.entity, parts }))),
+    { concurrency: "unbounded" },
   );
   return {
     id: snapshot.id,
