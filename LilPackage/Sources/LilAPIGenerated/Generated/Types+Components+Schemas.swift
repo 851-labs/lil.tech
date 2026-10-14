@@ -6,6 +6,167 @@ public import struct Foundation.Date
 extension Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
+        /// - Remark: Generated from `#/components/schemas/Unauthorized`.
+        public struct Unauthorized: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Unauthorized/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case unauthorized = "Unauthorized"
+            }
+            /// - Remark: Generated from `#/components/schemas/Unauthorized/_tag`.
+            public var _tag: Components.Schemas.Unauthorized._TagPayload
+            /// - Remark: Generated from `#/components/schemas/Unauthorized/message`.
+            public var message: Swift.String
+            /// Creates a new `Unauthorized`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.Unauthorized._TagPayload,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/Me`.
+        public struct Me: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Me/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Me/displayName`.
+            public var displayName: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/Me/identities`.
+            public var identities: [Components.Schemas.MeIdentity]
+            /// Creates a new `Me`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - displayName:
+            ///   - identities:
+            public init(
+                id: Swift.String,
+                displayName: Swift.String? = nil,
+                identities: [Components.Schemas.MeIdentity]
+            ) {
+                self.id = id
+                self.displayName = displayName
+                self.identities = identities
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case displayName
+                case identities
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/MeIdentity`.
+        public struct MeIdentity: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/MeIdentity/provider`.
+            @frozen public enum ProviderPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case apple = "apple"
+                case google = "google"
+            }
+            /// - Remark: Generated from `#/components/schemas/MeIdentity/provider`.
+            public var provider: Components.Schemas.MeIdentity.ProviderPayload
+            /// - Remark: Generated from `#/components/schemas/MeIdentity/email`.
+            public var email: Swift.String?
+            /// Creates a new `MeIdentity`.
+            ///
+            /// - Parameters:
+            ///   - provider:
+            ///   - email:
+            public init(
+                provider: Components.Schemas.MeIdentity.ProviderPayload,
+                email: Swift.String? = nil
+            ) {
+                self.provider = provider
+                self.email = email
+            }
+            public enum CodingKeys: String, CodingKey {
+                case provider
+                case email
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken`.
+        public struct InvalidRefreshToken: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case invalidRefreshToken = "InvalidRefreshToken"
+            }
+            /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken/_tag`.
+            public var _tag: Components.Schemas.InvalidRefreshToken._TagPayload
+            /// - Remark: Generated from `#/components/schemas/InvalidRefreshToken/message`.
+            public var message: Swift.String
+            /// Creates a new `InvalidRefreshToken`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.InvalidRefreshToken._TagPayload,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/TokenPair`.
+        public struct TokenPair: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/TokenPair/accessToken`.
+            public var accessToken: Swift.String
+            /// - Remark: Generated from `#/components/schemas/TokenPair/accessTokenExpiresAt`.
+            public var accessTokenExpiresAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/TokenPair/refreshToken`.
+            public var refreshToken: Swift.String
+            /// - Remark: Generated from `#/components/schemas/TokenPair/refreshTokenExpiresAt`.
+            public var refreshTokenExpiresAt: Swift.Int
+            /// Creates a new `TokenPair`.
+            ///
+            /// - Parameters:
+            ///   - accessToken:
+            ///   - accessTokenExpiresAt:
+            ///   - refreshToken:
+            ///   - refreshTokenExpiresAt:
+            public init(
+                accessToken: Swift.String,
+                accessTokenExpiresAt: Swift.Int,
+                refreshToken: Swift.String,
+                refreshTokenExpiresAt: Swift.Int
+            ) {
+                self.accessToken = accessToken
+                self.accessTokenExpiresAt = accessTokenExpiresAt
+                self.refreshToken = refreshToken
+                self.refreshTokenExpiresAt = refreshTokenExpiresAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case accessToken
+                case accessTokenExpiresAt
+                case refreshToken
+                case refreshTokenExpiresAt
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RefreshRequest`.
+        public struct RefreshRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RefreshRequest/refreshToken`.
+            public var refreshToken: Swift.String
+            /// Creates a new `RefreshRequest`.
+            ///
+            /// - Parameters:
+            ///   - refreshToken:
+            public init(refreshToken: Swift.String) {
+                self.refreshToken = refreshToken
+            }
+            public enum CodingKeys: String, CodingKey {
+                case refreshToken
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/Status`.
         public struct Status: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Status/environment`.

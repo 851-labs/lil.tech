@@ -185,6 +185,9 @@ catalogs:
     effect:
       specifier: 4.0.4
       version: 4.0.4
+    jose:
+      specifier: 6.2.12
+      version: 6.2.12
     typescript:
       specifier: ^7.0.2
       version: 7.0.2
@@ -214,6 +217,9 @@ importers:
       effect:
         specifier: 'catalog:'
         version: 4.0.4
+      jose:
+        specifier: 'catalog:'
+        version: 6.2.12
     devDependencies:
       '@effect/platform-node':
         specifier: 'catalog:'
@@ -1932,6 +1938,9 @@ packages:
 
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
+
+  jose@6.2.12:
+    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
 
   js-base64@3.9.4:
     resolution: {integrity: sha512-PtOMXpEGuP0RRiRXsjzHzl44dMHxSu2CPvAhinupR1tBa88me+1DPqsobl7eupn5UukjLkln1ZnAOAOXOrYG0Q==}
@@ -3670,6 +3679,8 @@ snapshots:
   http-status-codes@2.3.0: {}
 
   isexe@2.0.0: {}
+
+  jose@6.2.12: {}
 
   js-base64@3.9.4: {}
 

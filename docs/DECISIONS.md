@@ -85,6 +85,11 @@
 
 - **Auth:** our own, written in Effect. Sign in with Apple and Sign in with Google.
   - The apps sign in natively. The server verifies the provider's ID token and issues its own session: short-lived access tokens and rotating refresh tokens.
+  - **Access tokens:** 15-minute HS256 JWTs carrying the user, device and session. They're verified without a database read, so signing out takes up to 15 minutes to reach them. Each stage has its own signing key, generated and kept by Alchemy.
+  - **Refresh tokens:** opaque and random, stored only as SHA-256 hashes. Each one works once: refreshing returns a new pair and revokes the old token. A refresh token expires 90 days after it was issued, so a device that opens the app at least every 90 days stays signed in.
+  - **Reuse ends the session.** Presenting an already-used refresh token revokes every token descended from the same sign-in, since only a stolen copy (or a retried request whose response was lost) would do that. The app then signs in again. There's no grace period.
+  - **No transactions:** D1 has none over HTTP, so a refresh stores the new token before conditionally revoking the old one. A refresh that fails partway leaves the old token working. Concurrent refreshes, or a refresh racing sign-out, end with the whole family revoked.
+  - Signing out deletes the device's session family. Refreshing deletes the family's expired tokens. Deleting a device or user deletes its sessions.
 - **Identities and connections are separate:**
   - An identity is a way to sign in. Signing in with Google requests identity scopes only.
   - A connection is a data source the user grants access to, with its own scopes, credentials and sync state: Apple Health now, Gmail, IMAP and calendars later.

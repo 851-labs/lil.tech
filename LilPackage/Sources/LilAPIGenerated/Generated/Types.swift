@@ -8,6 +8,15 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /v1/status`.
     /// - Remark: Generated from `#/paths//v1/status/get(status)`.
     func status(_ input: Operations.Status.Input) async throws -> Operations.Status.Output
+    /// - Remark: HTTP `POST /v1/auth/refresh`.
+    /// - Remark: Generated from `#/paths//v1/auth/refresh/post(authRefresh)`.
+    func authRefresh(_ input: Operations.AuthRefresh.Input) async throws -> Operations.AuthRefresh.Output
+    /// - Remark: HTTP `POST /v1/auth/sign-out`.
+    /// - Remark: Generated from `#/paths//v1/auth/sign-out/post(authSignOut)`.
+    func authSignOut(_ input: Operations.AuthSignOut.Input) async throws -> Operations.AuthSignOut.Output
+    /// - Remark: HTTP `GET /v1/me`.
+    /// - Remark: Generated from `#/paths//v1/me/get(me)`.
+    func me(_ input: Operations.Me.Input) async throws -> Operations.Me.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -16,6 +25,27 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//v1/status/get(status)`.
     public func status(headers: Operations.Status.Input.Headers = .init()) async throws -> Operations.Status.Output {
         try await status(Operations.Status.Input(headers: headers))
+    }
+    /// - Remark: HTTP `POST /v1/auth/refresh`.
+    /// - Remark: Generated from `#/paths//v1/auth/refresh/post(authRefresh)`.
+    public func authRefresh(
+        headers: Operations.AuthRefresh.Input.Headers = .init(),
+        body: Operations.AuthRefresh.Input.Body
+    ) async throws -> Operations.AuthRefresh.Output {
+        try await authRefresh(Operations.AuthRefresh.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `POST /v1/auth/sign-out`.
+    /// - Remark: Generated from `#/paths//v1/auth/sign-out/post(authSignOut)`.
+    public func authSignOut(headers: Operations.AuthSignOut.Input.Headers = .init()) async throws -> Operations.AuthSignOut.Output {
+        try await authSignOut(Operations.AuthSignOut.Input(headers: headers))
+    }
+    /// - Remark: HTTP `GET /v1/me`.
+    /// - Remark: Generated from `#/paths//v1/me/get(me)`.
+    public func me(headers: Operations.Me.Input.Headers = .init()) async throws -> Operations.Me.Output {
+        try await me(Operations.Me.Input(headers: headers))
     }
 }
 
