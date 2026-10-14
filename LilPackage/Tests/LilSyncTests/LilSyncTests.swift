@@ -695,3 +695,131 @@ struct GzipTests {
     #expect(throws: Gzip.InvalidData.self) { try Gzip.decompress(Data("plain".utf8)) }
   }
 }
+
+/// Live connections the test drives: each `connect` hands the test a continuation to send
+/// messages through, or to close with.
+private final class FakeLive: Sendable {
+  let connections = LockIsolated<[AsyncThrowingStream<String, any Error>.Continuation]>([])
+  let tokens = LockIsolated<[String]>([])
+
+  var connection: LiveConnection {
+    LiveConnection { [self] token in
+      tokens.withValue { $0.append(token) }
+      let (stream, continuation) = AsyncThrowingStream<String, any Error>.makeStream()
+      connections.withValue { $0.append(continuation) }
+      return stream
+    }
+  }
+
+  func latest() -> AsyncThrowingStream<String, any Error>.Continuation? {
+    connections.value.last
+  }
+}
+
+@Suite
+struct LilSyncLiveTests {
+  fileprivate let server = FakeServer()
+  fileprivate let live = FakeLive()
+  let database: any DatabaseWriter
+  let clock = TestClock()
+
+  init() throws {
+    database = try makeDatabase()
+  }
+
+  private func engine() -> LilSyncEngine {
+    withDependencies {
+      $0.defaultDatabase = database
+      $0.api = server.client
+      $0.liveConnection = live.connection
+      $0.continuousClock = clock
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+    } operation: {
+      LilSyncEngine(entities: [notes])
+    }
+  }
+
+  private func storedNotes() throws -> [Note] {
+    try database.read { try Note.order(by: \.id).fetchAll($0) }
+  }
+
+  @Test
+  func aNoticeOfNewChangesPullsRightAway() async throws {
+    let engine = engine()
+    let running = Task { await engine.run() }
+    let listening = Task { await engine.listen { "token-1" } }
+    try await eventually { live.connections.value.count == 1 }
+    try await eventually { server.state.requests.count == 1 }
+
+    // The greeting matches the local cursor: nothing to pull.
+    live.latest()?.yield(#"{"type":"head","seq":0}"#)
+    server.append(upsert("n1", "One"))
+    // A notice of a newer head pulls without waiting out the idle interval.
+    live.latest()?.yield(#"{"type":"head","seq":1}"#)
+    try await eventually { try storedNotes().map(\.id) == ["n1"] }
+    // Kinds of messages it doesn't know are ignored.
+    live.latest()?.yield(#"{"type":"something-new"}"#)
+    live.latest()?.yield("not json")
+
+    listening.cancel()
+    running.cancel()
+    live.latest()?.finish()
+    await listening.value
+    await running.value
+  }
+
+  @Test
+  func reconnectsRightAwayWithAFreshTokenWhenTheTokenExpires() async throws {
+    let engine = engine()
+    let issued = LockIsolated(0)
+    let listening = Task {
+      await engine.listen {
+        issued.withValue { $0 += 1 }
+        return "token-\(issued.value)"
+      }
+    }
+    try await eventually { live.connections.value.count == 1 }
+    live.latest()?.finish(throwing: LiveConnection.TokenExpired())
+    try await eventually { live.connections.value.count == 2 }
+    #expect(live.tokens.value == ["token-1", "token-2"])
+    listening.cancel()
+    live.latest()?.finish()
+    await listening.value
+  }
+
+  @Test
+  func reconnectsWithBackoffAfterADrop() async throws {
+    let engine = engine()
+    let listening = Task { await engine.listen { "token" } }
+    try await eventually { live.connections.value.count == 1 }
+    live.latest()?.finish(throwing: URLError(.networkConnectionLost))
+    try await Task.sleep(for: .milliseconds(20))
+    // It waits (at most a second after the first failure) before reconnecting.
+    #expect(live.connections.value.count == 1)
+    await clock.advance(by: .seconds(1))
+    try await eventually { live.connections.value.count == 2 }
+
+    // A second drop backs off longer.
+    live.latest()?.finish(throwing: URLError(.networkConnectionLost))
+    await clock.advance(by: .seconds(0.9))
+    try await Task.sleep(for: .milliseconds(20))
+    #expect(live.connections.value.count == 2)
+    await clock.advance(by: .seconds(1.2))
+    try await eventually { live.connections.value.count == 3 }
+
+    listening.cancel()
+    live.latest()?.finish()
+    await listening.value
+  }
+
+  @Test
+  func stopsWhenCancelled() async throws {
+    let engine = engine()
+    let listening = Task { await engine.listen { "token" } }
+    try await eventually { live.connections.value.count == 1 }
+    listening.cancel()
+    live.latest()?.finish()
+    await listening.value
+    #expect(live.connections.value.count == 1)
+  }
+}

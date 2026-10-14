@@ -33,6 +33,7 @@ public actor LilSyncEngine {
   private let clock: any Clock<Duration>
   private let random: WithRandomNumberGenerator
   private let downloader: SnapshotDownloader
+  private let liveConnection: LiveConnection
   /// Where downloaded snapshot parts are kept until they're loaded, by SHA-256, so an
   /// interrupted bootstrap doesn't download them again.
   private let partsDirectory: URL
@@ -52,7 +53,9 @@ public actor LilSyncEngine {
     @Dependency(\.continuousClock) var clock
     @Dependency(\.withRandomNumberGenerator) var random
     @Dependency(\.snapshotDownloader) var downloader
+    @Dependency(\.liveConnection) var liveConnection
     self.downloader = downloader
+    self.liveConnection = liveConnection
     self.partsDirectory =
       partsDirectory
       ?? URL.cachesDirectory.appending(
@@ -123,6 +126,50 @@ public actor LilSyncEngine {
       }
       await wait(for: delay)
     }
+  }
+
+  /// Keeps a live notice connection open until the task running it is cancelled (`docs/SYNC.md`):
+  /// a notice of a `head` past the local cursor runs a pull right away (``syncNow()``). The app
+  /// runs it alongside ``run()`` while it's active.
+  ///
+  /// Each connection gets its token from `accessToken`, which refreshes it if needed, so a
+  /// connection the server closed because its token expired reconnects right away with a fresh
+  /// one. Other drops reconnect with exponential backoff and jitter, from 1 second to 5 minutes;
+  /// a connection that delivered notices resets the backoff.
+  public func listen(accessToken: @escaping @Sendable () async throws -> String) async {
+    var failures = 0
+    while !Task.isCancelled {
+      var delivered = false
+      do {
+        let messages = try await liveConnection.connect(try await accessToken())
+        for try await message in messages {
+          delivered = true
+          try await receive(message)
+        }
+        throw LiveConnection.Closed(code: 1000)
+      } catch {
+        if Task.isCancelled { return }
+        if delivered { failures = 0 }
+        if error is LiveConnection.TokenExpired { continue }
+        failures += 1
+        await wait(for: backoff(afterFailures: failures), wakeOnSyncRequest: false)
+      }
+    }
+  }
+
+  /// Handles one live message: `{ "type": "head", "seq": n }`. Others are ignored, so the server
+  /// can add kinds.
+  private func receive(_ message: String) async throws {
+    struct Notice: Decodable {
+      let type: String
+      let seq: Int?
+    }
+    guard
+      let notice = try? JSONDecoder().decode(Notice.self, from: Data(message.utf8)),
+      notice.type == "head", let seq = notice.seq
+    else { return }
+    let cursor = try await database.read { try SyncState.fetch($0).cursor }
+    if seq != cursor { syncNow() }
   }
 
   /// Pulls again as soon as possible: ends the current wait in ``run()``, or skips the next one if
@@ -381,8 +428,13 @@ public actor LilSyncEngine {
     return .seconds(seconds * jitter)
   }
 
-  /// Waits for `duration`, until ``syncNow()``, or until the task running ``run()`` is cancelled.
-  private func wait(for duration: Duration) async {
+  /// Waits for `duration`, until ``syncNow()`` (unless `wakeOnSyncRequest` is false), or until
+  /// the waiting task is cancelled.
+  private func wait(for duration: Duration, wakeOnSyncRequest: Bool = true) async {
+    if !wakeOnSyncRequest {
+      try? await clock.sleep(for: duration)
+      return
+    }
     if syncRequested { return }
     let clock = clock
     await withTaskGroup(of: Void.self) { group in
