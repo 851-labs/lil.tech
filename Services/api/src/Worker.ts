@@ -1,7 +1,7 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as SQL from "alchemy/SQL/D1";
-import { Config, Effect, Layer, Option, Redacted } from "effect";
+import { Config, Effect, Layer, Option, Redacted, Stream } from "effect";
 import { HttpRouter } from "effect/http";
 import { AppleKeys } from "./auth/Apple.ts";
 import { GoogleClients, GoogleKeys } from "./auth/Google.ts";
@@ -11,7 +11,9 @@ import { Deployment, environmentForStage } from "./Deployment.ts";
 import { HealthBatchFiles, HealthBatchQueue } from "./health/HealthIngestion.ts";
 import { HealthIngestionWorker } from "./health/HealthResources.ts";
 import { WorkerHttpLayer } from "./Http.ts";
-import { UserStore, UserStoreLive } from "./store/UserStore.ts";
+import { objectBody, provideRuntime } from "./Runtime.ts";
+import { SnapshotBucket, UserStore, UserStoreLive } from "./store/UserStore.ts";
+import { SnapshotParts } from "./sync/SnapshotParts.ts";
 import { UserStores } from "./store/UserStores.ts";
 
 /** Custom domains per stage. Other stages (PR previews, personal stages) use workers.dev. */
@@ -71,6 +73,55 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
     const core = yield* Cloudflare.D1.QueryDatabase(CoreDatabase);
     const userStores = UserStores.fromNamespace(yield* UserStore);
     const health = yield* HealthIngestionWorker(userStores);
+    const snapshots = yield* Cloudflare.R2.ReadBucket(yield* SnapshotBucket);
+    // Per request: the bucket's calls need the request's runtime context.
+    const snapshotParts = Effect.map(Alchemy.RuntimeContext, (runtime) =>
+      SnapshotParts.of({
+        open: (key, range) =>
+          provideRuntime(runtime)(
+            snapshots.get(key, range === undefined ? {} : { range }).pipe(
+              // R2 may reject a range past the end; answer that with the part's size (a 416).
+              Effect.catch((error) =>
+                range === undefined
+                  ? Effect.fail(error)
+                  : snapshots.head(key).pipe(
+                      Effect.map((head) =>
+                        head === null
+                          ? null
+                          : {
+                              ...head,
+                              range: { offset: head.size },
+                              readable: new ReadableStream<Uint8Array>(),
+                              body: Stream.empty,
+                            },
+                      ),
+                    ),
+              ),
+            ),
+          ).pipe(
+            Effect.map((object) => {
+              if (object === null) return Option.none();
+              const applied = object.range as
+                | { offset?: number; length?: number; suffix?: number }
+                | undefined;
+              const offset =
+                applied?.suffix !== undefined
+                  ? Math.max(0, object.size - applied.suffix)
+                  : (applied?.offset ?? 0);
+              const length = applied?.length ?? object.size - offset;
+              return Option.some({
+                body: objectBody(object),
+                size: object.size,
+                etag: object.httpEtag,
+                ...(range === undefined || offset >= object.size
+                  ? {}
+                  : { range: { offset, length } }),
+              });
+            }),
+            Effect.orDie,
+          ),
+      }),
+    );
     const fetch = yield* HttpRouter.toHttpEffect(
       WorkerHttpLayer.pipe(
         Layer.provide(Layer.succeed(Deployment, deployment)),
@@ -84,12 +135,14 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       fetch: fetch.pipe(
         Effect.provideServiceEffect(HealthBatchFiles, health.files),
         Effect.provideServiceEffect(HealthBatchQueue, health.queue),
+        Effect.provideServiceEffect(SnapshotParts, snapshotParts),
       ),
     };
   }).pipe(
     Effect.provide([
       Cloudflare.D1.QueryDatabaseBinding,
       Cloudflare.R2.ReadWriteBucketBinding,
+      Cloudflare.R2.ReadBucketBinding,
       Cloudflare.Queues.WriteQueueBinding,
       Cloudflare.Queues.EventSourceLive,
       UserStoreLive,

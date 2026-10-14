@@ -20,28 +20,21 @@ import {
 import type { StoreSql } from "../../src/store/StoreSql.ts";
 import { makeUserStore } from "../../src/store/UserStore.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
-import { testNote } from "./TestUserStores.ts";
+import {
+  makeTestSnapshotFiles,
+  testNote,
+  testNoteMutation,
+  writeTestSnapshot,
+} from "./TestUserStores.ts";
 
 const day = 24 * 60 * 60 * 1000;
 /** Tiny parts and pages, so a handful of records spans several of each. */
 const policy = { ...snapshotPolicy, minChanges: 5, partRecords: 3, pageRows: 2 };
 
-const note = (id: string, title = `Note ${id}`): Mutation => ({
-  entity: "test_note",
-  op: "upsert",
-  id,
-  row: { title, pinned: false, score: null, tags: [], createdAt: 1 },
-});
+const note = testNoteMutation;
 const remove = (id: string): Mutation => ({ entity: "test_note", op: "delete", id });
 
-const makeFiles = () => {
-  const stored = new Map<string, Uint8Array>();
-  const files: SnapshotFiles = {
-    put: (key, bytes) => Effect.sync(() => void stored.set(key, bytes)),
-    delete: (keys) => Effect.sync(() => keys.forEach((key) => stored.delete(key))),
-  };
-  return { stored, files };
-};
+const makeFiles = makeTestSnapshotFiles;
 
 const makeStore = () => {
   const sql = makeTestStoreSql();
@@ -55,17 +48,8 @@ const makeStore = () => {
 const writeSnapshot = (
   sql: StoreSql,
   files: SnapshotFiles,
-  between: (step: number) => Effect.Effect<void, unknown> = () => Effect.void,
-) =>
-  Effect.gen(function* () {
-    for (let step = 0; step < 1000; step++) {
-      const now = yield* Clock.currentTimeMillis;
-      const result = yield* writeSnapshotStep(sql, [...entities, testNote], files, now, policy);
-      if (result !== "continue") return result;
-      yield* between(step);
-    }
-    return assert.fail("The snapshot never finished");
-  });
+  between?: (step: number) => Effect.Effect<void, unknown>,
+) => writeTestSnapshot(sql, files, policy, between);
 
 type Replica = Map<string, unknown>;
 

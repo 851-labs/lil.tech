@@ -1,5 +1,5 @@
 import * as Http from "alchemy/Http";
-import { Effect, Layer, Option, Redacted } from "effect";
+import { Effect, Layer, Option, Redacted, Schema } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
@@ -29,6 +29,14 @@ import { Users } from "./core/Users.ts";
 import { Deployment } from "./Deployment.ts";
 import { Status } from "./Status.ts";
 import { UserStores } from "./store/UserStores.ts";
+import {
+  InvalidPartUrl,
+  PartUrls,
+  parseRange,
+  SnapshotParts,
+  toManifest,
+} from "./sync/SnapshotParts.ts";
+import { SnapshotGone, SnapshotNotReady } from "./sync/SyncApi.ts";
 // The committed spec (see scripts/openapi.ts), so the served contract is exactly the committed one.
 import openApiSpec from "../openapi.json" with { type: "json" };
 
@@ -128,13 +136,44 @@ export const SyncHandlers = HttpApiBuilder.group(
   "sync",
   Effect.fn(function* (handlers) {
     const stores = yield* UserStores;
-    return handlers.handle("changes", ({ query }) =>
-      Effect.gen(function* () {
-        // The store comes from the session, never from the request (`docs/SYNC.md`).
-        const session = yield* CurrentSession;
-        return yield* stores.forUser(session.userId).readChanges(query.after, query.limit);
+    const partUrls = yield* PartUrls;
+    // The store comes from the session, never from the request (`docs/SYNC.md`).
+    const sessionStore = CurrentSession.use((session) =>
+      Effect.succeed(stores.forUser(session.userId)),
+    );
+    // Part URLs go to the host the client used, with its scheme (http for `alchemy dev`).
+    const origin = HttpServerRequest.HttpServerRequest.use((request) =>
+      Effect.sync(() => {
+        try {
+          return new URL(request.originalUrl).origin;
+        } catch {
+          return `https://${request.headers["host"] ?? "api.lil.tech"}`;
+        }
       }),
     );
+    return handlers
+      .handle("changes", ({ query }) =>
+        sessionStore.pipe(Effect.flatMap((store) => store.readChanges(query.after, query.limit))),
+      )
+      .handle("snapshot", () =>
+        Effect.gen(function* () {
+          const { epoch, snapshot } = yield* (yield* sessionStore).bootstrap();
+          if (snapshot !== null) {
+            return { epoch, snapshot: yield* toManifest(snapshot, yield* origin, partUrls) };
+          }
+          // A store's first epoch starts empty, so its whole log is the data. A later epoch's
+          // data came from a migration or restore, which writes its snapshot first.
+          if (epoch > 1) return yield* new SnapshotNotReady({ retryAfterSeconds: 60 });
+          return { epoch };
+        }),
+      )
+      .handle("snapshotById", ({ params }) =>
+        Effect.gen(function* () {
+          const snapshot = yield* (yield* sessionStore).snapshot(params.id);
+          if (snapshot === null) return yield* new SnapshotGone({ id: params.id });
+          return yield* toManifest(snapshot, yield* origin, partUrls);
+        }),
+      );
   }),
 );
 
@@ -187,6 +226,72 @@ export const HealthHandlers = HttpApiBuilder.group(
   }),
 );
 
+/**
+ * `GET /v1/sync/parts/<token>`: streams a snapshot part from a signed URL in a manifest. Needs no
+ * `Authorization` header, so background downloads work; the token is the authorization. Left
+ * out of the OpenAPI spec, since clients only follow manifest URLs.
+ */
+export const SnapshotPartRoute = HttpRouter.use((router) =>
+  Effect.gen(function* () {
+    const partUrls = yield* PartUrls;
+    yield* router.add(
+      "GET",
+      "/v1/sync/parts",
+      Effect.gen(function* () {
+        const { token } = yield* HttpServerRequest.schemaSearchParams(
+          Schema.Struct({ token: Schema.String }),
+        ).pipe(Effect.mapError((error) => new InvalidPartUrl({ message: error.message })));
+        const key = yield* partUrls.verify(token);
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const range = parseRange(request.headers["range"]);
+        const part = yield* (yield* SnapshotParts).open(key, range);
+        if (Option.isNone(part)) {
+          return HttpServerResponse.jsonUnsafe({ _tag: "NotFound" }, { status: 404 });
+        }
+        const { body, size, etag } = part.value;
+        const headers = {
+          "content-type": "application/gzip",
+          "accept-ranges": "bytes",
+          etag,
+          "cache-control": "private, max-age=900",
+        };
+        // Resuming an interrupted download asks for the rest of the part.
+        if (range !== undefined) {
+          if (part.value.range === undefined) {
+            yield* Effect.promise(() => body.cancel());
+            return HttpServerResponse.empty({
+              status: 416,
+              headers: { "content-range": `bytes */${size}` },
+            });
+          }
+          const { offset, length } = part.value.range;
+          return HttpServerResponse.raw(body, {
+            status: 206,
+            headers: {
+              ...headers,
+              "content-length": String(length),
+              "content-range": `bytes ${offset}-${offset + length - 1}/${size}`,
+            },
+          });
+        }
+        return HttpServerResponse.raw(body, {
+          headers: { ...headers, "content-length": String(size) },
+        });
+      }).pipe(
+        Effect.catchTag("InvalidPartUrl", () =>
+          Effect.succeed(
+            HttpServerResponse.jsonUnsafe(
+              { _tag: "InvalidPartUrl", message: "The part URL is invalid or expired" },
+              { status: 401 },
+            ),
+          ),
+        ),
+        Effect.orDie,
+      ),
+    );
+  }),
+);
+
 const OpenApiRoute = HttpRouter.add(
   "GET",
   "/v1/openapi.json",
@@ -197,18 +302,19 @@ const OpenApiRoute = HttpRouter.add(
  * Every route of the API, with the platform services a Worker can provide: Alchemy's
  * `Http.Platform` stubs file responses and gives `HttpApiBuilder` a no-op `FileSystem`, since
  * Workers have no file system. Needs `Deployment`, `SessionKey`, `AppleKeys`, `GoogleKeys`,
- * `GoogleClients`, the core repositories and `UserStores`, and `HealthBatchFiles` and
- * `HealthBatchQueue` per request.
+ * `GoogleClients`, the core repositories and `UserStores`, and `HealthBatchFiles`,
+ * `HealthBatchQueue` and `SnapshotParts` per request.
  */
 export const WorkerHttpLayer = Layer.mergeAll(
   HttpApiBuilder.layer(Api),
   OpenApiRoute,
   DevSignInRoute,
+  SnapshotPartRoute,
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),
   Layer.provide([AuthorizationLayer, UploadSizeLimitLayer]),
   Layer.provide([AppleSignIn.layer, GoogleSignIn.layer, ProviderSignIn.layer]),
-  Layer.provide(Auth.layer),
+  Layer.provide([Auth.layer, PartUrls.layer]),
   Layer.provide(AccessTokens.layer),
   Layer.provide(Http.Platform),
 );

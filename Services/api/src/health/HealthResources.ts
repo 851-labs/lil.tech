@@ -8,7 +8,7 @@ import {
   HealthBatchQueue,
   ingestHealthBatch,
 } from "./HealthIngestion.ts";
-import { provideRuntime } from "../Runtime.ts";
+import { objectBody, provideRuntime } from "../Runtime.ts";
 import { UserStores } from "../store/UserStores.ts";
 
 // Resource IDs are also the Worker's binding names, so they must differ from each other.
@@ -58,11 +58,7 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
       open: (key) =>
         inRuntime(bucket.get(key)).pipe(
           Effect.map((object) =>
-            object === null
-              ? Option.none()
-              : Option.some(
-                  object.readable ?? Stream.toReadableStream(object.body.pipe(Stream.orDie)),
-                ),
+            object === null ? Option.none() : Option.some(objectBody(object)),
           ),
           Effect.orDie,
         ),

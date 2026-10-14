@@ -8,7 +8,7 @@ import {
 } from "../health/HealthBatchStore.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
 import { provideRuntime } from "../Runtime.ts";
-import { applyMutations, readChanges } from "./ChangeLog.ts";
+import { applyMutations, readChanges, readEpoch } from "./ChangeLog.ts";
 import { ChangesCompacted, InvalidMutation, type Mutation } from "./Changes.ts";
 import type { Entity } from "./Entities.ts";
 import { migrate, schemaVersion } from "./Migrations.ts";
@@ -101,6 +101,17 @@ export const makeUserStore = (
         if (applied.appended > 0) yield* scheduleAlarm(at);
         return applied;
       }),
+    /**
+     * What a new device bootstraps from, read together so they agree: the store's epoch, whether
+     * it ever compacted, and its latest snapshot of that epoch.
+     */
+    bootstrap: () =>
+      Effect.sync(() =>
+        sql.transaction(() => ({
+          epoch: readEpoch(sql),
+          snapshot: latestSnapshot(sql),
+        })),
+      ),
     /** The latest published snapshot of the current epoch, or `null`. */
     latestSnapshot: () => Effect.sync(() => latestSnapshot(sql)),
     /** A published snapshot of the current epoch by ID, or `null` (see `readSnapshot`). */
