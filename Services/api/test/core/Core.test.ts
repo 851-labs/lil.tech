@@ -1,5 +1,6 @@
 import { assert, describe, it, layer } from "@effect/vitest";
 import { Effect, Exit, Option, Schema } from "effect";
+import { TestClock } from "effect/testing";
 import { SqlClient } from "effect/sql";
 import { Connections } from "../../src/core/Connections.ts";
 import { Devices } from "../../src/core/Devices.ts";
@@ -13,9 +14,10 @@ describe("IDs", () => {
     Effect.gen(function* () {
       const users = yield* Users;
       const first = yield* users.create({ displayName: null });
+      yield* TestClock.adjust("1 second");
       const second = yield* users.create({ displayName: null });
       assert.match(first.id, /^usr_[0-9a-z]{26}$/);
-      assert.isTrue(first.id.slice(0, 14) <= second.id.slice(0, 14));
+      assert.isTrue(first.id.slice(0, 14) < second.id.slice(0, 14), "time part increases");
       assert.isTrue(Schema.is(UserId)(first.id));
       assert.isFalse(Schema.is(DeviceId)(first.id));
       assert.isFalse(Schema.is(IdentityId)("idt_short"));
@@ -99,10 +101,11 @@ layer(TestCore)("core repositories", (it) => {
         name: "iPhone",
       });
       yield* devices.setPushToken(device.id, "apns-token");
+      yield* TestClock.adjust("1 minute");
       yield* devices.touch(device.id);
       const found = Option.getOrThrow(yield* devices.findById(device.id));
       assert.strictEqual(found.pushToken, "apns-token");
-      assert.isAtLeast(found.lastSeenAt, device.lastSeenAt);
+      assert.strictEqual(found.lastSeenAt, device.lastSeenAt + 60_000);
       assert.strictEqual((yield* devices.listForUser(user.id)).length, 1);
     }),
   );
@@ -147,6 +150,54 @@ layer(TestCore)("core repositories", (it) => {
         (yield* connections.listForUser(user.id)).map((c) => c.kind),
         ["google", "apple_health"],
       );
+    }),
+  );
+
+  it.effect("invalid input fails before anything is written", () =>
+    Effect.gen(function* () {
+      const users = yield* Users;
+      const connections = yield* Connections;
+      const devices = yield* Devices;
+      const user = yield* users.create({ displayName: null });
+      const badConnection = yield* connections
+        .connect({
+          userId: user.id,
+          kind: "google",
+          accountRef: "",
+          displayName: null,
+          scopes: [],
+          credentials: null,
+        })
+        .pipe(Effect.flip);
+      assert.strictEqual(badConnection._tag, "SchemaError");
+      const badDevice = yield* devices
+        .create({ userId: user.id, app: "", platform: "ios", name: null })
+        .pipe(Effect.flip);
+      assert.strictEqual(badDevice._tag, "SchemaError");
+      assert.strictEqual((yield* connections.listForUser(user.id)).length, 0);
+      assert.strictEqual((yield* devices.listForUser(user.id)).length, 0);
+    }),
+  );
+
+  it.effect("a session's device must belong to the session's user", () =>
+    Effect.gen(function* () {
+      const users = yield* Users;
+      const devices = yield* Devices;
+      const sql = yield* SqlClient.SqlClient;
+      const alice = yield* users.create({ displayName: null });
+      const bob = yield* users.create({ displayName: null });
+      const bobsDevice = yield* devices.create({
+        userId: bob.id,
+        app: "health-ios",
+        platform: "ios",
+        name: null,
+      });
+      const insert =
+        yield* sql`INSERT INTO sessions (id, user_id, device_id, family_id, refresh_token_hash, created_at, expires_at)
+        VALUES ('ses_mixed', ${alice.id}, ${bobsDevice.id}, 'fam', 'hash-mixed', 0, 1)`.pipe(
+          Effect.exit,
+        );
+      assert.isTrue(Exit.isFailure(insert));
     }),
   );
 

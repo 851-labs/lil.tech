@@ -30,7 +30,8 @@ CREATE TABLE devices (
   name TEXT,
   push_token TEXT,
   created_at INTEGER NOT NULL,
-  last_seen_at INTEGER NOT NULL
+  last_seen_at INTEGER NOT NULL,
+  UNIQUE (id, user_id) -- lets sessions require that a device belongs to the session's user
 );
 CREATE INDEX devices_user_id ON devices (user_id);
 
@@ -39,14 +40,17 @@ CREATE INDEX devices_user_id ON devices (user_id);
 CREATE TABLE sessions (
   id TEXT PRIMARY KEY, -- ses_…
   user_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-  device_id TEXT NOT NULL REFERENCES devices (id) ON DELETE CASCADE,
+  device_id TEXT NOT NULL,
   family_id TEXT NOT NULL,
   refresh_token_hash TEXT NOT NULL UNIQUE,
   created_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,
-  revoked_at INTEGER
+  revoked_at INTEGER,
+  -- The device must belong to the same user.
+  FOREIGN KEY (device_id, user_id) REFERENCES devices (id, user_id) ON DELETE CASCADE
 );
 CREATE INDEX sessions_user_id ON sessions (user_id);
+CREATE INDEX sessions_device_id ON sessions (device_id, user_id);
 CREATE INDEX sessions_family_id ON sessions (family_id);
 
 -- Data sources a user has connected: Apple Health (an iPhone's HealthKit store) now, later Gmail,
@@ -62,6 +66,6 @@ CREATE TABLE connections (
   status TEXT NOT NULL DEFAULT 'active', -- active, needs_reauth, revoked
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
+  -- Also serves lookups by user_id, as its leading column.
   UNIQUE (user_id, kind, account_ref)
 );
-CREATE INDEX connections_user_id ON connections (user_id);

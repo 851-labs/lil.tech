@@ -28,7 +28,7 @@ export class Devices extends Context.Service<
       readonly app: string;
       readonly platform: DevicePlatform;
       readonly name: string | null;
-    }) => Effect.Effect<Device, SqlError.SqlError>;
+    }) => Effect.Effect<Device, SqlError.SqlError | Schema.SchemaError>;
     readonly findById: (id: DeviceId) => Effect.Effect<Option.Option<Device>, SqlError.SqlError>;
     readonly listForUser: (
       userId: UserId,
@@ -53,7 +53,8 @@ export class Devices extends Context.Service<
       return Devices.of({
         create: Effect.fn("Devices.create")(function* (input) {
           const now = yield* Clock.currentTimeMillis;
-          const device = new Device({
+          // Validate before writing, so invalid input never reaches the database.
+          const device = yield* Schema.decodeUnknownEffect(Device)({
             ...input,
             id: yield* newDeviceId,
             pushToken: null,

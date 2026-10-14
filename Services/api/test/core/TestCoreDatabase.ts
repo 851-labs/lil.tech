@@ -1,4 +1,7 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
@@ -6,29 +9,31 @@ import { CoreRepositories } from "../../src/core/CoreDatabase.ts";
 
 const migrationsDir = new URL("../../migrations/core/", import.meta.url);
 
-/** The migration statements, in the order Alchemy applies them on deploy. */
-const migrationStatements = readdirSync(migrationsDir)
+/** Migration files in the order Alchemy applies them on deploy: by numeric prefix. */
+const migrations = readdirSync(migrationsDir)
   .filter((name) => name.endsWith(".sql"))
-  .sort()
-  .flatMap((name) =>
-    readFileSync(new URL(name, migrationsDir), "utf8")
-      .replace(/--.*$/gm, "")
-      .split(";")
-      .map((statement) => statement.trim())
-      .filter((statement) => statement.length > 0),
-  );
+  .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))
+  .map((name) => readFileSync(new URL(name, migrationsDir), "utf8"));
 
 /**
- * An in-memory SQLite database with the core migrations applied, standing in for D1 (which is
- * SQLite). Foreign keys are on, as they are in D1.
+ * A fresh SQLite database file with the core migrations applied, standing in for D1 (which is
+ * SQLite). Each migration file runs whole, as Alchemy sends it to D1. Foreign keys are on, as they
+ * are in D1.
  */
-export const TestCoreDatabase = Layer.effectDiscard(
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    yield* sql`PRAGMA foreign_keys = ON`;
-    for (const statement of migrationStatements) yield* sql.unsafe(statement);
+export const TestCoreDatabase = Layer.unwrap(
+  Effect.sync(() => {
+    const filename = join(mkdtempSync(join(tmpdir(), "lil-core-")), "core.sqlite");
+    const db = new DatabaseSync(filename);
+    for (const migration of migrations) db.exec(migration);
+    db.close();
+    return Layer.effectDiscard(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* sql`PRAGMA foreign_keys = ON`;
+      }),
+    ).pipe(Layer.provideMerge(SqliteClient.layer({ filename })));
   }),
-).pipe(Layer.provideMerge(SqliteClient.layer({ filename: ":memory:" })));
+);
 
 /** The core repositories over a fresh test database. */
 export const TestCore = CoreRepositories.pipe(Layer.provideMerge(TestCoreDatabase), Layer.orDie);

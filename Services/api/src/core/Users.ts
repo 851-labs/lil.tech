@@ -15,7 +15,7 @@ export class Users extends Context.Service<
   {
     readonly create: (input: {
       readonly displayName: string | null;
-    }) => Effect.Effect<User, SqlError.SqlError>;
+    }) => Effect.Effect<User, SqlError.SqlError | Schema.SchemaError>;
     readonly findById: (id: UserId) => Effect.Effect<Option.Option<User>, SqlError.SqlError>;
     /** Deletes the user and, through foreign keys, their identities, devices, sessions and connections. */
     readonly delete: (id: UserId) => Effect.Effect<void, SqlError.SqlError>;
@@ -29,7 +29,7 @@ export class Users extends Context.Service<
 
       return Users.of({
         create: Effect.fn("Users.create")(function* ({ displayName }) {
-          const user = new User({
+          const user = yield* decodeUser({
             id: yield* newUserId,
             displayName,
             createdAt: yield* Clock.currentTimeMillis,

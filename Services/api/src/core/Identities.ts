@@ -31,7 +31,7 @@ export class Identities extends Context.Service<
       readonly subject: string;
       readonly email: string | null;
       readonly emailVerified: boolean;
-    }) => Effect.Effect<Identity, SqlError.SqlError>;
+    }) => Effect.Effect<Identity, SqlError.SqlError | Schema.SchemaError>;
     readonly find: (
       provider: IdentityProvider,
       subject: string,
@@ -51,7 +51,8 @@ export class Identities extends Context.Service<
 
       return Identities.of({
         create: Effect.fn("Identities.create")(function* (input) {
-          const identity = new Identity({
+          // Validate before writing, so invalid input never reaches the database.
+          const identity = yield* Schema.decodeUnknownEffect(Identity)({
             ...input,
             id: yield* newIdentityId,
             createdAt: yield* Clock.currentTimeMillis,

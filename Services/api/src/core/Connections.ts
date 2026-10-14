@@ -54,7 +54,7 @@ export class Connections extends Context.Service<
       readonly displayName: string | null;
       readonly scopes: ReadonlyArray<string>;
       readonly credentials: string | null;
-    }) => Effect.Effect<Connection, SqlError.SqlError>;
+    }) => Effect.Effect<Connection, SqlError.SqlError | Schema.SchemaError>;
     readonly listForUser: (
       userId: UserId,
     ) => Effect.Effect<ReadonlyArray<Connection>, SqlError.SqlError>;
@@ -69,28 +69,40 @@ export class Connections extends Context.Service<
     Connections,
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-      const select = sql`SELECT id, user_id AS "userId", kind, account_ref AS "accountRef",
+      const columns = sql.literal(`id, user_id AS "userId", kind, account_ref AS "accountRef",
         display_name AS "displayName", scopes, credentials, status,
-        created_at AS "createdAt", updated_at AS "updatedAt" FROM connections`;
+        created_at AS "createdAt", updated_at AS "updatedAt"`);
+      const select = sql`SELECT ${columns} FROM connections`;
 
       return Connections.of({
         connect: Effect.fn("Connections.connect")(function* (input) {
           const now = yield* Clock.currentTimeMillis;
-          const id = yield* newConnectionId;
+          // Validate before writing, so invalid input never reaches the database.
+          const candidate = yield* Schema.decodeUnknownEffect(Connection)({
+            ...input,
+            id: yield* newConnectionId,
+            status: "active",
+            createdAt: now,
+            updatedAt: now,
+          });
           const rows = yield* sql`INSERT INTO connections
             (id, user_id, kind, account_ref, display_name, scopes, credentials, status, created_at,
               updated_at)
-            VALUES (${id}, ${input.userId}, ${input.kind}, ${input.accountRef}, ${input.displayName},
-              ${JSON.stringify(input.scopes)}, ${input.credentials}, 'active', ${now}, ${now})
+            VALUES (${candidate.id}, ${candidate.userId}, ${candidate.kind}, ${candidate.accountRef},
+              ${candidate.displayName}, ${JSON.stringify(candidate.scopes)}, ${candidate.credentials},
+              'active', ${now}, ${now})
             ON CONFLICT (user_id, kind, account_ref) DO UPDATE SET
               display_name = excluded.display_name,
               scopes = excluded.scopes,
               credentials = excluded.credentials,
               status = 'active',
               updated_at = excluded.updated_at
-            RETURNING id`;
-          const connected = yield* sql`${select} WHERE id = ${rows[0]?.["id"] as string}`;
-          return yield* decodeConnection(connected[0] ?? {});
+            RETURNING ${columns}`;
+          const row = rows[0];
+          if (row === undefined) {
+            return yield* Effect.die(new Error("Upserting a connection returned no row"));
+          }
+          return yield* decodeConnection(row);
         }),
         listForUser: Effect.fn("Connections.listForUser")(function* (userId) {
           const rows = yield* sql`${select} WHERE user_id = ${userId} ORDER BY created_at, id`;
