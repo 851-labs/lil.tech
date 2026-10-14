@@ -11,7 +11,6 @@ import { Users } from "./core/Users.ts";
 import { Deployment } from "./Deployment.ts";
 import { Status } from "./Status.ts";
 import { UserStores } from "./store/UserStores.ts";
-import { defaultChangesLimit } from "./sync/SyncApi.ts";
 // The committed spec (see scripts/openapi.ts), so the served contract is exactly the committed one.
 import openApiSpec from "../openapi.json" with { type: "json" };
 
@@ -98,9 +97,7 @@ export const SyncHandlers = HttpApiBuilder.group(
       Effect.gen(function* () {
         // The store comes from the session, never from the request (`docs/SYNC.md`).
         const session = yield* CurrentSession;
-        return yield* stores
-          .forUser(session.userId)
-          .readChanges(query.after ?? 0, query.limit ?? defaultChangesLimit);
+        return yield* stores.forUser(session.userId).readChanges(query.after, query.limit);
       }),
     );
   }),

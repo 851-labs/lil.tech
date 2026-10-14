@@ -1,33 +1,13 @@
-import { Result, Schema } from "effect";
+import { Result, type Schema } from "effect";
+import {
+  type Change,
+  ChangesCompacted,
+  type ChangesPage,
+  InvalidMutation,
+  type Mutation,
+} from "./Changes.ts";
 import { type Entity, fromColumnValue, toColumnValue } from "./Entities.ts";
-import { type Change, ChangesCompacted, type ChangesPage } from "../sync/SyncApi.ts";
 import type { SqlValue, StoreSql } from "./StoreSql.ts";
-
-export { ChangesCompacted };
-
-/** One write to a store, as clients push it (`docs/SYNC.md`). */
-export const Mutation = Schema.Union([
-  Schema.Struct({
-    entity: Schema.String,
-    op: Schema.Literal("upsert"),
-    id: Schema.NonEmptyString,
-    /** The fields to set. Missing fields keep their stored values, and `null` clears one. */
-    row: Schema.Record(Schema.String, Schema.Json),
-  }),
-  Schema.Struct({
-    entity: Schema.String,
-    op: Schema.Literal("delete"),
-    id: Schema.NonEmptyString,
-  }),
-]);
-export type Mutation = typeof Mutation.Type;
-
-/** A mutation can never be applied, e.g. its row is invalid. Retrying won't help. */
-export class InvalidMutation extends Schema.TaggedError<InvalidMutation>()("InvalidMutation", {
-  /** The mutation's position in the call. */
-  index: Schema.Int,
-  message: Schema.String,
-}) {}
 
 const readMeta = (sql: StoreSql, key: string, fallback: number): number =>
   Number(sql.exec("SELECT value FROM meta WHERE key = ?", key)[0]?.["value"] ?? fallback);
@@ -135,9 +115,6 @@ export const applyMutations = (
     }
     return { head, appended: head - start };
   });
-
-export type Change = typeof Change.Type;
-export type ChangesPage = typeof ChangesPage.Type;
 
 /**
  * Up to `limit` changes after `after`, or `ChangesCompacted` if some of them were deleted. Reads

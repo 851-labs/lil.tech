@@ -493,15 +493,27 @@ describe("makeOpenApiSpec", () => {
     assert.include(kind, '"description":"Kind"');
   });
 
-  it("documents integer query parameters as integers", () => {
-    const parameters = makeOpenApiSpec().paths["/v1/sync/changes"]?.get?.parameters;
+  it("documents query parameters by their decoded schemas", () => {
+    const spec = makeOpenApiSpec();
     assert.deepStrictEqual(
-      parameters?.map((parameter) => [parameter.name, parameter.schema]),
+      spec.paths["/v1/sync/changes"]?.get?.parameters?.map((parameter) => [
+        parameter.name,
+        parameter.schema,
+      ]),
       [
-        ["after", { type: "integer", minimum: 0 }],
-        ["limit", { type: "integer", minimum: 1, maximum: 5000 }],
+        ["after", { type: "integer", minimum: 0, maximum: 9007199254740991, default: 0 }],
+        ["limit", { type: "integer", minimum: 1, maximum: 5000, default: 1000 }],
       ],
     );
+    // Every endpoint with query parameters needs `documentQuery`.
+    for (const [path, operations] of Object.entries(spec.paths)) {
+      for (const operation of Object.values(operations ?? {})) {
+        for (const parameter of (operation as { parameters?: Array<{ schema: object }> })
+          .parameters ?? []) {
+          assert.notProperty(parameter.schema, "pattern", path);
+        }
+      }
+    }
   });
 
   it("names grouped operations in camel case", () => {

@@ -69,11 +69,7 @@ extension Components {
             /// - Remark: Generated from `#/components/schemas/ChangesCompacted/_tag`.
             public var _tag: Components.Schemas.ChangesCompacted._TagPayload
             /// - Remark: Generated from `#/components/schemas/ChangesCompacted/reason`.
-            @frozen public enum ReasonPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case compacted = "compacted"
-            }
-            /// - Remark: Generated from `#/components/schemas/ChangesCompacted/reason`.
-            public var reason: Components.Schemas.ChangesCompacted.ReasonPayload
+            public var reason: Swift.String
             /// Creates a new `ChangesCompacted`.
             ///
             /// - Parameters:
@@ -81,7 +77,7 @@ extension Components {
             ///   - reason:
             public init(
                 _tag: Components.Schemas.ChangesCompacted._TagPayload,
-                reason: Components.Schemas.ChangesCompacted.ReasonPayload
+                reason: Swift.String
             ) {
                 self._tag = _tag
                 self.reason = reason
@@ -145,12 +141,7 @@ extension Components {
             /// - Remark: Generated from `#/components/schemas/Change/id`.
             public var id: Swift.String
             /// - Remark: Generated from `#/components/schemas/Change/op`.
-            @frozen public enum OpPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case upsert = "upsert"
-                case delete = "delete"
-            }
-            /// - Remark: Generated from `#/components/schemas/Change/op`.
-            public var op: Components.Schemas.Change.OpPayload
+            public var op: Swift.String
             /// - Remark: Generated from `#/components/schemas/Change/row`.
             public var row: OpenAPIRuntime.OpenAPIObjectContainer?
             /// - Remark: Generated from `#/components/schemas/Change/at`.
@@ -168,7 +159,7 @@ extension Components {
                 seq: Swift.Int,
                 entity: Swift.String,
                 id: Swift.String,
-                op: Components.Schemas.Change.OpPayload,
+                op: Swift.String,
                 row: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
                 at: Swift.Int
             ) {

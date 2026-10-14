@@ -1,6 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { applyMutations, type Mutation, readChanges, readHead } from "../../src/store/ChangeLog.ts";
+import { applyMutations, readChanges, readHead } from "../../src/store/ChangeLog.ts";
+import type { Mutation } from "../../src/store/Changes.ts";
 import {
   Column,
   columnName,
