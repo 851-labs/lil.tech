@@ -44,13 +44,15 @@ const apiWorkerProps = makeApiWorkerProps(Alchemy.makeRandom("SessionSigningKey"
 
 /**
  * The key that signs access tokens, bound by `apiWorkerProps`. It's only missing while Alchemy
- * plans a deploy, which runs the Worker's setup but never serves a request.
+ * plans a deploy, which runs the Worker's setup but never serves a request, so that gets a
+ * throwaway random key. The deployed bundle (where Alchemy sets `__ALCHEMY_RUNTIME__`) refuses to
+ * start without the real one.
  */
 const readSessionKey = Effect.gen(function* () {
   const key = yield* Config.Redacted("LIL_SESSION_KEY").pipe(Config.option);
   if (Option.isSome(key)) return key.value;
-  if ((yield* Alchemy.ALCHEMY_PHASE) === "plan") return Redacted.make("unused while planning");
-  return yield* Effect.die("LIL_SESSION_KEY is not bound");
+  if (globalThis.__ALCHEMY_RUNTIME__) return yield* Effect.die("LIL_SESSION_KEY is not bound");
+  return Redacted.make(crypto.randomUUID());
 });
 
 // Alchemy's Effect Worker entry imports the module's default export.

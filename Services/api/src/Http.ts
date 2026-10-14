@@ -49,9 +49,7 @@ export const AuthHandlers = HttpApiBuilder.group(
     const auth = yield* Auth;
     return handlers
       .handle("refresh", ({ payload }) =>
-        auth
-          .refresh(payload.refreshToken)
-          .pipe(Effect.catchTag(["SqlError", "SchemaError"], Effect.die)),
+        auth.refresh(payload.refreshToken).pipe(Effect.catchTag("SqlError", Effect.die)),
       )
       .handle("signOut", () =>
         Effect.gen(function* () {

@@ -37,7 +37,8 @@ export class AccessTokens extends Context.Service<
       return AccessTokens.of({
         sign: Effect.fn("AccessTokens.sign")(function* (claims) {
           const now = yield* Clock.currentTimeMillis;
-          const expiresAt = now + accessTokenLifetimeMs;
+          // JWT times are whole seconds, so the reported expiry is rounded down to match `exp`.
+          const expiresAt = Math.floor((now + accessTokenLifetimeMs) / 1000) * 1000;
           const token = yield* Effect.promise(() =>
             new SignJWT({ dev: claims.deviceId, sid: claims.sessionId })
               .setProtectedHeader({ alg: "HS256" })

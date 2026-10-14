@@ -1,4 +1,4 @@
-import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
+import { Clock, Context, Effect, Layer, Option } from "effect";
 import type { SqlError } from "effect/sql";
 import { Devices } from "../core/Devices.ts";
 import { type DeviceId, newSessionId, type SessionId, type UserId } from "../core/Ids.ts";
@@ -18,15 +18,15 @@ export class Auth extends Context.Service<
     readonly issueSession: (
       userId: UserId,
       deviceId: DeviceId,
-    ) => Effect.Effect<TokenPair, SqlError.SqlError | Schema.SchemaError>;
+    ) => Effect.Effect<TokenPair, SqlError.SqlError>;
     /**
      * Exchanges a refresh token for a new pair. The old token stops working. Presenting a token
      * that was already used revokes its whole family, because only a stolen copy would be reused.
      */
     readonly refresh: (
       refreshToken: string,
-    ) => Effect.Effect<TokenPair, InvalidRefreshToken | SqlError.SqlError | Schema.SchemaError>;
-    /** Signs the device out: revokes every token in the session's family. */
+    ) => Effect.Effect<TokenPair, InvalidRefreshToken | SqlError.SqlError>;
+    /** Signs the device out: deletes every token in the session's family. */
     readonly signOut: (sessionId: SessionId) => Effect.Effect<void, SqlError.SqlError>;
   }
 >()("lil/api/auth/Auth") {
@@ -37,18 +37,21 @@ export class Auth extends Context.Service<
       const devices = yield* Devices;
       const accessTokens = yield* AccessTokens;
 
+      /** Stores a new refresh token in the family (a new one if `familyId` is omitted). */
       const issue = Effect.fnUntraced(function* (
         userId: UserId,
         deviceId: DeviceId,
-        familyId: string,
+        familyId?: SessionId,
       ) {
         const now = yield* Clock.currentTimeMillis;
         const refreshToken = yield* newRefreshToken;
-        const session = yield* Schema.decodeUnknownEffect(Session)({
-          id: yield* newSessionId,
+        const id = yield* newSessionId;
+        const session = new Session({
+          id,
           userId,
           deviceId,
-          familyId,
+          // A family's ID is the ID of its first session.
+          familyId: familyId ?? id,
           createdAt: now,
           expiresAt: now + refreshTokenLifetimeMs,
           revokedAt: null,
@@ -65,11 +68,18 @@ export class Auth extends Context.Service<
         });
       });
 
+      const reused = (familyId: SessionId, now: number) =>
+        sessions
+          .revokeFamily(familyId, now)
+          .pipe(
+            Effect.andThen(
+              Effect.fail(new InvalidRefreshToken({ message: "Refresh token was already used" })),
+            ),
+          );
+
       return Auth.of({
         issueSession: Effect.fn("Auth.issueSession")(function* (userId, deviceId) {
-          // A session's family ID is its first session's ID.
-          const familyId = yield* newSessionId;
-          return yield* issue(userId, deviceId, familyId);
+          return yield* issue(userId, deviceId);
         }),
         refresh: Effect.fn("Auth.refresh")(function* (refreshToken) {
           const now = yield* Clock.currentTimeMillis;
@@ -80,24 +90,33 @@ export class Auth extends Context.Service<
             return yield* new InvalidRefreshToken({ message: "Unknown refresh token" });
           }
           const session = found.value;
-          if (session.revokedAt !== null) {
-            yield* sessions.revokeFamily(session.familyId, now);
-            return yield* new InvalidRefreshToken({ message: "Refresh token was already used" });
-          }
+          if (session.revokedAt !== null) return yield* reused(session.familyId, now);
           if (session.expiresAt <= now) {
             return yield* new InvalidRefreshToken({ message: "Refresh token expired" });
           }
-          // Only one concurrent refresh of the same token wins; the loser is treated as reuse.
+
+          // The new token is stored before the old one is revoked, and D1 has no transactions over
+          // HTTP, so the order is what keeps this safe:
+          // - If anything fails before the revoke, the old token still works and the app retries.
+          // - Only one concurrent refresh of the same token can revoke it. The others, and a
+          //   refresh racing a sign-out, see it already revoked and revoke the family, which by
+          //   then includes every token they stored.
+          const [, pair] = yield* Effect.all(
+            [
+              devices.touch(session.deviceId),
+              issue(session.userId, session.deviceId, session.familyId),
+            ],
+            { concurrency: "unbounded" },
+          );
           if (!(yield* sessions.revokeIfActive(session.id, now))) {
-            yield* sessions.revokeFamily(session.familyId, now);
-            return yield* new InvalidRefreshToken({ message: "Refresh token was already used" });
+            return yield* reused(session.familyId, now);
           }
-          yield* devices.touch(session.deviceId);
-          return yield* issue(session.userId, session.deviceId, session.familyId);
+          // Housekeeping only: failing here mustn't lose the new pair, whose parent is now revoked.
+          yield* sessions.deleteExpired(session.familyId, now).pipe(Effect.ignore({ log: true }));
+          return pair;
         }),
         signOut: Effect.fn("Auth.signOut")(function* (sessionId) {
-          const now = yield* Clock.currentTimeMillis;
-          yield* sessions.revokeFamilyOf(sessionId, now);
+          yield* sessions.deleteFamilyOf(sessionId);
         }),
       });
     }),

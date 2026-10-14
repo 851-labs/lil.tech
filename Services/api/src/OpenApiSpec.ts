@@ -58,13 +58,21 @@ const normalize = <A>(value: A): A => {
 
   const anyOf = object["anyOf"];
   if (Array.isArray(anyOf) && anyOf.some(isNullSchema)) {
-    const [schema, ...rest] = anyOf.filter((option) => !isNullSchema(option)) as Array<unknown>;
-    const type = (schema as { type?: unknown } | undefined)?.type;
-    if (rest.length > 0 || typeof type !== "string") {
+    const [schema, ...rest] = anyOf.filter((option) => !isNullSchema(option)) as Array<
+      Record<string, unknown> | undefined
+    >;
+    const type = schema?.["type"];
+    if (rest.length > 0 || typeof type !== "string" || schema?.["const"] !== undefined) {
       throw new Error(`Unsupported nullable schema: ${JSON.stringify(object)}`);
     }
     const { anyOf: _, ...others } = object;
-    return { ...others, ...(schema as object), type: [type, "null"] } as A;
+    const values = schema?.["enum"];
+    return {
+      ...schema,
+      ...others,
+      type: [type, "null"],
+      ...(Array.isArray(values) ? { enum: [...values, null] } : {}),
+    } as A;
   }
 
   const operationId = object["operationId"];

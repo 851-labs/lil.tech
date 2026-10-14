@@ -7,7 +7,8 @@ export class Session extends Schema.Class<Session>("lil/api/core/Session")({
   id: SessionId,
   userId: UserId,
   deviceId: DeviceId,
-  familyId: Schema.NonEmptyString,
+  /** The ID of the family's first session. */
+  familyId: SessionId,
   createdAt: Schema.Number,
   expiresAt: Schema.Number,
   revokedAt: Schema.NullOr(Schema.Number),
@@ -35,11 +36,16 @@ export class Sessions extends Context.Service<
       now: number,
     ) => Effect.Effect<boolean, SqlError.SqlError>;
     readonly revokeFamily: (
-      familyId: string,
+      familyId: SessionId,
       now: number,
     ) => Effect.Effect<void, SqlError.SqlError>;
-    /** Revokes every session in the family of the given session. */
-    readonly revokeFamilyOf: (id: SessionId, now: number) => Effect.Effect<void, SqlError.SqlError>;
+    /** Deletes every session in the family of the given session. */
+    readonly deleteFamilyOf: (id: SessionId) => Effect.Effect<void, SqlError.SqlError>;
+    /** Deletes the family's expired sessions, which can no longer be used or reused. */
+    readonly deleteExpired: (
+      familyId: SessionId,
+      now: number,
+    ) => Effect.Effect<void, SqlError.SqlError>;
   }
 >()("lil/api/core/Sessions") {
   static readonly layer = Layer.effect(
@@ -70,9 +76,12 @@ export class Sessions extends Context.Service<
           yield* sql`UPDATE sessions SET revoked_at = ${now}
             WHERE family_id = ${familyId} AND revoked_at IS NULL`;
         }),
-        revokeFamilyOf: Effect.fn("Sessions.revokeFamilyOf")(function* (id, now) {
-          yield* sql`UPDATE sessions SET revoked_at = ${now}
-            WHERE family_id = (SELECT family_id FROM sessions WHERE id = ${id}) AND revoked_at IS NULL`;
+        deleteFamilyOf: Effect.fn("Sessions.deleteFamilyOf")(function* (id) {
+          yield* sql`DELETE FROM sessions
+            WHERE family_id = (SELECT family_id FROM sessions WHERE id = ${id})`;
+        }),
+        deleteExpired: Effect.fn("Sessions.deleteExpired")(function* (familyId, now) {
+          yield* sql`DELETE FROM sessions WHERE family_id = ${familyId} AND expires_at <= ${now}`;
         }),
       });
     }),

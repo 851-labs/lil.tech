@@ -1,5 +1,5 @@
 import { assert, layer } from "@effect/vitest";
-import { Clock, Effect, Layer, Option, Redacted } from "effect";
+import { Clock, Effect, Layer, Option, Redacted, Result } from "effect";
 import { TestClock } from "effect/testing";
 import { SqlClient } from "effect/sql";
 import { Auth } from "../../src/auth/Auth.ts";
@@ -21,6 +21,14 @@ const signIn = Effect.gen(function* () {
   const tokens = yield* (yield* Auth).issueSession(user.id, device.id);
   return { user, device, tokens };
 });
+
+const familySize = (sessionId: string) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const rows = yield* sql`SELECT count(*) AS n FROM sessions WHERE family_id =
+      (SELECT family_id FROM sessions WHERE id = ${sessionId})`;
+    return Number(rows[0]?.["n"]);
+  });
 
 const refreshFails = (refreshToken: string) =>
   Effect.gen(function* () {
@@ -46,6 +54,16 @@ layer(TestAuth)("Auth", (it) => {
         WHERE id = ${claims.sessionId}`;
       assert.match(String(stored[0]?.["hash"]), /^[0-9a-f]{64}$/);
       assert.notInclude(String(stored[0]?.["hash"]), tokens.refreshToken);
+    }),
+  );
+
+  it.effect("reports the access token's expiry in whole seconds, as the JWT has it", () =>
+    Effect.gen(function* () {
+      yield* TestClock.adjust("750 millis");
+      const { tokens } = yield* signIn;
+      assert.strictEqual(tokens.accessTokenExpiresAt % 1000, 0);
+      const payload = JSON.parse(atob(tokens.accessToken.split(".")[1] ?? "")) as { exp: number };
+      assert.strictEqual(payload.exp * 1000, tokens.accessTokenExpiresAt);
     }),
   );
 
@@ -139,7 +157,7 @@ layer(TestAuth)("Auth", (it) => {
 
   it.effect("rejects unknown refresh tokens", () => refreshFails("lrt_unknown"));
 
-  it.effect("signing out ends the session's whole family", () =>
+  it.effect("signing out deletes the session's whole family", () =>
     Effect.gen(function* () {
       const auth = yield* Auth;
       const { tokens } = yield* signIn;
@@ -147,6 +165,24 @@ layer(TestAuth)("Auth", (it) => {
       const claims = yield* (yield* AccessTokens).verify(next.accessToken);
       yield* auth.signOut(claims.sessionId);
       yield* refreshFails(next.refreshToken);
+      yield* refreshFails(tokens.refreshToken);
+      assert.strictEqual(yield* familySize(claims.sessionId), 0);
+    }),
+  );
+
+  it.effect("refreshing deletes the family's expired tokens", () =>
+    Effect.gen(function* () {
+      const auth = yield* Auth;
+      const { tokens } = yield* signIn;
+      const second = yield* auth.refresh(tokens.refreshToken);
+      yield* TestClock.adjust("60 days");
+      const third = yield* auth.refresh(second.refreshToken);
+      const claims = yield* (yield* AccessTokens).verify(third.accessToken);
+      assert.strictEqual(yield* familySize(claims.sessionId), 3);
+      yield* TestClock.adjust("31 days");
+      yield* auth.refresh(third.refreshToken);
+      // The first two expired; the third (revoked now) and the fourth remain.
+      assert.strictEqual(yield* familySize(claims.sessionId), 2);
     }),
   );
 
@@ -165,6 +201,33 @@ layer(TestAuth)("Auth", (it) => {
       yield* auth.signOut(claims.sessionId);
       yield* refreshFails(phone.refreshToken);
       yield* auth.refresh(macTokens.refreshToken);
+    }),
+  );
+
+  it.effect("concurrent refreshes of the same token end the session, whichever wins", () =>
+    Effect.gen(function* () {
+      const auth = yield* Auth;
+      const { tokens } = yield* signIn;
+      const results = yield* Effect.all(
+        [auth.refresh(tokens.refreshToken), auth.refresh(tokens.refreshToken)],
+        { concurrency: "unbounded", mode: "result" },
+      );
+      const issued = results.filter(Result.isSuccess).map((result) => result.success);
+      assert.isAtMost(issued.length, 1);
+      for (const pair of issued) yield* refreshFails(pair.refreshToken);
+    }),
+  );
+
+  it.effect("a refresh that loses a race to sign-out leaves no usable token", () =>
+    Effect.gen(function* () {
+      const auth = yield* Auth;
+      const { tokens } = yield* signIn;
+      const claims = yield* (yield* AccessTokens).verify(tokens.accessToken);
+      const [refreshed] = yield* Effect.all(
+        [auth.refresh(tokens.refreshToken).pipe(Effect.result), auth.signOut(claims.sessionId)],
+        { concurrency: "unbounded" },
+      );
+      if (Result.isSuccess(refreshed)) yield* refreshFails(refreshed.success.refreshToken);
     }),
   );
 

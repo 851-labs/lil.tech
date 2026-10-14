@@ -365,6 +365,20 @@ describe("makeOpenApiSpec", () => {
       ),
     );
     assert.throws(() => makeOpenApiSpec(api), /Unsupported nullable schema/);
+
+    const enums = HttpApi.make("enum").add(
+      HttpApiGroup.make("g").add(
+        HttpApiEndpoint.get("a", "/a", {
+          success: Schema.Struct({
+            kind: Schema.NullOr(Schema.Literals(["a", "b"])).annotate({ description: "Kind" }),
+          }),
+        }),
+      ),
+    );
+    const kind = JSON.stringify(makeOpenApiSpec(enums).paths["/a"]?.get?.responses);
+    assert.include(kind, '"type":["string","null"]');
+    assert.include(kind, '"enum":["a","b",null]');
+    assert.include(kind, '"description":"Kind"');
   });
 
   it("names grouped operations in camel case", () => {
