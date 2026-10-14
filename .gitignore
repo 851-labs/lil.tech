@@ -23,3 +23,17 @@ DerivedData/
 
 # Release builds
 build/
+
+# TypeScript (Services/)
+node_modules/
+dist/
+.alchemy/
+.wrangler/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# Claude Code local state (project skills in .claude/skills are committed)
+.claude/settings.local.json
+.claude/worktrees/

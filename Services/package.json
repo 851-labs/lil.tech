@@ -1,0 +1,17 @@
+{
+  "name": "lil-services",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ready": "vp check && vp run -r test"
+  },
+  "devDependencies": {
+    "effect": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.11.2"
+}

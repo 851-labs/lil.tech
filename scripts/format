@@ -1,7 +1,10 @@
 #!/bin/sh
-# Formats every Swift file in the repo with swift-format.
+# Formats every Swift file with swift-format, and the TypeScript in Services/
+# with Vite+ (Oxfmt and Oxlint).
 # Usage: scripts/format [--lint]
-#   --lint  Check formatting without changing files; exits non-zero on violations.
+#   --lint  Check without changing files: swift-format lint, plus `vp check`
+#           (format, lint and type check) for Services/. Exits non-zero on
+#           violations.
 set -eu
 
 cd "$(dirname "$0")/.."
@@ -9,12 +12,20 @@ cd "$(dirname "$0")/.."
 files=$(find . -name '*.swift' \
   -not -path '*/.build/*' \
   -not -path '*/DerivedData/*' \
-  -not -path '*/.swiftpm/*')
+  -not -path '*/.swiftpm/*' \
+  -not -path '*/node_modules/*')
+
+# Vite+ needs the workspace's dependencies installed.
+if [ ! -d Services/node_modules ]; then
+  (cd Services && vp install --frozen-lockfile)
+fi
 
 if [ "${1:-}" = "--lint" ]; then
   # shellcheck disable=SC2086
-  exec xcrun swift-format lint --strict --parallel $files
+  xcrun swift-format lint --strict --parallel $files
+  (cd Services && vp check)
 else
   # shellcheck disable=SC2086
-  exec xcrun swift-format format --in-place --parallel $files
+  xcrun swift-format format --in-place --parallel $files
+  (cd Services && vp check --fix)
 fi
