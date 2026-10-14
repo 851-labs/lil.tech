@@ -7,6 +7,7 @@ import { TestClock } from "effect/testing";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import { Deployment, environmentForStage } from "../src/Deployment.ts";
 import { Auth } from "../src/auth/Auth.ts";
+import { maxDevUsers } from "../src/auth/DevSignIn.ts";
 import { AccessTokens } from "../src/auth/Tokens.ts";
 import { Devices } from "../src/core/Devices.ts";
 import { Identities } from "../src/core/Identities.ts";
@@ -272,6 +273,22 @@ describe("POST /v1/auth/dev", () => {
             );
             assert.deepInclude(me.body, { displayName: "Dev", identities: [] });
             assert.strictEqual((yield* devSignIn(handler, { platform: "android" })).status, 400);
+            // The body is optional, but must be JSON if there is one.
+            const empty = yield* send(
+              handler,
+              new Request("https://api.lil.tech/v1/auth/dev", { method: "POST" }),
+            );
+            assert.strictEqual(empty.status, 200);
+            const malformed = yield* send(
+              handler,
+              new Request("https://api.lil.tech/v1/auth/dev", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: "{displayName:",
+              }),
+            );
+            assert.strictEqual(malformed.status, 400);
+            assert.propertyVal(malformed.body, "_tag", "BadRequest");
           }),
         { environment, version: "1" },
       ),
@@ -289,6 +306,24 @@ describe("POST /v1/auth/dev", () => {
       ),
     );
   }
+
+  it.live("refuses once the stage has too many users", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const users = yield* Users;
+          yield* Effect.forEach(
+            Array.from({ length: maxDevUsers }),
+            () => users.create({ displayName: null }),
+            { discard: true },
+          );
+          const response = yield* devSignIn(handler);
+          assert.strictEqual(response.status, 429);
+          assert.strictEqual(yield* users.count, maxDevUsers);
+        }),
+      { environment: "preview", version: "1" },
+    ),
+  );
 
   it("isn't in the OpenAPI spec", () => {
     assert.notProperty(makeOpenApiSpec().paths, "/v1/auth/dev");

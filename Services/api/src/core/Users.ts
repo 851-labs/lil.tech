@@ -19,6 +19,8 @@ export class Users extends Context.Service<
     readonly findById: (id: UserId) => Effect.Effect<Option.Option<User>, SqlError.SqlError>;
     /** Deletes the user and, through foreign keys, their identities, devices, sessions and connections. */
     readonly delete: (id: UserId) => Effect.Effect<void, SqlError.SqlError>;
+    /** How many users there are. */
+    readonly count: Effect.Effect<number, SqlError.SqlError>;
   }
 >()("lil/api/core/Users") {
   static readonly layer = Layer.effect(
@@ -47,6 +49,10 @@ export class Users extends Context.Service<
         delete: Effect.fn("Users.delete")(function* (id) {
           yield* sql`DELETE FROM users WHERE id = ${id}`;
         }),
+        count: Effect.gen(function* () {
+          const rows = yield* sql`SELECT count(*) AS n FROM users`;
+          return Number(rows[0]?.["n"] ?? 0);
+        }).pipe(Effect.withSpan("Users.count")),
       });
     }),
   );
