@@ -25,14 +25,14 @@ DerivedData/
 build/
 
 # TypeScript (Services/)
-node_modules/
-dist/
-.alchemy/
-.wrangler/
-*.tsbuildinfo
-.env
-.env.*
-!.env.example
+/Services/**/node_modules/
+/Services/**/dist/
+/Services/**/.alchemy/
+/Services/**/.wrangler/
+/Services/**/*.tsbuildinfo
+/Services/**/.env
+/Services/**/.env.*
+!/Services/**/.env.example
 
 # Claude Code local state (project skills in .claude/skills are committed)
 .claude/settings.local.json

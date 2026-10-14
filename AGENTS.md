@@ -29,7 +29,8 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 ## Services (TypeScript)
 
 - `Services/` is a pnpm workspace managed by [Vite+](https://viteplus.dev/guide/). Install the `vp` CLI (`brew install vite-plus`), then run `cd Services && vp install`.
-- Node is pinned in `Services/.node-version`, and pnpm in `Services/package.json`. Dependency versions live in the catalog in `Services/pnpm-workspace.yaml`.
+- Node is pinned in `Services/.node-version`, and pnpm in `Services/package.json`.
+- Dependency versions live only in the catalog in `Services/pnpm-workspace.yaml`. Packages refer to them as `catalog:`. Add dependencies with `vp add <pkg>@catalog:` after adding them to the catalog, and never install `@latest` (even where the `effect-ts` skill's setup steps say to).
 - Check and test:
   - `vp check`: format, lint and type check.
   - `vp run -r test`: every package's tests.
