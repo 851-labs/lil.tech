@@ -90,6 +90,7 @@
   - **Refresh tokens:** opaque and random, stored only as SHA-256 hashes. Each one works once: refreshing returns a new pair and revokes the old token. A refresh token expires 90 days after it was issued, so a device that opens the app at least every 90 days stays signed in.
   - **Reuse ends the session.** Presenting an already-used refresh token revokes every token descended from the same sign-in, since only a stolen copy (or a retried request whose response was lost) would do that. The app then signs in again. There's no grace period.
   - **No transactions:** D1 has none over HTTP, so a refresh stores the new token before conditionally revoking the old one. A refresh that fails partway leaves the old token working. Concurrent refreshes, or a refresh racing sign-out, end with the whole family revoked.
+  - **Dev sign-in:** previews and personal stages have `POST /v1/auth/dev`, which signs in as a new synthetic user. That's how previews are checked end to end, since provider sign-in needs real accounts. Staging and prod never register the route.
   - Signing out deletes the device's session family. Refreshing deletes the family's expired tokens. Deleting a device or user deletes its sessions.
 - **Identities and connections are separate:**
   - An identity is a way to sign in. Signing in with Google requests identity scopes only.

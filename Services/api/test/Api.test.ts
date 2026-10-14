@@ -247,6 +247,54 @@ describe("WorkerHttpLayer", () => {
   );
 });
 
+describe("POST /v1/auth/dev", () => {
+  const devSignIn = (handler: Handler, body: unknown = { displayName: "Dev" }) =>
+    send(
+      handler,
+      new Request("https://api.lil.tech/v1/auth/dev", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    );
+
+  for (const environment of ["preview", "local"] as const) {
+    it.live(`signs in as a new synthetic user in ${environment}`, () =>
+      withApi(
+        (handler) =>
+          Effect.gen(function* () {
+            const response = yield* devSignIn(handler);
+            assert.strictEqual(response.status, 200);
+            const { accessToken } = response.body as { accessToken: string };
+            const me = yield* send(
+              handler,
+              new Request("https://api.lil.tech/v1/me", { headers: bearer(accessToken) }),
+            );
+            assert.deepInclude(me.body, { displayName: "Dev", identities: [] });
+            assert.strictEqual((yield* devSignIn(handler, { platform: "android" })).status, 400);
+          }),
+        { environment, version: "1" },
+      ),
+    );
+  }
+
+  for (const environment of ["staging", "prod"] as const) {
+    it.live(`doesn't exist in ${environment}`, () =>
+      withApi(
+        (handler) =>
+          Effect.gen(function* () {
+            assert.strictEqual((yield* devSignIn(handler)).status, 404);
+          }),
+        { environment, version: "1" },
+      ),
+    );
+  }
+
+  it("isn't in the OpenAPI spec", () => {
+    assert.notProperty(makeOpenApiSpec().paths, "/v1/auth/dev");
+  });
+});
+
 describe("GET /v1/sync/changes", () => {
   const note = (id: string, title = "Note") => ({
     entity: "test_note",
