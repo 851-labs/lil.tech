@@ -7,7 +7,7 @@ import { SessionKey } from "./auth/Tokens.ts";
 import { CoreDatabase, CoreRepositories } from "./core/CoreDatabase.ts";
 import { Deployment, environmentForStage } from "./Deployment.ts";
 import { WorkerHttpLayer } from "./Http.ts";
-import { UserStore } from "./store/UserStore.ts";
+import { UserStore, UserStoreLive } from "./store/UserStore.ts";
 import { UserStores } from "./store/UserStores.ts";
 
 /** Custom domains per stage. Other stages (PR previews, personal stages) use workers.dev. */
@@ -76,5 +76,5 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
         ),
       ),
     };
-  }).pipe(Effect.provide(Cloudflare.D1.QueryDatabaseBinding)),
+  }).pipe(Effect.provide([Cloudflare.D1.QueryDatabaseBinding, UserStoreLive])),
 ) {}

@@ -1,5 +1,5 @@
-import { Schema } from "effect";
-import type { SqlRow, SqlValue } from "./StoreSql.ts";
+import { Result, Schema } from "effect";
+import type { SqlValue } from "./StoreSql.ts";
 
 /** How a field is stored in its entity's table. */
 export interface Column {
@@ -12,7 +12,7 @@ export const Column = {
   integer: { type: "integer", nullable: false },
   real: { type: "real", nullable: false },
   boolean: { type: "boolean", nullable: false },
-  /** Any JSON value, stored as text. */
+  /** Any JSON value, stored as text with sorted keys. */
   json: { type: "json", nullable: false },
   nullable: <C extends Column>(column: C) => ({ ...column, nullable: true }) as const,
 } as const;
@@ -25,15 +25,19 @@ const sqlTypes = {
   json: "TEXT",
 } as const;
 
+const NonNullJson = Schema.Json.check(
+  Schema.makeFilter((value) => value !== null || "Expected a value other than null"),
+);
+
 const fieldSchemas = {
   text: Schema.String,
   integer: Schema.Int,
   real: Schema.Finite,
   boolean: Schema.Boolean,
-  json: Schema.Json,
+  json: NonNullJson,
 } as const;
 
-/** A record as it travels in the change log and the API: JSON with `camelCase` fields. */
+/** A record as it travels in the change log: JSON with `id` and `camelCase` fields. */
 export type EntityRow = { readonly id: string } & { readonly [field: string]: Schema.Json };
 
 /** `startDate` → `start_date`. */
@@ -48,67 +52,93 @@ export interface Entity {
   readonly name: string;
   /** Whether apps may write it with `POST /v1/sync/mutations`. */
   readonly clientWritable: boolean;
-  /** The fields besides `id`, in table order. */
-  readonly fields: Readonly<Record<string, Column>>;
-  /** Decodes a row from the wire. */
-  readonly row: Schema.Decoder<EntityRow>;
+  /** The fields besides `id`, in table order, with their columns' names. */
+  readonly fields: ReadonlyArray<{
+    readonly field: string;
+    readonly column: string;
+    readonly type: Column;
+  }>;
+  /** Decodes the fields an upsert sets. Any may be missing, since upserts merge. */
+  readonly decodeFields: (
+    row: unknown,
+  ) => Result.Result<Readonly<Record<string, Schema.Json>>, Schema.SchemaError>;
+  /** The statements `applyMutations` runs, built once. */
+  readonly statements: {
+    readonly select: string;
+    readonly upsert: string;
+    readonly delete: string;
+  };
 }
 
+/**
+ * Defines an entity. Field names are lower camel case (`startDate`, not `HRV`) so that each maps
+ * to its own `snake_case` column, and `id` is implicit.
+ */
 export const defineEntity = (
   name: string,
   options: { readonly clientWritable: boolean; readonly fields: Record<string, Column> },
 ): Entity => {
   if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new Error(`Invalid entity name: ${name}`);
+  const fields = Object.entries(options.fields).map(([field, type]) => {
+    if (!/^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]+)*$/.test(field) || field === "id") {
+      throw new Error(`Invalid field name in ${name}: ${field}`);
+    }
+    return { field, column: columnName(field), type };
+  });
+  const columns = fields.map(({ column }) => column);
+  const fieldsSchema = Schema.Struct(
+    Object.fromEntries(
+      fields.map(({ field, type }) => {
+        const schema = fieldSchemas[type.type];
+        return [field, Schema.optionalKey(type.nullable ? Schema.NullOr(schema) : schema)];
+      }),
+    ),
+  );
   return {
     name,
     clientWritable: options.clientWritable,
-    fields: options.fields,
-    row: Schema.Struct({
-      id: Schema.NonEmptyString,
-      ...Object.fromEntries(
-        Object.entries(options.fields).map(([field, column]) => {
-          const schema = fieldSchemas[column.type];
-          return [field, column.nullable ? Schema.NullOr(schema) : schema];
-        }),
-      ),
-    }) as unknown as Schema.Decoder<EntityRow>,
+    fields,
+    decodeFields: Schema.decodeUnknownResult(fieldsSchema) as Entity["decodeFields"],
+    statements: {
+      select: `SELECT ${["id", ...columns].join(", ")} FROM ${name} WHERE id = ?`,
+      upsert: `INSERT INTO ${name} (${["id", ...columns].join(", ")})
+        VALUES (${["?", ...columns.map(() => "?")].join(", ")})
+        ON CONFLICT (id) DO UPDATE SET ${columns.map((column) => `${column} = excluded.${column}`).join(", ")}`,
+      delete: `DELETE FROM ${name} WHERE id = ? RETURNING id`,
+    },
   };
 };
 
 /** The `CREATE TABLE` statement for an entity's first migration. */
 export const createEntityTable = (entity: Entity) => {
-  const columns = Object.entries(entity.fields).map(
-    ([field, column]) =>
-      `${columnName(field)} ${sqlTypes[column.type]}${column.nullable ? "" : " NOT NULL"}`,
+  const columns = entity.fields.map(
+    ({ column, type }) => `${column} ${sqlTypes[type.type]}${type.nullable ? "" : " NOT NULL"}`,
   );
   return `CREATE TABLE ${entity.name} (id TEXT PRIMARY KEY, ${columns.join(", ")}) STRICT;`;
 };
 
-/** A decoded row's column values, in table order. */
-export const toColumns = (entity: Entity, row: EntityRow): Array<SqlValue> =>
-  Object.entries(entity.fields).map(([field, column]) => {
-    const value = row[field] ?? null;
-    if (value === null) return null;
-    if (column.type === "boolean") return value === true ? 1 : 0;
-    if (column.type === "json") return JSON.stringify(value);
-    return value as SqlValue;
-  });
+/** JSON with object keys sorted, so equal values are stored identically. */
+const canonicalJson = (value: Schema.Json): string =>
+  JSON.stringify(value, (_, nested: unknown) =>
+    nested !== null && typeof nested === "object" && !Array.isArray(nested)
+      ? Object.fromEntries(Object.entries(nested).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : nested,
+  );
 
-/** The row for a table row selected with `id` and every field's column. */
-export const fromColumns = (entity: Entity, values: SqlRow): EntityRow => {
-  const row: Record<string, Schema.Json> = { id: values["id"] as string };
-  for (const [field, column] of Object.entries(entity.fields)) {
-    const value = values[columnName(field)] ?? null;
-    row[field] =
-      value === null
-        ? null
-        : column.type === "boolean"
-          ? value === 1
-          : column.type === "json"
-            ? (JSON.parse(value as string) as Schema.Json)
-            : (value as Schema.Json);
-  }
-  return row as EntityRow;
+/** A field's value as stored in its column. */
+export const toColumnValue = (type: Column, value: Schema.Json): SqlValue => {
+  if (value === null) return null;
+  if (type.type === "boolean") return value === true ? 1 : 0;
+  if (type.type === "json") return canonicalJson(value);
+  return value as SqlValue;
+};
+
+/** A column's value as the field's JSON value. */
+export const fromColumnValue = (type: Column, value: SqlValue | undefined): Schema.Json => {
+  if (value === null || value === undefined) return null;
+  if (type.type === "boolean") return value === 1;
+  if (type.type === "json") return JSON.parse(value as string) as Schema.Json;
+  return value as Schema.Json;
 };
 
 /**

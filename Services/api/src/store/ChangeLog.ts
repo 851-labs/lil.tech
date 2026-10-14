@@ -1,5 +1,30 @@
-import { columnName, type Entity, type EntityRow, fromColumns, toColumns } from "./Entities.ts";
+import { Result, Schema } from "effect";
+import { type Entity, fromColumnValue, toColumnValue } from "./Entities.ts";
 import type { SqlValue, StoreSql } from "./StoreSql.ts";
+
+/** One write to a store, as clients push it (`docs/SYNC.md`). */
+export const Mutation = Schema.Union([
+  Schema.Struct({
+    entity: Schema.String,
+    op: Schema.Literal("upsert"),
+    id: Schema.NonEmptyString,
+    /** The fields to set. Missing fields keep their stored values, and `null` clears one. */
+    row: Schema.Record(Schema.String, Schema.Json),
+  }),
+  Schema.Struct({
+    entity: Schema.String,
+    op: Schema.Literal("delete"),
+    id: Schema.NonEmptyString,
+  }),
+]);
+export type Mutation = typeof Mutation.Type;
+
+/** A mutation can never be applied, e.g. its row is invalid. Retrying won't help. */
+export class InvalidMutation extends Schema.TaggedError<InvalidMutation>()("InvalidMutation", {
+  /** The mutation's position in the call. */
+  index: Schema.Int,
+  message: Schema.String,
+}) {}
 
 /** The newest `seq` in the store's change log, or 0 before the first change. */
 export const readHead = (sql: StoreSql): number =>
@@ -16,61 +41,80 @@ const sameValues = (a: ReadonlyArray<SqlValue>, b: ReadonlyArray<SqlValue>) =>
   a.length === b.length && a.every((value, index) => value === b[index]);
 
 /**
- * Writes `upserts` (full rows) and then `deletes` to the entity's table and appends one change per
- * record that actually changed, all in one synchronous transaction (`docs/SYNC.md`).
+ * Applies `mutations` in order and appends one change per record that changed, all in one
+ * synchronous transaction (`docs/SYNC.md`). Throws `InvalidMutation` (and writes nothing) if any
+ * mutation can't be applied.
  *
  * - `head` is read and advanced inside the transaction, so `seq` values have no gaps even when
  *   calls interleave between transactions.
+ * - Upserts merge: fields a row leaves out keep their stored values. A new record needs every
+ *   non-nullable field.
  * - An upsert that leaves the stored row unchanged, or a delete of a record that doesn't exist,
  *   appends nothing, so retries don't grow the log.
- * - The change's `row` is re-read from the stored columns, so the log carries exactly what the
- *   table holds.
+ * - A change's `row` is the whole record as stored, with every field this code knows. Rolling the
+ *   server back past an entity schema change therefore needs a new epoch (see `docs/SYNC.md`).
  */
 export const applyMutations = (
   sql: StoreSql,
-  entity: Entity,
-  upserts: ReadonlyArray<EntityRow>,
-  deletes: ReadonlyArray<string>,
+  entities: ReadonlyMap<string, Entity>,
+  mutations: ReadonlyArray<Mutation>,
   at: number,
 ): AppliedMutations =>
   sql.transaction(() => {
-    const columns = Object.keys(entity.fields).map(columnName);
-    const select = `SELECT ${["id", ...columns].join(", ")} FROM ${entity.name} WHERE id = ?`;
-    const upsert = `INSERT INTO ${entity.name} (${["id", ...columns].join(", ")})
-      VALUES (${["?", ...columns.map(() => "?")].join(", ")})
-      ON CONFLICT (id) DO UPDATE SET ${columns.map((column) => `${column} = excluded.${column}`).join(", ")}`;
-    const append = (seq: number, id: string, op: "upsert" | "delete", row: string | null) =>
+    const append = (seq: number, mutation: Mutation, row: string | null) =>
       sql.exec(
         "INSERT INTO changes (seq, entity, id, op, row, at) VALUES (?, ?, ?, ?, ?, ?)",
         seq,
-        entity.name,
-        id,
-        op,
+        mutation.entity,
+        mutation.id,
+        mutation.op,
         row,
         at,
       );
 
     const start = readHead(sql);
     let head = start;
-    for (const row of upserts) {
-      const values = toColumns(entity, row);
-      const stored = sql.exec(select, row.id)[0];
+    for (const [index, mutation] of mutations.entries()) {
+      const entity = entities.get(mutation.entity);
+      if (entity === undefined) {
+        throw new InvalidMutation({ index, message: `Unknown entity ${mutation.entity}` });
+      }
+      if (mutation.op === "delete") {
+        if (sql.exec(entity.statements.delete, mutation.id).length > 0)
+          append(++head, mutation, null);
+        continue;
+      }
+
+      const decoded = entity.decodeFields(mutation.row);
+      if (Result.isFailure(decoded)) {
+        throw new InvalidMutation({ index, message: decoded.failure.message });
+      }
+      const set = decoded.success;
+      const stored = sql.exec(entity.statements.select, mutation.id)[0];
+      const values = entity.fields.map(({ field, column, type }) =>
+        field in set ? toColumnValue(type, set[field] ?? null) : (stored?.[column] ?? null),
+      );
+      const missing = entity.fields.find(
+        ({ type }, position) => !type.nullable && values[position] === null,
+      );
+      if (missing !== undefined) {
+        throw new InvalidMutation({ index, message: `Missing ${missing.field}` });
+      }
       if (
         stored !== undefined &&
-        sameValues(toColumns(entity, fromColumns(entity, stored)), values)
+        sameValues(
+          values,
+          entity.fields.map(({ column }) => stored[column] ?? null),
+        )
       ) {
         continue;
       }
-      sql.exec(upsert, row.id, ...values);
-      const written = sql.exec(select, row.id)[0];
-      if (written === undefined) throw new Error(`${entity.name} ${row.id} vanished`);
-      append(++head, row.id, "upsert", JSON.stringify(fromColumns(entity, written)));
-    }
-    for (const id of deletes) {
-      if (sql.exec(`DELETE FROM ${entity.name} WHERE id = ? RETURNING id`, id).length === 0) {
-        continue;
-      }
-      append(++head, id, "delete", null);
+      sql.exec(entity.statements.upsert, mutation.id, ...values);
+      const row: Record<string, Schema.Json> = { id: mutation.id };
+      entity.fields.forEach(({ field, type }, position) => {
+        row[field] = fromColumnValue(type, values[position]);
+      });
+      append(++head, mutation, JSON.stringify(row));
     }
     if (head !== start) {
       sql.exec(

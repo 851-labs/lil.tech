@@ -184,6 +184,7 @@ POST /v1/sync/mutations
 - **Clients ignore what they don't know:** unknown fields are dropped and unknown entities are skipped. An older app keeps working against a newer server, and merge-on-upsert keeps it from erasing newer fields.
 - **Catching up after an update:** each app has a `syncSchema` number, bumped when a release starts storing a new field or entity. A client whose local database was synced with a lower `syncSchema` bootstraps again from a snapshot. Snapshots carry every field, so the new data arrives without the server knowing anything about client versions.
 - **Server-side migrations** go through a new epoch, as described in [Migrations and restores](#migrations-and-restores).
+- **Rolling the server back** past an entity schema change also needs a new epoch. The older code writes log rows without the newer fields, so clients would apply incomplete rows.
 
 ## Errors
 
