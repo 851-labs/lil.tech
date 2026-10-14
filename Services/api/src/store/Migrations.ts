@@ -16,8 +16,9 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
   {
     version: 1,
     name: "meta",
-    // Store-wide values, such as the sync epoch.
-    sql: "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;",
+    // Store-wide values, such as the sync epoch. `ANY` keeps each value's type (STRICT would
+    // otherwise force one).
+    sql: "CREATE TABLE meta (key TEXT PRIMARY KEY, value ANY NOT NULL) STRICT;",
   },
 ];
 
