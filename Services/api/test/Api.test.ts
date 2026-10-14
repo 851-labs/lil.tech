@@ -1,11 +1,15 @@
+import { readFileSync } from "node:fs";
 import { assert, describe, it } from "@effect/vitest";
 import * as Alchemy from "alchemy";
-import { ConfigProvider, Effect, Exit, Layer } from "effect";
+import { ConfigProvider, Effect, Exit, Layer, Schema } from "effect";
 import { HttpRouter } from "effect/http";
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import { Deployment, environmentForStage } from "../src/Deployment.ts";
 import { WorkerHttpLayer } from "../src/Http.ts";
-import { openApiSpec } from "../src/OpenApiSpec.ts";
+import { makeOpenApiSpec } from "../src/OpenApiSpec.ts";
 import { apiWorkerProps } from "../src/Worker.ts";
+
+const committedSpec = readFileSync(new URL("../openapi.json", import.meta.url), "utf8");
 
 describe("WorkerHttpLayer", () => {
   // The same layer the Worker serves, driven with real Requests.
@@ -26,23 +30,21 @@ describe("WorkerHttpLayer", () => {
     }).pipe(Effect.ensuring(Effect.promise(() => dispose()))),
   );
 
-  it.live("GET /v1/openapi.json serves the committed spec", () =>
-    Effect.gen(function* () {
-      const { handler, dispose } = HttpRouter.toWebHandler(
-        WorkerHttpLayer.pipe(
-          Layer.provide(Layer.succeed(Deployment, { environment: "prod", version: "1" })),
-        ),
-      );
+  it.live("GET /v1/openapi.json serves the committed spec", () => {
+    const { handler, dispose } = HttpRouter.toWebHandler(
+      WorkerHttpLayer.pipe(
+        Layer.provide(Layer.succeed(Deployment, { environment: "prod", version: "1" })),
+      ),
+    );
+    return Effect.gen(function* () {
       const response = yield* Effect.promise(() =>
         handler(new Request("https://api.lil.tech/v1/openapi.json")),
       );
       assert.strictEqual(response.status, 200);
       const body = yield* Effect.promise(() => response.json());
-      assert.deepStrictEqual(body, JSON.parse(JSON.stringify(openApiSpec)));
-      assert.property(openApiSpec.components.schemas, "Status");
-      yield* Effect.promise(() => dispose());
-    }),
-  );
+      assert.deepStrictEqual(body, JSON.parse(committedSpec));
+    }).pipe(Effect.ensuring(Effect.promise(() => dispose())));
+  });
 
   it.live("unknown paths return 404", () =>
     Effect.gen(function* () {
@@ -140,4 +142,25 @@ describe("apiWorkerProps", () => {
       assert.isTrue(Exit.isFailure(exit));
     }),
   );
+});
+
+describe("makeOpenApiSpec", () => {
+  it("matches the committed openapi.json (run scripts/format to regenerate)", () => {
+    assert.strictEqual(committedSpec, `${JSON.stringify(makeOpenApiSpec(), null, 2)}\n`);
+  });
+
+  it("names schemas without namespaces or the Encoded suffix", () => {
+    assert.deepStrictEqual(Object.keys(makeOpenApiSpec().components.schemas), ["Status"]);
+  });
+
+  it("refuses two schemas that would get the same name", () => {
+    class A extends Schema.Class<A>("lil/a/Thing")({ a: Schema.String }) {}
+    class B extends Schema.Class<B>("lil/b/Thing")({ b: Schema.String }) {}
+    const api = HttpApi.make("collide").add(
+      HttpApiGroup.make("g")
+        .add(HttpApiEndpoint.get("a", "/a", { success: A }))
+        .add(HttpApiEndpoint.get("b", "/b", { success: B })),
+    );
+    assert.throws(() => makeOpenApiSpec(api), /used by both/);
+  });
 });

@@ -15,7 +15,7 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "lil/api/Status",
+            "description": "Which deployment is serving the API",
             "content": {
               "application/json": {
                 "schema": {
