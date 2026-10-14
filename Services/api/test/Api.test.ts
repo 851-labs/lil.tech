@@ -16,6 +16,7 @@ import { Identities } from "../src/core/Identities.ts";
 import type { UserId } from "../src/core/Ids.ts";
 import { Users } from "../src/core/Users.ts";
 import { snapshotPolicy } from "../src/store/Snapshots.ts";
+import { sessionExpiresHeader } from "../src/store/LiveNotices.ts";
 import { UserStores } from "../src/store/UserStores.ts";
 import { PartUrls } from "../src/sync/SnapshotParts.ts";
 import { WorkerHttpLayer } from "../src/Http.ts";
@@ -736,6 +737,45 @@ describe("snapshot downloads", () => {
         const unknown = yield* get(handler, "/v1/sync/snapshots/snp_nope", ada.tokens.accessToken);
         assert.strictEqual(unknown.status, 410);
         assert.strictEqual((yield* get(handler, "/v1/sync/snapshot")).status, 401);
+      }),
+    ),
+  );
+});
+
+describe("GET /v1/sync/live", () => {
+  const connect = (handler: Handler, headers: Record<string, string>) =>
+    send(handler, new Request("https://api.lil.tech/v1/sync/live", { headers }));
+
+  it.live("hands an authenticated WebSocket upgrade to the user's store", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const response = yield* connect(handler, {
+          ...bearer(tokens.accessToken),
+          upgrade: "websocket",
+          [sessionExpiresHeader]: "1",
+        });
+        assert.strictEqual(response.status, 200);
+        // The store got the token's expiry from the Worker, not the client's header.
+        assert.deepStrictEqual(response.body, {
+          store: `user:${user.id}`,
+          expiresAt: String(tokens.accessTokenExpiresAt),
+        });
+      }),
+    ),
+  );
+
+  it.live("refuses a missing or invalid token, and requests that aren't WebSockets", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* signIn;
+        assert.strictEqual((yield* connect(handler, { upgrade: "websocket" })).status, 401);
+        assert.strictEqual(
+          (yield* connect(handler, { ...bearer("nope"), upgrade: "websocket" })).status,
+          401,
+        );
+        const plain = yield* connect(handler, bearer(tokens.accessToken));
+        assert.strictEqual(plain.status, 426);
       }),
     ),
   );

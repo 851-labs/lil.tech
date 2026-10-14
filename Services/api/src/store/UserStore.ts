@@ -1,6 +1,7 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Array as Arr, Clock, Effect } from "effect";
+import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import {
   readHealthBatch,
   receiveHealthBatch,
@@ -8,9 +9,18 @@ import {
 } from "../health/HealthBatchStore.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
 import { provideRuntime } from "../Runtime.ts";
-import { applyMutations, readChanges, readEpoch } from "./ChangeLog.ts";
+import { applyMutations, readChanges, readEpoch, readHead } from "./ChangeLog.ts";
 import { ChangesCompacted, InvalidMutation, type Mutation } from "./Changes.ts";
 import type { Entity } from "./Entities.ts";
+import {
+  answerCloseCode,
+  headNotice,
+  type LiveSocket,
+  type LiveSockets,
+  makeLiveNotices,
+  noLiveSockets,
+  sessionExpiresHeader,
+} from "./LiveNotices.ts";
 import { migrate, schemaVersion } from "./Migrations.ts";
 import {
   allSnapshotKeys,
@@ -38,8 +48,10 @@ export const makeUserStore = (
   sql: StoreSql,
   registry: ReadonlyArray<Entity> = entities,
   files: SnapshotFiles = noSnapshotFiles,
+  sockets: LiveSockets = noLiveSockets,
 ) => {
   migrate(sql);
+  const notices = makeLiveNotices(sockets, () => readHead(sql));
   const entitiesByName = new Map(registry.map((entity) => [entity.name, entity]));
 
   /** When the alarm is set for, once known, so most writes don't have to ask. */
@@ -48,11 +60,21 @@ export const makeUserStore = (
    * Moves the alarm earlier if snapshot work or upkeep is due sooner than it's set for. Never
    * sets it for `now`: the alarm running at that time would be cleared when it finishes.
    */
-  const scheduleAlarm = Effect.fnUntraced(function* (now: number) {
-    const due = nextAlarmAt(sql, now);
-    if (due === null) return;
-    alarmAt ??= yield* Effect.promise(() => sql.getAlarm());
-    if (alarmAt !== null && alarmAt <= due) return;
+  const scheduleAlarm = Effect.fnUntraced(function* (
+    now: number,
+    options: { readonly afterAlarm?: boolean; readonly sockets?: boolean } = {},
+  ) {
+    // Socket expiries only change when a client connects and when the alarm runs, so writes
+    // skip listing the sockets: an alarm already set for an expiry is never moved later.
+    const expiry = options.sockets === true ? yield* notices.nextExpiry : null;
+    const times = [nextAlarmAt(sql, now), expiry].filter((time): time is number => time !== null);
+    if (times.length === 0) return;
+    const due = Math.min(...times);
+    // Right after the alarm ran, it's spent, whatever the runtime still reports.
+    if (options.afterAlarm !== true) {
+      alarmAt ??= yield* Effect.promise(() => sql.getAlarm());
+      if (alarmAt !== null && alarmAt <= due) return;
+    }
     const at = Math.max(due, now + 1);
     yield* Effect.promise(() => sql.setAlarm(at));
     alarmAt = at;
@@ -71,6 +93,11 @@ export const makeUserStore = (
         yield* Effect.promise(() => sql.deleteAll());
         alarmAt = null;
         migrate(sql);
+        // Connected clients see `head` go back to 0 and start over; their sockets still close
+        // when their tokens expire.
+        const now = yield* Clock.currentTimeMillis;
+        yield* notices.announce(now);
+        yield* scheduleAlarm(now, { sockets: true });
       }),
     /** A page of the change log (see `readChanges`). */
     readChanges: (after: number, limit: number) =>
@@ -98,7 +125,10 @@ export const makeUserStore = (
             throw error;
           }
         });
-        if (applied.appended > 0) yield* scheduleAlarm(at);
+        if (applied.appended > 0) {
+          yield* notices.notify(at);
+          yield* scheduleAlarm(at);
+        }
         return applied;
       }),
     /**
@@ -112,6 +142,15 @@ export const makeUserStore = (
           snapshot: latestSnapshot(sql),
         })),
       ),
+    /**
+     * Greets a client that just connected for live notices with the current `head`, and makes
+     * sure the alarm closes its socket when its token expires.
+     */
+    liveConnected: (socket: LiveSocket) =>
+      Effect.gen(function* () {
+        yield* socket.send(headNotice(readHead(sql)));
+        yield* scheduleAlarm(yield* Clock.currentTimeMillis, { sockets: true });
+      }),
     /** The latest published snapshot of the current epoch, or `null`. */
     latestSnapshot: () => Effect.sync(() => latestSnapshot(sql)),
     /** A published snapshot of the current epoch by ID, or `null` (see `readSnapshot`). */
@@ -124,9 +163,10 @@ export const makeUserStore = (
       Effect.gen(function* () {
         alarmAt = null;
         const now = yield* Clock.currentTimeMillis;
+        yield* notices.closeExpired(now);
         yield* writeSnapshotStep(sql, registry, files, now);
         yield* doUpkeep(sql, files, now);
-        yield* scheduleAlarm(now);
+        yield* scheduleAlarm(now, { afterAlarm: true, sockets: true });
       }).pipe(
         Effect.catchCause((cause) =>
           Effect.gen(function* () {
@@ -142,6 +182,21 @@ export const makeUserStore = (
 
 export type UserStoreMethods = ReturnType<typeof makeUserStore>;
 
+/** A store as a Durable Object: its RPC methods, plus live connections. */
+export type UserStoreShape = UserStoreMethods & {
+  /** Accepts a live notice connection the Worker forwarded (`GET /v1/sync/live`). */
+  readonly fetch: Effect.Effect<
+    HttpServerResponse.HttpServerResponse,
+    never,
+    HttpServerRequest.HttpServerRequest | Cloudflare.DurableObjectState | Alchemy.RuntimeContext
+  >;
+  readonly webSocketClose: (
+    socket: Cloudflare.WebSocket,
+    code: number,
+    reason: string,
+  ) => Effect.Effect<void>;
+};
+
 /**
  * One user's data, in a SQLite-backed Durable Object. Reach it through `UserStores`. Its errors
  * are declared so they cross RPC as instances of their classes, not plain objects.
@@ -150,10 +205,9 @@ export type UserStoreMethods = ReturnType<typeof makeUserStore>;
  * in a synchronous `transactionSync`. So it can't use Alchemy's alarm callbacks, which keep their
  * own bookkeeping in that wrapper.
  */
-export class UserStore extends Cloudflare.DurableObject<UserStore, UserStoreMethods>()(
-  "UserStore",
-  { errors: [InvalidMutation, ChangesCompacted] },
-) {}
+export class UserStore extends Cloudflare.DurableObject<UserStore, UserStoreShape>()("UserStore", {
+  errors: [InvalidMutation, ChangesCompacted],
+}) {}
 
 /** Snapshot parts (`src/store/Snapshots.ts`). */
 export const SnapshotBucket = Cloudflare.R2.Bucket("SyncSnapshots");
@@ -163,7 +217,8 @@ export const UserStoreLive = UserStore.make(
     const state = yield* Cloudflare.DurableObjectState;
     const bucket = yield* Cloudflare.R2.ReadWriteBucket(yield* SnapshotBucket);
     return Effect.gen(function* () {
-      // The bucket's calls need the object's runtime context, which exists from here on.
+      // The bucket's and sockets' calls need the object's runtime context, which exists from
+      // here on.
       const inRuntime = provideRuntime(yield* Alchemy.RuntimeContext);
       const files: SnapshotFiles = {
         put: (key, bytes) =>
@@ -180,8 +235,62 @@ export const UserStoreLive = UserStore.make(
             },
           ).pipe(Effect.orDie),
       };
+      type Attachment = { readonly expiresAt?: number; readonly closed?: boolean } | null;
+      const attachment = (socket: Cloudflare.WebSocket) =>
+        socket.deserializeAttachment() as Attachment;
+      const toLiveSocket = (socket: Cloudflare.WebSocket): LiveSocket => ({
+        send: (text) => socket.send(text),
+        // The runtime lists a socket until the client acknowledges the close, so it's marked.
+        close: (code, reason) =>
+          Effect.sync(() =>
+            socket.serializeAttachment({ ...attachment(socket), closed: true }),
+          ).pipe(Effect.andThen(socket.close(code, reason))),
+        expiresAt: attachment(socket)?.expiresAt ?? 0,
+      });
+      const sockets: LiveSockets = {
+        // Listed from the runtime each time, so sockets survive the object hibernating.
+        list: inRuntime(state.getWebSockets()).pipe(
+          Effect.map((all) =>
+            all
+              .filter((socket) => socket.ws.readyState === 1 && attachment(socket)?.closed !== true)
+              .map(toLiveSocket),
+          ),
+        ),
+        later: (delayMs, task) => {
+          setTimeout(() => Effect.runFork(task), delayMs);
+        },
+      };
+      // Keep-alive pings are answered by the runtime without waking the object.
+      yield* state.setWebSocketAutoResponse(
+        new (
+          globalThis as unknown as {
+            WebSocketRequestResponsePair: new (request: string, response: string) => never;
+          }
+        ).WebSocketRequestResponsePair("ping", "pong"),
+      );
       // A migration that fails stops the object from starting, rather than serving an old schema.
-      return makeUserStore(fromDurableObjectStorage(state.raw.storage), entities, files);
+      const store = makeUserStore(
+        fromDurableObjectStorage(state.raw.storage),
+        entities,
+        files,
+        sockets,
+      );
+      return {
+        ...store,
+        fetch: Effect.gen(function* () {
+          const request = yield* HttpServerRequest.HttpServerRequest;
+          const expiresAt = Number(request.headers[sessionExpiresHeader]);
+          if (!Number.isFinite(expiresAt)) return HttpServerResponse.empty({ status: 400 });
+          const [response, socket] = yield* Cloudflare.upgrade();
+          socket.serializeAttachment({ expiresAt });
+          yield* store.liveConnected(toLiveSocket(socket));
+          return response;
+        }),
+        webSocketClose: (socket, code, reason) =>
+          socket
+            .close(answerCloseCode(code), reason)
+            .pipe(Effect.catchCause((cause) => Effect.logDebug("Closing a socket failed", cause))),
+      } satisfies UserStoreShape;
     });
   }).pipe(Effect.provide(Cloudflare.R2.ReadWriteBucketBinding)),
 );
