@@ -11,7 +11,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   2. Branch off `main` using the ticket's Linear branch name.
   3. Open one PR per ticket, with the ticket ID in the title.
   4. Move the ticket to In Review.
-- Run `scripts/format` before committing. `scripts/format --lint` must pass.
+- Run `scripts/format` before committing. `scripts/format --lint` must pass. It covers the Swift code and the TypeScript in `Services/`.
 - Don't bundle unrelated changes. If you find extra work, file a new ticket.
 
 ## Building
@@ -25,6 +25,26 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - **Previews of SwiftUI `List`s.** Put a `#Preview` for a view whose `List` uses `ForEach` rows in a separate `*Previews.swift` file. Previewing a file instruments its functions, and with `ForEach` rows that trips an assertion in SwiftUI's macOS `List` (`TableViewListCore_Mac2`).
 - **Xcode MCP.** `.mcp.json` registers Xcode's MCP server (`xcrun mcpbridge`), which provides tools like `RenderPreview`. Approve it when Claude Code first asks. It talks to the running Xcode, so keep Xcode open with `Lil.xcworkspace`, and allow external agents in Xcode › Settings › Intelligence. `xcrun` uses whichever Xcode `xcode-select` points at.
 - **Preview snapshots.** Xcode's `RenderPreview` (MCP) snapshots a preview's first frame, before `.task` runs. Give previews their data in the initial state, using `makePreviewChatDatabase()` from `MessagesDatabase`, so snapshots show real content. That demo dataset is for previews only; tests seed their own data. For a state that a view's `.task` would immediately replace (empty, checking access), build the store with `EmptyReducer()`.
+
+## Services (TypeScript)
+
+- `Services/` is a pnpm workspace managed by [Vite+](https://viteplus.dev/guide/). Install the `vp` CLI (`brew install vite-plus`), then run `cd Services && vp install`.
+- Node is pinned in `Services/.node-version`, and pnpm in `Services/package.json`.
+- Dependency versions live only in the catalog in `Services/pnpm-workspace.yaml`. Packages refer to them as `catalog:`. Add dependencies with `vp add <pkg>@catalog:` after adding them to the catalog, and never install `@latest` (even where the `effect-ts` skill's setup steps say to).
+- Check and test:
+  - `vp check`: format, lint and type check.
+  - `vp run -r test`: every package's tests.
+  - In a package, e.g. `Services/api`: `vp test`.
+- Lint and format settings live only in the root `Services/vite.config.ts`. Vite+ doesn't apply per-package lint or format configs.
+- Vite+'s own docs ship in `Services/node_modules/vite-plus/docs`.
+
+### Learning more about Effect
+
+This repository uses the Effect TypeScript library. The `effect-ts` skill (`.claude/skills/effect-ts`) sets this up.
+
+Before writing any Effect code, first read `Services/node_modules/effect/AGENTS.md` **completely**, and follow the links in the file when required.
+
+If you need to learn more about particular Effect APIs and concepts that the guide doesn't cover, search through the source code in `Services/node_modules/effect/src`.
 
 ## Previews
 

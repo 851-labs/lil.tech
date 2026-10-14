@@ -1,0 +1,20 @@
+packages:
+  - api
+
+catalogMode: prefer
+
+catalog:
+  "@effect/vitest": 4.0.4
+  "@types/node": ^24
+  effect: 4.0.4
+  typescript: ^7.0.2
+  vite-plus: 1.1.0
+
+overrides:
+  # Vite+ ships its own Vite build. Point every `vite` at it so @effect/vitest
+  # and `vp test` share one Vitest instance.
+  vite: npm:@voidzero-dev/vite-plus-core@1.1.0
+peerDependencyRules:
+  allowedVersions:
+    # Vite+ core reports its own version (1.x), which satisfies Vitest's `vite` peer.
+    vite: "*"

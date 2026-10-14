@@ -25,7 +25,7 @@
   - All upcoming Swift 7 features are on: `ExistentialAny`, `MemberImportVisibility`, `InternalImportsByDefault`, `InferIsolatedConformances`, `NonisolatedNonsendingByDefault`, `ImmutableWeakCaptures`.
   - CI treats warnings as errors, for our own targets only (warnings from third-party packages don't count). Warnings stay warnings locally.
   - Default actor isolation stays `nonisolated` for now. TCA 1.x's `@Reducer` macro breaks under `MainActor` default isolation ([#3768](https://github.com/pointfreeco/swift-composable-architecture/issues/3768)). Revisit with TCA 2.0, which fully supports it.
-- **TypeScript:** server code uses [Effect](https://effect.website) 4 with strict TypeScript, and the Vite+ toolchain (`vp check`, `vp test`).
+- **TypeScript:** server code uses [Effect](https://effect.website) 4 with strict TypeScript, and the [Vite+](https://viteplus.dev) toolchain (`vp check`, `vp test`).
 - **Localization:** English only for now.
 
 ## Architecture

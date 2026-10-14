@@ -1,20 +1,43 @@
 #!/bin/sh
-# Formats every Swift file in the repo with swift-format.
+# Formats every Swift file with swift-format, and the TypeScript in Services/
+# with Vite+ (Oxfmt).
 # Usage: scripts/format [--lint]
-#   --lint  Check formatting without changing files; exits non-zero on violations.
-set -eu
+#   --lint  Check without changing files: swift-format lint, plus `vp check`
+#           (format, lint and type check) for Services/. Runs both checks and
+#           exits non-zero if either fails.
+set -u
 
 cd "$(dirname "$0")/.."
 
 files=$(find . -name '*.swift' \
   -not -path '*/.build/*' \
   -not -path '*/DerivedData/*' \
-  -not -path '*/.swiftpm/*')
+  -not -path '*/.swiftpm/*' \
+  -not -path '*/node_modules/*')
+
+status=0
+
+# shellcheck disable=SC2086
+if [ "${1:-}" = "--lint" ]; then
+  xcrun swift-format lint --strict --parallel $files || status=1
+else
+  xcrun swift-format format --in-place --parallel $files || status=1
+fi
+
+if ! command -v vp >/dev/null 2>&1; then
+  echo "error: vp (Vite+) is required for Services/. Install it with 'brew install vite-plus'." >&2
+  exit 1
+fi
+
+# Keeps Services/node_modules in sync with the lockfile; fast when nothing changed.
+if ! (cd Services && vp install --frozen-lockfile --silent); then
+  exit 1
+fi
 
 if [ "${1:-}" = "--lint" ]; then
-  # shellcheck disable=SC2086
-  exec xcrun swift-format lint --strict --parallel $files
+  (cd Services && vp check) || status=1
 else
-  # shellcheck disable=SC2086
-  exec xcrun swift-format format --in-place --parallel $files
+  (cd Services && vp fmt) || status=1
 fi
+
+exit "$status"
