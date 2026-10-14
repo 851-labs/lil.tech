@@ -8,6 +8,7 @@ import {
   HealthBatchQueue,
   ingestHealthBatch,
 } from "./HealthIngestion.ts";
+import { provideRuntime } from "../Runtime.ts";
 import { UserStores } from "../store/UserStores.ts";
 
 // Resource IDs are also the Worker's binding names, so they must differ from each other.
@@ -48,8 +49,7 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
   const deadLetters = yield* HealthBatchDeadLetters;
 
   const files = Effect.map(Alchemy.RuntimeContext, (runtime) => {
-    const inRuntime = <A, E>(effect: Effect.Effect<A, E, Alchemy.RuntimeContext>) =>
-      Effect.provideService(effect, Alchemy.RuntimeContext, runtime);
+    const inRuntime = provideRuntime(runtime);
     return HealthBatchFiles.of({
       put: (key, bytes) =>
         inRuntime(
@@ -71,10 +71,7 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
   });
   const queueService = Effect.map(Alchemy.RuntimeContext, (runtime) =>
     HealthBatchQueue.of({
-      send: (message) =>
-        queue
-          .send(message)
-          .pipe(Effect.provideService(Alchemy.RuntimeContext, runtime), Effect.orDie),
+      send: (message) => provideRuntime(runtime)(queue.send(message)).pipe(Effect.orDie),
     }),
   );
 

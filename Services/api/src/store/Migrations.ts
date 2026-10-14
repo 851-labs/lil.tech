@@ -80,6 +80,7 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
         created_at INTEGER NOT NULL,
         finished_at INTEGER,
         replaced_at INTEGER,
+        entity_names TEXT NOT NULL,
         entities TEXT NOT NULL
       ) STRICT;
       CREATE TABLE snapshot_job (

@@ -6,7 +6,8 @@ import type { SqlRow, StoreSql } from "./StoreSql.ts";
 
 // Snapshots of a store (`docs/SYNC.md`): every record as of a `seq`, in gzip NDJSON parts in R2,
 // so a new device doesn't replay the whole change log. Written a part per alarm, so writes keep
-// flowing and no invocation runs long. Publishing one also compacts the change log.
+// flowing and no invocation runs long. Every alarm also does the upkeep: compacting the change
+// log behind the latest snapshot and deleting replaced snapshots.
 
 export const snapshotPolicy = {
   /** Write a snapshot once this many changes have happened since the last one... */
@@ -25,7 +26,7 @@ export const snapshotPolicy = {
 export type SnapshotPolicy = typeof snapshotPolicy;
 
 export interface SnapshotPart {
-  /** The part's object key in the snapshot bucket. */
+  /** The part's object key in the snapshot bucket. It includes the part's hash, so it's immutable. */
   readonly key: string;
   readonly records: number;
   readonly bytes: number;
@@ -65,19 +66,49 @@ const toSnapshot = (row: SqlRow): Snapshot => ({
   entities: JSON.parse(row["entities"] as string) as Array<SnapshotEntity>,
 });
 
-export const readSnapshot = (sql: StoreSql, id: string): Snapshot | null => {
+const partKeys = (snapshot: Snapshot) =>
+  snapshot.entities.flatMap((entity) => entity.parts.map((part) => part.key));
+
+const readSnapshotRow = (sql: StoreSql, id: string): Snapshot | null => {
   const row = sql.exec("SELECT * FROM snapshots WHERE id = ?", id)[0];
   return row === undefined ? null : toSnapshot(row);
 };
 
+/**
+ * A published snapshot of the current epoch by ID (replaced ones too, until they're deleted), or
+ * `null`: unknown, still being written, from another epoch, or gone.
+ */
+export const readSnapshot = (sql: StoreSql, id: string): Snapshot | null => {
+  const snapshot = readSnapshotRow(sql, id);
+  if (snapshot === null || snapshot.finishedAt === null) return null;
+  return snapshot.epoch === readEpoch(sql) ? snapshot : null;
+};
+
+const latestQuery = `SELECT * FROM snapshots
+  WHERE finished_at IS NOT NULL AND replaced_at IS NULL AND epoch = ?
+  ORDER BY finished_at DESC LIMIT 1`;
+
 /** The latest published snapshot of the current epoch, or `null`. */
 export const latestSnapshot = (sql: StoreSql): Snapshot | null => {
+  const row = sql.exec(latestQuery, readEpoch(sql))[0];
+  return row === undefined ? null : toSnapshot(row);
+};
+
+/** The latest snapshot's `seq` and start, without reading its parts. */
+const latestSummary = (sql: StoreSql) => {
   const row = sql.exec(
-    `SELECT * FROM snapshots WHERE finished_at IS NOT NULL AND replaced_at IS NULL AND epoch = ?
-      ORDER BY finished_at DESC LIMIT 1`,
+    latestQuery.replace("SELECT *", "SELECT seq, created_at"),
     readEpoch(sql),
   )[0];
-  return row === undefined ? null : toSnapshot(row);
+  return row === undefined
+    ? null
+    : { seq: row["seq"] as number, createdAt: row["created_at"] as number };
+};
+
+/** The oldest change still in the log. `seq` and `at` both increase, so it's the first. */
+const firstChange = (sql: StoreSql) => {
+  const row = sql.exec("SELECT seq, at FROM changes ORDER BY seq LIMIT 1")[0];
+  return row === undefined ? null : { seq: row["seq"] as number, at: row["at"] as number };
 };
 
 /**
@@ -86,19 +117,30 @@ export const latestSnapshot = (sql: StoreSql): Snapshot | null => {
  */
 export const nextSnapshotAt = (sql: StoreSql, now: number, policy = snapshotPolicy) => {
   const head = readHead(sql);
-  const latest = latestSnapshot(sql);
+  const latest = latestSummary(sql);
   const covered = latest?.seq ?? 0;
   if (head <= covered) return null;
   if (head - covered >= policy.minChanges) return now;
-  const since =
-    latest?.createdAt ??
-    (sql.exec("SELECT min(at) AS at FROM changes")[0]?.["at"] as number | null) ??
-    now;
+  const since = latest?.createdAt ?? firstChange(sql)?.at ?? now;
   return Math.max(now, since + policy.maxAge);
+};
+
+/** When upkeep is next due: compacting the log, or deleting a replaced snapshot. */
+const nextUpkeepAt = (sql: StoreSql, policy: SnapshotPolicy) => {
+  const times: Array<number> = [];
+  const replaced = sql.exec("SELECT min(replaced_at) AS at FROM snapshots")[0]?.["at"];
+  if (typeof replaced === "number") times.push(replaced + policy.replacedRetention);
+  const latest = latestSummary(sql);
+  const first = firstChange(sql);
+  if (latest !== null && first !== null && first.seq <= latest.seq) {
+    times.push(first.at + policy.changeRetention);
+  }
+  return times.length === 0 ? null : Math.min(...times);
 };
 
 interface Job {
   readonly snapshotId: string;
+  /** Position in the snapshot's `entity_names`, fixed when it started. */
   readonly entityIndex: number;
   readonly afterId: string | null;
   readonly part: number;
@@ -126,9 +168,16 @@ const saveJob = (sql: StoreSql, job: Job) =>
     job.part,
   );
 
-/**
- * Compresses NDJSON lines with gzip as they're added. `finish` returns the compressed bytes.
- */
+/** When the store's alarm should next go off for snapshot work and upkeep, or `null`. */
+export const nextAlarmAt = (sql: StoreSql, now: number, policy = snapshotPolicy) => {
+  if (readJob(sql) !== null) return now;
+  const times = [nextSnapshotAt(sql, now, policy), nextUpkeepAt(sql, policy)].filter(
+    (time): time is number => time !== null,
+  );
+  return times.length === 0 ? null : Math.min(...times);
+};
+
+/** Compresses NDJSON with gzip as it's written. `finish` returns the compressed bytes. */
 const gzipWriter = () => {
   const stream = new CompressionStream("gzip");
   const writer = stream.writable.getWriter();
@@ -168,15 +217,15 @@ const sha256Hex = (bytes: Uint8Array) =>
  * raises the horizon to the newest one deleted. Never deletes changes newer than the snapshot.
  */
 export const compactChanges = (sql: StoreSql, now: number, policy = snapshotPolicy) => {
-  const latest = latestSnapshot(sql);
+  const latest = latestSummary(sql);
   if (latest === null) return;
   // `seq` and `at` both increase, so the deletable changes are a prefix of the log.
   const newest = sql.exec(
     "SELECT max(seq) AS seq FROM changes WHERE seq <= ? AND at < ?",
     latest.seq,
     now - policy.changeRetention,
-  )[0]?.["seq"] as number | null;
-  if (newest === null || newest === undefined) return;
+  )[0]?.["seq"];
+  if (typeof newest !== "number") return;
   sql.transaction(() => {
     sql.exec("DELETE FROM changes WHERE seq <= ?", newest);
     sql.exec(
@@ -186,28 +235,39 @@ export const compactChanges = (sql: StoreSql, now: number, policy = snapshotPoli
   });
 };
 
-/** Deletes snapshots replaced more than `replacedRetention` ago, and their parts. */
-const deleteReplacedSnapshots = Effect.fnUntraced(function* (
+/** Deletes a snapshot's row and parts. */
+const deleteSnapshot = Effect.fnUntraced(function* (
+  sql: StoreSql,
+  files: SnapshotFiles,
+  snapshot: Snapshot,
+) {
+  yield* files.delete(partKeys(snapshot));
+  sql.transaction(() => {
+    sql.exec("DELETE FROM snapshot_job WHERE snapshot_id = ?", snapshot.id);
+    sql.exec("DELETE FROM snapshots WHERE id = ?", snapshot.id);
+  });
+});
+
+/**
+ * Upkeep that's due by `now`: compacts the change log and deletes snapshots replaced more than
+ * `replacedRetention` ago, with their parts.
+ */
+export const doUpkeep = Effect.fnUntraced(function* (
   sql: StoreSql,
   files: SnapshotFiles,
   now: number,
-  policy: SnapshotPolicy,
+  policy: SnapshotPolicy = snapshotPolicy,
 ) {
-  const old = sql
+  compactChanges(sql, now, policy);
+  const replaced = sql
     .exec("SELECT * FROM snapshots WHERE replaced_at < ?", now - policy.replacedRetention)
     .map(toSnapshot);
-  for (const snapshot of old) {
-    yield* files.delete(
-      snapshot.entities.flatMap((entity) => entity.parts.map((part) => part.key)),
-    );
-    sql.exec("DELETE FROM snapshots WHERE id = ?", snapshot.id);
-  }
+  for (const snapshot of replaced) yield* deleteSnapshot(sql, files, snapshot);
 });
 
 /**
  * Does the next bit of snapshot work: starts a snapshot if one is due, writes one part, or
- * publishes a finished snapshot (then compacts the log and drops old snapshots). Returns
- * `continue` while there's more to do.
+ * publishes a finished snapshot. Returns `continue` while there's more to do.
  */
 export const writeSnapshotStep = Effect.fnUntraced(function* (
   sql: StoreSql,
@@ -222,22 +282,31 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
     const snapshotId = yield* makeId("snp");
     sql.transaction(() => {
       sql.exec(
-        "INSERT INTO snapshots (id, seq, epoch, created_at, entities) VALUES (?, ?, ?, ?, '[]')",
+        `INSERT INTO snapshots (id, seq, epoch, created_at, entity_names, entities)
+          VALUES (?, ?, ?, ?, ?, '[]')`,
         snapshotId,
         readHead(sql),
         readEpoch(sql),
         now,
+        JSON.stringify(entities.map((entity) => entity.name)),
       );
       saveJob(sql, { snapshotId, entityIndex: 0, afterId: null, part: 0 });
     });
     job = readJob(sql);
     if (job === null) return yield* Effect.die("The snapshot job vanished");
   }
+  const { snapshotId } = job;
+  const snapshot = readSnapshotRow(sql, snapshotId);
+  if (snapshot === null) return yield* Effect.die(`Snapshot ${snapshotId} vanished`);
+  const names = JSON.parse(
+    sql.exec("SELECT entity_names FROM snapshots WHERE id = ?", snapshotId)[0]?.[
+      "entity_names"
+    ] as string,
+  ) as Array<string>;
 
-  const entity = entities[job.entityIndex];
-  if (entity === undefined) {
+  const name = names[job.entityIndex];
+  if (name === undefined) {
     // Every entity is written: publish it.
-    const { snapshotId } = job;
     sql.transaction(() => {
       sql.exec(
         "UPDATE snapshots SET replaced_at = ? WHERE finished_at IS NOT NULL AND replaced_at IS NULL",
@@ -246,9 +315,13 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
       sql.exec("UPDATE snapshots SET finished_at = ? WHERE id = ?", now, snapshotId);
       sql.exec("DELETE FROM snapshot_job WHERE id = 1");
     });
-    compactChanges(sql, now, policy);
-    yield* deleteReplacedSnapshots(sql, files, now, policy);
     return "finished" as const;
+  }
+  const entity = entities.find((candidate) => candidate.name === name);
+  if (entity === undefined) {
+    // A deploy removed one of its entities midway; a new snapshot starts when it's next due.
+    yield* deleteSnapshot(sql, files, snapshot);
+    return "idle" as const;
   }
 
   // One part: rows after the cursor, by `id` (never by offset, so rows deleted meanwhile can't
@@ -264,10 +337,6 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
   while (records < policy.partRecords) {
     const limit = Math.min(policy.pageRows, policy.partRecords - records);
     const rows = sql.exec(page, afterId, limit);
-    if (rows.length === 0) {
-      exhausted = true;
-      break;
-    }
     let text = "";
     for (const row of rows) {
       const record: Record<string, unknown> = { id: row["id"] };
@@ -276,9 +345,9 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
       }
       text += `${JSON.stringify(record)}\n`;
     }
-    yield* gzip.write(text);
+    if (text !== "") yield* gzip.write(text);
     records += rows.length;
-    afterId = rows[rows.length - 1]?.["id"] as string;
+    afterId = (rows[rows.length - 1]?.["id"] as string | undefined) ?? afterId;
     if (rows.length < limit) {
       exhausted = true;
       break;
@@ -288,37 +357,43 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
 
   const parts: Array<SnapshotPart> = [];
   if (records > 0) {
-    const key = `snapshots/${job.snapshotId}/${entity.name}/${job.part}.ndjson.gz`;
+    const sha256 = yield* sha256Hex(bytes);
+    const key = `snapshots/${snapshotId}/${entity.name}/${job.part}-${sha256}.ndjson.gz`;
     yield* files.put(key, bytes);
-    parts.push({ key, records, bytes: bytes.length, sha256: yield* sha256Hex(bytes) });
+    parts.push({ key, records, bytes: bytes.length, sha256 });
   }
-  const { snapshotId } = job;
+  const discard = files.delete(parts.map((part) => part.key));
+  // Requests run while the part uploads; if the store was deleted meanwhile, so is the part.
+  if (readJob(sql)?.snapshotId !== snapshotId) {
+    yield* discard;
+    return "idle" as const;
+  }
   const next: Job = exhausted
     ? { snapshotId, entityIndex: job.entityIndex + 1, afterId: null, part: 0 }
     : { snapshotId, entityIndex: job.entityIndex, afterId, part: job.part + 1 };
-  sql.transaction(() => {
-    const snapshot = readSnapshot(sql, snapshotId);
-    if (snapshot === null) throw new Error(`Snapshot ${snapshotId} vanished`);
-    const written = snapshot.entities.filter((written) => written.entity !== entity.name);
-    const current = snapshot.entities.find((written) => written.entity === entity.name);
-    sql.exec(
-      "UPDATE snapshots SET entities = ? WHERE id = ?",
-      JSON.stringify([
-        ...written,
-        { entity: entity.name, parts: [...(current?.parts ?? []), ...parts] },
-      ]),
-      snapshotId,
-    );
-    saveJob(sql, next);
-  });
+  yield* Effect.try(() =>
+    sql.transaction(() => {
+      const current = readSnapshotRow(sql, snapshotId);
+      if (current === null) throw new Error(`Snapshot ${snapshotId} vanished`);
+      const others = current.entities.filter((written) => written.entity !== entity.name);
+      const written = current.entities.find((written) => written.entity === entity.name);
+      sql.exec(
+        "UPDATE snapshots SET entities = ? WHERE id = ?",
+        JSON.stringify([
+          ...others,
+          { entity: entity.name, parts: [...(written?.parts ?? []), ...parts] },
+        ]),
+        snapshotId,
+      );
+      saveJob(sql, next);
+    }),
+  ).pipe(
+    Effect.tapError(() => discard),
+    Effect.orDie,
+  );
   return "continue" as const;
 });
 
 /** Every part key of every snapshot, for deleting a store. */
 export const allSnapshotKeys = (sql: StoreSql) =>
-  sql
-    .exec("SELECT * FROM snapshots")
-    .map(toSnapshot)
-    .flatMap((snapshot) =>
-      snapshot.entities.flatMap((entity) => entity.parts.map((part) => part.key)),
-    );
+  sql.exec("SELECT * FROM snapshots").map(toSnapshot).flatMap(partKeys);

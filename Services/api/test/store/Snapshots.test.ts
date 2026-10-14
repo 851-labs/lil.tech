@@ -8,8 +8,11 @@ import { createEntityTable } from "../../src/store/Entities.ts";
 import { entities } from "../../src/store/Registry.ts";
 import {
   compactChanges,
+  doUpkeep,
   latestSnapshot,
+  nextAlarmAt,
   nextSnapshotAt,
+  readSnapshot,
   type SnapshotFiles,
   snapshotPolicy,
   writeSnapshotStep,
@@ -170,10 +173,67 @@ describe("snapshots", () => {
       assert.notStrictEqual(latestSnapshot(sql)?.id, first?.id);
       for (const key of firstKeys ?? []) assert.isTrue(stored.has(key));
 
-      yield* TestClock.adjust("8 days");
-      yield* store.applyMutations(["k", "l", "m", "n", "o"].map((id) => note(id)));
-      yield* writeSnapshot(sql, files);
+      // Upkeep deletes it a week after it was replaced, whether or not the store changes.
+      yield* TestClock.adjust("6 days");
+      yield* doUpkeep(sql, files, yield* Clock.currentTimeMillis, policy);
+      for (const key of firstKeys ?? []) assert.isTrue(stored.has(key));
+      yield* TestClock.adjust("2 days");
+      yield* doUpkeep(sql, files, yield* Clock.currentTimeMillis, policy);
       for (const key of firstKeys ?? []) assert.isFalse(stored.has(key));
+      assert.isNull(readSnapshot(sql, first?.id ?? ""));
+    }),
+  );
+
+  it.effect("an inactive store still gets its upkeep", () =>
+    Effect.gen(function* () {
+      const { sql, store, files } = makeStore();
+      yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
+      yield* writeSnapshot(sql, files);
+      const now = yield* Clock.currentTimeMillis;
+      // Nothing changes from here on, but the covered changes still need compacting.
+      assert.strictEqual(nextAlarmAt(sql, now, policy), 30 * day);
+    }),
+  );
+
+  it.effect("starts over if a deploy removes one of its entities midway", () =>
+    Effect.gen(function* () {
+      const { sql, store, stored, files } = makeStore();
+      yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
+      const all = [...entities, testNote];
+      const now = yield* Clock.currentTimeMillis;
+      // Write until it's in the middle of `test_note`, the last entity.
+      for (let step = 0; step < 100; step++) {
+        yield* writeSnapshotStep(sql, all, files, now, policy);
+        if (stored.size > 0) break;
+      }
+      assert.isAbove(stored.size, 0);
+      const result = yield* writeSnapshotStep(sql, entities, files, now, policy);
+      assert.strictEqual(result, "idle");
+      assert.strictEqual(stored.size, 0);
+      assert.isNull(latestSnapshot(sql));
+      assert.strictEqual(nextAlarmAt(sql, now, policy), now);
+    }),
+  );
+
+  it.effect("a part uploaded while the store is deleted is deleted too", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      const stored = new Map<string, Uint8Array>();
+      let store: ReturnType<typeof makeUserStore> | undefined;
+      const files: SnapshotFiles = {
+        // The account is deleted while the part uploads.
+        put: (key, bytes) =>
+          Effect.gen(function* () {
+            stored.set(key, bytes);
+            if (store !== undefined) yield* store.deleteAll().pipe(Effect.orDie);
+          }),
+        delete: (keys) => Effect.sync(() => keys.forEach((key) => stored.delete(key))),
+      };
+      store = makeUserStore(sql, [...entities, testNote], files);
+      sql.script(createEntityTable(testNote));
+      yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
+      yield* writeSnapshot(sql, files);
+      assert.strictEqual(stored.size, 0);
     }),
   );
 });
@@ -225,6 +285,19 @@ describe("compaction", () => {
 });
 
 describe("the store's alarm", () => {
+  it.effect("is never set for the time it's running at, which would clear it", () =>
+    Effect.gen(function* () {
+      const { sql, store } = makeStore();
+      yield* store.applyMutations(
+        Array.from({ length: snapshotPolicy.minChanges }, (_, n) => note(`n${n}`)),
+      );
+      const now = yield* Clock.currentTimeMillis;
+      assert.strictEqual(yield* Effect.promise(() => sql.getAlarm()), now + 1);
+      yield* store.alarm();
+      assert.strictEqual(yield* Effect.promise(() => sql.getAlarm()), now + 1);
+    }),
+  );
+
   it.effect("is set when a snapshot is due, and writes it a step per alarm", () =>
     Effect.gen(function* () {
       const { sql, store } = makeStore();
