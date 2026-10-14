@@ -149,6 +149,26 @@ public struct GoogleOAuth: Sendable {
     self.redeem = redeem
   }
 
+  /// Google's JSON uses snake_case keys.
+  static let decoder = {
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    return decoder
+  }()
+
+  /// The ID token in the token endpoint's answer.
+  static func idToken(from data: Data) throws -> String {
+    struct Tokens: Decodable { let idToken: String? }
+    guard let idToken = (try? decoder.decode(Tokens.self, from: data))?.idToken else {
+      throw MissingIDToken()
+    }
+    return idToken
+  }
+
+  struct MissingIDToken: LocalizedError {
+    var errorDescription: String? { "Google's answer had no ID token" }
+  }
+
   /// Google's token endpoint didn't redeem the code.
   struct RedeemFailed: LocalizedError {
     let statusCode: Int
@@ -159,19 +179,14 @@ public struct GoogleOAuth: Sendable {
     init(statusCode: Int, body: Data) {
       struct Body: Decodable {
         let error: String?
-        let description: String?
-
-        enum CodingKeys: String, CodingKey {
-          case error
-          case description = "error_description"
-        }
+        let errorDescription: String?
       }
-      let decoded = try? JSONDecoder().decode(Body.self, from: body)
+      let decoded = try? GoogleOAuth.decoder.decode(Body.self, from: body)
       self.statusCode = statusCode
       self.error = decoded?.error
       self.errorDescription =
         "Google answered HTTP \(statusCode)"
-        + [decoded?.error, decoded?.description].compactMap { $0 }.map { ": \($0)" }
+        + [decoded?.error, decoded?.errorDescription].compactMap { $0 }.map { ": \($0)" }
         .joined()
     }
   }
@@ -188,14 +203,7 @@ extension GoogleOAuth: DependencyKey {
           for: request.tokenRequest(code: code))
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard statusCode == 200 else { throw RedeemFailed(statusCode: statusCode, body: data) }
-        struct Tokens: Decodable {
-          let idToken: String
-
-          enum CodingKeys: String, CodingKey {
-            case idToken = "id_token"
-          }
-        }
-        return try JSONDecoder().decode(Tokens.self, from: data).idToken
+        return try idToken(from: data)
       }
     )
   }

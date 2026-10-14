@@ -100,6 +100,15 @@ struct GoogleOAuthTests {
   }
 
   @Test
+  func readsTheIDTokenFromGooglesAnswer() throws {
+    let answer = #"{"access_token":"a","expires_in":3599,"id_token":"header.claims.signature"}"#
+    #expect(try GoogleOAuth.idToken(from: Data(answer.utf8)) == "header.claims.signature")
+    #expect(throws: GoogleOAuth.MissingIDToken.self) {
+      try GoogleOAuth.idToken(from: Data(#"{"access_token":"a"}"#.utf8))
+    }
+  }
+
+  @Test
   func formEncodingEscapesNonASCII() throws {
     let tokenRequest = request.tokenRequest(code: "é")
     let body = String(decoding: try #require(tokenRequest.httpBody), as: UTF8.self)
