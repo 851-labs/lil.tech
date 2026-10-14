@@ -4,6 +4,11 @@ chat.db-*
 *.db-wal
 *.db-shm
 
+# Never commit real Health data (Health app exports)
+apple_health_export/
+export.xml
+export_cda.xml
+
 # macOS
 .DS_Store
 

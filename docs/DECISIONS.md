@@ -43,16 +43,24 @@
 
 ## Distribution
 
-- **Mac apps:** direct download only, never the Mac App Store. Not sandboxed.
-- **iOS apps:** TestFlight and the App Store, which HealthKit requires.
-- **Signing:** team `WH4QW9ND3J`.
-  - Debug builds are signed with Apple Development, so macOS keeps privacy permissions across rebuilds.
-  - Release builds are signed with Developer ID, with the hardened runtime and a secure timestamp.
+- **Team:** every app is signed by team `WH4QW9ND3J`. Debug builds are signed with Apple Development, so macOS keeps privacy permissions across rebuilds.
+- **Versioning:** each app has its own version, shared across its platforms and tagged like `messages/v0.1.0` or `health/v0.1.0`.
+
+### Mac apps
+
+- **Direct download only**, never the Mac App Store. Not sandboxed.
+- **Signing:** Release builds are signed with Developer ID, with the hardened runtime and a secure timestamp.
 - **Notarization:** `notarytool` with an App Store Connect API key, saved in the keychain profile `lil-notary`.
 - **Packaging:** a signed, notarized DMG, used both for first downloads and as the Sparkle update.
 - **Updates:** Sparkle, with EdDSA-signed updates. The private key lives only in Alexandru's login keychain (backed up); the public key is in the app's Info.plist.
 - **Releases:** GitHub Releases host the DMGs. Each app's appcast is committed to the repo (`appcasts/<app>.xml`) and served from `raw.githubusercontent.com`, because GitHub's "latest release" URL is repo-wide.
-- **Versioning:** each app has its own version, tagged like `messages/v0.1.0`.
+
+### iOS apps
+
+- **TestFlight and the App Store**, which HealthKit requires. Release builds are signed with Apple Distribution and uploaded to App Store Connect.
+
+### Everywhere
+
 - **CI:** a self-hosted macOS runner for Swift, once we need one. TypeScript CI runs on GitHub-hosted runners.
 - **No analytics or crash reporting** in the apps. The server uses Cloudflare's Workers Logs and Effect tracing, with no third-party observability.
 
@@ -60,6 +68,7 @@
 
 - **One API for every app:** a monolith at `api.lil.tech`, used by lil health now and by lil mail and lil calendar later.
   - Environments: prod (`api.lil.tech`), staging (`api.staging.lil.tech`), and a preview per PR.
+  - Staging and previews hold synthetic data only. Simulator builds use them; builds on your own iPhone, with your real Health data, use prod under your own account.
 - **Hosting:** Cloudflare only for now, on Workers Paid. `lil.tech` is registered at Namecheap, with DNS on Cloudflare.
 - **Stack:** Effect 4, Vite+, and [Alchemy](https://alchemy.run) v2 for infrastructure as code (`alchemy.run.ts`).
 - **API contract:** Effect HttpApi publishes OpenAPI, with routes versioned under `/v1`. The spec is committed, and the Swift client is generated from it with `swift-openapi-generator`.
@@ -67,8 +76,9 @@
   - D1 holds data shared across users: users, identities, sessions, devices and connections.
   - Each user's own data (health now, mail and calendar later) lives in that user's SQLite-backed Durable Object.
   - Large blobs (ECG voltages, workout routes, sync snapshots) live in R2.
+  - R2 blobs are immutable and addressed by content hash. They're only deleted with a grace period (or when an account is deleted), and snapshots can be rebuilt from the Durable Object.
   - Not D1 for user data, because one D1 database has a hard 10 GB cap shared by everyone, and a Worker can't bind a new database per user at runtime.
-- **Backups:** D1 and Durable Object point-in-time recovery (30 days).
+- **Backups:** D1 and Durable Object point-in-time recovery (30 days). R2 has none, which is why blobs are immutable.
 
 ## Accounts
 
@@ -95,18 +105,22 @@
 - **iOS app:** a minimal bridge: sign in, consent, grant Health access, sync status.
 - **Data:** v1 syncs every readable HealthKit type, including workouts and routes, ECG, heartbeat series, audiograms, medications and State of Mind.
   - Clinical records (Health Records) are out of scope, because they need an entitlement that depends on App Review approval.
-- **Statistics:** the iPhone computes 30-minute statistics with HealthKit's own statistics queries, so de-duplication by source priority (e.g. iPhone and Watch steps) matches Health exactly.
-  - 30-minute buckets keep days exact in half-hour time zones. Only offsets ending in :45 are approximate.
-  - The Mac groups buckets into days in its current time zone. Raw samples back "Show All Data".
-- **Multiple iPhones:** every signed-in iPhone uploads, relying on Health's iCloud sync.
-  - Samples de-duplicate by HealthKit UUID, and the last upload of a statistics bucket wins.
-  - Not supported: Health iCloud sync turned off, or iPhones on different Apple IDs in one lil account.
+- **Statistics:**
+  - **Cumulative types** (steps, energy, distance…): the iPhone computes 30-minute sums with HealthKit's own statistics queries, so de-duplication by source priority (e.g. iPhone and Watch steps) matches Health exactly.
+    - 30-minute buckets keep days exact in half-hour time zones. Only offsets ending in :45 are approximate.
+    - The Mac adds buckets up into days in its current time zone.
+  - **Discrete types** (heart rate, weight…): the Mac computes averages, minimums and maximums from raw samples. Averages of bucket averages would be wrong, and HealthKit's statistics don't include sample counts to weight them.
+  - Raw samples also back "Show All Data".
+- **Multiple iPhones:** every signed-in iPhone uploads, relying on Health's iCloud sync to give them the same data.
+  - Samples de-duplicate by HealthKit UUID.
+  - Statistics are stored per iPhone, and the Mac reads one statistics source: the iPhone paired with an Apple Watch, otherwise the most recently active one. An iPhone that's behind on iCloud sync can't overwrite a complete one.
+  - Not supported: Health iCloud sync turned off, or iPhones on different Apple IDs in one lil account. Signing in on a second iPhone shows a warning about this.
 - **Privacy:**
   - Health data is readable by the server and encrypted at rest by Cloudflare. That keeps server-side features possible, such as an MCP server later.
   - It's processed only with explicit consent (GDPR special-category data), and never used for ads or sold.
   - Real health data never goes into staging, previews, tests, commits or tickets.
 - **Availability:** permanently free, with no subscriptions, ads or paid tiers.
-  - Signup is open, in every App Store region except mainland China (data-localization rules).
+  - Signup is open, in every App Store region except mainland China (data-localization rules). The server also refuses new accounts from mainland China, since the Mac app is downloaded directly.
   - Rate limits and per-user storage quotas keep costs in check.
 
 ## lil messages

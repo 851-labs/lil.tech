@@ -43,4 +43,4 @@ This repo is public. lil messages reads `~/Library/Messages/chat.db`, and dev ma
 - Test fixtures and previews use synthetic data only, e.g. built from hand-written SQL.
 - Before committing, check that no `.db` files or real message content are staged.
 - **Health data** follows the same rules. Never commit, paste or attach real Health data (exports, samples, screenshots of real values, server rows), and never copy it into staging or preview environments.
-- Testing lil health on your own iPhone is fine. Keep that data in your own account, and use synthetic data in tests, previews and tickets.
+- Testing lil health on your own iPhone is fine. Device builds talk to prod, so your real data stays in your own prod account. Simulator builds talk to staging or a PR preview, which only ever get synthetic data. Use synthetic data in tests, previews and tickets.
