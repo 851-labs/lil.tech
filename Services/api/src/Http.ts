@@ -1,6 +1,6 @@
 import * as Http from "alchemy/Http";
 import { Effect, Layer, Option, Redacted, Schema } from "effect";
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
+import { Headers, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
 import { AppleSignIn } from "./auth/Apple.ts";
@@ -28,6 +28,7 @@ import { HealthBatchFiles, HealthBatchQueue, healthBatchKey } from "./health/Hea
 import { Users } from "./core/Users.ts";
 import { Deployment } from "./Deployment.ts";
 import { Status } from "./Status.ts";
+import { sessionExpiresHeader } from "./store/UserStore.ts";
 import { UserStores } from "./store/UserStores.ts";
 import {
   InvalidPartUrl,
@@ -292,6 +293,54 @@ export const SnapshotPartRoute = HttpRouter.use((router) =>
   }),
 );
 
+/**
+ * `GET /v1/sync/live`: a WebSocket of live sync notices, handed to the user's store
+ * (`docs/SYNC.md`). Authenticated with the access token in the `Authorization` header like other
+ * requests; the store closes the socket when that token expires. Left out of the OpenAPI spec,
+ * which can't describe WebSockets.
+ */
+export const LiveRoute = HttpRouter.use((router) =>
+  Effect.gen(function* () {
+    const accessTokens = yield* AccessTokens;
+    const stores = yield* UserStores;
+    yield* router.add(
+      "GET",
+      "/v1/sync/live",
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const token = /^Bearer (.+)$/i.exec(request.headers["authorization"] ?? "")?.[1];
+        const session =
+          token === undefined
+            ? Option.none()
+            : yield* accessTokens.verifyWithExpiry(token).pipe(Effect.option);
+        if (Option.isNone(session)) {
+          return HttpServerResponse.jsonUnsafe(
+            { _tag: "Unauthorized", message: "Missing, invalid or expired access token" },
+            { status: 401 },
+          );
+        }
+        if (request.headers["upgrade"]?.toLowerCase() !== "websocket") {
+          return HttpServerResponse.jsonUnsafe(
+            { _tag: "UpgradeRequired", message: "Connect with a WebSocket" },
+            { status: 426 },
+          );
+        }
+        // The store trusts this header: only the Worker can reach it, and it's set here.
+        return yield* stores.live(
+          session.value.claims.userId,
+          request.modify({
+            headers: Headers.set(
+              request.headers,
+              sessionExpiresHeader,
+              String(session.value.expiresAt),
+            ),
+          }),
+        );
+      }),
+    );
+  }),
+);
+
 const OpenApiRoute = HttpRouter.add(
   "GET",
   "/v1/openapi.json",
@@ -310,6 +359,7 @@ export const WorkerHttpLayer = Layer.mergeAll(
   OpenApiRoute,
   DevSignInRoute,
   SnapshotPartRoute,
+  LiveRoute,
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),
   Layer.provide([AuthorizationLayer, UploadSizeLimitLayer]),

@@ -148,7 +148,7 @@ GET /v1/sync/live   (WebSocket)
 ```
 
 - Authenticated with the access token in the `Authorization` header, like every other request.
-- Lives on the user's store as a hibernatable WebSocket, so idle connections cost nothing.
+- Lives on the user's store as a hibernatable WebSocket, so idle connections cost nothing. The Worker checks the access token, then hands the upgrade to the store, together with when the token expires.
 - The server sends `{ "type": "head", "seq": <n> }` when the socket opens and after writes that appended changes.
   - Notices are coalesced to at most one every 250 ms. The **latest** `head` is always sent at the end of the window, so the last write in a burst is never left unannounced.
 - When `seq` is greater than its cursor, the client runs the pull loop. Notices carry no data; pulling is the only way data arrives.

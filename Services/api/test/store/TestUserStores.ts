@@ -1,4 +1,5 @@
 import { Clock, Context, Effect, Layer, Option } from "effect";
+import { HttpServerResponse } from "effect/http";
 import type { UserId } from "../../src/core/Ids.ts";
 import { Column, createEntityTable, defineEntity } from "../../src/store/Entities.ts";
 import type { Mutation } from "../../src/store/Changes.ts";
@@ -10,7 +11,11 @@ import {
 import type { StoreSql } from "../../src/store/StoreSql.ts";
 import { SnapshotParts } from "../../src/sync/SnapshotParts.ts";
 import { entities } from "../../src/store/Registry.ts";
-import { makeUserStore, type UserStoreMethods } from "../../src/store/UserStore.ts";
+import {
+  makeUserStore,
+  sessionExpiresHeader,
+  type UserStoreMethods,
+} from "../../src/store/UserStore.ts";
 import { UserStores, userStoreName } from "../../src/store/UserStores.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
 
@@ -52,7 +57,17 @@ export const makeTestUserStores = (files?: SnapshotFiles) => {
     getByName: (name) => {
       const existing = opened.get(name) ?? makeTestStore(files);
       opened.set(name, existing);
-      return existing.store;
+      return {
+        ...existing.store,
+        // A live connection can't be upgraded in tests; this answers with what the store got.
+        fetch: (request) =>
+          Effect.succeed(
+            HttpServerResponse.jsonUnsafe({
+              store: name,
+              expiresAt: request.headers[sessionExpiresHeader],
+            }),
+          ),
+      };
     },
   });
   return { stores, opened };

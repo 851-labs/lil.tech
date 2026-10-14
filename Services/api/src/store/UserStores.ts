@@ -1,4 +1,5 @@
 import { Context, Effect, Predicate, Schema } from "effect";
+import type { HttpServerRequest, HttpServerResponse } from "effect/http";
 import type { UserId } from "../core/Ids.ts";
 import type { UserStoreMethods } from "./UserStore.ts";
 
@@ -32,7 +33,14 @@ export type UserStoreClient = {
 /** Each user's store, called over Durable Object RPC. */
 export class UserStores extends Context.Service<
   UserStores,
-  { readonly forUser: (userId: UserId) => UserStoreClient }
+  {
+    readonly forUser: (userId: UserId) => UserStoreClient;
+    /** Hands a live notice connection (a WebSocket upgrade) to the user's store. */
+    readonly live: (
+      userId: UserId,
+      request: HttpServerRequest.HttpServerRequest,
+    ) => Effect.Effect<HttpServerResponse.HttpServerResponse>;
+  }
 >()("lil/api/store/UserStores") {
   /**
    * Stores addressed by name in a Durable Object namespace. Alchemy's stubs are typed like the
@@ -41,9 +49,15 @@ export class UserStores extends Context.Service<
    * defect (a 500) otherwise, such as a bug that throws inside the store, which retrying won't fix.
    */
   static readonly fromNamespace = (namespace: {
-    readonly getByName: (name: string) => UserStoreMethods;
+    readonly getByName: (name: string) => UserStoreMethods & {
+      readonly fetch: (
+        request: HttpServerRequest.HttpServerRequest,
+      ) => Effect.Effect<HttpServerResponse.HttpServerResponse, unknown>;
+    };
   }) =>
     UserStores.of({
+      live: (userId, request) =>
+        namespace.getByName(userStoreName(userId)).fetch(request).pipe(Effect.orDie),
       forUser: (userId) => {
         const stub = namespace.getByName(userStoreName(userId));
         return new Proxy({} as UserStoreClient, {

@@ -27,6 +27,13 @@ export class AccessTokens extends Context.Service<
       claims: AccessTokenClaims,
     ) => Effect.Effect<{ readonly token: string; readonly expiresAt: number }>;
     readonly verify: (token: string) => Effect.Effect<AccessTokenClaims, InvalidAccessToken>;
+    /** `verify`, plus when the token expires (Unix milliseconds). */
+    readonly verifyWithExpiry: (
+      token: string,
+    ) => Effect.Effect<
+      { readonly claims: AccessTokenClaims; readonly expiresAt: number },
+      InvalidAccessToken
+    >;
   }
 >()("lil/api/auth/AccessTokens") {
   static readonly layer = Layer.effect(
@@ -34,6 +41,25 @@ export class AccessTokens extends Context.Service<
     Effect.gen(function* () {
       const secret = new TextEncoder().encode(Redacted.value(yield* SessionKey));
       const decodeClaims = Schema.decodeUnknownEffect(AccessTokenClaims);
+      const verifyWithExpiry = Effect.fn("AccessTokens.verify")(function* (token: string) {
+        const now = yield* Clock.currentTimeMillis;
+        const { payload } = yield* Effect.tryPromise({
+          try: () =>
+            jwtVerify(token, secret, {
+              issuer,
+              audience,
+              algorithms: ["HS256"],
+              currentDate: new Date(now),
+            }),
+          catch: (error) => new InvalidAccessToken({ reason: String(error) }),
+        });
+        const claims = yield* decodeClaims({
+          userId: payload.sub,
+          deviceId: payload["dev"],
+          sessionId: payload["sid"],
+        }).pipe(Effect.mapError((error) => new InvalidAccessToken({ reason: error.message })));
+        return { claims, expiresAt: (payload.exp ?? 0) * 1000 };
+      });
       return AccessTokens.of({
         sign: Effect.fn("AccessTokens.sign")(function* (claims) {
           const now = yield* Clock.currentTimeMillis;
@@ -51,24 +77,8 @@ export class AccessTokens extends Context.Service<
           );
           return { token, expiresAt };
         }),
-        verify: Effect.fn("AccessTokens.verify")(function* (token) {
-          const now = yield* Clock.currentTimeMillis;
-          const { payload } = yield* Effect.tryPromise({
-            try: () =>
-              jwtVerify(token, secret, {
-                issuer,
-                audience,
-                algorithms: ["HS256"],
-                currentDate: new Date(now),
-              }),
-            catch: (error) => new InvalidAccessToken({ reason: String(error) }),
-          });
-          return yield* decodeClaims({
-            userId: payload.sub,
-            deviceId: payload["dev"],
-            sessionId: payload["sid"],
-          }).pipe(Effect.mapError((error) => new InvalidAccessToken({ reason: error.message })));
-        }),
+        verify: (token) => Effect.map(verifyWithExpiry(token), ({ claims }) => claims),
+        verifyWithExpiry,
       });
     }),
   );

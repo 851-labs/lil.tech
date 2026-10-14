@@ -148,6 +148,9 @@ describe("fromDurableObjectStorage", () => {
   );
 });
 
+/** Live connections, which these tests don't make. */
+const noLive = () => Effect.die("No live connections in this test");
+
 describe("UserStores", () => {
   const ada = "usr_000000000000000000000000ad" as UserId;
   const bob = "usr_000000000000000000000000b0" as UserId;
@@ -158,11 +161,11 @@ describe("UserStores", () => {
       const stores = UserStores.fromNamespace({
         getByName: (name) => {
           const existing = opened.get(name);
-          if (existing !== undefined) return existing.store;
+          if (existing !== undefined) return { ...existing.store, fetch: noLive };
           const sql = makeTestStoreSql();
           const store = makeUserStore(sql);
           opened.set(name, { sql, store });
-          return store;
+          return { ...store, fetch: noLive };
         },
       });
 
@@ -187,7 +190,9 @@ describe("UserStores", () => {
             cause: Object.assign(new Error("reset"), { retryable: true }),
           }),
       } as unknown as UserStoreMethods;
-      const stores = UserStores.fromNamespace({ getByName: () => failing });
+      const stores = UserStores.fromNamespace({
+        getByName: () => ({ ...failing, fetch: noLive }),
+      });
       const error = yield* Effect.flip(stores.forUser(ada).schemaVersion());
       assert.strictEqual(error._tag, "UserStoreUnavailable");
       assert.include(error.message, "reset");
@@ -200,7 +205,9 @@ describe("UserStores", () => {
         schemaVersion: () =>
           Effect.fail({ _tag: "RpcCallError", method: "schemaVersion", cause: new Error("bug") }),
       } as unknown as UserStoreMethods;
-      const stores = UserStores.fromNamespace({ getByName: () => failing });
+      const stores = UserStores.fromNamespace({
+        getByName: () => ({ ...failing, fetch: noLive }),
+      });
       const exit = yield* Effect.exit(stores.forUser(ada).schemaVersion());
       assert.isTrue(Exit.hasDies(exit));
     }),
