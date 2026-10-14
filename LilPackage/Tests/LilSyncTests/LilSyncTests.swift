@@ -528,7 +528,55 @@ struct LilSyncBootstrapTests {
 
     try await engine(database: database).bootstrap()
     #expect(try storedNotes(database).count == 4)
-    #expect(server.state.value.downloads.contains(urls[0] + "&fresh"))
+    // One refresh serves every remaining part.
+    #expect(
+      server.state.value.downloads == [urls[0], urls[0] + "&fresh", urls[1] + "&fresh"])
+    #expect(server.state.value.snapshotRequests == 2)
+  }
+
+  @Test
+  func skipsSnapshotRecordsItCannotRead() async throws {
+    try server.publishSnapshot(seq: 0, notes: [Note(id: "a", title: "A")])
+    // Swap in a part with a record whose title isn't a string, and one that's fine.
+    let gzip = try Gzip.compress(Data(#"{"id":"x","title":7}\#n{"id":"b","title":"B"}"#.utf8))
+    server.state.withValue { state in
+      guard var snapshot = state.snapshot else { return }
+      let url = "https://api.test/v1/sync/parts?token=odd"
+      let sha = SHA256.hash(data: gzip).map { String(format: "%02x", $0) }.joined()
+      snapshot.entities[0].parts = [.init(url: url, records: 2, bytes: gzip.count, sha256: sha)]
+      state.snapshot = snapshot
+      state.partBytes = [url: gzip]
+    }
+    let database = try makeDatabase(bootstrapped: false)
+    let engine = engine(database: database)
+    try await withKnownIssue {
+      try await engine.bootstrap()
+    } matching: {
+      $0.description.contains("Skipped a note record")
+    }
+    #expect(try storedNotes(database).map(\.id) == ["b"])
+  }
+
+  @Test
+  func downloadsADamagedCachedPartAgain() async throws {
+    try server.publishSnapshot(seq: 0, notes: [Note(id: "a", title: "A")])
+    let part = try #require(server.state.value.snapshot?.entities[0].parts[0])
+    try FileManager.default.createDirectory(at: partsDirectory, withIntermediateDirectories: true)
+    try Data("damaged".utf8).write(to: partsDirectory.appending(path: "\(part.sha256).ndjson.gz"))
+    let database = try makeDatabase(bootstrapped: false)
+    try await engine(database: database).bootstrap()
+    #expect(try storedNotes(database).map(\.id) == ["a"])
+    #expect(server.state.value.downloads == [part.url])
+  }
+
+  @Test
+  func removesPartsLeftByAnOlderBootstrap() async throws {
+    try FileManager.default.createDirectory(at: partsDirectory, withIntermediateDirectories: true)
+    let stale = partsDirectory.appending(path: "0123.ndjson.gz")
+    try Data("old".utf8).write(to: stale)
+    try server.publishSnapshot(seq: 0, notes: [Note(id: "a", title: "A")])
+    try await engine(database: try makeDatabase(bootstrapped: false)).bootstrap()
+    #expect(!FileManager.default.fileExists(atPath: stale.path()))
   }
 
   @Test
@@ -641,7 +689,8 @@ struct GzipTests {
   @Test
   func rejectsDamagedFiles() throws {
     var compressed = try Gzip.compress(Data("hello".utf8))
-    compressed[compressed.count - 5] ^= 0xff
+    // The size in the trailer. (Its CRC isn't checked: parts are checked with SHA-256.)
+    compressed[compressed.count - 1] ^= 0xff
     #expect(throws: Gzip.InvalidData.self) { try Gzip.decompress(compressed) }
     #expect(throws: Gzip.InvalidData.self) { try Gzip.decompress(Data("plain".utf8)) }
   }

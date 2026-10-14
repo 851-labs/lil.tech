@@ -8,35 +8,30 @@ enum Gzip {
     let reason: String
   }
 
+  /// Decompresses `data`, checking the size in its trailer. Its CRC isn't checked: parts are
+  /// checked with SHA-256 when they're downloaded.
   static func decompress(_ data: Data) throws -> Data {
-    let bytes = [UInt8](data)
-    guard bytes.count >= 18, bytes[0] == 0x1f, bytes[1] == 0x8b, bytes[2] == 8 else {
-      throw InvalidData(reason: "Not a gzip file")
-    }
-    let flags = bytes[3]
-    var offset = 10
+    let start = data.startIndex
+    guard data.count >= 18, data[start] == 0x1f, data[start + 1] == 0x8b, data[start + 2] == 8
+    else { throw InvalidData(reason: "Not a gzip file") }
+    let flags = data[start + 3]
+    var offset = start + 10
     if flags & 0x04 != 0 {  // FEXTRA
-      guard offset + 2 <= bytes.count else { throw InvalidData(reason: "Truncated header") }
-      offset += 2 + Int(bytes[offset]) + Int(bytes[offset + 1]) << 8
+      guard offset + 2 <= data.endIndex else { throw InvalidData(reason: "Truncated header") }
+      offset += 2 + Int(data[offset]) + Int(data[offset + 1]) << 8
     }
     for flag in [UInt8(0x08), 0x10] where flags & flag != 0 {  // FNAME, FCOMMENT
-      while offset < bytes.count, bytes[offset] != 0 { offset += 1 }
+      while offset < data.endIndex, data[offset] != 0 { offset += 1 }
       offset += 1
     }
     if flags & 0x02 != 0 { offset += 2 }  // FHCRC
-    guard offset <= bytes.count - 8 else { throw InvalidData(reason: "Truncated file") }
+    let trailer = data.endIndex - 8
+    guard offset <= trailer else { throw InvalidData(reason: "Truncated file") }
 
-    let deflated = Data(bytes[offset..<(bytes.count - 8)])
-    let inflated = try (deflated as NSData).decompressed(using: .zlib) as Data
-    let trailer = Array(bytes[(bytes.count - 8)...])
-    let crc = trailer[0..<4].enumerated().reduce(UInt32(0)) {
-      $0 | UInt32($1.element) << (8 * $1.offset)
-    }
-    let size = trailer[4..<8].enumerated().reduce(UInt32(0)) {
-      $0 | UInt32($1.element) << (8 * $1.offset)
-    }
-    guard crc == crc32(inflated), size == UInt32(truncatingIfNeeded: inflated.count) else {
-      throw InvalidData(reason: "Checksum mismatch")
+    let inflated = try (data[offset..<trailer] as NSData).decompressed(using: .zlib) as Data
+    let size = (0..<4).reduce(UInt32(0)) { $0 | UInt32(data[trailer + 4 + $1]) << (8 * $1) }
+    guard size == UInt32(truncatingIfNeeded: inflated.count) else {
+      throw InvalidData(reason: "Size mismatch")
     }
     return inflated
   }
