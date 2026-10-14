@@ -28,6 +28,34 @@ struct AuthClientTests {
   }
 
   @Test
+  func signingInWithGoogleStartsASession() async throws {
+    let (auth, store) = makeAuth { request, body in
+      #expect(request.path == "/v1/auth/google")
+      let sent = try JSONDecoder().decode(
+        Components.Schemas.GoogleSignInRequest.self, from: Data(try await string(body).utf8))
+      #expect(sent.idToken == "google-id-token")
+      #expect(sent.nonce == "raw-nonce")
+      #expect(sent.device.app == "test")
+      return tokenPair(1)
+    }
+    try await auth.signInWithGoogle("google-id-token", "raw-nonce")
+    #expect(try store.load() == session(1))
+  }
+
+  @Test
+  func googleBeforeItsSetUpSaysTryLater() async throws {
+    let (auth, _) = makeAuth { _, _ in
+      (
+        HTTPResponse(status: .serviceUnavailable, headerFields: [.contentType: "application/json"]),
+        HTTPBody(#"{"_tag":"SignInUnavailable","message":"Try again later"}"#)
+      )
+    }
+    await #expect(throws: SignInError.unavailable) {
+      try await auth.signInWithGoogle("google-id-token", "raw-nonce")
+    }
+  }
+
+  @Test
   func aRejectedAppleTokenFails() async throws {
     let (auth, store) = makeAuth { _, _ in
       (

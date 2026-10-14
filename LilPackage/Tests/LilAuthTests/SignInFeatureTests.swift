@@ -1,7 +1,8 @@
 import ComposableArchitecture
 import Foundation
-import LilAuth
 import Testing
+
+@testable import LilAuth
 
 @MainActor
 struct SignInFeatureTests {
@@ -120,6 +121,94 @@ struct SignInFeatureTests {
   }
 
   @Test
+  func signingInWithGoogle() async {
+    let store = TestStore(initialState: SignInFeature.State()) {
+      SignInFeature()
+    } withDependencies: {
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(Zeros())
+      $0.googleOAuth = GoogleOAuth(clientID: "123-abc.apps.googleusercontent.com") {
+        code, request in
+        #expect(code == "4/abc")
+        #expect(request == zeroGoogleRequest)
+        return "google-id-token"
+      }
+      $0.auth.signInWithGoogle = { idToken, nonce in
+        #expect(idToken == "google-id-token")
+        #expect(nonce == zeroNonce)
+      }
+    }
+
+    await store.send(.googleButtonTapped) {
+      $0.googleRequest = zeroGoogleRequest
+    }
+    await store.send(.googleAuthorizationFinished(.success(googleCallback(state: zeroState)))) {
+      $0.googleRequest = nil
+      $0.status = .signingIn
+    }
+    await store.receive(\.signInSucceeded) {
+      $0.status = .signedIn
+    }
+    await store.receive(\.delegate.signedIn)
+  }
+
+  @Test
+  func googleWithoutAClientIsUnavailable() async {
+    let store = TestStore(initialState: SignInFeature.State()) {
+      SignInFeature()
+    } withDependencies: {
+      $0.googleOAuth.clientID = nil
+    }
+
+    await store.send(.googleButtonTapped) {
+      $0.status = .failed("Signing in isn't available right now. Please try again later.")
+    }
+  }
+
+  @Test
+  func cancelingGoogle() async {
+    let store = TestStore(initialState: SignInFeature.State(googleRequest: zeroGoogleRequest)) {
+      SignInFeature()
+    }
+
+    await store.send(.googleAuthorizationFinished(.failure(.canceled))) {
+      $0.googleRequest = nil
+    }
+  }
+
+  @Test
+  func aGoogleRedirectForAnotherRequestFails() async {
+    let store = TestStore(initialState: SignInFeature.State(googleRequest: zeroGoogleRequest)) {
+      SignInFeature()
+    }
+
+    await store.send(.googleAuthorizationFinished(.success(googleCallback(state: "other")))) {
+      $0.googleRequest = nil
+      $0.status = .failed("Signing in didn't work: Google's answer didn't match")
+    }
+  }
+
+  @Test
+  func googleFailingToRedeemTheCode() async {
+    struct Offline: LocalizedError {
+      var errorDescription: String? { "The Internet connection appears to be offline." }
+    }
+    let store = TestStore(initialState: SignInFeature.State(googleRequest: zeroGoogleRequest)) {
+      SignInFeature()
+    } withDependencies: {
+      $0.googleOAuth.redeem = { _, _ in throw Offline() }
+    }
+
+    await store.send(.googleAuthorizationFinished(.success(googleCallback(state: zeroState)))) {
+      $0.googleRequest = nil
+      $0.status = .signingIn
+    }
+    await store.receive(\.signInFailed) {
+      $0.status = .failed(
+        "Signing in didn't work: The Internet connection appears to be offline.")
+    }
+  }
+
+  @Test
   func anAppleResultWithoutANonceFails() async {
     let store = TestStore(initialState: SignInFeature.State()) {
       SignInFeature()
@@ -134,8 +223,15 @@ struct SignInFeatureTests {
 }
 
 private let zeroNonce = String(repeating: "0", count: 64)
+private let zeroState = String(repeating: "0", count: 32)
 
-/// Always zero, so nonces are predictable.
-private struct Zeros: RandomNumberGenerator {
-  mutating func next() -> UInt64 { 0 }
+private let zeroGoogleRequest = GoogleAuthorizationRequest(
+  clientID: "123-abc.apps.googleusercontent.com",
+  codeVerifier: String(repeating: "A", count: 43),
+  nonce: zeroNonce,
+  state: zeroState
+)
+
+private func googleCallback(state: String) -> URL {
+  URL(string: "com.googleusercontent.apps.123-abc:/oauth2redirect?state=\(state)&code=4%2Fabc")!
 }
