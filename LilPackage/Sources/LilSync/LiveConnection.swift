@@ -1,3 +1,4 @@
+import ConcurrencyExtras
 public import Dependencies
 import Foundation
 import LilAPI
@@ -42,6 +43,8 @@ extension LiveConnection: DependencyKey {
   /// How often the live value sends `ping`, which the server answers with `pong` without waking
   /// the user's store, to keep the connection from idling out.
   static let pingInterval = Duration.seconds(30)
+  /// How long to wait for the `pong` before treating the connection as dead.
+  static let pongTimeout = Duration.seconds(10)
 
   public static var liveValue: Self {
     Self { accessToken in
@@ -57,14 +60,19 @@ extension LiveConnection: DependencyKey {
       task.resume()
 
       return AsyncThrowingStream { continuation in
+        let lastHeard = LockIsolated(ContinuousClock.now)
         let receiving = Task {
           do {
             while true {
-              if case .string(let text) = try await task.receive(), text != "pong" {
-                continuation.yield(text)
-              }
+              let message = try await task.receive()
+              lastHeard.setValue(ContinuousClock.now)
+              if case .string(let text) = message, text != "pong" { continuation.yield(text) }
             }
           } catch {
+            // The close code can be recorded just after `receive` fails.
+            for _ in 0..<20 where task.closeCode == .invalid {
+              try? await Task.sleep(for: .milliseconds(50))
+            }
             switch task.closeCode.rawValue {
             case 4001: continuation.finish(throwing: TokenExpired())
             case 0: continuation.finish(throwing: error)
@@ -72,10 +80,18 @@ extension LiveConnection: DependencyKey {
             }
           }
         }
+        // A connection that silently died (e.g. a network switch) answers no pings; give up on it.
         let pinging = Task {
           while !Task.isCancelled {
             try await Task.sleep(for: pingInterval)
+            let sentAt = ContinuousClock.now
             try await task.send(.string("ping"))
+            try await Task.sleep(for: pongTimeout)
+            if lastHeard.value < sentAt {
+              task.cancel(with: .goingAway, reason: nil)
+              continuation.finish(throwing: URLError(.timedOut))
+              return
+            }
           }
         }
         continuation.onTermination = { _ in

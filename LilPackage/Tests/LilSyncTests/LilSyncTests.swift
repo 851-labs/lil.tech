@@ -751,15 +751,15 @@ struct LilSyncLiveTests {
     try await eventually { live.connections.value.count == 1 }
     try await eventually { server.state.requests.count == 1 }
 
-    // The greeting matches the local cursor: nothing to pull.
+    // The greeting matches the local cursor, and other messages aren't notices: no pulls.
     live.latest()?.yield(#"{"type":"head","seq":0}"#)
-    server.append(upsert("n1", "One"))
-    // A notice of a newer head pulls without waiting out the idle interval.
-    live.latest()?.yield(#"{"type":"head","seq":1}"#)
-    try await eventually { try storedNotes().map(\.id) == ["n1"] }
-    // Kinds of messages it doesn't know are ignored.
     live.latest()?.yield(#"{"type":"something-new"}"#)
     live.latest()?.yield("not json")
+    // A notice of a newer head pulls without waiting out the idle interval.
+    server.append(upsert("n1", "One"))
+    live.latest()?.yield(#"{"type":"head","seq":1}"#)
+    try await eventually { try storedNotes().map(\.id) == ["n1"] }
+    #expect(server.state.requests == [0, 0])
 
     listening.cancel()
     running.cancel()
@@ -769,7 +769,22 @@ struct LilSyncLiveTests {
   }
 
   @Test
-  func reconnectsRightAwayWithAFreshTokenWhenTheTokenExpires() async throws {
+  func liveNoticesDontCutAFailuresBackoffShort() async throws {
+    server.state.withValue { $0.failing = [1] }
+    let engine = engine()
+    let running = Task { await engine.run() }
+    try await eventually { server.state.requests.count == 1 }
+    await engine.syncNow()
+    await Task.megaYield()
+    #expect(server.state.requests.count == 1)
+    await clock.advance(by: .seconds(1))
+    try await eventually { server.state.requests.count == 2 }
+    running.cancel()
+    await running.value
+  }
+
+  @Test
+  func reconnectsRightAwayWithAFreshTokenWhenAWorkingConnectionsTokenExpires() async throws {
     let engine = engine()
     let issued = LockIsolated(0)
     let listening = Task {
@@ -779,30 +794,42 @@ struct LilSyncLiveTests {
       }
     }
     try await eventually { live.connections.value.count == 1 }
+    await clock.advance(by: .seconds(60))
     live.latest()?.finish(throwing: LiveConnection.TokenExpired())
     try await eventually { live.connections.value.count == 2 }
     #expect(live.tokens.value == ["token-1", "token-2"])
+
+    // A token that expires right away (e.g. a skewed clock) backs off instead of looping.
+    live.latest()?.yield(#"{"type":"head","seq":0}"#)
+    live.latest()?.finish(throwing: LiveConnection.TokenExpired())
+    await Task.megaYield()
+    #expect(live.connections.value.count == 2)
+    await clock.advance(by: .seconds(1))
+    try await eventually { live.connections.value.count == 3 }
+
     listening.cancel()
     live.latest()?.finish()
     await listening.value
   }
 
   @Test
-  func reconnectsWithBackoffAfterADrop() async throws {
+  func reconnectsWithGrowingBackoffEvenIfEachConnectionWasGreeted() async throws {
     let engine = engine()
     let listening = Task { await engine.listen { "token" } }
     try await eventually { live.connections.value.count == 1 }
+    live.latest()?.yield(#"{"type":"head","seq":0}"#)
     live.latest()?.finish(throwing: URLError(.networkConnectionLost))
-    try await Task.sleep(for: .milliseconds(20))
+    await Task.megaYield()
     // It waits (at most a second after the first failure) before reconnecting.
     #expect(live.connections.value.count == 1)
     await clock.advance(by: .seconds(1))
     try await eventually { live.connections.value.count == 2 }
 
-    // A second drop backs off longer.
+    // A second drop backs off longer, greeting or not.
+    live.latest()?.yield(#"{"type":"head","seq":0}"#)
     live.latest()?.finish(throwing: URLError(.networkConnectionLost))
     await clock.advance(by: .seconds(0.9))
-    try await Task.sleep(for: .milliseconds(20))
+    await Task.megaYield()
     #expect(live.connections.value.count == 2)
     await clock.advance(by: .seconds(1.2))
     try await eventually { live.connections.value.count == 3 }

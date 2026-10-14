@@ -71,7 +71,9 @@ extension SyncClient: DependencyKey {
   public static var liveValue: Self {
     Self(
       run: { reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:) at launch.") },
-      listen: { _ in },
+      listen: { _ in
+        reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:) at launch.")
+      },
       syncNow: {},
       status: { AsyncStream { $0.yield(.idle) } }
     )
