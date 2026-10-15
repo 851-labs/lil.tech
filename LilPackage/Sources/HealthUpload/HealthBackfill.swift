@@ -21,6 +21,8 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   public var uploadedRecords = 0
   /// For cumulative types, the earliest time whose 30-minute sums need uploading again.
   public var statisticsFrom: [String: Date] = [:]
+  /// When each cumulative type's sums last went up.
+  public var statisticsUploadedAt: [String: Date] = [:]
 
   public init() {}
 
@@ -34,6 +36,8 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
     uploadedRecords = try container.decodeIfPresent(Int.self, forKey: .uploadedRecords) ?? 0
     statisticsFrom =
       try container.decodeIfPresent([String: Date].self, forKey: .statisticsFrom) ?? [:]
+    statisticsUploadedAt =
+      try container.decodeIfPresent([String: Date].self, forKey: .statisticsUploadedAt) ?? [:]
   }
 
   /// A page written to batch files. Its anchor is committed once every file is accepted.
@@ -196,37 +200,36 @@ public actor HealthBackfill {
       if let pending = state.pending {
         try await upload(pending, &state)
       }
-      while syncAllRequested || !requestedTypes.isEmpty {
-        let wanted: Set<String>
-        if syncAllRequested {
-          syncAllRequested = false
-          syncedAll = true
-          wanted = Set(types.map(\.id))
-        } else {
-          wanted = requestedTypes
-        }
-        requestedTypes = []
-        for type in types where wanted.contains(type.id) && failures[type.id] == nil {
-          do {
-            try await sync(type, &state)
-            try await uploadStatistics(of: type, &state)
-          } catch  where Task.isCancelled || error is CancellationError {
-            // Paused (e.g. a cancelled upload throws a URL error): the pending page is kept.
-            throw CancellationError()
-          } catch let error as HealthReader.Locked {
-            // Nothing can be read until the device is unlocked: stop, without failing.
-            throw error
-          } catch {
-            // One type can't hold up the rest. Its page is read again next time.
-            failures[type.id] = error
-            if let pending = state.pending, pending.type == type.id {
-              for batch in pending.batches { try? storage.removeFile(batch) }
-              state.pending = nil
-              try storage.saveState(state)
+      repeat {
+        while syncAllRequested || !requestedTypes.isEmpty {
+          let wanted: Set<String>
+          if syncAllRequested {
+            syncAllRequested = false
+            syncedAll = true
+            wanted = Set(types.map(\.id))
+          } else {
+            wanted = requestedTypes
+          }
+          requestedTypes = []
+          for type in types where wanted.contains(type.id) && failures[type.id] == nil {
+            do {
+              try await sync(type, &state)
+            } catch {
+              try stopIfPaused(error)
+              // One type can't hold up the rest. Its page is read again next time.
+              failures[type.id] = error
+              if let pending = state.pending, pending.type == type.id {
+                for batch in pending.batches { try? storage.removeFile(batch) }
+                state.pending = nil
+                try storage.saveState(state)
+              }
             }
           }
         }
-      }
+        // Sums for every type that has some due, including ones from a resumed page.
+        try await uploadAllStatistics(&state, skipping: Set(failures.keys))
+        // Requests made while the sums went up are handled before the loop ends.
+      } while syncAllRequested || !requestedTypes.isEmpty
     } catch {
       let paused = Task.isCancelled || error is CancellationError || error is HealthReader.Locked
       update {
@@ -249,6 +252,13 @@ public actor HealthBackfill {
       // A run that covered everything clears an earlier failure; one for a few changes doesn't.
       if syncedAll { $0.failure = nil }
     }
+  }
+
+  /// Rethrows the error if it means the run is pausing rather than failing: cancelled (a
+  /// cancelled upload throws a URL error), or the device is locked. The pending page is kept.
+  private func stopIfPaused(_ error: any Error) throws {
+    if Task.isCancelled || error is CancellationError { throw CancellationError() }
+    if let locked = error as? HealthReader.Locked { throw locked }
   }
 
   /// Uploads a type's pages from its anchor until there are no more.
@@ -286,11 +296,16 @@ public actor HealthBackfill {
     }
   }
 
-  /// How far back a change with deletions recomputes sums: a deleted object has no dates.
+  /// How far back from a type's last sums a change with deletions recomputes: a deleted
+  /// object has no dates.
   static let deletionWindow: TimeInterval = 7 * 86_400
-  /// Recomputing at most this far back uploads empty buckets too, so sums that are gone are
-  /// overwritten. Longer recomputes (the backfill's) upload only buckets with data.
-  static let zeroFillLimit: TimeInterval = 31 * 86_400
+  /// The most recent part of every recompute uploads empty buckets too, so sums that are gone
+  /// are overwritten. Older parts (e.g. the backfill's history) upload only buckets with data.
+  static let zeroFillWindow: TimeInterval = 31 * 86_400
+  /// Sums are read and uploaded this much at a time, and the progress saved after each.
+  static let statisticsChunk: TimeInterval = 90 * 86_400
+  /// Samples can be logged ahead of time (e.g. a planned meal), so sums run this far ahead.
+  static let statisticsLookahead: TimeInterval = 86_400
 
   /// Notes which of a cumulative type's sums a page of changes affects.
   private func markStatistics(
@@ -303,7 +318,9 @@ public actor HealthBackfill {
     for mutation in mutations {
       let from: Date
       if mutation.op == .delete {
-        from = now().addingTimeInterval(-Self.deletionWindow)
+        // Covers deletions caught up after the app was away, too.
+        let lastSums = state.statisticsUploadedAt[type.id] ?? now()
+        from = min(now(), lastSums).addingTimeInterval(-Self.deletionWindow)
       } else if case .number(let start)? = mutation.row?["startDate"] {
         from = Date(timeIntervalSince1970: start / 1000)
       } else {
@@ -314,44 +331,79 @@ public actor HealthBackfill {
     state.statisticsFrom[type.id] = earliest
   }
 
-  /// Uploads a type's 30-minute sums from HealthKit for the times its changes affected, with
-  /// this iPhone's statistics status. Upserts, so uploading again is harmless.
+  /// Uploads the sums of every type that has some due, then this iPhone's statistics status. A
+  /// failure is kept for the next run and doesn't count against the type's samples.
+  private func uploadAllStatistics(
+    _ state: inout HealthBackfillState, skipping failed: Set<String>
+  ) async throws {
+    var uploaded = false
+    for type in types where state.statisticsFrom[type.id] != nil && !failed.contains(type.id) {
+      do {
+        try await uploadStatistics(of: type, &state)
+        uploaded = true
+      } catch {
+        try stopIfPaused(error)
+        reportIssue(error, "Uploading \(type.id)'s sums; trying again next run")
+      }
+    }
+    guard uploaded else { return }
+    let paired = await statisticsReader.isPairedWithWatch()
+    var writer = HealthBatchWriter()
+    _ = try writer.append(HealthEncoder.statisticsDevice(pairedWithWatch: paired))
+    if let file = try writer.finish() {
+      do {
+        try await uploader.upload(uuid().uuidString.lowercased(), file)
+      } catch {
+        try stopIfPaused(error)
+      }
+    }
+  }
+
+  /// Uploads a type's 30-minute sums from HealthKit, from the earliest time its changes affected,
+  /// a chunk at a time, saving the progress after each. Upserts, so uploading again is harmless.
   private func uploadStatistics(
     of type: HealthBackfillType, _ state: inout HealthBackfillState
   ) async throws {
     guard let from = state.statisticsFrom[type.id],
       let unit = HealthCatalog.type(id: type.id)?.unit
-    else { return }
-    let start = HealthEncoder.bucketStart(of: from)
-    let end = now()
-    var buckets = try await statisticsReader.buckets(type.id, start, end)
-    if end.timeIntervalSince(start) <= Self.zeroFillLimit {
+    else {
+      state.statisticsFrom[type.id] = nil
+      return
+    }
+    var start = HealthEncoder.bucketStart(of: from)
+    let end = HealthEncoder.bucketStart(
+      of: max(now(), start).addingTimeInterval(Self.statisticsLookahead))
+    let zeroFillFrom = now().addingTimeInterval(-Self.zeroFillWindow)
+    while start < end {
+      try Task.checkCancellation()
+      let chunkEnd = min(end, start.addingTimeInterval(Self.statisticsChunk))
+      var buckets = try await statisticsReader.buckets(type.id, start, chunkEnd)
       let found = Set(buckets.map(\.start))
-      var bucket = start
-      while bucket < end {
+      var bucket = max(start, HealthEncoder.bucketStart(of: zeroFillFrom))
+      while bucket < chunkEnd {
         if !found.contains(bucket) { buckets.append(HealthBucket(start: bucket, sum: 0)) }
         bucket = bucket.addingTimeInterval(HealthEncoder.bucketSeconds)
       }
-    }
-    let paired = await statisticsReader.isPairedWithWatch()
-    var writer = HealthBatchWriter()
-    var files: [Data] = []
-    for bucket in buckets.sorted(by: { $0.start < $1.start }) {
-      if let file = try writer.append(
-        HealthEncoder.statistic(type: type.id, bucket: bucket, unit: unit))
-      {
-        files.append(file)
+      var writer = HealthBatchWriter()
+      var files: [Data] = []
+      for bucket in buckets.sorted(by: { $0.start < $1.start }) {
+        if let file = try writer.append(
+          HealthEncoder.statistic(type: type.id, bucket: bucket, unit: unit))
+        {
+          files.append(file)
+        }
       }
-    }
-    if let file = try writer.append(HealthEncoder.statisticsDevice(pairedWithWatch: paired)) {
-      files.append(file)
-    }
-    if let file = try writer.finish() { files.append(file) }
-    for file in files {
-      try Task.checkCancellation()
-      try await uploader.upload(uuid().uuidString.lowercased(), file)
+      if let file = try writer.finish() { files.append(file) }
+      for file in files {
+        try Task.checkCancellation()
+        try await uploader.upload(uuid().uuidString.lowercased(), file)
+      }
+      start = chunkEnd
+      state.statisticsFrom[type.id] = start < end ? start : nil
+      try storage.saveState(state)
     }
     state.statisticsFrom[type.id] = nil
+    state.statisticsUploadedAt[type.id] = now()
     try storage.saveState(state)
   }
 

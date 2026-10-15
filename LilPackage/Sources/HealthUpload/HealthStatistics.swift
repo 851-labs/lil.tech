@@ -131,6 +131,9 @@ extension HealthStatisticsReader: DependencyKey {
   /// `WCSession.isPaired`, which is only known once the session is activated.
   private final class WatchPairing: NSObject, WCSessionDelegate, Sendable {
     static let shared = WatchPairing()
+    /// Gives up after a few seconds, so a callback that never comes can't stop uploads.
+    static let timeout: Duration = .seconds(5)
+
     private let waiting = LockIsolated<[CheckedContinuation<Bool, Never>]>([])
 
     func isPaired() async -> Bool {
@@ -141,20 +144,27 @@ extension HealthStatisticsReader: DependencyKey {
         waiting.withValue { $0.append(continuation) }
         session.delegate = self
         session.activate()
+        Task {
+          try? await Task.sleep(for: Self.timeout)
+          let session = WCSession.default
+          self.finish(paired: session.activationState == .activated && session.isPaired)
+        }
       }
+    }
+
+    private func finish(paired: Bool) {
+      let continuations = waiting.withValue {
+        defer { $0 = [] }
+        return $0
+      }
+      for continuation in continuations { continuation.resume(returning: paired) }
     }
 
     func session(
       _ session: WCSession, activationDidCompleteWith state: WCSessionActivationState,
       error: (any Error)?
     ) {
-      let paired = state == .activated && session.isPaired
-      for continuation in waiting.withValue({
-        defer { $0 = [] }
-        return $0
-      }) {
-        continuation.resume(returning: paired)
-      }
+      finish(paired: state == .activated && session.isPaired)
     }
 
     func sessionDidBecomeInactive(_ session: WCSession) {}

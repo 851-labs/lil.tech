@@ -202,9 +202,13 @@ POST /v1/sync/mutations
     - A type that fails doesn't hold up the others. Its page is read again on the next run.
     - HealthKit is told the change is handled when the upload finishes, or after 25 seconds, whichever comes first.
   - **Statistics:** for cumulative types, the iPhone uploads HealthKit's own 30-minute sums (`HKStatisticsCollectionQuery` anchored at the Unix epoch, so buckets start on UTC half-hours), along with its `health_statistics_device` row (whether it's paired with an Apple Watch).
-    - After a type's samples go up, its sums are uploaded again from the earliest time the changes affected. During a backfill, that's the earliest sample read. After a change, it's the earliest added sample, or the last 7 days when something was deleted, since a deleted object has no dates.
-    - Recomputing a month or less uploads empty buckets as zeros, so sums that are gone get overwritten. Longer recomputes upload only buckets with data.
-    - A failed upload keeps its start time, and is tried again on the next run.
+    - After a type's samples go up, its sums are uploaded again from the earliest time the changes affected to a day ahead, since samples can be logged ahead of time.
+      - During a backfill, that's the earliest sample read.
+      - After a change, it's the earliest added sample, or, when something was deleted, 7 days before the type's sums last went up. A deleted object has no dates.
+    - Sums go up 90 days at a time, saving the progress after each, so a long history resumes where it stopped.
+    - The most recent month of every recompute uploads empty buckets as zeros, so sums that are gone get overwritten. Older parts upload only buckets with data.
+    - The device row goes up once per run.
+    - A failed upload of sums is tried again on the next run. It doesn't count as a failure of the type's samples.
   - **Device-scoped records:** some entities belong to the iPhone that uploads them, such as `health_statistic` (30-minute sums from HealthKit) and `health_statistics_device`. The iPhone sends their IDs without a device (`<type>@<bucketStart>`, or `self` for the device's own record). The server stamps each one with the uploading device, taken from the access token: it sets the `device` field and stores the ID as `<device>/<id>` (or just `<device>` for `self`). Two iPhones' records never collide, and an iPhone never needs to know its device ID.
   - **Status:** `GET /v1/health/batches/<id>` returns `queued`, `applying`, `applied` (with counts and up to 100 rejected lines) or `failed`.
   - **Failures:** a delivery that fails (e.g. the store is briefly unavailable) is retried 5 times, 30 seconds apart. Then the batch is marked `failed` and its message goes to a dead-letter queue. A batch still `queued` after 24 hours, or `applying` after an hour, is reported `failed` and never applied later. The client uploads failed or rejected data again as a new batch.
