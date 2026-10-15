@@ -19,6 +19,26 @@ public enum HealthCategory: String, CaseIterable, Hashable, Identifiable, Sendab
 
   public var id: Self { self }
 
+  /// The SF Symbol shown with the category.
+  public var symbolName: String {
+    switch self {
+    case .activity: "flame.fill"
+    case .bodyMeasurements: "figure"
+    case .cycleTracking: "circle.dotted.circle"
+    case .hearing: "ear"
+    case .heart: "heart.fill"
+    case .medications: "pills.fill"
+    case .mentalWellbeing: "brain.head.profile"
+    case .mobility: "figure.walk.motion"
+    case .nutrition: "carrot.fill"
+    case .respiratory: "lungs.fill"
+    case .sleep: "bed.double.fill"
+    case .symptoms: "list.bullet.clipboard"
+    case .vitals: "waveform.path.ecg"
+    case .otherData: "plus"
+    }
+  }
+
   public var name: String {
     switch self {
     case .activity: "Activity"

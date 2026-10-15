@@ -117,12 +117,37 @@ struct AppFeatureTests {
       $0.auth.signOut = { signedOut.setValue(true) }
     }
 
-    await store.send(.signOutButtonTapped).finish()
+    await store.send(.syncStatus(.signOutButtonTapped)).finish()
     #expect(signedOut.value)
     await store.send(.signedInChanged(false)) {
       $0.isSignedIn = false
       $0.signIn = SignInFeature.State()
       $0.healthAccess = nil
     }
+  }
+
+  @Test
+  func reviewingHealthAccessReopensOnboarding() async {
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
+      AppFeature()
+    }
+
+    await store.send(.syncStatus(.reviewHealthAccessButtonTapped))
+    await store.receive(\.syncStatus.delegate.reviewHealthAccess) {
+      $0.healthAccess = HealthAccessFeature.State()
+    }
+  }
+
+  @Test
+  func tryAgainRunsTheBackfill() async {
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
+      AppFeature()
+    } withDependencies: {
+      $0.healthAuthorization.isAvailable = { false }
+    }
+
+    await store.send(.syncStatus(.retryButtonTapped))
+    await store.receive(\.syncStatus.delegate.retry)
+    await store.receive(\.backfill)
   }
 }

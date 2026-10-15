@@ -20,32 +20,11 @@ public struct AppView: View {
         if let healthAccess = store.scope(\.healthAccess, action: \.healthAccess) {
           HealthAccessView(store: healthAccess)
         } else {
-          HomeView(store: store)
+          SyncStatusView(store: store.scope(\.syncStatus, action: \.syncStatus))
         }
       }
     }
     .task { await store.send(.task).finish() }
-  }
-}
-
-/// A placeholder until Health access and sync status arrive.
-struct HomeView: View {
-  let store: StoreOf<AppFeature>
-
-  var body: some View {
-    NavigationStack {
-      ContentUnavailableView(
-        "You're signed in",
-        systemImage: "heart.text.square",
-        description: Text("Syncing your Health data to your Mac is coming soon.")
-      )
-      .navigationTitle("lil health")
-      .toolbar {
-        Button("Sign Out") {
-          store.send(.signOutButtonTapped)
-        }
-      }
-    }
   }
 }
 

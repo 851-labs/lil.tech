@@ -134,6 +134,7 @@ let package = Package(
     .testTarget(
       name: "HealthPhoneAppTests",
       dependencies: [
+        "HealthCatalog",
         "HealthKitAccess",
         "HealthPhoneApp",
         "HealthUpload",
