@@ -202,7 +202,12 @@ public enum HealthDatabase {
     }
   }
 
-  /// The health entities, for ``LilSyncEngine/init(entities:partsDirectory:)``.
+  /// The sync schema number to pass to `SyncClient.live(entities:syncSchema:)`. Bump it in a
+  /// release that starts storing a new field of an entity it already has, so Macs synced by an
+  /// earlier release bootstrap again and get it (`docs/SYNC.md`). New entities need no bump.
+  public static let syncSchema = 1
+
+  /// The health entities, for ``LilSyncEngine/init(entities:syncSchema:partsDirectory:)``.
   public static let syncEntities: [SyncEntity] = [
     entity("health_sample", Components.Schemas.HealthSample.self) { row in
       HealthSample(

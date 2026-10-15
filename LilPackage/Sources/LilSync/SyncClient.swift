@@ -2,7 +2,8 @@ public import Dependencies
 import IssueReporting
 
 extension DependencyValues {
-  /// The app's sync engine. Apps set it once at launch with ``SyncClient/live(entities:)``.
+  /// The app's sync engine. Apps set it once at launch with
+  /// ``SyncClient/live(entities:syncSchema:)``.
   public var sync: SyncClient {
     get { self[SyncClient.self] }
     set { self[SyncClient.self] = newValue }
@@ -38,12 +39,12 @@ public struct SyncClient: Sendable {
   /// A client backed by a ``LilSyncEngine`` for the app's entities. The engine is made on first
   /// use, so it picks up the `defaultDatabase` and `api` that `prepareDependencies` sets
   /// alongside this client.
-  public static func live(entities: [SyncEntity]) -> Self {
+  public static func live(entities: [SyncEntity], syncSchema: Int) -> Self {
     let engine = LockIsolated<LilSyncEngine?>(nil)
     let resolve: @Sendable () -> LilSyncEngine = {
       engine.withValue { engine in
         if let engine { return engine }
-        let made = LilSyncEngine(entities: entities)
+        let made = LilSyncEngine(entities: entities, syncSchema: syncSchema)
         engine = made
         return made
       }
@@ -70,9 +71,11 @@ public struct SyncClient: Sendable {
 extension SyncClient: DependencyKey {
   public static var liveValue: Self {
     Self(
-      run: { reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:) at launch.") },
+      run: {
+        reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:syncSchema:) at launch.")
+      },
       listen: { _ in
-        reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:) at launch.")
+        reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:syncSchema:) at launch.")
       },
       syncNow: {},
       status: { AsyncStream { $0.yield(.idle) } }
