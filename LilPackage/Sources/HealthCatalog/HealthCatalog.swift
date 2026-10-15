@@ -188,9 +188,11 @@ extension HealthCatalog {
       "EnvironmentalSoundReduction", "Environmental Sound Reduction", .hearing, "dBASPL",
       .discreteEquivalentContinuousLevel, .ios(16)
     ),
-    category(
-      "EnvironmentalAudioExposureEvent", "Noise Notifications", .hearing, .ios(14)
-    ),
+    // `HKCategoryTypeIdentifierEnvironmentalAudioExposureEvent`'s value is still the name of
+    // the identifier it replaced.
+    special(
+      "HKCategoryTypeIdentifierAudioExposureEvent", .category, "Noise Notifications", .hearing,
+      .ios(14)),
     category(
       "HeadphoneAudioExposureEvent", "Headphone Notifications", .hearing, .ios(14, 2)
     ),

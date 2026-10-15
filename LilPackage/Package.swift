@@ -14,6 +14,7 @@ let package = Package(
     .library(name: "ConversationListFeature", targets: ["ConversationListFeature"]),
     .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
     .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
+    .library(name: "HealthKitAccess", targets: ["HealthKitAccess"]),
     .library(name: "HealthPhoneApp", targets: ["HealthPhoneApp"]),
     .library(name: "LilAPI", targets: ["LilAPI"]),
     .library(name: "LilAuth", targets: ["LilAuth"]),
@@ -104,8 +105,22 @@ let package = Package(
       ]
     ),
     .target(
+      name: "HealthKitAccess",
+      dependencies: [
+        "HealthCatalog",
+        .product(name: "Dependencies", package: "swift-dependencies"),
+      ]
+    ),
+    .testTarget(
+      name: "HealthKitAccessTests",
+      dependencies: [
+        "HealthKitAccess"
+      ]
+    ),
+    .target(
       name: "HealthPhoneApp",
       dependencies: [
+        "HealthKitAccess",
         "LilAuth",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
       ]
@@ -113,7 +128,8 @@ let package = Package(
     .testTarget(
       name: "HealthPhoneAppTests",
       dependencies: [
-        "HealthPhoneApp"
+        "HealthKitAccess",
+        "HealthPhoneApp",
       ]
     ),
     .target(
