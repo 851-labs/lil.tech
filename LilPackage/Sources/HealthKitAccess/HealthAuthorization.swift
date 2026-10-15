@@ -61,7 +61,7 @@ public struct HealthAuthorization: Sendable {
   }
 
   /// The iOS version the app runs on, to know which types exist.
-  static var currentVersion: IOSVersion {
+  public static var currentVersion: IOSVersion {
     #if os(iOS)
       let version = ProcessInfo.processInfo.operatingSystemVersion
       return .ios(version.majorVersion, version.minorVersion)

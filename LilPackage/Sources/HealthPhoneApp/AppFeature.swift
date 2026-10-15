@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 import HealthKitAccess
+import HealthUpload
 public import LilAuth
 
 /// lil health on the iPhone: sign in, then the home screen.
@@ -23,6 +24,8 @@ public struct AppFeature {
   }
 
   public enum Action {
+    /// Starts uploading the Health history, if it isn't all uploaded.
+    case backfill
     case healthAccess(HealthAccessFeature.Action)
     case healthAccessChecked(needsRequest: Bool)
     case signedInChanged(Bool)
@@ -33,6 +36,9 @@ public struct AppFeature {
 
   @Dependency(\.auth) var auth
   @Dependency(\.healthAuthorization) var healthAuthorization
+  @Dependency(\.healthBackfill) var healthBackfill
+
+  enum CancelID { case backfill }
 
   public init() {}
 
@@ -42,14 +48,20 @@ public struct AppFeature {
     }
     Reduce { state, action in
       switch action {
+      case .backfill:
+        // Failures are kept in the backfill's progress (for the status screen, 851-2557), and
+        // it's tried again on the next launch.
+        return .run { [healthBackfill] _ in try? await healthBackfill.run() }
+          .cancellable(id: CancelID.backfill, cancelInFlight: true)
+
       case .healthAccess(.delegate(.finished)):
         state.$offeredPerObject.withLock { $0 = true }
         state.healthAccess = nil
-        return .none
+        return .send(.backfill)
 
       case .healthAccess(.delegate(.skipped)):
         state.healthAccess = nil
-        return .none
+        return .send(.backfill)
 
       case .healthAccess:
         return .none
@@ -61,6 +73,8 @@ public struct AppFeature {
         } else if !state.offeredPerObject {
           // The system sheet was answered, but onboarding stopped before its last step.
           state.healthAccess = HealthAccessFeature.State(step: .perObject)
+        } else {
+          return .send(.backfill)
         }
         return .none
 
@@ -69,7 +83,11 @@ public struct AppFeature {
         guard isSignedIn else {
           state.signIn = SignInFeature.State()
           state.healthAccess = nil
-          return .none
+          // The next account starts its own backfill from the beginning.
+          return .merge(
+            .cancel(id: CancelID.backfill),
+            .run { [healthBackfill] _ in await healthBackfill.reset() }
+          )
         }
         return .run { [healthAuthorization] send in
           guard healthAuthorization.isAvailable() else { return }

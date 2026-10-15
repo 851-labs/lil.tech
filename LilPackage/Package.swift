@@ -126,6 +126,7 @@ let package = Package(
       name: "HealthPhoneApp",
       dependencies: [
         "HealthKitAccess",
+        "HealthUpload",
         "LilAuth",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
       ]
@@ -142,6 +143,11 @@ let package = Package(
       dependencies: [
         "GzipFiles",
         "HealthCatalog",
+        "HealthKitAccess",
+        "LilAPI",
+        .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "IssueReporting", package: "swift-issue-reporting"),
+        .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
       ]
     ),
     .testTarget(
