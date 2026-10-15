@@ -1,6 +1,7 @@
 import Dependencies
 import Foundation
 import GzipFiles
+import HealthKit
 import Testing
 
 @testable import HealthUpload
@@ -76,6 +77,8 @@ private func makeBackfill(
     $0.healthReader = health.reader
     $0.healthBatchUploader = server.uploader
     $0.healthBackfillStorage = storage
+    $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+    $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
     $0.uuid = .incrementing
     $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
   } operation: {
@@ -155,6 +158,8 @@ struct HealthBackfillTests {
       }
       $0.healthBatchUploader = server.uploader
       $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
       $0.uuid = .incrementing
       $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
     } operation: {
@@ -285,6 +290,8 @@ struct HealthBackfillTests {
       }
       $0.healthBatchUploader = FakeServer().uploader
       $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
       $0.uuid = .incrementing
       $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
     } operation: {
@@ -367,6 +374,8 @@ struct HealthBackfillTests {
       }
       $0.healthBatchUploader = server.uploader
       $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
       $0.uuid = .incrementing
       $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
     } operation: {
@@ -419,6 +428,8 @@ struct HealthBackfillTests {
         try await server.uploader.upload(id, file)
       }
       $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
       $0.uuid = .incrementing
       $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
     } operation: {
@@ -449,6 +460,8 @@ struct HealthBackfillTests {
       $0.healthReader = HealthReader { _, _, _ in throw HealthReader.Locked() }
       $0.healthBatchUploader = FakeServer().uploader
       $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
       $0.uuid = .incrementing
       $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
     } operation: {
@@ -479,6 +492,8 @@ struct HealthBackfillTests {
         try await server.uploader.upload(id, file)
       }
       $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
       $0.uuid = .incrementing
       $0.date = DateGenerator { date.value }
     } operation: {
@@ -525,6 +540,8 @@ struct HealthBackfillTests {
         try await server.uploader.upload(id, file)
       }
       $0.healthBackfillStorage = .inMemory()
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
       $0.uuid = .incrementing
       $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
     } operation: {
@@ -554,6 +571,8 @@ struct HealthBackfillTests {
         try await server.uploader.upload(id, file)
       }
       $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
       $0.uuid = .incrementing
       $0.date = DateGenerator { date.value }
       $0.continuousClock = clock
@@ -620,6 +639,107 @@ struct HealthBackfillTests {
     await clock.advance(by: .seconds(60))
     try await run.value
     #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
+  }
+
+  @Test
+  func uploadsCharacteristicsWhenTheyChange() async throws {
+    let server = FakeServer()
+    let blood = LockIsolated<JSONValue>("aPositive")
+    let backfill = withDependencies {
+      $0.healthReader = FakeHealth(pages: [:]).reader
+      $0.healthBatchUploader = server.uploader
+      $0.healthBackfillStorage = .inMemory()
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader {
+        // Read in a different order each time: only the values count.
+        [
+          HealthEncoder.characteristic(.bloodType, value: blood.value),
+          HealthEncoder.characteristic(.biologicalSex, value: "female"),
+        ].shuffled()
+      }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [temperature])
+    }
+
+    try await backfill.run()
+    #expect(
+      server.records.value.isSuperset(of: [
+        "HKCharacteristicTypeIdentifierBloodType", "HKCharacteristicTypeIdentifierBiologicalSex",
+      ]))
+    let uploads = server.accepted.value.count
+    try await backfill.run()
+    #expect(server.accepted.value.count == uploads)
+
+    blood.setValue("oNegative")
+    try await backfill.run()
+    #expect(server.accepted.value.count == uploads + 1)
+  }
+
+  @Test
+  func uploadsAllActivitySummariesOnceThenTheLastWeek() async throws {
+    let server = FakeServer()
+    let date = LockIsolated(Date(timeIntervalSince1970: 1_760_400_000))
+    let reads = LockIsolated<[Date?]>([])
+    let health = FakeHealth(pages: [temperature.id: 1])
+    let backfill = withDependencies {
+      $0.healthReader = health.reader
+      $0.healthBatchUploader = server.uploader
+      $0.healthBackfillStorage = .inMemory()
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { from in
+        reads.withValue { $0.append(from) }
+        return [
+          .upsert(HealthEncoder.activitySummaryEntity, id: "2025-10-14", row: ["paused": false])
+        ]
+      }
+      $0.uuid = .incrementing
+      $0.date = DateGenerator { date.value }
+    } operation: {
+      HealthBackfill(types: [temperature])
+    }
+
+    try await backfill.run()
+    #expect(server.records.value.contains("2025-10-14"))
+    date.withValue { $0.addTimeInterval(24 * 60 * 60) }
+    try await backfill.run()
+    // Syncing changes alone doesn't read them.
+    health.pageCounts.withValue { $0[temperature.id] = 2 }
+    try await backfill.syncChanges(of: [temperature.id])
+    #expect(
+      reads.value == [
+        nil,
+        Date(timeIntervalSince1970: 1_760_400_000 - HealthBackfill.activitySummaryWindow),
+      ])
+  }
+
+  @Test
+  func aFailedExtraIsTriedAgainNextRun() async throws {
+    struct Unavailable: Error {}
+    let failing = LockIsolated(true)
+    let server = FakeServer()
+    let backfill = withDependencies {
+      $0.healthReader = FakeHealth(pages: [:]).reader
+      $0.healthBatchUploader = server.uploader
+      $0.healthBackfillStorage = .inMemory()
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader {
+        if failing.value { throw Unavailable() }
+        return [HealthEncoder.characteristic(.bloodType, value: "aPositive")]
+      }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [])
+    }
+    await withKnownIssue {
+      try await backfill.run()
+    }
+    #expect(server.records.value.isEmpty)
+    failing.setValue(false)
+    try await backfill.run()
+    #expect(server.records.value == ["HKCharacteristicTypeIdentifierBloodType"])
   }
 
   @Test

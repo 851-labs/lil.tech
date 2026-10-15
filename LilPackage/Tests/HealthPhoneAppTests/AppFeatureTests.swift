@@ -14,6 +14,9 @@ struct AppFeatureTests {
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     } withDependencies: {
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
       $0.auth.signedInUpdates = { updates }
       $0.healthAuthorization.isAvailable = { true }
       $0.healthObserver = HealthObserver { _, _ in }
@@ -45,6 +48,9 @@ struct AppFeatureTests {
     let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
       AppFeature()
     } withDependencies: {
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
       $0.healthAuthorization.isAvailable = { true }
       $0.healthObserver = HealthObserver { _, _ in }
       $0.accountDevices = AccountDevices { 0 }
@@ -79,6 +85,9 @@ struct AppFeatureTests {
     let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
       AppFeature()
     } withDependencies: {
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
       $0.healthAuthorization.isAvailable = { true }
       $0.healthObserver = HealthObserver { _, _ in }
       $0.accountDevices = AccountDevices { 0 }
@@ -108,6 +117,9 @@ struct AppFeatureTests {
     let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
       AppFeature()
     } withDependencies: {
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
       $0.healthAuthorization.isAvailable = { false }
       $0.accountDevices = AccountDevices { 0 }
     }
@@ -125,6 +137,9 @@ struct AppFeatureTests {
     let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
       AppFeature()
     } withDependencies: {
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
       $0.healthAuthorization.isAvailable = { false }
       $0.accountDevices = AccountDevices {
         checks.withValue { $0 += 1 }
@@ -174,6 +189,9 @@ struct AppFeatureTests {
     let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
       AppFeature()
     } withDependencies: {
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
       $0.healthAuthorization.isAvailable = { false }
       $0.healthBackfill = HealthBackfill(types: [])
       $0.accountDevices = AccountDevices {
@@ -220,6 +238,9 @@ struct AppFeatureTests {
     let store = TestStore(initialState: state) {
       AppFeature()
     } withDependencies: {
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
       $0.auth.signOut = { signedOut.setValue(true) }
     }
 
@@ -249,6 +270,9 @@ struct AppFeatureTests {
     let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
       AppFeature()
     } withDependencies: {
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
       $0.healthAuthorization.isAvailable = { false }
     }
 

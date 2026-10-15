@@ -155,6 +155,7 @@
 - **iOS app:** a minimal bridge: sign in, consent, grant Health access, sync status.
 - **Data:** v1 syncs every readable HealthKit type, including workouts and routes, ECG, heartbeat series, audiograms, medications and State of Mind.
   - Clinical records (Health Records) are out of scope, because they need an entitlement that depends on App Review approval.
+  - Characteristics (date of birth, sex, blood type…) and Activity summaries have no anchors, so every run of everything reads them. Characteristics go up when their content changes (a hash in the backfill's state). Activity summaries go up all at once the first time, then the last 7 days', whose numbers and goals can still change.
 - **Statistics:**
   - **Cumulative types** (steps, energy, distance…): the iPhone computes 30-minute sums with HealthKit's own statistics queries, so de-duplication by source priority (e.g. iPhone and Watch steps) matches Health exactly.
     - 30-minute buckets keep days exact in half-hour time zones. Only offsets ending in :45 are approximate.

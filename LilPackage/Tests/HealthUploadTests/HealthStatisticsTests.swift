@@ -89,6 +89,8 @@ private func makeBackfill(
       isPairedWithWatch: { true })
     $0.healthBatchUploader = uploads.uploader
     $0.healthBackfillStorage = storage
+    $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+    $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
     $0.uuid = .incrementing
     $0.date.now = now
   } operation: {
@@ -240,6 +242,8 @@ struct HealthStatisticsTests {
     let backfill = withDependencies {
       $0.healthReader = HealthReader { _, _, _ in page(starts: [now]) }
       $0.healthBatchUploader = uploads.uploader
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
       $0.uuid = .incrementing
       $0.date.now = now
     } operation: {

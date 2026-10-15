@@ -19,6 +19,8 @@ struct HealthChangesTests {
     let store = SessionStore(load: { session.value }, save: { session.setValue($0) })
     try await withDependencies {
       $0.healthAuthorization.isAvailable = { true }
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
       $0.healthObserver = HealthObserver { types, handler in
         #expect(!types.isEmpty)
         onChange.setValue(handler)
