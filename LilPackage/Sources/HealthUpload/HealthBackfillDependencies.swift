@@ -17,8 +17,8 @@ public struct HealthBackfillType: Hashable, Sendable {
     self.isCorrelation = isCorrelation
   }
 
-  /// Every quantity and category type the app can read, workouts, and the correlations, which
-  /// are read through their component types.
+  /// Every quantity and category type the app can read, workouts, State of Mind, scored
+  /// assessments, and the correlations, which are read through their component types.
   public static func all(availableOn version: IOSVersion) -> [Self] {
     HealthCatalog.types(availableOn: version).compactMap { type in
       switch (type.kind, type.readAuthorization) {

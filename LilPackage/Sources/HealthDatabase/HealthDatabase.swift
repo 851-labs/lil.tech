@@ -85,6 +85,17 @@ public enum HealthDatabase {
         """
       )
       .execute(db)
+      try #sql(
+        #"CREATE INDEX "healthStateOfMinds_startDate" ON "healthStateOfMinds" ("startDate")"#
+      )
+      .execute(db)
+      try #sql(
+        """
+        CREATE INDEX "healthScoredAssessments_type_startDate"
+        ON "healthScoredAssessments" ("type", "startDate")
+        """
+      )
+      .execute(db)
     }
   }
 

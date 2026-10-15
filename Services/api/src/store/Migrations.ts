@@ -125,7 +125,7 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
   },
   {
     version: 9,
-    name: "health_state_of_mind",
+    name: "health_mental_wellbeing",
     // `HealthStateOfMind` and `HealthScoredAssessment` in `src/health/HealthEntities.ts`.
     sql: `
       CREATE TABLE "health_state_of_mind" (id TEXT PRIMARY KEY, "start_date" INTEGER NOT NULL, "end_date" INTEGER NOT NULL, "kind" INTEGER NOT NULL, "valence" REAL NOT NULL, "valence_classification" INTEGER NOT NULL, "labels" TEXT NOT NULL, "associations" TEXT NOT NULL, "source_name" TEXT NOT NULL, "source_bundle_id" TEXT NOT NULL, "source_revision" TEXT, "device" TEXT, "metadata" TEXT) STRICT;

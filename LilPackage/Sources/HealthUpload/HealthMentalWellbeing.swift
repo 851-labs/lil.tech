@@ -11,11 +11,11 @@ extension HealthEncoder {
   /// A State of Mind log, with HealthKit's raw values for its kind, labels and associations.
   public static func stateOfMind(_ log: HKStateOfMind) -> HealthMutation {
     var row = provenance(of: log)
-    row["kind"] = .number(Double(log.kind.rawValue))
+    row["kind"] = JSONValue(log.kind.rawValue)
     row["valence"] = .number(log.valence)
-    row["valenceClassification"] = .number(Double(log.valenceClassification.rawValue))
-    row["labels"] = .array(log.labels.map { .number(Double($0.rawValue)) })
-    row["associations"] = .array(log.associations.map { .number(Double($0.rawValue)) })
+    row["valenceClassification"] = JSONValue(log.valenceClassification.rawValue)
+    row["labels"] = .array(log.labels.map { JSONValue($0.rawValue) })
+    row["associations"] = .array(log.associations.map { JSONValue($0.rawValue) })
     return .upsert(stateOfMindEntity, id: id(log.uuid), row: row)
   }
 
@@ -24,17 +24,17 @@ extension HealthEncoder {
   public static func scoredAssessment(_ assessment: HKScoredAssessment) throws -> HealthMutation {
     var row = provenance(of: assessment)
     row["type"] = .string(assessment.sampleType.identifier)
-    row["score"] = .number(Double(assessment.score))
+    row["score"] = JSONValue(assessment.score)
+    let (risk, answers): (Int, [Int])
     switch assessment {
     case let gad7 as HKGAD7Assessment:
-      row["risk"] = .number(Double(gad7.risk.rawValue))
-      row["answers"] = .array(gad7.answers.map { .number(Double($0.rawValue)) })
+      (risk, answers) = (gad7.risk.rawValue, gad7.answers.map(\.rawValue))
     case let phq9 as HKPHQ9Assessment:
-      row["risk"] = .number(Double(phq9.risk.rawValue))
-      row["answers"] = .array(phq9.answers.map { .number(Double($0.rawValue)) })
-    default:
-      throw UnsupportedSample(type: assessment.sampleType.identifier)
+      (risk, answers) = (phq9.risk.rawValue, phq9.answers.map(\.rawValue))
+    default: throw UnsupportedSample(type: assessment.sampleType.identifier)
     }
+    row["risk"] = JSONValue(risk)
+    row["answers"] = .array(answers.map { JSONValue($0) })
     return .upsert(scoredAssessmentEntity, id: id(assessment.uuid), row: row)
   }
 }

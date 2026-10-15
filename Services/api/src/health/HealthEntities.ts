@@ -97,6 +97,10 @@ export const HealthWorkout = defineEntity("health_workout", {
   },
 });
 
+/** Whether a field is a list of HealthKit enum raw values. */
+const isRawValues = (value: unknown) =>
+  Array.isArray(value) && value.every((element) => Number.isInteger(element));
+
 /** State of Mind logs (`HKStateOfMind`): a momentary emotion or a daily mood. */
 export const HealthStateOfMind = defineEntity("health_state_of_mind", {
   clientWritable: false,
@@ -110,16 +114,21 @@ export const HealthStateOfMind = defineEntity("health_state_of_mind", {
     valence: Column.real,
     /** `HKStateOfMind.ValenceClassification`'s raw value. */
     valenceClassification: Column.integer,
-    /** `HKStateOfMind.Label` raw values, e.g. 2 for "anxious". */
+    /** `HKStateOfMind.Label` raw values, e.g. 4 for "anxious". */
     labels: Column.json,
-    /** `HKStateOfMind.Association` raw values, e.g. 6 for "family". */
+    /** `HKStateOfMind.Association` raw values, e.g. 5 for "family". */
     associations: Column.json,
     ...provenance,
   },
-  checkRow: (_, row) =>
-    Array.isArray(row.labels) && Array.isArray(row.associations)
-      ? undefined
-      : "labels and associations must be arrays",
+  checkRow: (_, row) => {
+    if (!isRawValues(row.labels)) return "labels must be an array of integers";
+    if (!isRawValues(row.associations)) return "associations must be an array of integers";
+    const { valence } = row;
+    if (typeof valence !== "number" || valence < -1 || valence > 1) {
+      return "valence must be from -1 to 1";
+    }
+    return undefined;
+  },
 });
 
 /** Scored mental health assessments (`HKScoredAssessment`): GAD-7 (anxiety) and PHQ-9 (depression). */
@@ -138,7 +147,8 @@ export const HealthScoredAssessment = defineEntity("health_scored_assessment", {
     answers: Column.json,
     ...provenance,
   },
-  checkRow: (_, row) => (Array.isArray(row.answers) ? undefined : "answers must be an array"),
+  checkRow: (_, row) =>
+    isRawValues(row.answers) ? undefined : "answers must be an array of integers",
 });
 
 /**
