@@ -20,7 +20,12 @@ import {
   Unauthorized,
 } from "./auth/AuthApi.ts";
 import { AccessTokens } from "./auth/Tokens.ts";
-import { Consents, healthConsentPolicyVersion } from "./core/Consents.ts";
+import {
+  Consents,
+  type GivenConsent,
+  healthConsentPolicyVersion,
+  isCurrentHealthConsent,
+} from "./core/Consents.ts";
 import { retireDevice } from "./core/DeviceCleanup.ts";
 import { Devices } from "./core/Devices.ts";
 import { Identities } from "./core/Identities.ts";
@@ -174,11 +179,11 @@ export const AuthHandlers = HttpApiBuilder.group(
 /** An access token that outlived its account (deleted within the last 15 minutes). */
 const userGone = new Unauthorized({ message: "The user no longer exists" });
 
-const healthConsent = (given: Option.Option<{ policyVersion: string; grantedAt: number }>) =>
+const healthConsent = (given: Option.Option<GivenConsent>) =>
   new HealthConsent({
     required: healthConsentPolicyVersion,
     given: Option.getOrNull(given),
-    current: Option.isSome(given) && given.value.policyVersion === healthConsentPolicyVersion,
+    current: isCurrentHealthConsent(given),
   });
 
 export const MeHandlers = HttpApiBuilder.group(
@@ -357,14 +362,19 @@ export const HealthHandlers = HttpApiBuilder.group(
             return yield* new HealthBatchTooLarge({ maxBytes: maxHealthBatchBytes });
           }
           const store = stores.forUser(userId);
-          // Fails with `StorageFull` for a new batch once the store is over its quota.
-          const known = yield* store.checkHealthBatchUpload(params.id);
+          const [known, consent] = yield* Effect.all(
+            [
+              // Fails with `StorageFull` for a new batch once the store is over its quota.
+              store.checkHealthBatchUpload(params.id),
+              consents.current(userId, "health").pipe(Effect.orDie),
+            ],
+            { concurrency: "unbounded" },
+          );
           if (known !== null) return known;
           // New Health data is only taken with consent to the current policy (GDPR Article 9).
           // After the known-batch check, so a deleted account still gets a 401, and a retried
           // upload from before a withdrawal still gets its status.
-          const consent = yield* consents.current(userId, "health").pipe(Effect.orDie);
-          if (!healthConsent(consent).current) {
+          if (!isCurrentHealthConsent(consent)) {
             return yield* new ConsentRequired({ required: healthConsentPolicyVersion });
           }
           // The file and the message come before the status, so a batch recorded as queued is

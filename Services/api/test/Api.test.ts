@@ -1075,9 +1075,17 @@ describe("/v1/health/batches", () => {
         assert.strictEqual(given.status, 200);
         assert.deepInclude(given.body, { required: healthConsentPolicyVersion, current: true });
         const grantedAt = (given.body as { given: { grantedAt: number } }).given.grantedAt;
-        // Consenting again keeps the first record.
-        const again = yield* consent("POST", { policyVersion: healthConsentPolicyVersion });
-        assert.deepStrictEqual(again.body, given.body);
+        // Consenting again, even at the same time, keeps the first record.
+        const again = yield* Effect.all(
+          [
+            consent("POST", { policyVersion: healthConsentPolicyVersion }),
+            consent("POST", { policyVersion: healthConsentPolicyVersion }),
+          ],
+          { concurrency: "unbounded" },
+        );
+        for (const response of again) assert.deepStrictEqual(response.body, given.body);
+        const sql = yield* SqlClient.SqlClient;
+        assert.deepStrictEqual(yield* sql`SELECT count(*) AS n FROM consents`, [{ n: 1 }]);
         assert.deepStrictEqual((yield* consent("GET")).body, {
           required: healthConsentPolicyVersion,
           given: { policyVersion: healthConsentPolicyVersion, grantedAt },
@@ -1105,7 +1113,7 @@ describe("/v1/health/batches", () => {
         assert.lengthOf(outbox.sent, 1);
 
         // The records stay, as proof of consent.
-        const rows = yield* (yield* SqlClient.SqlClient)<{ withdrawn: number }>`
+        const rows = yield* sql<{ withdrawn: number }>`
           SELECT count(*) AS withdrawn FROM consents WHERE withdrawn_at IS NOT NULL`;
         assert.deepStrictEqual(rows, [{ withdrawn: 1 }]);
       }),

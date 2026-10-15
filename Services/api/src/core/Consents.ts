@@ -19,6 +19,10 @@ export interface GivenConsent {
   readonly grantedAt: number;
 }
 
+/** Whether `given` allows uploading Health data: it's for the current policy version. */
+export const isCurrentHealthConsent = (given: Option.Option<GivenConsent>) =>
+  Option.isSome(given) && given.value.policyVersion === healthConsentPolicyVersion;
+
 export class Consents extends Context.Service<
   Consents,
   {
@@ -54,14 +58,15 @@ export class Consents extends Context.Service<
       return Consents.of({
         current,
         grant: Effect.fn("Consents.grant")(function* (userId, type, policyVersion) {
-          const existing = yield* current(userId, type);
-          if (Option.isSome(existing) && existing.value.policyVersion === policyVersion) {
-            return existing.value;
-          }
           const grantedAt = yield* Clock.currentTimeMillis;
+          // One statement, so requests that race (an app retrying) record it once.
           yield* sql`INSERT INTO consents (user_id, type, policy_version, granted_at)
-            VALUES (${userId}, ${type}, ${policyVersion}, ${grantedAt})`;
-          return { policyVersion, grantedAt };
+            SELECT ${userId}, ${type}, ${policyVersion}, ${grantedAt}
+            WHERE NOT EXISTS (
+              SELECT 1 FROM consents WHERE user_id = ${userId} AND type = ${type}
+                AND policy_version = ${policyVersion} AND withdrawn_at IS NULL)`;
+          const given = yield* current(userId, type);
+          return Option.getOrElse(given, () => ({ policyVersion, grantedAt }));
         }),
         withdraw: Effect.fn("Consents.withdraw")(function* (userId, type) {
           const now = yield* Clock.currentTimeMillis;
