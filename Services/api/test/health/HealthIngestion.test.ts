@@ -12,7 +12,7 @@ import {
   maxBatchLineLength,
   maxDecompressedBatchBytes,
 } from "../../src/health/HealthIngestion.ts";
-import { storageQuotaBytes } from "../../src/store/UserStore.ts";
+import { storageHardLimitBytes } from "../../src/store/UserStore.ts";
 import { UserStores } from "../../src/store/UserStores.ts";
 import { TestStores, TestUserStores } from "../store/TestUserStores.ts";
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./TestHealthIngestion.ts";
@@ -222,16 +222,16 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion))("ingestHealthBatch", 
     }),
   );
 
-  it.effect("fails a batch when the store is full, and deletes its file", () =>
+  it.effect("fails a batch when the store reaches its hard limit, and deletes its file", () =>
     Effect.gen(function* () {
       yield* ingest([sample(4100)]);
       const sql = (yield* TestStores).sqlFor(userId);
       assert.isDefined(sql);
-      sql.setDatabaseSize(storageQuotaBytes);
+      sql.setDatabaseSize(storageHardLimitBytes);
       const { batchId, batch } = yield* ingest([sample(4101)]).pipe(
         Effect.ensuring(Effect.sync(() => sql.setDatabaseSize(null))),
       );
-      assert.deepInclude(batch, { status: "failed", failure: storageFullFailure });
+      assert.deepInclude(batch, { status: "failed", failure: storageFullFailure(0) });
       assert.isFalse((yield* TestHealthOutbox).files.has(healthBatchKey(userId, batchId)));
       assert.deepStrictEqual(yield* changesFor(uuid(4101)), []);
     }),

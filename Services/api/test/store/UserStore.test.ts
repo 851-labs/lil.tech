@@ -3,10 +3,13 @@ import { Effect, Exit } from "effect";
 import type { UserId } from "../../src/core/Ids.ts";
 import { migrate, type StoreMigration, storeMigrations } from "../../src/store/Migrations.ts";
 import { fromDurableObjectStorage, type StoreSql } from "../../src/store/StoreSql.ts";
+import { StorageFull } from "../../src/store/Changes.ts";
 import {
   makeUserStore,
+  storageHardLimitBytes,
   storageQuotaBytes,
   type UserStoreMethods,
+  userStoreErrors,
 } from "../../src/store/UserStore.ts";
 import { UserStores } from "../../src/store/UserStores.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
@@ -128,20 +131,38 @@ describe("the storage quota", () => {
     }) as const;
   const batchId = "00000000-0000-4000-8000-000000000001";
 
-  it.effect("takes deletes but no new records once the store is full", () =>
+  const isFull = (error: { readonly _tag: string }) =>
+    assert.strictEqual(error._tag, "StorageFull");
+
+  it.effect("stops new uploads at the quota, but still applies accepted batches", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      const store = makeUserStore(sql);
+      yield* store.receiveHealthBatch(batchId);
+
+      sql.setDatabaseSize(storageQuotaBytes);
+      assert.deepInclude(
+        yield* Effect.flip(store.checkHealthBatchUpload("00000000-0000-4000-8000-000000000002")),
+        { _tag: "StorageFull", quotaBytes: storageQuotaBytes },
+      );
+      // A batch it already knows still answers with its status.
+      assert.deepInclude(yield* store.checkHealthBatchUpload(batchId), { status: "queued" });
+      // Batches accepted before the quota are still applied.
+      yield* store.applyMutations([bloodType("aPositive")]);
+
+      sql.setDatabaseSize(storageQuotaBytes - 1);
+      assert.isNull(yield* store.checkHealthBatchUpload("00000000-0000-4000-8000-000000000002"));
+    }),
+  );
+
+  it.effect("takes deletes but no new records at the hard limit", () =>
     Effect.gen(function* () {
       const sql = makeTestStoreSql();
       const store = makeUserStore(sql);
       yield* store.applyMutations([bloodType("aPositive")]);
-      yield* store.receiveHealthBatch(batchId);
 
-      sql.setDatabaseSize(storageQuotaBytes);
-      const isFull = (error: { readonly _tag: string }) =>
-        assert.strictEqual(error._tag, "StorageFull");
-      assert.deepInclude(yield* Effect.flip(store.applyMutations([bloodType("bNegative")])), {
-        _tag: "StorageFull",
-        quotaBytes: storageQuotaBytes,
-      });
+      sql.setDatabaseSize(storageHardLimitBytes);
+      isFull(yield* Effect.flip(store.applyMutations([bloodType("bNegative")])));
       isFull(
         yield* Effect.flip(
           store.applyMutations([
@@ -154,11 +175,6 @@ describe("the storage quota", () => {
           ]),
         ),
       );
-      // A batch it already knows still answers with its status; a new one can't be uploaded.
-      assert.deepInclude(yield* store.checkHealthBatchUpload(batchId), { status: "queued" });
-      isFull(
-        yield* Effect.flip(store.checkHealthBatchUpload("00000000-0000-4000-8000-000000000002")),
-      );
       const deleted = yield* store.applyMutations([
         {
           entity: "health_characteristic",
@@ -167,12 +183,12 @@ describe("the storage quota", () => {
         },
       ]);
       assert.strictEqual(deleted.appended, 1);
-
-      sql.setDatabaseSize(storageQuotaBytes - 1);
-      yield* store.applyMutations([bloodType("oPositive")]);
-      assert.isNull(yield* store.checkHealthBatchUpload("00000000-0000-4000-8000-000000000002"));
     }),
   );
+
+  it("declares StorageFull, so it crosses RPC as itself", () => {
+    assert.include(userStoreErrors, StorageFull);
+  });
 
   it("reports the database's real size", () => {
     const sql = makeTestStoreSql();

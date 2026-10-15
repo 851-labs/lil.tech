@@ -59,7 +59,11 @@ export const makeTestStoreSql = (): TestStoreSql => {
     databaseSize: () => {
       if (size !== null) return size;
       const [row] = db
-        .prepare("SELECT page_count * page_size AS size FROM pragma_page_count, pragma_page_size")
+        // As workerd counts it: used pages only.
+        .prepare(
+          `SELECT (page_count - freelist_count) * page_size AS size
+          FROM pragma_page_count, pragma_freelist_count, pragma_page_size`,
+        )
         .all() as Array<{ size: number }>;
       return row?.size ?? 0;
     },

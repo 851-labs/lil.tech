@@ -119,8 +119,9 @@ const parseLine = (
   return Result.succeed(mutation);
 };
 
-/** A batch's failure once its store was full. */
-export const storageFullFailure = "The storage quota is full";
+/** A batch's failure when its store reached the hard limit after `applied` lines. */
+export const storageFullFailure = (applied: number) =>
+  `The storage quota is full; ${applied} lines were applied before it`;
 
 /** The longest line accepted. A health record is a few hundred bytes. */
 export const maxBatchLineLength = 1024 * 1024;
@@ -254,7 +255,7 @@ const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessag
         return yield* finish({ status: "failed", failure: read.failure.message });
       // Retrying won't make room. Chunks applied before it stay applied.
       case "StorageFull":
-        return yield* finish({ status: "failed", failure: storageFullFailure });
+        return yield* finish({ status: "failed", failure: storageFullFailure(applied) });
       default:
         return yield* read.failure;
     }
