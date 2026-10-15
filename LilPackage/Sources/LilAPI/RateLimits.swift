@@ -7,5 +7,3 @@ extension Components.Schemas.TooManyRequests {
     (try? body().retryAfterSeconds) ?? 60
   }
 }
-
-let  badlyFormatted = 1
