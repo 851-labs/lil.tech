@@ -7,6 +7,7 @@ import { AppleKeys } from "./auth/Apple.ts";
 import { GoogleClients, GoogleKeys } from "./auth/Google.ts";
 import { SessionKey } from "./auth/Tokens.ts";
 import { CoreDatabase, CoreRepositories } from "./core/CoreDatabase.ts";
+import { Users } from "./core/Users.ts";
 import { Deployment, environmentForStage } from "./Deployment.ts";
 import { HealthBatchFiles, HealthBatchQueue } from "./health/HealthIngestion.ts";
 import { HealthIngestionWorker } from "./health/HealthResources.ts";
@@ -107,7 +108,10 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
     const key = yield* readSessionKey;
     const core = yield* Cloudflare.D1.QueryDatabase(CoreDatabase);
     const userStores = UserStores.fromNamespace(yield* UserStore);
-    const health = yield* HealthIngestionWorker(userStores);
+    const health = yield* HealthIngestionWorker(
+      userStores,
+      Users.layer.pipe(Layer.provide(SQL.D1Layer(core))),
+    );
     const snapshots = yield* Cloudflare.R2.ReadBucket(yield* SnapshotBucket);
     const limits = RateLimits.make({
       signIn: yield* bindRateLimit("SignInRateLimit", "signIn"),

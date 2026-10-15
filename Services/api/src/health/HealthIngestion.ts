@@ -2,6 +2,7 @@ import { Clock, Context, Effect, Option, Result, Schema } from "effect";
 import type { DeviceId, UserId } from "../core/Ids.ts";
 import { Mutation } from "../store/Changes.ts";
 import { stampDevice } from "../store/Entities.ts";
+import { Users } from "../core/Users.ts";
 import { UserStores } from "../store/UserStores.ts";
 import type { HealthBatch, RejectedLine } from "./HealthBatches.ts";
 import { healthEntities } from "./HealthEntities.ts";
@@ -285,7 +286,19 @@ export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
   yield* applyHealthBatch(message).pipe(
     Effect.catchTag("AccountDeleted", () => dropBatchFile(message)),
   );
+  yield* recordStorage(message.userId);
 });
+
+/**
+ * Records the store's size in D1 for finding the largest users, after a batch made it grow. It's
+ * best-effort: nothing fails the batch, including a store too old to measure itself.
+ */
+const recordStorage = (userId: UserId) =>
+  Effect.gen(function* () {
+    const bytes = yield* (yield* UserStores).forUser(userId).storageBytes();
+    const measuredAt = yield* Clock.currentTimeMillis;
+    yield* (yield* Users).recordStorage(userId, bytes, measuredAt);
+  }).pipe(Effect.ignoreCause({ log: "Warn", message: "Recording the store's size failed" }));
 
 /**
  * Marks a batch failed after its last delivery attempt, so its status doesn't stay `applying`.

@@ -10,14 +10,6 @@ export class User extends Schema.Class<User>("lil/api/core/User")({
 
 const decodeUser = Schema.decodeUnknownEffect(User);
 
-/** How much a user's store held when it was last measured. */
-export interface UserStorage {
-  readonly id: UserId;
-  readonly storageBytes: number;
-  /** Unix milliseconds. */
-  readonly measuredAt: number;
-}
-
 export class Users extends Context.Service<
   Users,
   {
@@ -34,12 +26,15 @@ export class Users extends Context.Service<
     ) => Effect.Effect<void, SqlError.SqlError>;
     /** How many users there are. */
     readonly count: Effect.Effect<number, SqlError.SqlError>;
-    /** Records the size of the user's store, as just measured. */
-    readonly recordStorage: (id: UserId, bytes: number) => Effect.Effect<void, SqlError.SqlError>;
-    /** The users whose stores were largest when last measured, largest first. */
-    readonly largestByStorage: (
-      limit: number,
-    ) => Effect.Effect<ReadonlyArray<UserStorage>, SqlError.SqlError>;
+    /**
+     * Records the size of the user's store, measured at `measuredAt`, unless a later measurement
+     * is already recorded.
+     */
+    readonly recordStorage: (
+      id: UserId,
+      bytes: number,
+      measuredAt: number,
+    ) => Effect.Effect<void, SqlError.SqlError>;
   }
 >()("lil/api/core/Users") {
   static readonly layer = Layer.effect(
@@ -78,21 +73,11 @@ export class Users extends Context.Service<
           const rows = yield* sql`SELECT count(*) AS n FROM users`;
           return Number(rows[0]?.["n"] ?? 0);
         }).pipe(Effect.withSpan("Users.count")),
-        recordStorage: Effect.fn("Users.recordStorage")(function* (id, bytes) {
-          const at = yield* Clock.currentTimeMillis;
-          yield* sql`UPDATE users SET storage_bytes = ${bytes}, storage_measured_at = ${at}
-            WHERE id = ${id}`;
-        }),
-        // The query `docs/DECISIONS.md` gives for the D1 console.
-        largestByStorage: Effect.fn("Users.largestByStorage")(function* (limit) {
-          const rows = yield* sql<{
-            id: UserId;
-            storageBytes: number;
-            measuredAt: number;
-          }>`SELECT id, storage_bytes AS "storageBytes", storage_measured_at AS "measuredAt"
-            FROM users WHERE storage_bytes IS NOT NULL
-            ORDER BY storage_bytes DESC LIMIT ${limit}`;
-          return rows;
+        recordStorage: Effect.fn("Users.recordStorage")(function* (id, bytes, measuredAt) {
+          // Batches are applied concurrently, so their measurements can arrive out of order.
+          yield* sql`UPDATE users SET storage_bytes = ${bytes}, storage_measured_at = ${measuredAt}
+            WHERE id = ${id}
+              AND (storage_measured_at IS NULL OR storage_measured_at <= ${measuredAt})`;
         }),
       });
     }),

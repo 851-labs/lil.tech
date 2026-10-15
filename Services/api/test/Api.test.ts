@@ -892,10 +892,6 @@ describe("/v1/health/batches", () => {
 
         const first = yield* upload(handler, tokens.accessToken, batchId, batchFile(lines));
         assert.strictEqual(first.status, 202);
-        // The store's size is recorded for finding the largest users.
-        const [measured] = yield* (yield* Users).largestByStorage(1);
-        assert.strictEqual(measured?.id, user.id);
-        assert.isAbove(measured?.storageBytes ?? 0, 0);
         assert.deepInclude(first.body, { id: batchId, status: "queued" });
         assert.strictEqual(outbox.sent.length, 1);
         assert.deepInclude(outbox.sent[0], { userId: user.id, batchId });
@@ -944,11 +940,6 @@ describe("/v1/health/batches", () => {
         assert.deepStrictEqual(refused, {
           status: 507,
           body: { _tag: "StorageFull", quotaBytes: storageQuotaBytes },
-        });
-        // Measured even when refused, so full stores show up among the largest.
-        assert.deepInclude((yield* (yield* Users).largestByStorage(1))[0], {
-          id: user.id,
-          storageBytes: storageQuotaBytes,
         });
         // Nothing reached the files or the queue.
         assert.lengthOf(outbox.sent, 1);
