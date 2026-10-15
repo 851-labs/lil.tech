@@ -12,6 +12,7 @@ import { Auth } from "../src/auth/Auth.ts";
 import { ingestHealthBatch } from "../src/health/HealthIngestion.ts";
 import { maxDevUsers } from "../src/auth/DevSignIn.ts";
 import { AccessTokens } from "../src/auth/Tokens.ts";
+import { Consents, healthConsentPolicyVersion } from "../src/core/Consents.ts";
 import { Devices } from "../src/core/Devices.ts";
 import { Identities } from "../src/core/Identities.ts";
 import type { UserId } from "../src/core/Ids.ts";
@@ -984,6 +985,12 @@ describe("/v1/health/batches", () => {
         body: body as Uint8Array<ArrayBuffer>,
       }),
     );
+  /** A signed-in user who consented to processing their Health data. */
+  const consentingSignIn = Effect.gen(function* () {
+    const session = yield* signIn;
+    yield* (yield* Consents).grant(session.user.id, "health", healthConsentPolicyVersion);
+    return session;
+  });
   const status = (handler: Handler, token: string, id: string) =>
     send(
       handler,
@@ -993,7 +1000,7 @@ describe("/v1/health/batches", () => {
   it.live("queues an upload once, and reports its status until it's applied", () =>
     withApi((handler) =>
       Effect.gen(function* () {
-        const { user, tokens } = yield* signIn;
+        const { user, tokens } = yield* consentingSignIn;
         const outbox = yield* TestHealthOutbox;
 
         const first = yield* upload(handler, tokens.accessToken, batchId, batchFile(lines));
@@ -1027,10 +1034,88 @@ describe("/v1/health/batches", () => {
     ),
   );
 
+  it.live("takes uploads only with consent to the current policy", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* signIn;
+        const outbox = yield* TestHealthOutbox;
+        const consent = (method: string, body?: unknown) =>
+          send(
+            handler,
+            new Request("https://api.lil.tech/v1/me/consents/health", {
+              method,
+              headers: { ...bearer(tokens.accessToken), "content-type": "application/json" },
+              ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+            }),
+          );
+        const refused = {
+          status: 403,
+          body: { _tag: "ConsentRequired", required: healthConsentPolicyVersion },
+        };
+
+        assert.deepStrictEqual(yield* consent("GET"), {
+          status: 200,
+          body: { required: healthConsentPolicyVersion, given: null, current: false },
+        });
+        assert.deepStrictEqual(
+          yield* upload(handler, tokens.accessToken, batchId, batchFile(lines)),
+          refused,
+        );
+        assert.lengthOf(outbox.sent, 0);
+        assert.strictEqual(outbox.files.size, 0);
+
+        // Consent to an older policy isn't recorded.
+        assert.deepStrictEqual(yield* consent("POST", { policyVersion: "2026-01-01" }), {
+          status: 409,
+          body: { _tag: "ConsentOutdated", required: healthConsentPolicyVersion },
+        });
+        assert.propertyVal((yield* consent("GET")).body, "current", false);
+
+        const given = yield* consent("POST", { policyVersion: healthConsentPolicyVersion });
+        assert.strictEqual(given.status, 200);
+        assert.deepInclude(given.body, { required: healthConsentPolicyVersion, current: true });
+        const grantedAt = (given.body as { given: { grantedAt: number } }).given.grantedAt;
+        // Consenting again keeps the first record.
+        const again = yield* consent("POST", { policyVersion: healthConsentPolicyVersion });
+        assert.deepStrictEqual(again.body, given.body);
+        assert.deepStrictEqual((yield* consent("GET")).body, {
+          required: healthConsentPolicyVersion,
+          given: { policyVersion: healthConsentPolicyVersion, grantedAt },
+          current: true,
+        });
+        assert.deepInclude(yield* upload(handler, tokens.accessToken, batchId, batchFile(lines)), {
+          status: 202,
+        });
+
+        // Withdrawn: new batches are refused, while the one it has still answers.
+        assert.strictEqual((yield* consent("DELETE")).status, 204);
+        assert.deepStrictEqual((yield* consent("GET")).body, {
+          required: healthConsentPolicyVersion,
+          given: null,
+          current: false,
+        });
+        const next = "00000000-0000-4000-8000-0000000000b4";
+        assert.deepStrictEqual(
+          yield* upload(handler, tokens.accessToken, next, batchFile(lines)),
+          refused,
+        );
+        assert.deepInclude(yield* upload(handler, tokens.accessToken, batchId, batchFile(lines)), {
+          status: 202,
+        });
+        assert.lengthOf(outbox.sent, 1);
+
+        // The records stay, as proof of consent.
+        const rows = yield* (yield* SqlClient.SqlClient)<{ withdrawn: number }>`
+          SELECT count(*) AS withdrawn FROM consents WHERE withdrawn_at IS NOT NULL`;
+        assert.deepStrictEqual(rows, [{ withdrawn: 1 }]);
+      }),
+    ),
+  );
+
   it.live("refuses new uploads once the store is full", () =>
     withApi((handler) =>
       Effect.gen(function* () {
-        const { user, tokens } = yield* signIn;
+        const { user, tokens } = yield* consentingSignIn;
         const outbox = yield* TestHealthOutbox;
         yield* upload(handler, tokens.accessToken, batchId, batchFile(lines));
         const sql = (yield* TestStores).sqlFor(user.id);
@@ -1060,7 +1145,7 @@ describe("/v1/health/batches", () => {
   it.live("DELETE /v1/me removes the account and all of its data", () =>
     withApi((handler) =>
       Effect.gen(function* () {
-        const { user, tokens } = yield* signIn;
+        const { user, tokens } = yield* consentingSignIn;
         const outbox = yield* TestHealthOutbox;
         // Some health data, and a batch still waiting in the queue.
         yield* upload(handler, tokens.accessToken, batchId, batchFile(lines));
@@ -1085,7 +1170,14 @@ describe("/v1/health/batches", () => {
 
         // Nothing left in the core database…
         const sql = yield* SqlClient.SqlClient;
-        for (const table of ["users", "identities", "devices", "sessions", "connections"]) {
+        for (const table of [
+          "users",
+          "identities",
+          "devices",
+          "sessions",
+          "connections",
+          "consents",
+        ]) {
           const column = table === "users" ? "id" : "user_id";
           const rows = yield* sql.unsafe(`SELECT count(*) AS n FROM ${table} WHERE ${column} = ?`, [
             user.id,
@@ -1140,8 +1232,8 @@ describe("/v1/health/batches", () => {
   it.live("keeps each user's batches to themselves", () =>
     withApi((handler) =>
       Effect.gen(function* () {
-        const ada = yield* signIn;
-        const bob = yield* signIn;
+        const ada = yield* consentingSignIn;
+        const bob = yield* consentingSignIn;
         yield* upload(handler, ada.tokens.accessToken, batchId, batchFile(lines));
         const response = yield* status(handler, bob.tokens.accessToken, batchId);
         assert.strictEqual(response.status, 404);
@@ -1153,7 +1245,7 @@ describe("/v1/health/batches", () => {
   it.live("rejects invalid IDs, oversized files and missing sessions", () =>
     withApi((handler) =>
       Effect.gen(function* () {
-        const { tokens } = yield* signIn;
+        const { tokens } = yield* consentingSignIn;
         for (const id of ["not-a-uuid", batchId.toUpperCase()]) {
           assert.strictEqual(
             (yield* upload(handler, tokens.accessToken, id, batchFile(lines))).status,

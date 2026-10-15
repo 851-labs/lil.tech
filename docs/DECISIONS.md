@@ -182,8 +182,12 @@
 - **Privacy:**
   - Health data is readable by the server and encrypted at rest by Cloudflare. That keeps server-side features possible, such as an MCP server later.
   - It's processed only with explicit consent (GDPR special-category data), and never used for ads or sold.
+    - **Consent** is to a privacy policy version, its effective date (`healthConsentPolicyVersion` in `src/core/Consents.ts`). The server records each consent and withdrawal in D1's `consents` table with its time, as proof of consent, and deletes them with the account.
+    - `GET /v1/me/consents/health` returns the required version and the consent in force. `POST` with the version the app showed records consent; an older version gets 409 `ConsentOutdated`. `DELETE` withdraws it.
+    - New batch uploads without a current consent fail with 403 `ConsentRequired`, before anything reaches R2. A batch the store already knows still answers with its status, and batches accepted before a withdrawal are still applied. Data already uploaded stays until the account is deleted.
+    - Bumping the version, for a change in how Health data is used, refuses uploads until each user consents again.
   - Real health data never goes into staging, previews, tests, commits or tickets.
-  - **Privacy policy:** at [lil.tech/privacy](https://lil.tech/privacy), under Alexandru Ţurcanu's name, who publishes the apps from his personal App Store Connect account and is the data controller. The contact is hello@851.sh. The iPhone app links it from sign-in and the account screen. Update its effective date and tell users in the app when a change affects how Health data is used.
+  - **Privacy policy:** at [lil.tech/privacy](https://lil.tech/privacy), under Alexandru Ţurcanu's name, since the apps are published from a personal App Store Connect account. Alexandru is the data controller. The contact is hello@851.sh. The iPhone app links it from sign-in and the account screen. Update its effective date and tell users in the app when a change affects how Health data is used.
 - **Availability:** permanently free, with no subscriptions, ads or paid tiers.
   - Signup is open, in every App Store region except mainland China (data-localization rules). The server also refuses new accounts from mainland China, since the Mac app is downloaded directly.
     - The server goes by the country Cloudflare gives the Worker (`request.cf.country`, which unlike the `cf-ipcountry` header doesn't depend on a zone setting). `CN` can't create an account (451 `SignUpUnavailableInRegion`), but an existing account still signs in. Hong Kong, Macau and Taiwan have their own codes and aren't affected. A VPN gets around it. That's accepted, since the point is not to offer the service there.

@@ -187,8 +187,46 @@ export class Me extends Schema.Class<Me>("lil/api/auth/Me")({
   devices: Schema.Array(MeDevice),
 }) {}
 
+/** Consent to processing Health data: the policy version it must be for, and the one given. */
+export class HealthConsent extends Schema.Class<HealthConsent>("lil/api/auth/HealthConsent")({
+  /** The privacy policy version (its effective date) consent must be for. */
+  required: Schema.String,
+  /** The consent in force, if any; it may be for an older version. */
+  given: Schema.NullOr(
+    Schema.Struct({
+      policyVersion: Schema.String,
+      /** Unix milliseconds. */
+      grantedAt: Schema.Int,
+    }),
+  ),
+  /** Whether Health data can be uploaded: consent was given for the required version. */
+  current: Schema.Boolean,
+}) {}
+
+/** Consent was for a policy version that's no longer the one in force. */
+export class ConsentOutdated extends Schema.TaggedError<ConsentOutdated>()(
+  "ConsentOutdated",
+  { required: Schema.String },
+  { httpApiStatus: 409 },
+) {}
+
 export class MeApi extends HttpApiGroup.make("me", { topLevel: true })
   .add(HttpApiEndpoint.get("me", "/v1/me", { success: Me }))
+  .add(HttpApiEndpoint.get("healthConsent", "/v1/me/consents/health", { success: HealthConsent }))
+  .add(
+    // Consents to processing Health data under the policy version the app showed. Recorded with
+    // the time, as proof of consent; giving it again for the same version changes nothing.
+    HttpApiEndpoint.post("giveHealthConsent", "/v1/me/consents/health", {
+      payload: Schema.Struct({ policyVersion: Schema.String.check(Schema.isMaxLength(32)) }),
+      success: HealthConsent,
+      error: ConsentOutdated,
+    }),
+  )
+  .add(
+    // Withdraws consent: Health uploads are refused from then on. Data already uploaded stays
+    // until the account is deleted, which the app offers next.
+    HttpApiEndpoint.delete("withdrawHealthConsent", "/v1/me/consents/health"),
+  )
   .add(
     // Deletes the account and all of its data: the user's store and its snapshots, uploaded
     // batch files, and the user with its identities, devices, sessions and connections. Safe to

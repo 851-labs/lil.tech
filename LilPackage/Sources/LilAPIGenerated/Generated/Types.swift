@@ -26,6 +26,15 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /v1/me`.
     /// - Remark: Generated from `#/paths//v1/me/delete(deleteMe)`.
     func deleteMe(_ input: Operations.DeleteMe.Input) async throws -> Operations.DeleteMe.Output
+    /// - Remark: HTTP `GET /v1/me/consents/health`.
+    /// - Remark: Generated from `#/paths//v1/me/consents/health/get(healthConsent)`.
+    func healthConsent(_ input: Operations.HealthConsent.Input) async throws -> Operations.HealthConsent.Output
+    /// - Remark: HTTP `POST /v1/me/consents/health`.
+    /// - Remark: Generated from `#/paths//v1/me/consents/health/post(giveHealthConsent)`.
+    func giveHealthConsent(_ input: Operations.GiveHealthConsent.Input) async throws -> Operations.GiveHealthConsent.Output
+    /// - Remark: HTTP `DELETE /v1/me/consents/health`.
+    /// - Remark: Generated from `#/paths//v1/me/consents/health/delete(withdrawHealthConsent)`.
+    func withdrawHealthConsent(_ input: Operations.WithdrawHealthConsent.Input) async throws -> Operations.WithdrawHealthConsent.Output
     /// - Remark: HTTP `GET /v1/sync/changes`.
     /// - Remark: Generated from `#/paths//v1/sync/changes/get(syncChanges)`.
     func syncChanges(_ input: Operations.SyncChanges.Input) async throws -> Operations.SyncChanges.Output
@@ -97,6 +106,27 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//v1/me/delete(deleteMe)`.
     public func deleteMe(headers: Operations.DeleteMe.Input.Headers = .init()) async throws -> Operations.DeleteMe.Output {
         try await deleteMe(Operations.DeleteMe.Input(headers: headers))
+    }
+    /// - Remark: HTTP `GET /v1/me/consents/health`.
+    /// - Remark: Generated from `#/paths//v1/me/consents/health/get(healthConsent)`.
+    public func healthConsent(headers: Operations.HealthConsent.Input.Headers = .init()) async throws -> Operations.HealthConsent.Output {
+        try await healthConsent(Operations.HealthConsent.Input(headers: headers))
+    }
+    /// - Remark: HTTP `POST /v1/me/consents/health`.
+    /// - Remark: Generated from `#/paths//v1/me/consents/health/post(giveHealthConsent)`.
+    public func giveHealthConsent(
+        headers: Operations.GiveHealthConsent.Input.Headers = .init(),
+        body: Operations.GiveHealthConsent.Input.Body
+    ) async throws -> Operations.GiveHealthConsent.Output {
+        try await giveHealthConsent(Operations.GiveHealthConsent.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `DELETE /v1/me/consents/health`.
+    /// - Remark: Generated from `#/paths//v1/me/consents/health/delete(withdrawHealthConsent)`.
+    public func withdrawHealthConsent(headers: Operations.WithdrawHealthConsent.Input.Headers = .init()) async throws -> Operations.WithdrawHealthConsent.Output {
+        try await withdrawHealthConsent(Operations.WithdrawHealthConsent.Input(headers: headers))
     }
     /// - Remark: HTTP `GET /v1/sync/changes`.
     /// - Remark: Generated from `#/paths//v1/sync/changes/get(syncChanges)`.

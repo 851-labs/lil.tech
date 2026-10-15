@@ -204,6 +204,33 @@ extension Components {
                 case message
             }
         }
+        /// - Remark: Generated from `#/components/schemas/ConsentRequired`.
+        public struct ConsentRequired: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ConsentRequired/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case consentRequired = "ConsentRequired"
+            }
+            /// - Remark: Generated from `#/components/schemas/ConsentRequired/_tag`.
+            public var _tag: Components.Schemas.ConsentRequired._TagPayload
+            /// - Remark: Generated from `#/components/schemas/ConsentRequired/required`.
+            public var required: Swift.String
+            /// Creates a new `ConsentRequired`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - required:
+            public init(
+                _tag: Components.Schemas.ConsentRequired._TagPayload,
+                required: Swift.String
+            ) {
+                self._tag = _tag
+                self.required = required
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case required
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/StorageFull`.
         public struct StorageFull: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/StorageFull/_tag`.
@@ -620,6 +647,85 @@ extension Components {
                 case op
                 case row
                 case at
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ConsentOutdated`.
+        public struct ConsentOutdated: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ConsentOutdated/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case consentOutdated = "ConsentOutdated"
+            }
+            /// - Remark: Generated from `#/components/schemas/ConsentOutdated/_tag`.
+            public var _tag: Components.Schemas.ConsentOutdated._TagPayload
+            /// - Remark: Generated from `#/components/schemas/ConsentOutdated/required`.
+            public var required: Swift.String
+            /// Creates a new `ConsentOutdated`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - required:
+            public init(
+                _tag: Components.Schemas.ConsentOutdated._TagPayload,
+                required: Swift.String
+            ) {
+                self._tag = _tag
+                self.required = required
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case required
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthConsent`.
+        public struct HealthConsent: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthConsent/required`.
+            public var required: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthConsent/given`.
+            public struct GivenPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/HealthConsent/given/policyVersion`.
+                public var policyVersion: Swift.String
+                /// - Remark: Generated from `#/components/schemas/HealthConsent/given/grantedAt`.
+                public var grantedAt: Swift.Int
+                /// Creates a new `GivenPayload`.
+                ///
+                /// - Parameters:
+                ///   - policyVersion:
+                ///   - grantedAt:
+                public init(
+                    policyVersion: Swift.String,
+                    grantedAt: Swift.Int
+                ) {
+                    self.policyVersion = policyVersion
+                    self.grantedAt = grantedAt
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case policyVersion
+                    case grantedAt
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/HealthConsent/given`.
+            public var given: Components.Schemas.HealthConsent.GivenPayload?
+            /// - Remark: Generated from `#/components/schemas/HealthConsent/current`.
+            public var current: Swift.Bool
+            /// Creates a new `HealthConsent`.
+            ///
+            /// - Parameters:
+            ///   - required:
+            ///   - given:
+            ///   - current:
+            public init(
+                required: Swift.String,
+                given: Components.Schemas.HealthConsent.GivenPayload? = nil,
+                current: Swift.Bool
+            ) {
+                self.required = required
+                self.given = given
+                self.current = current
+            }
+            public enum CodingKeys: String, CodingKey {
+                case required
+                case given
+                case current
             }
         }
         /// - Remark: Generated from `#/components/schemas/Me`.

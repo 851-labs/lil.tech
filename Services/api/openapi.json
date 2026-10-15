@@ -355,6 +355,162 @@
         }
       }
     },
+    "/v1/me/consents/health": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "operationId": "healthConsent",
+        "parameters": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "lil/api/auth/HealthConsent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthConsent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "operationId": "giveHealthConsent",
+        "parameters": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "lil/api/auth/HealthConsent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthConsent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ConsentOutdated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentOutdated"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "policyVersion": {
+                    "type": "string",
+                    "maxLength": 32
+                  }
+                },
+                "required": [
+                  "policyVersion"
+                ]
+              }
+            }
+          },
+          "required": true
+        }
+      },
+      "delete": {
+        "tags": [
+          "me"
+        ],
+        "operationId": "withdrawHealthConsent",
+        "parameters": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "<No Content>"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sync/changes": {
       "get": {
         "tags": [
@@ -621,6 +777,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ConsentRequired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentRequired"
                 }
               }
             }
@@ -895,6 +1061,24 @@
         "required": [
           "line",
           "message"
+        ]
+      },
+      "ConsentRequired": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "ConsentRequired"
+            ]
+          },
+          "required": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "required"
         ]
       },
       "StorageFull": {
@@ -1213,6 +1397,60 @@
           "at"
         ],
         "description": "One entry of the change log"
+      },
+      "ConsentOutdated": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "ConsentOutdated"
+            ]
+          },
+          "required": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "required"
+        ]
+      },
+      "HealthConsent": {
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "string"
+          },
+          "given": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "policyVersion": {
+                "type": "string"
+              },
+              "grantedAt": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "policyVersion",
+              "grantedAt"
+            ]
+          },
+          "current": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "required",
+          "given",
+          "current"
+        ]
       },
       "Me": {
         "type": "object",

@@ -386,13 +386,15 @@ public actor HealthBackfill {
   }
 
   /// Rethrows the error if it ends the whole run rather than one type's sync: cancelled (a
-  /// cancelled upload throws a URL error), the device is locked, or the account's storage is full
-  /// or rate limited, which every other upload would hit too. The pending page is kept.
+  /// cancelled upload throws a URL error), the device is locked, or the account's storage is full,
+  /// is rate limited or lacks consent, which every other upload would hit too. The pending page
+  /// is kept.
   private func stopIfRunEnds(_ error: any Error) throws {
     if Task.isCancelled || error is CancellationError { throw CancellationError() }
     if let locked = error as? HealthReader.Locked { throw locked }
     if let full = error as? HealthBatchUploader.StorageFull { throw full }
     if let limited = error as? HealthBatchUploader.RateLimited { throw limited }
+    if let consent = error as? HealthBatchUploader.ConsentRequired { throw consent }
   }
 
   /// Uploads a type's pages from its anchor until there are no more.
