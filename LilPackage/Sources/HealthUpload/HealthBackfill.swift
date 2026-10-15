@@ -1,3 +1,4 @@
+import CryptoKit
 public import Dependencies
 public import Foundation
 import HealthCatalog
@@ -28,6 +29,13 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   public var uploadedByType: [String: Int] = [:]
   /// When something last went up.
   public var lastUploadAt: Date?
+  /// A hash of the characteristics last uploaded, so they only go up again when they change.
+  public var characteristicsHash: String?
+  /// The characteristics last uploaded, so one that stops being readable is deleted.
+  public var characteristicIDs: Set<String> = []
+  /// When the Activity summaries were last read and uploaded; `nil` before the first time,
+  /// which reads them all.
+  public var activitySummariesUploadedAt: Date?
 
   public init() {}
 
@@ -46,6 +54,11 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
     uploadedByType =
       try container.decodeIfPresent([String: Int].self, forKey: .uploadedByType) ?? [:]
     lastUploadAt = try container.decodeIfPresent(Date.self, forKey: .lastUploadAt)
+    characteristicsHash = try container.decodeIfPresent(String.self, forKey: .characteristicsHash)
+    characteristicIDs =
+      try container.decodeIfPresent(Set<String>.self, forKey: .characteristicIDs) ?? []
+    activitySummariesUploadedAt = try container.decodeIfPresent(
+      Date.self, forKey: .activitySummariesUploadedAt)
   }
 
   /// A page written to batch files. Its anchor is committed once every file is accepted.
@@ -119,6 +132,8 @@ public actor HealthBackfill {
   private let storage: HealthBackfillStorage
   private let uploader: HealthBatchUploader
   private let statisticsReader: HealthStatisticsReader
+  private let characteristicsReader: HealthCharacteristicsReader
+  private let activitySummaryReader: HealthActivitySummaryReader
   private let uuid: UUIDGenerator
   private let now: @Sendable () -> Date
   private let clock: any Clock<Duration>
@@ -146,6 +161,8 @@ public actor HealthBackfill {
     @Dependency(\.healthBatchUploader) var uploader
     @Dependency(\.uuid) var uuid
     @Dependency(\.healthStatisticsReader) var statisticsReader
+    @Dependency(\.healthCharacteristicsReader) var characteristicsReader
+    @Dependency(\.healthActivitySummaryReader) var activitySummaryReader
     @Dependency(\.date) var date
     @Dependency(\.continuousClock) var clock
     self.types = types
@@ -154,6 +171,8 @@ public actor HealthBackfill {
     self.storage = storage
     self.uploader = uploader
     self.statisticsReader = statisticsReader
+    self.characteristicsReader = characteristicsReader
+    self.activitySummaryReader = activitySummaryReader
     self.uuid = uuid
     self.now = { date.now }
     let state = (try? storage.loadState()) ?? nil
@@ -263,6 +282,8 @@ public actor HealthBackfill {
     var syncedAll = false
     /// Types asked for that this run hasn't got to, asked for again if it ends early.
     var unreached: Set<String> = []
+    /// Whether a run of everything still has the characteristics and summaries to read.
+    var extrasDue = false
     do {
       guard var state = try loadState(startingBackfill: syncAllRequested) else {
         // No backfill yet (or signed out): changes wait for one.
@@ -279,6 +300,7 @@ public actor HealthBackfill {
           if syncAllRequested {
             syncAllRequested = false
             syncedAll = true
+            extrasDue = true
             wanted = Set(types.map(\.id))
           } else {
             wanted = requestedTypes
@@ -305,6 +327,10 @@ public actor HealthBackfill {
         }
         // Sums for every type that has some due, including ones from a resumed page.
         try await uploadAllStatistics(&state, skipping: Set(failures.keys))
+        if extrasDue {
+          extrasDue = false
+          try await uploadExtras(&state)
+        }
         // Requests made while the sums went up are handled before the loop ends.
       } while syncAllRequested || !requestedTypes.isEmpty
     } catch {
@@ -439,6 +465,78 @@ public actor HealthBackfill {
     state.statisticsFrom[type.id] = earliest
   }
 
+  /// How far back each run reads Activity summaries again: recent days' numbers and goals can
+  /// still change, e.g. when a Watch that was away for a while syncs.
+  static let activitySummaryWindow: TimeInterval = 30 * 24 * 60 * 60
+
+  /// Uploads what has no anchors: the characteristics, if they changed since they last went up,
+  /// and the Activity summaries, all of them the first time and the last 30 days' after that. A
+  /// failure is kept for the next run.
+  private func uploadExtras(_ state: inout HealthBackfillState) async throws {
+    do {
+      let characteristics = try await characteristicsReader.read()
+      let hash = try Self.hash(characteristics)
+      if hash != state.characteristicsHash {
+        // One that's no longer readable (access was turned off, or it was cleared) is deleted.
+        let ids = Set(characteristics.map(\.id))
+        let removed = state.characteristicIDs.subtracting(ids).sorted().map {
+          HealthMutation.delete(HealthEncoder.characteristicEntity, id: $0)
+        }
+        try await uploadMutations(characteristics + removed)
+        state.characteristicsHash = hash
+        state.characteristicIDs = ids
+        if !characteristics.isEmpty || !removed.isEmpty { state.lastUploadAt = now() }
+        try storage.saveState(state)
+        updateCounts(state)
+      }
+    } catch {
+      try stopIfRunEnds(error)
+      reportIssue(error, "Uploading characteristics; trying again next run")
+    }
+    do {
+      let readAt = now()
+      let from = state.activitySummariesUploadedAt?.addingTimeInterval(
+        -Self.activitySummaryWindow)
+      let summaries = try await activitySummaryReader.read(from)
+      try await uploadMutations(summaries)
+      state.activitySummariesUploadedAt = readAt
+      if !summaries.isEmpty { state.lastUploadAt = now() }
+      try storage.saveState(state)
+      updateCounts(state)
+    } catch {
+      try stopIfRunEnds(error)
+      reportIssue(error, "Uploading Activity summaries; trying again next run")
+    }
+  }
+
+  /// Uploads mutations in as many batch files as they need. One too long for the server is
+  /// reported and left out.
+  private func uploadMutations(_ mutations: [HealthMutation]) async throws {
+    var writer = HealthBatchWriter()
+    var files: [Data] = []
+    for mutation in mutations {
+      do {
+        if let file = try writer.append(mutation) { files.append(file) }
+      } catch let error as HealthBatchWriter.LineTooLong {
+        reportIssue(error)
+      }
+    }
+    if let file = try writer.finish() { files.append(file) }
+    for file in files {
+      try Task.checkCancellation()
+      try await uploader.upload(uuid().uuidString.lowercased(), file)
+    }
+  }
+
+  /// A hash of mutations that doesn't depend on their order.
+  static func hash(_ mutations: [HealthMutation]) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .sortedKeys
+    let lines = try mutations.map { String(decoding: try encoder.encode($0), as: UTF8.self) }
+    let digest = SHA256.hash(data: Data(lines.sorted().joined(separator: "\n").utf8))
+    return digest.map { String(format: "%02x", $0) }.joined()
+  }
+
   /// Uploads the sums of every type that has some due, then this iPhone's statistics status. A
   /// failure is kept for the next run and doesn't count against the type's samples.
   private func uploadAllStatistics(
@@ -492,20 +590,10 @@ public actor HealthBackfill {
         if !found.contains(bucket) { buckets.append(HealthBucket(start: bucket, sum: 0)) }
         bucket = bucket.addingTimeInterval(HealthEncoder.bucketSeconds)
       }
-      var writer = HealthBatchWriter()
-      var files: [Data] = []
-      for bucket in buckets.sorted(by: { $0.start < $1.start }) {
-        if let file = try writer.append(
-          HealthEncoder.statistic(type: type.id, bucket: bucket, unit: unit))
-        {
-          files.append(file)
-        }
-      }
-      if let file = try writer.finish() { files.append(file) }
-      for file in files {
-        try Task.checkCancellation()
-        try await uploader.upload(uuid().uuidString.lowercased(), file)
-      }
+      try await uploadMutations(
+        buckets.sorted { $0.start < $1.start }.map {
+          HealthEncoder.statistic(type: type.id, bucket: $0, unit: unit)
+        })
       start = chunkEnd
       state.statisticsFrom[type.id] = start < end ? start : nil
       try storage.saveState(state)

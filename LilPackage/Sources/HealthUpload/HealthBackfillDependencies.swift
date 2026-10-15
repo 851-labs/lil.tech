@@ -94,6 +94,22 @@ public struct HealthReader: Sendable {
   /// unlocked.
   public struct Locked: Error, Equatable {
     public init() {}
+
+    /// `Locked` for HealthKit's "database inaccessible" (the device is locked), otherwise the
+    /// error itself. Async queries catch and rethrow through this inline, since their
+    /// descriptors aren't Sendable.
+    static func mapped(_ error: any Error) -> any Error {
+      (error as? HKError)?.code == .errorDatabaseInaccessible ? Locked() : error
+    }
+
+    /// Runs a synchronous HealthKit read, through `mapped`.
+    static func mapping<T>(_ read: () throws -> T) throws -> T {
+      do {
+        return try read()
+      } catch {
+        throw mapped(error)
+      }
+    }
   }
 }
 
@@ -110,8 +126,8 @@ extension HealthReader: DependencyKey {
       let result: HKAnchoredObjectQueryDescriptor<HKSample>.Result
       do {
         result = try await descriptor.result(for: store)
-      } catch let error as HKError where error.code == .errorDatabaseInaccessible {
-        throw Locked()
+      } catch {
+        throw Locked.mapped(error)
       }
       var mutations: [HealthMutation] = []
       for sample in result.addedSamples {

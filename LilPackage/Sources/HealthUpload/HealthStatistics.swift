@@ -94,8 +94,8 @@ extension HealthStatisticsReader: DependencyKey {
         let collection: HKStatisticsCollection
         do {
           collection = try await descriptor.result(for: store)
-        } catch let error as HKError where error.code == .errorDatabaseInaccessible {
-          throw HealthReader.Locked()
+        } catch {
+          throw HealthReader.Locked.mapped(error)
         }
         var buckets: [HealthBucket] = []
         collection.enumerateStatistics(from: start, to: end) { statistics, _ in
