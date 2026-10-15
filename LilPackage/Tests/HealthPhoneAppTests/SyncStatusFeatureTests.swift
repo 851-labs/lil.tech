@@ -15,12 +15,13 @@ private let lastUpload = Date(timeIntervalSince1970: 1_760_400_000)
 
 private func progress(
   _ types: [String: HealthBackfill.TypeProgress], running: Bool = false, failure: String? = nil,
-  offline: Bool = false
+  offline: Bool = false, storageFull: Bool = false
 ) -> HealthBackfill.Progress {
   HealthBackfill.Progress(
     finishedTypes: types.values.filter(\.isDone).count, totalTypes: types.count,
     uploadedRecords: types.values.map(\.uploadedRecords).reduce(0, +), isRunning: running,
-    failure: failure, isOffline: offline, types: types, lastUploadAt: lastUpload)
+    failure: failure, isOffline: offline, isStorageFull: storageFull, types: types,
+    lastUploadAt: lastUpload)
 }
 
 @MainActor
@@ -51,6 +52,9 @@ struct SyncStatusFeatureTests {
     #expect(
       State(progress: progress([steps: notYet], failure: "HTTP 503")).status
         == .failed("HTTP 503"))
+    #expect(
+      State(progress: progress([steps: notYet], failure: "Full", storageFull: true)).status
+        == .storageFull)
   }
 
   @Test

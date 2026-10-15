@@ -78,14 +78,16 @@ public actor HealthBackfill {
     public var failure: String?
     /// Whether that was because there's no network: paused rather than failed.
     public var isOffline = false
+    /// Whether that was because the account's storage is full, so nothing more uploads.
+    public var isStorageFull = false
     /// Each type's progress, by HealthKit type identifier.
     public var types: [String: TypeProgress] = [:]
     public var lastUploadAt: Date?
 
     public init(
       finishedTypes: Int, totalTypes: Int, uploadedRecords: Int, isRunning: Bool,
-      failure: String? = nil, isOffline: Bool = false, types: [String: TypeProgress] = [:],
-      lastUploadAt: Date? = nil
+      failure: String? = nil, isOffline: Bool = false, isStorageFull: Bool = false,
+      types: [String: TypeProgress] = [:], lastUploadAt: Date? = nil
     ) {
       self.finishedTypes = finishedTypes
       self.totalTypes = totalTypes
@@ -93,6 +95,7 @@ public actor HealthBackfill {
       self.isRunning = isRunning
       self.failure = failure
       self.isOffline = isOffline
+      self.isStorageFull = isStorageFull
       self.types = types
       self.lastUploadAt = lastUploadAt
     }
@@ -250,7 +253,7 @@ public actor HealthBackfill {
             do {
               try await sync(type, &state)
             } catch {
-              try stopIfPaused(error)
+              try stopIfRunEnds(error)
               // One type can't hold up the rest. Its page is read again next time.
               failures[type.id] = error
               if let pending = state.pending, pending.type == type.id {
@@ -272,6 +275,7 @@ public actor HealthBackfill {
         if !paused {
           $0.failure = error.localizedDescription
           $0.isOffline = Self.isOffline(error)
+          $0.isStorageFull = error is HealthBatchUploader.StorageFull
         }
       }
       throw paused && !(error is HealthReader.Locked) ? CancellationError() : error
@@ -285,6 +289,7 @@ public actor HealthBackfill {
         $0.isRunning = false
         $0.failure = failure.localizedDescription
         $0.isOffline = ordered.allSatisfy(Self.isOffline)
+        $0.isStorageFull = false
       }
       throw failure
     }
@@ -294,15 +299,18 @@ public actor HealthBackfill {
       if syncedAll {
         $0.failure = nil
         $0.isOffline = false
+        $0.isStorageFull = false
       }
     }
   }
 
-  /// Rethrows the error if it means the run is pausing rather than failing: cancelled (a
-  /// cancelled upload throws a URL error), or the device is locked. The pending page is kept.
-  private func stopIfPaused(_ error: any Error) throws {
+  /// Rethrows the error if it ends the whole run rather than one type's sync: cancelled (a
+  /// cancelled upload throws a URL error), the device is locked, or the account's storage is full,
+  /// which every other upload would hit too. The pending page is kept.
+  private func stopIfRunEnds(_ error: any Error) throws {
     if Task.isCancelled || error is CancellationError { throw CancellationError() }
     if let locked = error as? HealthReader.Locked { throw locked }
+    if let full = error as? HealthBatchUploader.StorageFull { throw full }
   }
 
   /// Uploads a type's pages from its anchor until there are no more.
@@ -386,7 +394,7 @@ public actor HealthBackfill {
         try await uploadStatistics(of: type, &state)
         uploaded = true
       } catch {
-        try stopIfPaused(error)
+        try stopIfRunEnds(error)
         reportIssue(error, "Uploading \(type.id)'s sums; trying again next run")
       }
     }
@@ -398,7 +406,7 @@ public actor HealthBackfill {
       do {
         try await uploader.upload(uuid().uuidString.lowercased(), file)
       } catch {
-        try stopIfPaused(error)
+        try stopIfRunEnds(error)
       }
     }
   }

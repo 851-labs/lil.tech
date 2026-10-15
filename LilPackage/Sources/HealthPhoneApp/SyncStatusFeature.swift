@@ -32,6 +32,8 @@ public struct SyncStatusFeature {
       case needsHealthAccess
       /// Paused until there's a network connection.
       case offline
+      /// The account's storage is full, so nothing more uploads until there's room.
+      case storageFull
       case failed(String)
       case uploading(finishedTypes: Int, totalTypes: Int, records: Int)
       /// Not finished and not running, e.g. iOS paused it or the phone is locked.
@@ -43,6 +45,7 @@ public struct SyncStatusFeature {
       guard let progress else { return .loading }
       if needsHealthAccess { return .needsHealthAccess }
       if let failure = progress.failure, !progress.isRunning {
+        if progress.isStorageFull { return .storageFull }
         return progress.isOffline ? .offline : .failed(failure)
       }
       if !progress.isFinished {
