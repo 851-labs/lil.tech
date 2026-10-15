@@ -188,6 +188,10 @@ POST /v1/sync/mutations
     - If the app is killed, the pending page is uploaded again under the same batch IDs, which is safe, and nothing is skipped.
     - A type with nothing to read keeps no anchor and is checked again on every run. HealthKit returns nothing both for no data and for denied access, and an anchor taken while access was denied would skip the history once it's granted.
     - Signing out resets the backfill.
+  - **Incremental sync:** the iPhone registers an `HKObserverQuery` with background delivery (`.immediate`, which HealthKit limits per type) for every type, at every launch.
+    - A change runs the same page loop from the type's anchor, uploading additions and deletions.
+    - Changes that arrive during a run join it, so a burst becomes one upload.
+    - HealthKit is told the change is handled when the upload finishes, or after 25 seconds, whichever comes first.
   - **Device-scoped records:** some entities belong to the iPhone that uploads them, such as `health_statistic` (30-minute sums from HealthKit) and `health_statistics_device`. The iPhone sends their IDs without a device (`<type>@<bucketStart>`, or `self` for the device's own record). The server stamps each one with the uploading device, taken from the access token: it sets the `device` field and stores the ID as `<device>/<id>` (or just `<device>` for `self`). Two iPhones' records never collide, and an iPhone never needs to know its device ID.
   - **Status:** `GET /v1/health/batches/<id>` returns `queued`, `applying`, `applied` (with counts and up to 100 rejected lines) or `failed`.
   - **Failures:** a delivery that fails (e.g. the store is briefly unavailable) is retried 5 times, 30 seconds apart. Then the batch is marked `failed` and its message goes to a dead-letter queue. A batch still `queued` after 24 hours, or `applying` after an hour, is reported `failed` and never applied later. The client uploads failed or rejected data again as a new batch.

@@ -34,10 +34,10 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   }
 }
 
-/// Uploads a user's whole Health history (`docs/SYNC.md`): every type, a page at a time, with
-/// anchored queries. A page's anchor is only saved once all of its batches are accepted, so if
-/// the app is killed, the page is uploaded again (batch IDs make that safe) and nothing is
-/// skipped.
+/// Uploads a user's Health data (`docs/SYNC.md`): first the whole history (the backfill), then
+/// what changes, every type a page at a time with anchored queries. A page's anchor is only
+/// saved once all of its batches are accepted, so if the app is killed, the page is uploaded
+/// again (batch IDs make that safe) and nothing is skipped.
 public actor HealthBackfill {
   /// Objects per anchored query. Pages are split into batch files below the server's limits.
   static let pageSize = 2000
@@ -63,6 +63,9 @@ public actor HealthBackfill {
   private var observers: [UUID: AsyncStream<Progress>.Continuation] = [:]
   private var running: Task<Void, any Error>?
   private var resetting: Task<Void, Never>?
+  /// Work asked for: the whole backfill, and types whose changes to upload.
+  private var backfillRequested = false
+  private var requestedTypes: Set<String> = []
 
   public init(types: [HealthBackfillType]) {
     @Dependency(\.healthReader) var reader
@@ -95,13 +98,26 @@ public actor HealthBackfill {
   /// uploading fails, or if it's cancelled, which cancels the run. A second call while one runs
   /// joins it.
   public func run() async throws {
+    backfillRequested = true
+    try await work()
+  }
+
+  /// Uploads what changed in `types` (HealthKit type identifiers) since their anchors: additions
+  /// and deletions. Calls during a run are picked up by it, so bursts become one upload.
+  public func syncChanges(of types: Set<String>) async throws {
+    requestedTypes.formUnion(types)
+    try await work()
+  }
+
+  /// Starts the work loop, or joins the one running, and waits for it.
+  private func work() async throws {
     // A run asked for during a reset starts after it, from nothing.
     while let resetting { await resetting.value }
     let task: Task<Void, any Error>
     if let running {
       task = running
     } else {
-      task = Task { try await backfill() }
+      task = Task { try await loop() }
       running = task
     }
     try await withTaskCancellationHandler {
@@ -132,48 +148,68 @@ public actor HealthBackfill {
     resetting = nil
   }
 
-  private func backfill() async throws {
+  /// Does whatever was asked for, including what's asked for while it runs.
+  private func loop() async throws {
     defer { running = nil }
     update {
       $0.isRunning = true
       $0.failure = nil
     }
+    var changed: Set<String> = []
     do {
       var state = try loadState()
       if let pending = state.pending {
         try await upload(pending, &state)
       }
-      for type in types where !state.finished.contains(type.id) {
-        var isLast = false
-        while !isLast {
-          try Task.checkCancellation()
-          let anchor = state.anchors[type.id]
-          let page = try await reader.page(type, anchor, Self.pageSize)
-          if anchor == nil, page.mutations.isEmpty, !page.hasMore {
-            // Nothing readable yet: keep no anchor, and check again next time.
-            state.empty.insert(type.id)
-            try storage.saveState(state)
-            updateCounts(state)
-            break
+      while backfillRequested || !requestedTypes.isEmpty {
+        if backfillRequested {
+          backfillRequested = false
+          for type in types where !state.finished.contains(type.id) {
+            try await sync(type, &state)
           }
-          state.empty.remove(type.id)
-          let (pending, files) = try write(page, of: type)
-          // The page is saved before its files, so a kill in between leaves no orphans: the
-          // missing files make the next run read the page again.
-          state.pending = pending
-          try storage.saveState(state)
-          for (batch, file) in zip(pending.batches, files) { try storage.saveFile(batch, file) }
-          try await upload(pending, &state)
-          isLast = pending.isLast
+        }
+        changed = requestedTypes
+        requestedTypes = []
+        for type in types where changed.contains(type.id) {
+          try await sync(type, &state)
+          changed.remove(type.id)
         }
       }
       update { $0.isRunning = false }
     } catch {
+      // Changes not uploaded yet are tried again on the next call.
+      requestedTypes.formUnion(changed)
       update {
         $0.isRunning = false
         $0.failure = error is CancellationError ? nil : error.localizedDescription
       }
       throw error
+    }
+  }
+
+  /// Uploads a type's pages from its anchor until there are no more.
+  private func sync(_ type: HealthBackfillType, _ state: inout HealthBackfillState) async throws {
+    var isLast = false
+    while !isLast {
+      try Task.checkCancellation()
+      let anchor = state.anchors[type.id]
+      let page = try await reader.page(type, anchor, Self.pageSize)
+      if anchor == nil, page.mutations.isEmpty, !page.hasMore {
+        // Nothing readable yet: keep no anchor, and check again next time.
+        state.empty.insert(type.id)
+        try storage.saveState(state)
+        updateCounts(state)
+        return
+      }
+      state.empty.remove(type.id)
+      let (pending, files) = try write(page, of: type)
+      // The page is saved before its files, so a kill in between leaves no orphans: the
+      // missing files make the next run read the page again.
+      state.pending = pending
+      try storage.saveState(state)
+      for (batch, file) in zip(pending.batches, files) { try storage.saveFile(batch, file) }
+      try await upload(pending, &state)
+      isLast = pending.isLast
     }
   }
 
@@ -269,7 +305,7 @@ extension DependencyValues {
 
 private enum HealthBackfillKey: DependencyKey {
   static var liveValue: HealthBackfill {
-    HealthBackfill(types: HealthBackfillType.all(availableOn: HealthAuthorization.currentVersion))
+    HealthBackfill(types: HealthBackfillType.current)
   }
 
   /// Nothing to back up, so features can start it in tests.

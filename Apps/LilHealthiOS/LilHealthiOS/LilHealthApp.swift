@@ -14,6 +14,8 @@ struct LilHealthApp: App {
       $0.authDevice = .current(app: "health-ios")
       $0.authenticateAPI()
     }
+    // Before HealthKit delivers the change that may have woken the app.
+    Task { await HealthChanges.observe() }
   }
 
   var body: some Scene {

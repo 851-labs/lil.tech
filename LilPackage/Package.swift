@@ -136,6 +136,8 @@ let package = Package(
       dependencies: [
         "HealthKitAccess",
         "HealthPhoneApp",
+        "HealthUpload",
+        "LilAuth",
       ]
     ),
     .target(

@@ -12,19 +12,20 @@ private let sleep = HealthBackfillType(id: "HKCategoryTypeIdentifierSleepAnalysi
 /// A fake HealthKit: each type's history is `pages` pages of `perPage` records. Anchors are the
 /// number of pages read so far.
 private final class FakeHealth: Sendable {
-  let pages: [String: Int]
+  /// Each type's pages so far; adding one is new data.
+  let pageCounts: LockIsolated<[String: Int]>
   let perPage = 3
   let reads = LockIsolated<[String]>([])
 
   init(pages: [String: Int]) {
-    self.pages = pages
+    self.pageCounts = LockIsolated(pages)
   }
 
   var reader: HealthReader {
     HealthReader { [self] type, anchor, _ in
       let read = anchor.map { Int(String(decoding: $0, as: UTF8.self))! } ?? 0
       reads.withValue { $0.append("\(type.id.suffix(9))@\(read)") }
-      let total = pages[type.id] ?? 0
+      let total = pageCounts.value[type.id] ?? 0
       let records = read < total ? perPage : 0
       let mutations = (0..<records).map { n in
         HealthMutation.delete("health_sample", id: "\(type.id)-\(read)-\(n)")
@@ -279,5 +280,87 @@ struct HealthBackfillTests {
     #expect(try storage.loadFile("a") == nil)
     try storage.saveState(nil)
     #expect(try storage.loadState() == nil)
+  }
+
+  @Test
+  func uploadsChangesSinceTheAnchors() async throws {
+    let health = FakeHealth(pages: [steps.id: 1, sleep.id: 1])
+    let server = FakeServer()
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = makeBackfill([steps, sleep], health: health, server: server, storage: storage)
+    try await backfill.run()
+
+    // A new page of steps; sleep didn't change, so it isn't read.
+    health.pageCounts.withValue { $0[steps.id] = 2 }
+    try await backfill.syncChanges(of: [steps.id])
+
+    #expect(health.reads.value == ["StepCount@0", "pAnalysis@0", "StepCount@1"])
+    #expect(server.records.value.count == 9)
+    #expect(try storage.loadState()?.anchors[steps.id] == Data("2".utf8))
+  }
+
+  @Test
+  func changesDuringARunJoinIt() async throws {
+    let health = FakeHealth(pages: [steps.id: 1, sleep.id: 1])
+    let (started, didStart) = AsyncStream<Void>.makeStream()
+    let (release, finish) = AsyncStream<Void>.makeStream()
+    let blocked = LockIsolated(true)
+    let server = FakeServer()
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = HealthReader { type, anchor, limit in
+        if blocked.value {
+          blocked.setValue(false)
+          didStart.yield()
+          for await _ in release {}
+        }
+        return try await health.reader.page(type, anchor, limit)
+      }
+      $0.healthBatchUploader = server.uploader
+      $0.healthBackfillStorage = storage
+      $0.uuid = .incrementing
+    } operation: {
+      HealthBackfill(types: [steps, sleep])
+    }
+
+    async let first: Void = backfill.syncChanges(of: [steps.id])
+    for await _ in started { break }
+    // A burst while steps is being read: picked up by the same run.
+    async let second: Void = backfill.syncChanges(of: [sleep.id])
+    async let third: Void = backfill.syncChanges(of: [sleep.id])
+    finish.finish()
+    _ = try await (first, second, third)
+
+    #expect(health.reads.value == ["StepCount@0", "pAnalysis@0"])
+  }
+
+  @Test
+  func changesThatFailedAreTriedAgain() async throws {
+    let health = FakeHealth(pages: [steps.id: 1])
+    let server = FakeServer()
+    server.failing.setValue([1])
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = makeBackfill([steps], health: health, server: server, storage: storage)
+
+    await #expect(throws: FakeServer.Offline.self) {
+      try await backfill.syncChanges(of: [steps.id])
+    }
+    // The next call, even for nothing new, finishes the pending page.
+    try await backfill.syncChanges(of: [])
+    #expect(server.records.value.count == 3)
+    #expect(try storage.loadState()?.anchors[steps.id] == Data("1".utf8))
+  }
+
+  @Test
+  func observerCompletionDoesntWaitPastTheDeadline() async {
+    let (release, finish) = AsyncStream<Void>.makeStream()
+    let finished = LockIsolated(false)
+    await HealthObserver.handle(steps.id, deadline: .milliseconds(10)) { _ in
+      for await _ in release {}
+      finished.setValue(true)
+    }
+    // Handled, while the work goes on.
+    #expect(!finished.value)
+    finish.finish()
   }
 }
