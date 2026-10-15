@@ -15,7 +15,9 @@ public struct AppView: View {
       case nil:
         ProgressView()
       case false:
-        SignInView(store: store.scope(\.signIn, action: \.signIn), appName: "lil health")
+        SignInView(
+          store: store.scope(\.signIn, action: \.signIn), appName: "lil health",
+          privacyPolicy: AppFeature.privacyPolicy)
       case true:
         if let healthAccess = store.scope(\.healthAccess, action: \.healthAccess) {
           HealthAccessView(store: healthAccess)

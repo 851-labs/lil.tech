@@ -26,6 +26,7 @@ public struct SyncStatusView: View {
         }
         Section {
           Button("Health Access in Settings") { store.send(.openSettingsButtonTapped) }
+          Link("Privacy Policy", destination: AppFeature.privacyPolicy)
           Button("Sign Out") { store.send(.signOutButtonTapped) }
           Button("Delete Account", role: .destructive) {
             store.send(.deleteAccountButtonTapped)

@@ -89,12 +89,15 @@ jobs:
         working-directory: Services/api
         run: |
           pnpm run deploy --stage "$STAGE" --yes | tee deploy.log
-          url=$(grep -oE "https://[a-z0-9.-]+\.workers\.dev" deploy.log | tail -1)
+          # The stack's Workers are named lil-api-<id>-<stage>-…: Api, and Site for the website.
+          url=$(grep -oE "https://lil-api-api-[a-z0-9.-]+\.workers\.dev" deploy.log | tail -1)
+          site_url=$(grep -oE "https://lil-api-site-[a-z0-9.-]+\.workers\.dev" deploy.log | tail -1)
           if [ -z "$url" ]; then
             echo "error: couldn't find the preview URL in the deploy output" >&2
             exit 1
           fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "site_url=$site_url" >> "$GITHUB_OUTPUT"
           echo "version=$(git describe --always --dirty --exclude '*')" >> "$GITHUB_OUTPUT"
       - name: Check the preview serves this commit
         run: scripts/check-deploy "${{ steps.deploy.outputs.url }}" "${{ steps.deploy.outputs.version }}"
@@ -103,11 +106,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           URL: ${{ steps.deploy.outputs.url }}
+          SITE_URL: ${{ steps.deploy.outputs.site_url }}
           VERSION: ${{ steps.deploy.outputs.version }}
         run: |
           marker="<!-- services-preview -->"
           body="$marker
-          **API preview** (\`$STAGE\`, \`$VERSION\`): $URL/v1/status"
+          **API preview** (\`$STAGE\`, \`$VERSION\`): $URL/v1/status
+          **Website preview**: ${SITE_URL:-not found in the deploy output}"
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
             --jq "[.[] | select(.body | startswith(\"$marker\"))][0].id // empty")
           if [ -n "$id" ]; then

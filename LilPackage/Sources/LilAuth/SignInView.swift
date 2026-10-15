@@ -1,17 +1,20 @@
 import AuthenticationServices
 public import ComposableArchitecture
+public import Foundation
 public import SwiftUI
 
 /// The sign-in screen: the app's name, the stock Sign in with Apple button, a Google button, and
-/// what's happening.
+/// what's happening, with a link to the privacy policy if there's one.
 public struct SignInView: View {
   let store: StoreOf<SignInFeature>
   let appName: String
+  let privacyPolicy: URL?
   @Environment(\.colorScheme) private var colorScheme
 
-  public init(store: StoreOf<SignInFeature>, appName: String) {
+  public init(store: StoreOf<SignInFeature>, appName: String, privacyPolicy: URL? = nil) {
     self.store = store
     self.appName = appName
+    self.privacyPolicy = privacyPolicy
   }
 
   public var body: some View {
@@ -76,6 +79,10 @@ public struct SignInView: View {
           .multilineTextAlignment(.center)
           .frame(minHeight: 40, alignment: .top)
       }
+      if let privacyPolicy {
+        Link("Privacy Policy", destination: privacyPolicy)
+          .font(.footnote)
+      }
       Spacer().frame(height: 24)
     }
     .padding(32)
@@ -120,7 +127,7 @@ public struct SignInView: View {
 #Preview("Signed out") {
   SignInView(
     store: Store(initialState: SignInFeature.State()) { SignInFeature() },
-    appName: "lil health")
+    appName: "lil health", privacyPolicy: URL(string: "https://lil.tech/privacy"))
 }
 
 #Preview("Signing in") {
