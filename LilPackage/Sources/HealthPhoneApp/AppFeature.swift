@@ -1,4 +1,5 @@
 public import ComposableArchitecture
+import Foundation
 import HealthKitAccess
 import HealthUpload
 public import LilAuth
@@ -17,29 +18,44 @@ public struct AppFeature {
     public var healthAccess: HealthAccessFeature.State?
     /// Whether onboarding got to the end once, medications and prescriptions included.
     @Shared(.appStorage("offeredPerObjectHealthTypes")) public var offeredPerObject = false
+    /// Whether this account's other iPhones were checked for (and warned about) once already.
+    @Shared(.appStorage("checkedForOtherIPhones")) public var checkedForOtherIPhones = false
+    @Presents public var alert: AlertState<Action.Alert>?
 
-    public init(isSignedIn: Bool? = nil, healthAccess: HealthAccessFeature.State? = nil) {
+    public init(
+      isSignedIn: Bool? = nil, healthAccess: HealthAccessFeature.State? = nil,
+      alert: AlertState<Action.Alert>? = nil
+    ) {
       self.isSignedIn = isSignedIn
       self.healthAccess = healthAccess
+      self.alert = alert
     }
   }
 
   public enum Action {
+    case alert(PresentationAction<Alert>)
     /// Starts uploading the Health history, if it isn't all uploaded.
     case backfill
     case healthAccess(HealthAccessFeature.Action)
     case healthAccessChecked(needsRequest: Bool)
+    /// How many other iPhones are signed in to the account with lil health.
+    case otherIPhonesFound(Int)
+    /// They couldn't be checked for (e.g. offline), so they're checked for on the next launch.
+    case otherIPhonesCheckFailed
     case signedInChanged(Bool)
     case signIn(SignInFeature.Action)
     case syncStatus(SyncStatusFeature.Action)
     case task
+
+    public enum Alert: Equatable {}
   }
 
+  @Dependency(\.accountDevices) var accountDevices
   @Dependency(\.auth) var auth
   @Dependency(\.healthAuthorization) var healthAuthorization
   @Dependency(\.healthBackfill) var healthBackfill
 
-  enum CancelID { case backfill }
+  enum CancelID { case backfill, signedInChecks }
 
   public init() {}
 
@@ -52,6 +68,9 @@ public struct AppFeature {
     }
     Reduce { state, action in
       switch action {
+      case .alert:
+        return .none
+
       case .backfill:
         // Failures are kept in the backfill's progress (for the status screen, 851-2557), and
         // it's tried again on the next launch.
@@ -90,24 +109,46 @@ public struct AppFeature {
         }
         return .none
 
+      case .otherIPhonesCheckFailed:
+        state.$checkedForOtherIPhones.withLock { $0 = false }
+        return .none
+
+      case .otherIPhonesFound(let count):
+        guard count > 0, state.isSignedIn == true else { return .none }
+        state.alert = .otherIPhones(count)
+        return .none
+
       case .signedInChanged(let isSignedIn):
         state.isSignedIn = isSignedIn
         guard isSignedIn else {
           state.signIn = SignInFeature.State()
           state.healthAccess = nil
           state.syncStatus = SyncStatusFeature.State()
+          // The next account is checked for other iPhones too.
+          state.$checkedForOtherIPhones.withLock { $0 = false }
           // The next account starts its own backfill from the beginning.
           return .merge(
             .cancel(id: CancelID.backfill),
+            .cancel(id: CancelID.signedInChecks),
             .run { [healthBackfill] _ in await healthBackfill.reset() }
           )
         }
-        return .run { [healthAuthorization] send in
-          guard healthAuthorization.isAvailable() else { return }
-          // If asking fails, there's nothing to show; the sync screen reports missing access.
-          let needsRequest = (try? await healthAuthorization.needsRequest()) ?? false
-          await send(.healthAccessChecked(needsRequest: needsRequest))
+        let checkDevices = !state.checkedForOtherIPhones
+        state.$checkedForOtherIPhones.withLock { $0 = true }
+        return .run { [healthAuthorization, accountDevices] send in
+          if healthAuthorization.isAvailable() {
+            // If asking fails, there's nothing to show; the sync screen reports missing access.
+            let needsRequest = (try? await healthAuthorization.needsRequest()) ?? false
+            await send(.healthAccessChecked(needsRequest: needsRequest))
+          }
+          guard checkDevices else { return }
+          do {
+            await send(.otherIPhonesFound(try await accountDevices.otherInstallsOfThisApp()))
+          } catch {
+            await send(.otherIPhonesCheckFailed)
+          }
         }
+        .cancellable(id: CancelID.signedInChecks, cancelInFlight: true)
 
       case .signIn:
         // The session's updates say when signing in worked.
@@ -133,6 +174,24 @@ public struct AppFeature {
     }
     .ifLet(\.healthAccess, action: \.healthAccess) {
       HealthAccessFeature()
+    }
+    .ifLet(\.$alert, action: \.alert)
+  }
+}
+
+extension AlertState where Action == AppFeature.Action.Alert {
+  /// One lil health account holds one Health history: two iPhones only agree on it when Health
+  /// syncs them through iCloud (`docs/DECISIONS.md`).
+  public static func otherIPhones(_ count: Int) -> Self {
+    let which = count == 1 ? "Another iPhone is" : "\(count) other iPhones are"
+    return Self {
+      TextState(count == 1 ? "Another iPhone uses this account" : "Other iPhones use this account")
+    } actions: {
+      ButtonState(role: .cancel) { TextState("OK") }
+    } message: {
+      TextState(
+        "\(which) already signed in to this account. Each iPhone must be signed in to the same Apple ID with Health turned on in iCloud settings, or your data will be counted twice or go missing."
+      )
     }
   }
 }

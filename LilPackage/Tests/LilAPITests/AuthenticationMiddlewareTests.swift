@@ -111,7 +111,7 @@ struct AuthenticationMiddlewareTests {
 
 private let me = (
   HTTPResponse(status: .ok, headerFields: [.contentType: "application/json"]),
-  HTTPBody(#"{"id":"u1","identities":[]}"#) as HTTPBody?
+  HTTPBody(#"{"id":"u1","identities":[],"devices":[]}"#) as HTTPBody?
 )
 
 private let unauthorized = (

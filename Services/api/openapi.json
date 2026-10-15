@@ -1231,12 +1231,55 @@
             "items": {
               "$ref": "#/components/schemas/MeIdentity"
             }
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MeDevice"
+            }
           }
         },
         "required": [
           "id",
           "displayName",
-          "identities"
+          "identities",
+          "devices"
+        ]
+      },
+      "MeDevice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "app": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "current": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "app",
+          "platform",
+          "name",
+          "createdAt",
+          "current"
         ]
       },
       "MeIdentity": {

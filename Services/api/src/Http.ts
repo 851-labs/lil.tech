@@ -1,5 +1,5 @@
 import * as Http from "alchemy/Http";
-import { Effect, Layer, Option, Redacted, Schedule, Schema } from "effect";
+import { Clock, Effect, Layer, Option, Redacted, Schedule, Schema } from "effect";
 import { Headers, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
@@ -13,10 +13,12 @@ import {
   CurrentSession,
   type DeviceInfo,
   Me,
+  MeDevice,
   MeIdentity,
   Unauthorized,
 } from "./auth/AuthApi.ts";
 import { AccessTokens } from "./auth/Tokens.ts";
+import { Devices } from "./core/Devices.ts";
 import { Identities } from "./core/Identities.ts";
 import {
   HealthBatchNotFound,
@@ -160,6 +162,7 @@ export const MeHandlers = HttpApiBuilder.group(
   Effect.fn(function* (handlers) {
     const users = yield* Users;
     const identities = yield* Identities;
+    const devices = yield* Devices;
     const stores = yield* UserStores;
     return handlers
       .handle("me", () =>
@@ -170,12 +173,29 @@ export const MeHandlers = HttpApiBuilder.group(
           if (Option.isNone(user)) {
             return yield* new Unauthorized({ message: "The user no longer exists" });
           }
-          const userIdentities = yield* identities.listForUser(session.userId).pipe(Effect.orDie);
+          const [userIdentities, userDevices] = yield* Effect.all(
+            [
+              identities.listForUser(session.userId),
+              devices.listSignedInForUser(session.userId, yield* Clock.currentTimeMillis),
+            ],
+            { concurrency: "unbounded" },
+          ).pipe(Effect.orDie);
           return new Me({
             id: user.value.id,
             displayName: user.value.displayName,
             identities: userIdentities.map(
               (identity) => new MeIdentity({ provider: identity.provider, email: identity.email }),
+            ),
+            devices: userDevices.map(
+              (device) =>
+                new MeDevice({
+                  id: device.id,
+                  app: device.app,
+                  platform: device.platform,
+                  name: device.name,
+                  createdAt: device.createdAt,
+                  current: device.id === session.deviceId,
+                }),
             ),
           });
         }),
