@@ -13,6 +13,7 @@ let package = Package(
     .library(name: "ContactNames", targets: ["ContactNames"]),
     .library(name: "ConversationListFeature", targets: ["ConversationListFeature"]),
     .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
+    .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
     .library(name: "HealthPhoneApp", targets: ["HealthPhoneApp"]),
     .library(name: "LilAPI", targets: ["LilAPI"]),
     .library(name: "LilAuth", targets: ["LilAuth"]),
@@ -84,6 +85,22 @@ let package = Package(
       name: "HealthCatalogTests",
       dependencies: [
         "HealthCatalog"
+      ]
+    ),
+    .target(
+      name: "HealthDatabase",
+      dependencies: [
+        "HealthCatalog",
+        "LilAPI",
+        "LilSync",
+        .product(name: "SQLiteData", package: "sqlite-data"),
+      ]
+    ),
+    .testTarget(
+      name: "HealthDatabaseTests",
+      dependencies: [
+        "HealthDatabase",
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ]
     ),
     .target(
