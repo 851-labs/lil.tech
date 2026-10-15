@@ -61,7 +61,7 @@
 
 ### Everywhere
 
-- **CI:** a self-hosted macOS runner for Swift, once we need one. TypeScript CI runs on GitHub-hosted runners.
+- **CI:** GitHub-hosted runners: macOS for Swift (lint, package tests, app builds) and Linux for TypeScript. A self-hosted Mac only if hosted ones get too slow or lack the Xcode we need.
 - **No analytics or crash reporting** in the apps. The server uses Cloudflare's Workers Logs and Effect tracing, with no third-party observability.
 
 ## Server
