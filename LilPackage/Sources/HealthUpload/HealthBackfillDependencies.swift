@@ -275,9 +275,10 @@ extension HealthBatchUploader: DependencyKey {
       case .contentTooLarge: throw Rejected(statusCode: 413)
       case .serviceUnavailable: throw Rejected(statusCode: 503)
       case .tooManyRequests(let response):
-        // A minute if the body can't be read.
-        throw RateLimited(
-          retryAfter: TimeInterval((try? response.body.json.retryAfterSeconds) ?? 60))
+        let seconds = Components.Schemas.TooManyRequests.retryAfterSeconds {
+          try response.body.json
+        }
+        throw RateLimited(retryAfter: TimeInterval(seconds))
       case .code507: throw StorageFull()
       case .undocumented(let statusCode, _): throw Rejected(statusCode: statusCode)
       }

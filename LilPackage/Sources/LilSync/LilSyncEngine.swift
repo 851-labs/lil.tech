@@ -393,9 +393,10 @@ public actor LilSyncEngine {
     case .serviceUnavailable:
       throw SyncError.unavailable
     case .tooManyRequests(let response):
-      // A minute if the body can't be read.
       throw SyncError.rateLimited(
-        retryAfterSeconds: (try? response.body.json.retryAfterSeconds) ?? 60)
+        retryAfterSeconds: Components.Schemas.TooManyRequests.retryAfterSeconds {
+          try response.body.json
+        })
     case .undocumented(let statusCode, _):
       throw SyncError.unexpectedStatus(statusCode)
     }
@@ -413,9 +414,10 @@ public actor LilSyncEngine {
     case .serviceUnavailable:
       throw SyncError.unavailable
     case .tooManyRequests(let response):
-      // A minute if the body can't be read.
       throw SyncError.rateLimited(
-        retryAfterSeconds: (try? response.body.json.retryAfterSeconds) ?? 60)
+        retryAfterSeconds: Components.Schemas.TooManyRequests.retryAfterSeconds {
+          try response.body.json
+        })
     case .undocumented(let statusCode, _):
       throw SyncError.unexpectedStatus(statusCode)
     }
@@ -432,9 +434,10 @@ public actor LilSyncEngine {
     case .serviceUnavailable:
       throw SyncError.unavailable
     case .tooManyRequests(let response):
-      // A minute if the body can't be read.
       throw SyncError.rateLimited(
-        retryAfterSeconds: (try? response.body.json.retryAfterSeconds) ?? 60)
+        retryAfterSeconds: Components.Schemas.TooManyRequests.retryAfterSeconds {
+          try response.body.json
+        })
     case .undocumented(let statusCode, _):
       throw SyncError.unexpectedStatus(statusCode)
     }
