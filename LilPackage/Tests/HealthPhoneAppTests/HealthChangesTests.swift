@@ -46,8 +46,12 @@ struct HealthChangesTests {
             accessToken: "access", accessTokenExpiresAt: Date(timeIntervalSince1970: 1_760_500_000),
             refreshToken: "refresh",
             refreshTokenExpiresAt: Date(timeIntervalSince1970: 1_770_000_000)))
+        // Changes go up once there's a backfill.
+        @Dependency(\.healthBackfill) var healthBackfill
+        try await healthBackfill.run()
         await handler("HKQuantityTypeIdentifierBodyMass")
-        #expect(synced.value == ["HKQuantityTypeIdentifierBodyMass"])
+        #expect(
+          synced.value == ["HKQuantityTypeIdentifierBodyMass", "HKQuantityTypeIdentifierBodyMass"])
       }
     }
   }

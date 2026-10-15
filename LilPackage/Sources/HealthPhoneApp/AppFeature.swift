@@ -51,8 +51,12 @@ public struct AppFeature {
       case .backfill:
         // Failures are kept in the backfill's progress (for the status screen, 851-2557), and
         // it's tried again on the next launch.
-        return .run { [healthBackfill] _ in try? await healthBackfill.run() }
-          .cancellable(id: CancelID.backfill, cancelInFlight: true)
+        return .run { [healthBackfill] _ in
+          // Again now that Health access may have been granted.
+          await HealthChanges.observe()
+          try? await healthBackfill.run()
+        }
+        .cancellable(id: CancelID.backfill, cancelInFlight: true)
 
       case .healthAccess(.delegate(.finished)):
         state.$offeredPerObject.withLock { $0 = true }

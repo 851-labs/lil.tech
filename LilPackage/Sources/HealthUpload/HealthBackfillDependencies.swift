@@ -30,6 +30,15 @@ public struct HealthBackfillType: Hashable, Sendable {
   }
 }
 
+extension HealthBackfillType {
+  /// The HealthKit type to query and observe, or `nil` if HealthKit doesn't know it.
+  var sampleType: HKSampleType? {
+    isCorrelation
+      ? HKObjectType.correlationType(forIdentifier: .init(rawValue: id))
+      : HealthCatalog.type(id: id)?.objectType as? HKSampleType
+  }
+}
+
 /// One page of an anchored query, already encoded.
 public struct HealthPage: Sendable {
   public var mutations: [HealthMutation]
@@ -86,11 +95,7 @@ extension HealthReader: DependencyKey {
   public static var liveValue: Self {
     let store = HKHealthStore()
     return Self { type, anchorData, limit in
-      let sampleType: HKSampleType? =
-        type.isCorrelation
-        ? HKObjectType.correlationType(forIdentifier: .init(rawValue: type.id))
-        : HealthCatalog.type(id: type.id)?.objectType as? HKSampleType
-      guard let sampleType else { throw UnknownType(id: type.id) }
+      guard let sampleType = type.sampleType else { throw UnknownType(id: type.id) }
       let anchor = try anchorData.flatMap {
         try NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: $0)
       }

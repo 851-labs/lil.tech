@@ -1,6 +1,5 @@
 public import Dependencies
 import Foundation
-import HealthCatalog
 import HealthKit
 import HealthKitAccess
 import IssueReporting
@@ -17,7 +16,8 @@ public struct HealthObserver: Sendable {
   /// Observes every type and turns on background delivery for it, at the most frequent schedule
   /// HealthKit allows each type (`.immediate`, which HealthKit limits per type, e.g. hourly for
   /// steps). `onChange` gets a changed type's identifier. Must be called at every launch, before
-  /// HealthKit delivers the change that woke the app.
+  /// HealthKit delivers the change that woke the app, and again after Health access is granted,
+  /// to turn delivery on for types that weren't readable before.
   public var start:
     @Sendable (
       _ types: [HealthBackfillType], _ onChange: @escaping @Sendable (String) async -> Void
@@ -40,14 +40,12 @@ public struct HealthObserver: Sendable {
 extension HealthObserver: DependencyKey {
   public static var liveValue: Self {
     let store = HKHealthStore()
+    let observed = LockIsolated<Set<String>>([])
     return Self { types, onChange in
-      for type in types {
-        let sampleType: HKSampleType? =
-          type.isCorrelation
-          ? HKObjectType.correlationType(forIdentifier: .init(rawValue: type.id))
-          : HealthCatalog.type(id: type.id)?.objectType as? HKSampleType
-        guard let sampleType else { continue }
-        let id = type.id
+      let sampleTypes = types.compactMap { type in type.sampleType.map { (type.id, $0) } }
+      // Every query first, so each type is watched before any delivery is turned on. Calling
+      // again (e.g. after Health access was granted) adds no second query for a type.
+      for (id, sampleType) in sampleTypes where observed.withValue({ $0.insert(id).inserted }) {
         let query = HKObserverQuery(sampleType: sampleType, predicate: nil) {
           _, completion, error in
           guard error == nil else { return completion() }
@@ -58,10 +56,13 @@ extension HealthObserver: DependencyKey {
           }
         }
         store.execute(query)
-        do {
-          try await store.enableBackgroundDelivery(for: sampleType, frequency: .immediate)
-        } catch {
-          reportIssue(error, "Background delivery for \(id)")
+      }
+      // Fails for types the app may not read yet; it's turned on again after access is granted.
+      await withTaskGroup(of: Void.self) { group in
+        for (_, sampleType) in sampleTypes {
+          group.addTask {
+            try? await store.enableBackgroundDelivery(for: sampleType, frequency: .immediate)
+          }
         }
       }
     }

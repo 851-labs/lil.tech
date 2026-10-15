@@ -61,11 +61,14 @@ public actor HealthBackfill {
   private let uuid: UUIDGenerator
   private var progress: Progress
   private var observers: [UUID: AsyncStream<Progress>.Continuation] = [:]
-  private var running: Task<Void, any Error>?
+  /// The work loop running, with an ID so only it clears itself.
+  private var running: (id: Int, task: Task<Void, any Error>)?
+  private var nextRunID = 0
   private var resetting: Task<Void, Never>?
-  /// Work asked for: the whole backfill, and types whose changes to upload.
-  private var backfillRequested = false
-  private var requestedTypes: Set<String> = []
+  /// Work asked for: every type (the backfill, and catching up), and types whose changes to
+  /// upload.
+  private var syncAllRequested = false
+  var requestedTypes: Set<String> = []
 
   public init(types: [HealthBackfillType]) {
     @Dependency(\.healthReader) var reader
@@ -94,45 +97,45 @@ public actor HealthBackfill {
     return stream
   }
 
-  /// Uploads everything not uploaded yet. Returns when every type is done; throws if reading or
-  /// uploading fails, or if it's cancelled, which cancels the run. A second call while one runs
-  /// joins it.
+  /// Uploads everything not on the server: the rest of the backfill, and anything that changed
+  /// since each type's anchor, in case a change was missed (e.g. the app was killed before
+  /// uploading it). Returns when that's done. Throws the first failure; types that failed are
+  /// tried again on the next call, and the others go ahead. A second call while one runs joins it.
   public func run() async throws {
-    backfillRequested = true
+    syncAllRequested = true
     try await work()
   }
 
   /// Uploads what changed in `types` (HealthKit type identifiers) since their anchors: additions
-  /// and deletions. Calls during a run are picked up by it, so bursts become one upload.
+  /// and deletions. Calls during a run are picked up by it, so bursts become one upload. Does
+  /// nothing until `run()` started a backfill: after signing out, changes wait for the next
+  /// account's backfill.
   public func syncChanges(of types: Set<String>) async throws {
     requestedTypes.formUnion(types)
     try await work()
   }
 
-  /// Starts the work loop, or joins the one running, and waits for it.
+  /// Starts the work loop, or joins the one running, and waits for it. The loop is shared, so
+  /// cancelling a caller doesn't stop it; `reset()` does.
   private func work() async throws {
-    // A run asked for during a reset starts after it, from nothing.
+    // A run asked for during a reset starts after it.
     while let resetting { await resetting.value }
-    let task: Task<Void, any Error>
-    if let running {
-      task = running
-    } else {
-      task = Task { try await loop() }
-      running = task
-    }
-    try await withTaskCancellationHandler {
-      try await task.value
-    } onCancel: {
-      task.cancel()
-    }
+    if let running, !running.task.isCancelled { return try await running.task.value }
+    nextRunID += 1
+    let id = nextRunID
+    let task = Task { try await loop(id) }
+    running = (id, task)
+    try await task.value
   }
 
   /// Forgets everything, e.g. on signing out: the next account starts from the beginning.
   public func reset() async {
     if let resetting { return await resetting.value }
     let task = Task {
-      running?.cancel()
-      _ = try? await running?.value
+      syncAllRequested = false
+      requestedTypes = []
+      running?.task.cancel()
+      _ = try? await running?.task.value
       // Even if the state can't be read, everything goes: `saveState(nil)` removes the files.
       if let pending = (try? storage.loadState())??.pending {
         for batch in pending.batches { try? storage.removeFile(batch) }
@@ -149,41 +152,68 @@ public actor HealthBackfill {
   }
 
   /// Does whatever was asked for, including what's asked for while it runs.
-  private func loop() async throws {
-    defer { running = nil }
-    update {
-      $0.isRunning = true
-      $0.failure = nil
-    }
-    var changed: Set<String> = []
+  private func loop(_ id: Int) async throws {
+    // In the same turn as the last check for work, so a request can't join a finished loop.
+    defer { if running?.id == id { running = nil } }
+    update { $0.isRunning = true }
+    var failures: [String: any Error] = [:]
+    var syncedAll = false
     do {
-      var state = try loadState()
+      guard var state = try loadState(startingBackfill: syncAllRequested) else {
+        // No backfill yet (or signed out): changes wait for one.
+        requestedTypes = []
+        update { $0.isRunning = false }
+        return
+      }
       if let pending = state.pending {
         try await upload(pending, &state)
       }
-      while backfillRequested || !requestedTypes.isEmpty {
-        if backfillRequested {
-          backfillRequested = false
-          for type in types where !state.finished.contains(type.id) {
+      while syncAllRequested || !requestedTypes.isEmpty {
+        let wanted: Set<String>
+        if syncAllRequested {
+          syncAllRequested = false
+          syncedAll = true
+          wanted = Set(types.map(\.id))
+        } else {
+          wanted = requestedTypes
+        }
+        requestedTypes = []
+        for type in types where wanted.contains(type.id) && failures[type.id] == nil {
+          do {
             try await sync(type, &state)
+          } catch is CancellationError {
+            throw CancellationError()
+          } catch {
+            // One type can't hold up the rest. Its page is read again next time.
+            failures[type.id] = error
+            if let pending = state.pending, pending.type == type.id {
+              for batch in pending.batches { try? storage.removeFile(batch) }
+              state.pending = nil
+              try storage.saveState(state)
+            }
           }
         }
-        changed = requestedTypes
-        requestedTypes = []
-        for type in types where changed.contains(type.id) {
-          try await sync(type, &state)
-          changed.remove(type.id)
-        }
       }
-      update { $0.isRunning = false }
     } catch {
-      // Changes not uploaded yet are tried again on the next call.
-      requestedTypes.formUnion(changed)
       update {
         $0.isRunning = false
-        $0.failure = error is CancellationError ? nil : error.localizedDescription
+        if !(error is CancellationError) { $0.failure = error.localizedDescription }
       }
       throw error
+    }
+    // Tried again on the next call.
+    requestedTypes.formUnion(failures.keys)
+    if let failure = failures.values.first {
+      update {
+        $0.isRunning = false
+        $0.failure = failure.localizedDescription
+      }
+      throw failure
+    }
+    update {
+      $0.isRunning = false
+      // A run that covered everything clears an earlier failure; one for a few changes doesn't.
+      if syncedAll { $0.failure = nil }
     }
   }
 
@@ -194,12 +224,20 @@ public actor HealthBackfill {
       try Task.checkCancellation()
       let anchor = state.anchors[type.id]
       let page = try await reader.page(type, anchor, Self.pageSize)
-      if anchor == nil, page.mutations.isEmpty, !page.hasMore {
-        // Nothing readable yet: keep no anchor, and check again next time.
-        state.empty.insert(type.id)
+      if page.mutations.isEmpty {
+        if anchor == nil, !page.hasMore {
+          // Nothing readable yet: keep no anchor, and check again next time.
+          guard !state.empty.contains(type.id) else { return }
+          state.empty.insert(type.id)
+        } else {
+          // Nothing changed: just move the anchor, without a pending page.
+          state.anchors[type.id] = page.anchor
+          if !page.hasMore { state.finished.insert(type.id) }
+        }
         try storage.saveState(state)
         updateCounts(state)
-        return
+        isLast = !page.hasMore
+        continue
       }
       state.empty.remove(type.id)
       let (pending, files) = try write(page, of: type)
@@ -213,15 +251,16 @@ public actor HealthBackfill {
     }
   }
 
-  /// The saved state, or a fresh start if it can't be read (e.g. it's corrupt).
-  private func loadState() throws -> HealthBackfillState {
+  /// The saved state, or a fresh start if it can't be read (e.g. it's corrupt). Without saved
+  /// state there's only something to do when starting the backfill.
+  private func loadState(startingBackfill: Bool) throws -> HealthBackfillState? {
     do {
-      return try storage.loadState() ?? HealthBackfillState()
+      if let state = try storage.loadState() { return state }
     } catch is DecodingError {
       reportIssue("Starting the backfill over: its state couldn't be read")
       try storage.saveState(nil)
-      return HealthBackfillState()
     }
+    return startingBackfill ? HealthBackfillState() : nil
   }
 
   /// Writes a page's mutations to batch files, in memory. A record too long for the server is

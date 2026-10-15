@@ -189,8 +189,12 @@ POST /v1/sync/mutations
     - A type with nothing to read keeps no anchor and is checked again on every run. HealthKit returns nothing both for no data and for denied access, and an anchor taken while access was denied would skip the history once it's granted.
     - Signing out resets the backfill.
   - **Incremental sync:** the iPhone registers an `HKObserverQuery` with background delivery (`.immediate`, which HealthKit limits per type) for every type, at every launch.
+    - Observers are registered again after Health access is granted, to turn delivery on for types that weren't readable before.
     - A change runs the same page loop from the type's anchor, uploading additions and deletions.
     - Changes that arrive during a run join it, so a burst becomes one upload.
+    - Changes wait until there's a backfill, so after signing out nothing goes up until the next account's backfill starts.
+    - Every launch catches every type up from its anchor, so a change the app missed (killed, offline) still goes up.
+    - A type that fails doesn't hold up the others. Its page is read again on the next run.
     - HealthKit is told the change is handled when the upload finishes, or after 25 seconds, whichever comes first.
   - **Device-scoped records:** some entities belong to the iPhone that uploads them, such as `health_statistic` (30-minute sums from HealthKit) and `health_statistics_device`. The iPhone sends their IDs without a device (`<type>@<bucketStart>`, or `self` for the device's own record). The server stamps each one with the uploading device, taken from the access token: it sets the `device` field and stores the ID as `<device>/<id>` (or just `<device>` for `self`). Two iPhones' records never collide, and an iPhone never needs to know its device ID.
   - **Status:** `GET /v1/health/batches/<id>` returns `queued`, `applying`, `applied` (with counts and up to 100 rejected lines) or `failed`.
