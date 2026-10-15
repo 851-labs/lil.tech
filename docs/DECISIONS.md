@@ -85,7 +85,11 @@
 - **Storage quota:** each user's store may grow to 8 GB, below the 10 GB a Durable Object can hold. The size is SQLite's used pages (workerd's `databaseSize`), so deleted records make room once the change log is compacted.
   - At the quota, new batch uploads fail with 507 `StorageFull`, before anything reaches R2. A batch the store already knows still answers with its status.
   - Batches accepted before the quota are still applied, because the iPhone never sends a batch again once it's accepted. The gap up to the cap absorbs them.
-  - On the iPhone, a 507 ends the backfill run, since every other upload would be refused too. The pending page is kept so it goes up once there's room, and the sync status screen shows **Storage full** with Try Again.
+  - On the iPhone, a 507 ends the backfill run, since every other upload would be refused too.
+    - The pending page is kept so it goes up once there's room, and types the run didn't reach are asked for again.
+    - The sync status screen shows **Storage full** with Try Again.
+    - While full, syncs for changes wait 6 hours between tries, and no background task is requested. Opening the app and Try Again always try.
+    - The first upload that goes through clears the state.
   - At a 9.5 GB hard limit, writes of new records fail too, so the store never reaches the cap. Deletes still apply. A queued batch that meets the limit fails ("The storage quota is full; N lines were applied before it") rather than retrying.
   - **Largest users:** after applying each health batch, the queue consumer records the store's size in D1 (`users.storage_bytes`, `storage_measured_at`). That's where the store grows, so the figure doesn't lag uploads. Measurements that arrive out of order don't overwrite later ones, and recording is best-effort. To list the largest users, run `Services/api/scripts/largest-users.sql` in the D1 console for the stage's core database. It shows only IDs and sizes, and tests run that same file.
   - Every error a store returns is listed in `userStoreErrors`, so it crosses Durable Object RPC as itself. Test stores pass any other error as a plain object, as RPC would, so a missing entry fails the tests.

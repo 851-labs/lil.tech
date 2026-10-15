@@ -26,7 +26,7 @@ public enum HealthBackgroundWork {
   }
 
   /// Asks iOS for background time while signed in with an unfinished backfill, and withdraws the
-  /// request otherwise.
+  /// request otherwise, or while the account's storage is full, which refuses every upload.
   public static func scheduleIfNeeded() async {
     #if os(iOS)
       @Dependency(\.healthBackfill) var healthBackfill
@@ -34,7 +34,7 @@ public enum HealthBackgroundWork {
       var updates = await healthBackfill.progressUpdates().makeAsyncIterator()
       let progress = await updates.next()
       let signedIn = (try? await authSessions.accessToken()) != nil
-      guard signedIn, let progress, !progress.isFinished else {
+      guard signedIn, let progress, !progress.isFinished, !progress.isStorageFull else {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         return
       }

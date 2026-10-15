@@ -77,7 +77,7 @@ private struct StatusHeader: View {
         Button("Try Again") { store.send(.retryButtonTapped) }
           .buttonStyle(.bordered)
       case .storageFull:
-        Label("Storage full", systemImage: "exclamationmark.icloud.fill")
+        Label("Storage full", systemImage: "externaldrive.badge.exclamationmark")
           .foregroundStyle(.red)
         Text(
           "Your lil account is full, so new Health data isn't uploaded. Everything uploaded so far is safe."
