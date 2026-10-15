@@ -17,7 +17,7 @@ public struct AppView: View {
       case false:
         SignInView(
           store: store.scope(\.signIn, action: \.signIn), appName: "lil health",
-          privacyPolicy: AppFeature.privacyPolicy)
+          privacyPolicy: privacyPolicy)
       case true:
         if let healthAccess = store.scope(\.healthAccess, action: \.healthAccess) {
           HealthAccessView(store: healthAccess)

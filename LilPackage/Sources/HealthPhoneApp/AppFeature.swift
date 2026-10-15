@@ -1,5 +1,5 @@
 public import ComposableArchitecture
-public import Foundation
+import Foundation
 import HealthKitAccess
 import HealthUpload
 public import LilAuth
@@ -49,9 +49,6 @@ public struct AppFeature {
 
     public enum Alert: Equatable {}
   }
-
-  /// lil health's privacy policy, linked from sign-in and the account screen.
-  public static let privacyPolicy = URL(string: "https://lil.tech/privacy")!
 
   @Dependency(\.accountDevices) var accountDevices
   @Dependency(\.auth) var auth
