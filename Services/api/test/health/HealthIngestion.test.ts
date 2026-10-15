@@ -1,8 +1,8 @@
 import { gzipSync } from "node:zlib";
 import { assert, describe, layer } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { Clock, Effect, Layer } from "effect";
 import { TestClock } from "effect/testing";
-import type { UserId } from "../../src/core/Ids.ts";
+import type { DeviceId, UserId } from "../../src/core/Ids.ts";
 import {
   failHealthBatch,
   healthBatchKey,
@@ -37,12 +37,28 @@ const sample = (n: number, overrides: Record<string, unknown> = {}) => ({
   },
 });
 
+const deviceId = "dev_000000000000000000000000ph" as DeviceId;
+
+/** A statistic as the iPhone uploads it: keyed by type and bucket, without its device. */
+const statistic = (bucketStart: number, sum: number) => ({
+  entity: "health_statistic",
+  op: "upsert",
+  id: `HKQuantityTypeIdentifierStepCount@${bucketStart}`,
+  row: { type: "HKQuantityTypeIdentifierStepCount", bucketStart, sum, unit: "count" },
+});
+
 /** Puts a batch file where the upload endpoint would, and ingests it. */
-const ingest = (lines: ReadonlyArray<unknown>, batchId = newBatchId()) =>
+const ingest = (
+  lines: ReadonlyArray<unknown>,
+  batchId = newBatchId(),
+  device: DeviceId | null = deviceId,
+) =>
   Effect.gen(function* () {
     const { files } = yield* TestHealthOutbox;
     files.set(healthBatchKey(userId, batchId), batchFile(lines));
-    yield* ingestHealthBatch({ userId, batchId });
+    yield* ingestHealthBatch(
+      device === null ? { userId, batchId } : { userId, batchId, deviceId: device },
+    );
     const batch = yield* (yield* UserStores).forUser(userId).healthBatch(batchId);
     return { batchId, batch };
   });
@@ -98,6 +114,97 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion))("ingestHealthBatch", 
       assert.include(batch?.rejectedLines?.[4]?.message, "Missing");
       assert.lengthOf(yield* changesFor(uuid(20)), 1);
       assert.lengthOf(yield* changesFor(uuid(25)), 1);
+    }),
+  );
+
+  it.effect("stamps device-scoped records with the uploading device", () =>
+    Effect.gen(function* () {
+      const bucket = 1760400000000;
+      const { batch } = yield* ingest([
+        statistic(bucket, 1200),
+        // A device field from the client is replaced.
+        {
+          ...statistic(bucket + 1800000, 300),
+          row: { ...statistic(0, 300).row, bucketStart: bucket + 1800000, device: "dev_other" },
+        },
+        // `reportedAt` is the server's time, not the iPhone's.
+        {
+          entity: "health_statistics_device",
+          op: "upsert",
+          id: "self",
+          row: { pairedWithWatch: true, reportedAt: 0 },
+        },
+      ]);
+      assert.deepInclude(batch, { status: "applied", applied: 3, rejected: 0 });
+      const sql = (yield* TestStores).sqlFor(userId);
+      assert.deepStrictEqual(
+        sql?.exec("SELECT id, device, bucket_start, sum FROM health_statistic ORDER BY id"),
+        [
+          {
+            id: `${deviceId}/HKQuantityTypeIdentifierStepCount@${bucket}`,
+            device: deviceId,
+            bucket_start: bucket,
+            sum: 1200,
+          },
+          {
+            id: `${deviceId}/HKQuantityTypeIdentifierStepCount@${bucket + 1800000}`,
+            device: deviceId,
+            bucket_start: bucket + 1800000,
+            sum: 300,
+          },
+        ],
+      );
+      const now = yield* Clock.currentTimeMillis;
+      assert.deepStrictEqual(
+        sql?.exec(
+          "SELECT id, device, paired_with_watch, reported_at FROM health_statistics_device",
+        ),
+        [{ id: deviceId, device: deviceId, paired_with_watch: 1, reported_at: now }],
+      );
+
+      // Deletes are stamped too.
+      yield* ingest([
+        {
+          entity: "health_statistic",
+          op: "delete",
+          id: `HKQuantityTypeIdentifierStepCount@${bucket}`,
+        },
+      ]);
+      assert.strictEqual(sql?.exec("SELECT count(*) AS n FROM health_statistic")[0]?.["n"], 1);
+    }),
+  );
+
+  it.effect("rejects statistics off a 30-minute boundary, or with a device in the ID", () =>
+    Effect.gen(function* () {
+      const { batch } = yield* ingest([
+        statistic(1760400000000 + 60000, 5),
+        {
+          ...statistic(1760400000000, 5),
+          id: `${deviceId}/HKQuantityTypeIdentifierStepCount@1760400000000`,
+        },
+      ]);
+      assert.deepInclude(batch, { applied: 0, rejected: 2 });
+      assert.deepStrictEqual(batch?.rejectedLines, [
+        { line: 1, message: "bucketStart must be a multiple of 30 minutes" },
+        {
+          line: 2,
+          message: `Invalid health_statistic ID ${deviceId}/HKQuantityTypeIdentifierStepCount@1760400000000`,
+        },
+      ]);
+    }),
+  );
+
+  it.effect("rejects device-scoped lines from a batch without a device", () =>
+    Effect.gen(function* () {
+      const { batch } = yield* ingest(
+        [statistic(1760400000000, 5), sample(90)],
+        newBatchId(),
+        null,
+      );
+      assert.deepInclude(batch, { applied: 1, rejected: 1 });
+      assert.deepStrictEqual(batch?.rejectedLines, [
+        { line: 1, message: "health_statistic needs the uploading device" },
+      ]);
     }),
   );
 

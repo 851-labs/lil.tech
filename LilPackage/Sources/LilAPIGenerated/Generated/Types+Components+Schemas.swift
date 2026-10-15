@@ -1532,5 +1532,205 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthStatistic`.
+        public struct HealthStatistic: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthStatistic/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthStatistic/device`.
+            public var device: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthStatistic/type`.
+            public var _type: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthStatistic/bucketStart`.
+            public var bucketStart: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthStatistic/sum`.
+            public var sum: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/HealthStatistic/unit`.
+            public var unit: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthStatistic`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - device:
+            ///   - _type:
+            ///   - bucketStart:
+            ///   - sum:
+            ///   - unit:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                device: Swift.String,
+                _type: Swift.String,
+                bucketStart: Swift.Int,
+                sum: Swift.Double,
+                unit: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.device = device
+                self._type = _type
+                self.bucketStart = bucketStart
+                self.sum = sum
+                self.unit = unit
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case device
+                case _type = "type"
+                case bucketStart
+                case sum
+                case unit
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.device = try container.decode(
+                    Swift.String.self,
+                    forKey: .device
+                )
+                self._type = try container.decode(
+                    Swift.String.self,
+                    forKey: ._type
+                )
+                self.bucketStart = try container.decode(
+                    Swift.Int.self,
+                    forKey: .bucketStart
+                )
+                self.sum = try container.decode(
+                    Swift.Double.self,
+                    forKey: .sum
+                )
+                self.unit = try container.decode(
+                    Swift.String.self,
+                    forKey: .unit
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "device",
+                    "type",
+                    "bucketStart",
+                    "sum",
+                    "unit"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.device,
+                    forKey: .device
+                )
+                try container.encode(
+                    self._type,
+                    forKey: ._type
+                )
+                try container.encode(
+                    self.bucketStart,
+                    forKey: .bucketStart
+                )
+                try container.encode(
+                    self.sum,
+                    forKey: .sum
+                )
+                try container.encode(
+                    self.unit,
+                    forKey: .unit
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthStatisticsDevice`.
+        public struct HealthStatisticsDevice: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthStatisticsDevice/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthStatisticsDevice/device`.
+            public var device: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthStatisticsDevice/pairedWithWatch`.
+            public var pairedWithWatch: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/HealthStatisticsDevice/reportedAt`.
+            public var reportedAt: Swift.Int
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthStatisticsDevice`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - device:
+            ///   - pairedWithWatch:
+            ///   - reportedAt:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                device: Swift.String,
+                pairedWithWatch: Swift.Bool,
+                reportedAt: Swift.Int,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.device = device
+                self.pairedWithWatch = pairedWithWatch
+                self.reportedAt = reportedAt
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case device
+                case pairedWithWatch
+                case reportedAt
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.device = try container.decode(
+                    Swift.String.self,
+                    forKey: .device
+                )
+                self.pairedWithWatch = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .pairedWithWatch
+                )
+                self.reportedAt = try container.decode(
+                    Swift.Int.self,
+                    forKey: .reportedAt
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "device",
+                    "pairedWithWatch",
+                    "reportedAt"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.device,
+                    forKey: .device
+                )
+                try container.encode(
+                    self.pairedWithWatch,
+                    forKey: .pairedWithWatch
+                )
+                try container.encode(
+                    self.reportedAt,
+                    forKey: .reportedAt
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
     }
 }

@@ -92,6 +92,15 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       ) STRICT;
     `,
   },
+  {
+    version: 6,
+    name: "health_statistics",
+    // `HealthStatistic` and `HealthStatisticsDevice` in `src/health/HealthEntities.ts`.
+    sql: `
+      CREATE TABLE "health_statistic" (id TEXT PRIMARY KEY, "device" TEXT NOT NULL, "type" TEXT NOT NULL, "bucket_start" INTEGER NOT NULL, "sum" REAL NOT NULL, "unit" TEXT NOT NULL) STRICT;
+      CREATE TABLE "health_statistics_device" (id TEXT PRIMARY KEY, "device" TEXT NOT NULL, "paired_with_watch" INTEGER NOT NULL, "reported_at" INTEGER NOT NULL) STRICT;
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

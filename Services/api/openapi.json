@@ -1436,6 +1436,66 @@
           "id"
         ],
         "additionalProperties": true
+      },
+      "HealthStatistic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "device": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "bucketStart": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "sum": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "device",
+          "type",
+          "bucketStart",
+          "sum",
+          "unit"
+        ],
+        "additionalProperties": true
+      },
+      "HealthStatisticsDevice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "device": {
+            "type": "string"
+          },
+          "pairedWithWatch": {
+            "type": "boolean"
+          },
+          "reportedAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "device",
+          "pairedWithWatch",
+          "reportedAt"
+        ],
+        "additionalProperties": true
       }
     },
     "securitySchemes": {

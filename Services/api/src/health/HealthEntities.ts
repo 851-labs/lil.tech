@@ -1,3 +1,4 @@
+import { idPattern } from "../core/Ids.ts";
 import { Column, defineEntity } from "../store/Entities.ts";
 
 // Generic HealthKit data in the user's store. Records are keyed by HealthKit's UUID, lowercased
@@ -91,9 +92,67 @@ export const HealthActivitySummary = defineEntity("health_activity_summary", {
   },
 });
 
+/** Statistics buckets are 30 minutes, starting on UTC half-hours (Unix milliseconds). */
+export const statisticsBucketMillis = 30 * 60 * 1000;
+
+const deviceId = idPattern("dev");
+/** Quantity type identifiers, some with digits (`HKQuantityTypeIdentifierDietaryVitaminB12`). */
+const quantityType = "HKQuantityTypeIdentifier[A-Za-z0-9]+";
+
+/**
+ * A cumulative type's sum over one 30-minute bucket, as one iPhone's HealthKit computed it. Health
+ * de-duplicates overlapping sources (iPhone and Watch steps) in ways only HealthKit can, so the
+ * Mac sums these instead of raw samples. Each iPhone uploads its own: `<type>@<bucketStart>`,
+ * stored as `<device>/<type>@<bucketStart>`.
+ */
+export const HealthStatistic = defineEntity("health_statistic", {
+  clientWritable: false,
+  id: new RegExp(`^${deviceId}/${quantityType}@\\d+$`),
+  deviceScoped: { id: new RegExp(`^${quantityType}@\\d+$`) },
+  fields: {
+    /** The iPhone that computed it. */
+    device: Column.text,
+    type: Column.text,
+    /** The bucket's start, a multiple of `statisticsBucketMillis`. */
+    bucketStart: Column.integer,
+    sum: Column.real,
+    /** The unit `sum` is in, as an `HKUnit` string. */
+    unit: Column.text,
+  },
+  checkRow: (id, row) => {
+    if (typeof row.bucketStart !== "number" || row.bucketStart % statisticsBucketMillis !== 0) {
+      return "bucketStart must be a multiple of 30 minutes";
+    }
+    // One key per device, type and bucket.
+    const expected = `${String(row.device)}/${String(row.type)}@${row.bucketStart}`;
+    return id === expected ? undefined : `The ID must be ${expected}`;
+  },
+});
+
+/**
+ * One iPhone's statistics status (`self`, stored under its device ID). The Mac uses the
+ * statistics of the iPhone paired with an Apple Watch, otherwise of the one that reported most
+ * recently, so a phone that's behind on Health's iCloud sync can't overwrite complete numbers.
+ */
+export const HealthStatisticsDevice = defineEntity("health_statistics_device", {
+  clientWritable: false,
+  id: new RegExp(`^${deviceId}$`),
+  deviceScoped: { id: /^self$/, stampedAt: "reportedAt" },
+  fields: {
+    device: Column.text,
+    /** Whether the iPhone is paired with an Apple Watch (`WCSession.isPaired`). */
+    pairedWithWatch: Column.boolean,
+    /** When the server last applied its report (Unix milliseconds), not the iPhone's clock. */
+    reportedAt: Column.integer,
+  },
+  checkRow: (id, row) => (id === row.device ? undefined : "The ID must be the device"),
+});
+
 export const healthEntities = [
   HealthSample,
   HealthCorrelation,
   HealthCharacteristic,
   HealthActivitySummary,
+  HealthStatistic,
+  HealthStatisticsDevice,
 ] as const;
