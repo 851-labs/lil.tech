@@ -159,7 +159,8 @@ struct HealthBackfillTests {
   }
 
   @Test
-  func aTypeWithNothingFinishesWithoutUploading() async throws {
+  func aTypeWithNothingKeepsNoAnchorAndIsCheckedAgain() async throws {
+    // No data, or no permission: HealthKit doesn't say which.
     let health = FakeHealth(pages: [:])
     let server = FakeServer()
     let storage = HealthBackfillStorage.inMemory()
@@ -168,7 +169,84 @@ struct HealthBackfillTests {
     try await backfill.run()
 
     #expect(server.accepted.value.isEmpty)
-    #expect(try storage.loadState()?.finished == [steps.id])
+    let state = try #require(try storage.loadState())
+    #expect(state.empty == [steps.id])
+    #expect(state.finished.isEmpty)
+    #expect(state.anchors.isEmpty)
+    var updates = await backfill.progressUpdates().makeAsyncIterator()
+    #expect(await updates.next()?.isFinished == true)
+
+    try await backfill.run()
+    #expect(health.reads.value == ["StepCount@0", "StepCount@0"])
+  }
+
+  @Test
+  func aPageWhoseFilesWerentWrittenIsReadAgain() async throws {
+    // The app was killed after saving the pending page, before writing its file.
+    let health = FakeHealth(pages: [steps.id: 1])
+    let storage = HealthBackfillStorage.inMemory()
+    var state = HealthBackfillState()
+    state.pending = .init(
+      type: steps.id, anchor: Data("1".utf8), isLast: true, batches: ["never-written"],
+      records: 3)
+    try storage.saveState(state)
+    let server = FakeServer()
+    let backfill = makeBackfill([steps], health: health, server: server, storage: storage)
+
+    try await backfill.run()
+
+    #expect(health.reads.value == ["StepCount@0"])
+    #expect(server.records.value.count == 3)
+    #expect(try storage.loadState()?.uploadedRecords == 3)
+  }
+
+  @Test
+  func unreadableStateStartsOver() async throws {
+    let health = FakeHealth(pages: [steps.id: 1])
+    let server = FakeServer()
+    let cleared = LockIsolated(false)
+    var storage = HealthBackfillStorage.inMemory()
+    let inMemory = storage
+    storage.loadState = {
+      guard cleared.value else {
+        throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "corrupt"))
+      }
+      return try inMemory.loadState()
+    }
+    storage.saveState = { state in
+      if state == nil { cleared.setValue(true) }
+      try inMemory.saveState(state)
+    }
+    let backfill = makeBackfill([steps], health: health, server: server, storage: storage)
+
+    await withKnownIssue {
+      try await backfill.run()
+    }
+    #expect(server.records.value.count == 3)
+  }
+
+  @Test
+  func cancellingTheCallerCancelsTheRun() async throws {
+    let (started, didStart) = AsyncStream<Void>.makeStream()
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = HealthReader { _, _, _ in
+        didStart.yield()
+        try await Task.sleep(for: .seconds(60))
+        throw CancellationError()
+      }
+      $0.healthBatchUploader = FakeServer().uploader
+      $0.healthBackfillStorage = storage
+      $0.uuid = .incrementing
+    } operation: {
+      HealthBackfill(types: [steps])
+    }
+    let task = Task { try await backfill.run() }
+    for await _ in started { break }
+    task.cancel()
+    await #expect(throws: CancellationError.self) { try await task.value }
+    var updates = await backfill.progressUpdates().makeAsyncIterator()
+    #expect(await updates.next()?.isRunning == false)
   }
 
   @Test
@@ -179,7 +257,7 @@ struct HealthBackfillTests {
     let backfill = makeBackfill([steps], health: health, server: server, storage: storage)
     try await backfill.run()
 
-    try await backfill.reset()
+    await backfill.reset()
     #expect(try storage.loadState() == nil)
     try await backfill.run()
     #expect(health.reads.value == ["StepCount@0", "StepCount@0"])

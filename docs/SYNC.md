@@ -186,6 +186,7 @@ POST /v1/sync/mutations
   - **Backfill:** the iPhone pages through each type's history with anchored queries (2,000 objects a page). It writes each page to batch files of at most 4 MB uncompressed, saves the page as pending, and uploads it.
     - A type's anchor is saved only after every batch of the page is accepted.
     - If the app is killed, the pending page is uploaded again under the same batch IDs, which is safe, and nothing is skipped.
+    - A type with nothing to read keeps no anchor and is checked again on every run. HealthKit returns nothing both for no data and for denied access, and an anchor taken while access was denied would skip the history once it's granted.
     - Signing out resets the backfill.
   - **Device-scoped records:** some entities belong to the iPhone that uploads them, such as `health_statistic` (30-minute sums from HealthKit) and `health_statistics_device`. The iPhone sends their IDs without a device (`<type>@<bucketStart>`, or `self` for the device's own record). The server stamps each one with the uploading device, taken from the access token: it sets the `device` field and stores the ID as `<device>/<id>` (or just `<device>` for `self`). Two iPhones' records never collide, and an iPhone never needs to know its device ID.
   - **Status:** `GET /v1/health/batches/<id>` returns `queued`, `applying`, `applied` (with counts and up to 100 rejected lines) or `failed`.

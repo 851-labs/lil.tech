@@ -49,7 +49,8 @@ public struct AppFeature {
     Reduce { state, action in
       switch action {
       case .backfill:
-        // Failures show in the backfill's progress; it's tried again on the next launch.
+        // Failures are kept in the backfill's progress (for the status screen, 851-2557), and
+        // it's tried again on the next launch.
         return .run { [healthBackfill] _ in try? await healthBackfill.run() }
           .cancellable(id: CancelID.backfill, cancelInFlight: true)
 
@@ -85,7 +86,7 @@ public struct AppFeature {
           // The next account starts its own backfill from the beginning.
           return .merge(
             .cancel(id: CancelID.backfill),
-            .run { [healthBackfill] _ in try? await healthBackfill.reset() }
+            .run { [healthBackfill] _ in await healthBackfill.reset() }
           )
         }
         return .run { [healthAuthorization] send in

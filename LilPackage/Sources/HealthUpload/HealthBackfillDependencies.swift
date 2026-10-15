@@ -3,6 +3,7 @@ public import Foundation
 public import HealthCatalog
 import HealthKit
 import HealthKitAccess
+import IssueReporting
 import LilAPI
 import OpenAPIRuntime
 
@@ -98,10 +99,15 @@ extension HealthReader: DependencyKey {
       let result = try await descriptor.result(for: store)
       var mutations: [HealthMutation] = []
       for sample in result.addedSamples {
-        if let correlation = sample as? HKCorrelation {
-          mutations += try HealthEncoder.correlation(correlation)
-        } else {
-          mutations.append(try HealthEncoder.sample(sample))
+        // One sample that can't be encoded is reported and skipped, so it can't stop the rest.
+        do {
+          if let correlation = sample as? HKCorrelation {
+            mutations += try HealthEncoder.correlation(correlation)
+          } else {
+            mutations.append(try HealthEncoder.sample(sample))
+          }
+        } catch {
+          reportIssue(error)
         }
       }
       mutations += result.deletedObjects.map {
@@ -212,8 +218,10 @@ public struct HealthBatchUploader: Sendable {
     self.upload = upload
   }
 
-  public struct Rejected: Error, Equatable {
+  public struct Rejected: LocalizedError, Equatable {
     public let statusCode: Int
+
+    public var errorDescription: String? { "The server answered HTTP \(statusCode)" }
   }
 }
 

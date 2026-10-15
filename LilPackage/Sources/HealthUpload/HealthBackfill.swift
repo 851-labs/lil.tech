@@ -1,6 +1,7 @@
 public import Dependencies
 public import Foundation
 import HealthCatalog
+import HealthKitAccess
 import IssueReporting
 
 /// What the backfill has done and is doing. Saved after every step, so a killed app resumes
@@ -10,6 +11,10 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   public var anchors: [String: Data] = [:]
   /// Types whose history is all uploaded. Incremental sync continues from their anchors.
   public var finished: Set<String> = []
+  /// Types that had nothing at the last run: no data, or no permission to read it (HealthKit
+  /// doesn't say which). They keep no anchor, so if access is granted later their whole history
+  /// is read, and every run checks them again.
+  public var empty: Set<String> = []
   /// The page being uploaded, if any.
   public var pending: PendingPage?
   /// Records uploaded so far.
@@ -38,6 +43,7 @@ public actor HealthBackfill {
   static let pageSize = 2000
 
   public struct Progress: Equatable, Sendable {
+    /// Types with nothing left to upload, as far as anyone can tell.
     public var finishedTypes: Int
     public var totalTypes: Int
     public var uploadedRecords: Int
@@ -56,6 +62,7 @@ public actor HealthBackfill {
   private var progress: Progress
   private var observers: [UUID: AsyncStream<Progress>.Continuation] = [:]
   private var running: Task<Void, any Error>?
+  private var resetting: Task<Void, Never>?
 
   public init(types: [HealthBackfillType]) {
     @Dependency(\.healthReader) var reader
@@ -69,7 +76,7 @@ public actor HealthBackfill {
     self.uuid = uuid
     let state = (try? storage.loadState()) ?? nil
     self.progress = Progress(
-      finishedTypes: types.filter { state?.finished.contains($0.id) == true }.count,
+      finishedTypes: state.map { Self.doneTypes(types, $0) } ?? 0,
       totalTypes: types.count, uploadedRecords: state?.uploadedRecords ?? 0, isRunning: false)
   }
 
@@ -85,35 +92,54 @@ public actor HealthBackfill {
   }
 
   /// Uploads everything not uploaded yet. Returns when every type is done; throws if reading or
-  /// uploading fails, or if it's cancelled. A second call while one runs waits for it.
+  /// uploading fails, or if it's cancelled, which cancels the run. A second call while one runs
+  /// joins it.
   public func run() async throws {
-    if let running { return try await running.value }
-    let task = Task { try await backfill() }
-    running = task
-    defer { running = nil }
-    try await task.value
+    // A run asked for during a reset starts after it, from nothing.
+    while let resetting { await resetting.value }
+    let task: Task<Void, any Error>
+    if let running {
+      task = running
+    } else {
+      task = Task { try await backfill() }
+      running = task
+    }
+    try await withTaskCancellationHandler {
+      try await task.value
+    } onCancel: {
+      task.cancel()
+    }
   }
 
   /// Forgets everything, e.g. on signing out: the next account starts from the beginning.
-  public func reset() async throws {
-    running?.cancel()
-    _ = try? await running?.value
-    if let pending = try storage.loadState()?.pending {
-      for batch in pending.batches { try storage.removeFile(batch) }
+  public func reset() async {
+    if let resetting { return await resetting.value }
+    let task = Task {
+      running?.cancel()
+      _ = try? await running?.value
+      // Even if the state can't be read, everything goes: `saveState(nil)` removes the files.
+      if let pending = (try? storage.loadState())??.pending {
+        for batch in pending.batches { try? storage.removeFile(batch) }
+      }
+      withErrorReporting { try storage.saveState(nil) }
+      let total = types.count
+      update {
+        $0 = Progress(finishedTypes: 0, totalTypes: total, uploadedRecords: 0, isRunning: false)
+      }
     }
-    try storage.saveState(nil)
-    update {
-      $0 = Progress(finishedTypes: 0, totalTypes: types.count, uploadedRecords: 0, isRunning: false)
-    }
+    resetting = task
+    await task.value
+    resetting = nil
   }
 
   private func backfill() async throws {
+    defer { running = nil }
     update {
       $0.isRunning = true
       $0.failure = nil
     }
     do {
-      var state = try storage.loadState() ?? HealthBackfillState()
+      var state = try loadState()
       if let pending = state.pending {
         try await upload(pending, &state)
       }
@@ -121,10 +147,22 @@ public actor HealthBackfill {
         var isLast = false
         while !isLast {
           try Task.checkCancellation()
-          let page = try await reader.page(type, state.anchors[type.id], Self.pageSize)
-          let pending = try write(page, of: type)
+          let anchor = state.anchors[type.id]
+          let page = try await reader.page(type, anchor, Self.pageSize)
+          if anchor == nil, page.mutations.isEmpty, !page.hasMore {
+            // Nothing readable yet: keep no anchor, and check again next time.
+            state.empty.insert(type.id)
+            try storage.saveState(state)
+            updateCounts(state)
+            break
+          }
+          state.empty.remove(type.id)
+          let (pending, files) = try write(page, of: type)
+          // The page is saved before its files, so a kill in between leaves no orphans: the
+          // missing files make the next run read the page again.
           state.pending = pending
           try storage.saveState(state)
+          for (batch, file) in zip(pending.batches, files) { try storage.saveFile(batch, file) }
           try await upload(pending, &state)
           isLast = pending.isLast
         }
@@ -139,10 +177,21 @@ public actor HealthBackfill {
     }
   }
 
-  /// Writes a page's mutations to batch files. A record too long for the server is skipped and
-  /// reported, so it can't stop the backfill.
+  /// The saved state, or a fresh start if it can't be read (e.g. it's corrupt).
+  private func loadState() throws -> HealthBackfillState {
+    do {
+      return try storage.loadState() ?? HealthBackfillState()
+    } catch is DecodingError {
+      reportIssue("Starting the backfill over: its state couldn't be read")
+      try storage.saveState(nil)
+      return HealthBackfillState()
+    }
+  }
+
+  /// Writes a page's mutations to batch files, in memory. A record too long for the server is
+  /// skipped and reported, so it can't stop the backfill.
   private func write(_ page: HealthPage, of type: HealthBackfillType) throws
-    -> HealthBackfillState.PendingPage
+    -> (HealthBackfillState.PendingPage, [Data])
   {
     var writer = HealthBatchWriter()
     var files: [Data] = []
@@ -154,14 +203,10 @@ public actor HealthBackfill {
       }
     }
     if let file = try writer.finish() { files.append(file) }
-    let batches = try files.map { file in
-      let id = uuid().uuidString.lowercased()
-      try storage.saveFile(id, file)
-      return id
-    }
-    return HealthBackfillState.PendingPage(
-      type: type.id, anchor: page.anchor, isLast: !page.hasMore, batches: batches,
-      records: page.mutations.count)
+    let pending = HealthBackfillState.PendingPage(
+      type: type.id, anchor: page.anchor, isLast: !page.hasMore,
+      batches: files.map { _ in uuid().uuidString.lowercased() }, records: page.mutations.count)
+    return (pending, files)
   }
 
   /// Uploads a page's batches, then commits its anchor.
@@ -170,8 +215,14 @@ public actor HealthBackfill {
   ) async throws {
     for batch in pending.batches {
       try Task.checkCancellation()
-      // A missing file was uploaded and removed by a run that stopped before committing.
-      guard let file = try storage.loadFile(batch) else { continue }
+      guard let file = try storage.loadFile(batch) else {
+        // The run stopped before writing it: drop the page, and read it again from the anchor
+        // before it. Records are keyed by UUID, so whatever already went up is harmless.
+        for batch in pending.batches { try storage.removeFile(batch) }
+        state.pending = nil
+        try storage.saveState(state)
+        return
+      }
       try await uploader.upload(batch, file)
     }
     state.anchors[pending.type] = pending.anchor
@@ -180,10 +231,20 @@ public actor HealthBackfill {
     state.uploadedRecords += pending.records
     try storage.saveState(state)
     for batch in pending.batches { try storage.removeFile(batch) }
-    let finished = types.filter { state.finished.contains($0.id) }.count
+    updateCounts(state)
+  }
+
+  private static func doneTypes(_ types: [HealthBackfillType], _ state: HealthBackfillState)
+    -> Int
+  {
+    types.filter { state.finished.contains($0.id) || state.empty.contains($0.id) }.count
+  }
+
+  private func updateCounts(_ state: HealthBackfillState) {
+    let done = Self.doneTypes(types, state)
     let uploaded = state.uploadedRecords
     update {
-      $0.finishedTypes = finished
+      $0.finishedTypes = done
       $0.uploadedRecords = uploaded
     }
   }
@@ -208,13 +269,7 @@ extension DependencyValues {
 
 private enum HealthBackfillKey: DependencyKey {
   static var liveValue: HealthBackfill {
-    #if os(iOS)
-      let version = ProcessInfo.processInfo.operatingSystemVersion
-      let ios = IOSVersion.ios(version.majorVersion, version.minorVersion)
-    #else
-      let ios = IOSVersion.ios(26)
-    #endif
-    return HealthBackfill(types: HealthBackfillType.all(availableOn: ios))
+    HealthBackfill(types: HealthBackfillType.all(availableOn: HealthAuthorization.currentVersion))
   }
 
   /// Nothing to back up, so features can start it in tests.
