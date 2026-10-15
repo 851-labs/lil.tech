@@ -12,6 +12,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   3. Open one PR per ticket, with the ticket ID in the title.
   4. Move the ticket to In Review.
 - Run `scripts/format` before committing. `scripts/format --lint` must pass. It covers the Swift code and the TypeScript in `Services/`.
+- CI (`.github/workflows/swift.yml`) lints the Swift code (`scripts/format --lint --swift`), runs the package tests and builds both apps for changes to `LilPackage/`, `Apps/` and `Tools/`.
 - Don't bundle unrelated changes. If you find extra work, file a new ticket.
 
 ## Building

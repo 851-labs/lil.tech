@@ -1,0 +1,69 @@
+name: Swift
+
+# Lints and tests the Swift code, and builds the apps, for pull requests and main. Services/ has
+# its own workflow; the generated client's stamp is checked there.
+
+on:
+  pull_request:
+    paths: ["LilPackage/**", "Apps/**", "Tools/**", "Lil.xcworkspace/**", "scripts/format", ".github/workflows/swift.yml"]
+  push:
+    branches: [main]
+    paths: ["LilPackage/**", "Apps/**", "Tools/**", "Lil.xcworkspace/**", "scripts/format", ".github/workflows/swift.yml"]
+
+# A newer push to the same PR replaces the run in progress.
+concurrency:
+  group: swift-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      # The packages need Swift 6.4 (Xcode 27). Picks the newest installed Xcode 27.
+      - name: Select Xcode
+        run: |
+          xcode=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$xcode" ]; then
+            echo "error: no Xcode 27 on this runner; installed: $(ls -d /Applications/Xcode*.app)" >&2
+            exit 1
+          fi
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            LilPackage/.build
+            ~/Library/Developer/Xcode/DerivedData
+          key: swift-${{ runner.os }}-${{ hashFiles('LilPackage/Package.resolved') }}
+          restore-keys: swift-${{ runner.os }}-
+
+      - name: Lint
+        run: scripts/format --lint --swift
+
+      - name: Test the package
+        working-directory: LilPackage
+        run: CI=1 swift test
+
+      # Unsigned: CI only checks that the apps build.
+      - name: Build lil messages
+        run: >-
+          xcodebuild -workspace Lil.xcworkspace -scheme LilMessages
+          -destination 'platform=macOS' -skipMacroValidation
+          CODE_SIGNING_ALLOWED=NO build -quiet
+
+      - name: Build lil health for iOS
+        run: >-
+          xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS
+          -destination 'generic/platform=iOS Simulator' -skipMacroValidation
+          CODE_SIGNING_ALLOWED=NO build -quiet
