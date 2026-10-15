@@ -149,6 +149,7 @@ let package = Package(
         "LilAPI",
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
+        .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
       ]
     ),
     .testTarget(

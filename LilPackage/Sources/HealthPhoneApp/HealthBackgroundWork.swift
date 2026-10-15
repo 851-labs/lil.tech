@@ -5,10 +5,11 @@ import LilAuth
 
 #if os(iOS)
   import BackgroundTasks
+  import UIKit
 #endif
 
 /// The backfill's background work on the iPhone: a `BGProcessingTask` that continues it when iOS
-/// allows, and the background `URLSession` its uploads go through.
+/// allows.
 public enum HealthBackgroundWork {
   /// In Info.plist's `BGTaskSchedulerPermittedIdentifiers`.
   public static let taskIdentifier = "tech.lil.health.sync"
@@ -24,22 +25,19 @@ public enum HealthBackgroundWork {
     #endif
   }
 
-  /// Passes on `application(_:handleEventsForBackgroundURLSession:completionHandler:)`. Returns
-  /// `false` for another app session.
-  public static func handleEvents(
-    forBackgroundURLSession identifier: String, completion: @escaping @Sendable () -> Void
-  ) -> Bool {
-    guard identifier == BackgroundUploads.sessionIdentifier else { return false }
-    BackgroundUploads.shared.handleEvents(completion: completion)
-    return true
-  }
-
-  /// Asks iOS for background time while the backfill isn't finished.
+  /// Asks iOS for background time while signed in with an unfinished backfill, and withdraws the
+  /// request otherwise.
   public static func scheduleIfNeeded() async {
     #if os(iOS)
       @Dependency(\.healthBackfill) var healthBackfill
+      @Dependency(\.authSessions) var authSessions
       var updates = await healthBackfill.progressUpdates().makeAsyncIterator()
-      guard let progress = await updates.next(), !progress.isFinished else { return }
+      let progress = await updates.next()
+      let signedIn = (try? await authSessions.accessToken()) != nil
+      guard signedIn, let progress, !progress.isFinished else {
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
+        return
+      }
       let request = BGProcessingTaskRequest(identifier: taskIdentifier)
       request.requiresNetworkConnectivity = true
       // Fails in the simulator, which doesn't run background tasks.
@@ -48,18 +46,42 @@ public enum HealthBackgroundWork {
   }
 
   #if os(iOS)
-    /// Runs the backfill until it's done or iOS takes the time back, then asks for more if needed.
+    /// Runs the backfill until it's done or iOS takes the time back, asks for more if needed,
+    /// then completes the task.
     private static func run(_ task: BGTask) async {
       @Dependency(\.healthBackfill) var healthBackfill
       @Dependency(\.authSessions) var authSessions
       let backfill = healthBackfill
-      task.expirationHandler = { Task { await backfill.pause() } }
-      guard (try? await authSessions.accessToken()) != nil else {
-        return task.setTaskCompleted(success: true)
+      let sessions = authSessions
+      let completed = LockIsolated(false)
+      let bgTask = UncheckedSendable(task)
+      // Exactly once, whichever of expiring and finishing comes first.
+      let complete = { @Sendable (success: Bool) in
+        guard
+          !completed.withValue({
+            defer { $0 = true }
+            return $0
+          })
+        else { return }
+        bgTask.value.setTaskCompleted(success: success)
       }
-      let finished = (try? await healthBackfill.run()) != nil
-      task.setTaskCompleted(success: finished)
+      let work = Task {
+        // Health can't be read while the phone is locked, which is when these tasks usually run.
+        guard await MainActor.run(body: { UIApplication.shared.isProtectedDataAvailable }),
+          (try? await sessions.accessToken()) != nil, !Task.isCancelled
+        else { return false }
+        return (try? await backfill.run()) != nil
+      }
+      task.expirationHandler = {
+        // Time's up, even before the run started: stop everything and complete now.
+        work.cancel()
+        Task { await backfill.pause() }
+        complete(false)
+      }
+      let finished = await work.value
+      // Before completing, since iOS may suspend the app as soon as the task completes.
       await scheduleIfNeeded()
+      complete(finished)
     }
   #endif
 }

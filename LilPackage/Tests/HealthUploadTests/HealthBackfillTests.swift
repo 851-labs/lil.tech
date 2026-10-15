@@ -400,7 +400,8 @@ struct HealthBackfillTests {
       $0.healthBatchUploader = HealthBatchUploader { id, file in
         if blocking.value {
           didStart.yield()
-          try await Task.sleep(for: .seconds(60))
+          // Like URLSession, a cancelled upload fails with a URL error.
+          do { try await Task.sleep(for: .seconds(60)) } catch { throw URLError(.cancelled) }
         }
         try await server.uploader.upload(id, file)
       }
@@ -417,11 +418,33 @@ struct HealthBackfillTests {
     await #expect(throws: CancellationError.self) { try await run.value }
     let paused = try #require(try storage.loadState()?.pending)
     #expect(try storage.loadFile(paused.batches[0]) != nil)
+    var updates = await backfill.progressUpdates().makeAsyncIterator()
+    #expect(await updates.next()?.failure == nil)
 
     blocking.setValue(false)
     try await backfill.run()
     #expect(server.accepted.value == paused.batches)
     #expect(health.reads.value.first == "StepCount@0")
     #expect(try storage.loadState()?.finished == [steps.id])
+  }
+
+  @Test
+  func aLockedDeviceStopsTheRunWithoutAFailure() async throws {
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = HealthReader { _, _, _ in throw HealthReader.Locked() }
+      $0.healthBatchUploader = FakeServer().uploader
+      $0.healthBackfillStorage = storage
+      $0.uuid = .incrementing
+    } operation: {
+      HealthBackfill(types: [steps, sleep])
+    }
+
+    await #expect(throws: HealthReader.Locked.self) { try await backfill.run() }
+    var updates = await backfill.progressUpdates().makeAsyncIterator()
+    let progress = await updates.next()
+    #expect(progress?.failure == nil)
+    #expect(progress?.isRunning == false)
+    #expect(try storage.loadState()?.finished.isEmpty ?? true)
   }
 }

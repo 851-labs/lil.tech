@@ -5,7 +5,6 @@ import SwiftUI
 
 @main
 struct LilHealthApp: App {
-  @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
   static let store = Store(initialState: AppFeature.State()) {
     AppFeature()

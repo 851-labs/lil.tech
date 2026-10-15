@@ -189,8 +189,12 @@ public actor HealthBackfill {
         for type in types where wanted.contains(type.id) && failures[type.id] == nil {
           do {
             try await sync(type, &state)
-          } catch is CancellationError {
+          } catch  where Task.isCancelled || error is CancellationError {
+            // Paused (e.g. a cancelled upload throws a URL error): the pending page is kept.
             throw CancellationError()
+          } catch let error as HealthReader.Locked {
+            // Nothing can be read until the device is unlocked: stop, without failing.
+            throw error
           } catch {
             // One type can't hold up the rest. Its page is read again next time.
             failures[type.id] = error
@@ -203,11 +207,12 @@ public actor HealthBackfill {
         }
       }
     } catch {
+      let paused = Task.isCancelled || error is CancellationError || error is HealthReader.Locked
       update {
         $0.isRunning = false
-        if !(error is CancellationError) { $0.failure = error.localizedDescription }
+        if !paused { $0.failure = error.localizedDescription }
       }
-      throw error
+      throw paused && !(error is HealthReader.Locked) ? CancellationError() : error
     }
     // Tried again on the next call.
     requestedTypes.formUnion(failures.keys)
