@@ -22,7 +22,10 @@ export interface HealthBatchMessage {
 
 /** Where an uploaded batch file is kept until it's applied. */
 export const healthBatchKey = (userId: UserId, batchId: string) =>
-  `health-batches/${userId}/${batchId}.ndjson.gz`;
+  `${healthBatchPrefix(userId)}${batchId}.ndjson.gz`;
+
+/** Where a user's batch files are. */
+export const healthBatchPrefix = (userId: UserId) => `health-batches/${userId}/`;
 
 /** Uploaded batch files (R2 in the Worker). */
 export class HealthBatchFiles extends Context.Service<
@@ -32,8 +35,16 @@ export class HealthBatchFiles extends Context.Service<
     /** The file's bytes as a stream, so a batch never has to fit in memory whole. */
     readonly open: (key: string) => Effect.Effect<Option.Option<ReadableStream<Uint8Array>>>;
     readonly delete: (key: string) => Effect.Effect<void>;
+    /** Deletes every file whose key starts with `prefix`, e.g. a deleted user's. */
+    readonly deletePrefix: (prefix: string) => Effect.Effect<void, BatchFilesUnavailable>;
   }
 >()("lil/api/health/HealthBatchFiles") {}
+
+/** R2 couldn't be reached; retrying can work. */
+export class BatchFilesUnavailable extends Schema.TaggedError<BatchFilesUnavailable>()(
+  "BatchFilesUnavailable",
+  { message: Schema.String },
+) {}
 
 /** The queue of uploaded batches (a Cloudflare Queue in the Worker). */
 export class HealthBatchQueue extends Context.Service<
@@ -174,9 +185,7 @@ const forEachLine = Effect.fnUntraced(function* <E, R>(
  * The file is streamed and applied a chunk at a time, so a file that turns out to be corrupt
  * partway can be partly applied before the batch fails.
  */
-export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
-  message: HealthBatchMessage,
-) {
+const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessage) {
   const files = yield* HealthBatchFiles;
   const store = (yield* UserStores).forUser(message.userId);
   const key = healthBatchKey(message.userId, message.batchId);
@@ -251,6 +260,22 @@ export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
   });
 });
 
+const dropBatchFile = Effect.fnUntraced(function* (message: HealthBatchMessage) {
+  yield* (yield* HealthBatchFiles).delete(healthBatchKey(message.userId, message.batchId));
+});
+
+/**
+ * Applies an uploaded batch to the user's store and records the outcome (`applyHealthBatch`). A
+ * batch for an account deleted since it was queued is dropped with its file.
+ */
+export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
+  message: HealthBatchMessage,
+) {
+  yield* applyHealthBatch(message).pipe(
+    Effect.catchTag("AccountDeleted", () => dropBatchFile(message)),
+  );
+});
+
 /**
  * Marks a batch failed after its last delivery attempt, so its status doesn't stay `applying`.
  * The message then goes to the dead-letter queue.
@@ -259,6 +284,13 @@ export const failHealthBatch = Effect.fn("failHealthBatch")(function* (
   message: HealthBatchMessage,
   failure: string,
 ) {
+  yield* recordFailure(message, failure).pipe(
+    // A deleted account keeps nothing, not even the batch's status.
+    Effect.catchTag("AccountDeleted", () => dropBatchFile(message)),
+  );
+});
+
+const recordFailure = Effect.fnUntraced(function* (message: HealthBatchMessage, failure: string) {
   const store = (yield* UserStores).forUser(message.userId);
   const known = yield* store.healthBatch(message.batchId);
   // A delivery that overlapped may have finished it.

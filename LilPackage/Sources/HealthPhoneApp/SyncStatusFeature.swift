@@ -14,10 +14,17 @@ public struct SyncStatusFeature {
     public var progress: HealthBackfill.Progress?
     /// Health still has types to ask about (e.g. the person tapped Not Now).
     public var needsHealthAccess = false
+    public var isDeletingAccount = false
+    @Presents public var alert: AlertState<Action.Alert>?
 
-    public init(progress: HealthBackfill.Progress? = nil, needsHealthAccess: Bool = false) {
+    public init(
+      progress: HealthBackfill.Progress? = nil, needsHealthAccess: Bool = false,
+      isDeletingAccount: Bool = false, alert: AlertState<Action.Alert>? = nil
+    ) {
       self.progress = progress
       self.needsHealthAccess = needsHealthAccess
+      self.isDeletingAccount = isDeletingAccount
+      self.alert = alert
     }
 
     public enum Status: Equatable {
@@ -85,7 +92,16 @@ public struct SyncStatusFeature {
     case reviewHealthAccessButtonTapped
     case openSettingsButtonTapped
     case signOutButtonTapped
+    case deleteAccountButtonTapped
+    /// The request finished: the app signs out next.
+    case accountDeleted
+    case accountDeletionFailed(String)
+    case alert(PresentationAction<Alert>)
     case delegate(Delegate)
+
+    public enum Alert: Equatable {
+      case confirmDeletion
+    }
 
     @CasePathable
     public enum Delegate {
@@ -143,9 +159,67 @@ public struct SyncStatusFeature {
       case .signOutButtonTapped:
         return .run { [auth] _ in await auth.signOut() }
 
+      case .deleteAccountButtonTapped:
+        state.alert = .confirmDeletion
+        return .none
+
+      case .alert(.presented(.confirmDeletion)):
+        state.isDeletingAccount = true
+        return .run { [auth, healthBackfill] send in
+          // No uploads racing the deletion.
+          await healthBackfill.pause()
+          do throws(AccountDeletionError) {
+            // Once deleted, the session ends, and the app signs out and clears what's here.
+            try await auth.deleteAccount()
+            await send(.accountDeleted)
+          } catch {
+            await send(.accountDeletionFailed(error.message))
+          }
+        }
+
+      case .accountDeleted:
+        state.isDeletingAccount = false
+        return .none
+
+      case .accountDeletionFailed(let reason):
+        state.isDeletingAccount = false
+        state.alert = .deletionFailed(reason)
+        return .none
+
+      case .alert:
+        return .none
+
       case .delegate:
         return .none
       }
+    }
+    .ifLet(\.$alert, action: \.alert)
+  }
+}
+
+extension AlertState where Action == SyncStatusFeature.Action.Alert {
+  static var confirmDeletion: Self {
+    Self {
+      TextState("Delete Your Account?")
+    } actions: {
+      ButtonState(role: .destructive, action: .confirmDeletion) {
+        TextState("Delete Account")
+      }
+      ButtonState(role: .cancel) {
+        TextState("Cancel")
+      }
+    } message: {
+      TextState(
+        "This deletes your lil health account and everything uploaded to it, on every device. The data in Health on this iPhone stays."
+      )
+    }
+  }
+
+  static func deletionFailed(_ reason: String) -> Self {
+    Self {
+      TextState("Your Account Wasn't Deleted")
+    } message: {
+      TextState(reason)
     }
   }
 }

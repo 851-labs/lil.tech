@@ -9,8 +9,8 @@ import {
 } from "../health/HealthBatchStore.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
 import { provideRuntime } from "../Runtime.ts";
-import { applyMutations, readChanges, readEpoch, readHead } from "./ChangeLog.ts";
-import { ChangesCompacted, InvalidMutation, type Mutation } from "./Changes.ts";
+import { applyMutations, readChanges, readEpoch, readHead, readMeta } from "./ChangeLog.ts";
+import { AccountDeleted, ChangesCompacted, InvalidMutation, type Mutation } from "./Changes.ts";
 import type { Entity } from "./Entities.ts";
 import {
   answerCloseCode,
@@ -54,6 +54,13 @@ export const makeUserStore = (
   const notices = makeLiveNotices(sockets, () => readHead(sql));
   const entitiesByName = new Map(registry.map((entity) => [entity.name, entity]));
 
+  /** Whether the account was deleted; only `deleteAll` sets it, and this object is its writer. */
+  let deleted = readMeta(sql, "deleted", 0) === 1;
+  /** Fails once the account is deleted, so nothing can be read or written back. */
+  const ensureNotDeleted = Effect.suspend(() =>
+    deleted ? Effect.fail(new AccountDeleted()) : Effect.void,
+  );
+
   /** When the alarm is set for, once known, so most writes don't have to ask. */
   let alarmAt: number | null | undefined;
   /**
@@ -85,7 +92,9 @@ export const makeUserStore = (
     schemaVersion: () => Effect.sync(() => schemaVersion(sql)),
     /**
      * Deletes everything in the store and its snapshot files, for account deletion, leaving it
-     * empty at the latest schema. It's idempotent, so a call that fails partway can be retried.
+     * empty at the latest schema and marked deleted: writes fail with `AccountDeleted` from then
+     * on (user IDs are never reused). It's idempotent, so a call that fails partway can be
+     * retried.
      */
     deleteAll: () =>
       Effect.gen(function* () {
@@ -93,6 +102,8 @@ export const makeUserStore = (
         yield* Effect.promise(() => sql.deleteAll());
         alarmAt = null;
         migrate(sql);
+        sql.exec("INSERT INTO meta (key, value) VALUES ('deleted', 1)");
+        deleted = true;
         // Connected clients see `head` go back to 0 and start over; their sockets still close
         // when their tokens expire.
         const now = yield* Clock.currentTimeMillis;
@@ -107,15 +118,25 @@ export const makeUserStore = (
       }),
     /** An uploaded health batch's status, or `null` if it was never received. */
     healthBatch: (id: string) =>
-      Clock.currentTimeMillis.pipe(Effect.map((now) => readHealthBatch(sql, id, now))),
+      ensureNotDeleted.pipe(
+        Effect.andThen(Clock.currentTimeMillis),
+        Effect.map((now) => readHealthBatch(sql, id, now)),
+      ),
     /** Records a health batch as `queued` unless it's already known, and returns its status. */
     receiveHealthBatch: (id: string) =>
-      Clock.currentTimeMillis.pipe(Effect.map((at) => receiveHealthBatch(sql, id, at))),
+      ensureNotDeleted.pipe(
+        Effect.andThen(Clock.currentTimeMillis),
+        Effect.map((at) => receiveHealthBatch(sql, id, at)),
+      ),
     saveHealthBatch: (batch: HealthBatch) =>
-      Clock.currentTimeMillis.pipe(Effect.map((at) => saveHealthBatch(sql, batch, at))),
+      ensureNotDeleted.pipe(
+        Effect.andThen(Clock.currentTimeMillis),
+        Effect.map((at) => saveHealthBatch(sql, batch, at)),
+      ),
     /** Applies mutations in one transaction (see `applyMutations`). */
     applyMutations: (mutations: ReadonlyArray<Mutation>) =>
       Effect.gen(function* () {
+        yield* ensureNotDeleted;
         const at = yield* Clock.currentTimeMillis;
         const applied = yield* Effect.suspend(() => {
           try {
@@ -206,7 +227,7 @@ export type UserStoreShape = UserStoreMethods & {
  * own bookkeeping in that wrapper.
  */
 export class UserStore extends Cloudflare.DurableObject<UserStore, UserStoreShape>()("UserStore", {
-  errors: [InvalidMutation, ChangesCompacted],
+  errors: [InvalidMutation, ChangesCompacted, AccountDeleted],
 }) {}
 
 /** Snapshot parts (`src/store/Snapshots.ts`). */

@@ -77,3 +77,19 @@ private func statusView(_ state: SyncStatusFeature.State) -> some View {
         return progress
       }()))
 }
+
+#Preview("Delete account?") {
+  statusView(
+    SyncStatusFeature.State(progress: progress(done: .max), alert: .confirmDeletion))
+}
+
+#Preview("Deleting account") {
+  statusView(SyncStatusFeature.State(progress: progress(done: .max), isDeletingAccount: true))
+}
+
+#Preview("Deleting failed") {
+  statusView(
+    SyncStatusFeature.State(
+      progress: progress(done: .max),
+      alert: .deletionFailed("It isn't possible right now. Please try again later.")))
+}

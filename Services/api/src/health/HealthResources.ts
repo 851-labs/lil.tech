@@ -3,6 +3,7 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import { Effect, Option, Stream } from "effect";
 import {
   failHealthBatch,
+  BatchFilesUnavailable,
   HealthBatchFiles,
   type HealthBatchMessage,
   HealthBatchQueue,
@@ -63,6 +64,23 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
           Effect.orDie,
         ),
       delete: (key) => inRuntime(bucket.delete(key)).pipe(Effect.orDie),
+      // A page of keys at a time (R2 lists up to 1,000), each deleted in one call.
+      deletePrefix: (prefix) =>
+        Effect.gen(function* () {
+          let cursor: string | undefined;
+          do {
+            const page = yield* bucket.list({
+              prefix,
+              ...(cursor === undefined ? {} : { cursor }),
+            });
+            const keys = page.objects.map((object) => object.key);
+            if (keys.length > 0) yield* bucket.delete(keys);
+            cursor = page.truncated ? page.cursor : undefined;
+          } while (cursor !== undefined);
+        }).pipe(
+          inRuntime,
+          Effect.mapError((error) => new BatchFilesUnavailable({ message: String(error) })),
+        ),
     });
   });
   const queueService = Effect.map(Alchemy.RuntimeContext, (runtime) =>

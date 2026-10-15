@@ -1,6 +1,7 @@
 public import Dependencies
 import Foundation
 public import LilAPI
+import OpenAPIRuntime
 
 #if os(macOS)
   import SystemConfiguration
@@ -33,6 +34,26 @@ public enum SignInError: Error, Equatable, Sendable {
     case .rejected: "Signing in didn't work. Please try again."
     case .unavailable: "Signing in isn't available right now. Please try again later."
     case .failed(let reason): "Signing in didn't work: \(reason)"
+    }
+  }
+}
+
+/// Why deleting the account didn't work, worded for the app.
+public enum AccountDeletionError: Error, Equatable, Sendable {
+  /// The server couldn't finish; trying again does.
+  case unavailable
+  /// No network.
+  case offline
+  /// The session ended (e.g. it expired); the account may still exist.
+  case signedOut
+  case failed
+
+  public var message: String {
+    switch self {
+    case .unavailable: "It isn't possible right now. Please try again later."
+    case .offline: "You're offline. Please try again when you're connected."
+    case .signedOut: "Your session ended. Sign in again, then delete your account."
+    case .failed: "Something went wrong. Please try again."
     }
   }
 }
@@ -92,6 +113,8 @@ public struct AuthClient: Sendable {
   public var signInWithGoogle:
     @Sendable (_ idToken: String, _ nonce: String) async throws(SignInError) -> Void
   public var signOut: @Sendable () async -> Void
+  /// Deletes the account and everything uploaded to it, then forgets the session here.
+  public var deleteAccount: @Sendable () async throws(AccountDeletionError) -> Void
   /// Whether the app is signed in, now and after every change.
   public var signedInUpdates: @Sendable () async -> AsyncStream<Bool>
 
@@ -102,8 +125,10 @@ public struct AuthClient: Sendable {
     signInWithGoogle:
       @escaping @Sendable (_ idToken: String, _ nonce: String) async throws(SignInError) -> Void,
     signOut: @escaping @Sendable () async -> Void,
+    deleteAccount: @escaping @Sendable () async throws(AccountDeletionError) -> Void,
     signedInUpdates: @escaping @Sendable () async -> AsyncStream<Bool>
   ) {
+    self.deleteAccount = deleteAccount
     self.signInWithApple = signInWithApple
     self.signInWithGoogle = signInWithGoogle
     self.signOut = signOut
@@ -169,6 +194,27 @@ extension AuthClient: DependencyKey {
         }
       },
       signOut: { await sessions.signOut() },
+      deleteAccount: { () throws(AccountDeletionError) in
+        let output: Operations.DeleteMe.Output
+        do {
+          output = try await api.deleteMe()
+        } catch {
+          let underlying = (error as? ClientError)?.underlyingError ?? error
+          throw underlying is URLError ? .offline : .failed
+        }
+        switch output {
+        case .noContent:
+          await sessions.forget()
+        case .unauthorized:
+          // Not proof the account is gone: the session may just have ended. If the refresh
+          // token was rejected too, the app has signed out already.
+          throw .signedOut
+        case .serviceUnavailable:
+          throw .unavailable
+        case .undocumented(let statusCode, _):
+          throw statusCode >= 500 ? .unavailable : .failed
+        }
+      },
       signedInUpdates: { await sessions.signedInUpdates() }
     )
   }
@@ -177,6 +223,7 @@ extension AuthClient: DependencyKey {
     signInWithApple: { _, _ throws(SignInError) in },
     signInWithGoogle: { _, _ throws(SignInError) in },
     signOut: {},
+    deleteAccount: { () throws(AccountDeletionError) in },
     signedInUpdates: { AsyncStream { $0.yield(false) } }
   )
 
@@ -189,6 +236,9 @@ extension AuthClient: DependencyKey {
         reportIssue("Unimplemented: @Dependency(\\.auth).signInWithGoogle")
       },
       signOut: { reportIssue("Unimplemented: @Dependency(\\.auth).signOut") },
+      deleteAccount: { () throws(AccountDeletionError) in
+        reportIssue("Unimplemented: @Dependency(\\.auth).deleteAccount")
+      },
       signedInUpdates: {
         reportIssue("Unimplemented: @Dependency(\\.auth).signedInUpdates")
         return AsyncStream { $0.finish() }

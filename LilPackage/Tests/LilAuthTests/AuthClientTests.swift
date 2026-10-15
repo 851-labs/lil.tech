@@ -81,13 +81,51 @@ struct AuthClientTests {
       try await auth.signInWithApple(AppleCredential(identityToken: "apple-token"), "raw-nonce")
     }
   }
+
+  @Test
+  func deletingTheAccountForgetsTheSession() async throws {
+    let (auth, store) = makeAuth(stored: session(1)) { request, _ in
+      #expect(request.method == .delete)
+      #expect(request.path == "/v1/me")
+      return (HTTPResponse(status: .noContent), nil)
+    }
+    try await auth.deleteAccount()
+    #expect(try store.load() == nil)
+  }
+
+  @Test
+  func aRejectedSessionIsntTakenForADeletion() async throws {
+    let (auth, store) = makeAuth(stored: session(1)) { _, _ in
+      (
+        HTTPResponse(status: .unauthorized, headerFields: [.contentType: "application/json"]),
+        HTTPBody(#"{"_tag":"Unauthorized","message":"Invalid access token"}"#)
+      )
+    }
+    await #expect(throws: AccountDeletionError.signedOut) { try await auth.deleteAccount() }
+    // Not forgotten here: the session's own refresh decides whether it's still good.
+    #expect(try store.load() == session(1))
+  }
+
+  @Test
+  func anUnavailableDeletionKeepsTheSession() async throws {
+    let (auth, store) = makeAuth(stored: session(1)) { _, _ in
+      (
+        HTTPResponse(status: .serviceUnavailable, headerFields: [.contentType: "application/json"]),
+        HTTPBody(#"{"_tag":"UserStoreUnavailable","message":"Try again"}"#)
+      )
+    }
+    await #expect(throws: AccountDeletionError.unavailable) { try await auth.deleteAccount() }
+    #expect(try store.load() == session(1))
+  }
 }
 
-/// The live client, signed out, talking to a server that answers with `respond`.
+/// The live client, signed in as `stored` (or signed out), talking to a server that answers
+/// with `respond`.
 private func makeAuth(
+  stored: AuthSession? = nil,
   respond: @escaping @Sendable (HTTPRequest, HTTPBody?) async throws -> (HTTPResponse, HTTPBody?)
 ) -> (AuthClient, SessionStore) {
-  let store = SessionStore.inMemory()
+  let store = SessionStore.inMemory(stored)
   let auth = withDependencies {
     $0.sessionStore = store
     $0.api = Client.mock(respond)

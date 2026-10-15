@@ -9,7 +9,7 @@ import {
 import { type Entity, fromColumnValue, toColumnValue } from "./Entities.ts";
 import type { SqlValue, StoreSql } from "./StoreSql.ts";
 
-const readMeta = (sql: StoreSql, key: string, fallback: number): number =>
+export const readMeta = (sql: StoreSql, key: string, fallback: number): number =>
   Number(sql.exec("SELECT value FROM meta WHERE key = ?", key)[0]?.["value"] ?? fallback);
 
 /** The newest `seq` in the store's change log, or 0 before the first change. */

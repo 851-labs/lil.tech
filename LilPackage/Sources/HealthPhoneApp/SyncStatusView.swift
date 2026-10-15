@@ -4,7 +4,7 @@ import HealthUpload
 public import SwiftUI
 
 public struct SyncStatusView: View {
-  let store: StoreOf<SyncStatusFeature>
+  @Bindable var store: StoreOf<SyncStatusFeature>
 
   public init(store: StoreOf<SyncStatusFeature>) {
     self.store = store
@@ -26,7 +26,10 @@ public struct SyncStatusView: View {
         }
         Section {
           Button("Health Access in Settings") { store.send(.openSettingsButtonTapped) }
-          Button("Sign Out", role: .destructive) { store.send(.signOutButtonTapped) }
+          Button("Sign Out") { store.send(.signOutButtonTapped) }
+          Button("Delete Account", role: .destructive) {
+            store.send(.deleteAccountButtonTapped)
+          }
         } footer: {
           Text(
             "Health doesn't tell apps what you turned off. If a category stays empty, check its access in Settings."
@@ -34,6 +37,16 @@ public struct SyncStatusView: View {
         }
       }
       .navigationTitle("lil health")
+      .disabled(store.isDeletingAccount)
+      .overlay {
+        if store.isDeletingAccount {
+          ZStack {
+            Rectangle().fill(.regularMaterial).ignoresSafeArea()
+            ProgressView("Deleting your account…")
+          }
+        }
+      }
+      .alert($store.scope(\.alert, action: \.alert))
     }
     .task { await store.send(.task).finish() }
   }

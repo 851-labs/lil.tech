@@ -30,6 +30,11 @@ export const TestHealthIngestion = Layer.unwrap(
               ),
             ),
           delete: (key) => Effect.sync(() => void files.delete(key)),
+          deletePrefix: (prefix) =>
+            Effect.sync(() => {
+              // Deleting the entry being visited is safe while iterating a Map.
+              for (const key of files.keys()) if (key.startsWith(prefix)) files.delete(key);
+            }),
         }),
       ),
       Layer.succeed(

@@ -179,7 +179,7 @@ describe("applyMutations", () => {
           store.applyMutations([upsert("n3"), remove("n1"), mutation]),
         );
         assert.strictEqual(error._tag, "InvalidMutation");
-        assert.strictEqual(error.index, 2);
+        if (error._tag === "InvalidMutation") assert.strictEqual(error.index, 2);
       }
       assert.strictEqual(readHead(sql), 1);
       assert.deepStrictEqual(ids(sql), ["n1"]);
