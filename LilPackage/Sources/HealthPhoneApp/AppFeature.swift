@@ -55,6 +55,8 @@ public struct AppFeature {
           // Again now that Health access may have been granted.
           await HealthChanges.observe()
           try? await healthBackfill.run()
+          // Whatever's left continues in the background.
+          await HealthBackgroundWork.scheduleIfNeeded()
         }
         .cancellable(id: CancelID.backfill, cancelInFlight: true)
 

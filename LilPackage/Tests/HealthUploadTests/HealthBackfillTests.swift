@@ -387,4 +387,41 @@ struct HealthBackfillTests {
     #expect(!finished.value)
     finish.finish()
   }
+
+  @Test
+  func aPausedRunResumesWithItsPendingPage() async throws {
+    let health = FakeHealth(pages: [steps.id: 1])
+    let (started, didStart) = AsyncStream<Void>.makeStream()
+    let blocking = LockIsolated(true)
+    let server = FakeServer()
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = health.reader
+      $0.healthBatchUploader = HealthBatchUploader { id, file in
+        if blocking.value {
+          didStart.yield()
+          try await Task.sleep(for: .seconds(60))
+        }
+        try await server.uploader.upload(id, file)
+      }
+      $0.healthBackfillStorage = storage
+      $0.uuid = .incrementing
+    } operation: {
+      HealthBackfill(types: [steps])
+    }
+
+    let run = Task { try await backfill.run() }
+    for await _ in started { break }
+    // The background task's time is up.
+    await backfill.pause()
+    await #expect(throws: CancellationError.self) { try await run.value }
+    let paused = try #require(try storage.loadState()?.pending)
+    #expect(try storage.loadFile(paused.batches[0]) != nil)
+
+    blocking.setValue(false)
+    try await backfill.run()
+    #expect(server.accepted.value == paused.batches)
+    #expect(health.reads.value.first == "StepCount@0")
+    #expect(try storage.loadState()?.finished == [steps.id])
+  }
 }

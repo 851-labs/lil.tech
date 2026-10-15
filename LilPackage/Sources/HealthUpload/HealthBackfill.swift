@@ -128,6 +128,14 @@ public actor HealthBackfill {
     try await task.value
   }
 
+  /// Stops the run, e.g. when a background task's time is up. Everything is kept: the pending
+  /// page goes up on the next run. Waits until it has stopped.
+  public func pause() async {
+    guard let running else { return }
+    running.task.cancel()
+    _ = try? await running.task.value
+  }
+
   /// Forgets everything, e.g. on signing out: the next account starts from the beginning.
   public func reset() async {
     if let resetting { return await resetting.value }
