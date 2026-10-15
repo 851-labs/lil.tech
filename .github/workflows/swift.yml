@@ -1,0 +1,75 @@
+name: Swift
+
+# Lints and tests the Swift code, and builds the apps, for pull requests and main. Services/ has
+# its own workflow; the generated client's stamp is checked there.
+
+on:
+  pull_request:
+    paths: ["LilPackage/**", "Apps/**", "Tools/**", "Lil.xcworkspace/**", ".swift-format", "scripts/format", ".github/workflows/swift.yml"]
+  push:
+    branches: [main]
+    paths: ["LilPackage/**", "Apps/**", "Tools/**", "Lil.xcworkspace/**", ".swift-format", "scripts/format", ".github/workflows/swift.yml"]
+
+# A newer push to the same PR replaces the run in progress. Every commit to main gets its own.
+concurrency:
+  group: swift-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    # GitHub's macOS image with Xcode 27 (a preview for now); macos-26 tops out at Xcode 26.
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      # The packages need Swift 6.4 (Xcode 27). Picks the newest installed Xcode 27 release.
+      # The same Xcode as on our Macs: the packages need Swift 6.4. Bump it with them.
+      - name: Select Xcode
+        id: xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_27.0.app
+          xcodebuild -version
+          echo "build=$(xcodebuild -version | tail -1 | awk '{print $3}')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            LilPackage/.build
+            ~/Library/Developer/Xcode/DerivedData
+          # Saved per commit, restored from the latest for the same Xcode and pins.
+          key: swift-${{ steps.xcode.outputs.build }}-${{ hashFiles('LilPackage/Package.resolved') }}-${{ github.sha }}
+          restore-keys: swift-${{ steps.xcode.outputs.build }}-${{ hashFiles('LilPackage/Package.resolved') }}-
+
+      - name: Lint
+        run: scripts/format --lint --swift
+
+      # GitHub sets CI, so our targets treat warnings as errors (LilPackage/Package.swift).
+      - name: Test the package
+        # Also after a lint failure, so one doesn't hide the other.
+        if: ${{ !cancelled() }}
+        working-directory: LilPackage
+        run: swift test
+
+      # Unsigned: CI only checks that the apps build. Xcode resolves the workspace from
+      # LilPackage/Package.resolved, which pins the apps' packages too.
+      - name: Build lil messages
+        if: ${{ !cancelled() }}
+        run: >-
+          xcodebuild -workspace Lil.xcworkspace -scheme LilMessages
+          -destination 'platform=macOS' -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile
+          CODE_SIGNING_ALLOWED=NO build -quiet
+
+      - name: Build lil health for iOS
+        if: ${{ !cancelled() }}
+        run: >-
+          xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS
+          -destination 'generic/platform=iOS Simulator' -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile
+          CODE_SIGNING_ALLOWED=NO build -quiet

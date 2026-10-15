@@ -1,12 +1,26 @@
 #!/bin/sh
 # Formats every Swift file with swift-format, and the TypeScript in Services/
 # with Vite+ (Oxfmt), and regenerates the API's OpenAPI spec and Swift client.
-# Usage: scripts/format [--lint]
-#   --lint  Check without changing files: swift-format lint, plus `vp check`
-#           (format, lint and type check) for Services/, plus a check that
-#           Services/api/openapi.json and the generated Swift client are up to
-#           date. Runs every check and exits non-zero if any fails.
+# Usage: scripts/format [--lint] [--swift]
+#   --lint   Check without changing files: swift-format lint, plus `vp check`
+#            (format, lint and type check) for Services/, plus a check that
+#            Services/api/openapi.json and the generated Swift client are up to
+#            date. Runs every check and exits non-zero if any fails.
+#   --swift  Only the Swift part, e.g. for the Swift CI workflow.
 set -u
+
+lint=false
+swift_only=false
+for arg in "$@"; do
+  case "$arg" in
+    --lint) lint=true ;;
+    --swift) swift_only=true ;;
+    *)
+      echo "usage: scripts/format [--lint] [--swift]" >&2
+      exit 2
+      ;;
+  esac
+done
 
 cd "$(dirname "$0")/.."
 
@@ -20,10 +34,14 @@ files=$(find . -name '*.swift' \
 status=0
 
 # shellcheck disable=SC2086
-if [ "${1:-}" = "--lint" ]; then
+if $lint; then
   xcrun swift-format lint --strict --parallel $files || status=1
 else
   xcrun swift-format format --in-place --parallel $files || status=1
+fi
+
+if $swift_only; then
+  exit "$status"
 fi
 
 if ! command -v vp >/dev/null 2>&1; then
@@ -38,7 +56,7 @@ fi
 
 # The committed OpenAPI spec is generated from the API definition, and the Swift client from the
 # spec, in that order.
-if [ "${1:-}" = "--lint" ]; then
+if $lint; then
   (cd Services && vp check) || status=1
   (cd Services/api && node scripts/openapi.ts --check) || status=1
   scripts/generate-api-client --check-stamp || status=1
