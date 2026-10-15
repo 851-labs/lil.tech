@@ -21,7 +21,9 @@ public enum HealthEncoder {
   ) throws -> HealthMutation {
     var row = provenance(of: sample)
     row["type"] = .string(sample.sampleType.identifier)
-    row["correlationId"] = JSONValue(correlation.map(id))
+    // Left out unless known: a sample read on its own (e.g. systolic blood pressure) mustn't
+    // clear the link a correlation upload set, since upserts merge.
+    if let correlation { row["correlationId"] = .string(id(correlation)) }
     switch sample {
     case let quantity as HKQuantitySample:
       let unit = try unit(for: quantity.quantityType)
@@ -53,13 +55,13 @@ public enum HealthEncoder {
     .delete(correlation ? correlationEntity : sampleEntity, id: id(uuid))
   }
 
-  /// One day's Activity rings, keyed by its day: `summary.dateComponents(for:)` in the iPhone's
-  /// calendar.
+  /// One day's Activity rings, keyed by its Gregorian date (`YYYY-MM-DD`). `day` is
+  /// `summary.dateComponents(for: calendar)`, in the iPhone's calendar, which may not be
+  /// Gregorian.
   public static func activitySummary(
-    _ summary: HKActivitySummary, day: DateComponents
+    _ summary: HKActivitySummary, day: DateComponents, calendar: Calendar
   ) -> HealthMutation? {
-    guard let year = day.year, let month = day.month, let date = day.day else { return nil }
-    let id = String(format: "%04d-%02d-%02d", year, month, date)
+    guard let id = gregorianDay(day, calendar: calendar) else { return nil }
     let moveTime = summary.activityMoveMode == .appleMoveTime
     return .upsert(
       activitySummaryEntity, id: id,
@@ -79,7 +81,7 @@ public enum HealthEncoder {
         "appleStandHoursGoal": .number(
           summary.standHoursGoal?.doubleValue(for: .count())
             ?? summary.appleStandHoursGoal.doubleValue(for: .count())),
-        "activityMoveMode": .string(moveTime ? "appleMoveTime" : "activeEnergy"),
+        "activityMoveMode": activityMoveMode(summary.activityMoveMode),
         "paused": .bool(summary.isPaused),
       ])
   }
@@ -148,6 +150,24 @@ public enum HealthEncoder {
 
   // MARK: - Helpers
 
+  /// A day in any calendar as a Gregorian `YYYY-MM-DD`.
+  static func gregorianDay(_ day: DateComponents, calendar: Calendar) -> String? {
+    var components = day
+    components.calendar = calendar
+    components.timeZone = calendar.timeZone
+    guard day.year != nil, day.month != nil, day.day != nil,
+      let date = calendar.date(from: components)
+    else { return nil }
+    var gregorian = Calendar(identifier: .gregorian)
+    gregorian.timeZone = calendar.timeZone
+    let parts = gregorian.dateComponents([.year, .month, .day], from: date)
+    guard let year = parts.year, let month = parts.month, let date = parts.day else { return nil }
+    let pad = { (value: Int, width: Int) in
+      String(repeating: "0", count: max(0, width - String(value).count)) + String(value)
+    }
+    return "\(pad(year, 4))-\(pad(month, 2))-\(pad(date, 2))"
+  }
+
   /// HealthKit's UUID, lowercased, as the server keys samples.
   static func id(_ uuid: UUID) -> String { uuid.uuidString.lowercased() }
 
@@ -194,8 +214,9 @@ public enum HealthEncoder {
     (date.timeIntervalSince1970 * 1000).rounded()
   }
 
-  /// A metadata value as JSON: dates as Unix milliseconds, quantities as their description
-  /// (e.g. `"120 count/min"`).
+  /// A metadata value as JSON: dates as Unix milliseconds, and quantities as their description
+  /// (e.g. `"120 count/min"`), since HealthKit doesn't say an arbitrary quantity's unit.
+  /// Numbers that aren't finite become null.
   static func json(_ value: Any) -> JSONValue {
     switch value {
     case let string as String: .string(string)
@@ -204,7 +225,7 @@ public enum HealthEncoder {
     case let number as NSNumber:
       CFGetTypeID(number) == CFBooleanGetTypeID()
         ? .bool(number.boolValue)
-        : .number(number.doubleValue)
+        : number.doubleValue.isFinite ? .number(number.doubleValue) : .null
     case let array as [Any]: .array(array.map(json))
     case let dictionary as [String: Any]: .object(dictionary.mapValues(json))
     default: .string(String(describing: value))

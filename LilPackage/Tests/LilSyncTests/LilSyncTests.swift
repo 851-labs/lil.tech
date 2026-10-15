@@ -2,6 +2,7 @@ import CryptoKit
 import Dependencies
 import DependenciesTestSupport
 import Foundation
+import GzipFiles
 import HTTPTypes
 import LilAPI
 import OpenAPIRuntime

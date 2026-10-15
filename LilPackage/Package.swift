@@ -81,6 +81,9 @@ let package = Package(
       ]
     ),
     .target(
+      name: "GzipFiles"
+    ),
+    .target(
       name: "HealthCatalog"
     ),
     .testTarget(
@@ -137,16 +140,16 @@ let package = Package(
     .target(
       name: "HealthUpload",
       dependencies: [
+        "GzipFiles",
         "HealthCatalog",
-        "LilSync",
       ]
     ),
     .testTarget(
       name: "HealthUploadTests",
       dependencies: [
+        "GzipFiles",
         "HealthUpload",
         "LilAPI",
-        "LilSync",
       ]
     ),
     .target(
@@ -199,6 +202,7 @@ let package = Package(
     .target(
       name: "LilSync",
       dependencies: [
+        "GzipFiles",
         "LilAPI",
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
@@ -209,6 +213,7 @@ let package = Package(
     .testTarget(
       name: "LilSyncTests",
       dependencies: [
+        "GzipFiles",
         "LilSync",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         .product(name: "HTTPTypes", package: "swift-http-types"),

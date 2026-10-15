@@ -1,11 +1,12 @@
 public import Foundation
-import LilSync
+import GzipFiles
 
 /// Collects mutations into gzip NDJSON batch files (`docs/SYNC.md`). Files are cut by
-/// uncompressed size: at most 15 MB, which keeps them under the server's 16 MB compressed and
-/// 64 MB decompressed limits whatever the data, since DEFLATE barely expands anything.
+/// uncompressed size: at most 4 MB, well under the server's 16 MB compressed and 64 MB
+/// decompressed limits whatever the data (DEFLATE barely expands anything), and small enough for
+/// the iPhone's memory limits in the background.
 public struct HealthBatchWriter {
-  public static let maxFileBytes = 15 * 1024 * 1024
+  public static let maxFileBytes = 4 * 1024 * 1024
   /// The server rejects longer lines.
   public static let maxLineBytes = 1024 * 1024
 
@@ -25,6 +26,7 @@ public struct HealthBatchWriter {
 
   public init(maxFileBytes: Int = Self.maxFileBytes) {
     self.maxFileBytes = maxFileBytes
+    lines.reserveCapacity(maxFileBytes)
   }
 
   /// Mutations waiting for the next file.
@@ -46,13 +48,13 @@ public struct HealthBatchWriter {
     return finished
   }
 
-  /// The current file, gzip-compressed, or `nil` if it's empty. Starts a new file.
+  /// The current file, gzip-compressed, or `nil` if it's empty. Starts a new file. If
+  /// compressing fails, the mutations stay for the next try.
   public mutating func finish() throws -> Data? {
     guard count > 0 else { return nil }
-    defer {
-      lines = Data()
-      count = 0
-    }
-    return try Gzip.compress(lines)
+    let file = try Gzip.compress(lines)
+    lines.removeAll(keepingCapacity: true)
+    count = 0
+    return file
   }
 }

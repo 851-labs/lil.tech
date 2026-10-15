@@ -36,8 +36,11 @@ public enum JSONValue: Encodable, Equatable, Sendable {
     case .null: try container.encodeNil()
     case .bool(let value): try container.encode(value)
     case .number(let value):
-      // Whole numbers as integers, so millisecond times don't become `1.76e12`.
-      if value.rounded() == value, abs(value) < 9e15 {
+      // JSON has no NaN or infinity.
+      if !value.isFinite {
+        try container.encodeNil()
+      } else if value.rounded() == value, abs(value) < 9e15 {
+        // Whole numbers as integers, so millisecond times don't become `1.76e12`.
         try container.encode(Int64(value))
       } else {
         try container.encode(value)

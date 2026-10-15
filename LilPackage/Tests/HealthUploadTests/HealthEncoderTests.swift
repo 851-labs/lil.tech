@@ -1,7 +1,7 @@
 import Foundation
+import GzipFiles
 import HealthKit
 import LilAPI
-import LilSync
 import Testing
 
 @testable import HealthUpload
@@ -47,7 +47,8 @@ struct HealthEncoderTests {
     #expect(abs((decoded.value ?? 0) - 70) < 0.0001)
     #expect(decoded.startDate == 1_760_400_000_000)
     #expect(decoded.categoryValue == nil)
-    #expect(decoded.correlationId == nil)
+    // Left out, so it can't clear a correlation's link.
+    #expect(mutation.row?["correlationId"] == nil)
 
     let json = try line(mutation)
     let row = try #require(json["row"] as? [String: Any])
@@ -100,6 +101,15 @@ struct HealthEncoderTests {
   }
 
   @Test
+  func numbersJSONCantHoldBecomeNull() throws {
+    let encoded = try JSONEncoder().encode(
+      JSONValue.array([.number(.nan), .number(.infinity), 1.5]))
+    #expect(String(decoding: encoded, as: UTF8.self) == "[null,null,1.5]")
+    #expect(HealthEncoder.json(NSNumber(value: Double.nan)) == .null)
+    #expect(HealthEncoder.json(NSNumber(value: true)) == .bool(true))
+  }
+
+  @Test
   func deletes() {
     let uuid = UUID()
     #expect(
@@ -117,9 +127,10 @@ struct HealthEncoderTests {
     summary.exerciseTimeGoal = HKQuantity(unit: .minute(), doubleValue: 30)
     summary.appleStandHours = HKQuantity(unit: .count(), doubleValue: 9)
     summary.standHoursGoal = HKQuantity(unit: .count(), doubleValue: 12)
+    let gregorian = Calendar(identifier: .gregorian)
     let mutation = try #require(
       HealthEncoder.activitySummary(
-        summary, day: DateComponents(year: 2025, month: 10, day: 4)))
+        summary, day: DateComponents(year: 2025, month: 10, day: 4), calendar: gregorian))
     #expect(mutation.id == "2025-10-04")
     let decoded = try row(mutation, as: Components.Schemas.HealthActivitySummary.self)
     #expect(decoded.activeEnergyBurned == 512.5)
@@ -127,7 +138,15 @@ struct HealthEncoderTests {
     #expect(decoded.appleStandHoursGoal == 12)
     #expect(decoded.appleMoveTime == nil)
     #expect(decoded.activityMoveMode == "activeEnergy")
-    #expect(HealthEncoder.activitySummary(summary, day: DateComponents()) == nil)
+    #expect(
+      HealthEncoder.activitySummary(summary, day: DateComponents(), calendar: gregorian) == nil)
+
+    // Reiwa 7 in the Japanese calendar is 2025.
+    var japanese = Calendar(identifier: .japanese)
+    japanese.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+    let reiwa = DateComponents(era: 236, year: 7, month: 10, day: 4)
+    #expect(
+      HealthEncoder.activitySummary(summary, day: reiwa, calendar: japanese)?.id == "2025-10-04")
   }
 
   @Test

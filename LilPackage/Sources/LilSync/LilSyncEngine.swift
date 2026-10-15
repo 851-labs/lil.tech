@@ -1,6 +1,7 @@
 import CryptoKit
 import Dependencies
 public import Foundation
+import GzipFiles
 import IssueReporting
 import LilAPI
 import SQLiteData
