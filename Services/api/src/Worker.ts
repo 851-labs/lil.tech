@@ -11,6 +11,13 @@ import { Deployment, environmentForStage } from "./Deployment.ts";
 import { HealthBatchFiles, HealthBatchQueue } from "./health/HealthIngestion.ts";
 import { HealthIngestionWorker } from "./health/HealthResources.ts";
 import { WorkerHttpLayer } from "./Http.ts";
+import {
+  type RateLimitCounter,
+  type RateLimitName,
+  rateLimitNamespaceId,
+  RateLimits,
+  rateLimits,
+} from "./RateLimits.ts";
 import { objectBody, provideRuntime } from "./Runtime.ts";
 import { SnapshotBucket, UserStore, UserStoreLive } from "./store/UserStore.ts";
 import { SnapshotParts } from "./sync/SnapshotParts.ts";
@@ -63,6 +70,34 @@ const readSessionKey = Effect.gen(function* () {
   return Redacted.make(crypto.randomUUID());
 });
 
+/**
+ * Binds a rate limit and counts with it. The namespace ID only matters at deploy time; the running
+ * Worker, which has no `Stage`, finds the binding by name.
+ */
+const bindRateLimit = Effect.fnUntraced(function* (name: string, limit: RateLimitName) {
+  const stage = yield* Effect.serviceOption(Alchemy.Stage);
+  const binding = yield* Cloudflare.RateLimit(name, {
+    namespaceId: rateLimitNamespaceId(
+      Option.getOrElse(stage, () => "runtime"),
+      limit,
+    ),
+    simple: { limit: rateLimits[limit].limit, period: rateLimits[limit].periodSeconds },
+  });
+  // The binding's calls need the request's runtime context. HttpApi middleware can only use
+  // services from setup, so the counter reads it from the request it runs in.
+  const counter: RateLimitCounter = (key) =>
+    Effect.serviceOption(Alchemy.RuntimeContext).pipe(
+      Effect.flatMap(
+        Option.match({
+          onNone: () => Effect.fail(new Error("No runtime context")),
+          onSome: (runtime) => provideRuntime(runtime)(binding.limit({ key })),
+        }),
+      ),
+      Effect.map((outcome) => outcome.success),
+    );
+  return counter;
+});
+
 // Alchemy's Effect Worker entry imports the module's default export.
 export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
   "Api",
@@ -74,6 +109,11 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
     const userStores = UserStores.fromNamespace(yield* UserStore);
     const health = yield* HealthIngestionWorker(userStores);
     const snapshots = yield* Cloudflare.R2.ReadBucket(yield* SnapshotBucket);
+    const limits = RateLimits.make({
+      signIn: yield* bindRateLimit("SignInRateLimit", "signIn"),
+      user: yield* bindRateLimit("UserRateLimit", "user"),
+      refresh: yield* bindRateLimit("RefreshRateLimit", "refresh"),
+    });
     // Per request: the bucket's calls need the request's runtime context.
     const snapshotParts = Effect.map(Alchemy.RuntimeContext, (runtime) =>
       SnapshotParts.of({
@@ -128,6 +168,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
         Layer.provide(Layer.succeed(SessionKey, key)),
         Layer.provide([AppleKeys.layer, GoogleKeys.layer, GoogleClients.layer]),
         Layer.provide(Layer.succeed(UserStores, userStores)),
+        Layer.provide(Layer.succeed(RateLimits, limits)),
         Layer.provide(CoreRepositories.pipe(Layer.provideMerge(SQL.D1Layer(core)))),
       ),
     );
@@ -145,6 +186,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       Cloudflare.R2.ReadBucketBinding,
       Cloudflare.Queues.WriteQueueBinding,
       Cloudflare.Queues.EventSourceLive,
+      Cloudflare.RateLimitBinding,
       UserStoreLive,
     ]),
   ),

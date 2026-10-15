@@ -6,6 +6,33 @@ public import struct Foundation.Date
 extension Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
+        /// - Remark: Generated from `#/components/schemas/TooManyRequests`.
+        public struct TooManyRequests: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/TooManyRequests/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case tooManyRequests = "TooManyRequests"
+            }
+            /// - Remark: Generated from `#/components/schemas/TooManyRequests/_tag`.
+            public var _tag: Components.Schemas.TooManyRequests._TagPayload
+            /// - Remark: Generated from `#/components/schemas/TooManyRequests/retryAfterSeconds`.
+            public var retryAfterSeconds: Swift.Int
+            /// Creates a new `TooManyRequests`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - retryAfterSeconds:
+            public init(
+                _tag: Components.Schemas.TooManyRequests._TagPayload,
+                retryAfterSeconds: Swift.Int
+            ) {
+                self._tag = _tag
+                self.retryAfterSeconds = retryAfterSeconds
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case retryAfterSeconds
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/Unauthorized`.
         public struct Unauthorized: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Unauthorized/_tag`.

@@ -173,7 +173,7 @@ extension AuthClient: DependencyKey {
           switch try await api.authApple(body: .json(request)) {
           case .ok(let ok): .signedIn(try? ok.body.json)
           case .unauthorized: .rejected
-          case .serviceUnavailable: .unavailable
+          case .serviceUnavailable, .tooManyRequests: .unavailable
           case .undocumented(let statusCode, _): .unexpected(statusCode)
           }
         }
@@ -188,7 +188,7 @@ extension AuthClient: DependencyKey {
           switch try await api.authGoogle(body: .json(request)) {
           case .ok(let ok): .signedIn(try? ok.body.json)
           case .unauthorized: .rejected
-          case .serviceUnavailable: .unavailable
+          case .serviceUnavailable, .tooManyRequests: .unavailable
           case .undocumented(let statusCode, _): .unexpected(statusCode)
           }
         }
@@ -209,7 +209,7 @@ extension AuthClient: DependencyKey {
           // Not proof the account is gone: the session may just have ended. If the refresh
           // token was rejected too, the app has signed out already.
           throw .signedOut
-        case .serviceUnavailable:
+        case .serviceUnavailable, .tooManyRequests:
           throw .unavailable
         case .undocumented(let statusCode, _):
           throw statusCode >= 500 ? .unavailable : .failed

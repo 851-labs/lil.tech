@@ -32,6 +32,12 @@ import {
 } from "./health/HealthIngestion.ts";
 import { Users } from "./core/Users.ts";
 import { Deployment } from "./Deployment.ts";
+import {
+  checkAddressRateLimit,
+  RateLimits,
+  AddressRateLimit,
+  tooManyRequests,
+} from "./RateLimits.ts";
 import { Status } from "./Status.ts";
 import { sessionExpiresHeader } from "./store/LiveNotices.ts";
 import { UserStores, UserStoreUnavailable } from "./store/UserStores.ts";
@@ -55,13 +61,20 @@ export const SystemHandlers = HttpApiBuilder.group(
   }),
 );
 
-/** Verifies the bearer access token. Access tokens are stateless, so this never hits the database. */
+/**
+ * Verifies the bearer access token, then counts the request against the user's rate limit. Access
+ * tokens are stateless, so this never hits the database.
+ *
+ * Signing out isn't counted: the app doesn't retry it, and a refused sign-out would leave the
+ * device's refresh token working.
+ */
 export const AuthorizationLayer = Layer.effect(
   Authorization,
   Effect.gen(function* () {
     const accessTokens = yield* AccessTokens;
+    const limits = yield* RateLimits;
     return Authorization.of({
-      bearer: Effect.fn(function* (httpEffect, { credential }) {
+      bearer: Effect.fn(function* (httpEffect, { credential, endpoint }) {
         const claims = yield* accessTokens
           .verify(Redacted.value(credential))
           .pipe(
@@ -69,9 +82,23 @@ export const AuthorizationLayer = Layer.effect(
               () => new Unauthorized({ message: "Missing, invalid or expired access token" }),
             ),
           );
+        if (endpoint.identifier !== "signOut") yield* limits.check("user", claims.userId);
         return yield* Effect.provideService(httpEffect, CurrentSession, claims);
       }),
     });
+  }),
+);
+
+export const AddressRateLimitLayer = Layer.effect(
+  AddressRateLimit,
+  Effect.gen(function* () {
+    const limits = yield* RateLimits;
+    return AddressRateLimit.of((httpEffect, { endpoint }) =>
+      Effect.andThen(
+        checkAddressRateLimit(limits, endpoint.identifier === "refresh" ? "refresh" : "signIn"),
+        httpEffect,
+      ),
+    );
   }),
 );
 
@@ -340,6 +367,7 @@ export const LiveRoute = HttpRouter.use((router) =>
   Effect.gen(function* () {
     const accessTokens = yield* AccessTokens;
     const stores = yield* UserStores;
+    const limits = yield* RateLimits;
     yield* router.add(
       "GET",
       "/v1/sync/live",
@@ -356,6 +384,7 @@ export const LiveRoute = HttpRouter.use((router) =>
             { status: 401 },
           ).pipe(Effect.orDie);
         }
+        yield* limits.check("user", session.value.claims.userId);
         if (request.headers["upgrade"]?.toLowerCase() !== "websocket") {
           return HttpServerResponse.jsonUnsafe(
             { _tag: "UpgradeRequired", message: "Connect with a WebSocket" },
@@ -373,7 +402,7 @@ export const LiveRoute = HttpRouter.use((router) =>
             ),
           }),
         );
-      }),
+      }).pipe(Effect.catchTag("TooManyRequests", tooManyRequests)),
     );
   }),
 );
@@ -388,7 +417,7 @@ const OpenApiRoute = HttpRouter.add(
  * Every route of the API, with the platform services a Worker can provide: Alchemy's
  * `Http.Platform` stubs file responses and gives `HttpApiBuilder` a no-op `FileSystem`, since
  * Workers have no file system. Needs `Deployment`, `SessionKey`, `AppleKeys`, `GoogleKeys`,
- * `GoogleClients`, the core repositories and `UserStores`, and `HealthBatchFiles`,
+ * `GoogleClients`, the core repositories, `UserStores` and `RateLimits`, and `HealthBatchFiles`,
  * `HealthBatchQueue` and `SnapshotParts` per request.
  */
 export const WorkerHttpLayer = Layer.mergeAll(
@@ -399,7 +428,7 @@ export const WorkerHttpLayer = Layer.mergeAll(
   LiveRoute,
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),
-  Layer.provide([AuthorizationLayer, UploadSizeLimitLayer]),
+  Layer.provide([AuthorizationLayer, AddressRateLimitLayer, UploadSizeLimitLayer]),
   Layer.provide([AppleSignIn.layer, GoogleSignIn.layer, ProviderSignIn.layer]),
   Layer.provide([Auth.layer, PartUrls.layer]),
   Layer.provide(AccessTokens.layer),

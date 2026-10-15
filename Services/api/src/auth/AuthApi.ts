@@ -2,6 +2,7 @@ import { Context, Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSecurity } from "effect/http-api";
 import { DevicePlatform } from "../core/Devices.ts";
 import { IdentityProvider } from "../core/Identities.ts";
+import { AddressRateLimit, TooManyRequests } from "../RateLimits.ts";
 import { UserStoreUnavailable } from "../store/UserStores.ts";
 import { DeviceId, SessionId, UserId } from "../core/Ids.ts";
 
@@ -27,13 +28,16 @@ export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
   { httpApiStatus: 401 },
 ) {}
 
-/** Requires a valid access token as a bearer token. */
+/**
+ * Requires a valid access token as a bearer token, and counts the request against the user's rate
+ * limit (`rateLimits.user`).
+ */
 export class Authorization extends HttpApiMiddleware.Service<
   Authorization,
   { provides: CurrentSession }
 >()("lil/api/auth/Authorization", {
   security: { bearer: HttpApiSecurity.bearer },
-  error: Unauthorized,
+  error: [Unauthorized, TooManyRequests],
 }) {}
 
 /** What a sign-in or refresh returns to the app. */
@@ -119,7 +123,7 @@ export class AuthApi extends HttpApiGroup.make("auth")
       payload: RefreshRequest,
       success: TokenPair,
       error: InvalidRefreshToken,
-    }),
+    }).middleware(AddressRateLimit),
   )
   .add(
     // Signs in (creating the account on first sign-in) with a Sign in with Apple identity token.
@@ -127,7 +131,7 @@ export class AuthApi extends HttpApiGroup.make("auth")
       payload: AppleSignInRequest,
       success: TokenPair,
       error: [InvalidIdentityToken, SignInUnavailable],
-    }),
+    }).middleware(AddressRateLimit),
   )
   .add(
     // Signs in (creating the account on first sign-in) with a Google ID token. Requests only
@@ -136,7 +140,7 @@ export class AuthApi extends HttpApiGroup.make("auth")
       payload: GoogleSignInRequest,
       success: TokenPair,
       error: [InvalidIdentityToken, SignInUnavailable],
-    }),
+    }).middleware(AddressRateLimit),
   )
   .add(
     // Ends the device's session: its refresh token stops working. Access tokens already issued

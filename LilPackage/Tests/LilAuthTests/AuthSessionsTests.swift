@@ -80,10 +80,19 @@ struct AuthSessionsTests {
     #expect(try store.load() == nil)
   }
 
-  @Test
-  func keepsTheSessionWhenARefreshFailsForAnotherReason() async throws {
+  @Test(arguments: [
+    (HTTPResponse.Status.serviceUnavailable, nil),
+    // Rate limited.
+    (.tooManyRequests, #"{"_tag":"TooManyRequests","retryAfterSeconds":60}"#),
+  ])
+  func keepsTheSessionWhenARefreshFailsForAnotherReason(
+    status: HTTPResponse.Status, body: String?
+  ) async throws {
     let (sessions, store) = makeSessions(stored: session(1, expiresIn: 0)) { _, _ in
-      (HTTPResponse(status: .serviceUnavailable), nil)
+      (
+        HTTPResponse(status: status, headerFields: [.contentType: "application/json"]),
+        body.map { HTTPBody($0) }
+      )
     }
     await #expect(throws: AuthSessions.RefreshFailed.self) { try await sessions.accessToken() }
     #expect(try store.load() == session(1, expiresIn: 0))

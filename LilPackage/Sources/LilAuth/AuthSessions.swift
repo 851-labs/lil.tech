@@ -179,6 +179,9 @@ public actor AuthSessions {
     case .unauthorized:
       // Expired, revoked or already used: the user signs in again.
       return nil
+    case .tooManyRequests:
+      // Rate limited: the session is still good, so it's kept for a later try.
+      throw RefreshFailed(statusCode: 429)
     case .undocumented(let statusCode, _):
       throw RefreshFailed(statusCode: statusCode)
     }

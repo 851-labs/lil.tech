@@ -22,6 +22,14 @@ import { UserStores } from "../src/store/UserStores.ts";
 import { PartUrls } from "../src/sync/SnapshotParts.ts";
 import { WorkerHttpLayer } from "../src/Http.ts";
 import { makeOpenApiSpec } from "../src/OpenApiSpec.ts";
+import {
+  addressKey,
+  type RateLimitCounter,
+  type RateLimitName,
+  rateLimitNamespaceId,
+  RateLimits,
+  rateLimits,
+} from "../src/RateLimits.ts";
 import { makeApiWorkerProps } from "../src/Worker.ts";
 import { appleIdentityToken, TestAppleKeys } from "./auth/TestApple.ts";
 import { googleIdToken, TestGoogleClients, TestGoogleKeys } from "./auth/TestGoogle.ts";
@@ -45,9 +53,14 @@ type Handler = (request: Request) => Promise<Response>;
 const withApi = <A, E>(
   use: (handler: Handler) => Effect.Effect<A, E, Layer.Success<typeof TestServices>>,
   deployment: Deployment["Service"] = { environment: "staging", version: "45aa829" },
+  limits: RateLimits["Service"] = RateLimits.unlimited,
 ) =>
   Effect.gen(function* () {
-    const services = Layer.mergeAll(TestServices, Layer.succeed(Deployment, deployment));
+    const services = Layer.mergeAll(
+      TestServices,
+      Layer.succeed(Deployment, deployment),
+      Layer.succeed(RateLimits, limits),
+    );
     const memoMap = yield* Layer.makeMemoMap;
     const context = yield* Layer.buildWithMemoMap(services, memoMap, yield* Effect.scope);
     const { handler, dispose } = HttpRouter.toWebHandler(
@@ -971,6 +984,246 @@ describe("/v1/health/batches", () => {
       }),
     ),
   );
+});
+
+describe("rate limits", () => {
+  /** Rate limits that allow `max` requests per key for each limit, unlimited where unset. */
+  const limitsAllowing = (max: Partial<Record<RateLimitName, number>>) => {
+    const counts = new Map<string, number>();
+    const counter =
+      (limit: RateLimitName): RateLimitCounter =>
+      (key) =>
+        Effect.sync(() => {
+          const count = (counts.get(`${limit}/${key}`) ?? 0) + 1;
+          counts.set(`${limit}/${key}`, count);
+          return count <= (max[limit] ?? Infinity);
+        });
+    return RateLimits.make({
+      signIn: counter("signIn"),
+      user: counter("user"),
+      refresh: counter("refresh"),
+    });
+  };
+  const from = (address: string) => ({ "cf-connecting-ip": address });
+  const tooMany = { _tag: "TooManyRequests", retryAfterSeconds: 60 };
+  const refreshFrom = (handler: Handler, address: string) =>
+    send(
+      handler,
+      new Request("https://api.lil.tech/v1/auth/refresh", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...from(address) },
+        body: JSON.stringify({ refreshToken: "lrt_x" }),
+      }),
+    );
+  const appleFrom = (handler: Handler, address: string) =>
+    send(
+      handler,
+      new Request("https://api.lil.tech/v1/auth/apple", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...from(address) },
+        body: JSON.stringify({
+          identityToken: "x",
+          nonce: "x",
+          device: { app: "health-ios", platform: "ios" },
+        }),
+      }),
+    );
+
+  it.live("limits sign-ins per IP address", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          // Counted before the token is checked, so these are 401s until the limit.
+          assert.strictEqual((yield* appleFrom(handler, "192.0.2.1")).status, 401);
+          assert.strictEqual((yield* appleFrom(handler, "192.0.2.1")).status, 401);
+          assert.deepStrictEqual(yield* appleFrom(handler, "192.0.2.1"), {
+            status: 429,
+            body: tooMany,
+          });
+          // Refreshes have their own limit.
+          assert.strictEqual((yield* refreshFrom(handler, "192.0.2.1")).status, 401);
+          // Other addresses have their own limit, and requests without one (local runs) have none.
+          assert.strictEqual((yield* appleFrom(handler, "192.0.2.2")).status, 401);
+          const google = yield* send(
+            handler,
+            new Request("https://api.lil.tech/v1/auth/google", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                idToken: "x",
+                nonce: "x",
+                device: { app: "health-ios", platform: "ios" },
+              }),
+            }),
+          );
+          assert.notStrictEqual(google.status, 429);
+        }),
+      undefined,
+      limitsAllowing({ signIn: 2 }),
+    ),
+  );
+
+  it.live("limits refreshes per IP address", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          assert.strictEqual((yield* refreshFrom(handler, "192.0.2.1")).status, 401);
+          assert.deepStrictEqual(yield* refreshFrom(handler, "192.0.2.1"), {
+            status: 429,
+            body: tooMany,
+          });
+          assert.strictEqual((yield* appleFrom(handler, "192.0.2.1")).status, 401);
+          for (let i = 0; i < 3; i++)
+            assert.strictEqual((yield* refresh(handler, "lrt_x")).status, 401);
+        }),
+      undefined,
+      limitsAllowing({ refresh: 1 }),
+    ),
+  );
+
+  it.live("counts IPv6 addresses by their /64", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          assert.strictEqual((yield* appleFrom(handler, "2001:db8:1:2::1")).status, 401);
+          assert.strictEqual((yield* appleFrom(handler, "2001:db8:1:2:ffff::7")).status, 429);
+          assert.strictEqual((yield* appleFrom(handler, "2001:db8:1:3::1")).status, 401);
+        }),
+      undefined,
+      limitsAllowing({ signIn: 1 }),
+    ),
+  );
+
+  it("keys addresses", () => {
+    assert.strictEqual(addressKey("192.0.2.1"), "192.0.2.1");
+    assert.strictEqual(addressKey("2001:db8:1:2:3:4:5:6"), "2001:db8:1:2::/64");
+    assert.strictEqual(addressKey("2001:0DB8:0001:0002::9"), "2001:db8:1:2::/64");
+    assert.strictEqual(addressKey("2001:db8::1"), "2001:db8:0:0::/64");
+    assert.strictEqual(addressKey("::1"), "0:0:0:0::/64");
+    assert.strictEqual(addressKey("::ffff:192.0.2.1"), "192.0.2.1");
+  });
+
+  it.live("limits dev sign-ins per IP address", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const devSignIn = Effect.promise(() =>
+            handler(
+              new Request("https://api.lil.tech/v1/auth/dev", {
+                method: "POST",
+                headers: from("192.0.2.1"),
+              }),
+            ),
+          );
+          assert.strictEqual((yield* devSignIn).status, 200);
+          const limited = yield* devSignIn;
+          assert.strictEqual(limited.status, 429);
+          assert.strictEqual(limited.headers.get("retry-after"), "60");
+          assert.deepStrictEqual(yield* Effect.promise(() => limited.json()), tooMany);
+          // Refused before creating anyone.
+          assert.strictEqual(yield* (yield* Users).count, 1);
+        }),
+      { environment: "preview", version: "1" },
+      limitsAllowing({ signIn: 1 }),
+    ),
+  );
+
+  it.live("limits authenticated requests per user", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const ada = yield* signIn;
+          const grace = yield* signIn;
+          const me = (token: string) =>
+            send(handler, new Request("https://api.lil.tech/v1/me", { headers: bearer(token) }));
+          assert.strictEqual((yield* me(ada.tokens.accessToken)).status, 200);
+          const changes = yield* send(
+            handler,
+            new Request("https://api.lil.tech/v1/sync/changes", {
+              headers: bearer(ada.tokens.accessToken),
+            }),
+          );
+          assert.strictEqual(changes.status, 200);
+          assert.deepStrictEqual(yield* me(ada.tokens.accessToken), { status: 429, body: tooMany });
+          const live = yield* Effect.promise(() =>
+            handler(
+              new Request("https://api.lil.tech/v1/sync/live", {
+                headers: { ...bearer(ada.tokens.accessToken), upgrade: "websocket" },
+              }),
+            ),
+          );
+          assert.strictEqual(live.status, 429);
+          assert.strictEqual(live.headers.get("retry-after"), "60");
+          // Counted per user, not per device or token.
+          assert.strictEqual((yield* me(grace.tokens.accessToken)).status, 200);
+          // An invalid token isn't counted against anyone.
+          assert.strictEqual((yield* me("nope")).status, 401);
+          // Signing out isn't limited, so it always ends the session.
+          const signOut = yield* send(
+            handler,
+            new Request("https://api.lil.tech/v1/auth/sign-out", {
+              method: "POST",
+              headers: bearer(ada.tokens.accessToken),
+            }),
+          );
+          assert.strictEqual(signOut.status, 204);
+          assert.strictEqual((yield* refresh(handler, ada.tokens.refreshToken)).status, 401);
+        }),
+      undefined,
+      limitsAllowing({ user: 2 }),
+    ),
+  );
+
+  it.live("lets requests through when counting fails", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const { tokens } = yield* signIn;
+          const response = yield* send(
+            handler,
+            new Request("https://api.lil.tech/v1/me", { headers: bearer(tokens.accessToken) }),
+          );
+          assert.strictEqual(response.status, 200);
+          assert.strictEqual((yield* refreshFrom(handler, "192.0.2.1")).status, 401);
+          assert.strictEqual((yield* appleFrom(handler, "192.0.2.1")).status, 401);
+        }),
+      undefined,
+      RateLimits.make({
+        signIn: () => Effect.fail(new Error("binding unavailable")),
+        user: () => Effect.fail(new Error("binding unavailable")),
+        refresh: () => Effect.fail(new Error("binding unavailable")),
+      }),
+    ),
+  );
+
+  it("documents 429s on rate-limited endpoints", () => {
+    const { paths } = makeOpenApiSpec();
+    for (const [path, method] of [
+      ["/v1/auth/refresh", "post"],
+      ["/v1/auth/apple", "post"],
+      ["/v1/auth/google", "post"],
+      ["/v1/me", "get"],
+      ["/v1/sync/changes", "get"],
+      ["/v1/health/batches/{id}", "put"],
+    ] as const) {
+      assert.property(paths[path]?.[method]?.responses, "429", `${method} ${path}`);
+    }
+    assert.notProperty(paths["/v1/status"]?.get?.responses, "429");
+  });
+
+  it("gives each stage and limit its own namespace", () => {
+    const limits = Object.keys(rateLimits) as Array<RateLimitName>;
+    const ids = ["prod", "staging", "pr-88", "pr-89"].flatMap((stage) =>
+      limits.map((limit) => rateLimitNamespaceId(stage, limit)),
+    );
+    assert.strictEqual(new Set(ids).size, ids.length);
+    for (const id of ids) {
+      assert.match(id, /^[1-9]\d+$/);
+      assert.isBelow(Number(id), 2 ** 31);
+    }
+    // Fixed per limit, so a deploy never resets counters.
+    assert.strictEqual(rateLimitNamespaceId("prod", "user"), "27608502");
+  });
 });
 
 describe("Deployment.config", () => {
