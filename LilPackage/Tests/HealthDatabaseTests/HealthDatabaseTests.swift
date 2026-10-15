@@ -317,6 +317,20 @@ struct HealthSyncTests {
         "statistics": {"HKQuantityTypeIdentifierActiveEnergyBurned": {"unit": "kcal", "sum": 312.5}},
         "sourceName": "Test Watch", "sourceBundleId": "com.example.watch"
         """),
+      upsert(
+        9, "health_state_of_mind", "6f1c2a40-0000-4000-8000-000000000004",
+        """
+        "startDate": 1760400000000, "endDate": 1760400000000, "kind": 2, "valence": 0.4,
+        "valenceClassification": 5, "labels": [10], "associations": [6],
+        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
+        """),
+      upsert(
+        10, "health_scored_assessment", "6f1c2a40-0000-4000-8000-000000000005",
+        """
+        "type": "HKScoredAssessmentTypeIdentifierGAD7", "startDate": 1760400000000,
+        "endDate": 1760400000000, "score": 6, "risk": 2, "answers": [1, 1, 0, 1, 2, 0, 1],
+        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
+        """),
     ]
     let api = Client.mock { request, _ in
       #expect(request.path?.hasPrefix("/v1/sync/changes") == true)
@@ -325,7 +339,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 8, head: 8, hasMore: false)))
+              epoch: 1, changes: changes, next: 10, head: 10, hasMore: false)))
       )
     }
     let engine = withDependencies {
@@ -357,6 +371,12 @@ struct HealthSyncTests {
     #expect(correlations == 0)
     let workouts = try await database.read { db in try HealthWorkout.fetchAll(db) }
     #expect(workouts.map(\.activityType) == [37])
+    let (moods, assessments) = try await database.read { db in
+      (try HealthStateOfMind.fetchAll(db), try HealthScoredAssessment.fetchAll(db))
+    }
+    #expect(moods.map(\.labels) == ["[10]"])
+    #expect(assessments.map(\.score) == [6])
+    #expect(assessments.first?.answers == "[1,1,0,1,2,0,1]")
     #expect(workouts.first?.events == #"[{"type":1}]"#)
     #expect(
       workouts.first?.statistics

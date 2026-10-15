@@ -196,12 +196,59 @@ struct HealthEncoderTests {
   }
 
   @Test
+  func stateOfMind() throws {
+    let log = HKStateOfMind(
+      date: start, kind: .dailyMood, valence: 0.4, labels: [.happy, .grateful],
+      associations: [.family])
+    let mutation = HealthEncoder.stateOfMind(log)
+    #expect(mutation.entity == "health_state_of_mind")
+    let decoded = try row(mutation, as: Components.Schemas.HealthStateOfMind.self)
+    #expect(decoded.kind == HKStateOfMind.Kind.dailyMood.rawValue)
+    #expect(decoded.valence == 0.4)
+    #expect(decoded.valenceClassification == log.valenceClassification.rawValue)
+    let encoded = try #require(try line(mutation)["row"] as? [String: Any])
+    #expect(
+      encoded["labels"] as? [Int]
+        == [HKStateOfMind.Label.happy.rawValue, HKStateOfMind.Label.grateful.rawValue])
+    #expect(encoded["associations"] as? [Int] == [HKStateOfMind.Association.family.rawValue])
+  }
+
+  @Test
+  func scoredAssessments() throws {
+    let gad7 = HKGAD7Assessment(
+      date: start,
+      answers: [
+        .notAtAll, .severalDays, .notAtAll, .moreThanHalfTheDays, .notAtAll, .notAtAll,
+        .nearlyEveryDay,
+      ])
+    let mutation = try HealthEncoder.scoredAssessment(gad7)
+    #expect(mutation.entity == "health_scored_assessment")
+    let decoded = try row(mutation, as: Components.Schemas.HealthScoredAssessment.self)
+    #expect(decoded._type == "HKScoredAssessmentTypeIdentifierGAD7")
+    #expect(decoded.score == gad7.score)
+    #expect(decoded.risk == gad7.risk.rawValue)
+    let encoded = try #require(try line(mutation)["row"] as? [String: Any])
+    #expect(encoded["answers"] as? [Int] == gad7.answers.map(\.rawValue))
+
+    let phq9 = HKPHQ9Assessment(
+      date: start, answers: Array(repeating: .severalDays, count: 9))
+    let phq9Row = try row(
+      try HealthEncoder.scoredAssessment(phq9), as: Components.Schemas.HealthScoredAssessment.self)
+    #expect(phq9Row._type == "HKScoredAssessmentTypeIdentifierPHQ9")
+    #expect(phq9Row.score == 9)
+  }
+
+  @Test
   func workoutsAreBackfilledAndDeletedAsWorkouts() {
     let types = HealthBackfillType.all(availableOn: .ios(26))
     let workout = types.first { $0.id == "HKWorkoutTypeIdentifier" }
     #expect(workout?.entity == "health_workout")
     #expect(types.first { $0.id == "HKQuantityTypeIdentifierStepCount" }?.entity == "health_sample")
     #expect(types.first { $0.isCorrelation }?.entity == "health_correlation")
+    #expect(types.first { $0.id == "HKDataTypeStateOfMind" }?.entity == "health_state_of_mind")
+    #expect(
+      types.first { $0.id == "HKScoredAssessmentTypeIdentifierPHQ9" }?.entity
+        == "health_scored_assessment")
   }
 
   @Test

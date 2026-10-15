@@ -17,12 +17,14 @@ public struct HealthBackfillType: Hashable, Sendable {
     self.isCorrelation = isCorrelation
   }
 
-  /// Every quantity and category type the app can read, workouts, and the correlations, which
-  /// are read through their component types.
+  /// Every quantity and category type the app can read, workouts, State of Mind, scored
+  /// assessments, and the correlations, which are read through their component types.
   public static func all(availableOn version: IOSVersion) -> [Self] {
     HealthCatalog.types(availableOn: version).compactMap { type in
       switch (type.kind, type.readAuthorization) {
-      case (.quantity, .standard), (.category, .standard), (.workout, .standard): Self(id: type.id)
+      case (.quantity, .standard), (.category, .standard), (.workout, .standard),
+        (.stateOfMind, .standard), (.scoredAssessment, .standard):
+        Self(id: type.id)
       case (.correlation, _): Self(id: type.id, isCorrelation: true)
       default: nil
       }
@@ -34,8 +36,12 @@ extension HealthBackfillType {
   /// The server entity its records are, so deletions go to the right one.
   public var entity: String {
     if isCorrelation { return HealthEncoder.correlationEntity }
-    return HealthCatalog.type(id: id)?.kind == .workout
-      ? HealthEncoder.workoutEntity : HealthEncoder.sampleEntity
+    switch HealthCatalog.type(id: id)?.kind {
+    case .workout: return HealthEncoder.workoutEntity
+    case .stateOfMind: return HealthEncoder.stateOfMindEntity
+    case .scoredAssessment: return HealthEncoder.scoredAssessmentEntity
+    default: return HealthEncoder.sampleEntity
+    }
   }
 
   /// The HealthKit type to query and observe, or `nil` if HealthKit doesn't know it.
@@ -144,6 +150,10 @@ extension HealthReader: DependencyKey {
             mutations += try HealthEncoder.correlation(correlation)
           } else if let workout = sample as? HKWorkout {
             mutations.append(HealthEncoder.workout(WorkoutRecord(workout)))
+          } else if let log = sample as? HKStateOfMind {
+            mutations.append(HealthEncoder.stateOfMind(log))
+          } else if let assessment = sample as? HKScoredAssessment {
+            mutations.append(try HealthEncoder.scoredAssessment(assessment))
           } else {
             mutations.append(try HealthEncoder.sample(sample))
           }

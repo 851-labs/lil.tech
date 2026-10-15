@@ -123,6 +123,17 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CREATE INDEX health_workout_start ON health_workout (start_date);
     `,
   },
+  {
+    version: 9,
+    name: "health_mental_wellbeing",
+    // `HealthStateOfMind` and `HealthScoredAssessment` in `src/health/HealthEntities.ts`.
+    sql: `
+      CREATE TABLE "health_state_of_mind" (id TEXT PRIMARY KEY, "start_date" INTEGER NOT NULL, "end_date" INTEGER NOT NULL, "kind" INTEGER NOT NULL, "valence" REAL NOT NULL, "valence_classification" INTEGER NOT NULL, "labels" TEXT NOT NULL, "associations" TEXT NOT NULL, "source_name" TEXT NOT NULL, "source_bundle_id" TEXT NOT NULL, "source_revision" TEXT, "device" TEXT, "metadata" TEXT) STRICT;
+      CREATE INDEX health_state_of_mind_start ON health_state_of_mind (start_date);
+      CREATE TABLE "health_scored_assessment" (id TEXT PRIMARY KEY, "type" TEXT NOT NULL, "start_date" INTEGER NOT NULL, "end_date" INTEGER NOT NULL, "score" INTEGER NOT NULL, "risk" INTEGER NOT NULL, "answers" TEXT NOT NULL, "source_name" TEXT NOT NULL, "source_bundle_id" TEXT NOT NULL, "source_revision" TEXT, "device" TEXT, "metadata" TEXT) STRICT;
+      CREATE INDEX health_scored_assessment_type_start ON health_scored_assessment (type, start_date);
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */
