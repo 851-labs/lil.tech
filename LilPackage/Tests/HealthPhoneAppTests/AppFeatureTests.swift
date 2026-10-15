@@ -54,10 +54,14 @@ struct AppFeatureTests {
       $0.$offeredPerObject.withLock { $0 = true }
     }
 
-    // Once everything was offered and Health has nothing to ask, there's no onboarding.
+    await store.receive(\.backfill)
+
+    // Once everything was offered and Health has nothing to ask, there's no onboarding: the
+    // backfill starts.
     needsRequest.setValue(false)
     await store.send(.signedInChanged(true))
     await store.receive(\.healthAccessChecked)
+    await store.receive(\.backfill)
   }
 
   @Test
@@ -78,6 +82,7 @@ struct AppFeatureTests {
     await store.send(.healthAccess(.delegate(.skipped))) {
       $0.healthAccess = nil
     }
+    await store.receive(\.backfill)
     await store.send(.signedInChanged(true))
     await store.receive(\.healthAccessChecked) {
       $0.healthAccess = HealthAccessFeature.State()
