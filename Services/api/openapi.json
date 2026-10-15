@@ -55,6 +55,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -94,6 +104,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InvalidIdentityToken"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
                 }
               }
             }
@@ -150,6 +170,16 @@
               }
             }
           },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
+          },
           "503": {
             "description": "SignInUnavailable",
             "content": {
@@ -198,6 +228,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
           }
         }
       }
@@ -234,6 +274,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
           }
         }
       },
@@ -258,6 +308,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
                 }
               }
             }
@@ -341,6 +401,16 @@
               }
             }
           },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
+          },
           "503": {
             "description": "UserStoreUnavailable",
             "content": {
@@ -383,6 +453,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
                 }
               }
             }
@@ -460,6 +540,16 @@
               }
             }
           },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
+          },
           "503": {
             "description": "UserStoreUnavailable",
             "content": {
@@ -521,6 +611,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthBatchTooLarge"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
                 }
               }
             }
@@ -599,6 +699,16 @@
               }
             }
           },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
+          },
           "503": {
             "description": "UserStoreUnavailable",
             "content": {
@@ -615,6 +725,26 @@
   },
   "components": {
     "schemas": {
+      "TooManyRequests": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "TooManyRequests"
+            ]
+          },
+          "retryAfterSeconds": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "_tag",
+          "retryAfterSeconds"
+        ]
+      },
       "Unauthorized": {
         "type": "object",
         "properties": {

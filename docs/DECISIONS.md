@@ -82,6 +82,14 @@
   - The exception is uploads waiting to be applied, such as health batch files. They're staging, not data: keyed by user and batch, deleted once applied, and expired by a 7-day lifecycle rule if anything leaves them behind.
   - Not D1 for user data, because one D1 database has a hard 10 GB cap shared by everyone, and a Worker can't bind a new database per user at runtime.
 - **Backups:** D1 and Durable Object point-in-time recovery (30 days). R2 has none, which is why blobs are immutable.
+- **Rate limits** (`src/RateLimits.ts`), counted with the Workers rate limiting binding:
+  - Sign-ins and refreshes: 60 a minute per IP address (`cf-connecting-ip`), shared by Apple, Google, refresh and dev sign-in. They're unauthenticated and create accounts, so the IP is the only key there is.
+  - Authenticated requests: 600 a minute per user, counted after the access token is verified, so a bad token costs nobody's budget. That includes the live socket.
+  - Over a limit, the API answers 429 `TooManyRequests` with `retryAfterSeconds` (and `Retry-After` on routes outside the HttpApi). The apps treat it like a 503: try again later, and keep the session.
+  - Counting is approximate and per Cloudflare location, which is enough to bound abuse. A Durable Object would count exactly, but would add a hop to every request.
+  - If the binding fails, the request goes through. An outage of rate limiting shouldn't take the API down.
+  - Each stage has its own namespace IDs (a hash of the stage name), since bindings that share an ID share counters across the account.
+  - Snapshot part downloads aren't limited: their URLs are signed and short-lived.
 
 ## Accounts
 

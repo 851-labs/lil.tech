@@ -32,6 +32,12 @@ import {
 } from "./health/HealthIngestion.ts";
 import { Users } from "./core/Users.ts";
 import { Deployment } from "./Deployment.ts";
+import {
+  checkSignInRateLimit,
+  RateLimits,
+  SignInRateLimit,
+  tooManyRequests,
+} from "./RateLimits.ts";
 import { Status } from "./Status.ts";
 import { sessionExpiresHeader } from "./store/LiveNotices.ts";
 import { UserStores, UserStoreUnavailable } from "./store/UserStores.ts";
@@ -55,11 +61,15 @@ export const SystemHandlers = HttpApiBuilder.group(
   }),
 );
 
-/** Verifies the bearer access token. Access tokens are stateless, so this never hits the database. */
+/**
+ * Verifies the bearer access token, then counts the request against the user's rate limit. Access
+ * tokens are stateless, so this never hits the database.
+ */
 export const AuthorizationLayer = Layer.effect(
   Authorization,
   Effect.gen(function* () {
     const accessTokens = yield* AccessTokens;
+    const limits = yield* RateLimits;
     return Authorization.of({
       bearer: Effect.fn(function* (httpEffect, { credential }) {
         const claims = yield* accessTokens
@@ -69,9 +79,20 @@ export const AuthorizationLayer = Layer.effect(
               () => new Unauthorized({ message: "Missing, invalid or expired access token" }),
             ),
           );
+        yield* limits.check("user", claims.userId);
         return yield* Effect.provideService(httpEffect, CurrentSession, claims);
       }),
     });
+  }),
+);
+
+export const SignInRateLimitLayer = Layer.effect(
+  SignInRateLimit,
+  Effect.gen(function* () {
+    const limits = yield* RateLimits;
+    return SignInRateLimit.of((httpEffect) =>
+      Effect.andThen(checkSignInRateLimit(limits), httpEffect),
+    );
   }),
 );
 
@@ -340,6 +361,7 @@ export const LiveRoute = HttpRouter.use((router) =>
   Effect.gen(function* () {
     const accessTokens = yield* AccessTokens;
     const stores = yield* UserStores;
+    const limits = yield* RateLimits;
     yield* router.add(
       "GET",
       "/v1/sync/live",
@@ -356,6 +378,10 @@ export const LiveRoute = HttpRouter.use((router) =>
             { status: 401 },
           ).pipe(Effect.orDie);
         }
+        const limited = yield* limits
+          .check("user", session.value.claims.userId)
+          .pipe(Effect.flip, Effect.option);
+        if (Option.isSome(limited)) return tooManyRequests(limited.value);
         if (request.headers["upgrade"]?.toLowerCase() !== "websocket") {
           return HttpServerResponse.jsonUnsafe(
             { _tag: "UpgradeRequired", message: "Connect with a WebSocket" },
@@ -388,7 +414,7 @@ const OpenApiRoute = HttpRouter.add(
  * Every route of the API, with the platform services a Worker can provide: Alchemy's
  * `Http.Platform` stubs file responses and gives `HttpApiBuilder` a no-op `FileSystem`, since
  * Workers have no file system. Needs `Deployment`, `SessionKey`, `AppleKeys`, `GoogleKeys`,
- * `GoogleClients`, the core repositories and `UserStores`, and `HealthBatchFiles`,
+ * `GoogleClients`, the core repositories, `UserStores` and `RateLimits`, and `HealthBatchFiles`,
  * `HealthBatchQueue` and `SnapshotParts` per request.
  */
 export const WorkerHttpLayer = Layer.mergeAll(
@@ -399,7 +425,7 @@ export const WorkerHttpLayer = Layer.mergeAll(
   LiveRoute,
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),
-  Layer.provide([AuthorizationLayer, UploadSizeLimitLayer]),
+  Layer.provide([AuthorizationLayer, SignInRateLimitLayer, UploadSizeLimitLayer]),
   Layer.provide([AppleSignIn.layer, GoogleSignIn.layer, ProviderSignIn.layer]),
   Layer.provide([Auth.layer, PartUrls.layer]),
   Layer.provide(AccessTokens.layer),

@@ -390,7 +390,7 @@ public actor LilSyncEngine {
       return try ok.body.json
     case .unauthorized:
       throw SyncError.unauthorized
-    case .serviceUnavailable:
+    case .serviceUnavailable, .tooManyRequests:
       throw SyncError.unavailable
     case .undocumented(let statusCode, _):
       throw SyncError.unexpectedStatus(statusCode)
@@ -406,7 +406,7 @@ public actor LilSyncEngine {
       throw SyncError.needsBootstrap
     case .unauthorized:
       throw SyncError.unauthorized
-    case .serviceUnavailable:
+    case .serviceUnavailable, .tooManyRequests:
       throw SyncError.unavailable
     case .undocumented(let statusCode, _):
       throw SyncError.unexpectedStatus(statusCode)
@@ -421,7 +421,7 @@ public actor LilSyncEngine {
       throw SyncError.needsBootstrap
     case .unauthorized:
       throw SyncError.unauthorized
-    case .serviceUnavailable:
+    case .serviceUnavailable, .tooManyRequests:
       throw SyncError.unavailable
     case .undocumented(let statusCode, _):
       throw SyncError.unexpectedStatus(statusCode)
