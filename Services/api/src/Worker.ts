@@ -10,7 +10,7 @@ import { CoreDatabase, CoreRepositories } from "./core/CoreDatabase.ts";
 import { retireSignedOutDevices } from "./core/DeviceCleanup.ts";
 import { Devices } from "./core/Devices.ts";
 import { Users } from "./core/Users.ts";
-import { Deployment, environmentForStage } from "./Deployment.ts";
+import { Deployment, environmentForStage, stageDomains } from "./Deployment.ts";
 import { HealthBatchFiles, HealthBatchQueue } from "./health/HealthIngestion.ts";
 import { HealthIngestionWorker } from "./health/HealthResources.ts";
 import { WorkerHttpLayer } from "./Http.ts";
@@ -27,10 +27,6 @@ import { SnapshotParts } from "./sync/SnapshotParts.ts";
 import { UserStores } from "./store/UserStores.ts";
 
 /** Custom domains per stage. Other stages (PR previews, personal stages) use workers.dev. */
-const domains: Partial<Record<string, string>> = {
-  prod: "api.lil.tech",
-  staging: "api.staging.lil.tech",
-};
 
 /**
  * The Worker's props. Alchemy also evaluates them inside the running Worker, where there's no
@@ -49,7 +45,7 @@ export const makeApiWorkerProps = <Key, E, R>(sessionKey: Effect.Effect<Key, E, 
         `LIL_ENVIRONMENT is "${environment}" but stage "${stage.value}" expects "${expected}"`,
       );
     }
-    const domain = domains[stage.value];
+    const domain = stageDomains[stage.value]?.api;
     return {
       main,
       ...(domain === undefined ? {} : { domain }),
