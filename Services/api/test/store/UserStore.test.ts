@@ -3,7 +3,14 @@ import { Effect, Exit } from "effect";
 import type { UserId } from "../../src/core/Ids.ts";
 import { migrate, type StoreMigration, storeMigrations } from "../../src/store/Migrations.ts";
 import { fromDurableObjectStorage, type StoreSql } from "../../src/store/StoreSql.ts";
-import { makeUserStore, type UserStoreMethods } from "../../src/store/UserStore.ts";
+import { StorageFull } from "../../src/store/Changes.ts";
+import {
+  makeUserStore,
+  storageHardLimitBytes,
+  storageQuotaBytes,
+  type UserStoreMethods,
+  userStoreErrors,
+} from "../../src/store/UserStore.ts";
 import { UserStores } from "../../src/store/UserStores.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
 
@@ -114,6 +121,82 @@ describe("makeUserStore", () => {
   );
 });
 
+describe("the storage quota", () => {
+  const bloodType = (value: string) =>
+    ({
+      entity: "health_characteristic",
+      op: "upsert",
+      id: "HKCharacteristicTypeIdentifierBloodType",
+      row: { value },
+    }) as const;
+  const batchId = "00000000-0000-4000-8000-000000000001";
+
+  const isFull = (error: { readonly _tag: string }) =>
+    assert.strictEqual(error._tag, "StorageFull");
+
+  it.effect("stops new uploads at the quota, but still applies accepted batches", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      const store = makeUserStore(sql);
+      yield* store.receiveHealthBatch(batchId);
+
+      sql.setDatabaseSize(storageQuotaBytes);
+      assert.deepInclude(
+        yield* Effect.flip(store.checkHealthBatchUpload("00000000-0000-4000-8000-000000000002")),
+        { _tag: "StorageFull", quotaBytes: storageQuotaBytes },
+      );
+      // A batch it already knows still answers with its status.
+      assert.deepInclude(yield* store.checkHealthBatchUpload(batchId), { status: "queued" });
+      // Batches accepted before the quota are still applied.
+      yield* store.applyMutations([bloodType("aPositive")]);
+
+      sql.setDatabaseSize(storageQuotaBytes - 1);
+      assert.isNull(yield* store.checkHealthBatchUpload("00000000-0000-4000-8000-000000000002"));
+    }),
+  );
+
+  it.effect("takes deletes but no new records at the hard limit", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      const store = makeUserStore(sql);
+      yield* store.applyMutations([bloodType("aPositive")]);
+
+      sql.setDatabaseSize(storageHardLimitBytes);
+      isFull(yield* Effect.flip(store.applyMutations([bloodType("bNegative")])));
+      isFull(
+        yield* Effect.flip(
+          store.applyMutations([
+            {
+              entity: "health_characteristic",
+              op: "delete",
+              id: "HKCharacteristicTypeIdentifierSex",
+            },
+            bloodType("bNegative"),
+          ]),
+        ),
+      );
+      const deleted = yield* store.applyMutations([
+        {
+          entity: "health_characteristic",
+          op: "delete",
+          id: "HKCharacteristicTypeIdentifierBloodType",
+        },
+      ]);
+      assert.strictEqual(deleted.appended, 1);
+    }),
+  );
+
+  it("declares StorageFull, so it crosses RPC as itself", () => {
+    assert.include(userStoreErrors, StorageFull);
+  });
+
+  it("reports the database's real size", () => {
+    const sql = makeTestStoreSql();
+    makeUserStore(sql);
+    assert.isAbove(sql.databaseSize(), 0);
+  });
+});
+
 describe("fromDurableObjectStorage", () => {
   it.effect("runs statements and transactions on workerd's storage", () =>
     Effect.gen(function* () {
@@ -124,6 +207,7 @@ describe("fromDurableObjectStorage", () => {
             calls.push(`exec ${query} ${JSON.stringify(bindings)}`);
             return { toArray: () => [{ n: 1 }] };
           },
+          databaseSize: 4096,
         },
         transactionSync: (body) => {
           calls.push("transactionSync");
@@ -144,6 +228,7 @@ describe("fromDurableObjectStorage", () => {
         },
       });
       assert.deepStrictEqual(sql.exec("SELECT ?", 1), [{ n: 1 }]);
+      assert.strictEqual(sql.databaseSize(), 4096);
       sql.script("CREATE TABLE t (x);");
       assert.strictEqual(
         sql.transaction(() => "done"),

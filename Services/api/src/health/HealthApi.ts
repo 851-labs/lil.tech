@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSchema } from "effect/http-api";
 import { Authorization } from "../auth/AuthApi.ts";
+import { StorageFull } from "../store/Changes.ts";
 import { UserStoreUnavailable } from "../store/UserStores.ts";
 import {
   HealthBatch,
@@ -33,7 +34,7 @@ export class HealthApi extends HttpApiGroup.make("health")
         HttpApiSchema.asUint8Array({ contentType: "application/gzip" }),
       ),
       success: HealthBatch.pipe(HttpApiSchema.status(202)),
-      error: [HealthBatchTooLarge, UserStoreUnavailable],
+      error: [HealthBatchTooLarge, StorageFull, UserStoreUnavailable],
     }).middleware(UploadSizeLimit),
   )
   .add(

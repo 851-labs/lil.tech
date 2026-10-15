@@ -18,12 +18,15 @@ export interface StoreSql {
   readonly getAlarm: () => Promise<number | null>;
   /** Sets the store's one alarm, replacing any other. */
   readonly setAlarm: (at: number) => Promise<void>;
+  /** The database's size on disk, in bytes. */
+  readonly databaseSize: () => number;
 }
 
 /** The parts of workerd's `DurableObjectStorage` the store uses. */
 interface DurableObjectStorageLike {
   readonly sql: {
     exec(query: string, ...bindings: Array<unknown>): { toArray(): Array<SqlRow> };
+    readonly databaseSize: number;
   };
   transactionSync<T>(body: () => T): T;
   getAlarm(): Promise<number | null>;
@@ -45,4 +48,5 @@ export const fromDurableObjectStorage = (storage: DurableObjectStorageLike): Sto
   },
   getAlarm: () => storage.getAlarm(),
   setAlarm: (at) => storage.setAlarm(at),
+  databaseSize: () => storage.sql.databaseSize,
 });

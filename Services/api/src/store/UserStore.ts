@@ -10,7 +10,13 @@ import {
 import type { HealthBatch } from "../health/HealthBatches.ts";
 import { provideRuntime } from "../Runtime.ts";
 import { applyMutations, readChanges, readEpoch, readHead, readMeta } from "./ChangeLog.ts";
-import { AccountDeleted, ChangesCompacted, InvalidMutation, type Mutation } from "./Changes.ts";
+import {
+  AccountDeleted,
+  ChangesCompacted,
+  InvalidMutation,
+  type Mutation,
+  StorageFull,
+} from "./Changes.ts";
 import type { Entity } from "./Entities.ts";
 import {
   answerCloseCode,
@@ -33,6 +39,20 @@ import {
 } from "./Snapshots.ts";
 import { entities } from "./Registry.ts";
 import { fromDurableObjectStorage, type StoreSql } from "./StoreSql.ts";
+
+/**
+ * How large a store's database may grow before it takes no new uploads: below the 10 GB a Durable
+ * Object can hold (`docs/DECISIONS.md`). The size counts used pages only, so deleted records
+ * make room once the change log is compacted.
+ */
+export const storageQuotaBytes = 8 * 1024 ** 3;
+
+/**
+ * Past this, writes of new records fail too. Uploads stop at the quota, but batches accepted
+ * before it are still applied (the iPhone doesn't send a batch again once it's accepted), so the
+ * gap up to the 10 GB cap absorbs them.
+ */
+export const storageHardLimitBytes = 9.5 * 1024 ** 3;
 
 /** Snapshot files that aren't available, for stores built without them (most tests). */
 const noSnapshotFiles: SnapshotFiles = {
@@ -60,6 +80,19 @@ export const makeUserStore = (
   const ensureNotDeleted = Effect.suspend(() =>
     deleted ? Effect.fail(new AccountDeleted()) : Effect.void,
   );
+
+  /** Fails once the store's size reaches `limit`. */
+  const ensureRoom = (limit: number) =>
+    Effect.suspend(() =>
+      sql.databaseSize() >= limit
+        ? Effect.fail(new StorageFull({ quotaBytes: storageQuotaBytes }))
+        : Effect.void,
+    );
+  const healthBatch = (id: string) =>
+    ensureNotDeleted.pipe(
+      Effect.andThen(Clock.currentTimeMillis),
+      Effect.map((now) => readHealthBatch(sql, id, now)),
+    );
 
   /** When the alarm is set for, once known, so most writes don't have to ask. */
   let alarmAt: number | null | undefined;
@@ -117,10 +150,14 @@ export const makeUserStore = (
         return page instanceof ChangesCompacted ? Effect.fail(page) : Effect.succeed(page);
       }),
     /** An uploaded health batch's status, or `null` if it was never received. */
-    healthBatch: (id: string) =>
-      ensureNotDeleted.pipe(
-        Effect.andThen(Clock.currentTimeMillis),
-        Effect.map((now) => readHealthBatch(sql, id, now)),
+    healthBatch,
+    /**
+     * Before a health batch is uploaded: its status if it's already known, otherwise `null`, or
+     * `StorageFull` once the store has reached its quota.
+     */
+    checkHealthBatchUpload: (id: string) =>
+      healthBatch(id).pipe(
+        Effect.tap((known) => (known === null ? ensureRoom(storageQuotaBytes) : Effect.void)),
       ),
     /** Records a health batch as `queued` unless it's already known, and returns its status. */
     receiveHealthBatch: (id: string) =>
@@ -133,10 +170,16 @@ export const makeUserStore = (
         Effect.andThen(Clock.currentTimeMillis),
         Effect.map((at) => saveHealthBatch(sql, batch, at)),
       ),
-    /** Applies mutations in one transaction (see `applyMutations`). */
+    /**
+     * Applies mutations in one transaction (see `applyMutations`). Past `storageHardLimitBytes`,
+     * only deletes are applied: a call with an upsert fails with `StorageFull`.
+     */
     applyMutations: (mutations: ReadonlyArray<Mutation>) =>
       Effect.gen(function* () {
         yield* ensureNotDeleted;
+        if (mutations.some((mutation) => mutation.op === "upsert")) {
+          yield* ensureRoom(storageHardLimitBytes);
+        }
         const at = yield* Clock.currentTimeMillis;
         const applied = yield* Effect.suspend(() => {
           try {
@@ -219,6 +262,12 @@ export type UserStoreShape = UserStoreMethods & {
 };
 
 /**
+ * Every error a store's methods fail with. Only these cross RPC as instances of their classes;
+ * any other arrives as a plain object, which the API can't encode (a 500).
+ */
+export const userStoreErrors = [InvalidMutation, ChangesCompacted, AccountDeleted, StorageFull];
+
+/**
  * One user's data, in a SQLite-backed Durable Object. Reach it through `UserStores`. Its errors
  * are declared so they cross RPC as instances of their classes, not plain objects.
  *
@@ -227,7 +276,7 @@ export type UserStoreShape = UserStoreMethods & {
  * own bookkeeping in that wrapper.
  */
 export class UserStore extends Cloudflare.DurableObject<UserStore, UserStoreShape>()("UserStore", {
-  errors: [InvalidMutation, ChangesCompacted, AccountDeleted],
+  errors: userStoreErrors,
 }) {}
 
 /** Snapshot parts (`src/store/Snapshots.ts`). */

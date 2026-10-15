@@ -12,9 +12,13 @@ import type { StoreSql } from "../../src/store/StoreSql.ts";
 import { SnapshotParts } from "../../src/sync/SnapshotParts.ts";
 import { entities } from "../../src/store/Registry.ts";
 import { sessionExpiresHeader } from "../../src/store/LiveNotices.ts";
-import { makeUserStore, type UserStoreMethods } from "../../src/store/UserStore.ts";
+import {
+  makeUserStore,
+  type UserStoreMethods,
+  userStoreErrors,
+} from "../../src/store/UserStore.ts";
 import { UserStores, userStoreName } from "../../src/store/UserStores.ts";
-import { makeTestStoreSql } from "./TestStoreSql.ts";
+import { makeTestStoreSql, type TestStoreSql } from "./TestStoreSql.ts";
 
 /** An entity for tests, with every column type. */
 export const testNote = defineEntity("test_note", {
@@ -47,15 +51,34 @@ export const makeTestSnapshotFiles = () => {
   return { stored, files };
 };
 
+/**
+ * A store's methods with errors crossing as they do over Durable Object RPC: errors in
+ * `userStoreErrors` as instances of their classes, any other as a plain object.
+ */
+const asOverRpc = (store: UserStoreMethods): UserStoreMethods =>
+  Object.fromEntries(
+    Object.entries(store).map(([name, method]) => [
+      name,
+      (...args: Array<unknown>) =>
+        (method as (...args: Array<unknown>) => Effect.Effect<unknown, unknown>)(...args).pipe(
+          Effect.mapError((error) =>
+            userStoreErrors.some((type) => error instanceof type)
+              ? error
+              : (JSON.parse(JSON.stringify(error)) as unknown),
+          ),
+        ),
+    ]),
+  ) as UserStoreMethods;
+
 /** `UserStores` over in-memory test stores, opened on first use like Durable Objects. */
 export const makeTestUserStores = (files?: SnapshotFiles) => {
-  const opened = new Map<string, { sql: StoreSql; store: UserStoreMethods }>();
+  const opened = new Map<string, { sql: TestStoreSql; store: UserStoreMethods }>();
   const stores = UserStores.fromNamespace({
     getByName: (name) => {
       const existing = opened.get(name) ?? makeTestStore(files);
       opened.set(name, existing);
       return {
-        ...existing.store,
+        ...asOverRpc(existing.store),
         // A live connection can't be upgraded in tests; this answers with what the store got.
         fetch: (request) =>
           Effect.succeed(
@@ -74,7 +97,7 @@ export const makeTestUserStores = (files?: SnapshotFiles) => {
 export class TestStores extends Context.Service<
   TestStores,
   {
-    readonly sqlFor: (userId: UserId) => StoreSql | undefined;
+    readonly sqlFor: (userId: UserId) => TestStoreSql | undefined;
     readonly snapshotFiles: SnapshotFiles;
     readonly storedSnapshotFiles: Map<string, Uint8Array>;
   }
