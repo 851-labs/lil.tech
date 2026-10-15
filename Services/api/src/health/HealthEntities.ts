@@ -115,8 +115,37 @@ export const HealthAudiogram = defineEntity("health_audiogram", {
     points: Column.json,
     ...provenance,
   },
-  checkRow: (_, row) => (Array.isArray(row.points) ? undefined : "points must be an array"),
+  checkRow: (_, row) => checkAudiogramPoints(row.points),
 });
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Checks an audiogram's points have the shape `HealthAudiogram` documents. */
+const checkAudiogramPoints = (points: unknown): string | undefined => {
+  if (!Array.isArray(points)) return "points must be an array";
+  let previous = -Infinity;
+  for (const point of points) {
+    if (!isObject(point) || typeof point.frequency !== "number" || !Array.isArray(point.tests)) {
+      return "each point must be { frequency, tests }";
+    }
+    if (point.frequency <= previous) return "frequencies must be unique and ascending";
+    previous = point.frequency;
+    for (const test of point.tests) {
+      const ok =
+        isObject(test) &&
+        Number.isInteger(test.side) &&
+        Number.isInteger(test.type) &&
+        typeof test.masked === "boolean" &&
+        typeof test.sensitivity === "number" &&
+        (test.clampingLower === null || typeof test.clampingLower === "number") &&
+        (test.clampingUpper === null || typeof test.clampingUpper === "number");
+      if (!ok)
+        return "each test must be { side, type, masked, sensitivity, clampingLower, clampingUpper }";
+    }
+  }
+  return undefined;
+};
 
 /** Whether a field is a list of HealthKit enum raw values. */
 const isRawValues = (value: unknown) =>

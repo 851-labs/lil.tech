@@ -400,11 +400,27 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHeal
           sourceBundleId: "com.apple.health.00000000",
         },
       };
+      const point = audiogram.row.points[0];
       const { batch } = yield* ingest([
         audiogram,
         { ...audiogram, id: uuid(4601), row: { ...audiogram.row, points: {} } },
+        // Not ascending.
+        { ...audiogram, id: uuid(4602), row: { ...audiogram.row, points: [point, point] } },
+        // A test without its sensitivity.
+        {
+          ...audiogram,
+          id: uuid(4603),
+          row: { ...audiogram.row, points: [{ frequency: 500, tests: [{ side: 0 }] }] },
+        },
       ]);
-      assert.deepInclude(batch, { status: "applied", applied: 1, rejected: 1 });
+      assert.deepInclude(batch, { status: "applied", applied: 1, rejected: 3 });
+      const sql = (yield* TestStores).sqlFor(userId);
+      assert.deepStrictEqual(sql?.exec("SELECT points FROM health_audiogram"), [
+        {
+          points:
+            '[{"frequency":1000,"tests":[{"clampingLower":null,"clampingUpper":null,"masked":false,"sensitivity":20,"side":0,"type":0}]}]',
+        },
+      ]);
     }),
   );
 

@@ -266,7 +266,14 @@ struct HealthEncoderTests {
     #expect(encodedPoints.map { $0["frequency"] as? Double } == [500, 4000])
     let tests = try #require(encodedPoints.last?["tests"] as? [[String: Any]])
     #expect(tests.map { $0["sensitivity"] as? Double } == [35, 30])
-    #expect(tests.first?["side"] as? Int == HKAudiogramSensitivityTestSide.left.rawValue)
+    #expect(
+      tests.map { $0["side"] as? Int }
+        == [
+          HKAudiogramSensitivityTestSide.left.rawValue,
+          HKAudiogramSensitivityTestSide.right.rawValue,
+        ])
+    #expect(tests.first?["type"] as? Int == HKAudiogramConductionType.air.rawValue)
+    #expect(tests.first?["masked"] as? Bool == false)
     #expect(tests.first?["clampingUpper"] as? Double == 90)
     #expect(tests.first?["clampingLower"] is NSNull)
   }
