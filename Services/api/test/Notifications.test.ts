@@ -14,16 +14,34 @@ describe("notification policies", () => {
     assert.deepStrictEqual(planChanges([first], []), [{ kind: "create", policy: first }]);
   });
 
-  it("ignores the order of recipients and filters", () => {
+  it("ignores the order of recipients, filters and filter values", () => {
+    const usage = policies.find((policy) => Object.keys(policy.filters).length > 1);
+    if (usage === undefined) return assert.fail("a policy with several filters");
+    const policy = {
+      ...usage,
+      mechanisms: { email: [{ id: "a@example.com" }, { id: "b@example.com" }] },
+      filters: { ...usage.filters, extra: ["1", "2"] },
+    };
     const reordered = existing(
       {
-        ...first,
-        mechanisms: { email: first.mechanisms.email.toReversed() },
-        filters: Object.fromEntries(Object.entries(first.filters).toReversed()),
+        ...policy,
+        mechanisms: { email: policy.mechanisms.email.toReversed() },
+        filters: Object.fromEntries(
+          Object.entries(policy.filters)
+            .toReversed()
+            .map(([key, values]) => [key, values.toReversed()]),
+        ),
       },
       "a",
     );
-    assert.deepStrictEqual(planChanges([first], [reordered]), []);
+    assert.deepStrictEqual(planChanges([policy], [reordered]), []);
+  });
+
+  it("updates a same-named policy the API returns without emails or filters", () => {
+    const bare = { ...existing(first, "a"), mechanisms: {}, filters: undefined } as never;
+    assert.deepStrictEqual(planChanges([first], [bare]), [
+      { kind: "update", id: "a", policy: first },
+    ]);
   });
 
   it("names every policy uniquely, so matching by name is safe", () => {

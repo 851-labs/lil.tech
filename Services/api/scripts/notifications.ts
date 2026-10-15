@@ -1,10 +1,13 @@
 // Sets up the account's Cloudflare billing and usage notifications (`docs/DECISIONS.md`). They're
 // account-wide, not per stage, so they aren't part of the Alchemy stack: run this by hand after
-// changing `policies`. It creates missing policies and updates changed ones, matched by name, and
-// leaves every other policy alone. `--dry-run` only prints what it would do.
+// changing `policies`, from `Services/api`: `node scripts/notifications.ts` (not `vp run`, whose
+// tasks are cached and don't see your environment). It creates missing policies and updates
+// changed ones, matched by name, and leaves every other policy alone. `--dry-run` only prints
+// what it would do.
 //
 // Credentials: CLOUDFLARE_API_TOKEN (with Notifications: Edit) and CLOUDFLARE_ACCOUNT_ID, or else
-// your Alchemy profile's Cloudflare login (`npx alchemy profile show` refreshes it).
+// your Alchemy profile's Cloudflare OAuth login (`npx alchemy profile show` refreshes it), if
+// it was granted the notifications scopes; "Basic Scopes" doesn't include them.
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -31,7 +34,7 @@ const spend = (dollars: number): Policy => ({
   filters: { total_spend_dollars: [String(dollars)] },
 });
 
-/** When a product's usage this billing period reaches `limit`, e.g. what Workers Paid includes. */
+/** When a product's usage this billing period reaches `limit`. */
 const usage = (product: string, limit: number, what: string): Policy => ({
   name: `lil: ${what}`,
   alert_type: "billing_usage_alert",
@@ -41,8 +44,9 @@ const usage = (product: string, limit: number, what: string): Policy => ({
   filters: { product: [product], limit: [String(limit)] },
 });
 
-// Usage thresholds are the monthly amounts Workers Paid includes, so each alert means we've
-// started paying for that product. Queues and CPU time have no usage alerts; spend covers them.
+// Usage thresholds are the monthly amounts included for free (by Workers Paid for Workers,
+// Durable Objects and D1; by R2's free tier for R2), so each alert means we've started paying for
+// that product. Queues and CPU time have no usage alerts; spend covers them.
 export const policies: ReadonlyArray<Policy> = [
   spend(25),
   spend(100),
@@ -63,13 +67,16 @@ export type Change =
   | { readonly kind: "create"; readonly policy: Policy }
   | { readonly kind: "update"; readonly id: string; readonly policy: Policy };
 
+// Fields the API may leave out (e.g. a policy with only webhooks) count as empty.
 const comparable = (policy: Policy) =>
   JSON.stringify([
     policy.alert_type,
     policy.description,
     policy.enabled,
-    policy.mechanisms.email.map((mechanism) => mechanism.id).toSorted(),
-    Object.entries(policy.filters).toSorted(([a], [b]) => a.localeCompare(b)),
+    (policy.mechanisms?.email ?? []).map((mechanism) => mechanism.id).toSorted(),
+    Object.entries(policy.filters ?? {})
+      .map(([key, values]) => [key, values.toSorted()] as const)
+      .toSorted(([a], [b]) => a.localeCompare(b)),
   ]);
 
 /** What brings `existing` in line with `desired`, matching policies by name. */
@@ -90,13 +97,21 @@ const credentials = () => {
   const account = process.env["CLOUDFLARE_ACCOUNT_ID"];
   if (token !== undefined && account !== undefined) return { token, account };
   const profile = process.env["ALCHEMY_PROFILE"] ?? "default";
-  const stored = JSON.parse(
-    readFileSync(join(homedir(), ".alchemy", "profiles", profile, "cloudflare.json"), "utf8"),
-  ) as { values: { access: string; accountId: string; expires: number } };
-  if (stored.values.expires < Date.now()) {
+  const path = join(homedir(), ".alchemy", "profiles", profile, "cloudflare.json");
+  let stored: { values?: { access?: string; accountId?: string; expires?: number } };
+  try {
+    stored = JSON.parse(readFileSync(path, "utf8")) as typeof stored;
+  } catch {
+    throw new Error(`Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID, or log in: no ${path}`);
+  }
+  const { access, accountId, expires } = stored.values ?? {};
+  if (access === undefined || accountId === undefined || expires === undefined) {
+    throw new Error(`Alchemy profile "${profile}" isn't an OAuth login; set CLOUDFLARE_API_TOKEN`);
+  }
+  if (expires < Date.now()) {
     throw new Error("The Alchemy login expired; run `npx alchemy profile show` to refresh it");
   }
-  return { token: stored.values.access, account: stored.values.accountId };
+  return { token: access, account: accountId };
 };
 
 const main = async () => {
@@ -110,9 +125,21 @@ const main = async () => {
         ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
       },
     );
-    const json = (await response.json()) as { success: boolean; result: A; errors: unknown };
-    if (!json.success) throw new Error(`${path}: ${JSON.stringify(json.errors)}`);
-    return json.result;
+    const text = await response.text();
+    let json: { success?: boolean; result?: A; errors?: unknown } | undefined;
+    try {
+      json = JSON.parse(text) as typeof json;
+    } catch {
+      json = undefined;
+    }
+    if (!response.ok || json?.success !== true) {
+      throw new Error(
+        `${init.method ?? "GET"} ${path} answered ${response.status}: ${
+          json === undefined ? text.slice(0, 200) : JSON.stringify(json.errors)
+        }`,
+      );
+    }
+    return json.result as A;
   };
 
   const changes = planChanges(policies, await api<Array<ExistingPolicy>>("/policies"));
