@@ -39,7 +39,9 @@ import {
   tooManyRequests,
 } from "./RateLimits.ts";
 import { Status } from "./Status.ts";
+import { StorageFull } from "./store/Changes.ts";
 import { sessionExpiresHeader } from "./store/LiveNotices.ts";
+import { storageQuotaBytes } from "./store/UserStore.ts";
 import { UserStores, UserStoreUnavailable } from "./store/UserStores.ts";
 import {
   InvalidPartUrl,
@@ -273,6 +275,7 @@ export const HealthHandlers = HttpApiBuilder.group(
   "health",
   Effect.fn(function* (handlers) {
     const stores = yield* UserStores;
+    const users = yield* Users;
     return handlers
       .handle("uploadBatch", ({ params, payload }) =>
         Effect.gen(function* () {
@@ -284,9 +287,15 @@ export const HealthHandlers = HttpApiBuilder.group(
             return yield* new HealthBatchTooLarge({ maxBytes: maxHealthBatchBytes });
           }
           const store = stores.forUser(userId);
-          // Fails with `StorageFull` for a new batch once the store is over its quota.
-          const known = yield* store.checkHealthBatchUpload(params.id);
+          const { batch: known, storageBytes } = yield* store.checkHealthBatchUpload(params.id);
+          // For finding the largest users. A failure here shouldn't fail the upload.
+          yield* users
+            .recordStorage(userId, storageBytes)
+            .pipe(Effect.ignore({ log: "Warn", message: "Recording the store's size failed" }));
           if (known !== null) return known;
+          if (storageBytes >= storageQuotaBytes) {
+            return yield* new StorageFull({ quotaBytes: storageQuotaBytes });
+          }
           // The file and the message come before the status, so a batch recorded as queued is
           // always really queued. A failure in between leaves no status, and the client retries.
           yield* files.put(healthBatchKey(userId, params.id), payload);

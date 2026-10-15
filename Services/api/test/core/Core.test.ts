@@ -27,6 +27,30 @@ describe("IDs", () => {
   );
 });
 
+describe("users' storage", () => {
+  it.effect("lists the largest stores as last measured, leaving out unmeasured ones", () =>
+    Effect.gen(function* () {
+      const users = yield* Users;
+      const [small, large, unmeasured, remeasured] = yield* Effect.all(
+        Array.from({ length: 4 }, () => users.create({ displayName: null })),
+      );
+      if (!small || !large || !unmeasured || !remeasured) return assert.fail("users");
+      yield* users.recordStorage(small.id, 1_000);
+      yield* users.recordStorage(large.id, 9_000_000);
+      yield* users.recordStorage(remeasured.id, 5_000_000);
+      yield* TestClock.adjust("1 hour");
+      yield* users.recordStorage(remeasured.id, 2_000);
+
+      assert.deepStrictEqual(yield* users.largestByStorage(10), [
+        { id: large.id, storageBytes: 9_000_000, measuredAt: 0 },
+        { id: remeasured.id, storageBytes: 2_000, measuredAt: 3_600_000 },
+        { id: small.id, storageBytes: 1_000, measuredAt: 0 },
+      ]);
+      assert.lengthOf(yield* users.largestByStorage(1), 1);
+    }).pipe(Effect.provide(TestCore)),
+  );
+});
+
 layer(TestCore)("core repositories", (it) => {
   it.effect("users: create, find, delete", () =>
     Effect.gen(function* () {

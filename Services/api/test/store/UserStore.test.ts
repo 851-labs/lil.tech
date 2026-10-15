@@ -134,24 +134,26 @@ describe("the storage quota", () => {
   const isFull = (error: { readonly _tag: string }) =>
     assert.strictEqual(error._tag, "StorageFull");
 
-  it.effect("stops new uploads at the quota, but still applies accepted batches", () =>
+  it.effect("reports its size before an upload, and still applies batches past the quota", () =>
     Effect.gen(function* () {
       const sql = makeTestStoreSql();
       const store = makeUserStore(sql);
       yield* store.receiveHealthBatch(batchId);
 
-      sql.setDatabaseSize(storageQuotaBytes);
-      assert.deepInclude(
-        yield* Effect.flip(store.checkHealthBatchUpload("00000000-0000-4000-8000-000000000002")),
-        { _tag: "StorageFull", quotaBytes: storageQuotaBytes },
-      );
-      // A batch it already knows still answers with its status.
-      assert.deepInclude(yield* store.checkHealthBatchUpload(batchId), { status: "queued" });
-      // Batches accepted before the quota are still applied.
-      yield* store.applyMutations([bloodType("aPositive")]);
+      const fresh = yield* store.checkHealthBatchUpload("00000000-0000-4000-8000-000000000002");
+      assert.isNull(fresh.batch);
+      assert.strictEqual(fresh.storageBytes, sql.databaseSize());
+      assert.deepInclude((yield* store.checkHealthBatchUpload(batchId)).batch, {
+        status: "queued",
+      });
 
-      sql.setDatabaseSize(storageQuotaBytes - 1);
-      assert.isNull(yield* store.checkHealthBatchUpload("00000000-0000-4000-8000-000000000002"));
+      // Uploads stop at the quota (in the API), but batches accepted before it still apply.
+      sql.setDatabaseSize(storageQuotaBytes);
+      assert.strictEqual(
+        (yield* store.checkHealthBatchUpload(batchId)).storageBytes,
+        storageQuotaBytes,
+      );
+      yield* store.applyMutations([bloodType("aPositive")]);
     }),
   );
 

@@ -81,13 +81,12 @@ export const makeUserStore = (
     deleted ? Effect.fail(new AccountDeleted()) : Effect.void,
   );
 
-  /** Fails once the store's size reaches `limit`. */
-  const ensureRoom = (limit: number) =>
-    Effect.suspend(() =>
-      sql.databaseSize() >= limit
-        ? Effect.fail(new StorageFull({ quotaBytes: storageQuotaBytes }))
-        : Effect.void,
-    );
+  /** Fails once the store's size reaches the hard limit. */
+  const ensureRoom = Effect.suspend(() =>
+    sql.databaseSize() >= storageHardLimitBytes
+      ? Effect.fail(new StorageFull({ quotaBytes: storageQuotaBytes }))
+      : Effect.void,
+  );
   const healthBatch = (id: string) =>
     ensureNotDeleted.pipe(
       Effect.andThen(Clock.currentTimeMillis),
@@ -152,13 +151,11 @@ export const makeUserStore = (
     /** An uploaded health batch's status, or `null` if it was never received. */
     healthBatch,
     /**
-     * Before a health batch is uploaded: its status if it's already known, otherwise `null`, or
-     * `StorageFull` once the store has reached its quota.
+     * Before a health batch is uploaded: its status (`null` if it's new), and the store's size,
+     * which the caller checks against `storageQuotaBytes`.
      */
     checkHealthBatchUpload: (id: string) =>
-      healthBatch(id).pipe(
-        Effect.tap((known) => (known === null ? ensureRoom(storageQuotaBytes) : Effect.void)),
-      ),
+      healthBatch(id).pipe(Effect.map((batch) => ({ batch, storageBytes: sql.databaseSize() }))),
     /** Records a health batch as `queued` unless it's already known, and returns its status. */
     receiveHealthBatch: (id: string) =>
       ensureNotDeleted.pipe(
@@ -178,7 +175,7 @@ export const makeUserStore = (
       Effect.gen(function* () {
         yield* ensureNotDeleted;
         if (mutations.some((mutation) => mutation.op === "upsert")) {
-          yield* ensureRoom(storageHardLimitBytes);
+          yield* ensureRoom;
         }
         const at = yield* Clock.currentTimeMillis;
         const applied = yield* Effect.suspend(() => {
