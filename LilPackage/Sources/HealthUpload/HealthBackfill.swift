@@ -3,6 +3,7 @@ public import Foundation
 import HealthCatalog
 import HealthKitAccess
 import IssueReporting
+import OpenAPIRuntime
 
 /// What the backfill has done and is doing. Saved after every step, so a killed app resumes
 /// where it was.
@@ -23,6 +24,10 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   public var statisticsFrom: [String: Date] = [:]
   /// When each cumulative type's sums last went up.
   public var statisticsUploadedAt: [String: Date] = [:]
+  /// Records uploaded per type.
+  public var uploadedByType: [String: Int] = [:]
+  /// When something last went up.
+  public var lastUploadAt: Date?
 
   public init() {}
 
@@ -38,6 +43,9 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
       try container.decodeIfPresent([String: Date].self, forKey: .statisticsFrom) ?? [:]
     statisticsUploadedAt =
       try container.decodeIfPresent([String: Date].self, forKey: .statisticsUploadedAt) ?? [:]
+    uploadedByType =
+      try container.decodeIfPresent([String: Int].self, forKey: .uploadedByType) ?? [:]
+    lastUploadAt = try container.decodeIfPresent(Date.self, forKey: .lastUploadAt)
   }
 
   /// A page written to batch files. Its anchor is committed once every file is accepted.
@@ -68,8 +76,39 @@ public actor HealthBackfill {
     public var isRunning: Bool
     /// Why the last run stopped early, if it did.
     public var failure: String?
+    /// Whether that was because there's no network: paused rather than failed.
+    public var isOffline = false
+    /// Each type's progress, by HealthKit type identifier.
+    public var types: [String: TypeProgress] = [:]
+    public var lastUploadAt: Date?
+
+    public init(
+      finishedTypes: Int, totalTypes: Int, uploadedRecords: Int, isRunning: Bool,
+      failure: String? = nil, isOffline: Bool = false, types: [String: TypeProgress] = [:],
+      lastUploadAt: Date? = nil
+    ) {
+      self.finishedTypes = finishedTypes
+      self.totalTypes = totalTypes
+      self.uploadedRecords = uploadedRecords
+      self.isRunning = isRunning
+      self.failure = failure
+      self.isOffline = isOffline
+      self.types = types
+      self.lastUploadAt = lastUploadAt
+    }
 
     public var isFinished: Bool { finishedTypes == totalTypes }
+  }
+
+  public struct TypeProgress: Equatable, Sendable {
+    /// Its history is all uploaded, or it has nothing to upload.
+    public var isDone: Bool
+    public var uploadedRecords: Int
+
+    public init(isDone: Bool, uploadedRecords: Int) {
+      self.isDone = isDone
+      self.uploadedRecords = uploadedRecords
+    }
   }
 
   private let types: [HealthBackfillType]
@@ -105,9 +144,7 @@ public actor HealthBackfill {
     self.uuid = uuid
     self.now = { date.now }
     let state = (try? storage.loadState()) ?? nil
-    self.progress = Progress(
-      finishedTypes: state.map { Self.doneTypes(types, $0) } ?? 0,
-      totalTypes: types.count, uploadedRecords: state?.uploadedRecords ?? 0, isRunning: false)
+    self.progress = Self.progress(types, state ?? HealthBackfillState())
   }
 
   /// The progress now and after every change.
@@ -173,10 +210,8 @@ public actor HealthBackfill {
         for batch in pending.batches { try? storage.removeFile(batch) }
       }
       withErrorReporting { try storage.saveState(nil) }
-      let total = types.count
-      update {
-        $0 = Progress(finishedTypes: 0, totalTypes: total, uploadedRecords: 0, isRunning: false)
-      }
+      let reset = Self.progress(types, HealthBackfillState())
+      update { $0 = reset }
     }
     resetting = task
     await task.value
@@ -234,7 +269,10 @@ public actor HealthBackfill {
       let paused = Task.isCancelled || error is CancellationError || error is HealthReader.Locked
       update {
         $0.isRunning = false
-        if !paused { $0.failure = error.localizedDescription }
+        if !paused {
+          $0.failure = error.localizedDescription
+          $0.isOffline = Self.isOffline(error)
+        }
       }
       throw paused && !(error is HealthReader.Locked) ? CancellationError() : error
     }
@@ -244,13 +282,17 @@ public actor HealthBackfill {
       update {
         $0.isRunning = false
         $0.failure = failure.localizedDescription
+        $0.isOffline = Self.isOffline(failure)
       }
       throw failure
     }
     update {
       $0.isRunning = false
       // A run that covered everything clears an earlier failure; one for a few changes doesn't.
-      if syncedAll { $0.failure = nil }
+      if syncedAll {
+        $0.failure = nil
+        $0.isOffline = false
+      }
     }
   }
 
@@ -404,6 +446,7 @@ public actor HealthBackfill {
     }
     state.statisticsFrom[type.id] = nil
     state.statisticsUploadedAt[type.id] = now()
+    state.lastUploadAt = now()
     try storage.saveState(state)
   }
 
@@ -460,24 +503,51 @@ public actor HealthBackfill {
     if pending.isLast { state.finished.insert(pending.type) }
     state.pending = nil
     state.uploadedRecords += pending.records
+    state.uploadedByType[pending.type, default: 0] += pending.records
+    if !pending.batches.isEmpty { state.lastUploadAt = now() }
     try storage.saveState(state)
     for batch in pending.batches { try storage.removeFile(batch) }
     updateCounts(state)
   }
 
-  private static func doneTypes(_ types: [HealthBackfillType], _ state: HealthBackfillState)
-    -> Int
+  /// The counts in `state`, not running and without a failure.
+  private static func progress(_ types: [HealthBackfillType], _ state: HealthBackfillState)
+    -> Progress
   {
-    types.filter { state.finished.contains($0.id) || state.empty.contains($0.id) }.count
+    let byType = Dictionary(
+      uniqueKeysWithValues: types.map { type in
+        (
+          type.id,
+          TypeProgress(
+            isDone: state.finished.contains(type.id) || state.empty.contains(type.id),
+            uploadedRecords: state.uploadedByType[type.id] ?? 0)
+        )
+      })
+    return Progress(
+      finishedTypes: byType.values.filter(\.isDone).count, totalTypes: types.count,
+      uploadedRecords: state.uploadedRecords, isRunning: false, types: byType,
+      lastUploadAt: state.lastUploadAt)
   }
 
   private func updateCounts(_ state: HealthBackfillState) {
-    let done = Self.doneTypes(types, state)
-    let uploaded = state.uploadedRecords
+    let counts = Self.progress(types, state)
     update {
-      $0.finishedTypes = done
-      $0.uploadedRecords = uploaded
+      $0.finishedTypes = counts.finishedTypes
+      $0.uploadedRecords = counts.uploadedRecords
+      $0.types = counts.types
+      $0.lastUploadAt = counts.lastUploadAt
     }
+  }
+
+  /// Network errors mean the run is paused until there's a connection, not failing.
+  static func isOffline(_ error: any Error) -> Bool {
+    let offline: Set<URLError.Code> = [
+      .notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost,
+      .cannotConnectToHost, .dnsLookupFailed, .dataNotAllowed, .internationalRoamingOff,
+    ]
+    if let error = error as? URLError { return offline.contains(error.code) }
+    if let error = error as? ClientError { return isOffline(error.underlyingError) }
+    return false
   }
 
   private func update(_ change: (inout Progress) -> Void) {

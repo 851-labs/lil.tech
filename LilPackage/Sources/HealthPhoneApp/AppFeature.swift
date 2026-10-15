@@ -11,6 +11,7 @@ public struct AppFeature {
     /// `nil` until the stored session has been checked.
     public var isSignedIn: Bool?
     public var signIn = SignInFeature.State()
+    public var syncStatus = SyncStatusFeature.State()
     /// Asking for Health access, after signing in, while Health has types to ask about or the
     /// medications and prescriptions step hasn't been offered yet.
     public var healthAccess: HealthAccessFeature.State?
@@ -30,7 +31,7 @@ public struct AppFeature {
     case healthAccessChecked(needsRequest: Bool)
     case signedInChanged(Bool)
     case signIn(SignInFeature.Action)
-    case signOutButtonTapped
+    case syncStatus(SyncStatusFeature.Action)
     case task
   }
 
@@ -45,6 +46,9 @@ public struct AppFeature {
   public var body: some ReducerOf<Self> {
     Scope(\.signIn, action: \.signIn) {
       SignInFeature()
+    }
+    Scope(\.syncStatus, action: \.syncStatus) {
+      SyncStatusFeature()
     }
     Reduce { state, action in
       switch action {
@@ -108,8 +112,12 @@ public struct AppFeature {
         // The session's updates say when signing in worked.
         return .none
 
-      case .signOutButtonTapped:
-        return .run { [auth] _ in await auth.signOut() }
+      case .syncStatus(.delegate(.reviewHealthAccess)):
+        state.healthAccess = HealthAccessFeature.State()
+        return .none
+
+      case .syncStatus:
+        return .none
 
       case .task:
         return .run { [auth] send in

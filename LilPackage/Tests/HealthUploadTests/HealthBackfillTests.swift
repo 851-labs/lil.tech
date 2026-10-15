@@ -77,6 +77,7 @@ private func makeBackfill(
     $0.healthBatchUploader = server.uploader
     $0.healthBackfillStorage = storage
     $0.uuid = .incrementing
+    $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
   } operation: {
     HealthBackfill(types: types)
   }
@@ -104,7 +105,12 @@ struct HealthBackfillTests {
     #expect(
       await updates.next()
         == .init(
-          finishedTypes: 2, totalTypes: 2, uploadedRecords: 9, isRunning: false, failure: nil))
+          finishedTypes: 2, totalTypes: 2, uploadedRecords: 9, isRunning: false, failure: nil,
+          types: [
+            temperature.id: .init(isDone: true, uploadedRecords: 6),
+            sleep.id: .init(isDone: true, uploadedRecords: 3),
+          ],
+          lastUploadAt: Date(timeIntervalSince1970: 1_760_400_000)))
 
     // Running again catches every type up from its anchor: nothing new, so nothing uploaded.
     try await backfill.run()
@@ -150,6 +156,7 @@ struct HealthBackfillTests {
       $0.healthBatchUploader = server.uploader
       $0.healthBackfillStorage = storage
       $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
     } operation: {
       HealthBackfill(types: [temperature, sleep])
     }
@@ -279,6 +286,7 @@ struct HealthBackfillTests {
       $0.healthBatchUploader = FakeServer().uploader
       $0.healthBackfillStorage = storage
       $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
     } operation: {
       HealthBackfill(types: [temperature])
     }
@@ -360,6 +368,7 @@ struct HealthBackfillTests {
       $0.healthBatchUploader = server.uploader
       $0.healthBackfillStorage = storage
       $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
     } operation: {
       HealthBackfill(types: [temperature, sleep, heartRate])
     }
@@ -411,6 +420,7 @@ struct HealthBackfillTests {
       }
       $0.healthBackfillStorage = storage
       $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
     } operation: {
       HealthBackfill(types: [temperature])
     }
@@ -440,6 +450,7 @@ struct HealthBackfillTests {
       $0.healthBatchUploader = FakeServer().uploader
       $0.healthBackfillStorage = storage
       $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
     } operation: {
       HealthBackfill(types: [temperature, sleep])
     }
@@ -450,5 +461,11 @@ struct HealthBackfillTests {
     #expect(progress?.failure == nil)
     #expect(progress?.isRunning == false)
     #expect(try storage.loadState()?.finished.isEmpty ?? true)
+  }
+
+  @Test
+  func networkFailuresAreOffline() {
+    #expect(HealthBackfill.isOffline(URLError(.notConnectedToInternet)))
+    #expect(!HealthBackfill.isOffline(HealthBatchUploader.Rejected(statusCode: 503)))
   }
 }
