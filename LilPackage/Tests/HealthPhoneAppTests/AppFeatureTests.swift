@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import Foundation
 import HealthKitAccess
 import HealthPhoneApp
 import HealthUpload
@@ -16,7 +17,7 @@ struct AppFeatureTests {
       $0.auth.signedInUpdates = { updates }
       $0.healthAuthorization.isAvailable = { true }
       $0.healthObserver = HealthObserver { _, _ in }
-      $0.accountDevices = AccountDevices { [] }
+      $0.accountDevices = AccountDevices { 0 }
       $0.healthAuthorization.needsRequest = { false }
     }
 
@@ -46,7 +47,7 @@ struct AppFeatureTests {
     } withDependencies: {
       $0.healthAuthorization.isAvailable = { true }
       $0.healthObserver = HealthObserver { _, _ in }
-      $0.accountDevices = AccountDevices { [] }
+      $0.accountDevices = AccountDevices { 0 }
       $0.healthAuthorization.needsRequest = { needsRequest.value }
     }
 
@@ -80,7 +81,7 @@ struct AppFeatureTests {
     } withDependencies: {
       $0.healthAuthorization.isAvailable = { true }
       $0.healthObserver = HealthObserver { _, _ in }
-      $0.accountDevices = AccountDevices { [] }
+      $0.accountDevices = AccountDevices { 0 }
       $0.healthAuthorization.needsRequest = { true }
     }
 
@@ -108,7 +109,7 @@ struct AppFeatureTests {
       AppFeature()
     } withDependencies: {
       $0.healthAuthorization.isAvailable = { false }
-      $0.accountDevices = AccountDevices { [] }
+      $0.accountDevices = AccountDevices { 0 }
     }
 
     await store.send(.signedInChanged(true)) {
@@ -127,7 +128,7 @@ struct AppFeatureTests {
       $0.healthAuthorization.isAvailable = { false }
       $0.accountDevices = AccountDevices {
         checks.withValue { $0 += 1 }
-        return ["Ada's iPhone"]
+        return 1
       }
     }
 
@@ -136,7 +137,7 @@ struct AppFeatureTests {
       $0.$checkedForOtherIPhones.withLock { $0 = true }
     }
     await store.receive(\.otherIPhonesFound) {
-      $0.alert = .otherIPhones(["Ada's iPhone"])
+      $0.alert = .otherIPhones(1)
     }
     await store.send(\.alert.dismiss) {
       $0.alert = nil
@@ -144,6 +145,24 @@ struct AppFeatureTests {
     // Not again on the next launch.
     await store.send(.signedInChanged(true))
     #expect(checks.value == 1)
+  }
+
+  @Test
+  func theWarningCountsTheOtherIPhones() {
+    #expect(
+      AlertState<AppFeature.Action.Alert>.otherIPhones(1).title
+        == TextState("Another iPhone uses this account"))
+    #expect(
+      AlertState<AppFeature.Action.Alert>.otherIPhones(2).title
+        == TextState("Other iPhones use this account"))
+  }
+
+  @Test
+  func aCheckThatFinishesAfterSigningOutShowsNothing() async {
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
+      AppFeature()
+    }
+    await store.send(.otherIPhonesFound(1))
   }
 
   @Test
@@ -162,7 +181,7 @@ struct AppFeatureTests {
           for await _ in release {}
           throw Offline()
         }
-        return []
+        return 0
       }
     }
 

@@ -1,5 +1,5 @@
 import * as Http from "alchemy/Http";
-import { Effect, Layer, Option, Redacted, Schedule, Schema } from "effect";
+import { Clock, Effect, Layer, Option, Redacted, Schedule, Schema } from "effect";
 import { Headers, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
@@ -173,8 +173,13 @@ export const MeHandlers = HttpApiBuilder.group(
           if (Option.isNone(user)) {
             return yield* new Unauthorized({ message: "The user no longer exists" });
           }
-          const userIdentities = yield* identities.listForUser(session.userId).pipe(Effect.orDie);
-          const userDevices = yield* devices.listForUser(session.userId).pipe(Effect.orDie);
+          const [userIdentities, userDevices] = yield* Effect.all(
+            [
+              identities.listForUser(session.userId),
+              devices.listSignedInForUser(session.userId, yield* Clock.currentTimeMillis),
+            ],
+            { concurrency: "unbounded" },
+          ).pipe(Effect.orDie);
           return new Me({
             id: user.value.id,
             displayName: user.value.displayName,

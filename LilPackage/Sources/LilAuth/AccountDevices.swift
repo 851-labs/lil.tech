@@ -5,12 +5,11 @@ import LilAPI
 
 /// The other installs signed in to the account, from `GET /v1/me`.
 public struct AccountDevices: Sendable {
-  /// The names (`nil` if unknown) of the account's other devices running this app
-  /// (`authDevice.app`).
-  public var othersWithThisApp: @Sendable () async throws -> [String?]
+  /// How many other devices are signed in to the account with this app (`authDevice.app`).
+  public var otherInstallsOfThisApp: @Sendable () async throws -> Int
 
-  public init(othersWithThisApp: @escaping @Sendable () async throws -> [String?]) {
-    self.othersWithThisApp = othersWithThisApp
+  public init(otherInstallsOfThisApp: @escaping @Sendable () async throws -> Int) {
+    self.otherInstallsOfThisApp = otherInstallsOfThisApp
   }
 
   public struct Failed: Error, Equatable {
@@ -25,9 +24,7 @@ extension AccountDevices: DependencyKey {
     return Self {
       switch try await api.me() {
       case .ok(let ok):
-        return try ok.body.json.devices
-          .filter { $0.app == device.app && !$0.current }
-          .map(\.name)
+        return try ok.body.json.devices.count { $0.app == device.app && !$0.current }
       case .unauthorized: throw Failed(statusCode: 401)
       case .tooManyRequests: throw Failed(statusCode: 429)
       case .undocumented(let statusCode, _): throw Failed(statusCode: statusCode)
@@ -35,12 +32,12 @@ extension AccountDevices: DependencyKey {
     }
   }
 
-  public static let previewValue = Self { [] }
+  public static let previewValue = Self { 0 }
 
   public static var testValue: Self {
     Self {
-      reportIssue("Unimplemented: @Dependency(\\.accountDevices).othersWithThisApp")
-      return []
+      reportIssue("Unimplemented: @Dependency(\\.accountDevices).otherInstallsOfThisApp")
+      return 0
     }
   }
 }

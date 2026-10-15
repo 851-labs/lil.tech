@@ -32,7 +32,7 @@ struct AccountDevicesTests {
       AccountDevices.liveValue
     }
     // Not this device, and not other apps. An unknown platform still decodes.
-    #expect(try await devices.othersWithThisApp() == ["Ada's iPhone", nil, "Future"])
+    #expect(try await devices.otherInstallsOfThisApp() == 3)
   }
 
   @Test
@@ -43,7 +43,7 @@ struct AccountDevicesTests {
       AccountDevices.liveValue
     }
     await #expect(throws: AccountDevices.Failed(statusCode: 503)) {
-      try await devices.othersWithThisApp()
+      try await devices.otherInstallsOfThisApp()
     }
   }
 }

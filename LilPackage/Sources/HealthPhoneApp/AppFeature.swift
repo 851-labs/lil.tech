@@ -38,8 +38,8 @@ public struct AppFeature {
     case backfill
     case healthAccess(HealthAccessFeature.Action)
     case healthAccessChecked(needsRequest: Bool)
-    /// The account's other iPhones with lil health, by name (`nil` if unknown).
-    case otherIPhonesFound([String?])
+    /// How many other iPhones are signed in to the account with lil health.
+    case otherIPhonesFound(Int)
     /// They couldn't be checked for (e.g. offline), so they're checked for on the next launch.
     case otherIPhonesCheckFailed
     case signedInChanged(Bool)
@@ -55,7 +55,7 @@ public struct AppFeature {
   @Dependency(\.healthAuthorization) var healthAuthorization
   @Dependency(\.healthBackfill) var healthBackfill
 
-  enum CancelID { case backfill }
+  enum CancelID { case backfill, signedInChecks }
 
   public init() {}
 
@@ -113,9 +113,9 @@ public struct AppFeature {
         state.$checkedForOtherIPhones.withLock { $0 = false }
         return .none
 
-      case .otherIPhonesFound(let names):
-        guard !names.isEmpty else { return .none }
-        state.alert = .otherIPhones(names)
+      case .otherIPhonesFound(let count):
+        guard count > 0, state.isSignedIn == true else { return .none }
+        state.alert = .otherIPhones(count)
         return .none
 
       case .signedInChanged(let isSignedIn):
@@ -129,6 +129,7 @@ public struct AppFeature {
           // The next account starts its own backfill from the beginning.
           return .merge(
             .cancel(id: CancelID.backfill),
+            .cancel(id: CancelID.signedInChecks),
             .run { [healthBackfill] _ in await healthBackfill.reset() }
           )
         }
@@ -142,11 +143,12 @@ public struct AppFeature {
           }
           guard checkDevices else { return }
           do {
-            await send(.otherIPhonesFound(try await accountDevices.othersWithThisApp()))
+            await send(.otherIPhonesFound(try await accountDevices.otherInstallsOfThisApp()))
           } catch {
             await send(.otherIPhonesCheckFailed)
           }
         }
+        .cancellable(id: CancelID.signedInChecks, cancelInFlight: true)
 
       case .signIn:
         // The session's updates say when signing in worked.
@@ -180,16 +182,15 @@ public struct AppFeature {
 extension AlertState where Action == AppFeature.Action.Alert {
   /// One lil health account holds one Health history: two iPhones only agree on it when Health
   /// syncs them through iCloud (`docs/DECISIONS.md`).
-  public static func otherIPhones(_ names: [String?]) -> Self {
-    let named = names.compactMap { $0 }
-    let which = named.count == 1 ? "“\(named[0])” is" : "Another iPhone is"
+  public static func otherIPhones(_ count: Int) -> Self {
+    let which = count == 1 ? "Another iPhone is" : "\(count) other iPhones are"
     return Self {
-      TextState("Another iPhone uses this account")
+      TextState(count == 1 ? "Another iPhone uses this account" : "Other iPhones use this account")
     } actions: {
       ButtonState(role: .cancel) { TextState("OK") }
     } message: {
       TextState(
-        "\(which) already uploading Health data to this account. Both iPhones must be signed in to the same Apple ID with Health turned on in iCloud settings, or your data will be counted twice or go missing."
+        "\(which) already signed in to this account. Each iPhone must be signed in to the same Apple ID with Health turned on in iCloud settings, or your data will be counted twice or go missing."
       )
     }
   }

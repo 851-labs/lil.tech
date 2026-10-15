@@ -33,6 +33,14 @@ export class Devices extends Context.Service<
     readonly listForUser: (
       userId: UserId,
     ) => Effect.Effect<ReadonlyArray<Device>, SqlError.SqlError>;
+    /**
+     * The user's devices that are signed in: with a session that's neither revoked nor expired at
+     * `now`. Signing out or in again leaves the old device row, so `listForUser` has those too.
+     */
+    readonly listSignedInForUser: (
+      userId: UserId,
+      now: number,
+    ) => Effect.Effect<ReadonlyArray<Device>, SqlError.SqlError>;
     /** Records that the device just used the API. */
     readonly touch: (id: DeviceId) => Effect.Effect<void, SqlError.SqlError>;
     readonly setPushToken: (
@@ -75,6 +83,14 @@ export class Devices extends Context.Service<
         }),
         listForUser: Effect.fn("Devices.listForUser")(function* (userId) {
           const rows = yield* sql`${select} WHERE user_id = ${userId} ORDER BY created_at, id`;
+          return yield* Effect.forEach(rows, decodeDevice);
+        }),
+        listSignedInForUser: Effect.fn("Devices.listSignedInForUser")(function* (userId, now) {
+          const rows = yield* sql`${select} WHERE user_id = ${userId} AND EXISTS (
+              SELECT 1 FROM sessions
+              WHERE sessions.device_id = devices.id AND sessions.revoked_at IS NULL
+                AND sessions.expires_at > ${now})
+            ORDER BY created_at, id`;
           return yield* Effect.forEach(rows, decodeDevice);
         }),
         touch: Effect.fn("Devices.touch")(function* (id) {

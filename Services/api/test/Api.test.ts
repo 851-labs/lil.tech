@@ -196,6 +196,49 @@ describe("WorkerHttpLayer", () => {
     ),
   );
 
+  it.live("GET /v1/me leaves out devices that signed out or whose sessions expired", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const auth = yield* Auth;
+        const deviceRepo = yield* Devices;
+        // Signed in, then out: the device row stays behind.
+        const old = yield* deviceRepo.create({
+          userId: user.id,
+          app: "health-ios",
+          platform: "ios",
+          name: null,
+        });
+        const oldTokens = yield* auth.issueSession(user.id, old.id);
+        yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/auth/sign-out", {
+            method: "POST",
+            headers: bearer(oldTokens.accessToken),
+          }),
+        );
+        // A session that's long expired.
+        const stale = yield* deviceRepo.create({
+          userId: user.id,
+          app: "health-ios",
+          platform: "ios",
+          name: null,
+        });
+        yield* auth.issueSession(user.id, stale.id).pipe(Effect.provide(TestClock.layer()));
+
+        const response = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/me", { headers: bearer(tokens.accessToken) }),
+        );
+        const { devices } = response.body as { devices: Array<{ id: string; current: boolean }> };
+        assert.deepStrictEqual(
+          devices.map(({ current }) => current),
+          [true],
+        );
+      }),
+    ),
+  );
+
   it.live("GET /v1/me lists every device, marking the one asking", () =>
     withApi((handler) =>
       Effect.gen(function* () {

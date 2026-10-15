@@ -183,7 +183,7 @@ export class Me extends Schema.Class<Me>("lil/api/auth/Me")({
   displayName: Schema.NullOr(Schema.String),
   /** The accounts the user signs in with. */
   identities: Schema.Array(MeIdentity),
-  /** Every app install signed in to the account, oldest first. */
+  /** The app installs signed in to the account (with a live session), oldest first. */
   devices: Schema.Array(MeDevice),
 }) {}
 

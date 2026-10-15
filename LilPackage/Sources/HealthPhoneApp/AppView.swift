@@ -51,14 +51,14 @@ public struct AppView: View {
 
 #Preview("Another iPhone") {
   AppView(
-    store: Store(
-      initialState: AppFeature.State(isSignedIn: true, alert: .otherIPhones(["Ada's iPhone"]))
-    ) { EmptyReducer() })
+    store: Store(initialState: AppFeature.State(isSignedIn: true, alert: .otherIPhones(1))) {
+      EmptyReducer()
+    })
 }
 
-#Preview("Another iPhone, unnamed") {
+#Preview("Two other iPhones") {
   AppView(
-    store: Store(initialState: AppFeature.State(isSignedIn: true, alert: .otherIPhones([nil]))) {
+    store: Store(initialState: AppFeature.State(isSignedIn: true, alert: .otherIPhones(2))) {
       EmptyReducer()
     })
 }
