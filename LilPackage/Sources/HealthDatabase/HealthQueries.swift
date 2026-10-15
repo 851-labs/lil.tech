@@ -49,24 +49,31 @@ extension HealthDatabase {
   /// An iPhone that hasn't reported statistics for this long only counts if none has.
   public static let statisticsSourceStaleness: TimeInterval = 14 * 86_400
 
+  /// The longest a sample counts for in a time-weighted average.
+  static let maxSampleWeight: TimeInterval = 3600
+
   /// The iPhone whose statistics the Mac uses (`docs/DECISIONS.md`): of those that reported in
   /// the last 14 days, the one paired with an Apple Watch, then the most recent. If none
-  /// reported recently, the most recent of all.
+  /// reported recently, the most recent of all. Ties go to the higher device ID, so the choice
+  /// is stable.
   public static func statisticsSource(_ db: Database, now: Date) throws -> String? {
     let devices = try HealthStatisticsDevice.all.fetchAll(db)
     let recentSince = now.addingTimeInterval(-statisticsSourceStaleness).unixMilliseconds
     let recent = devices.filter { $0.reportedAt >= recentSince }
-    guard !recent.isEmpty else { return devices.max { $0.reportedAt < $1.reportedAt }?.device }
+    guard !recent.isEmpty else {
+      return devices.max { ($0.reportedAt, $0.device) < ($1.reportedAt, $1.device) }?.device
+    }
     return recent.max { a, b in
-      (a.pairedWithWatch ? 1 : 0, a.reportedAt) < (b.pairedWithWatch ? 1 : 0, b.reportedAt)
+      (a.pairedWithWatch ? 1 : 0, a.reportedAt, a.device)
+        < (b.pairedWithWatch ? 1 : 0, b.reportedAt, b.device)
     }?.device
   }
 
-  /// The most recent sample of a type, by when it ended.
+  /// The most recent sample of a type, by when it started.
   public static func latestSample(of type: String, _ db: Database) throws -> HealthSample? {
     try HealthSample
       .where { $0.type.eq(type) }
-      .order { $0.endDate.desc() }
+      .order { $0.startDate.desc() }
       .limit(1)
       .fetchOne(db)
   }
@@ -100,40 +107,58 @@ extension HealthDatabase {
           && $0.bucketStart < upper
       }
       .order(by: \.bucketStart)
+      .select { ($0.bucketStart, $0.sum) }
       .fetchAll(db)
+    var periods = Periods(period, calendar)
     var totals: [CumulativeStatistic] = []
-    for bucket in buckets {
-      let start = periodStart(of: Date(unixMilliseconds: bucket.bucketStart), period, calendar)
+    for (bucketStart, sum) in buckets {
+      let start = periods.start(of: Date(unixMilliseconds: bucketStart))
       if totals.last?.start == start {
-        totals[totals.count - 1].sum += bucket.sum
+        totals[totals.count - 1].sum += sum
       } else {
-        totals.append(CumulativeStatistic(start: start, sum: bucket.sum))
+        totals.append(CumulativeStatistic(start: start, sum: sum))
       }
     }
     return totals
   }
 
   /// A discrete type's average, minimum and maximum per period in `range`, from raw samples.
-  /// Averages follow the type's aggregation style: arithmetic, weighted by time (each sample
-  /// counts until the next one, up to an hour, and the last for its own duration), or as an
-  /// equivalent continuous sound level.
+  /// Averages follow the type's aggregation style:
+  /// - Arithmetic: a plain average.
+  /// - Time-weighted: each sample counts until its source's next sample, up to an hour, and a
+  ///   source's last sample for its own duration. Samples up to an hour past the range are
+  ///   looked at, so a period's average doesn't depend on the range it's queried with.
+  /// - Sound levels: an equivalent continuous level, weighted by duration.
   public static func discreteStatistics(
     of type: String, in range: Range<Date>, by period: StatisticsPeriod, calendar: Calendar,
     _ db: Database
   ) throws -> [DiscreteStatistic] {
-    let samples = try Self.samples(of: type, in: range, db).filter { $0.value != nil }
     let aggregation = HealthCatalog.type(id: type)?.aggregation ?? .discreteArithmetic
-    let weights = Self.weights(of: samples, aggregation)
+    let lower = range.lowerBound.unixMilliseconds
+    let upper = range.upperBound.unixMilliseconds
+    let reach =
+      aggregation == .discreteTemporallyWeighted
+      ? range.upperBound.addingTimeInterval(maxSampleWeight).unixMilliseconds : upper
+    let rows =
+      try HealthSample
+      .where { $0.type.eq(type) && $0.startDate >= lower && $0.startDate < reach }
+      .order(by: \.startDate)
+      .select { ($0.startDate, $0.endDate, $0.value, $0.sourceBundleID) }
+      .fetchAll(db)
+      .compactMap { start, end, value, source in
+        value.map { Reading(start: start, end: end, value: $0, source: source) }
+      }
+    let weights = Self.weights(of: rows, aggregation)
 
+    var periods = Periods(period, calendar)
     var groups: [(start: Date, values: [Double], weights: [Double])] = []
-    for (sample, weight) in zip(samples, weights) {
-      let start = periodStart(of: sample.start, period, calendar)
-      let value = sample.value ?? 0
+    for (reading, weight) in zip(rows, weights) where reading.start < upper {
+      let start = periods.start(of: Date(unixMilliseconds: reading.start))
       if groups.last?.start == start {
-        groups[groups.count - 1].values.append(value)
+        groups[groups.count - 1].values.append(reading.value)
         groups[groups.count - 1].weights.append(weight)
       } else {
-        groups.append((start, [value], [weight]))
+        groups.append((start, [reading.value], [weight]))
       }
     }
     return groups.map { group in
@@ -146,28 +171,33 @@ extension HealthDatabase {
     }
   }
 
-  private static func periodStart(
-    of date: Date, _ period: StatisticsPeriod, _ calendar: Calendar
-  ) -> Date {
-    calendar.dateInterval(of: period.component, for: date)?.start ?? date
+  private struct Reading {
+    let start: Int
+    let end: Int
+    let value: Double
+    let source: String
   }
 
-  /// Each sample's weight in a time-weighted or sound-level average, in seconds.
+  /// Each reading's weight in an average, in seconds.
   private static func weights(
-    of samples: [HealthSample], _ aggregation: HealthDataType.Aggregation
+    of readings: [Reading], _ aggregation: HealthDataType.Aggregation
   ) -> [Double] {
     switch aggregation {
     case .discreteTemporallyWeighted:
-      return samples.indices.map { index in
-        let sample = samples[index]
-        // The last sample counts for its own duration.
-        let until = index + 1 < samples.count ? samples[index + 1].start : sample.end
-        return min(max(until.timeIntervalSince(sample.start), 1), 3600)
+      // Each source is its own series, so a second device's samples don't cut a sample short.
+      var weights = [Double](repeating: 1, count: readings.count)
+      var nextStart: [String: Int] = [:]
+      for index in readings.indices.reversed() {
+        let reading = readings[index]
+        let until = nextStart[reading.source] ?? reading.end
+        weights[index] = min(max(Double(until - reading.start) / 1000, 1), maxSampleWeight)
+        nextStart[reading.source] = reading.start
       }
+      return weights
     case .discreteEquivalentContinuousLevel:
-      return samples.map { max($0.end.timeIntervalSince($0.start), 1) }
+      return readings.map { max(Double($0.end - $0.start) / 1000, 1) }
     case .cumulative, .discreteArithmetic:
-      return samples.map { _ in 1 }
+      return readings.map { _ in 1 }
     }
   }
 
@@ -181,5 +211,23 @@ extension HealthDatabase {
       return 10 * log10(energy / total)
     }
     return zip(values, weights).reduce(0) { $0 + $1.0 * $1.1 } / total
+  }
+}
+
+/// Finds the period a date falls in, asking the calendar only when a date leaves the last one.
+private struct Periods {
+  let component: Calendar.Component
+  let calendar: Calendar
+  var current: DateInterval?
+
+  init(_ period: StatisticsPeriod, _ calendar: Calendar) {
+    self.component = period.component
+    self.calendar = calendar
+  }
+
+  mutating func start(of date: Date) -> Date {
+    if let current, current.start <= date, date < current.end { return current.start }
+    current = calendar.dateInterval(of: component, for: date)
+    return current?.start ?? date
   }
 }

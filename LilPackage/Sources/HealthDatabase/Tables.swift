@@ -61,6 +61,22 @@ public struct HealthCorrelation: Equatable, Identifiable, Sendable {
   public var sourceRevision: String?
   public var device: String?
   public var metadata: String?
+
+  public init(
+    id: String, type: String, startDate: Int, endDate: Int, sourceName: String,
+    sourceBundleID: String, sourceRevision: String? = nil, device: String? = nil,
+    metadata: String? = nil
+  ) {
+    self.id = id
+    self.type = type
+    self.startDate = startDate
+    self.endDate = endDate
+    self.sourceName = sourceName
+    self.sourceBundleID = sourceBundleID
+    self.sourceRevision = sourceRevision
+    self.device = device
+    self.metadata = metadata
+  }
 }
 
 /// A characteristic (date of birth, blood type…), keyed by its type identifier.
@@ -69,6 +85,11 @@ public struct HealthCharacteristic: Equatable, Identifiable, Sendable {
   public let id: String
   /// JSON, e.g. `{"day":2,"month":4,"year":1990}` or an enum case's name.
   public var value: String
+
+  public init(id: String, value: String) {
+    self.id = id
+    self.value = value
+  }
 }
 
 /// The Activity rings for one day, keyed by the day (`YYYY-MM-DD` in the iPhone's calendar).
@@ -85,6 +106,26 @@ public struct HealthActivitySummary: Equatable, Identifiable, Sendable {
   public var appleStandHoursGoal: Double?
   public var activityMoveMode: String?
   public var paused: Bool?
+
+  public init(
+    id: String, activeEnergyBurned: Double? = nil, activeEnergyBurnedGoal: Double? = nil,
+    appleMoveTime: Double? = nil, appleMoveTimeGoal: Double? = nil,
+    appleExerciseTime: Double? = nil, appleExerciseTimeGoal: Double? = nil,
+    appleStandHours: Double? = nil, appleStandHoursGoal: Double? = nil,
+    activityMoveMode: String? = nil, paused: Bool? = nil
+  ) {
+    self.id = id
+    self.activeEnergyBurned = activeEnergyBurned
+    self.activeEnergyBurnedGoal = activeEnergyBurnedGoal
+    self.appleMoveTime = appleMoveTime
+    self.appleMoveTimeGoal = appleMoveTimeGoal
+    self.appleExerciseTime = appleExerciseTime
+    self.appleExerciseTimeGoal = appleExerciseTimeGoal
+    self.appleStandHours = appleStandHours
+    self.appleStandHoursGoal = appleStandHoursGoal
+    self.activityMoveMode = activityMoveMode
+    self.paused = paused
+  }
 }
 
 /// A cumulative type's sum over one 30-minute bucket, as one iPhone's HealthKit computed it.
@@ -97,6 +138,16 @@ public struct HealthStatistic: Equatable, Identifiable, Sendable {
   public var bucketStart: Int
   public var sum: Double
   public var unit: String
+
+  public init(id: String, device: String, type: String, bucketStart: Int, sum: Double, unit: String)
+  {
+    self.id = id
+    self.device = device
+    self.type = type
+    self.bucketStart = bucketStart
+    self.sum = sum
+    self.unit = unit
+  }
 }
 
 /// One iPhone's statistics status, keyed by its device ID.
@@ -107,6 +158,13 @@ public struct HealthStatisticsDevice: Equatable, Identifiable, Sendable {
   public var pairedWithWatch: Bool
   /// When the server last applied its report.
   public var reportedAt: Int
+
+  public init(id: String, device: String, pairedWithWatch: Bool, reportedAt: Int) {
+    self.id = id
+    self.device = device
+    self.pairedWithWatch = pairedWithWatch
+    self.reportedAt = reportedAt
+  }
 }
 
 extension Date {

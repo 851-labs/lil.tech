@@ -27,12 +27,13 @@ private func calendar(_ timeZone: String) -> Calendar {
 }
 
 private func sample(
-  _ type: String, at start: Date, minutes: Double = 1, value: Double
+  _ type: String, at start: Date, minutes: Double = 1, value: Double,
+  source: String = "com.example"
 ) -> HealthSample {
   HealthSample(
     id: UUID().uuidString.lowercased(), type: type, startDate: start.unixMilliseconds,
     endDate: start.addingTimeInterval(minutes * 60).unixMilliseconds, value: value, unit: "x",
-    sourceName: "Test iPhone", sourceBundleID: "com.example")
+    sourceName: "Test", sourceBundleID: source)
 }
 
 private func statistic(_ type: String, at start: Date, sum: Double, device: String = device)
@@ -186,6 +187,59 @@ struct HealthQueriesTests {
   }
 
   @Test
+  func timeWeightedAveragesDontDependOnTheRange() throws {
+    let heartRate = "HKQuantityTypeIdentifierHeartRate"
+    let samples = [
+      // The day's last sample counts until the next day's first, 30 minutes later.
+      sample(heartRate, at: utc(23), value: 60),
+      sample(heartRate, at: utc(23.5), value: 90),
+      sample(heartRate, at: utc(0, day: 15), value: 120),
+    ]
+    try database.write { db in try HealthSample.insert { samples }.execute(db) }
+    let utcCalendar = calendar("UTC")
+    let (oneDay, twoDays) = try database.read { db in
+      (
+        try HealthDatabase.discreteStatistics(
+          of: heartRate, in: utc(0)..<utc(24), by: .day, calendar: utcCalendar, db),
+        try HealthDatabase.discreteStatistics(
+          of: heartRate, in: utc(0)..<utc(24, day: 15), by: .day, calendar: utcCalendar, db)
+      )
+    }
+    #expect(oneDay.first == twoDays.first)
+    #expect(oneDay.first?.average == 75)
+  }
+
+  @Test
+  func eachSourceIsItsOwnSeries() throws {
+    let heartRate = "HKQuantityTypeIdentifierHeartRate"
+    // A strap's reading a second after the Watch's doesn't cut the Watch's short.
+    let samples = [
+      sample(heartRate, at: utc(10), value: 60, source: "com.apple.health.watch"),
+      sample(heartRate, at: utc(10) + 1, value: 80, source: "com.example.strap"),
+      sample(heartRate, at: utc(10.5), value: 60, source: "com.apple.health.watch"),
+      sample(heartRate, at: utc(10.5) + 1, value: 80, source: "com.example.strap"),
+    ]
+    try database.write { db in try HealthSample.insert { samples }.execute(db) }
+    let hour = try database.read {
+      try HealthDatabase.discreteStatistics(
+        of: heartRate, in: utc(10)..<utc(10.5), by: .hour, calendar: calendar("UTC"), $0)
+    }
+    #expect(hour.first?.average == 70)
+  }
+
+  @Test
+  func sourceTiesGoToTheHigherDeviceID() throws {
+    try database.write { db in
+      try HealthStatisticsDevice.insert {
+        reported("dev_b", paired: true, daysAgo: 1)
+        reported("dev_a", paired: true, daysAgo: 1)
+      }
+      .execute(db)
+    }
+    #expect(try database.read { try HealthDatabase.statisticsSource($0, now: now) } == "dev_b")
+  }
+
+  @Test
   func latestSampleAndSamplesInARange() throws {
     let weight = "HKQuantityTypeIdentifierBodyMass"
     let (a, b, c) = (
@@ -331,5 +385,14 @@ struct PreviewHealthDatabaseTests {
     #expect(source == device)
     #expect(summaries == 14)
     #expect(correlations == 7)
+  }
+
+  @Test
+  func previewBucketsAreOnUTCHalfHoursEvenInQuarterHourZones() throws {
+    let database = makePreviewHealthDatabase(now: now, calendar: calendar("Asia/Kathmandu"))
+    let offGrid = try database.read { db in
+      try HealthStatistic.all.fetchAll(db).filter { !$0.bucketStart.isMultiple(of: 1_800_000) }
+    }
+    #expect(offGrid.isEmpty)
   }
 }

@@ -67,7 +67,9 @@ private struct PreviewData {
     var samples: [HealthSample] = []
     for day in dayStarts {
       for halfHour in 14..<46 {
-        let start = day.addingTimeInterval(Double(halfHour) * 1800)
+        // On UTC half-hours, like the server's buckets, even in :45 time zones.
+        let local = day.addingTimeInterval(Double(halfHour) * 1800).timeIntervalSince1970
+        let start = Date(timeIntervalSince1970: (local / 1800).rounded(.down) * 1800)
         guard start < now else { break }
         let sum = random.next(in: low...high)
         statistics.append(

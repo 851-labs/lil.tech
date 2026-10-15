@@ -136,9 +136,9 @@
     - Cumulative totals come from the statistics source's 30-minute buckets, placed by their start in the Mac's time zone.
     - Discrete averages follow each type's aggregation style:
       - **Arithmetic:** a plain average.
-      - **Time-weighted:** each sample counts until the next one, up to an hour, and the last one for its own duration.
+      - **Time-weighted:** each sample counts until its source's next sample, up to an hour, and a source's last one for its own duration. Sources are weighted separately, so a second device's readings don't cut the first's short.
       - **Sound levels:** an equivalent continuous level.
-    - The statistics source is the Watch-paired iPhone among those that reported in the last 14 days, then the most recent of those. If none reported recently, it's the most recent of all.
+    - The statistics source is the Watch-paired iPhone among those that reported in the last 14 days, then the most recent of those. If none reported recently, it's the most recent of all. Ties go to the higher device ID.
 - **Multiple iPhones:** every signed-in iPhone uploads, relying on Health's iCloud sync to give them the same data.
   - Samples de-duplicate by HealthKit UUID.
   - Statistics are stored per iPhone, and the Mac reads one statistics source: the iPhone paired with an Apple Watch, otherwise the most recently active one. An iPhone that's behind on iCloud sync can't overwrite a complete one.
