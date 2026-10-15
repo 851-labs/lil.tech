@@ -81,13 +81,45 @@ struct AuthClientTests {
       try await auth.signInWithApple(AppleCredential(identityToken: "apple-token"), "raw-nonce")
     }
   }
+
+  @Test
+  func deletingTheAccountForgetsTheSession() async throws {
+    for status in [HTTPResponse.Status.noContent, .unauthorized] {
+      let (auth, store) = makeAuth(stored: session(1)) { request, _ in
+        #expect(request.method == .delete)
+        #expect(request.path == "/v1/me")
+        return status == .unauthorized
+          ? (
+            HTTPResponse(status: status, headerFields: [.contentType: "application/json"]),
+            HTTPBody(#"{"_tag":"Unauthorized","message":"The user no longer exists"}"#)
+          )
+          : (HTTPResponse(status: status), nil)
+      }
+      try await auth.deleteAccount()
+      #expect(try store.load() == nil, "\(status)")
+    }
+  }
+
+  @Test
+  func anUnavailableDeletionKeepsTheSession() async throws {
+    let (auth, store) = makeAuth(stored: session(1)) { _, _ in
+      (
+        HTTPResponse(status: .serviceUnavailable, headerFields: [.contentType: "application/json"]),
+        HTTPBody(#"{"_tag":"UserStoreUnavailable","message":"Try again"}"#)
+      )
+    }
+    await #expect(throws: SignInError.unavailable) { try await auth.deleteAccount() }
+    #expect(try store.load() == session(1))
+  }
 }
 
-/// The live client, signed out, talking to a server that answers with `respond`.
+/// The live client, signed in as `stored` (or signed out), talking to a server that answers
+/// with `respond`.
 private func makeAuth(
+  stored: AuthSession? = nil,
   respond: @escaping @Sendable (HTTPRequest, HTTPBody?) async throws -> (HTTPResponse, HTTPBody?)
 ) -> (AuthClient, SessionStore) {
-  let store = SessionStore.inMemory()
+  let store = SessionStore.inMemory(stored)
   let auth = withDependencies {
     $0.sessionStore = store
     $0.api = Client.mock(respond)

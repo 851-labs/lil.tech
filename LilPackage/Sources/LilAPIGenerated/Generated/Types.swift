@@ -23,6 +23,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /v1/me`.
     /// - Remark: Generated from `#/paths//v1/me/get(me)`.
     func me(_ input: Operations.Me.Input) async throws -> Operations.Me.Output
+    /// - Remark: HTTP `DELETE /v1/me`.
+    /// - Remark: Generated from `#/paths//v1/me/delete(deleteMe)`.
+    func deleteMe(_ input: Operations.DeleteMe.Input) async throws -> Operations.DeleteMe.Output
     /// - Remark: HTTP `GET /v1/sync/changes`.
     /// - Remark: Generated from `#/paths//v1/sync/changes/get(syncChanges)`.
     func syncChanges(_ input: Operations.SyncChanges.Input) async throws -> Operations.SyncChanges.Output
@@ -89,6 +92,11 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//v1/me/get(me)`.
     public func me(headers: Operations.Me.Input.Headers = .init()) async throws -> Operations.Me.Output {
         try await me(Operations.Me.Input(headers: headers))
+    }
+    /// - Remark: HTTP `DELETE /v1/me`.
+    /// - Remark: Generated from `#/paths//v1/me/delete(deleteMe)`.
+    public func deleteMe(headers: Operations.DeleteMe.Input.Headers = .init()) async throws -> Operations.DeleteMe.Output {
+        try await deleteMe(Operations.DeleteMe.Input(headers: headers))
     }
     /// - Remark: HTTP `GET /v1/sync/changes`.
     /// - Remark: Generated from `#/paths//v1/sync/changes/get(syncChanges)`.

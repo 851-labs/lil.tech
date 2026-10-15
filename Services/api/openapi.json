@@ -236,6 +236,43 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "me"
+        ],
+        "operationId": "deleteMe",
+        "parameters": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "<No Content>"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UserStoreUnavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserStoreUnavailable"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/sync/changes": {

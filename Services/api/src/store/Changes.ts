@@ -27,6 +27,12 @@ export class InvalidMutation extends Schema.TaggedError<InvalidMutation>()("Inva
   message: Schema.String,
 }) {}
 
+/**
+ * The account was deleted (`DELETE /v1/me`): its store stays empty, so an access token that
+ * outlived the account can't write data back.
+ */
+export class AccountDeleted extends Schema.TaggedError<AccountDeleted>()("AccountDeleted", {}) {}
+
 export const Change = Schema.Struct({
   /** Position in the log, increasing by exactly 1 per change. */
   seq: Schema.Int,

@@ -107,4 +107,59 @@ struct SyncStatusFeatureTests {
     await store.send(.retryButtonTapped)
     await store.receive(\.delegate.retry)
   }
+
+  @Test
+  func deletingTheAccount() async {
+    let deleted = LockIsolated(false)
+    let store = TestStore(initialState: SyncStatusFeature.State()) {
+      SyncStatusFeature()
+    } withDependencies: {
+      $0.auth.deleteAccount = { () throws(SignInError) in deleted.setValue(true) }
+    }
+
+    await store.send(.deleteAccountButtonTapped) {
+      $0.alert = .init {
+        TextState("Delete Your Account?")
+      } actions: {
+        ButtonState(role: .destructive, action: .confirmDeletion) { TextState("Delete Account") }
+        ButtonState(role: .cancel) { TextState("Cancel") }
+      } message: {
+        TextState(
+          "This deletes your lil health account and everything uploaded to it, on every device. The data in Health on this iPhone stays."
+        )
+      }
+    }
+    await store.send(.alert(.presented(.confirmDeletion))) {
+      $0.alert = nil
+      $0.isDeletingAccount = true
+    }
+    // The session ends, and the app signs out from there.
+    await store.finish()
+    #expect(deleted.value)
+  }
+
+  @Test
+  func aFailedDeletionSaysWhy() async {
+    var confirming = SyncStatusFeature.State()
+    confirming.alert = AlertState {
+      TextState("Delete Your Account?")
+    } actions: {
+      ButtonState(role: .destructive, action: .confirmDeletion) { TextState("Delete Account") }
+    }
+    let store = TestStore(initialState: confirming) {
+      SyncStatusFeature()
+    } withDependencies: {
+      $0.auth.deleteAccount = { () throws(SignInError) in throw .unavailable }
+    }
+    store.exhaustivity = .off(showSkippedAssertions: false)
+
+    await store.send(.alert(.presented(.confirmDeletion))) {
+      $0.alert = nil
+      $0.isDeletingAccount = true
+    }
+    await store.receive(\.accountDeletionFailed) {
+      $0.isDeletingAccount = false
+    }
+    #expect(store.state.alert != nil)
+  }
 }

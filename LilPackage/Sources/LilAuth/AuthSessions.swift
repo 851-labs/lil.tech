@@ -130,6 +130,12 @@ public actor AuthSessions {
     }
   }
 
+  /// Forgets the session without telling the server, e.g. once the account is deleted and its
+  /// sessions with it.
+  public func forget() {
+    set(nil)
+  }
+
   /// For `@Dependency(\.apiAuthentication)`, so API requests use this session.
   public nonisolated var apiAuthentication: APIAuthentication {
     APIAuthentication(

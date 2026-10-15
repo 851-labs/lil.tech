@@ -88,11 +88,28 @@ describe("makeUserStore", () => {
       const store = makeUserStore(sql);
       sql.exec("INSERT INTO meta (key, value) VALUES ('epoch', '3')");
       yield* store.deleteAll();
-      assert.deepStrictEqual(sql.exec("SELECT * FROM meta"), []);
+      // Only the mark that the account is gone.
+      assert.deepStrictEqual(sql.exec("SELECT * FROM meta"), [{ key: "deleted", value: 1 }]);
       assert.strictEqual(yield* store.schemaVersion(), storeMigrations.length);
       // Retrying is harmless.
       yield* store.deleteAll();
       assert.strictEqual(yield* store.schemaVersion(), storeMigrations.length);
+      // Nothing can be written back, e.g. with an access token that outlived the account.
+      const write = yield* Effect.flip(
+        store.applyMutations([
+          {
+            entity: "health_characteristic",
+            op: "upsert",
+            id: "HKCharacteristicTypeIdentifierBloodType",
+            row: { value: "aPositive" },
+          },
+        ]),
+      );
+      assert.strictEqual(write._tag, "AccountDeleted");
+      const upload = yield* Effect.flip(
+        store.receiveHealthBatch("00000000-0000-4000-8000-000000000001"),
+      );
+      assert.strictEqual(upload._tag, "AccountDeleted");
     }),
   );
 });

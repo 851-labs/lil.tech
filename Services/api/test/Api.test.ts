@@ -4,6 +4,7 @@ import { assert, describe, it } from "@effect/vitest";
 import * as Alchemy from "alchemy";
 import { ConfigProvider, Effect, Exit, Layer, Redacted, Schema } from "effect";
 import { HttpRouter } from "effect/http";
+import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import { Deployment, environmentForStage } from "../src/Deployment.ts";
@@ -847,6 +848,79 @@ describe("/v1/health/batches", () => {
           }),
         );
         assert.deepInclude(changes.body, { head: 1 });
+      }),
+    ),
+  );
+
+  it.live("DELETE /v1/me removes the account and all of its data", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const outbox = yield* TestHealthOutbox;
+        // Some health data, and a batch still waiting in the queue.
+        yield* upload(handler, tokens.accessToken, batchId, batchFile(lines));
+        const [applied] = outbox.sent;
+        if (applied !== undefined) yield* ingestHealthBatch(applied);
+        const waiting = "00000000-0000-4000-8000-0000000000b2";
+        yield* upload(handler, tokens.accessToken, waiting, batchFile(lines));
+        const store = (yield* TestStores).sqlFor(user.id);
+        assert.isAbove(
+          store?.exec("SELECT count(*) AS n FROM health_sample")[0]?.["n"] as number,
+          0,
+        );
+
+        const deleted = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/me", {
+            method: "DELETE",
+            headers: bearer(tokens.accessToken),
+          }),
+        );
+        assert.strictEqual(deleted.status, 204);
+
+        // Nothing left in the core database…
+        const sql = yield* SqlClient.SqlClient;
+        for (const table of ["users", "identities", "devices", "sessions", "connections"]) {
+          const column = table === "users" ? "id" : "user_id";
+          const rows = yield* sql.unsafe(`SELECT count(*) AS n FROM ${table} WHERE ${column} = ?`, [
+            user.id,
+          ]);
+          assert.deepStrictEqual(rows, [{ n: 0 }], table);
+        }
+        // …in the user's store, beyond the mark that the account is gone…
+        for (const table of ["health_sample", "changes", "health_batches", "snapshots"]) {
+          assert.deepStrictEqual(
+            store?.exec(`SELECT count(*) AS n FROM ${table}`),
+            [{ n: 0 }],
+            table,
+          );
+        }
+        // …or in R2.
+        assert.isFalse(
+          [...outbox.files.keys()].some((key) => key.startsWith(`health-batches/${user.id}/`)),
+        );
+
+        // The tokens stop working: the refresh token at once, and the access token for writes.
+        assert.strictEqual((yield* refresh(handler, tokens.refreshToken)).status, 401);
+        const me = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/me", { headers: bearer(tokens.accessToken) }),
+        );
+        assert.strictEqual(me.status, 401);
+        const late = yield* upload(
+          handler,
+          tokens.accessToken,
+          "00000000-0000-4000-8000-0000000000b3",
+          batchFile(lines),
+        );
+        assert.strictEqual(late.status, 401);
+
+        // The batch that was still queued is dropped, file and all.
+        for (const message of outbox.sent.slice(1)) yield* ingestHealthBatch(message);
+        assert.deepStrictEqual(store?.exec("SELECT count(*) AS n FROM health_sample"), [{ n: 0 }]);
+        assert.isFalse(
+          [...outbox.files.keys()].some((key) => key.startsWith(`health-batches/${user.id}/`)),
+        );
       }),
     ),
   );

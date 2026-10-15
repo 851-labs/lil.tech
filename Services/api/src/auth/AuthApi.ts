@@ -2,6 +2,7 @@ import { Context, Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSecurity } from "effect/http-api";
 import { DevicePlatform } from "../core/Devices.ts";
 import { IdentityProvider } from "../core/Identities.ts";
+import { UserStoreUnavailable } from "../store/UserStores.ts";
 import { DeviceId, SessionId, UserId } from "../core/Ids.ts";
 
 // The auth part of the API definition. Like `Api.ts`, it holds no server code.
@@ -158,4 +159,10 @@ export class Me extends Schema.Class<Me>("lil/api/auth/Me")({
 
 export class MeApi extends HttpApiGroup.make("me", { topLevel: true })
   .add(HttpApiEndpoint.get("me", "/v1/me", { success: Me }))
+  .add(
+    // Deletes the account and all of its data: the user's store and its snapshots, uploaded
+    // batch files, and the user with its identities, devices, sessions and connections. Safe to
+    // call again if it fails partway. Access tokens already issued can't write anything after.
+    HttpApiEndpoint.delete("deleteMe", "/v1/me", { error: UserStoreUnavailable }),
+  )
   .middleware(Authorization) {}

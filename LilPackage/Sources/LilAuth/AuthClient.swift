@@ -92,6 +92,8 @@ public struct AuthClient: Sendable {
   public var signInWithGoogle:
     @Sendable (_ idToken: String, _ nonce: String) async throws(SignInError) -> Void
   public var signOut: @Sendable () async -> Void
+  /// Deletes the account and everything uploaded to it, then forgets the session here.
+  public var deleteAccount: @Sendable () async throws(SignInError) -> Void
   /// Whether the app is signed in, now and after every change.
   public var signedInUpdates: @Sendable () async -> AsyncStream<Bool>
 
@@ -102,8 +104,10 @@ public struct AuthClient: Sendable {
     signInWithGoogle:
       @escaping @Sendable (_ idToken: String, _ nonce: String) async throws(SignInError) -> Void,
     signOut: @escaping @Sendable () async -> Void,
+    deleteAccount: @escaping @Sendable () async throws(SignInError) -> Void = {},
     signedInUpdates: @escaping @Sendable () async -> AsyncStream<Bool>
   ) {
+    self.deleteAccount = deleteAccount
     self.signInWithApple = signInWithApple
     self.signInWithGoogle = signInWithGoogle
     self.signOut = signOut
@@ -169,6 +173,25 @@ extension AuthClient: DependencyKey {
         }
       },
       signOut: { await sessions.signOut() },
+      deleteAccount: { () throws(SignInError) in
+        let output: Operations.DeleteMe.Output
+        do {
+          output = try await api.deleteMe()
+        } catch {
+          throw .failed(error.localizedDescription)
+        }
+        switch output {
+        case .noContent:
+          await sessions.forget()
+        case .unauthorized:
+          // The session is gone: most likely an earlier try deleted the account.
+          await sessions.forget()
+        case .serviceUnavailable:
+          throw .unavailable
+        case .undocumented(let statusCode, _):
+          throw .failed("HTTP \(statusCode)")
+        }
+      },
       signedInUpdates: { await sessions.signedInUpdates() }
     )
   }
@@ -189,6 +212,9 @@ extension AuthClient: DependencyKey {
         reportIssue("Unimplemented: @Dependency(\\.auth).signInWithGoogle")
       },
       signOut: { reportIssue("Unimplemented: @Dependency(\\.auth).signOut") },
+      deleteAccount: { () throws(SignInError) in
+        reportIssue("Unimplemented: @Dependency(\\.auth).deleteAccount")
+      },
       signedInUpdates: {
         reportIssue("Unimplemented: @Dependency(\\.auth).signedInUpdates")
         return AsyncStream { $0.finish() }

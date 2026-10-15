@@ -24,7 +24,12 @@ import {
   maxHealthBatchBytes,
 } from "./health/HealthBatches.ts";
 import { UploadSizeLimit } from "./health/HealthApi.ts";
-import { HealthBatchFiles, HealthBatchQueue, healthBatchKey } from "./health/HealthIngestion.ts";
+import {
+  HealthBatchFiles,
+  HealthBatchQueue,
+  healthBatchKey,
+  healthBatchPrefix,
+} from "./health/HealthIngestion.ts";
 import { Users } from "./core/Users.ts";
 import { Deployment } from "./Deployment.ts";
 import { Status } from "./Status.ts";
@@ -111,24 +116,39 @@ export const MeHandlers = HttpApiBuilder.group(
   Effect.fn(function* (handlers) {
     const users = yield* Users;
     const identities = yield* Identities;
-    return handlers.handle("me", () =>
-      Effect.gen(function* () {
-        const session = yield* CurrentSession;
-        const user = yield* users.findById(session.userId).pipe(Effect.orDie);
-        // The access token outlived its user (deleted within the last 15 minutes).
-        if (Option.isNone(user)) {
-          return yield* new Unauthorized({ message: "The user no longer exists" });
-        }
-        const userIdentities = yield* identities.listForUser(session.userId).pipe(Effect.orDie);
-        return new Me({
-          id: user.value.id,
-          displayName: user.value.displayName,
-          identities: userIdentities.map(
-            (identity) => new MeIdentity({ provider: identity.provider, email: identity.email }),
-          ),
-        });
-      }),
-    );
+    const stores = yield* UserStores;
+    return handlers
+      .handle("me", () =>
+        Effect.gen(function* () {
+          const session = yield* CurrentSession;
+          const user = yield* users.findById(session.userId).pipe(Effect.orDie);
+          // The access token outlived its user (deleted within the last 15 minutes).
+          if (Option.isNone(user)) {
+            return yield* new Unauthorized({ message: "The user no longer exists" });
+          }
+          const userIdentities = yield* identities.listForUser(session.userId).pipe(Effect.orDie);
+          return new Me({
+            id: user.value.id,
+            displayName: user.value.displayName,
+            identities: userIdentities.map(
+              (identity) => new MeIdentity({ provider: identity.provider, email: identity.email }),
+            ),
+          });
+        }),
+      )
+      .handle("deleteMe", () =>
+        Effect.gen(function* () {
+          const { userId } = yield* CurrentSession;
+          // The store first: if anything fails, the account is still there to delete again,
+          // and after it nothing can be written back.
+          yield* stores.forUser(userId).deleteAll();
+          // Per request: in the Worker it's built from each request's runtime context.
+          yield* (yield* HealthBatchFiles).deletePrefix(healthBatchPrefix(userId));
+          // Cascades to identities, devices, sessions (so refresh tokens stop working) and
+          // connections.
+          yield* users.delete(userId).pipe(Effect.orDie);
+        }),
+      );
   }),
 );
 
@@ -213,7 +233,13 @@ export const HealthHandlers = HttpApiBuilder.group(
           // always really queued. A failure in between leaves no status, and the client retries.
           yield* files.put(healthBatchKey(userId, params.id), payload);
           yield* queue.send({ userId, batchId: params.id, deviceId });
-          return yield* store.receiveHealthBatch(params.id);
+          return yield* store
+            .receiveHealthBatch(params.id)
+            .pipe(
+              Effect.catchTag("AccountDeleted", () =>
+                Effect.fail(new Unauthorized({ message: "The user no longer exists" })),
+              ),
+            );
         }),
       )
       .handle("batch", ({ params }) =>
