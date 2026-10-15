@@ -14,6 +14,9 @@ struct SyncState: Equatable {
   /// The app's `syncSchema` when the local data was bootstrapped; `nil` (from before it was
   /// recorded) counts as 1.
   var syncSchema: Int?
+  /// The entities the local data holds, sorted and joined with commas, or `nil` from before they
+  /// were recorded (taken to be the app's current ones).
+  var entities: String?
 }
 
 extension LilSyncEngine {
@@ -34,6 +37,7 @@ extension LilSyncEngine {
     }
     migrator.registerMigration("Add syncSchema to lilSyncState") { db in
       try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "syncSchema" INTEGER"#).execute(db)
+      try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "entities" TEXT"#).execute(db)
     }
   }
 }
@@ -41,7 +45,7 @@ extension LilSyncEngine {
 extension SyncState {
   static func fetch(_ db: Database) throws -> SyncState {
     try SyncState.find(singletonID).fetchOne(db)
-      ?? SyncState(id: singletonID, cursor: 0, epoch: nil, syncSchema: nil)
+      ?? SyncState(id: singletonID, cursor: 0, epoch: nil, syncSchema: nil, entities: nil)
   }
 
   func save(_ db: Database) throws {

@@ -39,6 +39,10 @@ public actor LilSyncEngine {
   /// interrupted bootstrap doesn't download them again.
   private let partsDirectory: URL
   private let syncSchema: Int
+  /// Entity names as `SyncState.entities` records them.
+  private static func recorded(_ names: some Sequence<String>) -> String {
+    names.sorted().joined(separator: ",")
+  }
 
   private var status = SyncStatus.idle
   private var observers: [UUID: AsyncStream<SyncStatus>.Continuation] = [:]
@@ -48,11 +52,12 @@ public actor LilSyncEngine {
 
   /// - Parameters:
   ///   - syncSchema: The app's sync schema number (`docs/SYNC.md`). Bump it in a release that
-  ///     starts storing a new entity or field: local data synced with a lower number is
-  ///     bootstrapped again, so what was skipped before arrives.
+  ///     starts storing a new field of an entity it already had: local data synced with a lower
+  ///     number is bootstrapped again, so what was skipped before arrives. New entities don't
+  ///     need a bump: the engine bootstraps again by itself when `entities` gains one.
   ///   - partsDirectory: Where to keep downloaded snapshot parts until they're loaded. Defaults
   ///     to a folder in the app's caches.
-  public init(entities: [SyncEntity], syncSchema: Int = 1, partsDirectory: URL? = nil) {
+  public init(entities: [SyncEntity], syncSchema: Int, partsDirectory: URL? = nil) {
     self.syncSchema = syncSchema
     @Dependency(\.defaultDatabase) var database
     @Dependency(\.api) var api
@@ -229,6 +234,18 @@ public actor LilSyncEngine {
       if state.epoch == nil, state.cursor == 0 { throw SyncError.needsBootstrap }
       // Synced before this release stored some entity or field: start over to get it.
       if state.epoch != nil, (state.syncSchema ?? 1) < syncSchema { throw SyncError.needsBootstrap }
+      if state.epoch != nil, let stored = state.entities,
+        !Set(entities.keys).isSubset(of: stored.split(separator: ",").map(String.init))
+      {
+        throw SyncError.needsBootstrap
+      }
+      // An older release (after a downgrade) records only what it stores and its own schema, so
+      // the newer one bootstraps again when it's back.
+      let syncSchema = min(state.syncSchema ?? 1, syncSchema)
+      let stored = state.entities.map { recorded in
+        Self.recorded(
+          Set(recorded.split(separator: ",").map(String.init)).intersection(entities.keys))
+      }
       let page = try await fetchPage(after: state.cursor)
       if let epoch = state.epoch, epoch != page.epoch { throw SyncError.needsBootstrap }
       if state.cursor > page.head { throw SyncError.needsBootstrap }
@@ -256,7 +273,7 @@ public actor LilSyncEngine {
         }
         try SyncState(
           id: SyncState.singletonID, cursor: page.next, epoch: page.epoch,
-          syncSchema: state.syncSchema
+          syncSchema: syncSchema, entities: stored
         )
         .save(db)
       }
@@ -287,12 +304,14 @@ public actor LilSyncEngine {
 
   private func replaceFromSnapshot() async throws {
     setStatus(.bootstrapping(downloadedParts: 0, totalParts: 0))
+    let (syncSchema, recordedEntities) = (syncSchema, Self.recorded(entities.keys))
     let latest = try await fetchLatestSnapshot()
     guard var manifest = latest.snapshot else {
       try await database.write { [entities] db in
         for entity in entities.values { try entity.clear(db) }
         try SyncState(
-          id: SyncState.singletonID, cursor: 0, epoch: latest.epoch, syncSchema: syncSchema
+          id: SyncState.singletonID, cursor: 0, epoch: latest.epoch, syncSchema: syncSchema,
+          entities: recordedEntities
         )
         .save(db)
       }
@@ -366,7 +385,7 @@ public actor LilSyncEngine {
     try await database.write { [manifest] db in
       try SyncState(
         id: SyncState.singletonID, cursor: manifest.seq, epoch: manifest.epoch,
-        syncSchema: syncSchema
+        syncSchema: syncSchema, entities: recordedEntities
       )
       .save(db)
     }

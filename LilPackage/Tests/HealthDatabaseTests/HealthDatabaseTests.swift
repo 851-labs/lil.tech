@@ -348,7 +348,8 @@ struct HealthSyncTests {
       $0.continuousClock = ImmediateClock()
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(SplitMix64(seed: "test"))
     } operation: {
-      LilSyncEngine(entities: HealthDatabase.syncEntities)
+      LilSyncEngine(
+        entities: HealthDatabase.syncEntities, syncSchema: HealthDatabase.syncSchema)
     }
     try await engine.pull()
 

@@ -39,7 +39,7 @@ public struct SyncClient: Sendable {
   /// A client backed by a ``LilSyncEngine`` for the app's entities. The engine is made on first
   /// use, so it picks up the `defaultDatabase` and `api` that `prepareDependencies` sets
   /// alongside this client.
-  public static func live(entities: [SyncEntity], syncSchema: Int = 1) -> Self {
+  public static func live(entities: [SyncEntity], syncSchema: Int) -> Self {
     let engine = LockIsolated<LilSyncEngine?>(nil)
     let resolve: @Sendable () -> LilSyncEngine = {
       engine.withValue { engine in
@@ -71,9 +71,11 @@ public struct SyncClient: Sendable {
 extension SyncClient: DependencyKey {
   public static var liveValue: Self {
     Self(
-      run: { reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:) at launch.") },
+      run: {
+        reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:syncSchema:) at launch.")
+      },
       listen: { _ in
-        reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:) at launch.")
+        reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:syncSchema:) at launch.")
       },
       syncNow: {},
       status: { AsyncStream { $0.yield(.idle) } }

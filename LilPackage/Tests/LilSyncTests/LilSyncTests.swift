@@ -232,10 +232,13 @@ struct LilSyncEngineTests {
     withDependencies {
       $0.defaultDatabase = database
       $0.api = server.client
+      $0.snapshotDownloader = server.downloader
       $0.continuousClock = ImmediateClock()
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
     } operation: {
-      LilSyncEngine(entities: entities, syncSchema: syncSchema)
+      LilSyncEngine(
+        entities: entities, syncSchema: syncSchema,
+        partsDirectory: URL.temporaryDirectory.appending(path: "lilsync-\(UUID().uuidString)"))
     }
   }
 
@@ -318,7 +321,7 @@ struct LilSyncEngineTests {
   }
 
   @Test
-  func aNewerSyncSchemaBootstrapsAgainForWhatWasSkipped() async throws {
+  func aNewEntityBootstrapsAgainForWhatWasSkipped() async throws {
     server.append(upsert("n1", "One"))
     // An older release that didn't store notes moves its cursor past them.
     let older = engine(entities: [])
@@ -326,12 +329,8 @@ struct LilSyncEngineTests {
     try await older.pull()
     #expect(try storedNotes().isEmpty)
 
-    // A release that stores them without bumping syncSchema never sees the skipped one.
-    try await engine(syncSchema: 1).pull()
-    #expect(try storedNotes().isEmpty)
-
-    // Bumping it starts over from the store, so it arrives.
-    let newer = engine(syncSchema: 2)
+    // One that stores them starts over from the store by itself, so the skipped note arrives.
+    let newer = engine()
     await #expect(throws: SyncError.needsBootstrap) { try await newer.pull() }
     try await newer.bootstrap()
     try await newer.pull()
@@ -340,6 +339,53 @@ struct LilSyncEngineTests {
     server.append(upsert("n2", "Two"))
     try await newer.pull()
     #expect(try storedNotes().count == 2)
+  }
+
+  @Test
+  func aHigherSyncSchemaBootstrapsAgain() async throws {
+    server.append(upsert("n1", "One"))
+    let older = engine(syncSchema: 1)
+    try await older.bootstrap()
+    try await older.pull()
+
+    // A release that stores a new field bumps the schema.
+    let newer = engine(syncSchema: 2)
+    await #expect(throws: SyncError.needsBootstrap) { try await newer.pull() }
+    try await newer.bootstrap()
+    try await newer.pull()
+
+    // After a downgrade, the older release records its own schema, so coming back to the newer
+    // one bootstraps again, for what the older one skipped meanwhile.
+    try await older.pull()
+    await #expect(throws: SyncError.needsBootstrap) { try await newer.pull() }
+  }
+
+  @Test
+  func stateFromBeforeSyncSchemaCountsAsOne() async throws {
+    server.append(upsert("n1", "One"))
+    // The suite's database starts with a row from before syncSchema and entities were recorded.
+    // Schema 1 and its current entities: it carries on.
+    try await engine(syncSchema: 1).pull()
+    #expect(try storedNotes().count == 1)
+    // A higher schema starts over.
+    await #expect(throws: SyncError.needsBootstrap) { try await engine(syncSchema: 2).pull() }
+  }
+
+  @Test
+  func aSnapshotBootstrapRecordsTheSchema() async throws {
+    server.append(upsert("n1", "One"))
+    server.append(upsert("n2", "Two"))
+    try server.publishSnapshot(
+      seq: 2,
+      notes: [
+        Note(id: "n1", title: "One"), Note(id: "n2", title: "Two"),
+      ])
+    let engine = engine(syncSchema: 3)
+    try await engine.bootstrap()
+    // Recorded with the snapshot, so pulling carries on rather than bootstrapping again.
+    server.append(upsert("n3", "Three"))
+    try await engine.pull()
+    #expect(try storedNotes().count == 3)
   }
 
   @Test
@@ -368,7 +414,7 @@ struct LilSyncEngineTests {
       $0.api = server.client
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
     } operation: {
-      LilSyncEngine(entities: [notes])
+      LilSyncEngine(entities: [notes], syncSchema: 1)
     }
     await #expect(throws: SyncError.needsBootstrap) { try await engine.pull() }
   }
@@ -428,7 +474,7 @@ struct LilSyncEngineTests {
       $0.continuousClock = clock
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
     } operation: {
-      LilSyncEngine(entities: [notes])
+      LilSyncEngine(entities: [notes], syncSchema: 1)
     }
     let running = Task { await engine.run() }
 
@@ -453,7 +499,7 @@ struct LilSyncEngineTests {
       $0.continuousClock = clock
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
     } operation: {
-      LilSyncEngine(entities: [notes])
+      LilSyncEngine(entities: [notes], syncSchema: 1)
     }
     let statuses = LockIsolated<[SyncStatus]>([])
     let updates = await engine.statusUpdates()
@@ -492,7 +538,7 @@ struct LilSyncEngineTests {
       $0.continuousClock = TestClock()
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
     } operation: {
-      LilSyncEngine(entities: [notes])
+      LilSyncEngine(entities: [notes], syncSchema: 1)
     }
     let running = Task { await engine.run() }
     try await eventually { server.state.requests.count == 1 }
@@ -515,7 +561,7 @@ struct LilSyncBootstrapTests {
       $0.continuousClock = ImmediateClock()
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
     } operation: {
-      LilSyncEngine(entities: [notes], partsDirectory: partsDirectory)
+      LilSyncEngine(entities: [notes], syncSchema: 1, partsDirectory: partsDirectory)
     }
   }
 
@@ -793,7 +839,7 @@ struct LilSyncLiveTests {
       $0.continuousClock = clock
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
     } operation: {
-      LilSyncEngine(entities: [notes])
+      LilSyncEngine(entities: [notes], syncSchema: 1)
     }
   }
 
