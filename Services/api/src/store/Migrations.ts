@@ -101,6 +101,19 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CREATE TABLE "health_statistics_device" (id TEXT PRIMARY KEY, "device" TEXT NOT NULL, "paired_with_watch" INTEGER NOT NULL, "reported_at" INTEGER NOT NULL) STRICT;
     `,
   },
+  {
+    version: 7,
+    name: "retired_devices",
+    // `src/store/RetiredDevices.ts`. The index finds a device's statistics to delete.
+    sql: `
+      CREATE TABLE retired_devices (
+        device TEXT PRIMARY KEY,
+        retired_at INTEGER NOT NULL,
+        cleared_at INTEGER
+      ) STRICT;
+      CREATE INDEX health_statistic_by_device ON "health_statistic" ("device");
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

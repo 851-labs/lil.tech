@@ -35,12 +35,18 @@ export class Devices extends Context.Service<
     ) => Effect.Effect<ReadonlyArray<Device>, SqlError.SqlError>;
     /**
      * The user's devices that are signed in: with a session that's neither revoked nor expired at
-     * `now`. Signing out or in again leaves the old device row, so `listForUser` has those too.
+     * `now`. A device whose sessions all expired keeps its row, so `listForUser` has those too.
      */
     readonly listSignedInForUser: (
       userId: UserId,
       now: number,
     ) => Effect.Effect<ReadonlyArray<Device>, SqlError.SqlError>;
+    /** Whether the device has any sessions left; none means it signed out for good. */
+    readonly hasSessions: (id: DeviceId) => Effect.Effect<boolean, SqlError.SqlError>;
+    /**
+     * Deletes the device if it has no sessions left, i.e. it signed out. Answers whether it did.
+     */
+    readonly deleteIfSignedOut: (id: DeviceId) => Effect.Effect<boolean, SqlError.SqlError>;
     /** Records that the device just used the API. */
     readonly touch: (id: DeviceId) => Effect.Effect<void, SqlError.SqlError>;
     readonly setPushToken: (
@@ -92,6 +98,16 @@ export class Devices extends Context.Service<
                 AND sessions.expires_at > ${now})
             ORDER BY created_at, id`;
           return yield* Effect.forEach(rows, decodeDevice);
+        }),
+        hasSessions: Effect.fn("Devices.hasSessions")(function* (id) {
+          const rows = yield* sql`SELECT 1 FROM sessions WHERE device_id = ${id} LIMIT 1`;
+          return rows.length > 0;
+        }),
+        deleteIfSignedOut: Effect.fn("Devices.deleteIfSignedOut")(function* (id) {
+          const rows = yield* sql`DELETE FROM devices WHERE id = ${id}
+            AND NOT EXISTS (SELECT 1 FROM sessions WHERE device_id = ${id})
+            RETURNING id`;
+          return rows.length > 0;
         }),
         touch: Effect.fn("Devices.touch")(function* (id) {
           const now = yield* Clock.currentTimeMillis;
