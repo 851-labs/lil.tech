@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import HealthKitAccess
 import HealthPhoneApp
+import HealthUpload
 import LilAuth
 import Testing
 
@@ -14,6 +15,7 @@ struct AppFeatureTests {
     } withDependencies: {
       $0.auth.signedInUpdates = { updates }
       $0.healthAuthorization.isAvailable = { true }
+      $0.healthObserver = HealthObserver { _, _ in }
       $0.healthAuthorization.needsRequest = { false }
     }
 
@@ -40,6 +42,7 @@ struct AppFeatureTests {
       AppFeature()
     } withDependencies: {
       $0.healthAuthorization.isAvailable = { true }
+      $0.healthObserver = HealthObserver { _, _ in }
       $0.healthAuthorization.needsRequest = { needsRequest.value }
     }
 
@@ -70,6 +73,7 @@ struct AppFeatureTests {
       AppFeature()
     } withDependencies: {
       $0.healthAuthorization.isAvailable = { true }
+      $0.healthObserver = HealthObserver { _, _ in }
       $0.healthAuthorization.needsRequest = { true }
     }
 
