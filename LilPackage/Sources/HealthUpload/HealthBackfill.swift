@@ -121,6 +121,7 @@ public actor HealthBackfill {
   private let statisticsReader: HealthStatisticsReader
   private let uuid: UUIDGenerator
   private let now: @Sendable () -> Date
+  private let clock: any Clock<Duration>
   private var progress: Progress
   private var observers: [UUID: AsyncStream<Progress>.Continuation] = [:]
   /// The work loop running, with an ID so only it clears itself.
@@ -133,6 +134,8 @@ public actor HealthBackfill {
   var requestedTypes: Set<String> = []
   /// When an upload last found the account's storage full, until one goes through.
   private var storageFullAt: Date?
+  /// Until when the server asked for no more uploads (a 429).
+  private var rateLimitedUntil: Date?
   /// While storage is full, how long uploads for changes wait between tries. `run()` (the app
   /// opening, Try Again) always tries.
   static let storageFullRetryInterval: TimeInterval = 6 * 60 * 60
@@ -144,7 +147,9 @@ public actor HealthBackfill {
     @Dependency(\.uuid) var uuid
     @Dependency(\.healthStatisticsReader) var statisticsReader
     @Dependency(\.date) var date
+    @Dependency(\.continuousClock) var clock
     self.types = types
+    self.clock = clock
     self.reader = reader
     self.storage = storage
     self.uploader = uploader
@@ -216,6 +221,7 @@ public actor HealthBackfill {
       // A cancelled run asks again for the types it didn't reach.
       requestedTypes = []
       storageFullAt = nil
+      rateLimitedUntil = nil
       // Even if the state can't be read, everything goes: `saveState(nil)` removes the files.
       if let pending = (try? storage.loadState())??.pending {
         for batch in pending.batches { try? storage.removeFile(batch) }
@@ -239,7 +245,20 @@ public actor HealthBackfill {
       // Every upload would be refused; the changes wait in `requestedTypes`.
       return
     }
+    let fullRun = syncAllRequested
+    let limitedUntil = rateLimitedUntil.flatMap { now() < $0 ? $0 : nil }
+    // Changes wait in `requestedTypes`. A run of everything (the app opening, Continue, a
+    // background task) waits out the limit instead, unless it's paused meanwhile.
+    if limitedUntil != nil, !syncAllRequested { return }
     update { $0.isRunning = true }
+    if let limitedUntil {
+      do {
+        try await clock.sleep(for: .seconds(limitedUntil.timeIntervalSince(now())))
+      } catch {
+        update { $0.isRunning = false }
+        throw CancellationError()
+      }
+    }
     var failures: [String: any Error] = [:]
     var syncedAll = false
     /// Types asked for that this run hasn't got to, asked for again if it ends early.
@@ -289,9 +308,20 @@ public actor HealthBackfill {
         // Requests made while the sums went up are handled before the loop ends.
       } while syncAllRequested || !requestedTypes.isEmpty
     } catch {
-      let paused = Task.isCancelled || error is CancellationError || error is HealthReader.Locked
+      let cancelled = Task.isCancelled || error is CancellationError
+      // Rate limited, it's paused for a moment rather than failed.
+      let rateLimit = error as? HealthBatchUploader.RateLimited
+      let paused = cancelled || error is HealthReader.Locked || rateLimit != nil
       requestedTypes.formUnion(unreached.union(failures.keys))
       if error is HealthBatchUploader.StorageFull { storageFullAt = now() }
+      if let rateLimit {
+        rateLimitedUntil = now().addingTimeInterval(rateLimit.retryAfter)
+        // A run of everything carries on after the limit, as it would have if it started then.
+        if fullRun || syncedAll, !cancelled {
+          syncAllRequested = true
+          return try await loop(id)
+        }
+      }
       update {
         $0.isRunning = false
         if !paused {
@@ -300,7 +330,7 @@ public actor HealthBackfill {
           $0.isStorageFull = error is HealthBatchUploader.StorageFull
         }
       }
-      throw paused && !(error is HealthReader.Locked) ? CancellationError() : error
+      throw cancelled ? CancellationError() : error
     }
     // Tried again on the next call.
     requestedTypes.formUnion(failures.keys)
@@ -330,12 +360,13 @@ public actor HealthBackfill {
   }
 
   /// Rethrows the error if it ends the whole run rather than one type's sync: cancelled (a
-  /// cancelled upload throws a URL error), the device is locked, or the account's storage is full,
-  /// which every other upload would hit too. The pending page is kept.
+  /// cancelled upload throws a URL error), the device is locked, or the account's storage is full
+  /// or rate limited, which every other upload would hit too. The pending page is kept.
   private func stopIfRunEnds(_ error: any Error) throws {
     if Task.isCancelled || error is CancellationError { throw CancellationError() }
     if let locked = error as? HealthReader.Locked { throw locked }
     if let full = error as? HealthBatchUploader.StorageFull { throw full }
+    if let limited = error as? HealthBatchUploader.RateLimited { throw limited }
   }
 
   /// Uploads a type's pages from its anchor until there are no more.

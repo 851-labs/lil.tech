@@ -240,6 +240,17 @@ public struct HealthBatchUploader: Sendable {
     public var errorDescription: String? { "The server answered HTTP \(statusCode)" }
   }
 
+  /// Too many requests (a 429): nothing more uploads for `retryAfter` seconds.
+  public struct RateLimited: LocalizedError, Equatable {
+    public let retryAfter: TimeInterval
+
+    public init(retryAfter: TimeInterval) {
+      self.retryAfter = retryAfter
+    }
+
+    public var errorDescription: String? { "Uploading paused for a moment" }
+  }
+
   /// The account's storage is full (a 507): nothing more uploads until there's room.
   public struct StorageFull: LocalizedError, Equatable {
     public init() {}
@@ -263,7 +274,11 @@ extension HealthBatchUploader: DependencyKey {
       case .unauthorized: throw Rejected(statusCode: 401)
       case .contentTooLarge: throw Rejected(statusCode: 413)
       case .serviceUnavailable: throw Rejected(statusCode: 503)
-      case .tooManyRequests: throw Rejected(statusCode: 429)
+      case .tooManyRequests(let response):
+        let seconds = Components.Schemas.TooManyRequests.retryAfterSeconds {
+          try response.body.json
+        }
+        throw RateLimited(retryAfter: TimeInterval(seconds))
       case .code507: throw StorageFull()
       case .undocumented(let statusCode, _): throw Rejected(statusCode: statusCode)
       }

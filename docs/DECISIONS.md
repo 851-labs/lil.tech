@@ -102,7 +102,7 @@
   - Refreshes: 600 a minute per IP address, separately, so sign-in attempts can't block refreshes, and every device behind a carrier NAT can still refresh.
   - An IPv6 address counts by its /64, since one client usually has a whole /64.
   - Authenticated requests: 600 a minute per user, counted after the access token is verified, so a bad token costs nobody's budget. That includes the live socket. Signing out isn't counted, because a refused sign-out would leave the refresh token working.
-  - Over a limit, the API answers 429 `TooManyRequests` with `retryAfterSeconds` (and `Retry-After` on routes outside the HttpApi). The apps treat it like a 503: try again later, and keep the session.
+  - Over a limit, the API answers 429 `TooManyRequests` with `retryAfterSeconds` (and `Retry-After` on routes outside the HttpApi). The apps wait it out. The Mac's sync waits at least `retryAfterSeconds` before trying again. The iPhone's backfill pauses (it isn't a failure) and keeps its page: syncs for changes wait until the time is up, while a run of everything (opening the app, Continue, a background task) waits it out, showing as running, and carries on, including when the 429 comes partway through. A rate-limited refresh keeps the session.
   - Counting is approximate and per Cloudflare location. It's also permissive: on a preview, a burst got a few hundred requests past a limit of 60 before 429s began. That's still enough to bound abuse. A Durable Object would count exactly, but would add a hop to every request.
   - If the binding fails, the request goes through. An outage of rate limiting shouldn't take the API down.
   - Each stage has its own namespace IDs (a hash of the stage name), since bindings that share an ID share counters across the account.

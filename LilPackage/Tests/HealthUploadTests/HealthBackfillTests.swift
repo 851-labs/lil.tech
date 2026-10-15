@@ -537,6 +537,91 @@ struct HealthBackfillTests {
     #expect(server.accepted.value.count == 1)
   }
 
+  /// A backfill whose uploads are refused with a 60-second 429 while `limited` is set.
+  private func rateLimitedBackfill(
+    health: FakeHealth, server: FakeServer, storage: HealthBackfillStorage,
+    limited: LockIsolated<Bool>, attempts: LockIsolated<Int>, clock: TestClock<Duration>,
+    date: LockIsolated<Date>
+  ) -> HealthBackfill {
+    withDependencies {
+      $0.healthReader = health.reader
+      $0.healthBatchUploader = HealthBatchUploader { id, file in
+        attempts.withValue { $0 += 1 }
+        if limited.value {
+          limited.setValue(false)
+          throw HealthBatchUploader.RateLimited(retryAfter: 60)
+        }
+        try await server.uploader.upload(id, file)
+      }
+      $0.healthBackfillStorage = storage
+      $0.uuid = .incrementing
+      $0.date = DateGenerator { date.value }
+      $0.continuousClock = clock
+    } operation: {
+      HealthBackfill(types: [temperature, sleep])
+    }
+  }
+
+  @Test
+  func aRateLimitPausesSyncsOfChangesUntilItsOver() async throws {
+    let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
+    let storage = HealthBackfillStorage.inMemory()
+    let (limited, attempts) = (LockIsolated(false), LockIsolated(0))
+    let clock = TestClock()
+    let date = LockIsolated(Date(timeIntervalSince1970: 1_760_400_000))
+    let server = FakeServer()
+    let backfill = rateLimitedBackfill(
+      health: health, server: server, storage: storage, limited: limited, attempts: attempts,
+      clock: clock, date: date)
+    // A finished backfill, then new data in both types.
+    try await backfill.run()
+    health.pageCounts.withValue { $0 = [temperature.id: 2, sleep.id: 2] }
+    attempts.setValue(0)
+    limited.setValue(true)
+
+    await #expect(throws: HealthBatchUploader.RateLimited.self) {
+      try await backfill.syncChanges(of: [temperature.id, sleep.id])
+    }
+    // Paused, not failed, with its page kept and both types asked for again.
+    var updates = await backfill.progressUpdates().makeAsyncIterator()
+    #expect(await updates.next()?.failure == nil)
+    #expect(try storage.loadState()?.pending != nil)
+    #expect(await backfill.requestedTypes == [temperature.id, sleep.id])
+
+    // Changes wait for the limit to pass, then go.
+    try await backfill.syncChanges(of: [sleep.id])
+    #expect(attempts.value == 1)
+    date.withValue { $0.addTimeInterval(60) }
+    try await backfill.syncChanges(of: [sleep.id])
+    #expect(await backfill.requestedTypes.isEmpty)
+    #expect(health.reads.value.suffix(2) == ["BodyTemperature@2", "SleepAnalysis@1"])
+  }
+
+  @Test
+  func aRunOfEverythingWaitsOutARateLimitAndCarriesOn() async throws {
+    let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
+    let storage = HealthBackfillStorage.inMemory()
+    let (limited, attempts) = (LockIsolated(true), LockIsolated(0))
+    let clock = TestClock()
+    let date = LockIsolated(Date(timeIntervalSince1970: 1_760_400_000))
+    let server = FakeServer()
+    let backfill = rateLimitedBackfill(
+      health: health, server: server, storage: storage, limited: limited, attempts: attempts,
+      clock: clock, date: date)
+
+    let run = Task { try await backfill.run() }
+    try await eventuallyTrue { attempts.value == 1 }
+    await Task.megaYield()
+    // Waiting, and shown as running.
+    var updates = await backfill.progressUpdates().makeAsyncIterator()
+    #expect(await updates.next()?.isRunning == true)
+    #expect(attempts.value == 1)
+    date.withValue { $0.addTimeInterval(60) }
+    await clock.advance(by: .seconds(60))
+    try await run.value
+    #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
+  }
+
   @Test
   func networkFailuresAreOffline() {
     #expect(HealthBackfill.isOffline(URLError(.notConnectedToInternet)))
@@ -544,4 +629,12 @@ struct HealthBackfillTests {
     // A slow server isn't the phone being offline.
     #expect(!HealthBackfill.isOffline(URLError(.timedOut)))
   }
+}
+
+/// Waits until `condition` holds, yielding in between, for up to a second.
+private func eventuallyTrue(_ condition: () -> Bool) async throws {
+  for _ in 0..<1000 where !condition() {
+    try await Task.sleep(for: .milliseconds(1))
+  }
+  #expect(condition())
 }

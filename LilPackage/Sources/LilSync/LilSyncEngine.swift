@@ -116,13 +116,13 @@ public actor LilSyncEngine {
             if Task.isCancelled { return }
             failures += 1
             setStatus(.failed(String(describing: error)))
-            delay = backoff(afterFailures: failures)
+            delay = backoff(afterFailures: failures, error: error)
           }
         } else {
           failures += 1
           justBootstrapped = false
           setStatus(.failed(String(describing: error)))
-          delay = backoff(afterFailures: failures)
+          delay = backoff(afterFailures: failures, error: error)
         }
       }
       if failures == 0 {
@@ -390,8 +390,13 @@ public actor LilSyncEngine {
       return try ok.body.json
     case .unauthorized:
       throw SyncError.unauthorized
-    case .serviceUnavailable, .tooManyRequests:
+    case .serviceUnavailable:
       throw SyncError.unavailable
+    case .tooManyRequests(let response):
+      throw SyncError.rateLimited(
+        retryAfterSeconds: Components.Schemas.TooManyRequests.retryAfterSeconds {
+          try response.body.json
+        })
     case .undocumented(let statusCode, _):
       throw SyncError.unexpectedStatus(statusCode)
     }
@@ -406,8 +411,13 @@ public actor LilSyncEngine {
       throw SyncError.needsBootstrap
     case .unauthorized:
       throw SyncError.unauthorized
-    case .serviceUnavailable, .tooManyRequests:
+    case .serviceUnavailable:
       throw SyncError.unavailable
+    case .tooManyRequests(let response):
+      throw SyncError.rateLimited(
+        retryAfterSeconds: Components.Schemas.TooManyRequests.retryAfterSeconds {
+          try response.body.json
+        })
     case .undocumented(let statusCode, _):
       throw SyncError.unexpectedStatus(statusCode)
     }
@@ -421,8 +431,13 @@ public actor LilSyncEngine {
       throw SyncError.needsBootstrap
     case .unauthorized:
       throw SyncError.unauthorized
-    case .serviceUnavailable, .tooManyRequests:
+    case .serviceUnavailable:
       throw SyncError.unavailable
+    case .tooManyRequests(let response):
+      throw SyncError.rateLimited(
+        retryAfterSeconds: Components.Schemas.TooManyRequests.retryAfterSeconds {
+          try response.body.json
+        })
     case .undocumented(let statusCode, _):
       throw SyncError.unexpectedStatus(statusCode)
     }
@@ -439,10 +454,13 @@ public actor LilSyncEngine {
     }
   }
 
-  private func backoff(afterFailures failures: Int) -> Duration {
+  /// The wait after `failures` failures in a row, at least as long as a rate limit asks for.
+  private func backoff(afterFailures failures: Int, error: (any Error)? = nil) -> Duration {
     let seconds = min(300, pow(2, Double(min(failures, 10) - 1)))
     let jitter = random { Double.random(in: 0.5...1, using: &$0) }
-    return .seconds(seconds * jitter)
+    let backoff = Duration.seconds(seconds * jitter)
+    guard case .rateLimited(let retryAfter) = error as? SyncError else { return backoff }
+    return max(backoff, .seconds(retryAfter))
   }
 
   /// Waits for `duration`, until ``syncNow()``, or until the task running ``run()`` is cancelled.
@@ -491,6 +509,8 @@ public enum SyncError: Error, Equatable {
   case needsBootstrap
   case unauthorized
   case unavailable
+  /// Too many requests: try again in no less than `retryAfterSeconds`.
+  case rateLimited(retryAfterSeconds: Int)
   case unexpectedStatus(Int)
   case missingRow(seq: Int)
   /// The server sent a page that makes no progress or doesn't match its `next`.
