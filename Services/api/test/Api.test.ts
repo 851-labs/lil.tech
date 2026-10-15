@@ -23,10 +23,12 @@ import { PartUrls } from "../src/sync/SnapshotParts.ts";
 import { WorkerHttpLayer } from "../src/Http.ts";
 import { makeOpenApiSpec } from "../src/OpenApiSpec.ts";
 import {
+  addressKey,
   type RateLimitCounter,
   type RateLimitName,
   rateLimitNamespaceId,
   RateLimits,
+  rateLimits,
 } from "../src/RateLimits.ts";
 import { makeApiWorkerProps } from "../src/Worker.ts";
 import { appleIdentityToken, TestAppleKeys } from "./auth/TestApple.ts";
@@ -996,7 +998,11 @@ describe("rate limits", () => {
           counts.set(`${limit}/${key}`, count);
           return count <= (max[limit] ?? Infinity);
         });
-    return RateLimits.make({ signIn: counter("signIn"), user: counter("user") });
+    return RateLimits.make({
+      signIn: counter("signIn"),
+      user: counter("user"),
+      refresh: counter("refresh"),
+    });
   };
   const from = (address: string) => ({ "cf-connecting-ip": address });
   const tooMany = { _tag: "TooManyRequests", retryAfterSeconds: 60 };
@@ -1009,42 +1015,93 @@ describe("rate limits", () => {
         body: JSON.stringify({ refreshToken: "lrt_x" }),
       }),
     );
+  const appleFrom = (handler: Handler, address: string) =>
+    send(
+      handler,
+      new Request("https://api.lil.tech/v1/auth/apple", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...from(address) },
+        body: JSON.stringify({
+          identityToken: "x",
+          nonce: "x",
+          device: { app: "health-ios", platform: "ios" },
+        }),
+      }),
+    );
 
-  it.live("limits sign-ins and refreshes per IP address", () =>
+  it.live("limits sign-ins per IP address", () =>
     withApi(
       (handler) =>
         Effect.gen(function* () {
           // Counted before the token is checked, so these are 401s until the limit.
+          assert.strictEqual((yield* appleFrom(handler, "192.0.2.1")).status, 401);
+          assert.strictEqual((yield* appleFrom(handler, "192.0.2.1")).status, 401);
+          assert.deepStrictEqual(yield* appleFrom(handler, "192.0.2.1"), {
+            status: 429,
+            body: tooMany,
+          });
+          // Refreshes have their own limit.
           assert.strictEqual((yield* refreshFrom(handler, "192.0.2.1")).status, 401);
-          assert.strictEqual((yield* refreshFrom(handler, "192.0.2.1")).status, 401);
-          // Sign-ins and refreshes share the limit.
-          const apple = yield* send(
+          // Other addresses have their own limit, and requests without one (local runs) have none.
+          assert.strictEqual((yield* appleFrom(handler, "192.0.2.2")).status, 401);
+          const google = yield* send(
             handler,
-            new Request("https://api.lil.tech/v1/auth/apple", {
+            new Request("https://api.lil.tech/v1/auth/google", {
               method: "POST",
-              headers: { "content-type": "application/json", ...from("192.0.2.1") },
+              headers: { "content-type": "application/json" },
               body: JSON.stringify({
-                identityToken: "x",
+                idToken: "x",
                 nonce: "x",
                 device: { app: "health-ios", platform: "ios" },
               }),
             }),
           );
-          assert.deepStrictEqual(apple, { status: 429, body: tooMany });
-          assert.deepStrictEqual(yield* refreshFrom(handler, "192.0.2.1"), {
-            status: 429,
-            body: tooMany,
-          });
-          // Other addresses have their own limit, and requests without one (local runs) have none.
-          assert.strictEqual((yield* refreshFrom(handler, "192.0.2.2")).status, 401);
-          assert.strictEqual((yield* refresh(handler, "lrt_x")).status, 401);
-          assert.strictEqual((yield* refresh(handler, "lrt_x")).status, 401);
-          assert.strictEqual((yield* refresh(handler, "lrt_x")).status, 401);
+          assert.notStrictEqual(google.status, 429);
         }),
       undefined,
       limitsAllowing({ signIn: 2 }),
     ),
   );
+
+  it.live("limits refreshes per IP address", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          assert.strictEqual((yield* refreshFrom(handler, "192.0.2.1")).status, 401);
+          assert.deepStrictEqual(yield* refreshFrom(handler, "192.0.2.1"), {
+            status: 429,
+            body: tooMany,
+          });
+          assert.strictEqual((yield* appleFrom(handler, "192.0.2.1")).status, 401);
+          for (let i = 0; i < 3; i++)
+            assert.strictEqual((yield* refresh(handler, "lrt_x")).status, 401);
+        }),
+      undefined,
+      limitsAllowing({ refresh: 1 }),
+    ),
+  );
+
+  it.live("counts IPv6 addresses by their /64", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          assert.strictEqual((yield* appleFrom(handler, "2001:db8:1:2::1")).status, 401);
+          assert.strictEqual((yield* appleFrom(handler, "2001:db8:1:2:ffff::7")).status, 429);
+          assert.strictEqual((yield* appleFrom(handler, "2001:db8:1:3::1")).status, 401);
+        }),
+      undefined,
+      limitsAllowing({ signIn: 1 }),
+    ),
+  );
+
+  it("keys addresses", () => {
+    assert.strictEqual(addressKey("192.0.2.1"), "192.0.2.1");
+    assert.strictEqual(addressKey("2001:db8:1:2:3:4:5:6"), "2001:db8:1:2::/64");
+    assert.strictEqual(addressKey("2001:0DB8:0001:0002::9"), "2001:db8:1:2::/64");
+    assert.strictEqual(addressKey("2001:db8::1"), "2001:db8:0:0::/64");
+    assert.strictEqual(addressKey("::1"), "0:0:0:0::/64");
+    assert.strictEqual(addressKey("::ffff:192.0.2.1"), "192.0.2.1");
+  });
 
   it.live("limits dev sign-ins per IP address", () =>
     withApi(
@@ -1101,6 +1158,16 @@ describe("rate limits", () => {
           assert.strictEqual((yield* me(grace.tokens.accessToken)).status, 200);
           // An invalid token isn't counted against anyone.
           assert.strictEqual((yield* me("nope")).status, 401);
+          // Signing out isn't limited, so it always ends the session.
+          const signOut = yield* send(
+            handler,
+            new Request("https://api.lil.tech/v1/auth/sign-out", {
+              method: "POST",
+              headers: bearer(ada.tokens.accessToken),
+            }),
+          );
+          assert.strictEqual(signOut.status, 204);
+          assert.strictEqual((yield* refresh(handler, ada.tokens.refreshToken)).status, 401);
         }),
       undefined,
       limitsAllowing({ user: 2 }),
@@ -1118,11 +1185,13 @@ describe("rate limits", () => {
           );
           assert.strictEqual(response.status, 200);
           assert.strictEqual((yield* refreshFrom(handler, "192.0.2.1")).status, 401);
+          assert.strictEqual((yield* appleFrom(handler, "192.0.2.1")).status, 401);
         }),
       undefined,
       RateLimits.make({
         signIn: () => Effect.fail(new Error("binding unavailable")),
         user: () => Effect.fail(new Error("binding unavailable")),
+        refresh: () => Effect.fail(new Error("binding unavailable")),
       }),
     ),
   );
@@ -1143,12 +1212,17 @@ describe("rate limits", () => {
   });
 
   it("gives each stage and limit its own namespace", () => {
+    const limits = Object.keys(rateLimits) as Array<RateLimitName>;
     const ids = ["prod", "staging", "pr-88", "pr-89"].flatMap((stage) =>
-      (["signIn", "user"] as const).map((limit) => rateLimitNamespaceId(stage, limit)),
+      limits.map((limit) => rateLimitNamespaceId(stage, limit)),
     );
     assert.strictEqual(new Set(ids).size, ids.length);
-    for (const id of ids) assert.match(id, /^[1-9]\d{1,9}$/);
-    assert.strictEqual(rateLimitNamespaceId("prod", "user"), rateLimitNamespaceId("prod", "user"));
+    for (const id of ids) {
+      assert.match(id, /^[1-9]\d+$/);
+      assert.isBelow(Number(id), 2 ** 31);
+    }
+    // Fixed per limit, so a deploy never resets counters.
+    assert.strictEqual(rateLimitNamespaceId("prod", "user"), "27608502");
   });
 });
 

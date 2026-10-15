@@ -230,7 +230,7 @@ POST /v1/sync/mutations
 | `403` | The entity can't be written by clients. | Permanent, like `400`. |
 | `410` | The cursor is older than the horizon, or the requested snapshot was deleted. | Bootstrap from a snapshot. |
 | `413` | Too many mutations or too large a request. | Split the request (a client bug if it happens). |
-| `429` | Rate limited (`TooManyRequests`): too many requests from the user, or sign-ins from the address. | Wait `retryAfterSeconds` (or `Retry-After`), then retry. A rate-limited refresh keeps the session. |
+| `429` | Rate limited (`TooManyRequests`): too many requests from the user, or sign-ins or refreshes from the address. | Wait `retryAfterSeconds` (or `Retry-After`), then retry. A rate-limited refresh keeps the session. |
 | `503` | A new epoch's snapshot is still being written (with `Retry-After`), or the user's store is briefly unavailable (e.g. during a deploy). | Wait for `Retry-After` if there is one, otherwise back off as for other `5xx`, then retry. |
 | `507` | The user's storage quota is full. | Stop pushing and show the quota state. Pulls keep working. |
 | `5xx`, network errors | Transient failure. | Retry with exponential backoff and jitter, from 1 s up to 5 minutes. |

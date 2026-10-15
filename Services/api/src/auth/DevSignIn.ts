@@ -3,7 +3,7 @@ import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { DevicePlatform, Devices } from "../core/Devices.ts";
 import { Users } from "../core/Users.ts";
 import { Deployment } from "../Deployment.ts";
-import { checkSignInRateLimit, RateLimits, tooManyRequests } from "../RateLimits.ts";
+import { checkAddressRateLimit, RateLimits, tooManyRequests } from "../RateLimits.ts";
 import type { Environment } from "../Status.ts";
 import { Auth } from "./Auth.ts";
 import { TokenPair } from "./AuthApi.ts";
@@ -51,7 +51,7 @@ export const DevSignInRoute = HttpRouter.use((router) =>
       "POST",
       "/v1/auth/dev",
       Effect.gen(function* () {
-        yield* checkSignInRateLimit(limits).pipe(Effect.mapError(tooManyRequests));
+        yield* checkAddressRateLimit(limits, "signIn");
         const request = yield* readRequest.pipe(
           Effect.mapError((error) => badRequest(error.message)),
         );
@@ -74,6 +74,7 @@ export const DevSignInRoute = HttpRouter.use((router) =>
         }).pipe(Effect.onError(() => users.delete(user.id).pipe(Effect.ignore)));
         return yield* HttpServerResponse.schemaJson(TokenPair)(tokens);
       }).pipe(
+        Effect.catchTag("TooManyRequests", tooManyRequests),
         Effect.catch((error) =>
           HttpServerResponse.isHttpServerResponse(error)
             ? Effect.succeed(error)

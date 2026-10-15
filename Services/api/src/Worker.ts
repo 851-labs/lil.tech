@@ -112,6 +112,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
     const limits = RateLimits.make({
       signIn: yield* bindRateLimit("SignInRateLimit", "signIn"),
       user: yield* bindRateLimit("UserRateLimit", "user"),
+      refresh: yield* bindRateLimit("RefreshRateLimit", "refresh"),
     });
     // Per request: the bucket's calls need the request's runtime context.
     const snapshotParts = Effect.map(Alchemy.RuntimeContext, (runtime) =>

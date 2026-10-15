@@ -2,7 +2,7 @@ import { Context, Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSecurity } from "effect/http-api";
 import { DevicePlatform } from "../core/Devices.ts";
 import { IdentityProvider } from "../core/Identities.ts";
-import { SignInRateLimit, TooManyRequests } from "../RateLimits.ts";
+import { AddressRateLimit, TooManyRequests } from "../RateLimits.ts";
 import { UserStoreUnavailable } from "../store/UserStores.ts";
 import { DeviceId, SessionId, UserId } from "../core/Ids.ts";
 
@@ -123,7 +123,7 @@ export class AuthApi extends HttpApiGroup.make("auth")
       payload: RefreshRequest,
       success: TokenPair,
       error: InvalidRefreshToken,
-    }).middleware(SignInRateLimit),
+    }).middleware(AddressRateLimit),
   )
   .add(
     // Signs in (creating the account on first sign-in) with a Sign in with Apple identity token.
@@ -131,7 +131,7 @@ export class AuthApi extends HttpApiGroup.make("auth")
       payload: AppleSignInRequest,
       success: TokenPair,
       error: [InvalidIdentityToken, SignInUnavailable],
-    }).middleware(SignInRateLimit),
+    }).middleware(AddressRateLimit),
   )
   .add(
     // Signs in (creating the account on first sign-in) with a Google ID token. Requests only
@@ -140,7 +140,7 @@ export class AuthApi extends HttpApiGroup.make("auth")
       payload: GoogleSignInRequest,
       success: TokenPair,
       error: [InvalidIdentityToken, SignInUnavailable],
-    }).middleware(SignInRateLimit),
+    }).middleware(AddressRateLimit),
   )
   .add(
     // Ends the device's session: its refresh token stops working. Access tokens already issued

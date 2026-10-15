@@ -33,9 +33,9 @@ import {
 import { Users } from "./core/Users.ts";
 import { Deployment } from "./Deployment.ts";
 import {
-  checkSignInRateLimit,
+  checkAddressRateLimit,
   RateLimits,
-  SignInRateLimit,
+  AddressRateLimit,
   tooManyRequests,
 } from "./RateLimits.ts";
 import { Status } from "./Status.ts";
@@ -64,6 +64,9 @@ export const SystemHandlers = HttpApiBuilder.group(
 /**
  * Verifies the bearer access token, then counts the request against the user's rate limit. Access
  * tokens are stateless, so this never hits the database.
+ *
+ * Signing out isn't counted: the app doesn't retry it, and a refused sign-out would leave the
+ * device's refresh token working.
  */
 export const AuthorizationLayer = Layer.effect(
   Authorization,
@@ -71,7 +74,7 @@ export const AuthorizationLayer = Layer.effect(
     const accessTokens = yield* AccessTokens;
     const limits = yield* RateLimits;
     return Authorization.of({
-      bearer: Effect.fn(function* (httpEffect, { credential }) {
+      bearer: Effect.fn(function* (httpEffect, { credential, endpoint }) {
         const claims = yield* accessTokens
           .verify(Redacted.value(credential))
           .pipe(
@@ -79,19 +82,22 @@ export const AuthorizationLayer = Layer.effect(
               () => new Unauthorized({ message: "Missing, invalid or expired access token" }),
             ),
           );
-        yield* limits.check("user", claims.userId);
+        if (endpoint.identifier !== "signOut") yield* limits.check("user", claims.userId);
         return yield* Effect.provideService(httpEffect, CurrentSession, claims);
       }),
     });
   }),
 );
 
-export const SignInRateLimitLayer = Layer.effect(
-  SignInRateLimit,
+export const AddressRateLimitLayer = Layer.effect(
+  AddressRateLimit,
   Effect.gen(function* () {
     const limits = yield* RateLimits;
-    return SignInRateLimit.of((httpEffect) =>
-      Effect.andThen(checkSignInRateLimit(limits), httpEffect),
+    return AddressRateLimit.of((httpEffect, { endpoint }) =>
+      Effect.andThen(
+        checkAddressRateLimit(limits, endpoint.identifier === "refresh" ? "refresh" : "signIn"),
+        httpEffect,
+      ),
     );
   }),
 );
@@ -378,10 +384,7 @@ export const LiveRoute = HttpRouter.use((router) =>
             { status: 401 },
           ).pipe(Effect.orDie);
         }
-        const limited = yield* limits
-          .check("user", session.value.claims.userId)
-          .pipe(Effect.flip, Effect.option);
-        if (Option.isSome(limited)) return tooManyRequests(limited.value);
+        yield* limits.check("user", session.value.claims.userId);
         if (request.headers["upgrade"]?.toLowerCase() !== "websocket") {
           return HttpServerResponse.jsonUnsafe(
             { _tag: "UpgradeRequired", message: "Connect with a WebSocket" },
@@ -399,7 +402,7 @@ export const LiveRoute = HttpRouter.use((router) =>
             ),
           }),
         );
-      }),
+      }).pipe(Effect.catchTag("TooManyRequests", tooManyRequests)),
     );
   }),
 );
@@ -425,7 +428,7 @@ export const WorkerHttpLayer = Layer.mergeAll(
   LiveRoute,
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),
-  Layer.provide([AuthorizationLayer, SignInRateLimitLayer, UploadSizeLimitLayer]),
+  Layer.provide([AuthorizationLayer, AddressRateLimitLayer, UploadSizeLimitLayer]),
   Layer.provide([AppleSignIn.layer, GoogleSignIn.layer, ProviderSignIn.layer]),
   Layer.provide([Auth.layer, PartUrls.layer]),
   Layer.provide(AccessTokens.layer),
