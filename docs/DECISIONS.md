@@ -174,6 +174,7 @@
   - Statistics are stored per iPhone, and the Mac reads one statistics source: the iPhone paired with an Apple Watch, otherwise the most recently active one. An iPhone that's behind on iCloud sync can't overwrite a complete one.
     - Each iPhone's statistics are `health_statistic` rows, keyed by device, type and bucket. Its `health_statistics_device` row records whether it's paired with a Watch and when it last reported, and the Mac picks the source from those rows.
     - Both entities are device-scoped (`docs/SYNC.md`): the server stamps rows with the uploading device.
+    - An iPhone that signs out has its device row deleted, and its device-scoped rows are deleted from the store a chunk at a time (`docs/SYNC.md`). So a signed-out Watch-paired iPhone can't stay the source. One that just stops reporting without signing out is skipped by the Mac's 14-day rule.
   - Not supported: Health iCloud sync turned off, or iPhones on different Apple IDs in one lil account. Signing in on a second iPhone shows a warning about this: after sign-in, the app checks `GET /v1/me`'s `devices` once per account for another `health-ios` install.
 - **Privacy:**
   - Health data is readable by the server and encrypted at rest by Cloudflare. That keeps server-side features possible, such as an MCP server later.

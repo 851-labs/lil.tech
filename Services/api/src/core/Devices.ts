@@ -41,6 +41,10 @@ export class Devices extends Context.Service<
       userId: UserId,
       now: number,
     ) => Effect.Effect<ReadonlyArray<Device>, SqlError.SqlError>;
+    /**
+     * Deletes the device if it has no sessions left, i.e. it signed out. Answers whether it did.
+     */
+    readonly deleteIfSignedOut: (id: DeviceId) => Effect.Effect<boolean, SqlError.SqlError>;
     /** Records that the device just used the API. */
     readonly touch: (id: DeviceId) => Effect.Effect<void, SqlError.SqlError>;
     readonly setPushToken: (
@@ -92,6 +96,12 @@ export class Devices extends Context.Service<
                 AND sessions.expires_at > ${now})
             ORDER BY created_at, id`;
           return yield* Effect.forEach(rows, decodeDevice);
+        }),
+        deleteIfSignedOut: Effect.fn("Devices.deleteIfSignedOut")(function* (id) {
+          const rows = yield* sql`DELETE FROM devices WHERE id = ${id}
+            AND NOT EXISTS (SELECT 1 FROM sessions WHERE device_id = ${id})
+            RETURNING id`;
+          return rows.length > 0;
         }),
         touch: Effect.fn("Devices.touch")(function* (id) {
           const now = yield* Clock.currentTimeMillis;

@@ -38,6 +38,7 @@ import {
   writeSnapshotStep,
 } from "./Snapshots.ts";
 import { entities } from "./Registry.ts";
+import { hasRetiringDevices, markRetired, retiredAmong, retireStep } from "./RetiredDevices.ts";
 import { fromDurableObjectStorage, type StoreSql } from "./StoreSql.ts";
 
 /**
@@ -107,7 +108,10 @@ export const makeUserStore = (
     // Socket expiries only change when a client connects and when the alarm runs, so writes
     // skip listing the sockets: an alarm already set for an expiry is never moved later.
     const expiry = options.sockets === true ? yield* notices.nextExpiry : null;
-    const times = [nextAlarmAt(sql, now), expiry].filter((time): time is number => time !== null);
+    const retiring = hasRetiringDevices(sql) ? now : null;
+    const times = [nextAlarmAt(sql, now), expiry, retiring].filter(
+      (time): time is number => time !== null,
+    );
     if (times.length === 0) return;
     const due = Math.min(...times);
     // Right after the alarm ran, it's spent, whatever the runtime still reports.
@@ -121,6 +125,17 @@ export const makeUserStore = (
   });
 
   return {
+    /**
+     * Retires a device that signed out for good: its device-scoped records are deleted over the
+     * next alarms (`src/store/RetiredDevices.ts`), and it can't write any again. Idempotent.
+     */
+    retireDevice: (device: string) =>
+      Effect.gen(function* () {
+        yield* ensureNotDeleted;
+        const now = yield* Clock.currentTimeMillis;
+        markRetired(sql, device, now);
+        yield* scheduleAlarm(now);
+      }),
     /** The store's schema version, which can be newer than this code's after a rollback. */
     schemaVersion: () => Effect.sync(() => schemaVersion(sql)),
     /**
@@ -182,6 +197,23 @@ export const makeUserStore = (
         if (mutations.some((mutation) => mutation.op === "upsert")) {
           yield* ensureRoom(storageHardLimitBytes);
         }
+        // A retired device's records are being deleted; one still in the queue mustn't come back.
+        const devices = new Map<string, number>();
+        for (const [index, mutation] of mutations.entries()) {
+          const device = mutation.op === "upsert" ? mutation.row["device"] : undefined;
+          if (
+            typeof device === "string" &&
+            entitiesByName.get(mutation.entity)?.deviceScoped !== undefined &&
+            !devices.has(device)
+          ) {
+            devices.set(device, index);
+          }
+        }
+        const retired = [...retiredAmong(sql, new Set(devices.keys()))];
+        const first = Math.min(...retired.map((device) => devices.get(device) ?? 0));
+        if (retired.length > 0) {
+          return yield* new InvalidMutation({ index: first, message: "The device signed out" });
+        }
         const at = yield* Clock.currentTimeMillis;
         const applied = yield* Effect.suspend(() => {
           try {
@@ -232,6 +264,7 @@ export const makeUserStore = (
         yield* notices.closeExpired(now);
         yield* writeSnapshotStep(sql, registry, files, now);
         yield* doUpkeep(sql, files, now);
+        if (retireStep(sql, registry, now) > 0) yield* notices.notify(now);
         yield* scheduleAlarm(now, { afterAlarm: true, sockets: true });
       }).pipe(
         Effect.catchCause((cause) =>

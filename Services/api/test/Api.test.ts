@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { assert, describe, it } from "@effect/vitest";
 import * as Alchemy from "alchemy";
-import { ConfigProvider, Effect, Exit, Layer, Redacted, Schema } from "effect";
+import { ConfigProvider, Effect, Exit, Layer, Option, Redacted, Schema } from "effect";
 import { HttpRouter } from "effect/http";
 import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
@@ -343,6 +343,29 @@ describe("WorkerHttpLayer", () => {
           }),
         );
         assert.strictEqual(response.status, 400);
+      }),
+    ),
+  );
+
+  it.live("POST /v1/auth/sign-out deletes the device and retires it in the store", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const [device] = yield* (yield* Devices).listForUser(user.id);
+        assert.isDefined(device);
+        const response = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/auth/sign-out", {
+            method: "POST",
+            headers: bearer(tokens.accessToken),
+          }),
+        );
+        assert.strictEqual(response.status, 204);
+        assert.isTrue(Option.isNone(yield* (yield* Devices).findById(device.id)));
+        const sql = (yield* TestStores).sqlFor(user.id);
+        assert.deepStrictEqual(sql?.exec("SELECT device FROM retired_devices"), [
+          { device: device.id },
+        ]);
       }),
     ),
   );

@@ -122,6 +122,8 @@ export const AuthHandlers = HttpApiBuilder.group(
     const apple = yield* AppleSignIn;
     const google = yield* GoogleSignIn;
     const providerSignIn = yield* ProviderSignIn;
+    const devices = yield* Devices;
+    const stores = yield* UserStores;
     const signIn = (identity: VerifiedIdentity, device: typeof DeviceInfo.Type) =>
       Effect.gen(function* () {
         return yield* providerSignIn.signIn(
@@ -148,6 +150,15 @@ export const AuthHandlers = HttpApiBuilder.group(
         Effect.gen(function* () {
           const session = yield* CurrentSession;
           yield* auth.signOut(session.sessionId);
+          // Signed out for good (its last session): its device-scoped records go too, so a stale
+          // statistics source doesn't linger (`docs/SYNC.md`). Best-effort: the Mac also ignores
+          // sources that stopped reporting.
+          if (yield* devices.deleteIfSignedOut(session.deviceId)) {
+            yield* stores
+              .forUser(session.userId)
+              .retireDevice(session.deviceId)
+              .pipe(Effect.ignoreCause({ log: "Warn", message: "Retiring the device failed" }));
+          }
         }).pipe(Effect.orDie),
       );
   }),
