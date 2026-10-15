@@ -18,6 +18,7 @@ import {
   Unauthorized,
 } from "./auth/AuthApi.ts";
 import { AccessTokens } from "./auth/Tokens.ts";
+import { retireDevice } from "./core/DeviceCleanup.ts";
 import { Devices } from "./core/Devices.ts";
 import { Identities } from "./core/Identities.ts";
 import {
@@ -155,16 +156,11 @@ export const AuthHandlers = HttpApiBuilder.group(
           // goes, so if retiring fails the row is left for a later cleanup (851-2620).
           // Best-effort: the Mac also ignores sources that stopped reporting.
           if (!(yield* devices.hasSessions(session.deviceId))) {
-            const retired = yield* stores
-              .forUser(session.userId)
-              .retireDevice(session.deviceId)
-              .pipe(
-                Effect.as(true),
-                Effect.catchCause((cause) =>
-                  Effect.logWarning("Retiring the device failed", cause).pipe(Effect.as(false)),
-                ),
-              );
-            if (retired) yield* devices.deleteIfSignedOut(session.deviceId);
+            yield* retireDevice(
+              session.userId,
+              session.deviceId,
+              devices.deleteIfSignedOut(session.deviceId),
+            ).pipe(Effect.provideService(UserStores, stores));
           }
         }).pipe(Effect.orDie),
       );

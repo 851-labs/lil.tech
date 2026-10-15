@@ -41,6 +41,23 @@ export class Devices extends Context.Service<
       userId: UserId,
       now: number,
     ) => Effect.Effect<ReadonlyArray<Device>, SqlError.SqlError>;
+    /**
+     * Devices with no live session (none unrevoked and unexpired at `now`) that weren't seen
+     * since `idleSince`, longest unseen first.
+     */
+    readonly listSignedOut: (
+      now: number,
+      idleSince: number,
+      limit: number,
+    ) => Effect.Effect<ReadonlyArray<Device>, SqlError.SqlError>;
+    /**
+     * Deletes the device if it still has no live session at `now` (see `listSignedOut`).
+     * Answers whether it did.
+     */
+    readonly deleteIfNoLiveSession: (
+      id: DeviceId,
+      now: number,
+    ) => Effect.Effect<boolean, SqlError.SqlError>;
     /** Whether the device has any sessions left; none means it signed out for good. */
     readonly hasSessions: (id: DeviceId) => Effect.Effect<boolean, SqlError.SqlError>;
     /**
@@ -98,6 +115,22 @@ export class Devices extends Context.Service<
                 AND sessions.expires_at > ${now})
             ORDER BY created_at, id`;
           return yield* Effect.forEach(rows, decodeDevice);
+        }),
+        listSignedOut: Effect.fn("Devices.listSignedOut")(function* (now, idleSince, limit) {
+          const rows = yield* sql`${select} WHERE last_seen_at < ${idleSince} AND NOT EXISTS (
+              SELECT 1 FROM sessions
+              WHERE sessions.device_id = devices.id AND sessions.revoked_at IS NULL
+                AND sessions.expires_at > ${now})
+            ORDER BY last_seen_at, id LIMIT ${limit}`;
+          return yield* Effect.forEach(rows, decodeDevice);
+        }),
+        deleteIfNoLiveSession: Effect.fn("Devices.deleteIfNoLiveSession")(function* (id, now) {
+          const rows = yield* sql`DELETE FROM devices WHERE id = ${id} AND NOT EXISTS (
+              SELECT 1 FROM sessions
+              WHERE sessions.device_id = ${id} AND sessions.revoked_at IS NULL
+                AND sessions.expires_at > ${now})
+            RETURNING id`;
+          return rows.length > 0;
         }),
         hasSessions: Effect.fn("Devices.hasSessions")(function* (id) {
           const rows = yield* sql`SELECT 1 FROM sessions WHERE device_id = ${id} LIMIT 1`;
