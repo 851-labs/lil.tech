@@ -36,9 +36,15 @@ export class HealthBatchFiles extends Context.Service<
     readonly open: (key: string) => Effect.Effect<Option.Option<ReadableStream<Uint8Array>>>;
     readonly delete: (key: string) => Effect.Effect<void>;
     /** Deletes every file whose key starts with `prefix`, e.g. a deleted user's. */
-    readonly deletePrefix: (prefix: string) => Effect.Effect<void>;
+    readonly deletePrefix: (prefix: string) => Effect.Effect<void, BatchFilesUnavailable>;
   }
 >()("lil/api/health/HealthBatchFiles") {}
+
+/** R2 couldn't be reached; retrying can work. */
+export class BatchFilesUnavailable extends Schema.TaggedError<BatchFilesUnavailable>()(
+  "BatchFilesUnavailable",
+  { message: Schema.String },
+) {}
 
 /** The queue of uploaded batches (a Cloudflare Queue in the Worker). */
 export class HealthBatchQueue extends Context.Service<
@@ -278,20 +284,24 @@ export const failHealthBatch = Effect.fn("failHealthBatch")(function* (
   message: HealthBatchMessage,
   failure: string,
 ) {
+  yield* recordFailure(message, failure).pipe(
+    // A deleted account keeps nothing, not even the batch's status.
+    Effect.catchTag("AccountDeleted", () => dropBatchFile(message)),
+  );
+});
+
+const recordFailure = Effect.fnUntraced(function* (message: HealthBatchMessage, failure: string) {
   const store = (yield* UserStores).forUser(message.userId);
   const known = yield* store.healthBatch(message.batchId);
   // A delivery that overlapped may have finished it.
   if (known?.status === "applied" || known?.status === "failed") return;
   const now = yield* Clock.currentTimeMillis;
   yield* (yield* HealthBatchFiles).delete(healthBatchKey(message.userId, message.batchId));
-  yield* store
-    .saveHealthBatch({
-      id: message.batchId,
-      status: "failed",
-      receivedAt: known?.receivedAt ?? now,
-      finishedAt: now,
-      failure,
-    })
-    // A deleted account keeps nothing, not even the batch's status.
-    .pipe(Effect.catchTag("AccountDeleted", () => Effect.void));
+  yield* store.saveHealthBatch({
+    id: message.batchId,
+    status: "failed",
+    receivedAt: known?.receivedAt ?? now,
+    finishedAt: now,
+    failure,
+  });
 });

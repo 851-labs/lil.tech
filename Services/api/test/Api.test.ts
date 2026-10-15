@@ -914,6 +914,13 @@ describe("/v1/health/batches", () => {
           batchFile(lines),
         );
         assert.strictEqual(late.status, 401);
+        // Refused before anything reached R2.
+        assert.isFalse(
+          outbox.files.has(
+            `health-batches/${user.id}/00000000-0000-4000-8000-0000000000b3.ndjson.gz`,
+          ),
+        );
+        assert.lengthOf(outbox.sent, 2);
 
         // The batch that was still queued is dropped, file and all.
         for (const message of outbox.sent.slice(1)) yield* ingestHealthBatch(message);

@@ -3,6 +3,7 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import { Effect, Option, Stream } from "effect";
 import {
   failHealthBatch,
+  BatchFilesUnavailable,
   HealthBatchFiles,
   type HealthBatchMessage,
   HealthBatchQueue,
@@ -76,7 +77,10 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
             if (keys.length > 0) yield* bucket.delete(keys);
             cursor = page.truncated ? page.cursor : undefined;
           } while (cursor !== undefined);
-        }).pipe(inRuntime, Effect.orDie),
+        }).pipe(
+          inRuntime,
+          Effect.mapError((error) => new BatchFilesUnavailable({ message: String(error) })),
+        ),
     });
   });
   const queueService = Effect.map(Alchemy.RuntimeContext, (runtime) =>

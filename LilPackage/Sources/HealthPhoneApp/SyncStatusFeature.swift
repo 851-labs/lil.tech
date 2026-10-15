@@ -93,6 +93,8 @@ public struct SyncStatusFeature {
     case openSettingsButtonTapped
     case signOutButtonTapped
     case deleteAccountButtonTapped
+    /// The request finished: the app signs out next.
+    case accountDeleted
     case accountDeletionFailed(String)
     case alert(PresentationAction<Alert>)
     case delegate(Delegate)
@@ -163,19 +165,21 @@ public struct SyncStatusFeature {
 
       case .alert(.presented(.confirmDeletion)):
         state.isDeletingAccount = true
-        return .run { [auth] send in
-          do throws(SignInError) {
+        return .run { [auth, healthBackfill] send in
+          // No uploads racing the deletion.
+          await healthBackfill.pause()
+          do throws(AccountDeletionError) {
             // Once deleted, the session ends, and the app signs out and clears what's here.
             try await auth.deleteAccount()
-          } catch .unavailable {
-            await send(
-              .accountDeletionFailed("It isn't possible right now. Please try again later."))
-          } catch .failed(let reason) {
-            await send(.accountDeletionFailed(reason))
-          } catch .rejected {
-            await send(.accountDeletionFailed("Please try again."))
+            await send(.accountDeleted)
+          } catch {
+            await send(.accountDeletionFailed(error.message))
           }
         }
+
+      case .accountDeleted:
+        state.isDeletingAccount = false
+        return .none
 
       case .accountDeletionFailed(let reason):
         state.isDeletingAccount = false

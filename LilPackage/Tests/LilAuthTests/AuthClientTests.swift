@@ -84,20 +84,26 @@ struct AuthClientTests {
 
   @Test
   func deletingTheAccountForgetsTheSession() async throws {
-    for status in [HTTPResponse.Status.noContent, .unauthorized] {
-      let (auth, store) = makeAuth(stored: session(1)) { request, _ in
-        #expect(request.method == .delete)
-        #expect(request.path == "/v1/me")
-        return status == .unauthorized
-          ? (
-            HTTPResponse(status: status, headerFields: [.contentType: "application/json"]),
-            HTTPBody(#"{"_tag":"Unauthorized","message":"The user no longer exists"}"#)
-          )
-          : (HTTPResponse(status: status), nil)
-      }
-      try await auth.deleteAccount()
-      #expect(try store.load() == nil, "\(status)")
+    let (auth, store) = makeAuth(stored: session(1)) { request, _ in
+      #expect(request.method == .delete)
+      #expect(request.path == "/v1/me")
+      return (HTTPResponse(status: .noContent), nil)
     }
+    try await auth.deleteAccount()
+    #expect(try store.load() == nil)
+  }
+
+  @Test
+  func aRejectedSessionIsntTakenForADeletion() async throws {
+    let (auth, store) = makeAuth(stored: session(1)) { _, _ in
+      (
+        HTTPResponse(status: .unauthorized, headerFields: [.contentType: "application/json"]),
+        HTTPBody(#"{"_tag":"Unauthorized","message":"Invalid access token"}"#)
+      )
+    }
+    await #expect(throws: AccountDeletionError.signedOut) { try await auth.deleteAccount() }
+    // Not forgotten here: the session's own refresh decides whether it's still good.
+    #expect(try store.load() == session(1))
   }
 
   @Test
@@ -108,7 +114,7 @@ struct AuthClientTests {
         HTTPBody(#"{"_tag":"UserStoreUnavailable","message":"Try again"}"#)
       )
     }
-    await #expect(throws: SignInError.unavailable) { try await auth.deleteAccount() }
+    await #expect(throws: AccountDeletionError.unavailable) { try await auth.deleteAccount() }
     #expect(try store.load() == session(1))
   }
 }

@@ -114,7 +114,7 @@ struct SyncStatusFeatureTests {
     let store = TestStore(initialState: SyncStatusFeature.State()) {
       SyncStatusFeature()
     } withDependencies: {
-      $0.auth.deleteAccount = { () throws(SignInError) in deleted.setValue(true) }
+      $0.auth.deleteAccount = { () throws(AccountDeletionError) in deleted.setValue(true) }
     }
 
     await store.send(.deleteAccountButtonTapped) {
@@ -134,7 +134,9 @@ struct SyncStatusFeatureTests {
       $0.isDeletingAccount = true
     }
     // The session ends, and the app signs out from there.
-    await store.finish()
+    await store.receive(\.accountDeleted) {
+      $0.isDeletingAccount = false
+    }
     #expect(deleted.value)
   }
 
@@ -149,9 +151,8 @@ struct SyncStatusFeatureTests {
     let store = TestStore(initialState: confirming) {
       SyncStatusFeature()
     } withDependencies: {
-      $0.auth.deleteAccount = { () throws(SignInError) in throw .unavailable }
+      $0.auth.deleteAccount = { () throws(AccountDeletionError) in throw .unavailable }
     }
-    store.exhaustivity = .off(showSkippedAssertions: false)
 
     await store.send(.alert(.presented(.confirmDeletion))) {
       $0.alert = nil
@@ -159,7 +160,11 @@ struct SyncStatusFeatureTests {
     }
     await store.receive(\.accountDeletionFailed) {
       $0.isDeletingAccount = false
+      $0.alert = AlertState {
+        TextState("Your Account Wasn't Deleted")
+      } message: {
+        TextState("It isn't possible right now. Please try again later.")
+      }
     }
-    #expect(store.state.alert != nil)
   }
 }
