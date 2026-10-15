@@ -1,16 +1,16 @@
-import Foundation
+public import Foundation
 
-/// Reads (and, for tests, writes) single-member gzip files, the format of snapshot parts
+/// Reads and writes single-member gzip files, the format of snapshot parts and health batches
 /// (`docs/SYNC.md`). Foundation's `.zlib` algorithm is raw DEFLATE, so the gzip header and trailer
 /// are handled here.
-enum Gzip {
-  struct InvalidData: Error, Equatable {
-    let reason: String
+public enum Gzip {
+  public struct InvalidData: Error, Equatable {
+    public let reason: String
   }
 
   /// Decompresses `data`, checking the size in its trailer. Its CRC isn't checked: parts are
   /// checked with SHA-256 when they're downloaded.
-  static func decompress(_ data: Data) throws -> Data {
+  public static func decompress(_ data: Data) throws -> Data {
     let start = data.startIndex
     guard data.count >= 18, data[start] == 0x1f, data[start + 1] == 0x8b, data[start + 2] == 8
     else { throw InvalidData(reason: "Not a gzip file") }
@@ -36,7 +36,7 @@ enum Gzip {
     return inflated
   }
 
-  static func compress(_ data: Data) throws -> Data {
+  public static func compress(_ data: Data) throws -> Data {
     var output = Data([0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 0xff])
     output.append(try (data as NSData).compressed(using: .zlib) as Data)
     for value in [crc32(data), UInt32(truncatingIfNeeded: data.count)] {

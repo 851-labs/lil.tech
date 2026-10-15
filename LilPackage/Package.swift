@@ -16,6 +16,7 @@ let package = Package(
     .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
     .library(name: "HealthKitAccess", targets: ["HealthKitAccess"]),
     .library(name: "HealthPhoneApp", targets: ["HealthPhoneApp"]),
+    .library(name: "HealthUpload", targets: ["HealthUpload"]),
     .library(name: "LilAPI", targets: ["LilAPI"]),
     .library(name: "LilAuth", targets: ["LilAuth"]),
     .library(name: "LilSync", targets: ["LilSync"]),
@@ -131,6 +132,21 @@ let package = Package(
       dependencies: [
         "HealthKitAccess",
         "HealthPhoneApp",
+      ]
+    ),
+    .target(
+      name: "HealthUpload",
+      dependencies: [
+        "HealthCatalog",
+        "LilSync",
+      ]
+    ),
+    .testTarget(
+      name: "HealthUploadTests",
+      dependencies: [
+        "HealthUpload",
+        "LilAPI",
+        "LilSync",
       ]
     ),
     .target(
