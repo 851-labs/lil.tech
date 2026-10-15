@@ -19,8 +19,22 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   public var pending: PendingPage?
   /// Records uploaded so far.
   public var uploadedRecords = 0
+  /// For cumulative types, the earliest time whose 30-minute sums need uploading again.
+  public var statisticsFrom: [String: Date] = [:]
 
   public init() {}
+
+  /// Fields added later may be missing from saved state.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    anchors = try container.decodeIfPresent([String: Data].self, forKey: .anchors) ?? [:]
+    finished = try container.decodeIfPresent(Set<String>.self, forKey: .finished) ?? []
+    empty = try container.decodeIfPresent(Set<String>.self, forKey: .empty) ?? []
+    pending = try container.decodeIfPresent(PendingPage.self, forKey: .pending)
+    uploadedRecords = try container.decodeIfPresent(Int.self, forKey: .uploadedRecords) ?? 0
+    statisticsFrom =
+      try container.decodeIfPresent([String: Date].self, forKey: .statisticsFrom) ?? [:]
+  }
 
   /// A page written to batch files. Its anchor is committed once every file is accepted.
   public struct PendingPage: Codable, Equatable, Sendable {
@@ -58,7 +72,9 @@ public actor HealthBackfill {
   private let reader: HealthReader
   private let storage: HealthBackfillStorage
   private let uploader: HealthBatchUploader
+  private let statisticsReader: HealthStatisticsReader
   private let uuid: UUIDGenerator
+  private let now: @Sendable () -> Date
   private var progress: Progress
   private var observers: [UUID: AsyncStream<Progress>.Continuation] = [:]
   /// The work loop running, with an ID so only it clears itself.
@@ -75,11 +91,15 @@ public actor HealthBackfill {
     @Dependency(\.healthBackfillStorage) var storage
     @Dependency(\.healthBatchUploader) var uploader
     @Dependency(\.uuid) var uuid
+    @Dependency(\.healthStatisticsReader) var statisticsReader
+    @Dependency(\.date) var date
     self.types = types
     self.reader = reader
     self.storage = storage
     self.uploader = uploader
+    self.statisticsReader = statisticsReader
     self.uuid = uuid
+    self.now = { date.now }
     let state = (try? storage.loadState()) ?? nil
     self.progress = Progress(
       finishedTypes: state.map { Self.doneTypes(types, $0) } ?? 0,
@@ -189,6 +209,7 @@ public actor HealthBackfill {
         for type in types where wanted.contains(type.id) && failures[type.id] == nil {
           do {
             try await sync(type, &state)
+            try await uploadStatistics(of: type, &state)
           } catch  where Task.isCancelled || error is CancellationError {
             // Paused (e.g. a cancelled upload throws a URL error): the pending page is kept.
             throw CancellationError()
@@ -253,6 +274,7 @@ public actor HealthBackfill {
         continue
       }
       state.empty.remove(type.id)
+      markStatistics(of: type, changedBy: page.mutations, &state)
       let (pending, files) = try write(page, of: type)
       // The page is saved before its files, so a kill in between leaves no orphans: the
       // missing files make the next run read the page again.
@@ -262,6 +284,75 @@ public actor HealthBackfill {
       try await upload(pending, &state)
       isLast = pending.isLast
     }
+  }
+
+  /// How far back a change with deletions recomputes sums: a deleted object has no dates.
+  static let deletionWindow: TimeInterval = 7 * 86_400
+  /// Recomputing at most this far back uploads empty buckets too, so sums that are gone are
+  /// overwritten. Longer recomputes (the backfill's) upload only buckets with data.
+  static let zeroFillLimit: TimeInterval = 31 * 86_400
+
+  /// Notes which of a cumulative type's sums a page of changes affects.
+  private func markStatistics(
+    of type: HealthBackfillType, changedBy mutations: [HealthMutation],
+    _ state: inout HealthBackfillState
+  ) {
+    guard !type.isCorrelation, HealthCatalog.type(id: type.id)?.aggregation?.isCumulative == true
+    else { return }
+    var earliest = state.statisticsFrom[type.id]
+    for mutation in mutations {
+      let from: Date
+      if mutation.op == .delete {
+        from = now().addingTimeInterval(-Self.deletionWindow)
+      } else if case .number(let start)? = mutation.row?["startDate"] {
+        from = Date(timeIntervalSince1970: start / 1000)
+      } else {
+        continue
+      }
+      earliest = min(earliest ?? from, from)
+    }
+    state.statisticsFrom[type.id] = earliest
+  }
+
+  /// Uploads a type's 30-minute sums from HealthKit for the times its changes affected, with
+  /// this iPhone's statistics status. Upserts, so uploading again is harmless.
+  private func uploadStatistics(
+    of type: HealthBackfillType, _ state: inout HealthBackfillState
+  ) async throws {
+    guard let from = state.statisticsFrom[type.id],
+      let unit = HealthCatalog.type(id: type.id)?.unit
+    else { return }
+    let start = HealthEncoder.bucketStart(of: from)
+    let end = now()
+    var buckets = try await statisticsReader.buckets(type.id, start, end)
+    if end.timeIntervalSince(start) <= Self.zeroFillLimit {
+      let found = Set(buckets.map(\.start))
+      var bucket = start
+      while bucket < end {
+        if !found.contains(bucket) { buckets.append(HealthBucket(start: bucket, sum: 0)) }
+        bucket = bucket.addingTimeInterval(HealthEncoder.bucketSeconds)
+      }
+    }
+    let paired = await statisticsReader.isPairedWithWatch()
+    var writer = HealthBatchWriter()
+    var files: [Data] = []
+    for bucket in buckets.sorted(by: { $0.start < $1.start }) {
+      if let file = try writer.append(
+        HealthEncoder.statistic(type: type.id, bucket: bucket, unit: unit))
+      {
+        files.append(file)
+      }
+    }
+    if let file = try writer.append(HealthEncoder.statisticsDevice(pairedWithWatch: paired)) {
+      files.append(file)
+    }
+    if let file = try writer.finish() { files.append(file) }
+    for file in files {
+      try Task.checkCancellation()
+      try await uploader.upload(uuid().uuidString.lowercased(), file)
+    }
+    state.statisticsFrom[type.id] = nil
+    try storage.saveState(state)
   }
 
   /// The saved state, or a fresh start if it can't be read (e.g. it's corrupt). Without saved

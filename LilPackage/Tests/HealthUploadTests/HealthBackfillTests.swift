@@ -6,7 +6,8 @@ import Testing
 @testable import HealthUpload
 
 // Synthetic data only (AGENTS.md).
-private let steps = HealthBackfillType(id: "HKQuantityTypeIdentifierStepCount")
+// Discrete types, so these tests are only about the page loop; statistics have their own.
+private let temperature = HealthBackfillType(id: "HKQuantityTypeIdentifierBodyTemperature")
 private let sleep = HealthBackfillType(id: "HKCategoryTypeIdentifierSleepAnalysis")
 private let heartRate = HealthBackfillType(id: "HKQuantityTypeIdentifierHeartRate")
 
@@ -25,7 +26,8 @@ private final class FakeHealth: Sendable {
   var reader: HealthReader {
     HealthReader { [self] type, anchor, _ in
       let read = anchor.map { Int(String(decoding: $0, as: UTF8.self))! } ?? 0
-      reads.withValue { $0.append("\(type.id.suffix(9))@\(read)") }
+      let name = type.id.components(separatedBy: "Identifier").last ?? type.id
+      reads.withValue { $0.append("\(name)@\(read)") }
       let total = pageCounts.value[type.id] ?? 0
       let records = read < total ? perPage : 0
       let mutations = (0..<records).map { n in
@@ -83,18 +85,19 @@ private func makeBackfill(
 struct HealthBackfillTests {
   @Test
   func uploadsEveryPageOfEveryType() async throws {
-    let health = FakeHealth(pages: [steps.id: 2, sleep.id: 1])
+    let health = FakeHealth(pages: [temperature.id: 2, sleep.id: 1])
     let server = FakeServer()
     let storage = HealthBackfillStorage.inMemory()
-    let backfill = makeBackfill([steps, sleep], health: health, server: server, storage: storage)
+    let backfill = makeBackfill(
+      [temperature, sleep], health: health, server: server, storage: storage)
 
     try await backfill.run()
 
-    #expect(health.reads.value == ["StepCount@0", "StepCount@1", "pAnalysis@0"])
+    #expect(health.reads.value == ["BodyTemperature@0", "BodyTemperature@1", "SleepAnalysis@0"])
     #expect(server.records.value.count == 9)
     #expect(server.accepted.value.count == 3)
     let state = try #require(try storage.loadState())
-    #expect(state.finished == [steps.id, sleep.id])
+    #expect(state.finished == [temperature.id, sleep.id])
     #expect(state.pending == nil)
     #expect(state.uploadedRecords == 9)
     var updates = await backfill.progressUpdates().makeAsyncIterator()
@@ -111,23 +114,23 @@ struct HealthBackfillTests {
 
   @Test
   func aFailedPageIsReadAgainNextTime() async throws {
-    let health = FakeHealth(pages: [steps.id: 2])
+    let health = FakeHealth(pages: [temperature.id: 2])
     let server = FakeServer()
     server.failing.setValue([2])
     let storage = HealthBackfillStorage.inMemory()
-    let backfill = makeBackfill([steps], health: health, server: server, storage: storage)
+    let backfill = makeBackfill([temperature], health: health, server: server, storage: storage)
 
     await #expect(throws: FakeServer.Offline.self) { try await backfill.run() }
     // The first page's anchor is committed; the second page is dropped, files and all.
     let stopped = try #require(try storage.loadState())
-    #expect(stopped.anchors[steps.id] == Data("1".utf8))
+    #expect(stopped.anchors[temperature.id] == Data("1".utf8))
     #expect(stopped.pending == nil)
     var updates = await backfill.progressUpdates().makeAsyncIterator()
     #expect(await updates.next()?.failure != nil)
 
     try await backfill.run()
-    #expect(health.reads.value == ["StepCount@0", "StepCount@1", "StepCount@1"])
-    #expect(try storage.loadState()?.finished == [steps.id])
+    #expect(health.reads.value == ["BodyTemperature@0", "BodyTemperature@1", "BodyTemperature@1"])
+    #expect(try storage.loadState()?.finished == [temperature.id])
     #expect(server.records.value.count == 6)
     var after = await backfill.progressUpdates().makeAsyncIterator()
     #expect(await after.next()?.failure == nil)
@@ -135,20 +138,20 @@ struct HealthBackfillTests {
 
   @Test
   func aFailingTypeDoesntHoldUpTheOthers() async throws {
-    let health = FakeHealth(pages: [steps.id: 1, sleep.id: 1])
+    let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
     let broken = LockIsolated(true)
     let server = FakeServer()
     let storage = HealthBackfillStorage.inMemory()
     let backfill = withDependencies {
       $0.healthReader = HealthReader { type, anchor, limit in
-        if type == steps, broken.value { throw FakeServer.Offline() }
+        if type == temperature, broken.value { throw FakeServer.Offline() }
         return try await health.reader.page(type, anchor, limit)
       }
       $0.healthBatchUploader = server.uploader
       $0.healthBackfillStorage = storage
       $0.uuid = .incrementing
     } operation: {
-      HealthBackfill(types: [steps, sleep])
+      HealthBackfill(types: [temperature, sleep])
     }
 
     await #expect(throws: FakeServer.Offline.self) { try await backfill.run() }
@@ -157,22 +160,22 @@ struct HealthBackfillTests {
     // Steps is tried again with the next change, whatever it's for.
     broken.setValue(false)
     try await backfill.syncChanges(of: [])
-    #expect(try storage.loadState()?.finished == [steps.id, sleep.id])
+    #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
   }
 
   @Test
   func changesWaitForABackfill() async throws {
-    let health = FakeHealth(pages: [steps.id: 1])
+    let health = FakeHealth(pages: [temperature.id: 1])
     let backfill = makeBackfill(
-      [steps], health: health, server: FakeServer(), storage: .inMemory())
-    try await backfill.syncChanges(of: [steps.id])
+      [temperature], health: health, server: FakeServer(), storage: .inMemory())
+    try await backfill.syncChanges(of: [temperature.id])
     #expect(health.reads.value.isEmpty)
   }
 
   @Test
   func aRunKilledAfterUploadingResendsTheSameBatches() async throws {
     // The app was killed after the server accepted the page, before its anchor was saved.
-    let health = FakeHealth(pages: [steps.id: 1])
+    let health = FakeHealth(pages: [temperature.id: 1])
     let storage = HealthBackfillStorage.inMemory()
     var state = HealthBackfillState()
     let file = try #require(
@@ -183,17 +186,17 @@ struct HealthBackfillTests {
       }())
     try storage.saveFile("batch-1", file)
     state.pending = .init(
-      type: steps.id, anchor: Data("1".utf8), isLast: true, batches: ["batch-1"], records: 1)
+      type: temperature.id, anchor: Data("1".utf8), isLast: true, batches: ["batch-1"], records: 1)
     try storage.saveState(state)
     let server = FakeServer()
-    let backfill = makeBackfill([steps], health: health, server: server, storage: storage)
+    let backfill = makeBackfill([temperature], health: health, server: server, storage: storage)
 
     try await backfill.run()
 
     #expect(server.accepted.value == ["batch-1"])
     // Only the catch-up read, from the anchor the pending page committed.
-    #expect(health.reads.value == ["StepCount@1"])
-    #expect(try storage.loadState()?.finished == [steps.id])
+    #expect(health.reads.value == ["BodyTemperature@1"])
+    #expect(try storage.loadState()?.finished == [temperature.id])
   }
 
   @Test
@@ -202,45 +205,45 @@ struct HealthBackfillTests {
     let health = FakeHealth(pages: [:])
     let server = FakeServer()
     let storage = HealthBackfillStorage.inMemory()
-    let backfill = makeBackfill([steps], health: health, server: server, storage: storage)
+    let backfill = makeBackfill([temperature], health: health, server: server, storage: storage)
 
     try await backfill.run()
 
     #expect(server.accepted.value.isEmpty)
     let state = try #require(try storage.loadState())
-    #expect(state.empty == [steps.id])
+    #expect(state.empty == [temperature.id])
     #expect(state.finished.isEmpty)
     #expect(state.anchors.isEmpty)
     var updates = await backfill.progressUpdates().makeAsyncIterator()
     #expect(await updates.next()?.isFinished == true)
 
     try await backfill.run()
-    #expect(health.reads.value == ["StepCount@0", "StepCount@0"])
+    #expect(health.reads.value == ["BodyTemperature@0", "BodyTemperature@0"])
   }
 
   @Test
   func aPageWhoseFilesWerentWrittenIsReadAgain() async throws {
     // The app was killed after saving the pending page, before writing its file.
-    let health = FakeHealth(pages: [steps.id: 1])
+    let health = FakeHealth(pages: [temperature.id: 1])
     let storage = HealthBackfillStorage.inMemory()
     var state = HealthBackfillState()
     state.pending = .init(
-      type: steps.id, anchor: Data("1".utf8), isLast: true, batches: ["never-written"],
+      type: temperature.id, anchor: Data("1".utf8), isLast: true, batches: ["never-written"],
       records: 3)
     try storage.saveState(state)
     let server = FakeServer()
-    let backfill = makeBackfill([steps], health: health, server: server, storage: storage)
+    let backfill = makeBackfill([temperature], health: health, server: server, storage: storage)
 
     try await backfill.run()
 
-    #expect(health.reads.value == ["StepCount@0"])
+    #expect(health.reads.value == ["BodyTemperature@0"])
     #expect(server.records.value.count == 3)
     #expect(try storage.loadState()?.uploadedRecords == 3)
   }
 
   @Test
   func unreadableStateStartsOver() async throws {
-    let health = FakeHealth(pages: [steps.id: 1])
+    let health = FakeHealth(pages: [temperature.id: 1])
     let server = FakeServer()
     let cleared = LockIsolated(false)
     var storage = HealthBackfillStorage.inMemory()
@@ -255,7 +258,7 @@ struct HealthBackfillTests {
       if state == nil { cleared.setValue(true) }
       try inMemory.saveState(state)
     }
-    let backfill = makeBackfill([steps], health: health, server: server, storage: storage)
+    let backfill = makeBackfill([temperature], health: health, server: server, storage: storage)
 
     await withKnownIssue {
       try await backfill.run()
@@ -277,7 +280,7 @@ struct HealthBackfillTests {
       $0.healthBackfillStorage = storage
       $0.uuid = .incrementing
     } operation: {
-      HealthBackfill(types: [steps])
+      HealthBackfill(types: [temperature])
     }
     let task = Task { try await backfill.run() }
     for await _ in started { break }
@@ -289,16 +292,16 @@ struct HealthBackfillTests {
 
   @Test
   func resetStartsOver() async throws {
-    let health = FakeHealth(pages: [steps.id: 1])
+    let health = FakeHealth(pages: [temperature.id: 1])
     let server = FakeServer()
     let storage = HealthBackfillStorage.inMemory()
-    let backfill = makeBackfill([steps], health: health, server: server, storage: storage)
+    let backfill = makeBackfill([temperature], health: health, server: server, storage: storage)
     try await backfill.run()
 
     await backfill.reset()
     #expect(try storage.loadState() == nil)
     try await backfill.run()
-    #expect(health.reads.value == ["StepCount@0", "StepCount@0"])
+    #expect(health.reads.value == ["BodyTemperature@0", "BodyTemperature@0"])
   }
 
   @Test
@@ -308,7 +311,7 @@ struct HealthBackfillTests {
     let storage = HealthBackfillStorage.directory(directory)
     #expect(try storage.loadState() == nil)
     var state = HealthBackfillState()
-    state.finished = [steps.id]
+    state.finished = [temperature.id]
     try storage.saveState(state)
     try storage.saveFile("a", Data([1, 2, 3]))
     #expect(try storage.loadState() == state)
@@ -321,24 +324,25 @@ struct HealthBackfillTests {
 
   @Test
   func uploadsChangesSinceTheAnchors() async throws {
-    let health = FakeHealth(pages: [steps.id: 1, sleep.id: 1])
+    let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
     let server = FakeServer()
     let storage = HealthBackfillStorage.inMemory()
-    let backfill = makeBackfill([steps, sleep], health: health, server: server, storage: storage)
+    let backfill = makeBackfill(
+      [temperature, sleep], health: health, server: server, storage: storage)
     try await backfill.run()
 
-    // A new page of steps; sleep didn't change, so it isn't read.
-    health.pageCounts.withValue { $0[steps.id] = 2 }
-    try await backfill.syncChanges(of: [steps.id])
+    // A new page of temperature; sleep didn't change, so it isn't read.
+    health.pageCounts.withValue { $0[temperature.id] = 2 }
+    try await backfill.syncChanges(of: [temperature.id])
 
-    #expect(health.reads.value == ["StepCount@0", "pAnalysis@0", "StepCount@1"])
+    #expect(health.reads.value == ["BodyTemperature@0", "SleepAnalysis@0", "BodyTemperature@1"])
     #expect(server.records.value.count == 9)
-    #expect(try storage.loadState()?.anchors[steps.id] == Data("2".utf8))
+    #expect(try storage.loadState()?.anchors[temperature.id] == Data("2".utf8))
   }
 
   @Test
   func changesDuringARunJoinIt() async throws {
-    let health = FakeHealth(pages: [steps.id: 1, sleep.id: 1, heartRate.id: 1])
+    let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1, heartRate.id: 1])
     let (started, didStart) = AsyncStream<Void>.makeStream()
     let (release, finish) = AsyncStream<Void>.makeStream()
     let blocked = LockIsolated(true)
@@ -357,13 +361,13 @@ struct HealthBackfillTests {
       $0.healthBackfillStorage = storage
       $0.uuid = .incrementing
     } operation: {
-      HealthBackfill(types: [steps, sleep, heartRate])
+      HealthBackfill(types: [temperature, sleep, heartRate])
     }
 
     try storage.saveState(HealthBackfillState())
-    async let first: Void = backfill.syncChanges(of: [steps.id])
+    async let first: Void = backfill.syncChanges(of: [temperature.id])
     for await _ in started { break }
-    // A burst while steps is being read: picked up by the same run.
+    // A burst while temperature is being read: picked up by the same run.
     async let second: Void = backfill.syncChanges(of: [sleep.id])
     async let third: Void = backfill.syncChanges(of: [heartRate.id])
     while await !backfill.requestedTypes.isSuperset(of: [sleep.id, heartRate.id]) {
@@ -372,14 +376,14 @@ struct HealthBackfillTests {
     finish.finish()
     _ = try await (first, second, third)
 
-    #expect(health.reads.value == ["StepCount@0", "pAnalysis@0", "HeartRate@0"])
+    #expect(health.reads.value == ["BodyTemperature@0", "SleepAnalysis@0", "HeartRate@0"])
   }
 
   @Test
   func observerCompletionDoesntWaitPastTheDeadline() async {
     let (release, finish) = AsyncStream<Void>.makeStream()
     let finished = LockIsolated(false)
-    await HealthObserver.handle(steps.id, deadline: .milliseconds(10)) { _ in
+    await HealthObserver.handle(temperature.id, deadline: .milliseconds(10)) { _ in
       for await _ in release {}
       finished.setValue(true)
     }
@@ -390,7 +394,7 @@ struct HealthBackfillTests {
 
   @Test
   func aPausedRunResumesWithItsPendingPage() async throws {
-    let health = FakeHealth(pages: [steps.id: 1])
+    let health = FakeHealth(pages: [temperature.id: 1])
     let (started, didStart) = AsyncStream<Void>.makeStream()
     let blocking = LockIsolated(true)
     let server = FakeServer()
@@ -408,7 +412,7 @@ struct HealthBackfillTests {
       $0.healthBackfillStorage = storage
       $0.uuid = .incrementing
     } operation: {
-      HealthBackfill(types: [steps])
+      HealthBackfill(types: [temperature])
     }
 
     let run = Task { try await backfill.run() }
@@ -424,8 +428,8 @@ struct HealthBackfillTests {
     blocking.setValue(false)
     try await backfill.run()
     #expect(server.accepted.value == paused.batches)
-    #expect(health.reads.value.first == "StepCount@0")
-    #expect(try storage.loadState()?.finished == [steps.id])
+    #expect(health.reads.value.first == "BodyTemperature@0")
+    #expect(try storage.loadState()?.finished == [temperature.id])
   }
 
   @Test
@@ -437,7 +441,7 @@ struct HealthBackfillTests {
       $0.healthBackfillStorage = storage
       $0.uuid = .incrementing
     } operation: {
-      HealthBackfill(types: [steps, sleep])
+      HealthBackfill(types: [temperature, sleep])
     }
 
     await #expect(throws: HealthReader.Locked.self) { try await backfill.run() }
