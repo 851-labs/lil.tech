@@ -16,6 +16,7 @@ let package = Package(
     .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
     .library(name: "HealthKitAccess", targets: ["HealthKitAccess"]),
     .library(name: "HealthPhoneApp", targets: ["HealthPhoneApp"]),
+    .library(name: "HealthUpload", targets: ["HealthUpload"]),
     .library(name: "LilAPI", targets: ["LilAPI"]),
     .library(name: "LilAuth", targets: ["LilAuth"]),
     .library(name: "LilSync", targets: ["LilSync"]),
@@ -80,6 +81,9 @@ let package = Package(
       ]
     ),
     .target(
+      name: "GzipFiles"
+    ),
+    .target(
       name: "HealthCatalog"
     ),
     .testTarget(
@@ -134,6 +138,21 @@ let package = Package(
       ]
     ),
     .target(
+      name: "HealthUpload",
+      dependencies: [
+        "GzipFiles",
+        "HealthCatalog",
+      ]
+    ),
+    .testTarget(
+      name: "HealthUploadTests",
+      dependencies: [
+        "GzipFiles",
+        "HealthUpload",
+        "LilAPI",
+      ]
+    ),
+    .target(
       name: "LilAPI",
       dependencies: [
         "LilAPIGenerated",
@@ -183,6 +202,7 @@ let package = Package(
     .target(
       name: "LilSync",
       dependencies: [
+        "GzipFiles",
         "LilAPI",
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
@@ -193,6 +213,7 @@ let package = Package(
     .testTarget(
       name: "LilSyncTests",
       dependencies: [
+        "GzipFiles",
         "LilSync",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         .product(name: "HTTPTypes", package: "swift-http-types"),
