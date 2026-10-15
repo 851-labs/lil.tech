@@ -33,6 +33,16 @@ export class InvalidMutation extends Schema.TaggedError<InvalidMutation>()("Inva
  */
 export class AccountDeleted extends Schema.TaggedError<AccountDeleted>()("AccountDeleted", {}) {}
 
+/**
+ * The store is over its storage quota (`storageQuotaBytes`), so it takes no new records. Deletes
+ * still work, since they make room.
+ */
+export class StorageFull extends Schema.TaggedError<StorageFull>()(
+  "StorageFull",
+  { quotaBytes: Schema.Int },
+  { httpApiStatus: 507 },
+) {}
+
 export const Change = Schema.Struct({
   /** Position in the log, increasing by exactly 1 per change. */
   seq: Schema.Int,

@@ -10,7 +10,13 @@ import {
 import type { HealthBatch } from "../health/HealthBatches.ts";
 import { provideRuntime } from "../Runtime.ts";
 import { applyMutations, readChanges, readEpoch, readHead, readMeta } from "./ChangeLog.ts";
-import { AccountDeleted, ChangesCompacted, InvalidMutation, type Mutation } from "./Changes.ts";
+import {
+  AccountDeleted,
+  ChangesCompacted,
+  InvalidMutation,
+  type Mutation,
+  StorageFull,
+} from "./Changes.ts";
 import type { Entity } from "./Entities.ts";
 import {
   answerCloseCode,
@@ -33,6 +39,12 @@ import {
 } from "./Snapshots.ts";
 import { entities } from "./Registry.ts";
 import { fromDurableObjectStorage, type StoreSql } from "./StoreSql.ts";
+
+/**
+ * How large a store's database may grow before it takes no new records: below the 10 GB a Durable
+ * Object can hold, leaving room for the change log and upkeep (`docs/DECISIONS.md`).
+ */
+export const storageQuotaBytes = 8 * 1024 ** 3;
 
 /** Snapshot files that aren't available, for stores built without them (most tests). */
 const noSnapshotFiles: SnapshotFiles = {
@@ -59,6 +71,13 @@ export const makeUserStore = (
   /** Fails once the account is deleted, so nothing can be read or written back. */
   const ensureNotDeleted = Effect.suspend(() =>
     deleted ? Effect.fail(new AccountDeleted()) : Effect.void,
+  );
+
+  /** Fails once the store is over its quota, so it takes no new records. */
+  const ensureRoom = Effect.suspend(() =>
+    sql.databaseSize() >= storageQuotaBytes
+      ? Effect.fail(new StorageFull({ quotaBytes: storageQuotaBytes }))
+      : Effect.void,
   );
 
   /** When the alarm is set for, once known, so most writes don't have to ask. */
@@ -122,6 +141,17 @@ export const makeUserStore = (
         Effect.andThen(Clock.currentTimeMillis),
         Effect.map((now) => readHealthBatch(sql, id, now)),
       ),
+    /**
+     * Before a health batch is uploaded: its status if it's already known, otherwise `null`, or
+     * `StorageFull` if the store can't take a new batch.
+     */
+    checkHealthBatchUpload: (id: string) =>
+      Effect.gen(function* () {
+        yield* ensureNotDeleted;
+        const known = readHealthBatch(sql, id, yield* Clock.currentTimeMillis);
+        if (known === null) yield* ensureRoom;
+        return known;
+      }),
     /** Records a health batch as `queued` unless it's already known, and returns its status. */
     receiveHealthBatch: (id: string) =>
       ensureNotDeleted.pipe(
@@ -133,10 +163,14 @@ export const makeUserStore = (
         Effect.andThen(Clock.currentTimeMillis),
         Effect.map((at) => saveHealthBatch(sql, batch, at)),
       ),
-    /** Applies mutations in one transaction (see `applyMutations`). */
+    /**
+     * Applies mutations in one transaction (see `applyMutations`). Over the quota, only deletes
+     * are applied: a call with an upsert fails with `StorageFull`.
+     */
     applyMutations: (mutations: ReadonlyArray<Mutation>) =>
       Effect.gen(function* () {
         yield* ensureNotDeleted;
+        if (mutations.some((mutation) => mutation.op === "upsert")) yield* ensureRoom;
         const at = yield* Clock.currentTimeMillis;
         const applied = yield* Effect.suspend(() => {
           try {

@@ -119,6 +119,9 @@ const parseLine = (
   return Result.succeed(mutation);
 };
 
+/** A batch's failure once its store was full. */
+export const storageFullFailure = "The storage quota is full";
+
 /** The longest line accepted. A health record is a few hundred bytes. */
 export const maxBatchLineLength = 1024 * 1024;
 
@@ -246,8 +249,15 @@ const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessag
     }),
   ).pipe(Effect.andThen(applyChunk), Effect.result);
   if (Result.isFailure(read)) {
-    if (read.failure._tag !== "BatchUnreadable") return yield* read.failure;
-    return yield* finish({ status: "failed", failure: read.failure.message });
+    switch (read.failure._tag) {
+      case "BatchUnreadable":
+        return yield* finish({ status: "failed", failure: read.failure.message });
+      // Retrying won't make room. Chunks applied before it stay applied.
+      case "StorageFull":
+        return yield* finish({ status: "failed", failure: storageFullFailure });
+      default:
+        return yield* read.failure;
+    }
   }
 
   rejected.sort((a, b) => a.line - b.line);

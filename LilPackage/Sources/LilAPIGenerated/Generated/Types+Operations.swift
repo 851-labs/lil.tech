@@ -3240,6 +3240,57 @@ public enum Operations {
                     }
                 }
             }
+            public struct Code507: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/health/batches/{id}/PUT/responses/507/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/health/batches/{id}/PUT/responses/507/content/application\/json`.
+                    case json(Components.Schemas.StorageFull)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.StorageFull {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.HealthUploadBatch.Output.Code507.Body
+                /// Creates a new `Code507`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.HealthUploadBatch.Output.Code507.Body) {
+                    self.body = body
+                }
+            }
+            /// StorageFull
+            ///
+            /// - Remark: Generated from `#/paths//v1/health/batches/{id}/put(healthUploadBatch)/responses/507`.
+            ///
+            /// HTTP response code: `507 code507`.
+            case code507(Operations.HealthUploadBatch.Output.Code507)
+            /// The associated value of the enum case if `self` is `.code507`.
+            ///
+            /// - Throws: An error if `self` is not `.code507`.
+            /// - SeeAlso: `.code507`.
+            public var code507: Operations.HealthUploadBatch.Output.Code507 {
+                get throws {
+                    switch self {
+                    case let .code507(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "code507",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.

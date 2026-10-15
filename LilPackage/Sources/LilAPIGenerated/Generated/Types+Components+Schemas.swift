@@ -204,6 +204,33 @@ extension Components {
                 case message
             }
         }
+        /// - Remark: Generated from `#/components/schemas/StorageFull`.
+        public struct StorageFull: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StorageFull/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case storageFull = "StorageFull"
+            }
+            /// - Remark: Generated from `#/components/schemas/StorageFull/_tag`.
+            public var _tag: Components.Schemas.StorageFull._TagPayload
+            /// - Remark: Generated from `#/components/schemas/StorageFull/quotaBytes`.
+            public var quotaBytes: Swift.Int
+            /// Creates a new `StorageFull`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - quotaBytes:
+            public init(
+                _tag: Components.Schemas.StorageFull._TagPayload,
+                quotaBytes: Swift.Int
+            ) {
+                self._tag = _tag
+                self.quotaBytes = quotaBytes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case quotaBytes
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge`.
         public struct HealthBatchTooLarge: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/_tag`.

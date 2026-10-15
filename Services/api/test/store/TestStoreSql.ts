@@ -7,15 +7,22 @@ const toNode = (value: SqlValue): SQLInputValue =>
 const fromNode = (value: unknown): SqlValue =>
   value instanceof Uint8Array ? value.slice().buffer : (value as SqlValue);
 
+/** A test `StoreSql`, whose reported size a test can set to fill it up. */
+export interface TestStoreSql extends StoreSql {
+  /** Makes `databaseSize` report `bytes`, or the real size again with `null`. */
+  readonly setDatabaseSize: (bytes: number | null) => void;
+}
+
 /**
  * A `StoreSql` over an in-memory `node:sqlite` database, standing in for Durable Object storage.
  * Transactions nest with savepoints, as `transactionSync` does, and `deleteAll` starts a new
  * database, as workerd does.
  */
-export const makeTestStoreSql = (): StoreSql => {
+export const makeTestStoreSql = (): TestStoreSql => {
   let db = new DatabaseSync(":memory:");
   let depth = 0;
   let alarm: number | null = null;
+  let size: number | null = null;
   return {
     exec: (query, ...bindings) =>
       (db.prepare(query).all(...bindings.map(toNode)) as Array<Record<string, unknown>>).map(
@@ -48,6 +55,16 @@ export const makeTestStoreSql = (): StoreSql => {
     getAlarm: async () => alarm,
     setAlarm: async (at) => {
       alarm = at;
+    },
+    databaseSize: () => {
+      if (size !== null) return size;
+      const [row] = db
+        .prepare("SELECT page_count * page_size AS size FROM pragma_page_count, pragma_page_size")
+        .all() as Array<{ size: number }>;
+      return row?.size ?? 0;
+    },
+    setDatabaseSize: (bytes) => {
+      size = bytes;
     },
   };
 };

@@ -14,7 +14,7 @@ import { entities } from "../../src/store/Registry.ts";
 import { sessionExpiresHeader } from "../../src/store/LiveNotices.ts";
 import { makeUserStore, type UserStoreMethods } from "../../src/store/UserStore.ts";
 import { UserStores, userStoreName } from "../../src/store/UserStores.ts";
-import { makeTestStoreSql } from "./TestStoreSql.ts";
+import { makeTestStoreSql, type TestStoreSql } from "./TestStoreSql.ts";
 
 /** An entity for tests, with every column type. */
 export const testNote = defineEntity("test_note", {
@@ -49,7 +49,7 @@ export const makeTestSnapshotFiles = () => {
 
 /** `UserStores` over in-memory test stores, opened on first use like Durable Objects. */
 export const makeTestUserStores = (files?: SnapshotFiles) => {
-  const opened = new Map<string, { sql: StoreSql; store: UserStoreMethods }>();
+  const opened = new Map<string, { sql: TestStoreSql; store: UserStoreMethods }>();
   const stores = UserStores.fromNamespace({
     getByName: (name) => {
       const existing = opened.get(name) ?? makeTestStore(files);
@@ -74,7 +74,7 @@ export const makeTestUserStores = (files?: SnapshotFiles) => {
 export class TestStores extends Context.Service<
   TestStores,
   {
-    readonly sqlFor: (userId: UserId) => StoreSql | undefined;
+    readonly sqlFor: (userId: UserId) => TestStoreSql | undefined;
     readonly snapshotFiles: SnapshotFiles;
     readonly storedSnapshotFiles: Map<string, Uint8Array>;
   }

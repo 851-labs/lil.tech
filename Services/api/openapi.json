@@ -654,6 +654,16 @@
                 }
               }
             }
+          },
+          "507": {
+            "description": "StorageFull",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageFull"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -885,6 +895,26 @@
         "required": [
           "line",
           "message"
+        ]
+      },
+      "StorageFull": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "StorageFull"
+            ]
+          },
+          "quotaBytes": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "_tag",
+          "quotaBytes"
         ]
       },
       "HealthBatchTooLarge": {

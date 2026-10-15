@@ -284,7 +284,8 @@ export const HealthHandlers = HttpApiBuilder.group(
             return yield* new HealthBatchTooLarge({ maxBytes: maxHealthBatchBytes });
           }
           const store = stores.forUser(userId);
-          const known = yield* store.healthBatch(params.id);
+          // Fails with `StorageFull` for a new batch once the store is over its quota.
+          const known = yield* store.checkHealthBatchUpload(params.id);
           if (known !== null) return known;
           // The file and the message come before the status, so a batch recorded as queued is
           // always really queued. A failure in between leaves no status, and the client retries.

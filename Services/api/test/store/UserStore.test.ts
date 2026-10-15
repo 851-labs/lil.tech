@@ -3,7 +3,11 @@ import { Effect, Exit } from "effect";
 import type { UserId } from "../../src/core/Ids.ts";
 import { migrate, type StoreMigration, storeMigrations } from "../../src/store/Migrations.ts";
 import { fromDurableObjectStorage, type StoreSql } from "../../src/store/StoreSql.ts";
-import { makeUserStore, type UserStoreMethods } from "../../src/store/UserStore.ts";
+import {
+  makeUserStore,
+  storageQuotaBytes,
+  type UserStoreMethods,
+} from "../../src/store/UserStore.ts";
 import { UserStores } from "../../src/store/UserStores.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
 
@@ -114,6 +118,69 @@ describe("makeUserStore", () => {
   );
 });
 
+describe("the storage quota", () => {
+  const bloodType = (value: string) =>
+    ({
+      entity: "health_characteristic",
+      op: "upsert",
+      id: "HKCharacteristicTypeIdentifierBloodType",
+      row: { value },
+    }) as const;
+  const batchId = "00000000-0000-4000-8000-000000000001";
+
+  it.effect("takes deletes but no new records once the store is full", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      const store = makeUserStore(sql);
+      yield* store.applyMutations([bloodType("aPositive")]);
+      yield* store.receiveHealthBatch(batchId);
+
+      sql.setDatabaseSize(storageQuotaBytes);
+      const isFull = (error: { readonly _tag: string }) =>
+        assert.strictEqual(error._tag, "StorageFull");
+      assert.deepInclude(yield* Effect.flip(store.applyMutations([bloodType("bNegative")])), {
+        _tag: "StorageFull",
+        quotaBytes: storageQuotaBytes,
+      });
+      isFull(
+        yield* Effect.flip(
+          store.applyMutations([
+            {
+              entity: "health_characteristic",
+              op: "delete",
+              id: "HKCharacteristicTypeIdentifierSex",
+            },
+            bloodType("bNegative"),
+          ]),
+        ),
+      );
+      // A batch it already knows still answers with its status; a new one can't be uploaded.
+      assert.deepInclude(yield* store.checkHealthBatchUpload(batchId), { status: "queued" });
+      isFull(
+        yield* Effect.flip(store.checkHealthBatchUpload("00000000-0000-4000-8000-000000000002")),
+      );
+      const deleted = yield* store.applyMutations([
+        {
+          entity: "health_characteristic",
+          op: "delete",
+          id: "HKCharacteristicTypeIdentifierBloodType",
+        },
+      ]);
+      assert.strictEqual(deleted.appended, 1);
+
+      sql.setDatabaseSize(storageQuotaBytes - 1);
+      yield* store.applyMutations([bloodType("oPositive")]);
+      assert.isNull(yield* store.checkHealthBatchUpload("00000000-0000-4000-8000-000000000002"));
+    }),
+  );
+
+  it("reports the database's real size", () => {
+    const sql = makeTestStoreSql();
+    makeUserStore(sql);
+    assert.isAbove(sql.databaseSize(), 0);
+  });
+});
+
 describe("fromDurableObjectStorage", () => {
   it.effect("runs statements and transactions on workerd's storage", () =>
     Effect.gen(function* () {
@@ -124,6 +191,7 @@ describe("fromDurableObjectStorage", () => {
             calls.push(`exec ${query} ${JSON.stringify(bindings)}`);
             return { toArray: () => [{ n: 1 }] };
           },
+          databaseSize: 4096,
         },
         transactionSync: (body) => {
           calls.push("transactionSync");
@@ -144,6 +212,7 @@ describe("fromDurableObjectStorage", () => {
         },
       });
       assert.deepStrictEqual(sql.exec("SELECT ?", 1), [{ n: 1 }]);
+      assert.strictEqual(sql.databaseSize(), 4096);
       sql.script("CREATE TABLE t (x);");
       assert.strictEqual(
         sql.transaction(() => "done"),

@@ -257,6 +257,7 @@ extension HealthBatchUploader: DependencyKey {
       case .contentTooLarge: throw Rejected(statusCode: 413)
       case .serviceUnavailable: throw Rejected(statusCode: 503)
       case .tooManyRequests: throw Rejected(statusCode: 429)
+      case .code507: throw Rejected(statusCode: 507)
       case .undocumented(let statusCode, _): throw Rejected(statusCode: statusCode)
       }
     }

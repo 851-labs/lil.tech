@@ -17,6 +17,7 @@ import { Identities } from "../src/core/Identities.ts";
 import type { UserId } from "../src/core/Ids.ts";
 import { Users } from "../src/core/Users.ts";
 import { snapshotPolicy } from "../src/store/Snapshots.ts";
+import { storageQuotaBytes } from "../src/store/UserStore.ts";
 import { sessionExpiresHeader } from "../src/store/LiveNotices.ts";
 import { UserStores } from "../src/store/UserStores.ts";
 import { PartUrls } from "../src/sync/SnapshotParts.ts";
@@ -920,6 +921,36 @@ describe("/v1/health/batches", () => {
     ),
   );
 
+  it.live("refuses new uploads once the store is full", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const outbox = yield* TestHealthOutbox;
+        yield* upload(handler, tokens.accessToken, batchId, batchFile(lines));
+        const sql = (yield* TestStores).sqlFor(user.id);
+        assert.isDefined(sql);
+        sql.setDatabaseSize(storageQuotaBytes);
+
+        const refused = yield* upload(
+          handler,
+          tokens.accessToken,
+          "00000000-0000-4000-8000-0000000000b3",
+          batchFile(lines),
+        );
+        assert.deepStrictEqual(refused, {
+          status: 507,
+          body: { _tag: "StorageFull", quotaBytes: storageQuotaBytes },
+        });
+        // Nothing reached the files or the queue.
+        assert.lengthOf(outbox.sent, 1);
+        assert.strictEqual(outbox.files.size, 1);
+        // A batch it already has still answers with its status.
+        const retried = yield* upload(handler, tokens.accessToken, batchId, batchFile(lines));
+        assert.deepInclude(retried, { status: 202 });
+      }),
+    ),
+  );
+
   it.live("DELETE /v1/me removes the account and all of its data", () =>
     withApi((handler) =>
       Effect.gen(function* () {
@@ -1263,6 +1294,7 @@ describe("rate limits", () => {
     ] as const) {
       assert.property(paths[path]?.[method]?.responses, "429", `${method} ${path}`);
     }
+    assert.property(paths["/v1/health/batches/{id}"]?.put?.responses, "507");
     assert.notProperty(paths["/v1/status"]?.get?.responses, "429");
   });
 

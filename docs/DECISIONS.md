@@ -82,6 +82,10 @@
   - The exception is uploads waiting to be applied, such as health batch files. They're staging, not data: keyed by user and batch, deleted once applied, and expired by a 7-day lifecycle rule if anything leaves them behind.
   - Not D1 for user data, because one D1 database has a hard 10 GB cap shared by everyone, and a Worker can't bind a new database per user at runtime.
 - **Backups:** D1 and Durable Object point-in-time recovery (30 days). R2 has none, which is why blobs are immutable.
+- **Storage quota:** each user's store may grow to 8 GB (its SQLite `databaseSize`), below the 10 GB a Durable Object can hold. The rest leaves room for the change log and upkeep.
+  - Over it, the store takes no new records: upserts and new batch uploads fail with 507 `StorageFull`. Deletes still apply, since they make room, and reads keep working.
+  - A queued batch that meets a full store fails ("The storage quota is full") rather than retrying. Chunks it applied before that stay applied.
+  - Uploads check the quota before anything reaches R2, so a full store costs nothing further.
 - **Rate limits** (`src/RateLimits.ts`), counted with the Workers rate limiting binding:
   - Sign-ins: 60 a minute per IP address (`cf-connecting-ip`), shared by Apple, Google and dev sign-in. They're unauthenticated and create accounts, so the address is the only key there is.
   - Refreshes: 600 a minute per IP address, separately, so sign-in attempts can't block refreshes, and every device behind a carrier NAT can still refresh.
