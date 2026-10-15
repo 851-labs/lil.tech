@@ -41,6 +41,15 @@ export class Devices extends Context.Service<
       userId: UserId,
       now: number,
     ) => Effect.Effect<ReadonlyArray<Device>, SqlError.SqlError>;
+    /**
+     * Devices with no live session (none unrevoked and unexpired at `now`) that weren't seen
+     * since `idleSince`, longest unseen first.
+     */
+    readonly listSignedOut: (
+      now: number,
+      idleSince: number,
+      limit: number,
+    ) => Effect.Effect<ReadonlyArray<Device>, SqlError.SqlError>;
     /** Whether the device has any sessions left; none means it signed out for good. */
     readonly hasSessions: (id: DeviceId) => Effect.Effect<boolean, SqlError.SqlError>;
     /**
@@ -97,6 +106,14 @@ export class Devices extends Context.Service<
               WHERE sessions.device_id = devices.id AND sessions.revoked_at IS NULL
                 AND sessions.expires_at > ${now})
             ORDER BY created_at, id`;
+          return yield* Effect.forEach(rows, decodeDevice);
+        }),
+        listSignedOut: Effect.fn("Devices.listSignedOut")(function* (now, idleSince, limit) {
+          const rows = yield* sql`${select} WHERE last_seen_at < ${idleSince} AND NOT EXISTS (
+              SELECT 1 FROM sessions
+              WHERE sessions.device_id = devices.id AND sessions.revoked_at IS NULL
+                AND sessions.expires_at > ${now})
+            ORDER BY last_seen_at, id LIMIT ${limit}`;
           return yield* Effect.forEach(rows, decodeDevice);
         }),
         hasSessions: Effect.fn("Devices.hasSessions")(function* (id) {

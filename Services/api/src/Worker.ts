@@ -7,6 +7,8 @@ import { AppleKeys } from "./auth/Apple.ts";
 import { GoogleClients, GoogleKeys } from "./auth/Google.ts";
 import { SessionKey } from "./auth/Tokens.ts";
 import { CoreDatabase, CoreRepositories } from "./core/CoreDatabase.ts";
+import { retireSignedOutDevices } from "./core/DeviceCleanup.ts";
+import { Devices } from "./core/Devices.ts";
 import { Users } from "./core/Users.ts";
 import { Deployment, environmentForStage } from "./Deployment.ts";
 import { HealthBatchFiles, HealthBatchQueue } from "./health/HealthIngestion.ts";
@@ -112,6 +114,14 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       userStores,
       Users.layer.pipe(Layer.provide(SQL.D1Layer(core))),
     );
+    // Daily, at a quiet hour for most users.
+    yield* Cloudflare.Workers.cron("23 4 * * *", () =>
+      retireSignedOutDevices().pipe(
+        Effect.tap((retired) => Effect.log(`Retired ${retired} signed-out devices`)),
+        Effect.provide(Devices.layer.pipe(Layer.provide(SQL.D1Layer(core)))),
+        Effect.provideService(UserStores, userStores),
+      ),
+    );
     const snapshots = yield* Cloudflare.R2.ReadBucket(yield* SnapshotBucket);
     const limits = RateLimits.make({
       signIn: yield* bindRateLimit("SignInRateLimit", "signIn"),
@@ -191,6 +201,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       Cloudflare.Queues.WriteQueueBinding,
       Cloudflare.Queues.EventSourceLive,
       Cloudflare.RateLimitBinding,
+      Cloudflare.Workers.CronEventSourceLive,
       UserStoreLive,
     ]),
   ),
