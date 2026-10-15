@@ -228,14 +228,14 @@ struct LilSyncEngineTests {
     database = try makeDatabase()
   }
 
-  private func engine(entities: [SyncEntity] = [notes]) -> LilSyncEngine {
+  private func engine(entities: [SyncEntity] = [notes], syncSchema: Int = 1) -> LilSyncEngine {
     withDependencies {
       $0.defaultDatabase = database
       $0.api = server.client
       $0.continuousClock = ImmediateClock()
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
     } operation: {
-      LilSyncEngine(entities: entities)
+      LilSyncEngine(entities: entities, syncSchema: syncSchema)
     }
   }
 
@@ -315,6 +315,31 @@ struct LilSyncEngineTests {
     try await engine().pull()
     #expect(try storedNotes() == [Note(id: "n1", title: "One")])
     #expect(try cursor() == 3)
+  }
+
+  @Test
+  func aNewerSyncSchemaBootstrapsAgainForWhatWasSkipped() async throws {
+    server.append(upsert("n1", "One"))
+    // An older release that didn't store notes moves its cursor past them.
+    let older = engine(entities: [])
+    try await older.bootstrap()
+    try await older.pull()
+    #expect(try storedNotes().isEmpty)
+
+    // A release that stores them without bumping syncSchema never sees the skipped one.
+    try await engine(syncSchema: 1).pull()
+    #expect(try storedNotes().isEmpty)
+
+    // Bumping it starts over from the store, so it arrives.
+    let newer = engine(syncSchema: 2)
+    await #expect(throws: SyncError.needsBootstrap) { try await newer.pull() }
+    try await newer.bootstrap()
+    try await newer.pull()
+    #expect(try storedNotes() == [Note(id: "n1", title: "One")])
+    // Recorded, so it doesn't bootstrap again.
+    server.append(upsert("n2", "Two"))
+    try await newer.pull()
+    #expect(try storedNotes().count == 2)
   }
 
   @Test

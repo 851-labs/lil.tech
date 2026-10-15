@@ -38,6 +38,7 @@ public actor LilSyncEngine {
   /// Where downloaded snapshot parts are kept until they're loaded, by SHA-256, so an
   /// interrupted bootstrap doesn't download them again.
   private let partsDirectory: URL
+  private let syncSchema: Int
 
   private var status = SyncStatus.idle
   private var observers: [UUID: AsyncStream<SyncStatus>.Continuation] = [:]
@@ -46,9 +47,13 @@ public actor LilSyncEngine {
   private var wake: CheckedContinuation<Void, Never>?
 
   /// - Parameters:
+  ///   - syncSchema: The app's sync schema number (`docs/SYNC.md`). Bump it in a release that
+  ///     starts storing a new entity or field: local data synced with a lower number is
+  ///     bootstrapped again, so what was skipped before arrives.
   ///   - partsDirectory: Where to keep downloaded snapshot parts until they're loaded. Defaults
   ///     to a folder in the app's caches.
-  public init(entities: [SyncEntity], partsDirectory: URL? = nil) {
+  public init(entities: [SyncEntity], syncSchema: Int = 1, partsDirectory: URL? = nil) {
+    self.syncSchema = syncSchema
     @Dependency(\.defaultDatabase) var database
     @Dependency(\.api) var api
     @Dependency(\.continuousClock) var clock
@@ -222,6 +227,8 @@ public actor LilSyncEngine {
       let state = try await database.read { try SyncState.fetch($0) }
       // A new device starts from a snapshot rather than replaying the whole log.
       if state.epoch == nil, state.cursor == 0 { throw SyncError.needsBootstrap }
+      // Synced before this release stored some entity or field: start over to get it.
+      if state.epoch != nil, (state.syncSchema ?? 1) < syncSchema { throw SyncError.needsBootstrap }
       let page = try await fetchPage(after: state.cursor)
       if let epoch = state.epoch, epoch != page.epoch { throw SyncError.needsBootstrap }
       if state.cursor > page.head { throw SyncError.needsBootstrap }
@@ -247,7 +254,11 @@ public actor LilSyncEngine {
             reportIssue("Skipped \(change.entity) change \(seq): an upsert without a row")
           }
         }
-        try SyncState(id: SyncState.singletonID, cursor: page.next, epoch: page.epoch).save(db)
+        try SyncState(
+          id: SyncState.singletonID, cursor: page.next, epoch: page.epoch,
+          syncSchema: state.syncSchema
+        )
+        .save(db)
       }
       guard page.hasMore else {
         setStatus(.idle)
@@ -280,7 +291,10 @@ public actor LilSyncEngine {
     guard var manifest = latest.snapshot else {
       try await database.write { [entities] db in
         for entity in entities.values { try entity.clear(db) }
-        try SyncState(id: SyncState.singletonID, cursor: 0, epoch: latest.epoch).save(db)
+        try SyncState(
+          id: SyncState.singletonID, cursor: 0, epoch: latest.epoch, syncSchema: syncSchema
+        )
+        .save(db)
       }
       removeDownloadedParts(keeping: [])
       return
@@ -350,7 +364,11 @@ public actor LilSyncEngine {
       }
     }
     try await database.write { [manifest] db in
-      try SyncState(id: SyncState.singletonID, cursor: manifest.seq, epoch: manifest.epoch).save(db)
+      try SyncState(
+        id: SyncState.singletonID, cursor: manifest.seq, epoch: manifest.epoch,
+        syncSchema: syncSchema
+      )
+      .save(db)
     }
     removeDownloadedParts(keeping: [])
   }
