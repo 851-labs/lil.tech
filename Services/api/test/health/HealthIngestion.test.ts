@@ -303,6 +303,47 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHeal
     }),
   );
 
+  it.effect("applies State of Mind logs and scored assessments", () =>
+    Effect.gen(function* () {
+      const provenance = { sourceName: "Test iPhone", sourceBundleId: "com.apple.health.00000000" };
+      const mood = {
+        entity: "health_state_of_mind",
+        op: "upsert",
+        id: uuid(4500),
+        row: {
+          startDate: 1760400000000,
+          endDate: 1760400000000,
+          kind: 2,
+          valence: 0.4,
+          valenceClassification: 5,
+          labels: [10, 22],
+          associations: [6],
+          ...provenance,
+        },
+      };
+      const gad7 = {
+        entity: "health_scored_assessment",
+        op: "upsert",
+        id: uuid(4501),
+        row: {
+          type: "HKScoredAssessmentTypeIdentifierGAD7",
+          startDate: 1760400000000,
+          endDate: 1760400000000,
+          score: 6,
+          risk: 2,
+          answers: [1, 1, 0, 1, 2, 0, 1],
+          ...provenance,
+        },
+      };
+      const { batch } = yield* ingest([
+        mood,
+        gad7,
+        { ...gad7, id: uuid(4502), row: { ...gad7.row, answers: 3 } },
+      ]);
+      assert.deepInclude(batch, { status: "applied", applied: 2, rejected: 1 });
+    }),
+  );
+
   it.effect("applies deletes as tombstones", () =>
     Effect.gen(function* () {
       yield* ingest([sample(30)]);

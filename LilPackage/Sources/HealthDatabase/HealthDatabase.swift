@@ -45,6 +45,47 @@ public enum HealthDatabase {
       try #sql(#"CREATE INDEX "healthWorkouts_startDate" ON "healthWorkouts" ("startDate")"#)
         .execute(db)
     }
+    migrator.registerMigration("Create State of Mind and scored assessments") { db in
+      try #sql(
+        """
+        CREATE TABLE "healthStateOfMinds" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "startDate" INTEGER NOT NULL,
+          "endDate" INTEGER NOT NULL,
+          "kind" INTEGER NOT NULL,
+          "valence" REAL NOT NULL,
+          "valenceClassification" INTEGER NOT NULL,
+          "labels" TEXT NOT NULL,
+          "associations" TEXT NOT NULL,
+          "sourceName" TEXT NOT NULL,
+          "sourceBundleID" TEXT NOT NULL,
+          "sourceRevision" TEXT,
+          "device" TEXT,
+          "metadata" TEXT
+        ) STRICT
+        """
+      )
+      .execute(db)
+      try #sql(
+        """
+        CREATE TABLE "healthScoredAssessments" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "type" TEXT NOT NULL,
+          "startDate" INTEGER NOT NULL,
+          "endDate" INTEGER NOT NULL,
+          "score" INTEGER NOT NULL,
+          "risk" INTEGER NOT NULL,
+          "answers" TEXT NOT NULL,
+          "sourceName" TEXT NOT NULL,
+          "sourceBundleID" TEXT NOT NULL,
+          "sourceRevision" TEXT,
+          "device" TEXT,
+          "metadata" TEXT
+        ) STRICT
+        """
+      )
+      .execute(db)
+    }
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
@@ -189,6 +230,23 @@ public enum HealthDatabase {
         id: row.id, activityType: row.activityType, startDate: row.startDate,
         endDate: row.endDate, duration: row.duration, activities: try json(row.activities) ?? "[]",
         events: try json(row.events) ?? "[]", statistics: try json(row.statistics) ?? "{}",
+        sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
+        sourceRevision: try json(row.sourceRevision), device: try json(row.device),
+        metadata: try json(row.metadata))
+    },
+    entity("health_state_of_mind", Components.Schemas.HealthStateOfMind.self) { row in
+      HealthStateOfMind(
+        id: row.id, startDate: row.startDate, endDate: row.endDate, kind: row.kind,
+        valence: row.valence, valenceClassification: row.valenceClassification,
+        labels: try json(row.labels) ?? "[]", associations: try json(row.associations) ?? "[]",
+        sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
+        sourceRevision: try json(row.sourceRevision), device: try json(row.device),
+        metadata: try json(row.metadata))
+    },
+    entity("health_scored_assessment", Components.Schemas.HealthScoredAssessment.self) { row in
+      HealthScoredAssessment(
+        id: row.id, type: row._type, startDate: row.startDate, endDate: row.endDate,
+        score: row.score, risk: row.risk, answers: try json(row.answers) ?? "[]",
         sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
         sourceRevision: try json(row.sourceRevision), device: try json(row.device),
         metadata: try json(row.metadata))

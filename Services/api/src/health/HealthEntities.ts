@@ -97,6 +97,50 @@ export const HealthWorkout = defineEntity("health_workout", {
   },
 });
 
+/** State of Mind logs (`HKStateOfMind`): a momentary emotion or a daily mood. */
+export const HealthStateOfMind = defineEntity("health_state_of_mind", {
+  clientWritable: false,
+  id: healthKitUUID,
+  fields: {
+    startDate: Column.integer,
+    endDate: Column.integer,
+    /** `HKStateOfMind.Kind`'s raw value: 1 a momentary emotion, 2 a daily mood. */
+    kind: Column.integer,
+    /** How pleasant, from -1 (very unpleasant) to 1 (very pleasant). */
+    valence: Column.real,
+    /** `HKStateOfMind.ValenceClassification`'s raw value. */
+    valenceClassification: Column.integer,
+    /** `HKStateOfMind.Label` raw values, e.g. 2 for "anxious". */
+    labels: Column.json,
+    /** `HKStateOfMind.Association` raw values, e.g. 6 for "family". */
+    associations: Column.json,
+    ...provenance,
+  },
+  checkRow: (_, row) =>
+    Array.isArray(row.labels) && Array.isArray(row.associations)
+      ? undefined
+      : "labels and associations must be arrays",
+});
+
+/** Scored mental health assessments (`HKScoredAssessment`): GAD-7 (anxiety) and PHQ-9 (depression). */
+export const HealthScoredAssessment = defineEntity("health_scored_assessment", {
+  clientWritable: false,
+  id: healthKitUUID,
+  fields: {
+    /** The type identifier, e.g. `HKScoredAssessmentTypeIdentifierGAD7`. */
+    type: Column.text,
+    startDate: Column.integer,
+    endDate: Column.integer,
+    score: Column.integer,
+    /** The assessment's risk raw value (`HKGAD7Assessment.Risk`, `HKPHQ9Assessment.Risk`). */
+    risk: Column.integer,
+    /** Each question's answer raw value, in order. */
+    answers: Column.json,
+    ...provenance,
+  },
+  checkRow: (_, row) => (Array.isArray(row.answers) ? undefined : "answers must be an array"),
+});
+
 /**
  * Characteristics (date of birth, sex, blood type, skin type, wheelchair use, move mode), keyed by
  * their type identifier.
@@ -198,4 +242,6 @@ export const healthEntities = [
   HealthStatistic,
   HealthStatisticsDevice,
   HealthWorkout,
+  HealthStateOfMind,
+  HealthScoredAssessment,
 ] as const;

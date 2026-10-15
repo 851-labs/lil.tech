@@ -134,6 +134,86 @@ public struct HealthWorkout: Equatable, Identifiable, Sendable {
   }
 }
 
+/// A State of Mind log (`health_state_of_mind`). Labels and associations are JSON arrays of
+/// HealthKit raw values.
+@Table
+public struct HealthStateOfMind: Equatable, Identifiable, Sendable {
+  public let id: String
+  public var startDate: Int
+  public var endDate: Int
+  /// 1 a momentary emotion, 2 a daily mood.
+  public var kind: Int
+  /// From -1 (very unpleasant) to 1 (very pleasant).
+  public var valence: Double
+  public var valenceClassification: Int
+  public var labels: String
+  public var associations: String
+  public var sourceName: String
+  public var sourceBundleID: String
+  public var sourceRevision: String?
+  public var device: String?
+  public var metadata: String?
+
+  public init(
+    id: String, startDate: Int, endDate: Int, kind: Int, valence: Double,
+    valenceClassification: Int, labels: String, associations: String, sourceName: String,
+    sourceBundleID: String, sourceRevision: String? = nil, device: String? = nil,
+    metadata: String? = nil
+  ) {
+    self.id = id
+    self.startDate = startDate
+    self.endDate = endDate
+    self.kind = kind
+    self.valence = valence
+    self.valenceClassification = valenceClassification
+    self.labels = labels
+    self.associations = associations
+    self.sourceName = sourceName
+    self.sourceBundleID = sourceBundleID
+    self.sourceRevision = sourceRevision
+    self.device = device
+    self.metadata = metadata
+  }
+}
+
+/// A GAD-7 or PHQ-9 assessment (`health_scored_assessment`). Answers are a JSON array of
+/// HealthKit raw values, in question order.
+@Table
+public struct HealthScoredAssessment: Equatable, Identifiable, Sendable {
+  public let id: String
+  /// The type identifier, e.g. `HKScoredAssessmentTypeIdentifierGAD7`.
+  public var type: String
+  public var startDate: Int
+  public var endDate: Int
+  public var score: Int
+  public var risk: Int
+  public var answers: String
+  public var sourceName: String
+  public var sourceBundleID: String
+  public var sourceRevision: String?
+  public var device: String?
+  public var metadata: String?
+
+  public init(
+    id: String, type: String, startDate: Int, endDate: Int, score: Int, risk: Int,
+    answers: String, sourceName: String, sourceBundleID: String, sourceRevision: String? = nil,
+    device: String? = nil, metadata: String? = nil
+  ) {
+    self.id = id
+    self.type = type
+    self.startDate = startDate
+    self.endDate = endDate
+    self.score = score
+    self.risk = risk
+    self.answers = answers
+    self.sourceName = sourceName
+    self.sourceBundleID = sourceBundleID
+    self.sourceRevision = sourceRevision
+    self.device = device
+    self.metadata = metadata
+  }
+}
+
 /// The Activity rings for one day, keyed by the day (`YYYY-MM-DD` in the iPhone's calendar).
 @Table
 public struct HealthActivitySummary: Equatable, Identifiable, Sendable {
