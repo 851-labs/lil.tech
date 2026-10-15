@@ -111,9 +111,15 @@ export const AuthHandlers = HttpApiBuilder.group(
     const google = yield* GoogleSignIn;
     const providerSignIn = yield* ProviderSignIn;
     const signIn = (identity: VerifiedIdentity, device: typeof DeviceInfo.Type) =>
-      providerSignIn
-        .signIn(identity, { app: device.app, platform: device.platform, name: device.name ?? null })
-        .pipe(Effect.orDie);
+      Effect.gen(function* () {
+        // Set by Cloudflare; missing only in local runs and tests.
+        const country = (yield* HttpServerRequest.HttpServerRequest).headers["cf-ipcountry"];
+        return yield* providerSignIn.signIn(
+          identity,
+          { app: device.app, platform: device.platform, name: device.name ?? null },
+          country ?? null,
+        );
+      }).pipe(Effect.catchTags({ SqlError: Effect.die, SchemaError: Effect.die }));
     return handlers
       .handle("refresh", ({ payload }) =>
         auth.refresh(payload.refreshToken).pipe(Effect.catchTag("SqlError", Effect.die)),

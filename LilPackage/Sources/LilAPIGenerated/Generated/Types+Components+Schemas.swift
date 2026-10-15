@@ -652,6 +652,33 @@ extension Components {
                 case email
             }
         }
+        /// - Remark: Generated from `#/components/schemas/SignUpUnavailableInRegion`.
+        public struct SignUpUnavailableInRegion: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SignUpUnavailableInRegion/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case signUpUnavailableInRegion = "SignUpUnavailableInRegion"
+            }
+            /// - Remark: Generated from `#/components/schemas/SignUpUnavailableInRegion/_tag`.
+            public var _tag: Components.Schemas.SignUpUnavailableInRegion._TagPayload
+            /// - Remark: Generated from `#/components/schemas/SignUpUnavailableInRegion/message`.
+            public var message: Swift.String
+            /// Creates a new `SignUpUnavailableInRegion`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.SignUpUnavailableInRegion._TagPayload,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case message
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/SignInUnavailable`.
         public struct SignInUnavailable: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/SignInUnavailable/_tag`.

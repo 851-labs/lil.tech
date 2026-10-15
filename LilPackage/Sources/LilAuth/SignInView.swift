@@ -137,6 +137,17 @@ public struct SignInView: View {
     appName: "lil health")
 }
 
+#Preview("Sign-up unavailable in region") {
+  SignInView(
+    store: Store(
+      initialState: SignInFeature.State(
+        status: .failed(SignInError.signUpUnavailableInRegion.message))
+    ) {
+      SignInFeature()
+    },
+    appName: "lil health")
+}
+
 #Preview("Signed in") {
   SignInView(
     store: Store(initialState: SignInFeature.State(status: .signedIn)) { SignInFeature() },

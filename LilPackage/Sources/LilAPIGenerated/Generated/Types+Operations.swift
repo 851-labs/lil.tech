@@ -524,6 +524,57 @@ public enum Operations {
                     }
                 }
             }
+            public struct UnavailableForLegalReasons: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/auth/apple/POST/responses/451/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/auth/apple/POST/responses/451/content/application\/json`.
+                    case json(Components.Schemas.SignUpUnavailableInRegion)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SignUpUnavailableInRegion {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.AuthApple.Output.UnavailableForLegalReasons.Body
+                /// Creates a new `UnavailableForLegalReasons`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.AuthApple.Output.UnavailableForLegalReasons.Body) {
+                    self.body = body
+                }
+            }
+            /// SignUpUnavailableInRegion
+            ///
+            /// - Remark: Generated from `#/paths//v1/auth/apple/post(authApple)/responses/451`.
+            ///
+            /// HTTP response code: `451 unavailableForLegalReasons`.
+            case unavailableForLegalReasons(Operations.AuthApple.Output.UnavailableForLegalReasons)
+            /// The associated value of the enum case if `self` is `.unavailableForLegalReasons`.
+            ///
+            /// - Throws: An error if `self` is not `.unavailableForLegalReasons`.
+            /// - SeeAlso: `.unavailableForLegalReasons`.
+            public var unavailableForLegalReasons: Operations.AuthApple.Output.UnavailableForLegalReasons {
+                get throws {
+                    switch self {
+                    case let .unavailableForLegalReasons(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unavailableForLegalReasons",
+                            response: self
+                        )
+                    }
+                }
+            }
             public struct ServiceUnavailable: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/v1/auth/apple/POST/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
@@ -791,6 +842,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnavailableForLegalReasons: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/v1/auth/google/POST/responses/451/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/v1/auth/google/POST/responses/451/content/application\/json`.
+                    case json(Components.Schemas.SignUpUnavailableInRegion)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SignUpUnavailableInRegion {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.AuthGoogle.Output.UnavailableForLegalReasons.Body
+                /// Creates a new `UnavailableForLegalReasons`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.AuthGoogle.Output.UnavailableForLegalReasons.Body) {
+                    self.body = body
+                }
+            }
+            /// SignUpUnavailableInRegion
+            ///
+            /// - Remark: Generated from `#/paths//v1/auth/google/post(authGoogle)/responses/451`.
+            ///
+            /// HTTP response code: `451 unavailableForLegalReasons`.
+            case unavailableForLegalReasons(Operations.AuthGoogle.Output.UnavailableForLegalReasons)
+            /// The associated value of the enum case if `self` is `.unavailableForLegalReasons`.
+            ///
+            /// - Throws: An error if `self` is not `.unavailableForLegalReasons`.
+            /// - SeeAlso: `.unavailableForLegalReasons`.
+            public var unavailableForLegalReasons: Operations.AuthGoogle.Output.UnavailableForLegalReasons {
+                get throws {
+                    switch self {
+                    case let .unavailableForLegalReasons(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unavailableForLegalReasons",
                             response: self
                         )
                     }

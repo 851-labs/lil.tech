@@ -25,7 +25,7 @@ const signIn = (claims: Record<string, unknown>) =>
     const nonce = crypto.randomUUID();
     const token = yield* googleIdToken({ ...claims, nonce });
     const identity = yield* (yield* GoogleSignIn).verify(token, nonce);
-    const tokens = yield* (yield* ProviderSignIn).signIn(identity, mac);
+    const tokens = yield* (yield* ProviderSignIn).signIn(identity, mac, null);
     return yield* (yield* AccessTokens).verify(tokens.accessToken);
   });
 

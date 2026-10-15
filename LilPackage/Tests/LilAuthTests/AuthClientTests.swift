@@ -70,6 +70,26 @@ struct AuthClientTests {
   }
 
   @Test
+  func aNewAccountFromMainlandChinaIsRefused() async throws {
+    let (auth, store) = makeAuth { _, _ in
+      (
+        HTTPResponse(
+          status: .init(code: 451), headerFields: [.contentType: "application/json"]),
+        HTTPBody(
+          #"{"_tag":"SignUpUnavailableInRegion","message":"lil isn't available in your country or region"}"#
+        )
+      )
+    }
+    await #expect(throws: SignInError.signUpUnavailableInRegion) {
+      try await auth.signInWithApple(AppleCredential(identityToken: "apple-token"), "raw-nonce")
+    }
+    await #expect(throws: SignInError.signUpUnavailableInRegion) {
+      try await auth.signInWithGoogle("google-id-token", "raw-nonce")
+    }
+    #expect(try store.load() == nil)
+  }
+
+  @Test
   func anOutageSaysTryLater() async throws {
     let (auth, _) = makeAuth { _, _ in
       (

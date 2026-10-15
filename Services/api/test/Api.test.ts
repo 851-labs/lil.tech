@@ -284,12 +284,12 @@ describe("WorkerHttpLayer", () => {
 });
 
 describe("POST /v1/auth/apple", () => {
-  const appleSignIn = (handler: Handler, body: unknown) =>
+  const appleSignIn = (handler: Handler, body: unknown, headers: Record<string, string> = {}) =>
     send(
       handler,
       new Request("https://api.lil.tech/v1/auth/apple", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...headers },
         body: JSON.stringify(body),
       }),
     );
@@ -316,6 +316,39 @@ describe("POST /v1/auth/apple", () => {
           displayName: "Ada",
           identities: [{ provider: "apple", email: "x7y2@privaterelay.appleid.com" }],
         });
+      }),
+    ),
+  );
+
+  it.live("doesn't create accounts from mainland China, but signs existing ones in", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const users = yield* Users;
+        const signInAs = (sub: string, country: string) =>
+          Effect.gen(function* () {
+            const nonce = crypto.randomUUID();
+            const identityToken = yield* appleIdentityToken({ sub, nonce });
+            return yield* appleSignIn(
+              handler,
+              { identityToken, nonce, device },
+              { "cf-ipcountry": country },
+            );
+          });
+        const refused = yield* signInAs("000123.http.0002", "CN");
+        assert.deepStrictEqual(refused, {
+          status: 451,
+          body: {
+            _tag: "SignUpUnavailableInRegion",
+            message: "lil isn't available in your country or region",
+          },
+        });
+        assert.strictEqual(yield* users.count, 0);
+
+        assert.strictEqual((yield* signInAs("000123.http.0002", "US")).status, 200);
+        assert.strictEqual((yield* signInAs("000123.http.0002", "CN")).status, 200);
+        // Hong Kong has its own code.
+        assert.strictEqual((yield* signInAs("000123.http.0003", "HK")).status, 200);
+        assert.strictEqual(yield* users.count, 2);
       }),
     ),
   );
@@ -360,6 +393,32 @@ describe("POST /v1/auth/google", () => {
         assert.deepInclude(me.body, {
           identities: [{ provider: "google", email: "ada@example.com" }],
         });
+      }),
+    ),
+  );
+});
+
+describe("POST /v1/auth/google from mainland China", () => {
+  it.live("doesn't create an account", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const nonce = crypto.randomUUID();
+        const idToken = yield* googleIdToken({ sub: "100000000000000000002", nonce });
+        const response = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/auth/google", {
+            method: "POST",
+            headers: { "content-type": "application/json", "cf-ipcountry": "CN" },
+            body: JSON.stringify({
+              idToken,
+              nonce,
+              device: { app: "health-mac", platform: "macos" },
+            }),
+          }),
+        );
+        assert.strictEqual(response.status, 451);
+        assert.propertyVal(response.body, "_tag", "SignUpUnavailableInRegion");
+        assert.strictEqual(yield* (yield* Users).count, 0);
       }),
     ),
   );

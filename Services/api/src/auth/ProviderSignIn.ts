@@ -5,7 +5,7 @@ import { Identities, type IdentityProvider } from "../core/Identities.ts";
 import type { UserId } from "../core/Ids.ts";
 import { Users } from "../core/Users.ts";
 import { Auth } from "./Auth.ts";
-import type { TokenPair } from "./AuthApi.ts";
+import { SignUpUnavailableInRegion, type TokenPair } from "./AuthApi.ts";
 
 /** Who a provider says signed in, from a verified ID token. */
 export interface VerifiedIdentity {
@@ -17,6 +17,13 @@ export interface VerifiedIdentity {
   /** The person's name, if the provider sent one. Apple only sends it on the first sign-in. */
   readonly displayName: string | null;
 }
+
+/**
+ * Countries (Cloudflare's `cf-ipcountry`) where new accounts can't be made: mainland China, whose
+ * data-localization rules we don't meet. The App Store doesn't offer the apps there, but the Mac
+ * app is downloaded directly. Hong Kong, Macau and Taiwan have their own codes.
+ */
+export const noSignUpCountries: ReadonlySet<string> = new Set(["CN"]);
 
 export interface DeviceDetails {
   readonly app: string;
@@ -30,12 +37,17 @@ export class ProviderSignIn extends Context.Service<
   {
     /**
      * Signs the identity in on a new device and starts its session. The identity's user is
-     * created on first sign-in; accounts are never linked by email (`docs/DECISIONS.md`).
+     * created on first sign-in, unless the request came from one of `noSignUpCountries`
+     * (`country`, if known). Accounts are never linked by email (`docs/DECISIONS.md`).
      */
     readonly signIn: (
       identity: VerifiedIdentity,
       device: DeviceDetails,
-    ) => Effect.Effect<TokenPair, SqlError.SqlError | Schema.SchemaError>;
+      country: string | null,
+    ) => Effect.Effect<
+      TokenPair,
+      SqlError.SqlError | Schema.SchemaError | SignUpUnavailableInRegion
+    >;
   }
 >()("lil/api/auth/ProviderSignIn") {
   static readonly layer = Layer.effect(
@@ -46,7 +58,10 @@ export class ProviderSignIn extends Context.Service<
       const devices = yield* Devices;
       const auth = yield* Auth;
 
-      const findOrCreateUser = Effect.fnUntraced(function* (identity: VerifiedIdentity) {
+      const findOrCreateUser = Effect.fnUntraced(function* (
+        identity: VerifiedIdentity,
+        country: string | null,
+      ) {
         const existing = yield* identities.find(identity.provider, identity.subject);
         if (Option.isSome(existing)) {
           // E.g. the first sign-in's request failed after Apple sent the name.
@@ -56,6 +71,11 @@ export class ProviderSignIn extends Context.Service<
           return existing.value.userId;
         }
 
+        if (country !== null && noSignUpCountries.has(country)) {
+          return yield* new SignUpUnavailableInRegion({
+            message: "lil isn't available in your country or region",
+          });
+        }
         const user = yield* users.create({ displayName: identity.displayName });
         const created = yield* identities
           .create({
@@ -78,8 +98,8 @@ export class ProviderSignIn extends Context.Service<
       });
 
       return ProviderSignIn.of({
-        signIn: Effect.fn("ProviderSignIn.signIn")(function* (identity, device) {
-          const userId: UserId = yield* findOrCreateUser(identity);
+        signIn: Effect.fn("ProviderSignIn.signIn")(function* (identity, device, country) {
+          const userId: UserId = yield* findOrCreateUser(identity, country);
           const { id: deviceId } = yield* devices.create({ userId, ...device });
           return yield* auth.issueSession(userId, deviceId);
         }),

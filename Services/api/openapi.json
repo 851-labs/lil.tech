@@ -118,6 +118,16 @@
               }
             }
           },
+          "451": {
+            "description": "SignUpUnavailableInRegion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignUpUnavailableInRegion"
+                }
+              }
+            }
+          },
           "503": {
             "description": "SignInUnavailable",
             "content": {
@@ -176,6 +186,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "SignUpUnavailableInRegion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignUpUnavailableInRegion"
                 }
               }
             }
@@ -1209,6 +1229,24 @@
         "required": [
           "provider",
           "email"
+        ]
+      },
+      "SignUpUnavailableInRegion": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "SignUpUnavailableInRegion"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "message"
         ]
       },
       "SignInUnavailable": {

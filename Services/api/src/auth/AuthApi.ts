@@ -110,6 +110,16 @@ export class SignInUnavailable extends Schema.TaggedError<SignInUnavailable>()(
   { httpApiStatus: 503 },
 ) {}
 
+/**
+ * New accounts can't be made from the request's country: mainland China, for its data-localization
+ * rules (`docs/DECISIONS.md`). Existing accounts still sign in there.
+ */
+export class SignUpUnavailableInRegion extends Schema.TaggedError<SignUpUnavailableInRegion>()(
+  "SignUpUnavailableInRegion",
+  { message: Schema.String },
+  { httpApiStatus: 451 },
+) {}
+
 /** A provider's ID token didn't verify. The app signs in with the provider again. */
 export class InvalidIdentityToken extends Schema.TaggedError<InvalidIdentityToken>()(
   "InvalidIdentityToken",
@@ -130,7 +140,7 @@ export class AuthApi extends HttpApiGroup.make("auth")
     HttpApiEndpoint.post("apple", "/v1/auth/apple", {
       payload: AppleSignInRequest,
       success: TokenPair,
-      error: [InvalidIdentityToken, SignInUnavailable],
+      error: [InvalidIdentityToken, SignInUnavailable, SignUpUnavailableInRegion],
     }).middleware(AddressRateLimit),
   )
   .add(
@@ -139,7 +149,7 @@ export class AuthApi extends HttpApiGroup.make("auth")
     HttpApiEndpoint.post("google", "/v1/auth/google", {
       payload: GoogleSignInRequest,
       success: TokenPair,
-      error: [InvalidIdentityToken, SignInUnavailable],
+      error: [InvalidIdentityToken, SignInUnavailable, SignUpUnavailableInRegion],
     }).middleware(AddressRateLimit),
   )
   .add(
