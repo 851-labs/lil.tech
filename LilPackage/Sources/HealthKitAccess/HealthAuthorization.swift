@@ -17,6 +17,16 @@ public enum PerObjectHealthType: String, CaseIterable, Sendable {
   /// The medication list. Dose events are readable through the same choice.
   case medications
   case visionPrescriptions
+
+  /// The catalog type whose sheet this is.
+  public var catalogType: HealthDataType? {
+    let kind: HealthDataType.Kind =
+      switch self {
+      case .medications: .medication
+      case .visionPrescriptions: .visionPrescription
+      }
+    return HealthCatalog.all.first { $0.kind == kind && $0.readAuthorization == .perObject }
+  }
 }
 
 /// Read access to Apple Health. HealthKit never says which types were denied: a denied type just
@@ -29,7 +39,8 @@ public struct HealthAuthorization: Sendable {
   public var needsRequest: @Sendable () async throws -> Bool
   /// Shows the system sheet for every standard read type, characteristics included.
   public var requestRead: @Sendable () async throws -> Void
-  /// Shows the sheet where the person picks which medications or prescriptions to share.
+  /// Shows the sheet where the person picks which medications or prescriptions to share. Having
+  /// none, or closing the sheet, isn't an error.
   public var requestPerObject: @Sendable (PerObjectHealthType) async throws -> Void
 
   public init(
@@ -72,12 +83,12 @@ extension HealthAuthorization: DependencyKey {
       },
       requestRead: { try await store.requestAuthorization(toShare: [], read: readTypes) },
       requestPerObject: { type in
-        let objectType: HKObjectType =
-          switch type {
-          case .medications: HKObjectType.userAnnotatedMedicationType()
-          case .visionPrescriptions: HKObjectType.visionPrescriptionType()
-          }
-        try await store.requestPerObjectReadAuthorization(for: objectType, predicate: nil)
+        guard let objectType = type.catalogType?.objectType else { return }
+        do {
+          try await store.requestPerObjectReadAuthorization(for: objectType, predicate: nil)
+        } catch let error as HKError where [.errorNoData, .errorUserCanceled].contains(error.code) {
+          // Nothing to choose from, or the sheet was closed: not a failure.
+        }
       }
     )
   }

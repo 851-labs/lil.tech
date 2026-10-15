@@ -10,6 +10,7 @@ extension HealthDataType {
     case .quantity: HKObjectType.quantityType(forIdentifier: .init(rawValue: id))
     case .category: HKObjectType.categoryType(forIdentifier: .init(rawValue: id))
     case .characteristic: HKObjectType.characteristicType(forIdentifier: .init(rawValue: id))
+    // There's no optional factory for these; `HealthCatalogTests` checks the identifiers.
     case .scoredAssessment: HKScoredAssessmentType(HKScoredAssessmentTypeIdentifier(rawValue: id))
     case .workout: HKObjectType.workoutType()
     case .workoutRoute: HKSeriesType.workoutRoute()

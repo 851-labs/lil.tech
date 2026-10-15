@@ -61,6 +61,8 @@ public struct HealthAccessView: View {
       .buttonStyle(.borderedProminent)
       .controlSize(.large)
       .disabled(store.step == .requesting)
+      Button("Not Now") { store.send(.notNowButtonTapped) }
+        .disabled(store.step == .requesting)
     }
   }
 
@@ -84,6 +86,7 @@ public struct HealthAccessView: View {
       }
       .buttonStyle(.bordered)
       .controlSize(.large)
+      .disabled(store.isChoosing)
       Text(
         """
         Health doesn't tell apps what you turned off. If something stays empty, check Settings › \
@@ -123,5 +126,13 @@ public struct HealthAccessView: View {
     store: Store(
       initialState: HealthAccessFeature.State(
         failure: "Health isn't available on this device.")
+    ) { EmptyReducer() })
+}
+
+#Preview("Medications and prescriptions, failed") {
+  HealthAccessView(
+    store: Store(
+      initialState: HealthAccessFeature.State(
+        step: .perObject, failure: "Health couldn't show your medications.")
     ) { EmptyReducer() })
 }

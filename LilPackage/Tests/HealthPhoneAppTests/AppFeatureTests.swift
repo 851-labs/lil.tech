@@ -26,12 +26,42 @@ struct AppFeatureTests {
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = true
     }
-    await store.receive(\.healthAccessChecked)
+    // The sheet was answered before, but the medications step never offered.
+    await store.receive(\.healthAccessChecked) {
+      $0.healthAccess = HealthAccessFeature.State(step: .perObject)
+    }
     await task.cancel()
   }
 
   @Test
   func asksForHealthAccessAfterSigningIn() async {
+    let needsRequest = LockIsolated(true)
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
+      AppFeature()
+    } withDependencies: {
+      $0.healthAuthorization.isAvailable = { true }
+      $0.healthAuthorization.needsRequest = { needsRequest.value }
+    }
+
+    await store.send(.signedInChanged(true)) {
+      $0.isSignedIn = true
+    }
+    await store.receive(\.healthAccessChecked) {
+      $0.healthAccess = HealthAccessFeature.State()
+    }
+    await store.send(.healthAccess(.delegate(.finished))) {
+      $0.healthAccess = nil
+      $0.$offeredPerObject.withLock { $0 = true }
+    }
+
+    // Once everything was offered and Health has nothing to ask, there's no onboarding.
+    needsRequest.setValue(false)
+    await store.send(.signedInChanged(true))
+    await store.receive(\.healthAccessChecked)
+  }
+
+  @Test
+  func notNowShowsHomeAndOnboardingReturnsLater() async {
     let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
       AppFeature()
     } withDependencies: {
@@ -45,8 +75,12 @@ struct AppFeatureTests {
     await store.receive(\.healthAccessChecked) {
       $0.healthAccess = HealthAccessFeature.State()
     }
-    await store.send(.healthAccess(.delegate(.finished))) {
+    await store.send(.healthAccess(.delegate(.skipped))) {
       $0.healthAccess = nil
+    }
+    await store.send(.signedInChanged(true))
+    await store.receive(\.healthAccessChecked) {
+      $0.healthAccess = HealthAccessFeature.State()
     }
   }
 

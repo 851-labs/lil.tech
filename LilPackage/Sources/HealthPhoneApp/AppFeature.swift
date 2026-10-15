@@ -10,8 +10,11 @@ public struct AppFeature {
     /// `nil` until the stored session has been checked.
     public var isSignedIn: Bool?
     public var signIn = SignInFeature.State()
-    /// Asking for Health access, after signing in, while Health has types to ask about.
+    /// Asking for Health access, after signing in, while Health has types to ask about or the
+    /// medications and prescriptions step hasn't been offered yet.
     public var healthAccess: HealthAccessFeature.State?
+    /// Whether onboarding got to the end once, medications and prescriptions included.
+    @Shared(.appStorage("offeredPerObjectHealthTypes")) public var offeredPerObject = false
 
     public init(isSignedIn: Bool? = nil, healthAccess: HealthAccessFeature.State? = nil) {
       self.isSignedIn = isSignedIn
@@ -40,6 +43,11 @@ public struct AppFeature {
     Reduce { state, action in
       switch action {
       case .healthAccess(.delegate(.finished)):
+        state.$offeredPerObject.withLock { $0 = true }
+        state.healthAccess = nil
+        return .none
+
+      case .healthAccess(.delegate(.skipped)):
         state.healthAccess = nil
         return .none
 
@@ -47,8 +55,12 @@ public struct AppFeature {
         return .none
 
       case .healthAccessChecked(let needsRequest):
-        if needsRequest, state.isSignedIn == true, state.healthAccess == nil {
+        guard state.isSignedIn == true, state.healthAccess == nil else { return .none }
+        if needsRequest {
           state.healthAccess = HealthAccessFeature.State()
+        } else if !state.offeredPerObject {
+          // The system sheet was answered, but onboarding stopped before its last step.
+          state.healthAccess = HealthAccessFeature.State(step: .perObject)
         }
         return .none
 

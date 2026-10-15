@@ -11,6 +11,8 @@ public struct HealthAccessFeature {
     public var step: Step
     /// Why the last request failed, if it did.
     public var failure: String?
+    /// A medications or prescriptions sheet is open.
+    public var isChoosing = false
 
     public enum Step: Equatable {
       /// Explains what's read, before the system sheet.
@@ -20,9 +22,10 @@ public struct HealthAccessFeature {
       case perObject
     }
 
-    public init(step: Step = .explain, failure: String? = nil) {
+    public init(step: Step = .explain, failure: String? = nil, isChoosing: Bool = false) {
       self.step = step
       self.failure = failure
+      self.isChoosing = isChoosing
     }
   }
 
@@ -30,14 +33,19 @@ public struct HealthAccessFeature {
     case continueButtonTapped
     case readRequestFinished
     case perObjectButtonTapped(PerObjectHealthType)
+    case perObjectRequestFinished
     /// A request failed, with why.
     case requestFailed(String)
     case doneButtonTapped
+    /// Skips onboarding for now. It's offered again until Health has nothing left to ask.
+    case notNowButtonTapped
     case delegate(Delegate)
 
     @CasePathable
     public enum Delegate {
+      /// Every step was offered.
       case finished
+      case skipped
     }
   }
 
@@ -66,22 +74,33 @@ public struct HealthAccessFeature {
         return .none
 
       case .perObjectButtonTapped(let type):
+        guard !state.isChoosing else { return .none }
         state.failure = nil
+        state.isChoosing = true
         return .run { [healthAuthorization] send in
           do {
             try await healthAuthorization.requestPerObject(type)
+            await send(.perObjectRequestFinished)
           } catch {
             await send(.requestFailed(error.localizedDescription))
           }
         }
 
+      case .perObjectRequestFinished:
+        state.isChoosing = false
+        return .none
+
       case .requestFailed(let failure):
         if state.step == .requesting { state.step = .explain }
+        state.isChoosing = false
         state.failure = failure
         return .none
 
       case .doneButtonTapped:
         return .send(.delegate(.finished))
+
+      case .notNowButtonTapped:
+        return .send(.delegate(.skipped))
 
       case .delegate:
         return .none

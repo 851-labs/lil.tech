@@ -85,7 +85,8 @@ let package = Package(
     .testTarget(
       name: "HealthCatalogTests",
       dependencies: [
-        "HealthCatalog"
+        "HealthCatalog",
+        "HealthKitAccess",
       ]
     ),
     .target(

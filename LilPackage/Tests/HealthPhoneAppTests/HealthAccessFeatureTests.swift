@@ -24,7 +24,12 @@ struct HealthAccessFeatureTests {
     await store.receive(\.readRequestFinished) {
       $0.step = .perObject
     }
-    await store.send(.perObjectButtonTapped(.medications)).finish()
+    await store.send(.perObjectButtonTapped(.medications)) {
+      $0.isChoosing = true
+    }
+    await store.receive(\.perObjectRequestFinished) {
+      $0.isChoosing = false
+    }
     #expect(asked.value == [.medications])
     await store.send(.doneButtonTapped)
     await store.receive(\.delegate.finished)
@@ -45,5 +50,26 @@ struct HealthAccessFeatureTests {
       $0.step = .explain
       $0.failure = Unavailable().localizedDescription
     }
+  }
+
+  @Test
+  func oneSheetAtATime() async {
+    let store = TestStore(
+      initialState: HealthAccessFeature.State(step: .perObject, isChoosing: true)
+    ) {
+      HealthAccessFeature()
+    }
+
+    await store.send(.perObjectButtonTapped(.visionPrescriptions))
+  }
+
+  @Test
+  func notNow() async {
+    let store = TestStore(initialState: HealthAccessFeature.State()) {
+      HealthAccessFeature()
+    }
+
+    await store.send(.notNowButtonTapped)
+    await store.receive(\.delegate.skipped)
   }
 }

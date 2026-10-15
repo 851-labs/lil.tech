@@ -67,6 +67,7 @@ struct HealthCatalogTests {
 
 #if os(macOS)
   import HealthKit
+  import HealthKitAccess
 
   /// Checks the catalog against the SDK's headers and HealthKit itself. The headers are read
   /// from the macOS SDK with `xcrun`, so these only run on macOS.
@@ -95,23 +96,24 @@ struct HealthCatalogTests {
     }
 
     /// Catalog IDs are HealthKit's runtime values, which aren't always the constants' names.
+    /// Types newer than this Mac's OS are skipped, since HealthKit doesn't know them yet.
     @Test
     func identifiersAreHealthKitsValues() {
-      for type in HealthCatalog.all {
-        let objectType: HKObjectType? =
-          switch type.kind {
-          case .quantity: HKObjectType.quantityType(forIdentifier: .init(rawValue: type.id))
-          case .category: HKObjectType.categoryType(forIdentifier: .init(rawValue: type.id))
-          case .characteristic:
-            HKObjectType.characteristicType(forIdentifier: .init(rawValue: type.id))
-          case .correlation:
-            HKObjectType.correlationType(forIdentifier: .init(rawValue: type.id))
-          case .document: HKObjectType.documentType(forIdentifier: .init(rawValue: type.id))
-          default: nil
-          }
-        guard [.quantity, .category, .characteristic, .correlation, .document].contains(type.kind)
-        else { continue }
-        #expect(objectType?.identifier == type.id, "\(type.id) isn't a HealthKit identifier")
+      let os = ProcessInfo.processInfo.operatingSystemVersion
+      let host = IOSVersion(os.majorVersion, os.minorVersion)
+      for type in HealthCatalog.all where type.introduced <= host {
+        let identifier: String?
+        switch type.kind {
+        case .correlation:
+          identifier =
+            HKObjectType.correlationType(forIdentifier: .init(rawValue: type.id))?
+            .identifier
+        case .quantity, .category, .characteristic, .document, .scoredAssessment:
+          identifier = type.objectType?.identifier
+        default:
+          continue
+        }
+        #expect(identifier == type.id, "\(type.id) isn't a HealthKit identifier")
       }
       #expect(
         HKCategoryTypeIdentifier.environmentalAudioExposureEvent.rawValue
