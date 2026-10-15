@@ -92,6 +92,48 @@ public struct HealthCharacteristic: Equatable, Identifiable, Sendable {
   }
 }
 
+/// A workout (`health_workout`). Its activities, events and statistics are JSON text, as the
+/// server documents them (`HealthWorkout` in `Services/api/src/health/HealthEntities.ts`).
+@Table
+public struct HealthWorkout: Equatable, Identifiable, Sendable {
+  public let id: String
+  /// `HKWorkoutActivityType`'s raw value.
+  public var activityType: Int
+  public var startDate: Int
+  public var endDate: Int
+  /// Seconds of activity, excluding pauses.
+  public var duration: Double
+  public var activities: String
+  public var events: String
+  public var statistics: String
+  public var sourceName: String
+  public var sourceBundleID: String
+  public var sourceRevision: String?
+  public var device: String?
+  public var metadata: String?
+
+  public init(
+    id: String, activityType: Int, startDate: Int, endDate: Int, duration: Double,
+    activities: String, events: String, statistics: String, sourceName: String,
+    sourceBundleID: String, sourceRevision: String? = nil, device: String? = nil,
+    metadata: String? = nil
+  ) {
+    self.id = id
+    self.activityType = activityType
+    self.startDate = startDate
+    self.endDate = endDate
+    self.duration = duration
+    self.activities = activities
+    self.events = events
+    self.statistics = statistics
+    self.sourceName = sourceName
+    self.sourceBundleID = sourceBundleID
+    self.sourceRevision = sourceRevision
+    self.device = device
+    self.metadata = metadata
+  }
+}
+
 /// The Activity rings for one day, keyed by the day (`YYYY-MM-DD` in the iPhone's calendar).
 @Table
 public struct HealthActivitySummary: Equatable, Identifiable, Sendable {

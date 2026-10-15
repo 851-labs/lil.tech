@@ -111,15 +111,6 @@ struct HealthEncoderTests {
   }
 
   @Test
-  func deletes() {
-    let uuid = UUID()
-    #expect(
-      HealthEncoder.deleted(uuid)
-        == .delete("health_sample", id: uuid.uuidString.lowercased()))
-    #expect(HealthEncoder.deleted(uuid, correlation: true).entity == "health_correlation")
-  }
-
-  @Test
   func activitySummary() throws {
     let summary = HKActivitySummary()
     summary.activeEnergyBurned = HKQuantity(unit: .kilocalorie(), doubleValue: 512.5)

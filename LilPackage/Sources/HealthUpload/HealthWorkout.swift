@@ -173,19 +173,18 @@ extension HealthEncoder {
   }
 
   private static func statistics(_ statistics: [WorkoutRecord.Statistic]) -> JSONValue {
-    let number = { (value: Double?) in value.map(JSONValue.number) ?? .null }
-    return .object(
+    .object(
       Dictionary(
-        statistics.map { statistic in
+        uniqueKeysWithValues: statistics.map { statistic in
           (
             statistic.type,
             JSONValue.object([
-              "unit": .string(statistic.unit), "sum": number(statistic.sum),
-              "average": number(statistic.average), "minimum": number(statistic.minimum),
-              "maximum": number(statistic.maximum), "mostRecent": number(statistic.mostRecent),
+              "unit": .string(statistic.unit), "sum": JSONValue(statistic.sum),
+              "average": JSONValue(statistic.average), "minimum": JSONValue(statistic.minimum),
+              "maximum": JSONValue(statistic.maximum),
+              "mostRecent": JSONValue(statistic.mostRecent),
             ])
           )
-        },
-        uniquingKeysWith: { first, _ in first }))
+        }))
   }
 }

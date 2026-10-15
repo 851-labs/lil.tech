@@ -20,6 +20,34 @@ public enum HealthDatabase {
   }
 
   public static func registerMigrations(in migrator: inout DatabaseMigrator) {
+    registerHealthTables(in: &migrator)
+    migrator.registerMigration("Create health workouts") { db in
+      try #sql(
+        """
+        CREATE TABLE "healthWorkouts" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "activityType" INTEGER NOT NULL,
+          "startDate" INTEGER NOT NULL,
+          "endDate" INTEGER NOT NULL,
+          "duration" REAL NOT NULL,
+          "activities" TEXT NOT NULL,
+          "events" TEXT NOT NULL,
+          "statistics" TEXT NOT NULL,
+          "sourceName" TEXT NOT NULL,
+          "sourceBundleID" TEXT NOT NULL,
+          "sourceRevision" TEXT,
+          "device" TEXT,
+          "metadata" TEXT
+        ) STRICT
+        """
+      )
+      .execute(db)
+      try #sql(#"CREATE INDEX "healthWorkouts_startDate" ON "healthWorkouts" ("startDate")"#)
+        .execute(db)
+    }
+  }
+
+  private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
     migrator.registerMigration("Create health tables") { db in
       try #sql(
         """
@@ -155,6 +183,15 @@ public enum HealthDatabase {
       HealthStatistic(
         id: row.id, device: row.device, type: row._type, bucketStart: row.bucketStart,
         sum: row.sum, unit: row.unit)
+    },
+    entity("health_workout", Components.Schemas.HealthWorkout.self) { row in
+      HealthWorkout(
+        id: row.id, activityType: row.activityType, startDate: row.startDate,
+        endDate: row.endDate, duration: row.duration, activities: try json(row.activities) ?? "[]",
+        events: try json(row.events) ?? "[]", statistics: try json(row.statistics) ?? "{}",
+        sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
+        sourceRevision: try json(row.sourceRevision), device: try json(row.device),
+        metadata: try json(row.metadata))
     },
     entity("health_statistics_device", Components.Schemas.HealthStatisticsDevice.self) { row in
       HealthStatisticsDevice(

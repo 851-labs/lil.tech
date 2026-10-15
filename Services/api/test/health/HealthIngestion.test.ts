@@ -287,8 +287,12 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHeal
           sourceBundleId: "com.apple.health.00000000",
         },
       };
-      const { batch } = yield* ingest([workout, { ...workout, id: "not-a-uuid" }]);
-      assert.deepInclude(batch, { status: "applied", applied: 1, rejected: 1 });
+      const { batch } = yield* ingest([
+        workout,
+        { ...workout, id: "not-a-uuid" },
+        { ...workout, id: uuid(4402), row: { ...workout.row, statistics: [] } },
+      ]);
+      assert.deepInclude(batch, { status: "applied", applied: 1, rejected: 2 });
       const sql = (yield* TestStores).sqlFor(userId);
       const [row] =
         sql?.exec("SELECT activity_type, events FROM health_workout WHERE id = ?", id) ?? [];

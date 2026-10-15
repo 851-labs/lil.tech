@@ -151,9 +151,8 @@ extension HealthReader: DependencyKey {
           reportIssue(error)
         }
       }
-      mutations += result.deletedObjects.map {
-        .delete(type.entity, id: HealthEncoder.id($0.uuid))
-      }
+      let entity = type.entity
+      mutations += result.deletedObjects.map { .delete(entity, id: HealthEncoder.id($0.uuid)) }
       return HealthPage(
         mutations: mutations,
         anchor: try NSKeyedArchiver.archivedData(

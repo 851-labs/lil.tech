@@ -72,7 +72,8 @@ export const HealthWorkout = defineEntity("health_workout", {
     duration: Column.real,
     /**
      * `HKWorkoutActivity`s, in order: `{ id, activityType, startDate, endDate, duration,
-     * metadata, statistics }`. A single-activity workout has one.
+     * metadata, statistics }`. Often empty: HealthKit only has them for workouts recorded with
+     * activities (e.g. multisport), so read `activityType` and `statistics` for the whole.
      */
     activities: Column.json,
     /** `HKWorkoutEvent`s, in order: `{ type, startDate, endDate, metadata }`. */
@@ -83,6 +84,16 @@ export const HealthWorkout = defineEntity("health_workout", {
      */
     statistics: Column.json,
     ...provenance,
+  },
+  // The JSON fields' shapes, so a client can rely on them.
+  checkRow: (_, row) => {
+    if (!Array.isArray(row.activities)) return "activities must be an array";
+    if (!Array.isArray(row.events)) return "events must be an array";
+    const { statistics } = row;
+    if (typeof statistics !== "object" || statistics === null || Array.isArray(statistics)) {
+      return "statistics must be an object";
+    }
+    return undefined;
   },
 });
 

@@ -309,6 +309,14 @@ struct HealthSyncTests {
       Components.Schemas.Change(
         seq: 7, entity: "health_correlation", id: "6f1c2a40-0000-4000-8000-000000000002",
         op: "delete", at: 1_760_400_000_000),
+      upsert(
+        8, "health_workout", "6f1c2a40-0000-4000-8000-000000000003",
+        """
+        "activityType": 37, "startDate": 1760400000000, "endDate": 1760401800000,
+        "duration": 1740, "activities": [], "events": [{"type": 1}],
+        "statistics": {"HKQuantityTypeIdentifierActiveEnergyBurned": {"unit": "kcal", "sum": 312.5}},
+        "sourceName": "Test Watch", "sourceBundleId": "com.example.watch"
+        """),
     ]
     let api = Client.mock { request, _ in
       #expect(request.path?.hasPrefix("/v1/sync/changes") == true)
@@ -317,7 +325,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 7, head: 7, hasMore: false)))
+              epoch: 1, changes: changes, next: 8, head: 8, hasMore: false)))
       )
     }
     let engine = withDependencies {
@@ -347,6 +355,12 @@ struct HealthSyncTests {
     #expect(characteristics.map(\.value) == [#"{"day":2,"month":4,"year":1990}"#])
     #expect(summaries.map(\.activeEnergyBurned) == [512.5])
     #expect(correlations == 0)
+    let workouts = try await database.read { db in try HealthWorkout.fetchAll(db) }
+    #expect(workouts.map(\.activityType) == [37])
+    #expect(workouts.first?.events == #"[{"type":1}]"#)
+    #expect(
+      workouts.first?.statistics
+        == #"{"HKQuantityTypeIdentifierActiveEnergyBurned":{"sum":312.5,"unit":"kcal"}}"#)
   }
 
   /// An upsert whose row is `id` plus the given JSON object members.
