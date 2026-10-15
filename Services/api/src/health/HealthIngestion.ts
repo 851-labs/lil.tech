@@ -81,6 +81,7 @@ const parseLine = (
   content: string,
   deviceId: DeviceId | undefined,
   now: number,
+  deviceRetired: boolean,
 ): Result.Result<Mutation, string> => {
   const decoded = decodeMutation(content);
   if (Result.isFailure(decoded)) return Result.fail(decoded.failure.message);
@@ -89,6 +90,8 @@ const parseLine = (
   if (entity === undefined) return Result.fail(`Not a health entity: ${mutation.entity}`);
   if (entity.deviceScoped !== undefined) {
     if (deviceId === undefined) return Result.fail(`${entity.name} needs the uploading device`);
+    // Its records were deleted when it signed out (`docs/SYNC.md`), and mustn't come back.
+    if (deviceRetired) return Result.fail("The device signed out");
     if (!entity.deviceScoped.id.test(mutation.id)) {
       return Result.fail(`Invalid ${entity.name} ID ${mutation.id}`);
     }
@@ -206,6 +209,9 @@ const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessag
     });
 
   yield* store.saveHealthBatch({ id: message.batchId, status: "applying", receivedAt });
+  // Checked once for the batch: all its device-scoped lines are from the same device.
+  const deviceRetired =
+    message.deviceId !== undefined && (yield* store.isRetired(message.deviceId));
   const stream = yield* files.open(key);
   if (Option.isNone(stream)) {
     return yield* finish({ status: "failed", failure: "The batch file is missing" });
@@ -241,7 +247,12 @@ const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessag
         rejected.push({ line, message: `Longer than ${maxBatchLineLength} characters` });
         return;
       }
-      const parsed = parseLine(content, message.deviceId, yield* Clock.currentTimeMillis);
+      const parsed = parseLine(
+        content,
+        message.deviceId,
+        yield* Clock.currentTimeMillis,
+        deviceRetired,
+      );
       if (Result.isFailure(parsed)) {
         rejected.push({ line, message: parsed.failure });
         return;

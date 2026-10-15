@@ -38,7 +38,13 @@ import {
   writeSnapshotStep,
 } from "./Snapshots.ts";
 import { entities } from "./Registry.ts";
-import { hasRetiringDevices, markRetired, retiredAmong, retireStep } from "./RetiredDevices.ts";
+import {
+  hasRetiringDevices,
+  markRetired,
+  retiredAmong,
+  retireStep,
+  retireStepInterval,
+} from "./RetiredDevices.ts";
 import { fromDurableObjectStorage, type StoreSql } from "./StoreSql.ts";
 
 /**
@@ -95,6 +101,9 @@ export const makeUserStore = (
       Effect.map((now) => readHealthBatch(sql, id, now)),
     );
 
+  /** Whether a retired device still has records to delete, kept so writes don't have to ask. */
+  let retiring = hasRetiringDevices(sql);
+
   /** When the alarm is set for, once known, so most writes don't have to ask. */
   let alarmAt: number | null | undefined;
   /**
@@ -108,8 +117,8 @@ export const makeUserStore = (
     // Socket expiries only change when a client connects and when the alarm runs, so writes
     // skip listing the sockets: an alarm already set for an expiry is never moved later.
     const expiry = options.sockets === true ? yield* notices.nextExpiry : null;
-    const retiring = hasRetiringDevices(sql) ? now : null;
-    const times = [nextAlarmAt(sql, now), expiry, retiring].filter(
+    const retireAt = retiring ? now + retireStepInterval : null;
+    const times = [nextAlarmAt(sql, now), expiry, retireAt].filter(
       (time): time is number => time !== null,
     );
     if (times.length === 0) return;
@@ -134,8 +143,11 @@ export const makeUserStore = (
         yield* ensureNotDeleted;
         const now = yield* Clock.currentTimeMillis;
         markRetired(sql, device, now);
+        retiring = true;
         yield* scheduleAlarm(now);
       }),
+    /** Whether a device was retired, so its records are refused. */
+    isRetired: (device: string) => Effect.sync(() => retiredAmong(sql, new Set([device])).size > 0),
     /** The store's schema version, which can be newer than this code's after a rollback. */
     schemaVersion: () => Effect.sync(() => schemaVersion(sql)),
     /**
@@ -197,22 +209,24 @@ export const makeUserStore = (
         if (mutations.some((mutation) => mutation.op === "upsert")) {
           yield* ensureRoom(storageHardLimitBytes);
         }
-        // A retired device's records are being deleted; one still in the queue mustn't come back.
-        const devices = new Map<string, number>();
-        for (const [index, mutation] of mutations.entries()) {
-          const device = mutation.op === "upsert" ? mutation.row["device"] : undefined;
-          if (
-            typeof device === "string" &&
-            entitiesByName.get(mutation.entity)?.deviceScoped !== undefined &&
-            !devices.has(device)
-          ) {
-            devices.set(device, index);
-          }
-        }
-        const retired = [...retiredAmong(sql, new Set(devices.keys()))];
-        const first = Math.min(...retired.map((device) => devices.get(device) ?? 0));
-        if (retired.length > 0) {
-          return yield* new InvalidMutation({ index: first, message: "The device signed out" });
+        // A retired device's records are deleted, and mustn't come back. Ingestion drops them
+        // first (`isRetired`), so this is a backstop.
+        const deviceOf = (mutation: Mutation) =>
+          mutation.op === "upsert" &&
+          entitiesByName.get(mutation.entity)?.deviceScoped !== undefined &&
+          typeof mutation.row["device"] === "string"
+            ? mutation.row["device"]
+            : undefined;
+        const retired = retiredAmong(
+          sql,
+          new Set(mutations.map(deviceOf).filter((device) => device !== undefined)),
+        );
+        const index = mutations.findIndex((mutation) => {
+          const device = deviceOf(mutation);
+          return device !== undefined && retired.has(device);
+        });
+        if (index !== -1) {
+          return yield* new InvalidMutation({ index, message: "The device signed out" });
         }
         const at = yield* Clock.currentTimeMillis;
         const applied = yield* Effect.suspend(() => {
@@ -264,7 +278,10 @@ export const makeUserStore = (
         yield* notices.closeExpired(now);
         yield* writeSnapshotStep(sql, registry, files, now);
         yield* doUpkeep(sql, files, now);
-        if (retireStep(sql, registry, now) > 0) yield* notices.notify(now);
+        if (retiring) {
+          if (retireStep(sql, registry, now) > 0) yield* notices.notify(now);
+          retiring = hasRetiringDevices(sql);
+        }
         yield* scheduleAlarm(now, { afterAlarm: true, sockets: true });
       }).pipe(
         Effect.catchCause((cause) =>

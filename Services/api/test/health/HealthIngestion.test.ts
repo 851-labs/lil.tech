@@ -230,6 +230,25 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHeal
     }),
   );
 
+  it.effect("drops a signed-out device's statistics, applying the rest of its batch", () =>
+    Effect.gen(function* () {
+      const retiredDevice = "dev_000000000000000000000000zz" as DeviceId;
+      yield* ingest([sample(4300)]);
+      yield* (yield* UserStores).forUser(userId).retireDevice(retiredDevice);
+      const { batch } = yield* ingest(
+        [statistic(1760400000000 + 30 * 60 * 1000 * 7, 5), sample(4301)],
+        newBatchId(),
+        retiredDevice,
+      );
+      assert.deepInclude(batch, {
+        status: "applied",
+        applied: 1,
+        rejected: 1,
+        rejectedLines: [{ line: 1, message: "The device signed out" }],
+      });
+    }),
+  );
+
   it.effect("applies deletes as tombstones", () =>
     Effect.gen(function* () {
       yield* ingest([sample(30)]);

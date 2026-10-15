@@ -111,7 +111,7 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
         retired_at INTEGER NOT NULL,
         cleared_at INTEGER
       ) STRICT;
-      CREATE INDEX health_statistic_device ON "health_statistic" ("device");
+      CREATE INDEX health_statistic_by_device ON "health_statistic" ("device");
     `,
   },
 ];

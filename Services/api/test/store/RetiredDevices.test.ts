@@ -49,6 +49,11 @@ describe("retiring a device", () => {
 
       assert.strictEqual(retireStep(sql, entities, 2, 4), 4);
       assert.strictEqual(count(sql, ada), 2);
+      // Its status went first, so the Mac stops using it as a source right away.
+      assert.lengthOf(
+        sql.exec('SELECT id FROM "health_statistics_device" WHERE device = ?', ada),
+        0,
+      );
       assert.strictEqual(retireStep(sql, entities, 3, 4), 2);
       assert.strictEqual(count(sql, ada), 0);
       // Logged as deletions, so clients delete them too.

@@ -151,13 +151,20 @@ export const AuthHandlers = HttpApiBuilder.group(
           const session = yield* CurrentSession;
           yield* auth.signOut(session.sessionId);
           // Signed out for good (its last session): its device-scoped records go too, so a stale
-          // statistics source doesn't linger (`docs/SYNC.md`). Best-effort: the Mac also ignores
-          // sources that stopped reporting.
-          if (yield* devices.deleteIfSignedOut(session.deviceId)) {
-            yield* stores
+          // statistics source doesn't linger (`docs/SYNC.md`). Retired before the device row
+          // goes, so if retiring fails the row is left for a later cleanup (851-2620).
+          // Best-effort: the Mac also ignores sources that stopped reporting.
+          if (!(yield* devices.hasSessions(session.deviceId))) {
+            const retired = yield* stores
               .forUser(session.userId)
               .retireDevice(session.deviceId)
-              .pipe(Effect.ignoreCause({ log: "Warn", message: "Retiring the device failed" }));
+              .pipe(
+                Effect.as(true),
+                Effect.catchCause((cause) =>
+                  Effect.logWarning("Retiring the device failed", cause).pipe(Effect.as(false)),
+                ),
+              );
+            if (retired) yield* devices.deleteIfSignedOut(session.deviceId);
           }
         }).pipe(Effect.orDie),
       );
