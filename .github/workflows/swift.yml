@@ -24,28 +24,18 @@ defaults:
 
 jobs:
   check:
-    runs-on: macos-26
+    # GitHub's macOS image with Xcode 27 (a preview for now); macos-26 tops out at Xcode 26.
+    runs-on: xcode-27
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
 
       # The packages need Swift 6.4 (Xcode 27). Picks the newest installed Xcode 27 release.
+      # The same Xcode as on our Macs: the packages need Swift 6.4. Bump it with them.
       - name: Select Xcode
         id: xcode
         run: |
-          xcode=""
-          for app in /Applications/Xcode*.app; do
-            version=$(defaults read "$app/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || true)
-            case "$app" in *[Bb]eta* | *_RC* | *Release_Candidate*) continue ;; esac
-            case "$version" in 27.*) echo "$version $app" ;; esac
-          done | sort -V | tail -1 > /tmp/xcode
-          xcode=$(cut -d' ' -f2- /tmp/xcode)
-          if [ -z "$xcode" ]; then
-            echo "error: no Xcode 27 release on this runner. Installed:" >&2
-            ls -d /Applications/Xcode*.app >&2 || true
-            exit 1
-          fi
-          sudo xcode-select -s "$xcode"
+          sudo xcode-select -s /Applications/Xcode_27.0.app
           xcodebuild -version
           echo "build=$(xcodebuild -version | tail -1 | awk '{print $3}')" >> "$GITHUB_OUTPUT"
 
