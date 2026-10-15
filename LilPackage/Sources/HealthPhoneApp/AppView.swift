@@ -3,7 +3,7 @@ import LilAuth
 public import SwiftUI
 
 public struct AppView: View {
-  let store: StoreOf<AppFeature>
+  @Bindable var store: StoreOf<AppFeature>
 
   public init(store: StoreOf<AppFeature>) {
     self.store = store
@@ -24,6 +24,7 @@ public struct AppView: View {
         }
       }
     }
+    .alert($store.scope(\.alert, action: \.alert))
     .task { await store.send(.task).finish() }
   }
 }
@@ -46,4 +47,18 @@ public struct AppView: View {
 
 #Preview("Signed in") {
   AppView(store: Store(initialState: AppFeature.State(isSignedIn: true)) { EmptyReducer() })
+}
+
+#Preview("Another iPhone") {
+  AppView(
+    store: Store(
+      initialState: AppFeature.State(isSignedIn: true, alert: .otherIPhones(["Ada's iPhone"]))
+    ) { EmptyReducer() })
+}
+
+#Preview("Another iPhone, unnamed") {
+  AppView(
+    store: Store(initialState: AppFeature.State(isSignedIn: true, alert: .otherIPhones([nil]))) {
+      EmptyReducer()
+    })
 }

@@ -13,10 +13,12 @@ import {
   CurrentSession,
   type DeviceInfo,
   Me,
+  MeDevice,
   MeIdentity,
   Unauthorized,
 } from "./auth/AuthApi.ts";
 import { AccessTokens } from "./auth/Tokens.ts";
+import { Devices } from "./core/Devices.ts";
 import { Identities } from "./core/Identities.ts";
 import {
   HealthBatchNotFound,
@@ -160,6 +162,7 @@ export const MeHandlers = HttpApiBuilder.group(
   Effect.fn(function* (handlers) {
     const users = yield* Users;
     const identities = yield* Identities;
+    const devices = yield* Devices;
     const stores = yield* UserStores;
     return handlers
       .handle("me", () =>
@@ -171,11 +174,23 @@ export const MeHandlers = HttpApiBuilder.group(
             return yield* new Unauthorized({ message: "The user no longer exists" });
           }
           const userIdentities = yield* identities.listForUser(session.userId).pipe(Effect.orDie);
+          const userDevices = yield* devices.listForUser(session.userId).pipe(Effect.orDie);
           return new Me({
             id: user.value.id,
             displayName: user.value.displayName,
             identities: userIdentities.map(
               (identity) => new MeIdentity({ provider: identity.provider, email: identity.email }),
+            ),
+            devices: userDevices.map(
+              (device) =>
+                new MeDevice({
+                  id: device.id,
+                  app: device.app,
+                  platform: device.platform,
+                  name: device.name,
+                  createdAt: device.createdAt,
+                  current: device.id === session.deviceId,
+                }),
             ),
           });
         }),

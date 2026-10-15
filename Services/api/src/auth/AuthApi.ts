@@ -163,12 +163,28 @@ export class MeIdentity extends Schema.Class<MeIdentity>("lil/api/auth/MeIdentit
   email: Schema.NullOr(Schema.String),
 }) {}
 
+/** An app install signed in to the account. */
+export class MeDevice extends Schema.Class<MeDevice>("lil/api/auth/MeDevice")({
+  id: DeviceId,
+  /** Which app, e.g. `health-ios`. */
+  app: Schema.String,
+  /** `ios` or `macos` for now. A string, not an enum, so new platforms don't break clients. */
+  platform: Schema.String,
+  name: Schema.NullOr(Schema.String),
+  /** Unix milliseconds. */
+  createdAt: Schema.Int,
+  /** Whether it's the device making this request. */
+  current: Schema.Boolean,
+}) {}
+
 /** The signed-in user. */
 export class Me extends Schema.Class<Me>("lil/api/auth/Me")({
   id: UserId,
   displayName: Schema.NullOr(Schema.String),
   /** The accounts the user signs in with. */
   identities: Schema.Array(MeIdentity),
+  /** Every app install signed in to the account, oldest first. */
+  devices: Schema.Array(MeDevice),
 }) {}
 
 export class MeApi extends HttpApiGroup.make("me", { topLevel: true })

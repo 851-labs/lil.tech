@@ -630,25 +630,78 @@ extension Components {
             public var displayName: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Me/identities`.
             public var identities: [Components.Schemas.MeIdentity]
+            /// - Remark: Generated from `#/components/schemas/Me/devices`.
+            public var devices: [Components.Schemas.MeDevice]
             /// Creates a new `Me`.
             ///
             /// - Parameters:
             ///   - id:
             ///   - displayName:
             ///   - identities:
+            ///   - devices:
             public init(
                 id: Swift.String,
                 displayName: Swift.String? = nil,
-                identities: [Components.Schemas.MeIdentity]
+                identities: [Components.Schemas.MeIdentity],
+                devices: [Components.Schemas.MeDevice]
             ) {
                 self.id = id
                 self.displayName = displayName
                 self.identities = identities
+                self.devices = devices
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case displayName
                 case identities
+                case devices
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/MeDevice`.
+        public struct MeDevice: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/MeDevice/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/MeDevice/app`.
+            public var app: Swift.String
+            /// - Remark: Generated from `#/components/schemas/MeDevice/platform`.
+            public var platform: Swift.String
+            /// - Remark: Generated from `#/components/schemas/MeDevice/name`.
+            public var name: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/MeDevice/createdAt`.
+            public var createdAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/MeDevice/current`.
+            public var current: Swift.Bool
+            /// Creates a new `MeDevice`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - app:
+            ///   - platform:
+            ///   - name:
+            ///   - createdAt:
+            ///   - current:
+            public init(
+                id: Swift.String,
+                app: Swift.String,
+                platform: Swift.String,
+                name: Swift.String? = nil,
+                createdAt: Swift.Int,
+                current: Swift.Bool
+            ) {
+                self.id = id
+                self.app = app
+                self.platform = platform
+                self.name = name
+                self.createdAt = createdAt
+                self.current = current
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case app
+                case platform
+                case name
+                case createdAt
+                case current
             }
         }
         /// - Remark: Generated from `#/components/schemas/MeIdentity`.
