@@ -165,6 +165,7 @@
   - Real health data never goes into staging, previews, tests, commits or tickets.
 - **Availability:** permanently free, with no subscriptions, ads or paid tiers.
   - Signup is open, in every App Store region except mainland China (data-localization rules). The server also refuses new accounts from mainland China, since the Mac app is downloaded directly.
+    - The server goes by the country Cloudflare gives the Worker (`request.cf.country`, which unlike the `cf-ipcountry` header doesn't depend on a zone setting). `CN` can't create an account (451 `SignUpUnavailableInRegion`), but an existing account still signs in. Hong Kong, Macau and Taiwan have their own codes and aren't affected. A VPN gets around it. That's accepted, since the point is not to offer the service there.
   - Rate limits and per-user storage quotas keep costs in check.
 
 ## lil messages

@@ -27,12 +27,16 @@ public enum SignInError: Error, Equatable, Sendable {
   case rejected
   /// Signing in isn't available right now; try again later.
   case unavailable
+  /// New accounts can't be made from where the user is (mainland China). Existing accounts can
+  /// still sign in.
+  case signUpUnavailableInRegion
   case failed(String)
 
   public var message: String {
     switch self {
     case .rejected: "Signing in didn't work. Please try again."
     case .unavailable: "Signing in isn't available right now. Please try again later."
+    case .signUpUnavailableInRegion: "New accounts can't be created in your country or region."
     case .failed(let reason): "Signing in didn't work: \(reason)"
     }
   }
@@ -158,6 +162,7 @@ extension AuthClient: DependencyKey {
         await sessions.signedIn(AuthSession(pair, receivedAt: date.now))
       case .rejected: throw .rejected
       case .unavailable: throw .unavailable
+      case .signUpUnavailableInRegion: throw .signUpUnavailableInRegion
       case .unexpected(let statusCode): throw .failed("HTTP \(statusCode)")
       }
     }
@@ -174,6 +179,7 @@ extension AuthClient: DependencyKey {
           case .ok(let ok): .signedIn(try? ok.body.json)
           case .unauthorized: .rejected
           case .serviceUnavailable, .tooManyRequests: .unavailable
+          case .unavailableForLegalReasons: .signUpUnavailableInRegion
           case .undocumented(let statusCode, _): .unexpected(statusCode)
           }
         }
@@ -189,6 +195,7 @@ extension AuthClient: DependencyKey {
           case .ok(let ok): .signedIn(try? ok.body.json)
           case .unauthorized: .rejected
           case .serviceUnavailable, .tooManyRequests: .unavailable
+          case .unavailableForLegalReasons: .signUpUnavailableInRegion
           case .undocumented(let statusCode, _): .unexpected(statusCode)
           }
         }
@@ -252,5 +259,6 @@ private enum SignInOutcome {
   case signedIn(Components.Schemas.TokenPair?)
   case rejected
   case unavailable
+  case signUpUnavailableInRegion
   case unexpected(Int)
 }

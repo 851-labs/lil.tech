@@ -92,6 +92,10 @@ const send = (handler: Handler, request: Request) =>
 
 const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
 
+/** A request as the Worker gets it from Cloudflare, with `cf.country` set when there's a country. */
+const fromCountry = (request: Request, country: string | undefined) =>
+  country === undefined ? request : Object.assign(request, { cf: { country } });
+
 const signIn = Effect.gen(function* () {
   const user = yield* (yield* Users).create({ displayName: "Ada" });
   yield* (yield* Identities).create({
@@ -284,14 +288,17 @@ describe("WorkerHttpLayer", () => {
 });
 
 describe("POST /v1/auth/apple", () => {
-  const appleSignIn = (handler: Handler, body: unknown) =>
+  const appleSignIn = (handler: Handler, body: unknown, country?: string) =>
     send(
       handler,
-      new Request("https://api.lil.tech/v1/auth/apple", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      }),
+      fromCountry(
+        new Request("https://api.lil.tech/v1/auth/apple", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+        country,
+      ),
     );
   const device = { app: "health-mac", platform: "macos" };
 
@@ -320,6 +327,35 @@ describe("POST /v1/auth/apple", () => {
     ),
   );
 
+  it.live("doesn't create accounts from mainland China, but signs existing ones in", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const users = yield* Users;
+        const signInAs = (sub: string, country: string) =>
+          Effect.gen(function* () {
+            const nonce = crypto.randomUUID();
+            const identityToken = yield* appleIdentityToken({ sub, nonce });
+            return yield* appleSignIn(handler, { identityToken, nonce, device }, country);
+          });
+        const refused = yield* signInAs("000123.http.0002", "CN");
+        assert.deepStrictEqual(refused, {
+          status: 451,
+          body: {
+            _tag: "SignUpUnavailableInRegion",
+            message: "New accounts can't be created in your country or region",
+          },
+        });
+        assert.strictEqual(yield* users.count, 0);
+
+        assert.strictEqual((yield* signInAs("000123.http.0002", "US")).status, 200);
+        assert.strictEqual((yield* signInAs("000123.http.0002", "CN")).status, 200);
+        // Hong Kong has its own code.
+        assert.strictEqual((yield* signInAs("000123.http.0003", "HK")).status, 200);
+        assert.strictEqual(yield* users.count, 2);
+      }),
+    ),
+  );
+
   it.live("rejects a token that doesn't verify", () =>
     withApi((handler) =>
       Effect.gen(function* () {
@@ -334,13 +370,13 @@ describe("POST /v1/auth/apple", () => {
 });
 
 describe("POST /v1/auth/google", () => {
-  it.live("signs in with a Google ID token", () =>
-    withApi((handler) =>
-      Effect.gen(function* () {
-        const nonce = crypto.randomUUID();
-        const idToken = yield* googleIdToken({ sub: "100000000000000000001", nonce });
-        const response = yield* send(
-          handler,
+  const googleSignIn = (handler: Handler, sub: string, country?: string) =>
+    Effect.gen(function* () {
+      const nonce = crypto.randomUUID();
+      const idToken = yield* googleIdToken({ sub, nonce });
+      return yield* send(
+        handler,
+        fromCountry(
           new Request("https://api.lil.tech/v1/auth/google", {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -350,7 +386,26 @@ describe("POST /v1/auth/google", () => {
               device: { app: "health-mac", platform: "macos" },
             }),
           }),
-        );
+          country,
+        ),
+      );
+    });
+
+  it.live("doesn't create an account from mainland China", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const response = yield* googleSignIn(handler, "100000000000000000002", "CN");
+        assert.strictEqual(response.status, 451);
+        assert.propertyVal(response.body, "_tag", "SignUpUnavailableInRegion");
+        assert.strictEqual(yield* (yield* Users).count, 0);
+      }),
+    ),
+  );
+
+  it.live("signs in with a Google ID token", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const response = yield* googleSignIn(handler, "100000000000000000001");
         assert.strictEqual(response.status, 200);
         const { accessToken } = response.body as { accessToken: string };
         const me = yield* send(

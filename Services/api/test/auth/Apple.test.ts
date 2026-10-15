@@ -19,7 +19,7 @@ const signIn = (subject: string, nonce: string = crypto.randomUUID(), fullName?:
   Effect.gen(function* () {
     const token = yield* appleIdentityToken({ sub: subject, nonce });
     const identity = yield* (yield* AppleSignIn).verify(token, nonce, fullName);
-    const tokens = yield* (yield* ProviderSignIn).signIn(identity, iPhone);
+    const tokens = yield* (yield* ProviderSignIn).signIn(identity, iPhone, null);
     return yield* (yield* AccessTokens).verify(tokens.accessToken);
   });
 
