@@ -16,9 +16,10 @@ public struct SyncStatusView: View {
         Section {
           StatusHeader(store: store)
         }
-        if !store.categories.isEmpty {
+        let categories = store.categories
+        if !categories.isEmpty {
           Section("Categories") {
-            ForEach(store.categories) { category in
+            ForEach(categories) { category in
               CategoryRow(category: category)
             }
           }
@@ -60,6 +61,8 @@ private struct StatusHeader: View {
         Text("Uploading continues when you're back online.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
+        Button("Try Again") { store.send(.retryButtonTapped) }
+          .buttonStyle(.bordered)
       case .failed(let reason):
         Label("Upload failed", systemImage: "exclamationmark.triangle.fill")
           .foregroundStyle(.red)
@@ -76,13 +79,29 @@ private struct StatusHeader: View {
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .monospacedDigit()
+      case .paused(let finished, let total, let records):
+        Label("Upload paused", systemImage: "pause.circle")
+          .foregroundStyle(.orange)
+        ProgressView(value: Double(finished), total: Double(max(total, 1)))
+        Text("\(finished) of \(total) types · \(records.formatted()) records")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .monospacedDigit()
+        Text("It continues in the background, or now.")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+        Button("Continue") { store.send(.retryButtonTapped) }
+          .buttonStyle(.bordered)
       case .upToDate(let lastUpload):
         Label("Up to date", systemImage: "checkmark.circle.fill")
           .foregroundStyle(.green)
         if let lastUpload {
-          Text("Last upload \(lastUpload.formatted(.relative(presentation: .named)))")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
+          // Updated every minute while the screen is open.
+          TimelineView(.everyMinute) { _ in
+            Text("Last upload \(lastUpload.formatted(.relative(presentation: .named)))")
+          }
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
         }
       }
     }

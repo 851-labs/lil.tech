@@ -27,6 +27,8 @@ public struct SyncStatusFeature {
       case offline
       case failed(String)
       case uploading(finishedTypes: Int, totalTypes: Int, records: Int)
+      /// Not finished and not running, e.g. iOS paused it or the phone is locked.
+      case paused(finishedTypes: Int, totalTypes: Int, records: Int)
       case upToDate(lastUpload: Date?)
     }
 
@@ -36,10 +38,14 @@ public struct SyncStatusFeature {
       if let failure = progress.failure, !progress.isRunning {
         return progress.isOffline ? .offline : .failed(failure)
       }
-      if !progress.isFinished || progress.isRunning && progress.lastUploadAt == nil {
-        return .uploading(
-          finishedTypes: progress.finishedTypes, totalTypes: progress.totalTypes,
-          records: progress.uploadedRecords)
+      if !progress.isFinished {
+        return progress.isRunning
+          ? .uploading(
+            finishedTypes: progress.finishedTypes, totalTypes: progress.totalTypes,
+            records: progress.uploadedRecords)
+          : .paused(
+            finishedTypes: progress.finishedTypes, totalTypes: progress.totalTypes,
+            records: progress.uploadedRecords)
       }
       return .upToDate(lastUpload: progress.lastUploadAt)
     }
@@ -47,13 +53,16 @@ public struct SyncStatusFeature {
     /// Browse's categories, with how much of each is uploaded.
     public var categories: [CategoryProgress] {
       guard let progress else { return [] }
+      let byCategory = Dictionary(grouping: progress.types.values.indices) { index in
+        HealthCatalog.type(id: progress.types.keys[index])?.category
+      }
       return HealthCategory.allCases.compactMap { category in
-        let types = progress.types.filter { HealthCatalog.type(id: $0.key)?.category == category }
-        guard !types.isEmpty else { return nil }
+        guard let indices = byCategory[category] else { return nil }
+        let types = indices.map { progress.types.values[$0] }
         return CategoryProgress(
           category: category,
-          finishedTypes: types.values.filter(\.isDone).count, totalTypes: types.count,
-          records: types.values.map(\.uploadedRecords).reduce(0, +))
+          finishedTypes: types.filter(\.isDone).count, totalTypes: types.count,
+          records: types.map(\.uploadedRecords).reduce(0, +))
       }
     }
   }
@@ -82,6 +91,8 @@ public struct SyncStatusFeature {
     public enum Delegate {
       /// Show the Health access onboarding again.
       case reviewHealthAccess
+      /// Run the backfill now.
+      case retry
     }
   }
 
@@ -120,7 +131,8 @@ public struct SyncStatusFeature {
         return .none
 
       case .retryButtonTapped:
-        return .run { [healthBackfill] _ in try? await healthBackfill.run() }
+        // Through the app's backfill, so background scheduling and signing out apply.
+        return .send(.delegate(.retry))
 
       case .reviewHealthAccessButtonTapped:
         return .send(.delegate(.reviewHealthAccess))

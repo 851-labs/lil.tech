@@ -60,3 +60,20 @@ private func statusView(_ state: SyncStatusFeature.State) -> some View {
   statusView(
     SyncStatusFeature.State(progress: progress(done: 25, failure: "The server answered HTTP 503")))
 }
+
+#Preview("Upload paused") {
+  statusView(SyncStatusFeature.State(progress: progress(done: 60)))
+}
+
+#Preview("Nothing to upload") {
+  // Every type is empty: no data, or no access.
+  statusView(
+    SyncStatusFeature.State(
+      progress: {
+        var progress = progress(done: .max)
+        progress.types = progress.types.mapValues { _ in .init(isDone: true, uploadedRecords: 0) }
+        progress.uploadedRecords = 0
+        progress.lastUploadAt = nil
+        return progress
+      }()))
+}

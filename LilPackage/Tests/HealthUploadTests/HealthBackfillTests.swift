@@ -467,5 +467,7 @@ struct HealthBackfillTests {
   func networkFailuresAreOffline() {
     #expect(HealthBackfill.isOffline(URLError(.notConnectedToInternet)))
     #expect(!HealthBackfill.isOffline(HealthBatchUploader.Rejected(statusCode: 503)))
+    // A slow server isn't the phone being offline.
+    #expect(!HealthBackfill.isOffline(URLError(.timedOut)))
   }
 }

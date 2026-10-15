@@ -137,4 +137,17 @@ struct AppFeatureTests {
       $0.healthAccess = HealthAccessFeature.State()
     }
   }
+
+  @Test
+  func tryAgainRunsTheBackfill() async {
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
+      AppFeature()
+    } withDependencies: {
+      $0.healthAuthorization.isAvailable = { false }
+    }
+
+    await store.send(.syncStatus(.retryButtonTapped))
+    await store.receive(\.syncStatus.delegate.retry)
+    await store.receive(\.backfill)
+  }
 }

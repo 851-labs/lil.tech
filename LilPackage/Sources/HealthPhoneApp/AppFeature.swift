@@ -95,6 +95,7 @@ public struct AppFeature {
         guard isSignedIn else {
           state.signIn = SignInFeature.State()
           state.healthAccess = nil
+          state.syncStatus = SyncStatusFeature.State()
           // The next account starts its own backfill from the beginning.
           return .merge(
             .cancel(id: CancelID.backfill),
@@ -111,6 +112,9 @@ public struct AppFeature {
       case .signIn:
         // The session's updates say when signing in worked.
         return .none
+
+      case .syncStatus(.delegate(.retry)):
+        return .send(.backfill)
 
       case .syncStatus(.delegate(.reviewHealthAccess)):
         state.healthAccess = HealthAccessFeature.State()

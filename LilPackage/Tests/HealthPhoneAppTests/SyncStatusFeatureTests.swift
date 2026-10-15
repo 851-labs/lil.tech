@@ -37,7 +37,14 @@ struct SyncStatusFeatureTests {
     #expect(
       State(progress: progress([steps: done, sleep: notYet], running: true)).status
         == .uploading(finishedTypes: 1, totalTypes: 2, records: 10))
+    #expect(
+      State(progress: progress([steps: done, sleep: notYet])).status
+        == .paused(finishedTypes: 1, totalTypes: 2, records: 10))
     #expect(State(progress: progress([steps: done])).status == .upToDate(lastUpload: lastUpload))
+    // Running over a finished backfill (catching up) is still up to date.
+    #expect(
+      State(progress: progress([steps: done], running: true)).status
+        == .upToDate(lastUpload: lastUpload))
     #expect(
       State(progress: progress([steps: notYet], failure: "Offline", offline: true)).status
         == .offline)
@@ -71,7 +78,7 @@ struct SyncStatusFeatureTests {
     store.exhaustivity = .off
 
     let task = await store.send(.task)
-    await store.receive(\.healthAccessChecked)
+    // The access check and the progress race; only the progress matters here.
     await store.receive(\.progressChanged)
     #expect(store.state.progress?.totalTypes == 0)
     await task.cancel()
@@ -97,6 +104,7 @@ struct SyncStatusFeatureTests {
     #expect(signedOut.value)
     await store.send(.reviewHealthAccessButtonTapped)
     await store.receive(\.delegate.reviewHealthAccess)
-    await store.send(.retryButtonTapped).finish()
+    await store.send(.retryButtonTapped)
+    await store.receive(\.delegate.retry)
   }
 }

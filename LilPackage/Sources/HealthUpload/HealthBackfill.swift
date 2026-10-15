@@ -278,11 +278,13 @@ public actor HealthBackfill {
     }
     // Tried again on the next call.
     requestedTypes.formUnion(failures.keys)
-    if let failure = failures.values.first {
+    // The first in type order, so the same failures always report the same way.
+    let ordered = types.compactMap { failures[$0.id] }
+    if let failure = ordered.first {
       update {
         $0.isRunning = false
         $0.failure = failure.localizedDescription
-        $0.isOffline = Self.isOffline(failure)
+        $0.isOffline = ordered.allSatisfy(Self.isOffline)
       }
       throw failure
     }
@@ -542,7 +544,8 @@ public actor HealthBackfill {
   /// Network errors mean the run is paused until there's a connection, not failing.
   static func isOffline(_ error: any Error) -> Bool {
     let offline: Set<URLError.Code> = [
-      .notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost,
+      // Not `.timedOut`: a slow server isn't the phone being offline.
+      .notConnectedToInternet, .networkConnectionLost, .cannotFindHost,
       .cannotConnectToHost, .dnsLookupFailed, .dataNotAllowed, .internationalRoamingOff,
     ]
     if let error = error as? URLError { return offline.contains(error.code) }
