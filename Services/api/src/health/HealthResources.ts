@@ -1,6 +1,7 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import { Effect, Option, Stream } from "effect";
+import { Effect, type Layer, Option, Stream } from "effect";
+import type { Users } from "../core/Users.ts";
 import {
   failHealthBatch,
   BatchFilesUnavailable,
@@ -43,6 +44,8 @@ export const maxHealthBatchRetries = 5;
  */
 export const HealthIngestionWorker = Effect.fnUntraced(function* (
   userStores: UserStores["Service"],
+  /** The core `Users` repository, built per message (its D1 calls need the runtime context). */
+  users: Layer.Layer<Users>,
 ) {
   const bucket = yield* Cloudflare.R2.ReadWriteBucket(yield* HealthBatchBucket);
   const queueResource = yield* HealthBatchQueueResource;
@@ -118,6 +121,7 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
           }),
           Effect.provideServiceEffect(HealthBatchFiles, files),
           Effect.provideService(UserStores, userStores),
+          Effect.provide(users),
         ),
       ),
   );

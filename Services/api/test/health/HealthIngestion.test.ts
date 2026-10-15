@@ -1,6 +1,7 @@
 import { gzipSync } from "node:zlib";
 import { assert, describe, layer } from "@effect/vitest";
 import { Clock, Effect, Layer } from "effect";
+import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
 import type { DeviceId, UserId } from "../../src/core/Ids.ts";
 import {
@@ -13,7 +14,9 @@ import {
   maxDecompressedBatchBytes,
 } from "../../src/health/HealthIngestion.ts";
 import { storageHardLimitBytes } from "../../src/store/UserStore.ts";
+import { Users } from "../../src/core/Users.ts";
 import { UserStores } from "../../src/store/UserStores.ts";
+import { TestCore } from "../core/TestCoreDatabase.ts";
 import { TestStores, TestUserStores } from "../store/TestUserStores.ts";
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./TestHealthIngestion.ts";
 
@@ -71,7 +74,7 @@ const changesFor = (id: string) =>
     return sql?.exec("SELECT seq, op FROM changes WHERE id = ? ORDER BY seq", id) ?? [];
   });
 
-layer(Layer.mergeAll(TestUserStores, TestHealthIngestion))("ingestHealthBatch", (it) => {
+layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHealthBatch", (it) => {
   it.effect("applies a batch, records its outcome, and deletes the file", () =>
     Effect.gen(function* () {
       const { batchId, batch } = yield* ingest([sample(1), sample(2), ""]);
@@ -210,6 +213,23 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion))("ingestHealthBatch", 
     }),
   );
 
+  it.effect("records the store's size once a batch is applied", () =>
+    Effect.gen(function* () {
+      const user = yield* (yield* Users).create({ displayName: null });
+      const batchId = newBatchId();
+      (yield* TestHealthOutbox).files.set(
+        healthBatchKey(user.id, batchId),
+        batchFile([sample(4200)]),
+      );
+      yield* ingestHealthBatch({ userId: user.id, batchId, deviceId });
+      const size = (yield* TestStores).sqlFor(user.id)?.databaseSize();
+      const [row] = yield* (yield* SqlClient.SqlClient)<{ storage_bytes: number }>`
+        SELECT storage_bytes FROM users WHERE id = ${user.id}`;
+      assert.isAbove(size ?? 0, 0);
+      assert.strictEqual(row?.storage_bytes, size);
+    }),
+  );
+
   it.effect("applies deletes as tombstones", () =>
     Effect.gen(function* () {
       yield* ingest([sample(30)]);
@@ -330,34 +350,37 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion))("ingestHealthBatch", 
   );
 });
 
-layer(Layer.mergeAll(TestUserStores, TestHealthIngestion))("health batch timeouts", (it) => {
-  it.effect("a batch that stops moving is reported failed, and never applied later", () =>
-    Effect.gen(function* () {
-      const store = (yield* UserStores).forUser(userId);
-      const { files } = yield* TestHealthOutbox;
-      const batchId = newBatchId();
-      files.set(healthBatchKey(userId, batchId), batchFile([sample(70)]));
-      yield* store.receiveHealthBatch(batchId);
-      yield* TestClock.adjust("23 hours");
-      assert.deepInclude(yield* store.healthBatch(batchId), { status: "queued" });
-      yield* TestClock.adjust("2 hours");
-      assert.deepInclude(yield* store.healthBatch(batchId), {
-        status: "failed",
-        failure: "The batch timed out",
-      });
-      yield* ingestHealthBatch({ userId, batchId });
-      assert.lengthOf(yield* changesFor(uuid(70)), 0);
+layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))(
+  "health batch timeouts",
+  (it) => {
+    it.effect("a batch that stops moving is reported failed, and never applied later", () =>
+      Effect.gen(function* () {
+        const store = (yield* UserStores).forUser(userId);
+        const { files } = yield* TestHealthOutbox;
+        const batchId = newBatchId();
+        files.set(healthBatchKey(userId, batchId), batchFile([sample(70)]));
+        yield* store.receiveHealthBatch(batchId);
+        yield* TestClock.adjust("23 hours");
+        assert.deepInclude(yield* store.healthBatch(batchId), { status: "queued" });
+        yield* TestClock.adjust("2 hours");
+        assert.deepInclude(yield* store.healthBatch(batchId), {
+          status: "failed",
+          failure: "The batch timed out",
+        });
+        yield* ingestHealthBatch({ userId, batchId });
+        assert.lengthOf(yield* changesFor(uuid(70)), 0);
 
-      const applying = newBatchId();
-      yield* store.saveHealthBatch({ id: applying, status: "applying", receivedAt: 0 });
-      yield* TestClock.adjust("61 minutes");
-      assert.deepInclude(yield* store.healthBatch(applying), { status: "failed" });
-    }),
-  );
-});
+        const applying = newBatchId();
+        yield* store.saveHealthBatch({ id: applying, status: "applying", receivedAt: 0 });
+        yield* TestClock.adjust("61 minutes");
+        assert.deepInclude(yield* store.healthBatch(applying), { status: "failed" });
+      }),
+    );
+  },
+);
 
 describe("ingestHealthBatch when the store is unavailable", () => {
-  layer(TestHealthIngestion)((it) => {
+  layer(Layer.mergeAll(TestHealthIngestion, TestCore))((it) => {
     it.effect("fails, so the queue retries the batch", () =>
       Effect.gen(function* () {
         const unavailable = UserStores.fromNamespace({

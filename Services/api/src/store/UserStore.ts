@@ -159,6 +159,8 @@ export const makeUserStore = (
       healthBatch(id).pipe(
         Effect.tap((known) => (known === null ? ensureRoom(storageQuotaBytes) : Effect.void)),
       ),
+    /** The database's size in bytes, which `storageQuotaBytes` limits. */
+    storageBytes: () => Effect.sync(() => sql.databaseSize()),
     /** Records a health batch as `queued` unless it's already known, and returns its status. */
     receiveHealthBatch: (id: string) =>
       ensureNotDeleted.pipe(

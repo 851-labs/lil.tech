@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { assert, describe, it, layer } from "@effect/vitest";
 import { Effect, Exit, Option, Schema } from "effect";
 import { TestClock } from "effect/testing";
@@ -23,6 +24,36 @@ describe("IDs", () => {
       assert.isFalse(Schema.is(IdentityId)("idt_short"));
       assert.isFalse(Schema.is(SessionId)(first.id.replace("usr_", "ses_").toUpperCase()));
       assert.isFalse(Schema.is(ConnectionId)("con_"));
+    }).pipe(Effect.provide(TestCore)),
+  );
+});
+
+describe("users' storage", () => {
+  const largestUsers = readFileSync(
+    new URL("../../scripts/largest-users.sql", import.meta.url),
+    "utf8",
+  );
+
+  it.effect("lists the largest stores as last measured, as scripts/largest-users.sql", () =>
+    Effect.gen(function* () {
+      const users = yield* Users;
+      const [small, large, unmeasured, remeasured] = yield* Effect.all(
+        Array.from({ length: 4 }, () => users.create({ displayName: null })),
+      );
+      if (!small || !large || !unmeasured || !remeasured) return assert.fail("users");
+      yield* users.recordStorage(small.id, 1_000, 0);
+      yield* users.recordStorage(large.id, 9_000_000, 0);
+      yield* users.recordStorage(remeasured.id, 5_000_000, 1_000);
+      yield* users.recordStorage(remeasured.id, 2_000, 3_600_000);
+      // An earlier measurement that arrives late doesn't replace a later one.
+      yield* users.recordStorage(remeasured.id, 7_000_000, 2_000);
+
+      const rows = yield* (yield* SqlClient.SqlClient).unsafe(largestUsers);
+      assert.deepStrictEqual(rows, [
+        { id: large.id, storage_bytes: 9_000_000, measured: "1970-01-01 00:00:00" },
+        { id: remeasured.id, storage_bytes: 2_000, measured: "1970-01-01 01:00:00" },
+        { id: small.id, storage_bytes: 1_000, measured: "1970-01-01 00:00:00" },
+      ]);
     }).pipe(Effect.provide(TestCore)),
   );
 });

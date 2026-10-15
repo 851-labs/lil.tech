@@ -26,6 +26,15 @@ export class Users extends Context.Service<
     ) => Effect.Effect<void, SqlError.SqlError>;
     /** How many users there are. */
     readonly count: Effect.Effect<number, SqlError.SqlError>;
+    /**
+     * Records the size of the user's store, measured at `measuredAt`, unless a later measurement
+     * is already recorded.
+     */
+    readonly recordStorage: (
+      id: UserId,
+      bytes: number,
+      measuredAt: number,
+    ) => Effect.Effect<void, SqlError.SqlError>;
   }
 >()("lil/api/core/Users") {
   static readonly layer = Layer.effect(
@@ -64,6 +73,12 @@ export class Users extends Context.Service<
           const rows = yield* sql`SELECT count(*) AS n FROM users`;
           return Number(rows[0]?.["n"] ?? 0);
         }).pipe(Effect.withSpan("Users.count")),
+        recordStorage: Effect.fn("Users.recordStorage")(function* (id, bytes, measuredAt) {
+          // Batches are applied concurrently, so their measurements can arrive out of order.
+          yield* sql`UPDATE users SET storage_bytes = ${bytes}, storage_measured_at = ${measuredAt}
+            WHERE id = ${id}
+              AND (storage_measured_at IS NULL OR storage_measured_at <= ${measuredAt})`;
+        }),
       });
     }),
   );
