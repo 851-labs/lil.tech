@@ -5,6 +5,7 @@ import { Auth } from "../../src/auth/Auth.ts";
 import { retireSignedOutDevices } from "../../src/core/DeviceCleanup.ts";
 import { Devices } from "../../src/core/Devices.ts";
 import { Users } from "../../src/core/Users.ts";
+import { UserStores } from "../../src/store/UserStores.ts";
 import { TestAuth } from "../auth/TestAuth.ts";
 import { TestStores, TestUserStores } from "../store/TestUserStores.ts";
 
@@ -47,6 +48,39 @@ describe("retireSignedOutDevices", () => {
       assert.strictEqual(yield* retireSignedOutDevices(), 1);
       assert.isTrue(Option.isNone(yield* devices.findById(signingIn.id)));
       assert.strictEqual(yield* retireSignedOutDevices(), 0);
+    }).pipe(Effect.provide(Layer.mergeAll(TestAuth, TestUserStores))),
+  );
+
+  it.effect("keeps a device whose store can't be reached, for the next run", () =>
+    Effect.gen(function* () {
+      const users = yield* Users;
+      const devices = yield* Devices;
+      const user = yield* users.create({ displayName: null });
+      const device = yield* devices.create({
+        userId: user.id,
+        app: "health-ios",
+        platform: "ios",
+        name: null,
+      });
+      yield* TestClock.adjust(2 * day);
+      const unavailable = UserStores.fromNamespace({
+        getByName: () =>
+          ({
+            retireDevice: () =>
+              Effect.fail({
+                _tag: "RpcCallError",
+                cause: Object.assign(new Error("reset"), { retryable: true }),
+              }),
+          }) as never,
+      });
+      assert.strictEqual(
+        yield* retireSignedOutDevices().pipe(Effect.provideService(UserStores, unavailable)),
+        0,
+      );
+      assert.isTrue(Option.isSome(yield* devices.findById(device.id)));
+      // The next run, with the store back, retires it.
+      assert.strictEqual(yield* retireSignedOutDevices(), 1);
+      assert.isTrue(Option.isNone(yield* devices.findById(device.id)));
     }).pipe(Effect.provide(Layer.mergeAll(TestAuth, TestUserStores))),
   );
 });
