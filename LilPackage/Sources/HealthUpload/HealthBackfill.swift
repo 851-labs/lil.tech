@@ -121,6 +121,7 @@ public actor HealthBackfill {
   private let statisticsReader: HealthStatisticsReader
   private let uuid: UUIDGenerator
   private let now: @Sendable () -> Date
+  private let clock: any Clock<Duration>
   private var progress: Progress
   private var observers: [UUID: AsyncStream<Progress>.Continuation] = [:]
   /// The work loop running, with an ID so only it clears itself.
@@ -133,6 +134,8 @@ public actor HealthBackfill {
   var requestedTypes: Set<String> = []
   /// When an upload last found the account's storage full, until one goes through.
   private var storageFullAt: Date?
+  /// Until when the server asked for no more uploads (a 429).
+  private var rateLimitedUntil: Date?
   /// While storage is full, how long uploads for changes wait between tries. `run()` (the app
   /// opening, Try Again) always tries.
   static let storageFullRetryInterval: TimeInterval = 6 * 60 * 60
@@ -144,7 +147,9 @@ public actor HealthBackfill {
     @Dependency(\.uuid) var uuid
     @Dependency(\.healthStatisticsReader) var statisticsReader
     @Dependency(\.date) var date
+    @Dependency(\.continuousClock) var clock
     self.types = types
+    self.clock = clock
     self.reader = reader
     self.storage = storage
     self.uploader = uploader
@@ -239,6 +244,12 @@ public actor HealthBackfill {
       // Every upload would be refused; the changes wait in `requestedTypes`.
       return
     }
+    if let until = rateLimitedUntil, now() < until {
+      // Changes wait in `requestedTypes`. A run of everything (the app opening, Continue) waits
+      // out the limit instead, unless it's paused meanwhile.
+      guard syncAllRequested else { return }
+      try await clock.sleep(for: .seconds(until.timeIntervalSince(now())))
+    }
     update { $0.isRunning = true }
     var failures: [String: any Error] = [:]
     var syncedAll = false
@@ -289,9 +300,14 @@ public actor HealthBackfill {
         // Requests made while the sums went up are handled before the loop ends.
       } while syncAllRequested || !requestedTypes.isEmpty
     } catch {
-      let paused = Task.isCancelled || error is CancellationError || error is HealthReader.Locked
+      // Rate limited, it's paused for a moment rather than failed.
+      let rateLimit = error as? HealthBatchUploader.RateLimited
+      let paused =
+        Task.isCancelled || error is CancellationError || error is HealthReader.Locked
+        || rateLimit != nil
       requestedTypes.formUnion(unreached.union(failures.keys))
       if error is HealthBatchUploader.StorageFull { storageFullAt = now() }
+      if let rateLimit { rateLimitedUntil = now().addingTimeInterval(rateLimit.retryAfter) }
       update {
         $0.isRunning = false
         if !paused {
@@ -300,7 +316,8 @@ public actor HealthBackfill {
           $0.isStorageFull = error is HealthBatchUploader.StorageFull
         }
       }
-      throw paused && !(error is HealthReader.Locked) ? CancellationError() : error
+      throw paused && !(error is HealthReader.Locked) && rateLimit == nil
+        ? CancellationError() : error
     }
     // Tried again on the next call.
     requestedTypes.formUnion(failures.keys)
@@ -330,12 +347,13 @@ public actor HealthBackfill {
   }
 
   /// Rethrows the error if it ends the whole run rather than one type's sync: cancelled (a
-  /// cancelled upload throws a URL error), the device is locked, or the account's storage is full,
-  /// which every other upload would hit too. The pending page is kept.
+  /// cancelled upload throws a URL error), the device is locked, or the account's storage is full
+  /// or rate limited, which every other upload would hit too. The pending page is kept.
   private func stopIfRunEnds(_ error: any Error) throws {
     if Task.isCancelled || error is CancellationError { throw CancellationError() }
     if let locked = error as? HealthReader.Locked { throw locked }
     if let full = error as? HealthBatchUploader.StorageFull { throw full }
+    if let limited = error as? HealthBatchUploader.RateLimited { throw limited }
   }
 
   /// Uploads a type's pages from its anchor until there are no more.

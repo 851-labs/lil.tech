@@ -538,6 +538,54 @@ struct HealthBackfillTests {
   }
 
   @Test
+  func aRateLimitPausesUploadsUntilItsOver() async throws {
+    let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
+    let limited = LockIsolated(true)
+    let attempts = LockIsolated(0)
+    let clock = TestClock()
+    let date = LockIsolated(Date(timeIntervalSince1970: 1_760_400_000))
+    let server = FakeServer()
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = health.reader
+      $0.healthBatchUploader = HealthBatchUploader { id, file in
+        attempts.withValue { $0 += 1 }
+        if limited.value {
+          limited.setValue(false)
+          throw HealthBatchUploader.RateLimited(retryAfter: 60)
+        }
+        try await server.uploader.upload(id, file)
+      }
+      $0.healthBackfillStorage = storage
+      $0.uuid = .incrementing
+      $0.date = DateGenerator { date.value }
+      $0.continuousClock = clock
+    } operation: {
+      HealthBackfill(types: [temperature, sleep])
+    }
+
+    await #expect(throws: HealthBatchUploader.RateLimited.self) { try await backfill.run() }
+    // Paused, not failed, with its page kept and the other type asked for again.
+    var updates = await backfill.progressUpdates().makeAsyncIterator()
+    #expect(await updates.next()?.failure == nil)
+    #expect(try storage.loadState()?.pending != nil)
+    #expect(await backfill.requestedTypes == [temperature.id, sleep.id])
+
+    // Changes wait for the limit to pass.
+    try await backfill.syncChanges(of: [sleep.id])
+    #expect(attempts.value == 1)
+
+    // A run of everything waits it out, then goes.
+    let run = Task { try await backfill.run() }
+    await Task.megaYield()
+    #expect(attempts.value == 1)
+    date.withValue { $0.addTimeInterval(60) }
+    await clock.advance(by: .seconds(60))
+    try await run.value
+    #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
+  }
+
+  @Test
   func networkFailuresAreOffline() {
     #expect(HealthBackfill.isOffline(URLError(.notConnectedToInternet)))
     #expect(!HealthBackfill.isOffline(HealthBatchUploader.Rejected(statusCode: 503)))

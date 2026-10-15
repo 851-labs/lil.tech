@@ -62,6 +62,8 @@ private final class FakeServer: Sendable {
     var horizon = 0
     /// Request numbers (1-based) that fail with a 500.
     var failing: Set<Int> = []
+    /// Request numbers (1-based) that are rate limited for 30 seconds.
+    var rateLimited: Set<Int> = []
     /// Answer with an empty page that claims there's more, like a broken server.
     var stuck = false
     var requests: [Int] = []
@@ -165,6 +167,11 @@ private final class FakeServer: Sendable {
         state.requests.append(after)
         if state.failing.contains(state.requests.count) {
           return (HTTPResponse(status: .internalServerError), nil)
+        }
+        if state.rateLimited.contains(state.requests.count) {
+          return try json(
+            .tooManyRequests,
+            Components.Schemas.TooManyRequests(_tag: .tooManyRequests, retryAfterSeconds: 30))
         }
         if after < state.horizon {
           return try json(.gone, ["_tag": "ChangesCompacted", "reason": "compacted"])
@@ -383,6 +390,31 @@ struct LilSyncEngineTests {
     } matching: {
       $0.description.contains("registered more than once")
     }
+  }
+
+  @Test
+  func aRateLimitIsWaitedOut() async throws {
+    server.append(upsert("n1", "One"))
+    server.state.withValue { $0.rateLimited = [1] }
+    let clock = TestClock()
+    let engine = withDependencies {
+      $0.defaultDatabase = database
+      $0.api = server.client
+      $0.continuousClock = clock
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+    } operation: {
+      LilSyncEngine(entities: [notes])
+    }
+    let running = Task { await engine.run() }
+
+    try await eventually { server.state.requests.count == 1 }
+    // Not the usual 1 second after a first failure: the 30 the server asked for.
+    await clock.advance(by: .seconds(29))
+    #expect(server.state.requests.count == 1)
+    await clock.advance(by: .seconds(1))
+    try await eventually { try storedNotes() == [Note(id: "n1", title: "One")] }
+    running.cancel()
+    await running.value
   }
 
   @Test
