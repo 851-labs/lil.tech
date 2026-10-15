@@ -76,7 +76,7 @@ struct AuthClientTests {
         HTTPResponse(
           status: .init(code: 451), headerFields: [.contentType: "application/json"]),
         HTTPBody(
-          #"{"_tag":"SignUpUnavailableInRegion","message":"lil isn't available in your country or region"}"#
+          #"{"_tag":"SignUpUnavailableInRegion","message":"New accounts can't be created in your country or region"}"#
         )
       )
     }

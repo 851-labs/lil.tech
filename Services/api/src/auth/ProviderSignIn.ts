@@ -19,11 +19,11 @@ export interface VerifiedIdentity {
 }
 
 /**
- * Countries (Cloudflare's `cf-ipcountry`) where new accounts can't be made: mainland China, whose
+ * Countries (ISO codes, as Cloudflare gives them) where new accounts can't be made: mainland China, whose
  * data-localization rules we don't meet. The App Store doesn't offer the apps there, but the Mac
  * app is downloaded directly. Hong Kong, Macau and Taiwan have their own codes.
  */
-export const noSignUpCountries: ReadonlySet<string> = new Set(["CN"]);
+const noSignUpCountries: ReadonlySet<string> = new Set(["CN"]);
 
 export interface DeviceDetails {
   readonly app: string;
@@ -73,7 +73,7 @@ export class ProviderSignIn extends Context.Service<
 
         if (country !== null && noSignUpCountries.has(country)) {
           return yield* new SignUpUnavailableInRegion({
-            message: "lil isn't available in your country or region",
+            message: "New accounts can't be created in your country or region",
           });
         }
         const user = yield* users.create({ displayName: identity.displayName });

@@ -102,6 +102,16 @@ export const AddressRateLimitLayer = Layer.effect(
   }),
 );
 
+/**
+ * The country a request came from: the Worker request's `cf.country`, which Cloudflare always
+ * sets (unlike the `cf-ipcountry` header, which depends on a zone setting). Missing only in local
+ * runs and tests.
+ */
+const requestCountry = (request: HttpServerRequest.HttpServerRequest): string | null => {
+  const { cf } = request.source as { readonly cf?: { readonly country?: unknown } };
+  return typeof cf?.country === "string" ? cf.country : null;
+};
+
 export const AuthHandlers = HttpApiBuilder.group(
   Api,
   "auth",
@@ -112,12 +122,10 @@ export const AuthHandlers = HttpApiBuilder.group(
     const providerSignIn = yield* ProviderSignIn;
     const signIn = (identity: VerifiedIdentity, device: typeof DeviceInfo.Type) =>
       Effect.gen(function* () {
-        // Set by Cloudflare; missing only in local runs and tests.
-        const country = (yield* HttpServerRequest.HttpServerRequest).headers["cf-ipcountry"];
         return yield* providerSignIn.signIn(
           identity,
           { app: device.app, platform: device.platform, name: device.name ?? null },
-          country ?? null,
+          requestCountry(yield* HttpServerRequest.HttpServerRequest),
         );
       }).pipe(Effect.catchTags({ SqlError: Effect.die, SchemaError: Effect.die }));
     return handlers
