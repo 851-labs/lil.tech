@@ -89,6 +89,12 @@ public struct HealthReader: Sendable {
   struct UnknownType: Error {
     let id: String
   }
+
+  /// Health can't be read while the device is locked. Not a failure: the work waits until it's
+  /// unlocked.
+  public struct Locked: Error, Equatable {
+    public init() {}
+  }
 }
 
 extension HealthReader: DependencyKey {
@@ -101,7 +107,12 @@ extension HealthReader: DependencyKey {
       }
       let descriptor = HKAnchoredObjectQueryDescriptor(
         predicates: [.sample(type: sampleType)], anchor: anchor, limit: limit)
-      let result = try await descriptor.result(for: store)
+      let result: HKAnchoredObjectQueryDescriptor<HKSample>.Result
+      do {
+        result = try await descriptor.result(for: store)
+      } catch let error as HKError where error.code == .errorDatabaseInaccessible {
+        throw Locked()
+      }
       var mutations: [HealthMutation] = []
       for sample in result.addedSamples {
         // One sample that can't be encoded is reported and skipped, so it can't stop the rest.
@@ -231,6 +242,10 @@ public struct HealthBatchUploader: Sendable {
 }
 
 extension HealthBatchUploader: DependencyKey {
+  /// Through the API client, whose middleware adds the token and retries once after a 401. Not a
+  /// background `URLSession`: iOS schedules transfers started in the background at its own
+  /// discretion, too late for HealthKit's and background tasks' deadlines. An upload cut off by
+  /// suspension is just sent again, which batch IDs make safe.
   public static var liveValue: Self {
     @Dependency(\.api) var api
     return Self { id, file in

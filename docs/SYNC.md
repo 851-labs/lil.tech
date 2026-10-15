@@ -188,6 +188,11 @@ POST /v1/sync/mutations
     - If the app is killed, the pending page is uploaded again under the same batch IDs, which is safe, and nothing is skipped.
     - A type with nothing to read keeps no anchor and is checked again on every run. HealthKit returns nothing both for no data and for denied access, and an anchor taken while access was denied would skip the history once it's granted.
     - Signing out resets the backfill.
+    - **In the background:**
+      - While signed in with an unfinished backfill, the app asks iOS for a `BGProcessingTask` (`tech.lil.health.sync`), before each foreground run starts.
+      - The task continues the backfill and pauses when its time is up, keeping the pending page for next time.
+      - A locked iPhone can't read Health, so the task waits for it to be unlocked instead of failing.
+      - Uploads use the regular API client, not a background `URLSession`. iOS schedules background-session transfers started in the background at its own discretion, too late for HealthKit's and the task's deadlines. An upload cut off by suspension is just sent again.
   - **Incremental sync:** the iPhone registers an `HKObserverQuery` with background delivery (`.immediate`, which HealthKit limits per type) for every type, at every launch.
     - Observers are registered again after Health access is granted, to turn delivery on for types that weren't readable before.
     - A change runs the same page loop from the type's anchor, uploading additions and deletions.

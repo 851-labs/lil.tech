@@ -5,6 +5,7 @@ import SwiftUI
 
 @main
 struct LilHealthApp: App {
+
   static let store = Store(initialState: AppFeature.State()) {
     AppFeature()
   }
@@ -14,6 +15,7 @@ struct LilHealthApp: App {
       $0.authDevice = .current(app: "health-ios")
       $0.authenticateAPI()
     }
+    HealthBackgroundWork.register()
     // Before HealthKit delivers the change that may have woken the app.
     Task { await HealthChanges.observe() }
   }

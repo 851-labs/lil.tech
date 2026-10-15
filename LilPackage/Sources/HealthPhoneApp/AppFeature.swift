@@ -54,7 +54,11 @@ public struct AppFeature {
         return .run { [healthBackfill] _ in
           // Again now that Health access may have been granted.
           await HealthChanges.observe()
+          // Asked for up front: the app may be suspended long before the run ends.
+          await HealthBackgroundWork.scheduleIfNeeded()
           try? await healthBackfill.run()
+          // Withdrawn if it's done (or the user signed out meanwhile).
+          await HealthBackgroundWork.scheduleIfNeeded()
         }
         .cancellable(id: CancelID.backfill, cancelInFlight: true)
 
