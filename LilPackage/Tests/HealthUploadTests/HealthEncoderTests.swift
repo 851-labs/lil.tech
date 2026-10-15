@@ -1,5 +1,6 @@
 import Foundation
 import GzipFiles
+import HealthCatalog
 import HealthKit
 import LilAPI
 import Testing
@@ -110,15 +111,6 @@ struct HealthEncoderTests {
   }
 
   @Test
-  func deletes() {
-    let uuid = UUID()
-    #expect(
-      HealthEncoder.deleted(uuid)
-        == .delete("health_sample", id: uuid.uuidString.lowercased()))
-    #expect(HealthEncoder.deleted(uuid, correlation: true).entity == "health_correlation")
-  }
-
-  @Test
   func activitySummary() throws {
     let summary = HKActivitySummary()
     summary.activeEnergyBurned = HKQuantity(unit: .kilocalorie(), doubleValue: 512.5)
@@ -147,6 +139,69 @@ struct HealthEncoderTests {
     let reiwa = DateComponents(era: 236, year: 7, month: 10, day: 4)
     #expect(
       HealthEncoder.activitySummary(summary, day: reiwa, calendar: japanese)?.id == "2025-10-04")
+  }
+
+  @Test
+  func workoutWithActivitiesEventsAndStatistics() throws {
+    // Provenance comes from a sample here, since HKWorkout's initializers are deprecated.
+    var provenance = HealthEncoder.provenance(
+      of: HKQuantitySample(
+        type: HKQuantityType(.heartRate),
+        quantity: HKQuantity(unit: .count().unitDivided(by: .minute()), doubleValue: 1),
+        start: start, end: start.addingTimeInterval(1800)))
+    provenance["metadata"] = .object(["HKIndoorWorkout": .bool(false)])
+    let heartRate = WorkoutRecord.Statistic(
+      type: "HKQuantityTypeIdentifierHeartRate", unit: "count/min", average: 151, minimum: 98,
+      maximum: 178, mostRecent: 160)
+    let energy = WorkoutRecord.Statistic(
+      type: "HKQuantityTypeIdentifierActiveEnergyBurned", unit: "kcal", sum: 312.5)
+    let workout = WorkoutRecord(
+      id: UUID(uuidString: "6F1C2A40-0000-4000-8000-0000000000A1")!,
+      activityType: HKWorkoutActivityType.running.rawValue, duration: 1740,
+      activities: [
+        .init(
+          id: UUID(uuidString: "6F1C2A40-0000-4000-8000-0000000000A2")!,
+          activityType: HKWorkoutActivityType.running.rawValue, startDate: start,
+          endDate: start.addingTimeInterval(1800), duration: 1740, metadata: nil,
+          statistics: [heartRate])
+      ],
+      events: [
+        .init(
+          type: HKWorkoutEventType.pause.rawValue, startDate: start.addingTimeInterval(600),
+          endDate: start.addingTimeInterval(660), metadata: nil)
+      ],
+      statistics: [energy, heartRate], provenance: provenance)
+
+    let mutation = HealthEncoder.workout(workout)
+    #expect(mutation.entity == "health_workout")
+    #expect(mutation.id == "6f1c2a40-0000-4000-8000-0000000000a1")
+    // It's what the server's schema accepts.
+    let decoded = try row(mutation, as: Components.Schemas.HealthWorkout.self)
+    #expect(decoded.activityType == 37)
+    #expect(decoded.duration == 1740)
+    #expect(decoded.startDate == 1_760_400_000_000)
+    #expect(decoded.endDate == 1_760_401_800_000)
+    let encoded = try line(mutation)
+    let row = try #require(encoded["row"] as? [String: Any])
+    let activities = try #require(row["activities"] as? [[String: Any]])
+    #expect(activities.first?["id"] as? String == "6f1c2a40-0000-4000-8000-0000000000a2")
+    #expect(activities.first?["endDate"] as? Double == 1_760_401_800_000)
+    let events = try #require(row["events"] as? [[String: Any]])
+    #expect(events.first?["type"] as? Double == 1)
+    #expect(events.first?["startDate"] as? Double == 1_760_400_600_000)
+    let statistics = try #require(row["statistics"] as? [String: [String: Any]])
+    #expect(statistics["HKQuantityTypeIdentifierActiveEnergyBurned"]?["sum"] as? Double == 312.5)
+    #expect(statistics["HKQuantityTypeIdentifierHeartRate"]?["average"] as? Double == 151)
+    #expect(statistics["HKQuantityTypeIdentifierHeartRate"]?["sum"] is NSNull)
+  }
+
+  @Test
+  func workoutsAreBackfilledAndDeletedAsWorkouts() {
+    let types = HealthBackfillType.all(availableOn: .ios(26))
+    let workout = types.first { $0.id == "HKWorkoutTypeIdentifier" }
+    #expect(workout?.entity == "health_workout")
+    #expect(types.first { $0.id == "HKQuantityTypeIdentifierStepCount" }?.entity == "health_sample")
+    #expect(types.first { $0.isCorrelation }?.entity == "health_correlation")
   }
 
   @Test

@@ -56,6 +56,48 @@ export const HealthCorrelation = defineEntity("health_correlation", {
 });
 
 /**
+ * Workouts (`HKWorkout`): the overall activity type and times, and as JSON what HealthKit nests in
+ * them: activities (the legs of a multisport workout), events (pauses, laps, segments, markers)
+ * and per-type statistics. Routes are separate (851-2566).
+ */
+export const HealthWorkout = defineEntity("health_workout", {
+  clientWritable: false,
+  id: healthKitUUID,
+  fields: {
+    /** `HKWorkoutActivityType`'s raw value, e.g. 37 for running. */
+    activityType: Column.integer,
+    startDate: Column.integer,
+    endDate: Column.integer,
+    /** Seconds of activity, excluding pauses. */
+    duration: Column.real,
+    /**
+     * `HKWorkoutActivity`s, in order: `{ id, activityType, startDate, endDate, duration,
+     * metadata, statistics }`. Often empty: HealthKit only has them for workouts recorded with
+     * activities (e.g. multisport), so read `activityType` and `statistics` for the whole.
+     */
+    activities: Column.json,
+    /** `HKWorkoutEvent`s, in order: `{ type, startDate, endDate, metadata }`. */
+    events: Column.json,
+    /**
+     * By quantity type identifier: `{ unit, sum, average, minimum, maximum, mostRecent }`, each
+     * in the type's unit from the Swift `HealthCatalog` module, or null.
+     */
+    statistics: Column.json,
+    ...provenance,
+  },
+  // The JSON fields' shapes, so a client can rely on them.
+  checkRow: (_, row) => {
+    if (!Array.isArray(row.activities)) return "activities must be an array";
+    if (!Array.isArray(row.events)) return "events must be an array";
+    const { statistics } = row;
+    if (typeof statistics !== "object" || statistics === null || Array.isArray(statistics)) {
+      return "statistics must be an object";
+    }
+    return undefined;
+  },
+});
+
+/**
  * Characteristics (date of birth, sex, blood type, skin type, wheelchair use, move mode), keyed by
  * their type identifier.
  */
@@ -155,4 +197,5 @@ export const healthEntities = [
   HealthActivitySummary,
   HealthStatistic,
   HealthStatisticsDevice,
+  HealthWorkout,
 ] as const;

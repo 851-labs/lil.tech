@@ -249,6 +249,60 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHeal
     }),
   );
 
+  it.effect("applies workouts with their activities, events and statistics", () =>
+    Effect.gen(function* () {
+      const id = uuid(4400);
+      const workout = {
+        entity: "health_workout",
+        op: "upsert",
+        id,
+        row: {
+          activityType: 37,
+          startDate: 1760400000000,
+          endDate: 1760401800000,
+          duration: 1740,
+          activities: [
+            {
+              id: uuid(4401),
+              activityType: 37,
+              startDate: 1760400000000,
+              endDate: 1760401800000,
+              duration: 1740,
+              metadata: null,
+              statistics: {},
+            },
+          ],
+          events: [{ type: 1, startDate: 1760400600000, endDate: 1760400660000, metadata: null }],
+          statistics: {
+            HKQuantityTypeIdentifierHeartRate: {
+              unit: "count/min",
+              sum: null,
+              average: 151,
+              minimum: 98,
+              maximum: 178,
+              mostRecent: 160,
+            },
+          },
+          sourceName: "Test Watch",
+          sourceBundleId: "com.apple.health.00000000",
+        },
+      };
+      const { batch } = yield* ingest([
+        workout,
+        { ...workout, id: "not-a-uuid" },
+        { ...workout, id: uuid(4402), row: { ...workout.row, statistics: [] } },
+      ]);
+      assert.deepInclude(batch, { status: "applied", applied: 1, rejected: 2 });
+      const sql = (yield* TestStores).sqlFor(userId);
+      const [row] =
+        sql?.exec("SELECT activity_type, events FROM health_workout WHERE id = ?", id) ?? [];
+      assert.deepStrictEqual(row, {
+        activity_type: 37,
+        events: '[{"endDate":1760400660000,"metadata":null,"startDate":1760400600000,"type":1}]',
+      });
+    }),
+  );
+
   it.effect("applies deletes as tombstones", () =>
     Effect.gen(function* () {
       yield* ingest([sample(30)]);

@@ -50,11 +50,6 @@ public enum HealthEncoder {
     return [.upsert(correlationEntity, id: id(correlation.uuid), row: row)] + members
   }
 
-  /// A deleted sample or correlation (`HKDeletedObject`).
-  public static func deleted(_ uuid: UUID, correlation: Bool = false) -> HealthMutation {
-    .delete(correlation ? correlationEntity : sampleEntity, id: id(uuid))
-  }
-
   /// One day's Activity rings, keyed by its Gregorian date (`YYYY-MM-DD`). `day` is
   /// `summary.dateComponents(for: calendar)`, in the iPhone's calendar, which may not be
   /// Gregorian.

@@ -1774,6 +1774,57 @@
           "reportedAt"
         ],
         "additionalProperties": true
+      },
+      "HealthWorkout": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "activityType": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "startDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "endDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "duration": {
+            "type": "number"
+          },
+          "activities": {},
+          "events": {},
+          "statistics": {},
+          "sourceName": {
+            "type": "string"
+          },
+          "sourceBundleId": {
+            "type": "string"
+          },
+          "sourceRevision": {},
+          "device": {},
+          "metadata": {}
+        },
+        "required": [
+          "id",
+          "activityType",
+          "startDate",
+          "endDate",
+          "duration",
+          "activities",
+          "events",
+          "statistics",
+          "sourceName",
+          "sourceBundleId"
+        ],
+        "additionalProperties": true
       }
     },
     "securitySchemes": {
