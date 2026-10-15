@@ -97,6 +97,27 @@ export const HealthWorkout = defineEntity("health_workout", {
   },
 });
 
+/**
+ * Audiograms (`HKAudiogramSample`): hearing sensitivity at each tested frequency, per ear.
+ */
+export const HealthAudiogram = defineEntity("health_audiogram", {
+  clientWritable: false,
+  id: healthKitUUID,
+  fields: {
+    startDate: Column.integer,
+    endDate: Column.integer,
+    /**
+     * By frequency, ascending: `{ frequency, tests }`, `frequency` in Hz. Each test is
+     * `{ side, type, masked, sensitivity, clampingLower, clampingUpper }`: `side` and `type` are
+     * `HKAudiogramSensitivityTestSide` and `HKAudiogramConductionType` raw values, and the
+     * sensitivity and clamping bounds are in dBHL (the bounds may be null).
+     */
+    points: Column.json,
+    ...provenance,
+  },
+  checkRow: (_, row) => (Array.isArray(row.points) ? undefined : "points must be an array"),
+});
+
 /** Whether a field is a list of HealthKit enum raw values. */
 const isRawValues = (value: unknown) =>
   Array.isArray(value) && value.every((element) => Number.isInteger(element));
@@ -254,4 +275,5 @@ export const healthEntities = [
   HealthWorkout,
   HealthStateOfMind,
   HealthScoredAssessment,
+  HealthAudiogram,
 ] as const;

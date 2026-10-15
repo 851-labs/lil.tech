@@ -372,6 +372,42 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHeal
     }),
   );
 
+  it.effect("applies audiograms", () =>
+    Effect.gen(function* () {
+      const audiogram = {
+        entity: "health_audiogram",
+        op: "upsert",
+        id: uuid(4600),
+        row: {
+          startDate: 1760400000000,
+          endDate: 1760400000000,
+          points: [
+            {
+              frequency: 1000,
+              tests: [
+                {
+                  side: 0,
+                  type: 0,
+                  masked: false,
+                  sensitivity: 20,
+                  clampingLower: null,
+                  clampingUpper: null,
+                },
+              ],
+            },
+          ],
+          sourceName: "Test iPhone",
+          sourceBundleId: "com.apple.health.00000000",
+        },
+      };
+      const { batch } = yield* ingest([
+        audiogram,
+        { ...audiogram, id: uuid(4601), row: { ...audiogram.row, points: {} } },
+      ]);
+      assert.deepInclude(batch, { status: "applied", applied: 1, rejected: 1 });
+    }),
+  );
+
   it.effect("applies deletes as tombstones", () =>
     Effect.gen(function* () {
       yield* ingest([sample(30)]);
