@@ -1866,5 +1866,225 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkout`.
+        public struct HealthWorkout: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/activityType`.
+            public var activityType: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/startDate`.
+            public var startDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/endDate`.
+            public var endDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/duration`.
+            public var duration: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/activities`.
+            public var activities: OpenAPIRuntime.OpenAPIValueContainer
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/events`.
+            public var events: OpenAPIRuntime.OpenAPIValueContainer
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/statistics`.
+            public var statistics: OpenAPIRuntime.OpenAPIValueContainer
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/sourceName`.
+            public var sourceName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/sourceBundleId`.
+            public var sourceBundleId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/sourceRevision`.
+            public var sourceRevision: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/device`.
+            public var device: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/metadata`.
+            public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkout`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - activityType:
+            ///   - startDate:
+            ///   - endDate:
+            ///   - duration:
+            ///   - activities:
+            ///   - events:
+            ///   - statistics:
+            ///   - sourceName:
+            ///   - sourceBundleId:
+            ///   - sourceRevision:
+            ///   - device:
+            ///   - metadata:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                activityType: Swift.Int,
+                startDate: Swift.Int,
+                endDate: Swift.Int,
+                duration: Swift.Double,
+                activities: OpenAPIRuntime.OpenAPIValueContainer,
+                events: OpenAPIRuntime.OpenAPIValueContainer,
+                statistics: OpenAPIRuntime.OpenAPIValueContainer,
+                sourceName: Swift.String,
+                sourceBundleId: Swift.String,
+                sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.activityType = activityType
+                self.startDate = startDate
+                self.endDate = endDate
+                self.duration = duration
+                self.activities = activities
+                self.events = events
+                self.statistics = statistics
+                self.sourceName = sourceName
+                self.sourceBundleId = sourceBundleId
+                self.sourceRevision = sourceRevision
+                self.device = device
+                self.metadata = metadata
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case activityType
+                case startDate
+                case endDate
+                case duration
+                case activities
+                case events
+                case statistics
+                case sourceName
+                case sourceBundleId
+                case sourceRevision
+                case device
+                case metadata
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.activityType = try container.decode(
+                    Swift.Int.self,
+                    forKey: .activityType
+                )
+                self.startDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .startDate
+                )
+                self.endDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .endDate
+                )
+                self.duration = try container.decode(
+                    Swift.Double.self,
+                    forKey: .duration
+                )
+                self.activities = try container.decode(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .activities
+                )
+                self.events = try container.decode(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .events
+                )
+                self.statistics = try container.decode(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .statistics
+                )
+                self.sourceName = try container.decode(
+                    Swift.String.self,
+                    forKey: .sourceName
+                )
+                self.sourceBundleId = try container.decode(
+                    Swift.String.self,
+                    forKey: .sourceBundleId
+                )
+                self.sourceRevision = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .sourceRevision
+                )
+                self.device = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .device
+                )
+                self.metadata = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .metadata
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "activityType",
+                    "startDate",
+                    "endDate",
+                    "duration",
+                    "activities",
+                    "events",
+                    "statistics",
+                    "sourceName",
+                    "sourceBundleId",
+                    "sourceRevision",
+                    "device",
+                    "metadata"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.activityType,
+                    forKey: .activityType
+                )
+                try container.encode(
+                    self.startDate,
+                    forKey: .startDate
+                )
+                try container.encode(
+                    self.endDate,
+                    forKey: .endDate
+                )
+                try container.encode(
+                    self.duration,
+                    forKey: .duration
+                )
+                try container.encode(
+                    self.activities,
+                    forKey: .activities
+                )
+                try container.encode(
+                    self.events,
+                    forKey: .events
+                )
+                try container.encode(
+                    self.statistics,
+                    forKey: .statistics
+                )
+                try container.encode(
+                    self.sourceName,
+                    forKey: .sourceName
+                )
+                try container.encode(
+                    self.sourceBundleId,
+                    forKey: .sourceBundleId
+                )
+                try container.encodeIfPresent(
+                    self.sourceRevision,
+                    forKey: .sourceRevision
+                )
+                try container.encodeIfPresent(
+                    self.device,
+                    forKey: .device
+                )
+                try container.encodeIfPresent(
+                    self.metadata,
+                    forKey: .metadata
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
     }
 }

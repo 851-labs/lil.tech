@@ -56,6 +56,37 @@ export const HealthCorrelation = defineEntity("health_correlation", {
 });
 
 /**
+ * Workouts (`HKWorkout`): the overall activity type and times, and as JSON what HealthKit nests in
+ * them: activities (the legs of a multisport workout), events (pauses, laps, segments, markers)
+ * and per-type statistics. Routes are separate (851-2566).
+ */
+export const HealthWorkout = defineEntity("health_workout", {
+  clientWritable: false,
+  id: healthKitUUID,
+  fields: {
+    /** `HKWorkoutActivityType`'s raw value, e.g. 37 for running. */
+    activityType: Column.integer,
+    startDate: Column.integer,
+    endDate: Column.integer,
+    /** Seconds of activity, excluding pauses. */
+    duration: Column.real,
+    /**
+     * `HKWorkoutActivity`s, in order: `{ id, activityType, startDate, endDate, duration,
+     * metadata, statistics }`. A single-activity workout has one.
+     */
+    activities: Column.json,
+    /** `HKWorkoutEvent`s, in order: `{ type, startDate, endDate, metadata }`. */
+    events: Column.json,
+    /**
+     * By quantity type identifier: `{ unit, sum, average, minimum, maximum, mostRecent }`, each
+     * in the type's unit from the Swift `HealthCatalog` module, or null.
+     */
+    statistics: Column.json,
+    ...provenance,
+  },
+});
+
+/**
  * Characteristics (date of birth, sex, blood type, skin type, wheelchair use, move mode), keyed by
  * their type identifier.
  */
@@ -155,4 +186,5 @@ export const healthEntities = [
   HealthActivitySummary,
   HealthStatistic,
   HealthStatisticsDevice,
+  HealthWorkout,
 ] as const;

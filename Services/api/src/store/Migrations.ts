@@ -114,6 +114,15 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CREATE INDEX health_statistic_by_device ON "health_statistic" ("device");
     `,
   },
+  {
+    version: 8,
+    name: "health_workout",
+    // `HealthWorkout` in `src/health/HealthEntities.ts`.
+    sql: `
+      CREATE TABLE "health_workout" (id TEXT PRIMARY KEY, "activity_type" INTEGER NOT NULL, "start_date" INTEGER NOT NULL, "end_date" INTEGER NOT NULL, "duration" REAL NOT NULL, "activities" TEXT NOT NULL, "events" TEXT NOT NULL, "statistics" TEXT NOT NULL, "source_name" TEXT NOT NULL, "source_bundle_id" TEXT NOT NULL, "source_revision" TEXT, "device" TEXT, "metadata" TEXT) STRICT;
+      CREATE INDEX health_workout_start ON health_workout (start_date);
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */
