@@ -83,6 +83,28 @@ const records: ReadonlyArray<{
     },
     update: { paused: true },
   },
+  {
+    entity: "health_statistic",
+    id: "dev_000000000000000000000000ph/HKQuantityTypeIdentifierDietaryVitaminB12@1760400000000",
+    row: {
+      device: "dev_000000000000000000000000ph",
+      type: "HKQuantityTypeIdentifierDietaryVitaminB12",
+      bucketStart: 1760400000000,
+      sum: 2.4,
+      unit: "mcg",
+    },
+    update: { sum: 2.6 },
+  },
+  {
+    entity: "health_statistics_device",
+    id: "dev_000000000000000000000000ph",
+    row: {
+      device: "dev_000000000000000000000000ph",
+      pairedWithWatch: false,
+      reportedAt: 1760400000000,
+    },
+    update: { pairedWithWatch: true },
+  },
 ];
 
 describe("health entities", () => {
@@ -125,9 +147,50 @@ describe("health entities", () => {
         "health_correlation",
         "health_characteristic",
         "health_activity_summary",
+        "health_statistic",
+        "health_statistics_device",
       ]) {
         assert.deepStrictEqual(sql.exec(`SELECT count(*) AS n FROM ${table}`), [{ n: 0 }]);
       }
+    }),
+  );
+
+  it.effect("statistics are keyed by their device, type and bucket", () =>
+    Effect.gen(function* () {
+      const store = makeUserStore(makeTestStoreSql());
+      const device = "dev_000000000000000000000000ph";
+      const row = {
+        device,
+        type: "HKQuantityTypeIdentifierStepCount",
+        bucketStart: 1760400000000,
+        sum: 10,
+        unit: "count",
+      };
+      const upsert = (id: string, overrides: Record<string, unknown> = {}): Mutation => ({
+        entity: "health_statistic",
+        op: "upsert",
+        id,
+        row: { ...row, ...overrides } as Mutation extends { row: infer R } ? R : never,
+      });
+      const failures = [
+        // A different bucket than the ID's, a non-canonical bucket, and an off-grid bucket.
+        upsert(`${device}/HKQuantityTypeIdentifierStepCount@1760400000000`, {
+          bucketStart: 1760401800000,
+        }),
+        upsert(`${device}/HKQuantityTypeIdentifierStepCount@01760400000000`),
+        upsert(`${device}/HKQuantityTypeIdentifierStepCount@1760400060000`, {
+          bucketStart: 1760400060000,
+        }),
+      ];
+      const messages: Array<string> = [];
+      for (const mutation of failures) {
+        messages.push((yield* Effect.flip(store.applyMutations([mutation]))).message);
+      }
+      assert.deepStrictEqual(messages, [
+        `The ID must be ${device}/HKQuantityTypeIdentifierStepCount@1760401800000`,
+        `The ID must be ${device}/HKQuantityTypeIdentifierStepCount@1760400000000`,
+        "bucketStart must be a multiple of 30 minutes",
+      ]);
     }),
   );
 

@@ -1,6 +1,6 @@
 import { gzipSync } from "node:zlib";
 import { assert, describe, layer } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { Clock, Effect, Layer } from "effect";
 import { TestClock } from "effect/testing";
 import type { DeviceId, UserId } from "../../src/core/Ids.ts";
 import {
@@ -127,11 +127,12 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion))("ingestHealthBatch", 
           ...statistic(bucket + 1800000, 300),
           row: { ...statistic(0, 300).row, bucketStart: bucket + 1800000, device: "dev_other" },
         },
+        // `reportedAt` is the server's time, not the iPhone's.
         {
           entity: "health_statistics_device",
           op: "upsert",
           id: "self",
-          row: { pairedWithWatch: true, reportedAt: bucket },
+          row: { pairedWithWatch: true, reportedAt: 0 },
         },
       ]);
       assert.deepInclude(batch, { status: "applied", applied: 3, rejected: 0 });
@@ -153,9 +154,12 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion))("ingestHealthBatch", 
           },
         ],
       );
+      const now = yield* Clock.currentTimeMillis;
       assert.deepStrictEqual(
-        sql?.exec("SELECT id, device, paired_with_watch FROM health_statistics_device"),
-        [{ id: deviceId, device: deviceId, paired_with_watch: 1 }],
+        sql?.exec(
+          "SELECT id, device, paired_with_watch, reported_at FROM health_statistics_device",
+        ),
+        [{ id: deviceId, device: deviceId, paired_with_watch: 1, reported_at: now }],
       );
 
       // Deletes are stamped too.

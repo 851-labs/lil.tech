@@ -68,6 +68,7 @@ class BatchUnreadable extends Schema.TaggedError<BatchUnreadable>()("BatchUnread
 const parseLine = (
   content: string,
   deviceId: DeviceId | undefined,
+  now: number,
 ): Result.Result<Mutation, string> => {
   const decoded = decodeMutation(content);
   if (Result.isFailure(decoded)) return Result.fail(decoded.failure.message);
@@ -80,9 +81,18 @@ const parseLine = (
       return Result.fail(`Invalid ${entity.name} ID ${mutation.id}`);
     }
     const id = stampDevice(deviceId, mutation.id);
+    const { stampedAt } = entity.deviceScoped;
     mutation =
       mutation.op === "upsert"
-        ? { ...mutation, id, row: { ...mutation.row, device: deviceId } }
+        ? {
+            ...mutation,
+            id,
+            row: {
+              ...mutation.row,
+              device: deviceId,
+              ...(stampedAt === undefined ? {} : { [stampedAt]: now }),
+            },
+          }
         : { ...mutation, id };
   }
   if (!entity.isValidId(mutation.id))
@@ -94,8 +104,6 @@ const parseLine = (
       ({ field, type }) => !type.nullable && fields.success[field] === undefined,
     );
     if (missing !== undefined) return Result.fail(`Missing ${missing.field}`);
-    const invalid = entity.checkRow?.(fields.success);
-    if (invalid !== undefined) return Result.fail(invalid);
   }
   return Result.succeed(mutation);
 };
@@ -219,7 +227,7 @@ export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
         rejected.push({ line, message: `Longer than ${maxBatchLineLength} characters` });
         return;
       }
-      const parsed = parseLine(content, message.deviceId);
+      const parsed = parseLine(content, message.deviceId, yield* Clock.currentTimeMillis);
       if (Result.isFailure(parsed)) {
         rejected.push({ line, message: parsed.failure });
         return;

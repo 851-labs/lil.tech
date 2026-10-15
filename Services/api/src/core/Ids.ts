@@ -5,7 +5,10 @@ import { Clock, Effect, Schema } from "effect";
 
 const alphabet = "0123456789abcdefghjkmnpqrstvwxyz";
 
-const pattern = (prefix: string) => Schema.isPattern(new RegExp(`^${prefix}_[${alphabet}]{26}$`));
+/** The regular expression source for an ID with `prefix`, e.g. `dev_…`. */
+export const idPattern = (prefix: string) => `${prefix}_[${alphabet}]{26}`;
+
+const pattern = (prefix: string) => Schema.isPattern(new RegExp(`^${idPattern(prefix)}$`));
 
 export const UserId = Schema.String.pipe(Schema.check(pattern("usr")), Schema.brand("UserId"));
 export type UserId = typeof UserId.Type;

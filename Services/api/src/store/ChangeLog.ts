@@ -94,6 +94,12 @@ export const applyMutations = (
       if (missing !== undefined) {
         throw new InvalidMutation({ index, message: `Missing ${missing.field}` });
       }
+      const row: Record<string, Schema.Json> = { id: mutation.id };
+      entity.fields.forEach(({ field, type }, position) => {
+        row[field] = fromColumnValue(type, values[position]);
+      });
+      const invalid = entity.checkRow?.(mutation.id, row);
+      if (invalid !== undefined) throw new InvalidMutation({ index, message: invalid });
       if (
         stored !== undefined &&
         sameValues(
@@ -104,10 +110,6 @@ export const applyMutations = (
         continue;
       }
       sql.exec(entity.statements.upsert, mutation.id, ...values);
-      const row: Record<string, Schema.Json> = { id: mutation.id };
-      entity.fields.forEach(({ field, type }, position) => {
-        row[field] = fromColumnValue(type, values[position]);
-      });
       append(++head, mutation, JSON.stringify(row));
     }
     if (head !== start) {

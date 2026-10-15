@@ -72,13 +72,13 @@ export interface Entity {
   readonly rowSchema: () => Schema.Top;
   /** Checks a record ID, e.g. that a HealthKit UUID is lowercase. */
   readonly isValidId: (id: string) => boolean;
+  /** For records that belong to the device uploading them (`DeviceScoped`). */
+  readonly deviceScoped?: DeviceScoped;
   /**
-   * For records that belong to the device uploading them. Clients send IDs in this form, and the
-   * server stamps them with the device (see `stampDevice`).
+   * Checks a whole record beyond its fields' types, returning why it's invalid. The store runs it
+   * on every upsert, with the merged row.
    */
-  readonly deviceScoped?: { readonly id: RegExp };
-  /** Checks a whole row beyond its fields' types, returning why it's invalid. */
-  readonly checkRow?: (row: Readonly<Record<string, Schema.Json>>) => string | undefined;
+  readonly checkRow?: CheckRow;
   /** Decodes the fields an upsert sets. Any may be missing, since upserts merge. */
   readonly decodeFields: (
     row: unknown,
@@ -92,6 +92,21 @@ export interface Entity {
 }
 
 /**
+ * Records that belong to the device uploading them. Clients send IDs in the `id` form, and the
+ * server stamps them with the device (`stampDevice`) and sets their `device` field.
+ */
+export interface DeviceScoped {
+  readonly id: RegExp;
+  /** An integer field the server sets to when it applied the record (Unix milliseconds). */
+  readonly stampedAt?: string;
+}
+
+export type CheckRow = (
+  id: string,
+  row: Readonly<Record<string, Schema.Json>>,
+) => string | undefined;
+
+/**
  * Defines an entity. Field names are lower camel case (`startDate`, not `HRV`) so that each maps
  * to its own `snake_case` column, and `id` is implicit.
  */
@@ -102,12 +117,19 @@ export const defineEntity = (
     readonly fields: Record<string, Column>;
     /** The form record IDs must have. Any non-empty string by default. */
     readonly id?: RegExp;
-    readonly deviceScoped?: { readonly id: RegExp };
-    readonly checkRow?: (row: Readonly<Record<string, Schema.Json>>) => string | undefined;
+    readonly deviceScoped?: DeviceScoped;
+    readonly checkRow?: CheckRow;
   },
 ): Entity => {
-  if (options.deviceScoped !== undefined && options.fields.device?.type !== "text") {
+  const { deviceScoped } = options;
+  if (deviceScoped !== undefined && options.fields.device?.type !== "text") {
     throw new Error(`Device-scoped entity ${name} needs a text device field`);
+  }
+  if (
+    deviceScoped?.stampedAt !== undefined &&
+    options.fields[deviceScoped.stampedAt]?.type !== "integer"
+  ) {
+    throw new Error(`${name}.${deviceScoped.stampedAt} must be an integer field`);
   }
   if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new Error(`Invalid entity name: ${name}`);
   const fields = Object.entries(options.fields).map(([field, type]) => {

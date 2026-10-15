@@ -98,7 +98,6 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
     // `HealthStatistic` and `HealthStatisticsDevice` in `src/health/HealthEntities.ts`.
     sql: `
       CREATE TABLE "health_statistic" (id TEXT PRIMARY KEY, "device" TEXT NOT NULL, "type" TEXT NOT NULL, "bucket_start" INTEGER NOT NULL, "sum" REAL NOT NULL, "unit" TEXT NOT NULL) STRICT;
-      CREATE INDEX health_statistic_device_type_bucket ON health_statistic (device, type, bucket_start);
       CREATE TABLE "health_statistics_device" (id TEXT PRIMARY KEY, "device" TEXT NOT NULL, "paired_with_watch" INTEGER NOT NULL, "reported_at" INTEGER NOT NULL) STRICT;
     `,
   },

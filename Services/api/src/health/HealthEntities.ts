@@ -1,3 +1,4 @@
+import { idPattern } from "../core/Ids.ts";
 import { Column, defineEntity } from "../store/Entities.ts";
 
 // Generic HealthKit data in the user's store. Records are keyed by HealthKit's UUID, lowercased
@@ -94,9 +95,9 @@ export const HealthActivitySummary = defineEntity("health_activity_summary", {
 /** Statistics buckets are 30 minutes, starting on UTC half-hours (Unix milliseconds). */
 export const statisticsBucketMillis = 30 * 60 * 1000;
 
-/** A server device ID (`src/core/Ids.ts`). */
-const deviceId = "dev_[0-9a-z]{26}";
-const quantityType = "HKQuantityTypeIdentifier[A-Za-z]+";
+const deviceId = idPattern("dev");
+/** Quantity type identifiers, some with digits (`HKQuantityTypeIdentifierDietaryVitaminB12`). */
+const quantityType = "HKQuantityTypeIdentifier[A-Za-z0-9]+";
 
 /**
  * A cumulative type's sum over one 30-minute bucket, as one iPhone's HealthKit computed it. Health
@@ -118,10 +119,14 @@ export const HealthStatistic = defineEntity("health_statistic", {
     /** The unit `sum` is in, as an `HKUnit` string. */
     unit: Column.text,
   },
-  checkRow: (row) =>
-    typeof row.bucketStart === "number" && row.bucketStart % statisticsBucketMillis !== 0
-      ? "bucketStart must be a multiple of 30 minutes"
-      : undefined,
+  checkRow: (id, row) => {
+    if (typeof row.bucketStart !== "number" || row.bucketStart % statisticsBucketMillis !== 0) {
+      return "bucketStart must be a multiple of 30 minutes";
+    }
+    // One key per device, type and bucket.
+    const expected = `${String(row.device)}/${String(row.type)}@${row.bucketStart}`;
+    return id === expected ? undefined : `The ID must be ${expected}`;
+  },
 });
 
 /**
@@ -132,14 +137,15 @@ export const HealthStatistic = defineEntity("health_statistic", {
 export const HealthStatisticsDevice = defineEntity("health_statistics_device", {
   clientWritable: false,
   id: new RegExp(`^${deviceId}$`),
-  deviceScoped: { id: /^self$/ },
+  deviceScoped: { id: /^self$/, stampedAt: "reportedAt" },
   fields: {
     device: Column.text,
     /** Whether the iPhone is paired with an Apple Watch (`WCSession.isPaired`). */
     pairedWithWatch: Column.boolean,
-    /** When it last uploaded statistics (Unix milliseconds). */
+    /** When the server last applied its report (Unix milliseconds), not the iPhone's clock. */
     reportedAt: Column.integer,
   },
+  checkRow: (id, row) => (id === row.device ? undefined : "The ID must be the device"),
 });
 
 export const healthEntities = [
