@@ -678,6 +678,67 @@ struct HealthBackfillTests {
   }
 
   @Test
+  func deletesACharacteristicThatStopsBeingReadable() async throws {
+    let server = FakeServer()
+    let readable = LockIsolated(true)
+    let lines = LockIsolated<[String]>([])
+    let backfill = withDependencies {
+      $0.healthReader = FakeHealth(pages: [:]).reader
+      $0.healthBatchUploader = HealthBatchUploader { id, file in
+        let text = String(decoding: try Gzip.decompress(file), as: UTF8.self)
+        lines.withValue { $0 += text.split(separator: "\n").map(String.init) }
+        try await server.uploader.upload(id, file)
+      }
+      $0.healthBackfillStorage = .inMemory()
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader {
+        [HealthEncoder.characteristic(.biologicalSex, value: "female")]
+          + (readable.value
+            ? [HealthEncoder.characteristic(.dateOfBirth, value: .object(["year": 1990]))] : [])
+      }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [])
+    }
+    try await backfill.run()
+    // Read access to date of birth was turned off.
+    readable.setValue(false)
+    lines.setValue([])
+    try await backfill.run()
+    #expect(lines.value.contains { $0.contains(#""op":"delete""#) && $0.contains("DateOfBirth") })
+    #expect(!lines.value.contains { $0.contains("BiologicalSex") && $0.contains("delete") })
+  }
+
+  @Test
+  func aLockedPhoneDoesntLookLikeRemovedCharacteristics() async throws {
+    let server = FakeServer()
+    let locked = LockIsolated(false)
+    let backfill = withDependencies {
+      $0.healthReader = FakeHealth(pages: [:]).reader
+      $0.healthBatchUploader = server.uploader
+      $0.healthBackfillStorage = .inMemory()
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader {
+        if locked.value { throw HealthReader.Locked() }
+        return [HealthEncoder.characteristic(.bloodType, value: "aPositive")]
+      }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [])
+    }
+    try await backfill.run()
+    let uploads = server.accepted.value.count
+    locked.setValue(true)
+    await #expect(throws: HealthReader.Locked.self) { try await backfill.run() }
+    locked.setValue(false)
+    // Unchanged once it's unlocked, so nothing goes up again.
+    try await backfill.run()
+    #expect(server.accepted.value.count == uploads)
+  }
+
+  @Test
   func uploadsAllActivitySummariesOnceThenTheLastWeek() async throws {
     let server = FakeServer()
     let date = LockIsolated(Date(timeIntervalSince1970: 1_760_400_000))

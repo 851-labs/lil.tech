@@ -32,33 +32,43 @@ extension HealthCharacteristicsReader: DependencyKey {
   public static var liveValue: Self {
     let store = HKHealthStore()
     return Self {
-      // Each read throws when the app may not read that characteristic; those are left out.
+      // Each read throws when the app may not read that characteristic; those are left out. A
+      // locked device stops the read instead, so they don't look removed.
+      func read<T>(_ characteristic: () throws -> T) throws -> T? {
+        do {
+          return try HealthReader.Locked.mapping(characteristic)
+        } catch let locked as HealthReader.Locked {
+          throw locked
+        } catch {
+          return nil
+        }
+      }
       var mutations: [HealthMutation] = []
-      if let birth = try? store.dateOfBirthComponents() {
+      if let birth = try read(store.dateOfBirthComponents) {
         mutations.append(
           HealthEncoder.characteristic(.dateOfBirth, value: HealthEncoder.dateOfBirth(birth)))
       }
-      if let sex = try? store.biologicalSex() {
+      if let sex = try read(store.biologicalSex) {
         mutations.append(
           HealthEncoder.characteristic(
             .biologicalSex, value: HealthEncoder.biologicalSex(sex.biologicalSex)))
       }
-      if let blood = try? store.bloodType() {
+      if let blood = try read(store.bloodType) {
         mutations.append(
           HealthEncoder.characteristic(
             .bloodType, value: HealthEncoder.bloodType(blood.bloodType)))
       }
-      if let skin = try? store.fitzpatrickSkinType() {
+      if let skin = try read(store.fitzpatrickSkinType) {
         mutations.append(
           HealthEncoder.characteristic(
             .fitzpatrickSkinType, value: HealthEncoder.skinType(skin.skinType)))
       }
-      if let wheelchair = try? store.wheelchairUse() {
+      if let wheelchair = try read(store.wheelchairUse) {
         mutations.append(
           HealthEncoder.characteristic(
             .wheelchairUse, value: HealthEncoder.wheelchairUse(wheelchair.wheelchairUse)))
       }
-      if let move = try? store.activityMoveMode() {
+      if let move = try read(store.activityMoveMode) {
         mutations.append(
           HealthEncoder.characteristic(
             .activityMoveMode, value: HealthEncoder.activityMoveMode(move.activityMoveMode)))
@@ -103,8 +113,8 @@ extension HealthActivitySummaryReader: DependencyKey {
       do {
         summaries = try await HKActivitySummaryQueryDescriptor(predicate: predicate).result(
           for: store)
-      } catch let error as HKError where error.code == .errorDatabaseInaccessible {
-        throw HealthReader.Locked()
+      } catch {
+        throw HealthReader.Locked.mapped(error)
       }
       return summaries.compactMap { summary in
         HealthEncoder.activitySummary(
