@@ -46,7 +46,12 @@ struct MessageThreadPagingTests {
     let clipView = scrollView.contentView
 
     let task = store.send(.task)
-    try await waitUntil { store.messages.count == MessageThreadFeature.pageSize }
+    // The view controller applies store changes on a later turn of the main run loop (`observe`),
+    // so waits are for the table, not just the store.
+    try await waitUntil("the first page in the table") {
+      store.messages.count == MessageThreadFeature.pageSize
+        && store.messages.last.flatMap { viewController.row(forMessage: $0.id) } != nil
+    }
     viewController.view.layoutSubtreeIfNeeded()
     #expect(clipView.bounds.maxY >= tableView.bounds.height - 1, "Starts at the latest message")
 
@@ -57,7 +62,10 @@ struct MessageThreadPagingTests {
       let anchorRow = try #require(viewController.row(forMessage: anchorID))
       let anchorOffset = tableView.rect(ofRow: anchorRow).minY - clipView.bounds.minY
 
-      try await waitUntil { store.messages.count == expectedCount }
+      try await waitUntil("\(expectedCount) messages, with the anchor moved down in the table") {
+        store.messages.count == expectedCount
+          && viewController.row(forMessage: anchorID).map { $0 > anchorRow } ?? false
+      }
       viewController.view.layoutSubtreeIfNeeded()
 
       let newAnchorRow = try #require(viewController.row(forMessage: anchorID))
@@ -123,13 +131,14 @@ private func makeThreadDatabase(messageCount: Int) throws -> DatabaseQueue {
 /// Spins the main run loop until `condition` holds, so effects, observation and AppKit layout run.
 @MainActor
 private func waitUntil(
+  _ description: String,
   timeout: Duration = .seconds(5),
   _ condition: () -> Bool
 ) async throws {
   let deadline = ContinuousClock.now + timeout
   while !condition() {
     guard ContinuousClock.now < deadline else {
-      Issue.record("Timed out waiting for condition")
+      Issue.record("Timed out waiting for \(description)")
       return
     }
     spinMainRunLoop()
