@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import HealthKitAccess
 import HealthPhoneApp
 import LilAuth
 import Testing
@@ -12,6 +13,8 @@ struct AppFeatureTests {
       AppFeature()
     } withDependencies: {
       $0.auth.signedInUpdates = { updates }
+      $0.healthAuthorization.isAvailable = { true }
+      $0.healthAuthorization.needsRequest = { false }
     }
 
     let task = await store.send(.task)
@@ -23,7 +26,75 @@ struct AppFeatureTests {
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = true
     }
+    // The sheet was answered before, but the medications step never offered.
+    await store.receive(\.healthAccessChecked) {
+      $0.healthAccess = HealthAccessFeature.State(step: .perObject)
+    }
     await task.cancel()
+  }
+
+  @Test
+  func asksForHealthAccessAfterSigningIn() async {
+    let needsRequest = LockIsolated(true)
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
+      AppFeature()
+    } withDependencies: {
+      $0.healthAuthorization.isAvailable = { true }
+      $0.healthAuthorization.needsRequest = { needsRequest.value }
+    }
+
+    await store.send(.signedInChanged(true)) {
+      $0.isSignedIn = true
+    }
+    await store.receive(\.healthAccessChecked) {
+      $0.healthAccess = HealthAccessFeature.State()
+    }
+    await store.send(.healthAccess(.delegate(.finished))) {
+      $0.healthAccess = nil
+      $0.$offeredPerObject.withLock { $0 = true }
+    }
+
+    // Once everything was offered and Health has nothing to ask, there's no onboarding.
+    needsRequest.setValue(false)
+    await store.send(.signedInChanged(true))
+    await store.receive(\.healthAccessChecked)
+  }
+
+  @Test
+  func notNowShowsHomeAndOnboardingReturnsLater() async {
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
+      AppFeature()
+    } withDependencies: {
+      $0.healthAuthorization.isAvailable = { true }
+      $0.healthAuthorization.needsRequest = { true }
+    }
+
+    await store.send(.signedInChanged(true)) {
+      $0.isSignedIn = true
+    }
+    await store.receive(\.healthAccessChecked) {
+      $0.healthAccess = HealthAccessFeature.State()
+    }
+    await store.send(.healthAccess(.delegate(.skipped))) {
+      $0.healthAccess = nil
+    }
+    await store.send(.signedInChanged(true))
+    await store.receive(\.healthAccessChecked) {
+      $0.healthAccess = HealthAccessFeature.State()
+    }
+  }
+
+  @Test
+  func withoutHealthTheresNothingToAsk() async {
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
+      AppFeature()
+    } withDependencies: {
+      $0.healthAuthorization.isAvailable = { false }
+    }
+
+    await store.send(.signedInChanged(true)) {
+      $0.isSignedIn = true
+    }
   }
 
   @Test
@@ -42,6 +113,7 @@ struct AppFeatureTests {
     await store.send(.signedInChanged(false)) {
       $0.isSignedIn = false
       $0.signIn = SignInFeature.State()
+      $0.healthAccess = nil
     }
   }
 }

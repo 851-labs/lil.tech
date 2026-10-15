@@ -67,6 +67,7 @@ struct HealthCatalogTests {
 
 #if os(macOS)
   import HealthKit
+  import HealthKitAccess
 
   /// Checks the catalog against the SDK's headers and HealthKit itself. The headers are read
   /// from the macOS SDK with `xcrun`, so these only run on macOS.
@@ -77,7 +78,8 @@ struct HealthCatalogTests {
     func matchesSDKIdentifiers() throws {
       let sdk = try SDKHeaders.load()
       let catalogIDs = Set(
-        HealthCatalog.all.filter { SDKHeaders.typedefs.contains(where: $0.id.hasPrefix) }.map(\.id)
+        HealthCatalog.all.filter { SDKHeaders.typedefs.contains(where: $0.id.hasPrefix) }
+          .map { SDKHeaders.constantNames[$0.id] ?? $0.id }
       )
 
       let missing = Set(sdk.identifiers.keys).subtracting(catalogIDs)
@@ -87,9 +89,35 @@ struct HealthCatalogTests {
       #expect(unknown.isEmpty, "Not in the SDK: \(unknown.sorted())")
 
       for type in HealthCatalog.all {
-        guard let introduced = sdk.identifiers[type.id] else { continue }
+        guard let introduced = sdk.identifiers[SDKHeaders.constantNames[type.id] ?? type.id]
+        else { continue }
         #expect(type.introduced == introduced, "\(type.id): SDK says iOS \(introduced)")
       }
+    }
+
+    /// Catalog IDs are HealthKit's runtime values, which aren't always the constants' names.
+    /// Types newer than this Mac's OS are skipped, since HealthKit doesn't know them yet.
+    @Test
+    func identifiersAreHealthKitsValues() {
+      let os = ProcessInfo.processInfo.operatingSystemVersion
+      let host = IOSVersion(os.majorVersion, os.minorVersion)
+      for type in HealthCatalog.all where type.introduced <= host {
+        let identifier: String?
+        switch type.kind {
+        case .correlation:
+          identifier =
+            HKObjectType.correlationType(forIdentifier: .init(rawValue: type.id))?
+            .identifier
+        case .quantity, .category, .characteristic, .document, .scoredAssessment:
+          identifier = type.objectType?.identifier
+        default:
+          continue
+        }
+        #expect(identifier == type.id, "\(type.id) isn't a HealthKit identifier")
+      }
+      #expect(
+        HKCategoryTypeIdentifier.environmentalAudioExposureEvent.rawValue
+          == "HKCategoryTypeIdentifierAudioExposureEvent")
     }
 
     @Test
@@ -156,6 +184,12 @@ struct HealthCatalogTests {
     var identifiers: [String: IOSVersion] = [:]
     /// When each special type was introduced, from its identifier constant or type accessor.
     var specialTypes: [HealthDataType.Kind: IOSVersion] = [:]
+
+    /// Header constants whose runtime value isn't their name, by value.
+    static let constantNames = [
+      "HKCategoryTypeIdentifierAudioExposureEvent":
+        "HKCategoryTypeIdentifierEnvironmentalAudioExposureEvent"
+    ]
 
     static let typedefs = [
       "HKQuantityTypeIdentifier",

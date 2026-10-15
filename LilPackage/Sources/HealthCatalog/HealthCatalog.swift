@@ -110,7 +110,7 @@ extension HealthCatalog {
       "EstimatedWorkoutEffortScore", "Estimated Workout Effort", .activity, "appleEffortScore",
       .discreteArithmetic, .ios(18)
     ),
-    // HealthKit refuses third-party reads of NikeFuel. Confirm on a device in 851-2558.
+    // HealthKit refuses third-party reads of NikeFuel. Confirm on a device in 851-2607.
     quantity(
       "NikeFuel", "NikeFuel", .activity, "count", .cumulative, .ios(8),
       readAuthorization: .unavailable
@@ -188,9 +188,11 @@ extension HealthCatalog {
       "EnvironmentalSoundReduction", "Environmental Sound Reduction", .hearing, "dBASPL",
       .discreteEquivalentContinuousLevel, .ios(16)
     ),
-    category(
-      "EnvironmentalAudioExposureEvent", "Noise Notifications", .hearing, .ios(14)
-    ),
+    // `HKCategoryTypeIdentifierEnvironmentalAudioExposureEvent`'s value is still the name of
+    // the identifier it replaced.
+    special(
+      "HKCategoryTypeIdentifierAudioExposureEvent", .category, "Noise Notifications", .hearing,
+      .ios(14)),
     category(
       "HeadphoneAudioExposureEvent", "Headphone Notifications", .hearing, .ios(14, 2)
     ),
@@ -255,7 +257,7 @@ extension HealthCatalog {
     ),
     special(
       // Dose events are readable for the medications the user shares per object. Confirm on a
-      // device in 851-2558.
+      // device in 851-2607.
       "HKMedicationDoseEventTypeIdentifierMedicationDoseEvent", .medicationDoseEvent,
       "Medication Doses", .medications, .ios(26), readAuthorization: .perObject
     ),

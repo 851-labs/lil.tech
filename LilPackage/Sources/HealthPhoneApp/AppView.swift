@@ -17,7 +17,11 @@ public struct AppView: View {
       case false:
         SignInView(store: store.scope(\.signIn, action: \.signIn), appName: "lil health")
       case true:
-        HomeView(store: store)
+        if let healthAccess = store.scope(\.healthAccess, action: \.healthAccess) {
+          HealthAccessView(store: healthAccess)
+        } else {
+          HomeView(store: store)
+        }
       }
     }
     .task { await store.send(.task).finish() }
@@ -52,6 +56,13 @@ struct HomeView: View {
 
 #Preview("Signed out") {
   AppView(store: Store(initialState: AppFeature.State(isSignedIn: false)) { EmptyReducer() })
+}
+
+#Preview("Asking for Health access") {
+  AppView(
+    store: Store(
+      initialState: AppFeature.State(isSignedIn: true, healthAccess: HealthAccessFeature.State())
+    ) { EmptyReducer() })
 }
 
 #Preview("Signed in") {

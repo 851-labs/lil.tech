@@ -1,0 +1,138 @@
+public import ComposableArchitecture
+import HealthKitAccess
+public import SwiftUI
+
+public struct HealthAccessView: View {
+  let store: StoreOf<HealthAccessFeature>
+
+  public init(store: StoreOf<HealthAccessFeature>) {
+    self.store = store
+  }
+
+  public var body: some View {
+    VStack(spacing: 20) {
+      Spacer()
+      Image(systemName: "heart.text.square.fill")
+        .font(.system(size: 64))
+        .foregroundStyle(.pink)
+        .accessibilityHidden(true)
+      switch store.step {
+      case .explain, .requesting:
+        explain
+      case .perObject:
+        perObject
+      }
+      if let failure = store.failure {
+        Text(failure)
+          .font(.callout)
+          .foregroundStyle(.red)
+          .multilineTextAlignment(.center)
+      }
+      Spacer()
+    }
+    .padding(32)
+  }
+
+  private var explain: some View {
+    VStack(spacing: 20) {
+      Text("Read Your Health Data")
+        .font(.title.bold())
+      Text(
+        """
+        lil health copies everything in Apple Health to your lil health account, so you can see \
+        it on your Mac. Health asks about each type next: allow all of them to see everything.
+        """
+      )
+      .multilineTextAlignment(.center)
+      .foregroundStyle(.secondary)
+      Spacer().frame(height: 12)
+      Button {
+        store.send(.continueButtonTapped)
+      } label: {
+        Group {
+          if store.step == .requesting {
+            ProgressView()
+          } else {
+            Text("Continue")
+          }
+        }
+        .frame(maxWidth: .infinity)
+      }
+      .buttonStyle(.borderedProminent)
+      .controlSize(.large)
+      .disabled(store.step == .requesting)
+      Button("Not Now") { store.send(.notNowButtonTapped) }
+        .disabled(store.step == .requesting)
+    }
+  }
+
+  private var perObject: some View {
+    VStack(spacing: 20) {
+      Text("Medications and Prescriptions")
+        .font(.title.bold())
+        .multilineTextAlignment(.center)
+      Text(
+        """
+        Health asks about these separately: you pick which medications and prescriptions to share.
+        """
+      )
+      .multilineTextAlignment(.center)
+      .foregroundStyle(.secondary)
+      VStack(spacing: 12) {
+        Button("Choose Medications…") { store.send(.perObjectButtonTapped(.medications)) }
+        Button("Choose Vision Prescriptions…") {
+          store.send(.perObjectButtonTapped(.visionPrescriptions))
+        }
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.large)
+      .disabled(store.isChoosing)
+      Text(
+        """
+        Health doesn't tell apps what you turned off. If something stays empty, check Settings › \
+        Health › Data Access & Devices › lil health.
+        """
+      )
+      .font(.footnote)
+      .multilineTextAlignment(.center)
+      .foregroundStyle(.secondary)
+      Button {
+        store.send(.doneButtonTapped)
+      } label: {
+        Text("Done").frame(maxWidth: .infinity)
+      }
+      .buttonStyle(.borderedProminent)
+      .controlSize(.large)
+    }
+  }
+}
+
+#Preview("Explain") {
+  HealthAccessView(store: Store(initialState: HealthAccessFeature.State()) { EmptyReducer() })
+}
+
+#Preview("Requesting") {
+  HealthAccessView(
+    store: Store(initialState: HealthAccessFeature.State(step: .requesting)) { EmptyReducer() })
+}
+
+#Preview("Medications and prescriptions") {
+  HealthAccessView(
+    store: Store(initialState: HealthAccessFeature.State(step: .perObject)) { EmptyReducer() })
+}
+
+#Preview("Failed") {
+  HealthAccessView(
+    store: Store(
+      initialState: HealthAccessFeature.State(
+        failure: "Health isn't available on this device.")
+    ) { EmptyReducer() })
+}
+
+#Preview("Medications and prescriptions, failed") {
+  HealthAccessView(
+    store: Store(
+      initialState: HealthAccessFeature.State(
+        step: .perObject, failure: "Health couldn't show your medications.")
+    ) { EmptyReducer() })
+}
