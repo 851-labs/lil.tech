@@ -53,18 +53,22 @@ jobs:
 
       # GitHub sets CI, so our targets treat warnings as errors (LilPackage/Package.swift).
       - name: Test the package
+        # Also after a lint failure, so one doesn't hide the other.
+        if: ${{ !cancelled() }}
         working-directory: LilPackage
         run: swift test
 
       # Unsigned: CI only checks that the apps build. Xcode resolves the workspace from
       # LilPackage/Package.resolved, which pins the apps' packages too.
       - name: Build lil messages
+        if: ${{ !cancelled() }}
         run: >-
           xcodebuild -workspace Lil.xcworkspace -scheme LilMessages
           -destination 'platform=macOS' -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile
           CODE_SIGNING_ALLOWED=NO build -quiet
 
       - name: Build lil health for iOS
+        if: ${{ !cancelled() }}
         run: >-
           xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS
           -destination 'generic/platform=iOS Simulator' -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile
