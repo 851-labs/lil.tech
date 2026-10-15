@@ -9,7 +9,8 @@ import SwiftUI
 
 /// Synthetic progress: every standard type, the first `done` of them uploaded.
 private func progress(
-  done: Int, failure: String? = nil, offline: Bool = false, running: Bool = false
+  done: Int, failure: String? = nil, offline: Bool = false, storageFull: Bool = false,
+  running: Bool = false
 ) -> HealthBackfill.Progress {
   let types = HealthBackfillType.all(availableOn: .ios(26)).map(\.id)
   let byType = Dictionary(
@@ -23,7 +24,7 @@ private func progress(
   return HealthBackfill.Progress(
     finishedTypes: min(done, types.count), totalTypes: types.count,
     uploadedRecords: byType.values.map(\.uploadedRecords).reduce(0, +), isRunning: running,
-    failure: failure, isOffline: offline, types: byType,
+    failure: failure, isOffline: offline, isStorageFull: storageFull, types: byType,
     lastUploadAt: done > 0 ? Date(timeIntervalSinceNow: -300) : nil)
 }
 
@@ -59,6 +60,13 @@ private func statusView(_ state: SyncStatusFeature.State) -> some View {
 #Preview("Failed") {
   statusView(
     SyncStatusFeature.State(progress: progress(done: 25, failure: "The server answered HTTP 503")))
+}
+
+#Preview("Storage full") {
+  statusView(
+    SyncStatusFeature.State(
+      progress: progress(
+        done: 70, failure: "Your lil account's storage is full", storageFull: true)))
 }
 
 #Preview("Upload paused") {

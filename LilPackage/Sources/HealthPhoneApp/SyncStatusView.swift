@@ -76,6 +76,16 @@ private struct StatusHeader: View {
           .foregroundStyle(.secondary)
         Button("Try Again") { store.send(.retryButtonTapped) }
           .buttonStyle(.bordered)
+      case .storageFull:
+        Label("Storage full", systemImage: "externaldrive.badge.exclamationmark")
+          .foregroundStyle(.red)
+        Text(
+          "Your lil account is full, so new Health data isn't uploaded. Everything uploaded so far is safe."
+        )
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        Button("Try Again") { store.send(.retryButtonTapped) }
+          .buttonStyle(.bordered)
       case .failed(let reason):
         Label("Upload failed", systemImage: "exclamationmark.triangle.fill")
           .foregroundStyle(.red)

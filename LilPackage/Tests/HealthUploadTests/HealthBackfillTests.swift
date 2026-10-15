@@ -464,6 +464,80 @@ struct HealthBackfillTests {
   }
 
   @Test
+  func aFullAccountStopsTheRunAndKeepsThePage() async throws {
+    let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
+    let full = LockIsolated(true)
+    let attempts = LockIsolated(0)
+    let date = LockIsolated(Date(timeIntervalSince1970: 1_760_400_000))
+    let server = FakeServer()
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = health.reader
+      $0.healthBatchUploader = HealthBatchUploader { id, file in
+        attempts.withValue { $0 += 1 }
+        if full.value { throw HealthBatchUploader.StorageFull() }
+        try await server.uploader.upload(id, file)
+      }
+      $0.healthBackfillStorage = storage
+      $0.uuid = .incrementing
+      $0.date = DateGenerator { date.value }
+    } operation: {
+      HealthBackfill(types: [temperature, sleep])
+    }
+
+    await #expect(throws: HealthBatchUploader.StorageFull.self) { try await backfill.run() }
+    // Every other upload would be refused too, so the other type isn't tried, but it's asked
+    // for again.
+    #expect(attempts.value == 1)
+    #expect(health.reads.value == ["BodyTemperature@0"])
+    #expect(await backfill.requestedTypes == [temperature.id, sleep.id])
+    var updates = await backfill.progressUpdates().makeAsyncIterator()
+    let progress = await updates.next()
+    #expect(progress?.isStorageFull == true)
+    #expect(progress?.isOffline == false)
+    #expect(progress?.failure == "Your lil account's storage is full")
+    // The page is kept, and goes up once there's room.
+    let pending = try #require(try storage.loadState()?.pending)
+
+    // Changes wait a while rather than being refused on every HealthKit wake.
+    full.setValue(false)
+    try await backfill.syncChanges(of: [sleep.id])
+    #expect(attempts.value == 1)
+
+    // Once that's up, a sync of changes that goes through shows there's room again.
+    date.withValue { $0.addTimeInterval(HealthBackfill.storageFullRetryInterval) }
+    try await backfill.syncChanges(of: [sleep.id])
+    #expect(server.accepted.value.prefix(pending.batches.count) == pending.batches[...])
+    #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
+    let cleared = await updates.next()
+    #expect(cleared?.isStorageFull == false)
+    #expect(cleared?.failure == nil)
+  }
+
+  @Test
+  func aFullAccountIsTriedRightAwayByAFullRun() async throws {
+    let full = LockIsolated(true)
+    let server = FakeServer()
+    let backfill = withDependencies {
+      $0.healthReader = FakeHealth(pages: [temperature.id: 1]).reader
+      $0.healthBatchUploader = HealthBatchUploader { id, file in
+        if full.value { throw HealthBatchUploader.StorageFull() }
+        try await server.uploader.upload(id, file)
+      }
+      $0.healthBackfillStorage = .inMemory()
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [temperature])
+    }
+    await #expect(throws: HealthBatchUploader.StorageFull.self) { try await backfill.run() }
+    full.setValue(false)
+    // Try Again.
+    try await backfill.run()
+    #expect(server.accepted.value.count == 1)
+  }
+
+  @Test
   func networkFailuresAreOffline() {
     #expect(HealthBackfill.isOffline(URLError(.notConnectedToInternet)))
     #expect(!HealthBackfill.isOffline(HealthBatchUploader.Rejected(statusCode: 503)))
