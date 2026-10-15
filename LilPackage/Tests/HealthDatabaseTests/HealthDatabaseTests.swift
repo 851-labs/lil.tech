@@ -331,6 +331,13 @@ struct HealthSyncTests {
         "endDate": 1760400000000, "score": 6, "risk": 2, "answers": [1, 1, 0, 1, 2, 0, 1],
         "sourceName": "Test iPhone", "sourceBundleId": "com.example"
         """),
+      upsert(
+        11, "health_audiogram", "6f1c2a40-0000-4000-8000-000000000006",
+        """
+        "startDate": 1760400000000, "endDate": 1760400000000,
+        "points": [{"frequency": 1000, "tests": [{"side": 0, "sensitivity": 20}]}],
+        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
+        """),
     ]
     let api = Client.mock { request, _ in
       #expect(request.path?.hasPrefix("/v1/sync/changes") == true)
@@ -339,7 +346,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 10, head: 10, hasMore: false)))
+              epoch: 1, changes: changes, next: 11, head: 11, hasMore: false)))
       )
     }
     let engine = withDependencies {
@@ -378,6 +385,9 @@ struct HealthSyncTests {
     #expect(moods.map(\.labels) == ["[10]"])
     #expect(assessments.map(\.score) == [6])
     #expect(assessments.first?.answers == "[1,1,0,1,2,0,1]")
+    let audiograms = try await database.read { db in try HealthAudiogram.fetchAll(db) }
+    #expect(
+      audiograms.first?.points == #"[{"frequency":1000,"tests":[{"sensitivity":20,"side":0}]}]"#)
     #expect(workouts.first?.events == #"[{"type":1}]"#)
     #expect(
       workouts.first?.statistics

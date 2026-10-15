@@ -18,12 +18,13 @@ public struct HealthBackfillType: Hashable, Sendable {
   }
 
   /// Every quantity and category type the app can read, workouts, State of Mind, scored
-  /// assessments, and the correlations, which are read through their component types.
+  /// assessments, audiograms, and the correlations, which are read through their component
+  /// types.
   public static func all(availableOn version: IOSVersion) -> [Self] {
     HealthCatalog.types(availableOn: version).compactMap { type in
       switch (type.kind, type.readAuthorization) {
       case (.quantity, .standard), (.category, .standard), (.workout, .standard),
-        (.stateOfMind, .standard), (.scoredAssessment, .standard):
+        (.stateOfMind, .standard), (.scoredAssessment, .standard), (.audiogram, .standard):
         Self(id: type.id)
       case (.correlation, _): Self(id: type.id, isCorrelation: true)
       default: nil
@@ -40,6 +41,7 @@ extension HealthBackfillType {
     case .workout: return HealthEncoder.workoutEntity
     case .stateOfMind: return HealthEncoder.stateOfMindEntity
     case .scoredAssessment: return HealthEncoder.scoredAssessmentEntity
+    case .audiogram: return HealthEncoder.audiogramEntity
     default: return HealthEncoder.sampleEntity
     }
   }
@@ -154,6 +156,8 @@ extension HealthReader: DependencyKey {
             mutations.append(HealthEncoder.stateOfMind(log))
           } else if let assessment = sample as? HKScoredAssessment {
             mutations.append(try HealthEncoder.scoredAssessment(assessment))
+          } else if let audiogram = sample as? HKAudiogramSample {
+            mutations.append(HealthEncoder.audiogram(audiogram))
           } else {
             mutations.append(try HealthEncoder.sample(sample))
           }

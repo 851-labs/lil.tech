@@ -239,6 +239,46 @@ struct HealthEncoderTests {
   }
 
   @Test
+  func audiogram() throws {
+    let decibels = HKUnit.decibelHearingLevel()
+    let test = { (side: HKAudiogramSensitivityTestSide, value: Double) in
+      try HKAudiogramSensitivityTest(
+        sensitivity: HKQuantity(unit: decibels, doubleValue: value), type: .air, masked: false,
+        side: side,
+        clampingRange: try HKAudiogramSensitivityPointClampingRange(
+          lowerBound: nil, upperBound: 90))
+    }
+    let points = try [
+      HKAudiogramSensitivityPoint(
+        frequency: HKQuantity(unit: .hertz(), doubleValue: 500),
+        tests: [try test(.left, 10)]),
+      HKAudiogramSensitivityPoint(
+        frequency: HKQuantity(unit: .hertz(), doubleValue: 4000),
+        tests: [try test(.left, 35), try test(.right, 30)]),
+    ]
+    let sample = HKAudiogramSample(
+      sensitivityPoints: points, start: start, end: start, device: nil, metadata: nil)
+    let mutation = HealthEncoder.audiogram(sample)
+    #expect(mutation.entity == "health_audiogram")
+    _ = try row(mutation, as: Components.Schemas.HealthAudiogram.self)
+    let encoded = try #require(try line(mutation)["row"] as? [String: Any])
+    let encodedPoints = try #require(encoded["points"] as? [[String: Any]])
+    #expect(encodedPoints.map { $0["frequency"] as? Double } == [500, 4000])
+    let tests = try #require(encodedPoints.last?["tests"] as? [[String: Any]])
+    #expect(tests.map { $0["sensitivity"] as? Double } == [35, 30])
+    #expect(
+      tests.map { $0["side"] as? Int }
+        == [
+          HKAudiogramSensitivityTestSide.left.rawValue,
+          HKAudiogramSensitivityTestSide.right.rawValue,
+        ])
+    #expect(tests.first?["type"] as? Int == HKAudiogramConductionType.air.rawValue)
+    #expect(tests.first?["masked"] as? Bool == false)
+    #expect(tests.first?["clampingUpper"] as? Double == 90)
+    #expect(tests.first?["clampingLower"] is NSNull)
+  }
+
+  @Test
   func workoutsAreBackfilledAndDeletedAsWorkouts() {
     let types = HealthBackfillType.all(availableOn: .ios(26))
     let workout = types.first { $0.id == "HKWorkoutTypeIdentifier" }
@@ -249,6 +289,7 @@ struct HealthEncoderTests {
     #expect(
       types.first { $0.id == "HKScoredAssessmentTypeIdentifierPHQ9" }?.entity
         == "health_scored_assessment")
+    #expect(types.first { $0.id == "HKDataTypeIdentifierAudiogram" }?.entity == "health_audiogram")
   }
 
   @Test

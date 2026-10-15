@@ -214,6 +214,36 @@ public struct HealthScoredAssessment: Equatable, Identifiable, Sendable {
   }
 }
 
+/// An audiogram (`health_audiogram`). `points` is JSON, as the server documents it.
+@Table
+public struct HealthAudiogram: Equatable, Identifiable, Sendable {
+  public let id: String
+  public var startDate: Int
+  public var endDate: Int
+  public var points: String
+  public var sourceName: String
+  public var sourceBundleID: String
+  public var sourceRevision: String?
+  public var device: String?
+  public var metadata: String?
+
+  public init(
+    id: String, startDate: Int, endDate: Int, points: String, sourceName: String,
+    sourceBundleID: String, sourceRevision: String? = nil, device: String? = nil,
+    metadata: String? = nil
+  ) {
+    self.id = id
+    self.startDate = startDate
+    self.endDate = endDate
+    self.points = points
+    self.sourceName = sourceName
+    self.sourceBundleID = sourceBundleID
+    self.sourceRevision = sourceRevision
+    self.device = device
+    self.metadata = metadata
+  }
+}
+
 /// The Activity rings for one day, keyed by the day (`YYYY-MM-DD` in the iPhone's calendar).
 @Table
 public struct HealthActivitySummary: Equatable, Identifiable, Sendable {
