@@ -12,7 +12,12 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   3. Open one PR per ticket, with the ticket ID in the title.
   4. Move the ticket to In Review.
 - Run `scripts/format` before committing. `scripts/format --lint` must pass. It covers the Swift code and the TypeScript in `Services/`.
-- CI (`.github/workflows/swift.yml`) lints the Swift code (`scripts/format --lint --swift`), runs the package tests and builds both apps for changes to `LilPackage/`, `Apps/`, `Tools/` and `.swift-format`.
+- **Checks run before every commit**, in a [lefthook](https://lefthook.dev) pre-commit hook (`lefthook.yml`), not on GitHub. Set it up once per clone: `brew install lefthook`, then `lefthook install`.
+  - The hook runs `scripts/check` for the parts a commit touches, with warnings as errors (`CI=1`). `--swift`: Swift lint, the package's tests and both app builds. `--services`: `scripts/format --lint --services` (format, lint, type checks and a fresh OpenAPI spec), the generated client regenerated and compared (`scripts/generate-api-client --check`), and every Services package's tests.
+  - Its builds go to `.build-check/`, apart from Xcode's and everyday `swift test`'s, so the first run after cloning is slow and later ones take about a minute.
+  - The checks see the working tree, so the hook refuses to run while the paths it checks have unstaged or untracked changes. Stage them, or set them aside with `git stash --keep-index -u`.
+  - A failing check blocks the commit. Fix it rather than skipping the hook (`LEFTHOOK=0 git commit …` is for emergencies only).
+  - The Swift workflow (`.github/workflows/swift.yml`) is off for now. It can still be run by hand from the Actions tab.
 - Don't bundle unrelated changes. If you find extra work, file a new ticket.
 
 ## Building
@@ -48,7 +53,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - **Compatibility:** installed apps keep running old clients.
   - Adding response fields is safe, because the spec allows additional properties.
   - Adding a case to a response enum, or removing or renaming anything, breaks them. Add a new field or a new endpoint instead.
-  - CI checks the client's stamp (`scripts/generate-api-client --check-stamp`), since it can't run the generator on Linux.
+  - `scripts/format --lint` fails if the spec is stale, or if the client's stamp doesn't match the spec, generator pin and config. The pre-commit hook also regenerates the client into a temporary directory and compares it (`scripts/generate-api-client --check`), which catches hand edits too.
 - Apps use the client through `@Dependency(\.api)` (from `LilAPI`). Tests get a client that fails every request and reports an issue; answer requests with `Client.mock { request, body in … }`. `LIL_API_URL` in a scheme's environment points an app at another deployment, such as a PR preview.
 
 ### Deploying the API
@@ -57,8 +62,8 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - Run Alchemy from `Services/api` (`npx alchemy …`), where it's installed. From anywhere else, `npx` fetches a separate copy that can't find its peer dependencies.
 - **Credentials:** once per machine, from `Services/api`, run `ALCHEMY_TUI=1 DO_NOT_TRACK=1 npx alchemy profile edit --add Cloudflare`. Choose OAuth, then **Basic Scopes**, then sign in with a Cloudflare user that's a member of account **851**, and pick that account. Credentials are saved in `~/.alchemy/profiles.json`. Alchemy hides its interactive prompts when it detects a coding agent, and `ALCHEMY_TUI=1` shows them again. Check credentials with `npx alchemy profile show`. The bare `npx alchemy profile` dashboard crashes in this beta, because `react` isn't installed.
 - **Telemetry:** Alchemy reports usage to `otel.alchemy.run` unless `DO_NOT_TRACK=1` is set. Set it in your shell.
-- **CI** (`.github/workflows/services.yml`) runs on changes to `Services/`:
-  - Pull requests are checked (`vp check`, tests, OpenAPI freshness) and deployed to a preview stage, `pr-<number>`, on workers.dev. A PR comment links the preview.
+- **CI** (`.github/workflows/services.yml`) deploys changes to `Services/`. Its checks run in the pre-commit hook instead.
+  - Pull requests are deployed to a preview stage, `pr-<number>`, on workers.dev. A PR comment links the preview.
   - Closing a PR destroys its preview.
   - To try a preview as a signed-in user, `POST /v1/auth/dev` (optionally with `{"displayName": "…"}`) creates a synthetic user and returns tokens. The route only exists in the `preview` environment (PR previews, and personal stages from `vp run deploy`, named `live_<user>`) and the `local` one (`alchemy dev`, `dev_<user>`). Each stage allows at most 1,000 users.
   - Merging to `main` deploys staging, then prod, and `scripts/check-deploy` waits until each serves the new commit.

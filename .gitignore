@@ -19,6 +19,8 @@ DerivedData/
 
 # SwiftPM
 .build/
+# scripts/check's own builds
+.build-check/
 .swiftpm/
 
 # Release builds

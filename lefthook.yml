@@ -1,0 +1,29 @@
+# Checks before every commit, in place of GitHub's (`docs/DECISIONS.md`): each job runs when the
+# commit touches its part of the repo. Set up once per clone with `lefthook install`; skip in an
+# emergency with `LEFTHOOK=0 git commit …`.
+pre-commit:
+  parallel: true
+  jobs:
+    - name: swift
+      run: scripts/check --hook --swift
+      glob:
+        - "LilPackage/**"
+        - "Apps/**"
+        - "Tools/**"
+        - "Lil.xcworkspace/**"
+        - ".swift-format"
+        - "scripts/format"
+        - "scripts/check"
+        - "lefthook.yml"
+    - name: services
+      run: scripts/check --hook --services
+      glob:
+        - "Services/**"
+        # The generated client's stamp covers the generator's pin and config.
+        - "Tools/**"
+        - "scripts/format"
+        - "scripts/check"
+        - "scripts/generate-api-client"
+        - "scripts/check-deploy"
+        - "LilPackage/Sources/LilAPIGenerated/**"
+        - "lefthook.yml"

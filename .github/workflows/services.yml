@@ -1,10 +1,11 @@
 name: Services
 
-# Checks and deploys the TypeScript server in Services/.
-# - Pull requests that touch Services/: check, then deploy a preview stage (pr-<number>) on
-#   workers.dev and comment its URL.
+# Deploys the TypeScript server in Services/. Its checks run before every commit instead
+# (`lefthook.yml`, `docs/DECISIONS.md`).
+# - Pull requests that touch Services/: deploy a preview stage (pr-<number>) on workers.dev and
+#   comment its URL.
 # - Closed pull requests: destroy the preview stage, if there is one.
-# - main: check, then deploy staging (api.staging.lil.tech) and prod (api.lil.tech).
+# - main: deploy staging (api.staging.lil.tech), then prod (api.lil.tech).
 #
 # Previews run PR code with the deploy token, and Cloudflare can't limit Workers Scripts:Edit to
 # particular Workers. Only branches in this repo get previews (fork PRs get no secrets).
@@ -54,23 +55,10 @@ jobs:
             echo "services=false" >> "$GITHUB_OUTPUT"
           fi
 
-  check:
-    needs: changes
-    if: needs.changes.outputs.services == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-services
-      - run: pnpm run ready
-        working-directory: Services
-      - run: pnpm run openapi:check
-        working-directory: Services/api
-      # The Swift client is generated on macOS; this only checks its stamp against the spec.
-      - run: scripts/generate-api-client --check-stamp
-
   preview:
-    needs: check
+    needs: changes
     if: >-
+      needs.changes.outputs.services == 'true' &&
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
@@ -142,8 +130,10 @@ jobs:
         working-directory: Services/api
 
   deploy:
-    needs: check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: changes
+    if: >-
+      needs.changes.outputs.services == 'true' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
