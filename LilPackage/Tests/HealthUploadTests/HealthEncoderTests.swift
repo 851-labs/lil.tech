@@ -294,7 +294,34 @@ struct HealthEncoderTests {
     #expect(ecg?.entity == "health_electrocardiogram")
     // Its voltages are blobs, so it reads small pages.
     #expect(ecg?.pageSize == 50)
+    let heartbeats = types.first { $0.id == "HKDataTypeIdentifierHeartbeatSeries" }
+    #expect(heartbeats?.entity == "health_heartbeat_series")
+    #expect(heartbeats?.pageSize == 200)
     #expect(types.first { $0.id == "HKQuantityTypeIdentifierStepCount" }?.pageSize == nil)
+  }
+
+  @Test
+  func heartbeatSeriesWithItsBeatsAndGaps() throws {
+    // Synthetic beats (AGENTS.md): one gap, before the fourth.
+    let series = HeartbeatSeriesRecord(
+      id: UUID(uuidString: "6F1C2A40-0000-4000-8000-0000000000F1")!,
+      beats: [0, 0.82, 1.65, 3.31], gaps: [3],
+      provenance: HealthEncoder.provenance(
+        of: HKQuantitySample(
+          type: HKQuantityType(.heartRate),
+          quantity: HKQuantity(unit: .count().unitDivided(by: .minute()), doubleValue: 1),
+          start: start, end: start.addingTimeInterval(60))))
+
+    let mutation = HealthEncoder.heartbeatSeries(series)
+    #expect(mutation.entity == "health_heartbeat_series")
+    #expect(mutation.id == "6f1c2a40-0000-4000-8000-0000000000f1")
+    let decoded = try row(mutation, as: Components.Schemas.HealthHeartbeatSeries.self)
+    #expect(decoded.startDate == 1_760_400_000_000)
+    #expect(decoded.endDate == 1_760_400_060_000)
+    let encoded = try line(mutation)
+    let row = try #require(encoded["row"] as? [String: Any])
+    #expect(row["beats"] as? [Double] == [0, 0.82, 1.65, 3.31])
+    #expect(row["gaps"] as? [Int] == [3])
   }
 
   @Test

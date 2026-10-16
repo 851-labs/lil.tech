@@ -245,6 +245,47 @@ export const HealthElectrocardiogram = defineEntity("health_electrocardiogram", 
 });
 
 /**
+ * Heartbeat series (`HKHeartbeatSeriesSample`): the beat-to-beat timings behind Apple Watch's
+ * heart rate variability readings, about a minute and a hundred beats each, so they're kept in
+ * the row rather than as a blob.
+ */
+export const HealthHeartbeatSeries = defineEntity("health_heartbeat_series", {
+  clientWritable: false,
+  id: healthKitUUID,
+  fields: {
+    startDate: Column.integer,
+    endDate: Column.integer,
+    /** Each beat's time, in seconds since `startDate`, ascending. */
+    beats: Column.json,
+    /** The indices of the beats preceded by a gap (beats HealthKit couldn't measure). */
+    gaps: Column.json,
+    ...provenance,
+  },
+  checkRow: (_, row) => checkHeartbeats(row.beats, row.gaps),
+});
+
+/** Checks a heartbeat series' beats and gaps have the shape `HealthHeartbeatSeries` documents. */
+const checkHeartbeats = (beats: unknown, gaps: unknown): string | undefined => {
+  if (!Array.isArray(beats)) return "beats must be an array";
+  let previous = -Infinity;
+  for (const beat of beats) {
+    if (typeof beat !== "number" || beat < 0 || beat < previous) {
+      return "beats must be non-negative seconds, ascending";
+    }
+    previous = beat;
+  }
+  if (!Array.isArray(gaps)) return "gaps must be an array";
+  let previousGap = -1;
+  for (const gap of gaps) {
+    if (!Number.isInteger(gap) || gap <= previousGap || gap >= beats.length) {
+      return "gaps must be ascending indices of beats";
+    }
+    previousGap = gap;
+  }
+  return undefined;
+};
+
+/**
  * Characteristics (date of birth, sex, blood type, skin type, wheelchair use, move mode), keyed by
  * their type identifier.
  */
@@ -349,4 +390,5 @@ export const healthEntities = [
   HealthScoredAssessment,
   HealthAudiogram,
   HealthElectrocardiogram,
+  HealthHeartbeatSeries,
 ] as const;
