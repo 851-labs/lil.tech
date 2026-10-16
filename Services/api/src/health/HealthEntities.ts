@@ -213,6 +213,7 @@ export const HealthScoredAssessment = defineEntity("health_scored_assessment", {
 export const HealthElectrocardiogram = defineEntity("health_electrocardiogram", {
   clientWritable: false,
   id: healthKitUUID,
+  blobs: ["voltages"],
   fields: {
     startDate: Column.integer,
     endDate: Column.integer,

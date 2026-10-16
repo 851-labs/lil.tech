@@ -1,6 +1,6 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import { Array as Arr, Clock, Effect } from "effect";
+import { Clock, Effect } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import {
   readHealthBatch,
@@ -8,7 +8,7 @@ import {
   saveHealthBatch,
 } from "../health/HealthBatchStore.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
-import { provideRuntime } from "../Runtime.ts";
+import { deleteObjects, listObjects, provideRuntime } from "../Runtime.ts";
 import { applyMutations, readChanges, readEpoch, readHead, readMeta } from "./ChangeLog.ts";
 import {
   AccountDeleted,
@@ -46,6 +46,13 @@ import {
   retireStepInterval,
 } from "./RetiredDevices.ts";
 import { fromDurableObjectStorage, type StoreSql } from "./StoreSql.ts";
+import {
+  type BlobFiles,
+  nextBlobSweepAt,
+  noBlobFiles,
+  retryBlobSweepLater,
+  sweepBlobs,
+} from "./BlobSweep.ts";
 
 /**
  * How large a store's database may grow before it takes no new uploads: below the 10 GB a Durable
@@ -66,9 +73,25 @@ const readHealthBlobSize = (sql: StoreSql, sha256: string): number | null => {
   return row === undefined ? null : Number(row["size"]);
 };
 
-const recordHealthBlob = (sql: StoreSql, sha256: string, size: number, at: number) =>
+const recordHealthBlob = (
+  sql: StoreSql,
+  sha256: string,
+  size: number,
+  prefix: string,
+  at: number,
+) =>
   sql.transaction(() => {
+    sql.exec(
+      `INSERT INTO meta (key, value) VALUES ('health_blob_prefix', ?) ON CONFLICT (key) DO NOTHING`,
+      prefix,
+    );
     if (readHealthBlobSize(sql, sha256) !== null) return;
+    // A first sweep a day from now, not at once.
+    sql.exec(
+      `INSERT INTO meta (key, value) VALUES ('health_blob_swept_at', ?)
+       ON CONFLICT (key) DO NOTHING`,
+      at,
+    );
     sql.exec(
       "INSERT INTO health_blobs (sha256, size, uploaded_at) VALUES (?, ?, ?)",
       sha256,
@@ -97,6 +120,7 @@ export const makeUserStore = (
   registry: ReadonlyArray<Entity> = entities,
   files: SnapshotFiles = noSnapshotFiles,
   sockets: LiveSockets = noLiveSockets,
+  blobFiles: BlobFiles = noBlobFiles,
 ) => {
   migrate(sql);
   const notices = makeLiveNotices(sockets, () => readHead(sql));
@@ -147,7 +171,7 @@ export const makeUserStore = (
     // skip listing the sockets: an alarm already set for an expiry is never moved later.
     const expiry = options.sockets === true ? yield* notices.nextExpiry : null;
     const retireAt = retiring ? now + retireStepInterval : null;
-    const times = [nextAlarmAt(sql, now), expiry, retireAt].filter(
+    const times = [nextAlarmAt(sql, now), expiry, retireAt, nextBlobSweepAt(sql)].filter(
       (time): time is number => time !== null,
     );
     if (times.length === 0) return;
@@ -224,15 +248,28 @@ export const makeUserStore = (
      */
     checkHealthBlobUpload: (sha256: string) =>
       ensureNotDeleted.pipe(
-        Effect.map(() => readHealthBlobSize(sql, sha256)),
+        Effect.map(() => {
+          const known = readHealthBlobSize(sql, sha256);
+          // Uploading it again means a record is about to refer to it: it isn't swept yet.
+          if (known !== null) {
+            sql.exec("UPDATE health_blobs SET unreferenced_since = NULL WHERE sha256 = ?", sha256);
+          }
+          return known;
+        }),
         Effect.tap((known) => (known === null ? ensureQuota : Effect.void)),
       ),
-    /** Records a health blob once it's in R2, counting it towards the quota. Idempotent. */
-    recordHealthBlob: (sha256: string, size: number) =>
-      ensureNotDeleted.pipe(
-        Effect.andThen(Clock.currentTimeMillis),
-        Effect.map((at) => recordHealthBlob(sql, sha256, size, at)),
-      ),
+    /**
+     * Records a health blob once it's in R2 under `prefix` (the user's, the same for every blob),
+     * counting it towards the quota. Idempotent.
+     */
+    recordHealthBlob: (sha256: string, size: number, prefix: string) =>
+      Effect.gen(function* () {
+        yield* ensureNotDeleted;
+        const at = yield* Clock.currentTimeMillis;
+        recordHealthBlob(sql, sha256, size, prefix, at);
+        // The first blob schedules the daily sweep.
+        yield* scheduleAlarm(at);
+      }),
     /** Records a health batch as `queued` unless it's already known, and returns its status. */
     receiveHealthBatch: (id: string) =>
       ensureNotDeleted.pipe(
@@ -323,6 +360,18 @@ export const makeUserStore = (
         yield* notices.closeExpired(now);
         yield* writeSnapshotStep(sql, registry, files, now);
         yield* doUpkeep(sql, files, now);
+        const sweepAt = nextBlobSweepAt(sql);
+        if (sweepAt !== null && sweepAt <= now) {
+          // Its failure doesn't hold up the rest of the alarm, and it's tried again in an hour.
+          yield* sweepBlobs(sql, registry, blobFiles, now).pipe(
+            Effect.catchCause((cause) =>
+              Effect.gen(function* () {
+                yield* Effect.logWarning("Blob sweep failed", cause);
+                retryBlobSweepLater(sql, now);
+              }),
+            ),
+          );
+        }
         if (retiring) {
           if (retireStep(sql, registry, now) > 0) yield* notices.notify(now);
           retiring = hasRetiringDevices(sql);
@@ -378,11 +427,17 @@ export class UserStore extends Cloudflare.DurableObject<UserStore, UserStoreShap
 
 /** Snapshot parts (`src/store/Snapshots.ts`). */
 export const SnapshotBucket = Cloudflare.R2.Bucket("SyncSnapshots");
+/**
+ * Health blobs (`src/health/HealthBlobs.ts`), under `health-blobs/<user>/<sha256>`. Immutable;
+ * the store sweeps the ones no record refers to any more (`src/store/BlobSweep.ts`).
+ */
+export const HealthBlobBucket = Cloudflare.R2.Bucket("HealthBlobs");
 
 export const UserStoreLive = UserStore.make(
   Effect.gen(function* () {
     const state = yield* Cloudflare.DurableObjectState;
     const bucket = yield* Cloudflare.R2.ReadWriteBucket(yield* SnapshotBucket);
+    const blobBucket = yield* Cloudflare.R2.ReadWriteBucket(yield* HealthBlobBucket);
     return Effect.gen(function* () {
       // The bucket's and sockets' calls need the object's runtime context, which exists from
       // here on.
@@ -392,15 +447,11 @@ export const UserStoreLive = UserStore.make(
           inRuntime(
             bucket.put(key, bytes, { httpMetadata: { contentType: "application/gzip" } }),
           ).pipe(Effect.asVoid, Effect.orDie),
-        // R2 deletes at most 1,000 keys per call.
-        delete: (keys) =>
-          Effect.forEach(
-            Arr.chunksOf(keys, 1000),
-            (chunk) => inRuntime(bucket.delete([...chunk])),
-            {
-              discard: true,
-            },
-          ).pipe(Effect.orDie),
+        delete: (keys) => deleteObjects(bucket, keys).pipe(inRuntime, Effect.orDie),
+      };
+      const blobFiles: BlobFiles = {
+        list: (prefix) => listObjects(blobBucket, prefix).pipe(inRuntime, Effect.orDie),
+        delete: (keys) => deleteObjects(blobBucket, keys).pipe(inRuntime, Effect.orDie),
       };
       type Attachment = { readonly expiresAt?: number; readonly closed?: boolean } | null;
       const attachment = (socket: Cloudflare.WebSocket) =>
@@ -441,6 +492,7 @@ export const UserStoreLive = UserStore.make(
         entities,
         files,
         sockets,
+        blobFiles,
       );
       return {
         ...store,

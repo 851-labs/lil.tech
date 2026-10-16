@@ -10,7 +10,7 @@ import {
   HealthBatchQueue,
   ingestHealthBatch,
 } from "./HealthIngestion.ts";
-import { objectBody, provideRuntime } from "../Runtime.ts";
+import { deleteObjects, listObjects, objectBody, provideRuntime } from "../Runtime.ts";
 import { UserStores } from "../store/UserStores.ts";
 
 // Resource IDs are also the Worker's binding names, so they must differ from each other.
@@ -28,11 +28,7 @@ export const HealthBatchBucket = Cloudflare.R2.Bucket("HealthBatchFiles", {
   ],
 });
 export const HealthBatchQueueResource = Cloudflare.Queues.Queue("HealthBatchQueue");
-/**
- * Health blobs (`src/health/HealthBlobs.ts`), under `health-blobs/<user>/<sha256>`. Immutable, and
- * kept until the account is deleted.
- */
-export const HealthBlobBucket = Cloudflare.R2.Bucket("HealthBlobs");
+
 /** Where a batch's message goes after its last failed attempt, to be looked at by hand. */
 export const HealthBatchDeadLetters = Cloudflare.Queues.Queue("HealthBatchDeadLetters");
 
@@ -50,15 +46,15 @@ export const deletePrefix = (
   bucket: Pick<Cloudflare.R2.ReadWriteBucketClient, "list" | "delete">,
   prefix: string,
 ) =>
-  Effect.gen(function* () {
-    let cursor: string | undefined;
-    do {
-      const page = yield* bucket.list({ prefix, ...(cursor === undefined ? {} : { cursor }) });
-      const keys = page.objects.map((object) => object.key);
-      if (keys.length > 0) yield* bucket.delete(keys);
-      cursor = page.truncated ? page.cursor : undefined;
-    } while (cursor !== undefined);
-  }).pipe(Effect.mapError((error) => new BatchFilesUnavailable({ message: String(error) })));
+  listObjects(bucket, prefix).pipe(
+    Effect.flatMap((objects) =>
+      deleteObjects(
+        bucket,
+        objects.map((object) => object.key),
+      ),
+    ),
+    Effect.mapError((error) => new BatchFilesUnavailable({ message: String(error) })),
+  );
 
 /**
  * Binds the batch bucket and queue and consumes the queue, in the Worker's setup. Returns

@@ -446,12 +446,14 @@ export const HealthHandlers = HttpApiBuilder.group(
           // writing it again after a failure in between is harmless.
           const key = healthBlobKey(userId, params.sha256);
           yield* blobs.put(key, payload);
-          yield* store.recordHealthBlob(params.sha256, payload.byteLength).pipe(
-            // The account was deleted meanwhile, after its blobs were: this one goes too.
-            Effect.tapError((error) =>
-              error._tag === "AccountDeleted" ? blobs.delete(key) : Effect.void,
-            ),
-          );
+          yield* store
+            .recordHealthBlob(params.sha256, payload.byteLength, healthBlobPrefix(userId))
+            .pipe(
+              // The account was deleted meanwhile, after its blobs were: this one goes too.
+              Effect.tapError((error) =>
+                error._tag === "AccountDeleted" ? blobs.delete(key) : Effect.void,
+              ),
+            );
           return { sha256: params.sha256, size: payload.byteLength };
         }).pipe(Effect.catchTag("AccountDeleted", () => Effect.fail(userGone))),
       )
