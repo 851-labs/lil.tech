@@ -118,6 +118,32 @@ public actor HealthBackfill {
   /// Runs that try a page whose series can't be read before skipping the unreadable ones.
   static let seriesAttempts = 3
 
+  /// How long an upload the server answers with a transient error waits before each new try:
+  /// about half a minute in all, then it fails as before.
+  static let transientRetryDelays: [Duration] = [
+    .seconds(1), .seconds(3), .seconds(8), .seconds(20),
+  ]
+
+  /// Runs `upload`, trying again after each of `transientRetryDelays` while the server answers
+  /// with a transient error (`HealthBatchUploader.Rejected.isTransient`).
+  static func retryingTransient(
+    clock: any Clock<Duration>, _ upload: () async throws -> Void
+  ) async throws {
+    for delay in transientRetryDelays {
+      do {
+        return try await upload()
+      } catch let error as HealthBatchUploader.Rejected where error.isTransient {
+        try await clock.sleep(for: delay)
+      }
+    }
+    try await upload()
+  }
+
+  /// Uploads a batch file, retrying transient failures.
+  private func upload(_ id: String, _ file: Data) async throws {
+    try await Self.retryingTransient(clock: clock) { try await uploader.upload(id, file) }
+  }
+
   /// Objects per anchored query. Pages are split into batch files below the server's limits.
   static let pageSize = 2000
 
@@ -605,7 +631,7 @@ public actor HealthBackfill {
     if let file = try writer.finish() { files.append(file) }
     for file in files {
       try Task.checkCancellation()
-      try await uploader.upload(uuid().uuidString.lowercased(), file)
+      try await upload(uuid().uuidString.lowercased(), file)
     }
   }
 
@@ -639,7 +665,7 @@ public actor HealthBackfill {
     _ = try writer.append(HealthEncoder.statisticsDevice(pairedWithWatch: paired))
     if let file = try writer.finish() {
       do {
-        try await uploader.upload(uuid().uuidString.lowercased(), file)
+        try await upload(uuid().uuidString.lowercased(), file)
       } catch {
         try stopIfRunEnds(error)
       }
@@ -757,8 +783,9 @@ public actor HealthBackfill {
       var queue = pending.blobs[...]
       for _ in 0..<Self.blobConcurrency {
         guard let sha256 = queue.popFirst() else { break }
-        group.addTask { [storage, blobUploader] in
-          try await Self.uploadBlob(sha256, storage: storage, uploader: blobUploader)
+        group.addTask { [storage, blobUploader, clock] in
+          try await Self.uploadBlob(
+            sha256, storage: storage, uploader: blobUploader, clock: clock)
         }
       }
       while let uploaded = try await group.next() {
@@ -771,8 +798,9 @@ public actor HealthBackfill {
         try storage.saveState(state)
         try storage.removeFile(HealthBackfillState.PendingPage.blobFile(sha256))
         if let next = queue.popFirst() {
-          group.addTask { [storage, blobUploader] in
-            try await Self.uploadBlob(next, storage: storage, uploader: blobUploader)
+          group.addTask { [storage, blobUploader, clock] in
+            try await Self.uploadBlob(
+              next, storage: storage, uploader: blobUploader, clock: clock)
           }
         }
       }
@@ -781,7 +809,7 @@ public actor HealthBackfill {
     for batch in pending.batches {
       try Task.checkCancellation()
       guard let file = try storage.loadFile(batch) else { return try dropPage() }
-      try await uploader.upload(batch, file)
+      try await upload(batch, file)
     }
     state.anchors[pending.type] = pending.anchor
     if pending.isLast { state.finished.insert(pending.type) }
@@ -801,12 +829,13 @@ public actor HealthBackfill {
   /// Uploads a pending page's blob from its file. Returns its SHA-256, or `nil` if the file is
   /// missing.
   private static func uploadBlob(
-    _ sha256: String, storage: HealthBackfillStorage, uploader: HealthBlobUploader
+    _ sha256: String, storage: HealthBackfillStorage, uploader: HealthBlobUploader,
+    clock: any Clock<Duration>
   ) async throws -> String? {
     try Task.checkCancellation()
     guard let blob = try storage.loadFile(HealthBackfillState.PendingPage.blobFile(sha256))
     else { return nil }
-    try await uploader.upload(sha256, blob)
+    try await retryingTransient(clock: clock) { try await uploader.upload(sha256, blob) }
     return sha256
   }
 
