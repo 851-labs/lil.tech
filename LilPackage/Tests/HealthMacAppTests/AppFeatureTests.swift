@@ -428,5 +428,13 @@ struct SleepFormatTests {
     let estimated = SleepNight(
       day: day, segments: [SleepSegment(stage: .asleep, start: day, end: day + 60)], inBed: 60)
     #expect(SleepFormat.rows(for: estimated) == [.awake, .asleep])
+    // A staged night with some unspecified sleep too shows it as its own row.
+    let mixed = SleepNight(
+      day: day,
+      segments: [
+        SleepSegment(stage: .deep, start: day, end: day + 60),
+        SleepSegment(stage: .asleep, start: day + 60, end: day + 120),
+      ], inBed: 120)
+    #expect(SleepFormat.rows(for: mixed) == [.awake, .rem, .core, .deep, .asleep])
   }
 }

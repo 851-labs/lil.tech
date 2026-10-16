@@ -716,14 +716,16 @@ struct SleepQueriesTests {
         stage(4, from: utc(1, day: 14), hours: 1)
         stage(2, from: utc(2, day: 14), hours: 0.25)
         stage(5, from: utc(2.25, day: 14), hours: 1)
-        // An afternoon nap on the 14th: also the 14th's.
+        // An afternoon nap on the 14th: the 14th's too, but not part of its night.
         stage(1, from: utc(15, day: 14), hours: 0.5)
       }.execute(db)
     }
     let nights = try nights(endingOn: 14, count: 2)
     #expect(nights.map(\.day) == [utc(0, day: 14)])
     let night = try #require(nights.first)
-    #expect(night.asleep == 4.5 * 3600)
+    #expect(night.asleep == 4 * 3600)
+    // From 23:00 to 03:15, not stretched to the nap.
+    #expect(night.inBed == 4.25 * 3600)
     #expect(night.durations[.awake] == 0.25 * 3600)
     #expect(night.hasStages)
   }
@@ -745,6 +747,19 @@ struct SleepQueriesTests {
     #expect(night.segments.map(\.stage) == [.core])
     // From 22:30 to 06:30, once.
     #expect(night.inBed == 8 * 3600)
+  }
+
+  @Test
+  func inBedCountsWhereverItStarts() throws {
+    try database.write { db in
+      try HealthSample.insert {
+        // In bed from 17:45, before the 6 PM boundary, on the iPhone.
+        stage(0, from: utc(17.75, day: 13), hours: 13.25, source: "com.apple.health.iphone")
+        stage(3, from: utc(22, day: 13), hours: 8)
+      }.execute(db)
+    }
+    let night = try #require(try nights(endingOn: 14, count: 1).first)
+    #expect(night.inBed == 13.25 * 3600)
   }
 
   @Test

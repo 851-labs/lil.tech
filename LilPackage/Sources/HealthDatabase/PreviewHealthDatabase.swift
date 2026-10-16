@@ -129,10 +129,14 @@ private struct PreviewData {
         }
         // In bed (0) from a little before falling asleep to a little after waking.
         let inBed = bedtime.addingTimeInterval(-15 * 60)
-        samples.append(
-          sample(
-            type, start: inBed, minutes: start.timeIntervalSince(inBed) / 60 + 10, categoryValue: 0,
-            &random))
+        // Not past now, for tonight's night.
+        let outOfBed = min(start.addingTimeInterval(10 * 60), now)
+        if outOfBed > inBed {
+          samples.append(
+            sample(
+              type, start: inBed, minutes: outOfBed.timeIntervalSince(inBed) / 60, categoryValue: 0,
+              &random))
+        }
       case "HKCategoryTypeIdentifierAppleStandHour":
         for hour in 8..<21 {
           let start = day.addingTimeInterval(Double(hour) * 3600)

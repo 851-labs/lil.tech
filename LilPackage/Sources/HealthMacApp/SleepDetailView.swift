@@ -10,17 +10,22 @@ struct SleepDetailView: View {
   let type: HealthDataType
   @State private var range = SleepRange.day
   @State private var offset = 0
+  /// Today, moved on at midnight, so the nights shown follow.
+  @State private var today = Date.now
   @Fetch private var nights: [SleepNight] = []
 
   var body: some View {
     SleepDetailContent(
       type: type, range: $range, offset: $offset,
       state: $nights.loadError.map { .failed($0.localizedDescription) }
-        ?? ($nights.isLoading ? .loading : .loaded(nights))
+        ?? ($nights.isLoading ? .loading : .loaded(nights)), now: today
     )
-    .task(id: [range.rawValue, String(offset)]) {
+    .task(id: [range.rawValue, String(offset), today.formatted(.iso8601.year().month().day())]) {
       _ = try? await $nights.load(
-        SleepRequest(range: range, offset: offset, day: .now), scheduler: MainQueueScheduler())
+        SleepRequest(range: range, offset: offset, day: today), scheduler: MainQueueScheduler())
+    }
+    .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+      today = .now
     }
   }
 }
@@ -70,8 +75,8 @@ struct SleepDetailContent: View {
   @Binding var range: SleepRange
   @Binding var offset: Int
   let state: State
-  var calendar = Calendar.current
   var now = Date.now
+  var calendar = Calendar.current
 
   var body: some View {
     ScrollView {
@@ -94,6 +99,22 @@ struct SleepDetailContent: View {
         if range == .day, case .loaded(let nights) = state, let night = nights.last {
           stages(night)
         }
+        VStack(spacing: 0) {
+          NavigationLink {
+            AllDataView(type: type)
+          } label: {
+            linkRow("Show All Data")
+          }
+          .buttonStyle(.plain)
+          Divider().padding(.leading, 14)
+          NavigationLink {
+            DataSourcesView(type: type)
+          } label: {
+            linkRow("Data Sources")
+          }
+          .buttonStyle(.plain)
+        }
+        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
       }
       .padding(20)
       .frame(maxWidth: 760)
@@ -195,8 +216,24 @@ struct SleepDetailContent: View {
     }
   }
 
-  /// Each night's time asleep, by stage.
+  private func linkRow(_ title: String) -> some View {
+    HStack {
+      Text(title)
+      Spacer()
+      Image(systemName: "chevron.right")
+        .font(.caption.bold())
+        .foregroundStyle(.tertiary)
+    }
+    .padding(.horizontal, 14)
+    .padding(.vertical, 10)
+    .contentShape(Rectangle())
+  }
+
+  /// Each night's time asleep, by stage, with a slot for every night of the week.
   private func weekChart(_ nights: [SleepNight]) -> some View {
+    let last = range.lastDay(offset: offset, now: now, calendar: calendar)
+    let first = calendar.date(byAdding: .day, value: 1 - range.nights, to: last) ?? last
+    let end = calendar.date(byAdding: .day, value: 1, to: last) ?? last
     let bars = nights.flatMap { night in
       SleepStage.allCases.filter(\.isAsleep).compactMap { stage -> (Date, SleepStage, Double)? in
         guard let duration = night.durations[stage], duration > 0 else { return nil }
@@ -207,6 +244,7 @@ struct SleepDetailContent: View {
       BarMark(x: .value("Night", bar.0, unit: .day), y: .value("Hours", bar.2))
         .foregroundStyle(SleepFormat.color(bar.1))
     }
+    .chartXScale(domain: first...end)
     .chartYAxis {
       AxisMarks(position: .trailing) { value in
         AxisGridLine()
@@ -221,11 +259,12 @@ struct SleepDetailContent: View {
   private func stages(_ night: SleepNight) -> some View {
     let durations = night.durations
     let asleep = max(night.asleep, 1)
+    let rows = SleepFormat.rows(for: night)
     return VStack(alignment: .leading, spacing: 8) {
       Text("Stages")
         .font(.title3.bold())
       VStack(spacing: 0) {
-        ForEach(SleepFormat.rows(for: night), id: \.self) { stage in
+        ForEach(rows, id: \.self) { stage in
           let duration = durations[stage] ?? 0
           HStack {
             Circle()
@@ -245,7 +284,7 @@ struct SleepDetailContent: View {
           }
           .padding(.horizontal, 14)
           .padding(.vertical, 10)
-          if stage != SleepFormat.rows(for: night).last { Divider().padding(.leading, 14) }
+          if stage != rows.last { Divider().padding(.leading, 14) }
         }
       }
       .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
@@ -258,7 +297,10 @@ enum SleepFormat {
   /// The chart's rows, top to bottom: Health's order for stages, or Awake and Asleep for a
   /// source that didn't record stages.
   static func rows(for night: SleepNight) -> [SleepStage] {
-    night.hasStages ? [.awake, .rem, .core, .deep] : [.awake, .asleep]
+    guard night.hasStages else { return [.awake, .asleep] }
+    // Asleep (unspecified) joins the stages if a staged night has some too, so it all shows.
+    let unspecified = night.segments.contains { $0.stage == .asleep }
+    return [.awake, .rem, .core, .deep] + (unspecified ? [.asleep] : [])
   }
 
   static func name(_ stage: SleepStage) -> String {

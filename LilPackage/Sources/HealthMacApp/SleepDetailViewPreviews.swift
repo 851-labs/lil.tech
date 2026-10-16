@@ -5,7 +5,7 @@ import SwiftUI
 
 // Synthetic data only (AGENTS.md): `makePreviewHealthDatabase()`.
 
-private let sleep = HealthCatalog.type(id: "HKCategoryTypeIdentifierSleepAnalysis")!
+private let sleep = HealthCatalog.type(id: HealthDatabase.sleepType)!
 
 @MainActor
 private func detail(_ range: SleepRange, _ state: SleepDetailContent.State) -> some View {
