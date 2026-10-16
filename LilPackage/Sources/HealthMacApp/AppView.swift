@@ -43,7 +43,7 @@ struct SidebarView: View {
   var body: some View {
     List(selection: $store.selection) {
       let results = store.searchResults
-      if !store.searchText.isEmpty {
+      if !store.query.isEmpty {
         Section("Results") {
           if results.isEmpty {
             Text("No Results")
@@ -92,9 +92,8 @@ struct DetailView: View {
         "Summary", systemImage: "heart.text.square.fill",
         description: Text("Your pinned metrics and highlights will appear here."))
     case .category(let category):
-      List(HealthCatalog.types(availableOn: .ios(26)).filter { $0.category == category }, id: \.id)
-      {
-        type in
+      // Including types also listed under another category (e.g. Blood Pressure in Vitals).
+      List(HealthCatalog.types(in: category), id: \.id) { type in
         Text(type.name)
       }
       .navigationTitle(category.name)

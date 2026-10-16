@@ -17,7 +17,8 @@ struct LilHealthApp: App {
   }
 
   var body: some Scene {
-    WindowGroup {
+    // One window: the app has one store, and one session to follow.
+    Window("lil health", id: "main") {
       AppView(store: Self.store)
     }
   }

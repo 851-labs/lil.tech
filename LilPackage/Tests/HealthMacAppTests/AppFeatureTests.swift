@@ -55,5 +55,31 @@ struct AppFeatureTests {
 
     state.searchText = "xylophone"
     #expect(state.searchResults.isEmpty)
+    // Spaces alone aren't a search.
+    state.searchText = "   "
+    #expect(state.query.isEmpty)
+  }
+
+  @Test
+  func searchCoversEveryVersionButNotCharacteristics() {
+    let state = AppFeature.State(isSignedIn: true, searchText: "menopause")
+    // Added in iOS 27, and synced from iPhones that have it.
+    #expect(!state.searchResults.isEmpty)
+    #expect(AppFeature.State(isSignedIn: true, searchText: "blood type").searchResults.isEmpty)
+  }
+
+  @Test
+  func clearingTheSearchSelectsTheFoundTypesCategory() async {
+    let store = TestStore(
+      initialState: AppFeature.State(
+        isSignedIn: true, selection: .dataType("HKQuantityTypeIdentifierHeartRate"),
+        searchText: "heart")
+    ) {
+      AppFeature()
+    }
+    await store.send(\.binding.searchText, "") {
+      $0.searchText = ""
+      $0.selection = .category(.heart)
+    }
   }
 }

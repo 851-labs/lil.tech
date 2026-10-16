@@ -23,18 +23,19 @@ public struct AppFeature {
       self.searchText = searchText
     }
 
-    /// The data types whose names match the search, by category order then name.
+    /// The search, without surrounding spaces.
+    public var query: String { searchText.trimmingCharacters(in: .whitespaces) }
+
+    /// The data types whose names match the search, by category order then name. Every type in
+    /// the catalog, whatever iOS version added it: the Mac shows what's synced. Characteristics,
+    /// which have no category, aren't data to browse.
     public var searchResults: [HealthDataType] {
-      let query = searchText.trimmingCharacters(in: .whitespaces)
       guard !query.isEmpty else { return [] }
-      return HealthCatalog.types(availableOn: .ios(26))
-        .filter { $0.name.localizedStandardContains(query) }
-        .sorted {
-          let order = { (type: HealthDataType) in
-            type.category.flatMap { HealthCategory.allCases.firstIndex(of: $0) } ?? .max
-          }
-          return order($0) == order($1) ? $0.name < $1.name : order($0) < order($1)
-        }
+      return HealthCategory.allCases.flatMap { category in
+        HealthCatalog.all
+          .filter { $0.category == category && $0.name.localizedStandardContains(query) }
+          .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+      }
     }
   }
 
@@ -51,6 +52,14 @@ public struct AppFeature {
 
   public var body: some ReducerOf<Self> {
     BindingReducer()
+      .onChange(of: \.query) { _, state in
+        // A type found by search goes when the search does: its category takes its place.
+        if state.query.isEmpty, case .dataType(let id) = state.selection {
+          state.selection =
+            HealthCatalog.type(id: id)?.category.map(SidebarItem.category) ?? .summary
+        }
+        return .none
+      }
     Scope(\.signIn, action: \.signIn) {
       SignInFeature()
     }
