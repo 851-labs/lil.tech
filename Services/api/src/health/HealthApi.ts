@@ -4,6 +4,7 @@ import { Authorization } from "../auth/AuthApi.ts";
 import { StorageFull } from "../store/Changes.ts";
 import { UserStoreUnavailable } from "../store/UserStores.ts";
 import {
+  ConsentRequired,
   HealthBatch,
   HealthBatchId,
   HealthBatchNotFound,
@@ -34,7 +35,7 @@ export class HealthApi extends HttpApiGroup.make("health")
         HttpApiSchema.asUint8Array({ contentType: "application/gzip" }),
       ),
       success: HealthBatch.pipe(HttpApiSchema.status(202)),
-      error: [HealthBatchTooLarge, StorageFull, UserStoreUnavailable],
+      error: [HealthBatchTooLarge, StorageFull, UserStoreUnavailable, ConsentRequired],
     }).middleware(UploadSizeLimit),
   )
   .add(

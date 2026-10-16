@@ -295,6 +295,14 @@ public struct HealthBatchUploader: Sendable {
 
     public var errorDescription: String? { "Your lil account's storage is full" }
   }
+
+  /// The user hasn't consented to the current privacy policy (a 403), so new Health data isn't
+  /// taken (`GET /v1/me/consents/health`).
+  public struct ConsentRequired: LocalizedError, Equatable {
+    public init() {}
+
+    public var errorDescription: String? { "lil health needs your consent to upload Health data" }
+  }
 }
 
 extension HealthBatchUploader: DependencyKey {
@@ -317,6 +325,7 @@ extension HealthBatchUploader: DependencyKey {
           try response.body.json
         }
         throw RateLimited(retryAfter: TimeInterval(seconds))
+      case .forbidden: throw ConsentRequired()
       case .code507: throw StorageFull()
       case .undocumented(let statusCode, _): throw Rejected(statusCode: statusCode)
       }

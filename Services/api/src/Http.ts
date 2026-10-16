@@ -10,7 +10,9 @@ import { ProviderSignIn, type VerifiedIdentity } from "./auth/ProviderSignIn.ts"
 import { DevSignInRoute } from "./auth/DevSignIn.ts";
 import {
   Authorization,
+  ConsentOutdated,
   CurrentSession,
+  HealthConsent,
   type DeviceInfo,
   Me,
   MeDevice,
@@ -18,10 +20,17 @@ import {
   Unauthorized,
 } from "./auth/AuthApi.ts";
 import { AccessTokens } from "./auth/Tokens.ts";
+import {
+  Consents,
+  type GivenConsent,
+  healthConsentPolicyVersion,
+  isCurrentHealthConsent,
+} from "./core/Consents.ts";
 import { retireDevice } from "./core/DeviceCleanup.ts";
 import { Devices } from "./core/Devices.ts";
 import { Identities } from "./core/Identities.ts";
 import {
+  ConsentRequired,
   HealthBatchNotFound,
   HealthBatchTooLarge,
   maxHealthBatchBytes,
@@ -170,6 +179,13 @@ export const AuthHandlers = HttpApiBuilder.group(
 /** An access token that outlived its account (deleted within the last 15 minutes). */
 const userGone = new Unauthorized({ message: "The user no longer exists" });
 
+const healthConsent = (given: Option.Option<GivenConsent>) =>
+  new HealthConsent({
+    required: healthConsentPolicyVersion,
+    given: Option.getOrNull(given),
+    current: isCurrentHealthConsent(given),
+  });
+
 export const MeHandlers = HttpApiBuilder.group(
   Api,
   "me",
@@ -178,6 +194,7 @@ export const MeHandlers = HttpApiBuilder.group(
     const identities = yield* Identities;
     const devices = yield* Devices;
     const stores = yield* UserStores;
+    const consents = yield* Consents;
     return handlers
       .handle("me", () =>
         Effect.gen(function* () {
@@ -212,6 +229,32 @@ export const MeHandlers = HttpApiBuilder.group(
                 }),
             ),
           });
+        }),
+      )
+      .handle("healthConsent", () =>
+        Effect.gen(function* () {
+          const { userId } = yield* CurrentSession;
+          return healthConsent(yield* consents.current(userId, "health").pipe(Effect.orDie));
+        }),
+      )
+      .handle("giveHealthConsent", ({ payload }) =>
+        Effect.gen(function* () {
+          // Consent counts only for the policy the user was shown, so an app showing an older
+          // one is told to show the current one.
+          if (payload.policyVersion !== healthConsentPolicyVersion) {
+            return yield* new ConsentOutdated({ required: healthConsentPolicyVersion });
+          }
+          const { userId } = yield* CurrentSession;
+          const given = yield* consents
+            .grant(userId, "health", payload.policyVersion)
+            .pipe(Effect.orDie);
+          return healthConsent(Option.some(given));
+        }),
+      )
+      .handle("withdrawHealthConsent", () =>
+        Effect.gen(function* () {
+          const { userId } = yield* CurrentSession;
+          yield* consents.withdraw(userId, "health").pipe(Effect.orDie);
         }),
       )
       .handle("deleteMe", () =>
@@ -307,6 +350,7 @@ export const HealthHandlers = HttpApiBuilder.group(
   "health",
   Effect.fn(function* (handlers) {
     const stores = yield* UserStores;
+    const consents = yield* Consents;
     return handlers
       .handle("uploadBatch", ({ params, payload }) =>
         Effect.gen(function* () {
@@ -318,9 +362,21 @@ export const HealthHandlers = HttpApiBuilder.group(
             return yield* new HealthBatchTooLarge({ maxBytes: maxHealthBatchBytes });
           }
           const store = stores.forUser(userId);
-          // Fails with `StorageFull` for a new batch once the store is over its quota.
-          const known = yield* store.checkHealthBatchUpload(params.id);
+          const [known, consent] = yield* Effect.all(
+            [
+              // Fails with `StorageFull` for a new batch once the store is over its quota.
+              store.checkHealthBatchUpload(params.id),
+              consents.current(userId, "health").pipe(Effect.orDie),
+            ],
+            { concurrency: "unbounded" },
+          );
           if (known !== null) return known;
+          // New Health data is only taken with consent to the current policy (GDPR Article 9).
+          // After the known-batch check, so a deleted account still gets a 401, and a retried
+          // upload from before a withdrawal still gets its status.
+          if (!isCurrentHealthConsent(consent)) {
+            return yield* new ConsentRequired({ required: healthConsentPolicyVersion });
+          }
           // The file and the message come before the status, so a batch recorded as queued is
           // always really queued. A failure in between leaves no status, and the client retries.
           yield* files.put(healthBatchKey(userId, params.id), payload);

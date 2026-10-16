@@ -50,5 +50,15 @@ export class HealthBatchTooLarge extends Schema.TaggedError<HealthBatchTooLarge>
   { httpApiStatus: 413 },
 ) {}
 
+/**
+ * Uploading Health data needs the user's consent to the current privacy policy version
+ * (`GET /v1/me/consents/health`), which they haven't given.
+ */
+export class ConsentRequired extends Schema.TaggedError<ConsentRequired>()(
+  "ConsentRequired",
+  { required: Schema.String },
+  { httpApiStatus: 403 },
+) {}
+
 /** The largest batch file accepted, compressed. */
 export const maxHealthBatchBytes = 16 * 1024 * 1024;

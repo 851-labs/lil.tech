@@ -477,6 +477,32 @@ struct HealthBackfillTests {
   }
 
   @Test
+  func missingConsentStopsTheRunAndKeepsThePage() async throws {
+    let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
+    let attempts = LockIsolated(0)
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = health.reader
+      $0.healthBatchUploader = HealthBatchUploader { _, _ in
+        attempts.withValue { $0 += 1 }
+        throw HealthBatchUploader.ConsentRequired()
+      }
+      $0.healthBackfillStorage = storage
+      $0.uuid = .incrementing
+    } operation: {
+      HealthBackfill(types: [temperature, sleep])
+    }
+
+    await #expect(throws: HealthBatchUploader.ConsentRequired.self) { try await backfill.run() }
+    // Every other upload would be refused too.
+    #expect(attempts.value == 1)
+    #expect(await backfill.requestedTypes == [temperature.id, sleep.id])
+    var updates = await backfill.progressUpdates().makeAsyncIterator()
+    #expect(await updates.next()?.failure == "lil health needs your consent to upload Health data")
+    #expect(try storage.loadState()?.pending != nil)
+  }
+
+  @Test
   func aFullAccountStopsTheRunAndKeepsThePage() async throws {
     let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
     let full = LockIsolated(true)
