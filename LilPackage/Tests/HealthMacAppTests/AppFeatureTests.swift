@@ -196,23 +196,32 @@ struct MetricFormatTests {
     #expect(MetricFormat.value(5_300, unit: "m", typeID: "x").unit == "km")
     #expect(MetricFormat.value(420, unit: "m", typeID: "x").unit == "m")
     #expect(MetricFormat.value(36.6, unit: "degC", typeID: "x").unit == "°C")
+    let cadence = "HKQuantityTypeIdentifierCyclingCadence"
+    #expect(MetricFormat.value(85, unit: "count/min", typeID: cadence).unit == "RPM")
+    let swimming = "HKQuantityTypeIdentifierDistanceSwimming"
+    #expect(MetricFormat.value(1_500, unit: "m", typeID: swimming).unit == "m")
+    let walking = "HKQuantityTypeIdentifierWalkingSpeed"
+    #expect(MetricFormat.value(1.2, unit: "m/s", typeID: walking).unit == "km/h")
+    let stairs = "HKQuantityTypeIdentifierStairAscentSpeed"
+    #expect(MetricFormat.value(0.5, unit: "m/s", typeID: stairs).unit == "m/s")
     #expect(MetricFormat.value(1, unit: "mg/dL", typeID: "x").unit == "mg/dL")
   }
 
   @Test
   func datesLikeHealth() {
     let date = { (daysAgo: Double) in self.now.addingTimeInterval(-daysAgo * 86_400) }
+    let style = Date.FormatStyle(calendar: utc, timeZone: utc.timeZone)
     #expect(MetricFormat.date(date(0), isDay: true, now: now, calendar: utc) == "Today")
     #expect(MetricFormat.date(date(0), isDay: false, now: now, calendar: utc) != "Today")
     #expect(MetricFormat.date(date(1), isDay: true, now: now, calendar: utc) == "Yesterday")
     #expect(
       MetricFormat.date(date(3), isDay: true, now: now, calendar: utc)
-        == date(3).formatted(.dateTime.weekday(.wide)))
+        == date(3).formatted(style.weekday(.wide)))
     #expect(
       MetricFormat.date(date(30), isDay: true, now: now, calendar: utc)
-        == date(30).formatted(.dateTime.month(.abbreviated).day()))
+        == date(30).formatted(style.month(.abbreviated).day()))
     #expect(
       MetricFormat.date(date(400), isDay: true, now: now, calendar: utc)
-        == date(400).formatted(.dateTime.month(.abbreviated).day().year()))
+        == date(400).formatted(style.month(.abbreviated).day().year()))
   }
 }

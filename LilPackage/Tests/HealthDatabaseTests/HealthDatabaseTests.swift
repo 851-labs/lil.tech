@@ -308,6 +308,21 @@ struct BrowseQueriesTests {
   }
 
   @Test
+  func aLatestDayTheBucketsDontCoverYetUsesItsSamples() throws {
+    let steps = "HKQuantityTypeIdentifierStepCount"
+    try database.write { db in
+      try HealthStatisticsDevice.insert { reported(device, paired: true, daysAgo: 0) }.execute(db)
+      try HealthStatistic.insert { statistic(steps, at: utc(9, day: 13), sum: 4_000) }.execute(db)
+      // Synced before today's buckets.
+      try HealthSample.insert { sample(steps, at: utc(0.1), value: 120) }.execute(db)
+    }
+    let summary = try summary(steps)
+    #expect(summary.latestDate == utc(0))
+    #expect(summary.latestValue == 120)
+    #expect(summary.days.map(\.value) == [4_000, 120])
+  }
+
+  @Test
   func aCumulativeTypeWithoutStatisticsAddsUpItsSamples() throws {
     let water = "HKQuantityTypeIdentifierDietaryWater"
     try database.write { db in
@@ -353,6 +368,8 @@ struct BrowseQueriesTests {
     #expect(try summary(headache).latestDate == utc(10))
     #expect(try summary(headache).latestValue == nil)
     #expect(try summary("HKActivitySummaryTypeIdentifier").latestDate == utc(0, day: 13))
+    // A day's, not a moment's.
+    #expect(try summary("HKActivitySummaryTypeIdentifier").isDailyTotal)
   }
 
   @Test

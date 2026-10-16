@@ -12,7 +12,10 @@ struct CategoryView: View {
 
   init(category: HealthCategory) {
     self.category = category
-    _summaries = Fetch(wrappedValue: [], CategorySummaries(category: category))
+    // Off the main thread: a category runs a few queries per type, again after each sync write.
+    _summaries = Fetch(
+      wrappedValue: [], CategorySummaries(category: category),
+      scheduler: MainQueueScheduler())
   }
 
   var body: some View {
@@ -20,6 +23,15 @@ struct CategoryView: View {
       category: category,
       state: $summaries.loadError.map { .failed($0.localizedDescription) }
         ?? ($summaries.isLoading ? .loading : .loaded(summaries)))
+  }
+}
+
+/// Fetches in the background and delivers on the main queue, even the first value.
+struct MainQueueScheduler: ValueObservationScheduler, Hashable {
+  func immediateInitialValue() -> Bool { false }
+
+  func schedule(_ action: @escaping @Sendable () -> Void) {
+    DispatchQueue.main.async(execute: action)
   }
 }
 

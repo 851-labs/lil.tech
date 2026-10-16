@@ -68,11 +68,15 @@ extension HealthDatabase {
       return try discreteSummary(of: type, calendar: calendar, db)
     default:
       return MetricSummary(
-        id: type.id, latestDate: try latestDate(of: type, calendar: calendar, db))
+        id: type.id, latestDate: try latestDate(of: type, calendar: calendar, db),
+        // Activity rings are a day's.
+        isDailyTotal: type.kind == .activitySummary)
     }
   }
 
-  /// The latest day's total, from the statistics source's buckets or, without any, the samples.
+  /// The latest day's total, from the statistics source's buckets. Days the buckets don't cover
+  /// yet (none at all, or the latest sample's day before its buckets arrive) use the samples'
+  /// own total, which counts overlapping sources twice where HealthKit's statistics wouldn't.
   private static func cumulativeSummary(
     of type: HealthDataType, now: Date, calendar: Calendar, _ db: Database
   ) throws -> MetricSummary {
@@ -94,14 +98,20 @@ extension HealthDatabase {
       of: type.id, in: week, by: .day, calendar: calendar, now: now, db
     )
     .map { DailyValue(day: $0.start, value: $0.sum) }
-    if days.isEmpty {
-      // No statistics for it: the samples' own totals.
+    if days.last?.day != latestDay {
+      // From the latest day only, unless there are no statistics at all.
+      let lower = (days.isEmpty ? week.lowerBound : latestDay).unixMilliseconds
+      let upper = week.upperBound.unixMilliseconds
+      let samples =
+        try HealthSample
+        .where { $0.type.eq(type.id) && $0.startDate >= lower && $0.startDate < upper }
+        .select { ($0.startDate, $0.value) }
+        .fetchAll(db)
       var totals: [Date: Double] = [:]
-      for sample in try samples(of: type.id, in: week, db) {
-        totals[calendar.startOfDay(for: Date(unixMilliseconds: sample.startDate)), default: 0] +=
-          sample.value ?? 0
+      for (start, value) in samples {
+        totals[calendar.startOfDay(for: Date(unixMilliseconds: start)), default: 0] += value ?? 0
       }
-      days = totals.sorted { $0.key < $1.key }.map { DailyValue(day: $0.key, value: $0.value) }
+      days += totals.sorted { $0.key < $1.key }.map { DailyValue(day: $0.key, value: $0.value) }
     }
     return MetricSummary(
       id: type.id, latestDate: latestDay, latestValue: days.last { $0.day == latestDay }?.value,
