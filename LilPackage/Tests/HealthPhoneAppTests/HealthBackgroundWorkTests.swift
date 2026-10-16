@@ -31,8 +31,8 @@ struct HealthBackgroundWorkTests {
       progress(withData: 5, empty: 5, records: 10_000, total: 40))
     #expect(upload.completed == 50_000)
     #expect(upload.total == 50_000 + 30 * 10_000)
-    // Still counting: no number that's about to change.
-    #expect(upload.subtitle == "Counting items…")
+    // Not counted (yet): what's gone up.
+    #expect(upload.subtitle == "\(50_000.formatted()) items uploaded")
   }
 
   @Test
@@ -171,10 +171,11 @@ struct HealthBackgroundWorkTests {
 
   @Test
   func whatsLeftReadsLikeBackupApps() {
-    #expect(UploadCopy.left(records: 10, totalRecords: nil) == "Counting items…")
     #expect(UploadCopy.left(records: 10, totalRecords: 11) == "1 item left")
     #expect(UploadCopy.left(records: 0, totalRecords: 1_500) == "\(1_500.formatted()) items left")
-    // The count is an estimate: never a negative number.
-    #expect(UploadCopy.left(records: 12, totalRecords: 11) == "Finishing up…")
+    // Not counted, or the estimate ran out: what's gone up, never a count that's stuck or
+    // negative.
+    #expect(UploadCopy.left(records: 1, totalRecords: nil) == "1 item uploaded")
+    #expect(UploadCopy.left(records: 12, totalRecords: 11) == "12 items uploaded")
   }
 }

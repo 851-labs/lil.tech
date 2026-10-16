@@ -109,16 +109,14 @@ private struct StatusHeader: View {
           .foregroundStyle(.secondary)
         Button("Try Again") { store.send(.retryButtonTapped) }
           .buttonStyle(.bordered)
-      case .uploading(let finished, let total, let records, let totalRecords):
+      case .uploading(_, _, let records, let totalRecords):
         Label("Uploading your Health history", systemImage: "icloud.and.arrow.up")
           .foregroundStyle(.blue)
-        UploadCounts(
-          finishedTypes: finished, totalTypes: total, records: records, totalRecords: totalRecords)
-      case .paused(let finished, let total, let records, let totalRecords):
+        UploadCounts(records: records, totalRecords: totalRecords)
+      case .paused(_, _, let records, let totalRecords):
         Label("Upload paused", systemImage: "pause.circle")
           .foregroundStyle(.orange)
-        UploadCounts(
-          finishedTypes: finished, totalTypes: total, records: records, totalRecords: totalRecords)
+        UploadCounts(records: records, totalRecords: totalRecords)
         Text("It continues in the background, or now.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
@@ -173,14 +171,15 @@ private struct CategoryRow: View {
 /// ring showing the share done. Records are "items", and the types they come in aren't
 /// mentioned.
 enum UploadCopy {
+  /// "1,234,567 items left" once counted. Otherwise, and when the estimate runs out (it counts
+  /// samples, and some upload as several items), what's gone up: "630,368 items uploaded".
+  /// Counting can fail for a type, or be paused, so there's no "Counting…" to get stuck on.
   static func left(records: Int, totalRecords: Int?) -> String {
-    guard let totalRecords else { return "Counting items…" }
-    let left = totalRecords - records
-    switch left {
-    case ...0: return "Finishing up…"
-    case 1: return "1 item left"
-    default: return "\(left.formatted()) items left"
+    if let totalRecords, totalRecords > records {
+      let left = totalRecords - records
+      return left == 1 ? "1 item left" : "\(left.formatted()) items left"
     }
+    return records == 1 ? "1 item uploaded" : "\(records.formatted()) items uploaded"
   }
 }
 
@@ -188,8 +187,6 @@ enum UploadCopy {
 /// indeterminate, since the share of types done says little (empty types finish first), and a
 /// bar by types would jump back once the records are counted.
 private struct UploadCounts: View {
-  let finishedTypes: Int
-  let totalTypes: Int
   let records: Int
   let totalRecords: Int?
 
