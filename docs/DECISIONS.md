@@ -82,8 +82,8 @@
   - The exception is uploads waiting to be applied, such as health batch files. They're staging, not data: keyed by user and batch, deleted once applied, and expired by a 7-day lifecycle rule if anything leaves them behind.
   - Not D1 for user data, because one D1 database has a hard 10 GB cap shared by everyone, and a Worker can't bind a new database per user at runtime.
 - **Backups:** D1 and Durable Object point-in-time recovery (30 days). R2 has none, which is why blobs are immutable.
-- **Storage quota:** each user's store may grow to 8 GB, below the 10 GB a Durable Object can hold. The size is SQLite's used pages (workerd's `databaseSize`), so deleted records make room once the change log is compacted.
-  - At the quota, new batch uploads fail with 507 `StorageFull`, before anything reaches R2. A batch the store already knows still answers with its status.
+- **Storage quota:** each user's store may grow to 8 GB, below the 10 GB a Durable Object can hold. The size is SQLite's used pages (workerd's `databaseSize`), so deleted records make room once the change log is compacted. Health blobs in R2 count towards the same 8 GB.
+  - At the quota, new batch and blob uploads fail with 507 `StorageFull`, before anything reaches R2. A batch or blob the store already knows still answers.
   - Batches accepted before the quota are still applied, because the iPhone never sends a batch again once it's accepted. The gap up to the cap absorbs them.
   - On the iPhone, a 507 ends the backfill run, since every other upload would be refused too.
     - The pending page is kept so it goes up once there's room, and types the run didn't reach are asked for again.

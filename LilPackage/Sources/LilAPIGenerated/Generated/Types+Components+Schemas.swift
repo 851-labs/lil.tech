@@ -87,6 +87,195 @@ extension Components {
                 case message
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthBlobNotFound`.
+        public struct HealthBlobNotFound: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBlobNotFound/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case healthBlobNotFound = "HealthBlobNotFound"
+            }
+            /// - Remark: Generated from `#/components/schemas/HealthBlobNotFound/_tag`.
+            public var _tag: Components.Schemas.HealthBlobNotFound._TagPayload
+            /// - Remark: Generated from `#/components/schemas/HealthBlobNotFound/sha256`.
+            public var sha256: Swift.String
+            /// Creates a new `HealthBlobNotFound`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - sha256:
+            public init(
+                _tag: Components.Schemas.HealthBlobNotFound._TagPayload,
+                sha256: Swift.String
+            ) {
+                self._tag = _tag
+                self.sha256 = sha256
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case sha256
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthBlobDownload`.
+        public struct HealthBlobDownload: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBlobDownload/url`.
+            public var url: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthBlobDownload/expiresAt`.
+            public var expiresAt: Swift.Int
+            /// Creates a new `HealthBlobDownload`.
+            ///
+            /// - Parameters:
+            ///   - url:
+            ///   - expiresAt:
+            public init(
+                url: Swift.String,
+                expiresAt: Swift.Int
+            ) {
+                self.url = url
+                self.expiresAt = expiresAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case url
+                case expiresAt
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ConsentRequired`.
+        public struct ConsentRequired: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ConsentRequired/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case consentRequired = "ConsentRequired"
+            }
+            /// - Remark: Generated from `#/components/schemas/ConsentRequired/_tag`.
+            public var _tag: Components.Schemas.ConsentRequired._TagPayload
+            /// - Remark: Generated from `#/components/schemas/ConsentRequired/required`.
+            public var required: Swift.String
+            /// Creates a new `ConsentRequired`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - required:
+            public init(
+                _tag: Components.Schemas.ConsentRequired._TagPayload,
+                required: Swift.String
+            ) {
+                self._tag = _tag
+                self.required = required
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case required
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/StorageFull`.
+        public struct StorageFull: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StorageFull/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case storageFull = "StorageFull"
+            }
+            /// - Remark: Generated from `#/components/schemas/StorageFull/_tag`.
+            public var _tag: Components.Schemas.StorageFull._TagPayload
+            /// - Remark: Generated from `#/components/schemas/StorageFull/quotaBytes`.
+            public var quotaBytes: Swift.Int
+            /// Creates a new `StorageFull`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - quotaBytes:
+            public init(
+                _tag: Components.Schemas.StorageFull._TagPayload,
+                quotaBytes: Swift.Int
+            ) {
+                self._tag = _tag
+                self.quotaBytes = quotaBytes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case quotaBytes
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthBlobHashMismatch`.
+        public struct HealthBlobHashMismatch: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBlobHashMismatch/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case healthBlobHashMismatch = "HealthBlobHashMismatch"
+            }
+            /// - Remark: Generated from `#/components/schemas/HealthBlobHashMismatch/_tag`.
+            public var _tag: Components.Schemas.HealthBlobHashMismatch._TagPayload
+            /// - Remark: Generated from `#/components/schemas/HealthBlobHashMismatch/sha256`.
+            public var sha256: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthBlobHashMismatch/actual`.
+            public var actual: Swift.String
+            /// Creates a new `HealthBlobHashMismatch`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - sha256:
+            ///   - actual:
+            public init(
+                _tag: Components.Schemas.HealthBlobHashMismatch._TagPayload,
+                sha256: Swift.String,
+                actual: Swift.String
+            ) {
+                self._tag = _tag
+                self.sha256 = sha256
+                self.actual = actual
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case sha256
+                case actual
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge`.
+        public struct HealthBatchTooLarge: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case healthBatchTooLarge = "HealthBatchTooLarge"
+            }
+            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/_tag`.
+            public var _tag: Components.Schemas.HealthBatchTooLarge._TagPayload
+            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/maxBytes`.
+            public var maxBytes: Swift.Int
+            /// Creates a new `HealthBatchTooLarge`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - maxBytes:
+            public init(
+                _tag: Components.Schemas.HealthBatchTooLarge._TagPayload,
+                maxBytes: Swift.Int
+            ) {
+                self._tag = _tag
+                self.maxBytes = maxBytes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case maxBytes
+            }
+        }
+        /// A stored health blob
+        ///
+        /// - Remark: Generated from `#/components/schemas/HealthBlob`.
+        public struct HealthBlob: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBlob/sha256`.
+            public var sha256: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthBlob/size`.
+            public var size: Swift.Int
+            /// Creates a new `HealthBlob`.
+            ///
+            /// - Parameters:
+            ///   - sha256:
+            ///   - size:
+            public init(
+                sha256: Swift.String,
+                size: Swift.Int
+            ) {
+                self.sha256 = sha256
+                self.size = size
+            }
+            public enum CodingKeys: String, CodingKey {
+                case sha256
+                case size
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound`.
         public struct HealthBatchNotFound: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound/_tag`.
@@ -202,87 +391,6 @@ extension Components {
             public enum CodingKeys: String, CodingKey {
                 case line
                 case message
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/ConsentRequired`.
-        public struct ConsentRequired: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ConsentRequired/_tag`.
-            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case consentRequired = "ConsentRequired"
-            }
-            /// - Remark: Generated from `#/components/schemas/ConsentRequired/_tag`.
-            public var _tag: Components.Schemas.ConsentRequired._TagPayload
-            /// - Remark: Generated from `#/components/schemas/ConsentRequired/required`.
-            public var required: Swift.String
-            /// Creates a new `ConsentRequired`.
-            ///
-            /// - Parameters:
-            ///   - _tag:
-            ///   - required:
-            public init(
-                _tag: Components.Schemas.ConsentRequired._TagPayload,
-                required: Swift.String
-            ) {
-                self._tag = _tag
-                self.required = required
-            }
-            public enum CodingKeys: String, CodingKey {
-                case _tag
-                case required
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/StorageFull`.
-        public struct StorageFull: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/StorageFull/_tag`.
-            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case storageFull = "StorageFull"
-            }
-            /// - Remark: Generated from `#/components/schemas/StorageFull/_tag`.
-            public var _tag: Components.Schemas.StorageFull._TagPayload
-            /// - Remark: Generated from `#/components/schemas/StorageFull/quotaBytes`.
-            public var quotaBytes: Swift.Int
-            /// Creates a new `StorageFull`.
-            ///
-            /// - Parameters:
-            ///   - _tag:
-            ///   - quotaBytes:
-            public init(
-                _tag: Components.Schemas.StorageFull._TagPayload,
-                quotaBytes: Swift.Int
-            ) {
-                self._tag = _tag
-                self.quotaBytes = quotaBytes
-            }
-            public enum CodingKeys: String, CodingKey {
-                case _tag
-                case quotaBytes
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge`.
-        public struct HealthBatchTooLarge: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/_tag`.
-            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case healthBatchTooLarge = "HealthBatchTooLarge"
-            }
-            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/_tag`.
-            public var _tag: Components.Schemas.HealthBatchTooLarge._TagPayload
-            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/maxBytes`.
-            public var maxBytes: Swift.Int
-            /// Creates a new `HealthBatchTooLarge`.
-            ///
-            /// - Parameters:
-            ///   - _tag:
-            ///   - maxBytes:
-            public init(
-                _tag: Components.Schemas.HealthBatchTooLarge._TagPayload,
-                maxBytes: Swift.Int
-            ) {
-                self._tag = _tag
-                self.maxBytes = maxBytes
-            }
-            public enum CodingKeys: String, CodingKey {
-                case _tag
-                case maxBytes
             }
         }
         /// An uploaded health batch

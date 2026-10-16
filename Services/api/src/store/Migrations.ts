@@ -143,6 +143,19 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CREATE INDEX health_audiogram_start ON health_audiogram (start_date);
     `,
   },
+  {
+    version: 11,
+    name: "health_blobs",
+    // Uploaded health blobs (\`src/health/HealthBlobs.ts\`): which this user has, and their sizes,
+    // which count towards the storage quota. \`meta.health_blob_bytes\` holds the total.
+    sql: `
+      CREATE TABLE health_blobs (
+        sha256 TEXT PRIMARY KEY,
+        size INTEGER NOT NULL,
+        uploaded_at INTEGER NOT NULL
+      ) STRICT;
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

@@ -917,6 +917,195 @@
           }
         }
       }
+    },
+    "/v1/health/blobs/{sha256}": {
+      "put": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "healthUploadBlob",
+        "parameters": [
+          {
+            "name": "sha256",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A stored health blob",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthBlob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "HealthBlobHashMismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthBlobHashMismatch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ConsentRequired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentRequired"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "HealthBatchTooLarge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthBatchTooLarge"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UserStoreUnavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserStoreUnavailable"
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "StorageFull",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageFull"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "required": true
+        }
+      },
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "healthBlob",
+        "parameters": [
+          {
+            "name": "sha256",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "lil/api/health/HealthBlobDownload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthBlobDownload"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "HealthBlobNotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthBlobNotFound"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UserStoreUnavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserStoreUnavailable"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -976,6 +1165,139 @@
           "_tag",
           "message"
         ]
+      },
+      "HealthBlobNotFound": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "HealthBlobNotFound"
+            ]
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "sha256"
+        ]
+      },
+      "HealthBlobDownload": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "url",
+          "expiresAt"
+        ]
+      },
+      "ConsentRequired": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "ConsentRequired"
+            ]
+          },
+          "required": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "required"
+        ]
+      },
+      "StorageFull": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "StorageFull"
+            ]
+          },
+          "quotaBytes": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "_tag",
+          "quotaBytes"
+        ]
+      },
+      "HealthBlobHashMismatch": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "HealthBlobHashMismatch"
+            ]
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "actual": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "sha256",
+          "actual"
+        ]
+      },
+      "HealthBatchTooLarge": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "HealthBatchTooLarge"
+            ]
+          },
+          "maxBytes": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "_tag",
+          "maxBytes"
+        ]
+      },
+      "HealthBlob": {
+        "type": "object",
+        "properties": {
+          "sha256": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "sha256",
+          "size"
+        ],
+        "description": "A stored health blob"
       },
       "HealthBatchNotFound": {
         "type": "object",
@@ -1061,64 +1383,6 @@
         "required": [
           "line",
           "message"
-        ]
-      },
-      "ConsentRequired": {
-        "type": "object",
-        "properties": {
-          "_tag": {
-            "type": "string",
-            "enum": [
-              "ConsentRequired"
-            ]
-          },
-          "required": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "_tag",
-          "required"
-        ]
-      },
-      "StorageFull": {
-        "type": "object",
-        "properties": {
-          "_tag": {
-            "type": "string",
-            "enum": [
-              "StorageFull"
-            ]
-          },
-          "quotaBytes": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          }
-        },
-        "required": [
-          "_tag",
-          "quotaBytes"
-        ]
-      },
-      "HealthBatchTooLarge": {
-        "type": "object",
-        "properties": {
-          "_tag": {
-            "type": "string",
-            "enum": [
-              "HealthBatchTooLarge"
-            ]
-          },
-          "maxBytes": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          }
-        },
-        "required": [
-          "_tag",
-          "maxBytes"
         ]
       },
       "HealthBatch": {

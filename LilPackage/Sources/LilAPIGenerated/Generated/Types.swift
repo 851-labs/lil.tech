@@ -50,6 +50,12 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PUT /v1/health/batches/{id}`.
     /// - Remark: Generated from `#/paths//v1/health/batches/{id}/put(healthUploadBatch)`.
     func healthUploadBatch(_ input: Operations.HealthUploadBatch.Input) async throws -> Operations.HealthUploadBatch.Output
+    /// - Remark: HTTP `GET /v1/health/blobs/{sha256}`.
+    /// - Remark: Generated from `#/paths//v1/health/blobs/{sha256}/get(healthBlob)`.
+    func healthBlob(_ input: Operations.HealthBlob.Input) async throws -> Operations.HealthBlob.Output
+    /// - Remark: HTTP `PUT /v1/health/blobs/{sha256}`.
+    /// - Remark: Generated from `#/paths//v1/health/blobs/{sha256}/put(healthUploadBlob)`.
+    func healthUploadBlob(_ input: Operations.HealthUploadBlob.Input) async throws -> Operations.HealthUploadBlob.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -174,6 +180,30 @@ extension APIProtocol {
         body: Operations.HealthUploadBatch.Input.Body
     ) async throws -> Operations.HealthUploadBatch.Output {
         try await healthUploadBatch(Operations.HealthUploadBatch.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `GET /v1/health/blobs/{sha256}`.
+    /// - Remark: Generated from `#/paths//v1/health/blobs/{sha256}/get(healthBlob)`.
+    public func healthBlob(
+        path: Operations.HealthBlob.Input.Path,
+        headers: Operations.HealthBlob.Input.Headers = .init()
+    ) async throws -> Operations.HealthBlob.Output {
+        try await healthBlob(Operations.HealthBlob.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// - Remark: HTTP `PUT /v1/health/blobs/{sha256}`.
+    /// - Remark: Generated from `#/paths//v1/health/blobs/{sha256}/put(healthUploadBlob)`.
+    public func healthUploadBlob(
+        path: Operations.HealthUploadBlob.Input.Path,
+        headers: Operations.HealthUploadBlob.Input.Headers = .init(),
+        body: Operations.HealthUploadBlob.Input.Body
+    ) async throws -> Operations.HealthUploadBlob.Output {
+        try await healthUploadBlob(Operations.HealthUploadBlob.Input(
             path: path,
             headers: headers,
             body: body
