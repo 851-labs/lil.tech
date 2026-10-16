@@ -209,8 +209,22 @@ private struct PreviewData {
       endDate: start.addingTimeInterval(minutes * 60).unixMilliseconds, value: value, unit: unit,
       categoryValue: categoryValue,
       sourceName: fromWatch ? "Apple Watch" : "iPhone",
-      sourceBundleID: fromWatch ? "com.apple.health.watch" : "com.apple.health.iphone")
+      sourceBundleID: fromWatch ? "com.apple.health.watch" : "com.apple.health.iphone",
+      sourceRevision: fromWatch ? Self.watchRevision : Self.phoneRevision,
+      device: fromWatch ? Self.watch : Self.phone,
+      metadata: type.id == "HKQuantityTypeIdentifierHeartRate"
+        ? #"{"HKMetadataKeyHeartRateMotionContext":1}"# : nil)
   }
+
+  // Made-up devices, in the shape the iPhone uploads (`HealthEncoder.provenance`).
+  static let watch =
+    #"{"hardwareVersion":"Watch7,1","manufacturer":"Apple Inc.","model":"Watch","name":"Apple Watch","softwareVersion":"26.0"}"#
+  static let phone =
+    #"{"hardwareVersion":"iPhone17,1","manufacturer":"Apple Inc.","model":"iPhone","name":"iPhone","softwareVersion":"26.0"}"#
+  static let watchRevision =
+    #"{"operatingSystemVersion":"26.0.0","productType":"Watch7,1","version":"26.0"}"#
+  static let phoneRevision =
+    #"{"operatingSystemVersion":"26.0.0","productType":"iPhone17,1","version":"26.0"}"#
 
   /// Plausible values for a type: per sample, or per 30-minute bucket for cumulative types.
   static func range(for type: HealthDataType, perBucket: Bool) -> (Double, Double) {
