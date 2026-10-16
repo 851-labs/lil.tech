@@ -168,6 +168,22 @@ private struct CategoryRow: View {
   }
 }
 
+/// How an upload's progress reads, here and in the system's task UI: what's left, as backup apps
+/// say it ("321 items left" in Google Photos, items remaining in iCloud Photos), with the bar or
+/// ring showing the share done. Records are "items", and the types they come in aren't
+/// mentioned.
+enum UploadCopy {
+  static func left(records: Int, totalRecords: Int?) -> String {
+    guard let totalRecords else { return "Counting items…" }
+    let left = totalRecords - records
+    switch left {
+    case ...0: return "Finishing up…"
+    case 1: return "1 item left"
+    default: return "\(left.formatted()) items left"
+    }
+  }
+}
+
 /// An upload's progress: by records once they've been counted. Until then the bar is
 /// indeterminate, since the share of types done says little (empty types finish first), and a
 /// bar by types would jump back once the records are counted.
@@ -186,12 +202,9 @@ private struct UploadCounts: View {
           .progressViewStyle(.linear)
       }
     }
-    Text(
-      totalRecords.map { "\(records.formatted()) of \($0.formatted()) records" }
-        ?? "\(finishedTypes) of \(totalTypes) types · \(records.formatted()) records"
-    )
-    .font(.subheadline)
-    .foregroundStyle(.secondary)
-    .monospacedDigit()
+    Text(UploadCopy.left(records: records, totalRecords: totalRecords))
+      .font(.subheadline)
+      .foregroundStyle(.secondary)
+      .monospacedDigit()
   }
 }
