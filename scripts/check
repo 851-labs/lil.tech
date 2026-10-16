@@ -1,0 +1,48 @@
+#!/bin/sh
+# Runs the checks GitHub used to run before every merge (`docs/DECISIONS.md`). The pre-commit
+# hook (`lefthook.yml`) runs the parts a commit touches.
+# Usage: scripts/check [--swift] [--services]   (both when neither is given)
+#   --swift     Swift lint, the package's tests, and both apps' builds.
+#   --services  Formatting, lint and type checks (`scripts/format --lint`, which also checks the
+#               OpenAPI spec and the generated Swift client), and every Services package's tests.
+set -eu
+
+swift=false
+services=false
+for arg in "$@"; do
+  case "$arg" in
+    --swift) swift=true ;;
+    --services) services=true ;;
+    *)
+      echo "usage: scripts/check [--swift] [--services]" >&2
+      exit 2
+      ;;
+  esac
+done
+if ! $swift && ! $services; then
+  swift=true
+  services=true
+fi
+
+cd "$(dirname "$0")/.."
+
+if $swift; then
+  scripts/format --lint --swift
+  # CI makes the targets treat warnings as errors (`LilPackage/Package.swift`).
+  (cd LilPackage && CI=1 swift test --quiet)
+  # Unsigned, as on CI: this only checks that the apps build.
+  for scheme in LilMessages LilHealthiOS; do
+    case "$scheme" in
+      LilMessages) destination='platform=macOS' ;;
+      *) destination='generic/platform=iOS Simulator' ;;
+    esac
+    xcodebuild -workspace Lil.xcworkspace -scheme "$scheme" -destination "$destination" \
+      -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO \
+      build -quiet
+  done
+fi
+
+if $services; then
+  scripts/format --lint
+  (cd Services && vp run -r test)
+fi

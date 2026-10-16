@@ -12,7 +12,7 @@
   - Server code in a TypeScript workspace under `Services/`
   - Code moves into a shared module once a second app needs it, not before (e.g. a ⌘K command palette)
 - **Bundle IDs:** `tech.lil.messages`, `tech.lil.mail`, and so on. An app that ships on several platforms uses one App ID for all of them (e.g. `tech.lil.health` on iOS and macOS).
-- **Formatting:** swift-format with 2-space indents for Swift, and Vite+'s formatter and linter (Oxfmt, Oxlint) for TypeScript, enforced in CI.
+- **Formatting:** swift-format with 2-space indents for Swift, and Vite+'s formatter and linter (Oxfmt, Oxlint) for TypeScript, enforced by the pre-commit hook.
 - **Branching:** trunk-based, with short-lived PRs into `main`.
 - **Tickets:** every app stays in the Linear project lil.tech, told apart by labels (`lil health`, `api`, …).
 
@@ -23,7 +23,7 @@
   - Shared modules should avoid AppKit where it's cheap to do so.
 - **Swift:** latest toolchain (Swift 6.4, Xcode 27), Swift 6 language mode with complete strict concurrency, on every target.
   - All upcoming Swift 7 features are on: `ExistentialAny`, `MemberImportVisibility`, `InternalImportsByDefault`, `InferIsolatedConformances`, `NonisolatedNonsendingByDefault`, `ImmutableWeakCaptures`.
-  - CI treats warnings as errors, for our own targets only (warnings from third-party packages don't count). Warnings stay warnings locally.
+  - Checks treat warnings as errors (`CI=1`, which the pre-commit hook sets), for our own targets only (warnings from third-party packages don't count). Warnings stay warnings in everyday builds.
   - Default actor isolation stays `nonisolated` for now. TCA 1.x's `@Reducer` macro breaks under `MainActor` default isolation ([#3768](https://github.com/pointfreeco/swift-composable-architecture/issues/3768)). Revisit with TCA 2.0, which fully supports it.
 - **TypeScript:** server code uses [Effect](https://effect.website) 4 with strict TypeScript, and the [Vite+](https://viteplus.dev) toolchain (`vp check`, `vp test`).
 - **Localization:** English only for now.
@@ -61,7 +61,10 @@
 
 ### Everywhere
 
-- **CI:** GitHub-hosted runners: macOS for Swift (lint, package tests, app builds, on the `xcode-27` image with Xcode 27.0, as on our Macs) and Linux for TypeScript. A self-hosted Mac only if hosted ones get too slow or lack the Xcode we need.
+- **CI:** for now, checks run locally, before every commit, in a lefthook pre-commit hook (`lefthook.yml`, `scripts/check`), only for the parts a commit touches. GitHub only deploys (`services.yml`: PR previews, then staging and prod on merge to `main`).
+  - Why: GitHub's Swift workflow took 6–11 minutes, mostly a cold runner restoring caches, while the same checks take about 70 seconds on a warm Mac.
+  - The Swift workflow (`swift.yml`, GitHub's `xcode-27` image with Xcode 27.0) is kept, but only runs by hand. Turning it back on means restoring its `pull_request` and `push` triggers.
+  - The trade-off: nothing re-checks a commit made with the hook skipped, or merges that combine changes. Keep commits passing, and merge only branches that are up to date with `main`.
 - **No analytics or crash reporting** in the apps. The server uses Cloudflare's Workers Logs and Effect tracing, with no third-party observability.
 
 ## Server

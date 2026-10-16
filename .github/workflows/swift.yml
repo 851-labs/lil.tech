@@ -1,19 +1,15 @@
 name: Swift
 
-# Lints and tests the Swift code, and builds the apps, for pull requests and main. Services/ has
-# its own workflow; the generated client's stamp is checked there.
+# Lints and tests the Swift code, and builds the apps. Turned off for now: the same checks run
+# before every commit (`lefthook.yml`, `docs/DECISIONS.md`). Run it by hand from the Actions tab,
+# or restore the pull_request and push triggers to turn it back on.
 
 on:
-  pull_request:
-    paths: ["LilPackage/**", "Apps/**", "Tools/**", "Lil.xcworkspace/**", ".swift-format", "scripts/format", ".github/workflows/swift.yml"]
-  push:
-    branches: [main]
-    paths: ["LilPackage/**", "Apps/**", "Tools/**", "Lil.xcworkspace/**", ".swift-format", "scripts/format", ".github/workflows/swift.yml"]
+  workflow_dispatch:
 
-# A newer push to the same PR replaces the run in progress. Every commit to main gets its own.
 concurrency:
-  group: swift-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: swift-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
