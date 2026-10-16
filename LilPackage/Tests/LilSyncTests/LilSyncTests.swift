@@ -495,7 +495,7 @@ struct LilSyncEngineTests {
   func runRetriesWithBackoffAndReportsStatus() async throws {
     server.append(upsert("n1", "One"))
     server.state.withValue { $0.failing = [1, 2] }
-    let clock = TestClock()
+    let clock = ManualClock()
     let engine = withDependencies {
       $0.defaultDatabase = database
       $0.api = server.client
@@ -512,10 +512,12 @@ struct LilSyncEngineTests {
     let running = Task { await engine.run() }
 
     // Backoff is at most 1 second after the first failure and 2 after the second.
-    try await eventually { server.state.requests.count == 1 }
-    await clock.advance(by: .seconds(1))
-    try await eventually { server.state.requests.count == 2 }
-    await clock.advance(by: .seconds(2))
+    try await clock.waitUntilAsleep(dueWithin: .seconds(1))
+    #expect(server.state.requests.count == 1)
+    clock.advance(by: .seconds(1))
+    try await clock.waitUntilAsleep(dueWithin: .seconds(2))
+    #expect(server.state.requests.count == 2)
+    clock.advance(by: .seconds(2))
     try await eventually { try storedNotes() == [Note(id: "n1", title: "One")] }
 
     // An idle engine pulls again when asked, without waiting out the interval.
@@ -741,9 +743,12 @@ struct LilSyncBootstrapTests {
 }
 
 /// A clock that records how long each sleep was for. The first `immediateSleeps` return at once;
-/// later ones suspend until cancelled.
+/// later ones suspend until cancelled. Not `ImmediateClock` underneath: its sleeps wait on
+/// background-priority tasks, which other tests running alongside can starve.
 private final class SleepRecordingClock: Clock, Sendable {
-  private let clock = ImmediateClock()
+  typealias Instant = ImmediateClock<Duration>.Instant
+
+  private let current = LockIsolated(Instant())
   private let immediateSleeps: Int
   let sleeps = LockIsolated<[Duration]>([])
 
@@ -751,18 +756,89 @@ private final class SleepRecordingClock: Clock, Sendable {
     self.immediateSleeps = immediateSleeps
   }
 
-  var now: ImmediateClock<Duration>.Instant { clock.now }
-  var minimumResolution: Duration { clock.minimumResolution }
+  var now: Instant { current.value }
+  var minimumResolution: Duration { .zero }
 
-  func sleep(until deadline: ImmediateClock<Duration>.Instant, tolerance: Duration?) async throws {
+  func sleep(until deadline: Instant, tolerance: Duration?) async throws {
     let count = sleeps.withValue {
-      $0.append(clock.now.duration(to: deadline))
+      $0.append(now.duration(to: deadline))
       return $0.count
     }
     if count > immediateSleeps {
       try await Task.sleep(for: .seconds(3600))
     }
-    try await clock.sleep(until: deadline, tolerance: tolerance)
+    current.withValue { $0 = max($0, deadline) }
+  }
+}
+
+/// A clock that tests move on by hand, like `TestClock`, but that can wait until the code under
+/// test is asleep: advancing a `TestClock` before then is missed, and the sleep never ends.
+private final class ManualClock: Clock, Sendable {
+  typealias Instant = ImmediateClock<Duration>.Instant
+
+  private struct Sleeper {
+    let id: UUID
+    let deadline: Instant
+    let continuation: CheckedContinuation<Void, any Error>
+  }
+
+  private struct State {
+    var now = Instant()
+    var sleepers: [Sleeper] = []
+    /// Sleeps cancelled before they started waiting.
+    var cancelled: Set<UUID> = []
+  }
+
+  private let state = LockIsolated(State())
+
+  var now: Instant { state.value.now }
+  var minimumResolution: Duration { .zero }
+
+  func sleep(until deadline: Instant, tolerance: Duration?) async throws {
+    let id = UUID()
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        let result: Result<Void, any Error>? = state.withValue { state in
+          if state.cancelled.remove(id) != nil { return .failure(CancellationError()) }
+          if deadline <= state.now { return .success(()) }
+          state.sleepers.append(Sleeper(id: id, deadline: deadline, continuation: continuation))
+          return nil
+        }
+        if let result { continuation.resume(with: result) }
+      }
+    } onCancel: {
+      let sleeper = state.withValue { state -> Sleeper? in
+        guard let index = state.sleepers.firstIndex(where: { $0.id == id }) else {
+          state.cancelled.insert(id)
+          return nil
+        }
+        return state.sleepers.remove(at: index)
+      }
+      sleeper?.continuation.resume(throwing: CancellationError())
+    }
+  }
+
+  /// Waits until a sleep that ends within `duration` from now is in progress.
+  func waitUntilAsleep(
+    dueWithin duration: Duration, sourceLocation: SourceLocation = #_sourceLocation
+  ) async throws {
+    try await eventually(
+      {
+        let state = state.value
+        return state.sleepers.contains { $0.deadline <= state.now.advanced(by: duration) }
+      }, sourceLocation: sourceLocation)
+  }
+
+  /// Moves time on by `duration`, ending the sleeps that are due.
+  func advance(by duration: Duration) {
+    let due = state.withValue { state in
+      state.now = state.now.advanced(by: duration)
+      let now = state.now
+      let due = state.sleepers.filter { $0.deadline <= now }
+      state.sleepers.removeAll { $0.deadline <= now }
+      return due
+    }
+    for sleeper in due { sleeper.continuation.resume() }
   }
 }
 
@@ -860,7 +936,7 @@ struct LilSyncLiveTests {
   fileprivate let server = FakeServer()
   fileprivate let live = FakeLive()
   let database: any DatabaseWriter
-  let clock = TestClock()
+  fileprivate let clock = ManualClock()
 
   init() throws {
     database = try makeDatabase()
@@ -912,11 +988,11 @@ struct LilSyncLiveTests {
     server.state.withValue { $0.failing = [1] }
     let engine = engine()
     let running = Task { await engine.run() }
-    try await eventually { server.state.requests.count == 1 }
+    try await clock.waitUntilAsleep(dueWithin: .seconds(1))
     await engine.syncNow()
     await Task.megaYield()
     #expect(server.state.requests.count == 1)
-    await clock.advance(by: .seconds(1))
+    clock.advance(by: .seconds(1))
     try await eventually { server.state.requests.count == 2 }
     running.cancel()
     await running.value
@@ -933,7 +1009,9 @@ struct LilSyncLiveTests {
       }
     }
     try await eventually { live.connections.value.count == 1 }
-    await clock.advance(by: .seconds(60))
+    // Lasts long enough to count as working.
+    try await clock.waitUntilAsleep(dueWithin: .seconds(60))
+    clock.advance(by: .seconds(60))
     live.latest()?.finish(throwing: LiveConnection.TokenExpired())
     try await eventually { live.connections.value.count == 2 }
     #expect(live.tokens.value == ["token-1", "token-2"])
@@ -941,9 +1019,9 @@ struct LilSyncLiveTests {
     // A token that expires right away (e.g. a skewed clock) backs off instead of looping.
     live.latest()?.yield(#"{"type":"head","seq":0}"#)
     live.latest()?.finish(throwing: LiveConnection.TokenExpired())
-    await Task.megaYield()
+    try await clock.waitUntilAsleep(dueWithin: .seconds(1))
     #expect(live.connections.value.count == 2)
-    await clock.advance(by: .seconds(1))
+    clock.advance(by: .seconds(1))
     try await eventually { live.connections.value.count == 3 }
 
     listening.cancel()
@@ -958,19 +1036,21 @@ struct LilSyncLiveTests {
     try await eventually { live.connections.value.count == 1 }
     live.latest()?.yield(#"{"type":"head","seq":0}"#)
     live.latest()?.finish(throwing: URLError(.networkConnectionLost))
-    await Task.megaYield()
     // It waits (at most a second after the first failure) before reconnecting.
+    try await clock.waitUntilAsleep(dueWithin: .seconds(1))
     #expect(live.connections.value.count == 1)
-    await clock.advance(by: .seconds(1))
+    clock.advance(by: .seconds(1))
     try await eventually { live.connections.value.count == 2 }
 
     // A second drop backs off longer, greeting or not.
     live.latest()?.yield(#"{"type":"head","seq":0}"#)
     live.latest()?.finish(throwing: URLError(.networkConnectionLost))
-    await clock.advance(by: .seconds(0.9))
+    // Between 1 and 2 seconds, with jitter.
+    try await clock.waitUntilAsleep(dueWithin: .seconds(2))
+    clock.advance(by: .seconds(0.9))
     await Task.megaYield()
     #expect(live.connections.value.count == 2)
-    await clock.advance(by: .seconds(1.2))
+    clock.advance(by: .seconds(1.2))
     try await eventually { live.connections.value.count == 3 }
 
     listening.cancel()
