@@ -35,6 +35,13 @@ export class HealthBlobNotFound extends Schema.TaggedError<HealthBlobNotFound>()
   { httpApiStatus: 404 },
 ) {}
 
+/** Blobs are at most as large as batch files (`maxHealthBatchBytes`). */
+export class HealthBlobTooLarge extends Schema.TaggedError<HealthBlobTooLarge>()(
+  "HealthBlobTooLarge",
+  { maxBytes: Schema.Int },
+  { httpApiStatus: 413 },
+) {}
+
 /** The uploaded bytes don't hash to the blob's name. */
 export class HealthBlobHashMismatch extends Schema.TaggedError<HealthBlobHashMismatch>()(
   "HealthBlobHashMismatch",
@@ -47,6 +54,7 @@ export class HealthBlobFiles extends Context.Service<
   HealthBlobFiles,
   {
     readonly put: (key: string, bytes: Uint8Array) => Effect.Effect<void>;
+    readonly delete: (key: string) => Effect.Effect<void>;
     readonly open: (
       key: string,
       range: PartRange | undefined,

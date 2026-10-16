@@ -18,6 +18,7 @@ export const TestHealthBlobs = Layer.unwrap(
         HealthBlobFiles,
         HealthBlobFiles.of({
           put: (key, bytes) => Effect.sync(() => void files.set(key, bytes)),
+          delete: (key) => Effect.sync(() => void files.delete(key)),
           open: openStored(files),
           deletePrefix: (prefix) =>
             Effect.sync(() => {

@@ -35,7 +35,7 @@ import {
   HealthBatchTooLarge,
   maxHealthBatchBytes,
 } from "./health/HealthBatches.ts";
-import { UploadSizeLimit } from "./health/HealthApi.ts";
+import { BlobUploadSizeLimit, UploadSizeLimit } from "./health/HealthApi.ts";
 import {
   HealthBlobFiles,
   healthBlobDownloadPath,
@@ -43,6 +43,7 @@ import {
   healthBlobKey,
   HealthBlobNotFound,
   healthBlobPrefix,
+  HealthBlobTooLarge,
   sha256Hex,
 } from "./health/HealthBlobs.ts";
 import {
@@ -360,6 +361,19 @@ export const UploadSizeLimitLayer = Layer.succeed(
   ),
 );
 
+export const BlobUploadSizeLimitLayer = Layer.succeed(
+  BlobUploadSizeLimit,
+  BlobUploadSizeLimit.of((httpEffect) =>
+    Effect.gen(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest;
+      if (Number(request.headers["content-length"] ?? 0) > maxHealthBatchBytes) {
+        return yield* new HealthBlobTooLarge({ maxBytes: maxHealthBatchBytes });
+      }
+      return yield* httpEffect;
+    }),
+  ),
+);
+
 export const HealthHandlers = HttpApiBuilder.group(
   Api,
   "health",
@@ -407,11 +421,7 @@ export const HealthHandlers = HttpApiBuilder.group(
           // Per request: in the Worker it's built from each request's runtime context.
           const blobs = yield* HealthBlobFiles;
           if (payload.byteLength > maxHealthBatchBytes) {
-            return yield* new HealthBatchTooLarge({ maxBytes: maxHealthBatchBytes });
-          }
-          const actual = yield* sha256Hex(payload);
-          if (actual !== params.sha256) {
-            return yield* new HealthBlobHashMismatch({ sha256: params.sha256, actual });
+            return yield* new HealthBlobTooLarge({ maxBytes: maxHealthBatchBytes });
           }
           const store = stores.forUser(userId);
           const [known, consent] = yield* Effect.all(
@@ -426,10 +436,22 @@ export const HealthHandlers = HttpApiBuilder.group(
           if (!isCurrentHealthConsent(consent)) {
             return yield* new ConsentRequired({ required: healthConsentPolicyVersion });
           }
+          // Hashed after the cheaper checks: a deleted account still gets a 401, and refused or
+          // repeated uploads don't pay for it.
+          const actual = yield* sha256Hex(payload);
+          if (actual !== params.sha256) {
+            return yield* new HealthBlobHashMismatch({ sha256: params.sha256, actual });
+          }
           // R2 first, so a recorded blob is always there. The same hash is the same bytes, so
           // writing it again after a failure in between is harmless.
-          yield* blobs.put(healthBlobKey(userId, params.sha256), payload);
-          yield* store.recordHealthBlob(params.sha256, payload.byteLength);
+          const key = healthBlobKey(userId, params.sha256);
+          yield* blobs.put(key, payload);
+          yield* store.recordHealthBlob(params.sha256, payload.byteLength).pipe(
+            // The account was deleted meanwhile, after its blobs were: this one goes too.
+            Effect.tapError((error) =>
+              error._tag === "AccountDeleted" ? blobs.delete(key) : Effect.void,
+            ),
+          );
           return { sha256: params.sha256, size: payload.byteLength };
         }).pipe(Effect.catchTag("AccountDeleted", () => Effect.fail(userGone))),
       )
@@ -622,7 +644,12 @@ export const WorkerHttpLayer = Layer.mergeAll(
   LiveRoute,
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),
-  Layer.provide([AuthorizationLayer, AddressRateLimitLayer, UploadSizeLimitLayer]),
+  Layer.provide([
+    AuthorizationLayer,
+    AddressRateLimitLayer,
+    UploadSizeLimitLayer,
+    BlobUploadSizeLimitLayer,
+  ]),
   Layer.provide([AppleSignIn.layer, GoogleSignIn.layer, ProviderSignIn.layer]),
   Layer.provide([Auth.layer, PartUrls.layer]),
   Layer.provide(AccessTokens.layer),

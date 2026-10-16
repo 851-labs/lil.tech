@@ -16,19 +16,25 @@ import {
   HealthBlobHash,
   HealthBlobHashMismatch,
   HealthBlobNotFound,
+  HealthBlobTooLarge,
 } from "./HealthBlobs.ts";
 
 // The health part of the API definition. Like `Api.ts`, it holds no server code.
 
 /**
- * Refuses an upload (a batch or a blob) whose `Content-Length` is over the limit before its body
- * is read. Middleware
+ * Refuses an upload whose `Content-Length` is over the limit before its body is read. Middleware
  * runs before HttpApi decodes the payload; the handler checks the size again for uploads without
  * a length.
  */
 export class UploadSizeLimit extends HttpApiMiddleware.Service<UploadSizeLimit>()(
   "lil/api/health/UploadSizeLimit",
   { error: HealthBatchTooLarge },
+) {}
+
+/** `UploadSizeLimit` for blob uploads, with their own error. */
+export class BlobUploadSizeLimit extends HttpApiMiddleware.Service<BlobUploadSizeLimit>()(
+  "lil/api/health/BlobUploadSizeLimit",
+  { error: HealthBlobTooLarge },
 ) {}
 
 export class HealthApi extends HttpApiGroup.make("health")
@@ -54,7 +60,7 @@ export class HealthApi extends HttpApiGroup.make("health")
     }),
   )
   .add(
-    // Upload a blob (\`src/health/HealthBlobs.ts\`), named by the SHA-256 of its bytes, before the
+    // Upload a blob (`src/health/HealthBlobs.ts`), named by the SHA-256 of its bytes, before the
     // rows that refer to it. Uploading one that's stored already changes nothing, so retries are
     // safe. Same size limit as batches, and like them it needs consent and room in the quota.
     HttpApiEndpoint.put("uploadBlob", "/v1/health/blobs/:sha256", {
@@ -64,13 +70,13 @@ export class HealthApi extends HttpApiGroup.make("health")
       ),
       success: HealthBlob,
       error: [
-        HealthBatchTooLarge,
+        HealthBlobTooLarge,
         HealthBlobHashMismatch,
         StorageFull,
         UserStoreUnavailable,
         ConsentRequired,
       ],
-    }).middleware(UploadSizeLimit),
+    }).middleware(BlobUploadSizeLimit),
   )
   .add(
     // A short-lived URL to download one of the user's blobs.

@@ -2179,7 +2179,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas.HealthBatchTooLarge.self,
+                            Components.Schemas.HealthBlobTooLarge.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)

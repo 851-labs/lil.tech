@@ -4655,12 +4655,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/v1/health/blobs/{sha256}/PUT/responses/413/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/v1/health/blobs/{sha256}/PUT/responses/413/content/application\/json`.
-                    case json(Components.Schemas.HealthBatchTooLarge)
+                    case json(Components.Schemas.HealthBlobTooLarge)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas.HealthBatchTooLarge {
+                    public var json: Components.Schemas.HealthBlobTooLarge {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -4679,7 +4679,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// HealthBatchTooLarge
+            /// HealthBlobTooLarge
             ///
             /// - Remark: Generated from `#/paths//v1/health/blobs/{sha256}/put(healthUploadBlob)/responses/413`.
             ///

@@ -146,8 +146,8 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
   {
     version: 11,
     name: "health_blobs",
-    // Uploaded health blobs (\`src/health/HealthBlobs.ts\`): which this user has, and their sizes,
-    // which count towards the storage quota. \`meta.health_blob_bytes\` holds the total.
+    // Uploaded health blobs (`src/health/HealthBlobs.ts`): which this user has, and their sizes,
+    // which count towards the storage quota. `meta.health_blob_bytes` holds the total.
     sql: `
       CREATE TABLE health_blobs (
         sha256 TEXT PRIMARY KEY,

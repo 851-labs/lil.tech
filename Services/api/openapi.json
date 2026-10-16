@@ -981,11 +981,11 @@
             }
           },
           "413": {
-            "description": "HealthBatchTooLarge",
+            "description": "HealthBlobTooLarge",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthBatchTooLarge"
+                  "$ref": "#/components/schemas/HealthBlobTooLarge"
                 }
               }
             }
@@ -1261,13 +1261,13 @@
           "actual"
         ]
       },
-      "HealthBatchTooLarge": {
+      "HealthBlobTooLarge": {
         "type": "object",
         "properties": {
           "_tag": {
             "type": "string",
             "enum": [
-              "HealthBatchTooLarge"
+              "HealthBlobTooLarge"
             ]
           },
           "maxBytes": {
@@ -1383,6 +1383,26 @@
         "required": [
           "line",
           "message"
+        ]
+      },
+      "HealthBatchTooLarge": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "HealthBatchTooLarge"
+            ]
+          },
+          "maxBytes": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "_tag",
+          "maxBytes"
         ]
       },
       "HealthBatch": {

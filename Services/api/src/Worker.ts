@@ -186,6 +186,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
           inRuntime(
             blobs.put(key, bytes, { httpMetadata: { contentType: "application/octet-stream" } }),
           ).pipe(Effect.asVoid, Effect.orDie),
+        delete: (key) => inRuntime(blobs.delete(key)).pipe(Effect.orDie),
         open: openObject(blobs)(runtime),
         deletePrefix: (prefix) => deletePrefix(blobs, prefix).pipe(inRuntime),
       });

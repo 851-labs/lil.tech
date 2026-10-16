@@ -224,23 +224,23 @@ extension Components {
                 case actual
             }
         }
-        /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge`.
-        public struct HealthBatchTooLarge: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/_tag`.
+        /// - Remark: Generated from `#/components/schemas/HealthBlobTooLarge`.
+        public struct HealthBlobTooLarge: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBlobTooLarge/_tag`.
             @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case healthBatchTooLarge = "HealthBatchTooLarge"
+                case healthBlobTooLarge = "HealthBlobTooLarge"
             }
-            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/_tag`.
-            public var _tag: Components.Schemas.HealthBatchTooLarge._TagPayload
-            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/maxBytes`.
+            /// - Remark: Generated from `#/components/schemas/HealthBlobTooLarge/_tag`.
+            public var _tag: Components.Schemas.HealthBlobTooLarge._TagPayload
+            /// - Remark: Generated from `#/components/schemas/HealthBlobTooLarge/maxBytes`.
             public var maxBytes: Swift.Int
-            /// Creates a new `HealthBatchTooLarge`.
+            /// Creates a new `HealthBlobTooLarge`.
             ///
             /// - Parameters:
             ///   - _tag:
             ///   - maxBytes:
             public init(
-                _tag: Components.Schemas.HealthBatchTooLarge._TagPayload,
+                _tag: Components.Schemas.HealthBlobTooLarge._TagPayload,
                 maxBytes: Swift.Int
             ) {
                 self._tag = _tag
@@ -391,6 +391,33 @@ extension Components {
             public enum CodingKeys: String, CodingKey {
                 case line
                 case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge`.
+        public struct HealthBatchTooLarge: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case healthBatchTooLarge = "HealthBatchTooLarge"
+            }
+            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/_tag`.
+            public var _tag: Components.Schemas.HealthBatchTooLarge._TagPayload
+            /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge/maxBytes`.
+            public var maxBytes: Swift.Int
+            /// Creates a new `HealthBatchTooLarge`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - maxBytes:
+            public init(
+                _tag: Components.Schemas.HealthBatchTooLarge._TagPayload,
+                maxBytes: Swift.Int
+            ) {
+                self._tag = _tag
+                self.maxBytes = maxBytes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case maxBytes
             }
         }
         /// An uploaded health batch

@@ -1379,19 +1379,14 @@ describe("/v1/health/blobs", () => {
       Effect.gen(function* () {
         const { user, tokens } = yield* signIn;
         const bucket = (yield* TestHealthBlobBucket).files;
-        const other = "0".repeat(64);
-        assert.deepStrictEqual(yield* upload(handler, tokens.accessToken, other, blob), {
-          status: 400,
-          body: { _tag: "HealthBlobHashMismatch", sha256: other, actual: sha256 },
-        });
         assert.strictEqual(
           (yield* upload(handler, tokens.accessToken, sha256.toUpperCase(), blob)).status,
           400,
         );
         const tooLarge = new Uint8Array(16 * 1024 * 1024 + 1);
-        assert.strictEqual(
-          (yield* upload(handler, tokens.accessToken, hashOf(tooLarge), tooLarge)).status,
-          413,
+        assert.deepStrictEqual(
+          yield* upload(handler, tokens.accessToken, hashOf(tooLarge), tooLarge),
+          { status: 413, body: { _tag: "HealthBlobTooLarge", maxBytes: 16 * 1024 * 1024 } },
         );
         assert.deepStrictEqual(yield* upload(handler, tokens.accessToken, sha256, blob), {
           status: 403,
@@ -1411,6 +1406,14 @@ describe("/v1/health/blobs", () => {
         });
         // A blob it has still answers.
         assert.strictEqual((yield* upload(handler, tokens.accessToken, sha256, blob)).status, 200);
+        assert.strictEqual(bucket.size, 1);
+        sql.setDatabaseSize(0);
+        // Bytes that don't match their name aren't stored.
+        const other = "0".repeat(64);
+        assert.deepStrictEqual(yield* upload(handler, tokens.accessToken, other, blob), {
+          status: 400,
+          body: { _tag: "HealthBlobHashMismatch", sha256: other, actual: sha256 },
+        });
         assert.strictEqual(bucket.size, 1);
       }),
     ),
