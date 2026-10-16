@@ -2912,5 +2912,240 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram`.
+        public struct HealthElectrocardiogram: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/startDate`.
+            public var startDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/endDate`.
+            public var endDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/classification`.
+            public var classification: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/symptomsStatus`.
+            public var symptomsStatus: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/averageHeartRate`.
+            public var averageHeartRate: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/samplingFrequency`.
+            public var samplingFrequency: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/voltageCount`.
+            public var voltageCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/voltages`.
+            public var voltages: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/sourceName`.
+            public var sourceName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/sourceBundleId`.
+            public var sourceBundleId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/sourceRevision`.
+            public var sourceRevision: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/device`.
+            public var device: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/metadata`.
+            public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthElectrocardiogram`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - startDate:
+            ///   - endDate:
+            ///   - classification:
+            ///   - symptomsStatus:
+            ///   - averageHeartRate:
+            ///   - samplingFrequency:
+            ///   - voltageCount:
+            ///   - voltages:
+            ///   - sourceName:
+            ///   - sourceBundleId:
+            ///   - sourceRevision:
+            ///   - device:
+            ///   - metadata:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                startDate: Swift.Int,
+                endDate: Swift.Int,
+                classification: Swift.Int,
+                symptomsStatus: Swift.Int,
+                averageHeartRate: Swift.Double? = nil,
+                samplingFrequency: Swift.Double? = nil,
+                voltageCount: Swift.Int,
+                voltages: Swift.String? = nil,
+                sourceName: Swift.String,
+                sourceBundleId: Swift.String,
+                sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.startDate = startDate
+                self.endDate = endDate
+                self.classification = classification
+                self.symptomsStatus = symptomsStatus
+                self.averageHeartRate = averageHeartRate
+                self.samplingFrequency = samplingFrequency
+                self.voltageCount = voltageCount
+                self.voltages = voltages
+                self.sourceName = sourceName
+                self.sourceBundleId = sourceBundleId
+                self.sourceRevision = sourceRevision
+                self.device = device
+                self.metadata = metadata
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case startDate
+                case endDate
+                case classification
+                case symptomsStatus
+                case averageHeartRate
+                case samplingFrequency
+                case voltageCount
+                case voltages
+                case sourceName
+                case sourceBundleId
+                case sourceRevision
+                case device
+                case metadata
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.startDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .startDate
+                )
+                self.endDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .endDate
+                )
+                self.classification = try container.decode(
+                    Swift.Int.self,
+                    forKey: .classification
+                )
+                self.symptomsStatus = try container.decode(
+                    Swift.Int.self,
+                    forKey: .symptomsStatus
+                )
+                self.averageHeartRate = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .averageHeartRate
+                )
+                self.samplingFrequency = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .samplingFrequency
+                )
+                self.voltageCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .voltageCount
+                )
+                self.voltages = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .voltages
+                )
+                self.sourceName = try container.decode(
+                    Swift.String.self,
+                    forKey: .sourceName
+                )
+                self.sourceBundleId = try container.decode(
+                    Swift.String.self,
+                    forKey: .sourceBundleId
+                )
+                self.sourceRevision = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .sourceRevision
+                )
+                self.device = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .device
+                )
+                self.metadata = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .metadata
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "startDate",
+                    "endDate",
+                    "classification",
+                    "symptomsStatus",
+                    "averageHeartRate",
+                    "samplingFrequency",
+                    "voltageCount",
+                    "voltages",
+                    "sourceName",
+                    "sourceBundleId",
+                    "sourceRevision",
+                    "device",
+                    "metadata"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.startDate,
+                    forKey: .startDate
+                )
+                try container.encode(
+                    self.endDate,
+                    forKey: .endDate
+                )
+                try container.encode(
+                    self.classification,
+                    forKey: .classification
+                )
+                try container.encode(
+                    self.symptomsStatus,
+                    forKey: .symptomsStatus
+                )
+                try container.encodeIfPresent(
+                    self.averageHeartRate,
+                    forKey: .averageHeartRate
+                )
+                try container.encodeIfPresent(
+                    self.samplingFrequency,
+                    forKey: .samplingFrequency
+                )
+                try container.encode(
+                    self.voltageCount,
+                    forKey: .voltageCount
+                )
+                try container.encodeIfPresent(
+                    self.voltages,
+                    forKey: .voltages
+                )
+                try container.encode(
+                    self.sourceName,
+                    forKey: .sourceName
+                )
+                try container.encode(
+                    self.sourceBundleId,
+                    forKey: .sourceBundleId
+                )
+                try container.encodeIfPresent(
+                    self.sourceRevision,
+                    forKey: .sourceRevision
+                )
+                try container.encodeIfPresent(
+                    self.device,
+                    forKey: .device
+                )
+                try container.encodeIfPresent(
+                    self.metadata,
+                    forKey: .metadata
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
     }
 }

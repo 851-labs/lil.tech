@@ -156,6 +156,15 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       ) STRICT;
     `,
   },
+  {
+    version: 12,
+    name: "health_electrocardiogram",
+    // `HealthElectrocardiogram` in `src/health/HealthEntities.ts`.
+    sql: `
+      CREATE TABLE "health_electrocardiogram" (id TEXT PRIMARY KEY, "start_date" INTEGER NOT NULL, "end_date" INTEGER NOT NULL, "classification" INTEGER NOT NULL, "symptoms_status" INTEGER NOT NULL, "average_heart_rate" REAL, "sampling_frequency" REAL, "voltage_count" INTEGER NOT NULL, "voltages" TEXT, "source_name" TEXT NOT NULL, "source_bundle_id" TEXT NOT NULL, "source_revision" TEXT, "device" TEXT, "metadata" TEXT) STRICT;
+      CREATE INDEX health_electrocardiogram_start ON health_electrocardiogram (start_date);
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

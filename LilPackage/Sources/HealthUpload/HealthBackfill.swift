@@ -437,7 +437,7 @@ public actor HealthBackfill {
     while !isLast {
       try Task.checkCancellation()
       let anchor = state.anchors[type.id]
-      let page = try await reader.page(type, anchor, Self.pageSize)
+      let page = try await reader.page(type, anchor, type.pageSize ?? Self.pageSize)
       if page.mutations.isEmpty {
         if anchor == nil, !page.hasMore {
           // Nothing readable yet: keep no anchor, and check again next time.

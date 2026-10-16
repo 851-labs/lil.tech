@@ -202,6 +202,37 @@ export const HealthScoredAssessment = defineEntity("health_scored_assessment", {
 });
 
 /**
+ * ECG recordings (`HKElectrocardiogram`). The voltages are a blob (`src/health/HealthBlobs.ts`):
+ * one little-endian 32-bit float per measurement, in microvolts, Apple Watch's lead I, at
+ * `samplingFrequency` Hz from `startDate`.
+ */
+export const HealthElectrocardiogram = defineEntity("health_electrocardiogram", {
+  clientWritable: false,
+  id: healthKitUUID,
+  fields: {
+    startDate: Column.integer,
+    endDate: Column.integer,
+    /** `HKElectrocardiogram.Classification` raw value. */
+    classification: Column.integer,
+    /** `HKElectrocardiogram.SymptomsStatus` raw value. The symptoms are category samples. */
+    symptomsStatus: Column.integer,
+    /** Beats per minute. */
+    averageHeartRate: Column.nullable(Column.real),
+    /** Hz. */
+    samplingFrequency: Column.nullable(Column.real),
+    voltageCount: Column.integer,
+    /** The voltages blob's SHA-256, or `null` without measurements. */
+    voltages: Column.nullable(Column.text),
+    ...provenance,
+  },
+  checkRow: (_, row) =>
+    row.voltages === null ||
+    (typeof row.voltages === "string" && /^[0-9a-f]{64}$/.test(row.voltages))
+      ? undefined
+      : "voltages must be a blob's SHA-256 or null",
+});
+
+/**
  * Characteristics (date of birth, sex, blood type, skin type, wheelchair use, move mode), keyed by
  * their type identifier.
  */
@@ -305,4 +336,5 @@ export const healthEntities = [
   HealthStateOfMind,
   HealthScoredAssessment,
   HealthAudiogram,
+  HealthElectrocardiogram,
 ] as const;

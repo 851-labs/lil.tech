@@ -424,6 +424,55 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHeal
     }),
   );
 
+  it.effect("applies ECGs, which refer to their voltages blob", () =>
+    Effect.gen(function* () {
+      const ecg = {
+        entity: "health_electrocardiogram",
+        op: "upsert",
+        id: uuid(4700),
+        row: {
+          startDate: 1760400000000,
+          endDate: 1760400030000,
+          classification: 1,
+          symptomsStatus: 1,
+          averageHeartRate: 62,
+          samplingFrequency: 512,
+          voltageCount: 15360,
+          voltages: "a".repeat(64),
+          sourceName: "Test Watch",
+          sourceBundleId: "com.apple.NanoHeartRhythm.00000000",
+        },
+      };
+      const { batch } = yield* ingest([
+        ecg,
+        // An inconclusive recording without measurements has no blob.
+        {
+          ...ecg,
+          id: uuid(4701),
+          row: {
+            ...ecg.row,
+            classification: 4,
+            averageHeartRate: null,
+            samplingFrequency: null,
+            voltageCount: 0,
+            voltages: null,
+          },
+        },
+        { ...ecg, id: uuid(4702), row: { ...ecg.row, voltages: "not-a-hash" } },
+        { ...ecg, id: uuid(4703), row: { ...ecg.row, voltages: "A".repeat(64) } },
+      ]);
+      assert.deepInclude(batch, { status: "applied", applied: 2, rejected: 2 });
+      const sql = (yield* TestStores).sqlFor(userId);
+      assert.deepStrictEqual(
+        sql?.exec("SELECT voltage_count, voltages FROM health_electrocardiogram ORDER BY id"),
+        [
+          { voltage_count: 15360, voltages: "a".repeat(64) },
+          { voltage_count: 0, voltages: null },
+        ],
+      );
+    }),
+  );
+
   it.effect("applies deletes as tombstones", () =>
     Effect.gen(function* () {
       yield* ingest([sample(30)]);

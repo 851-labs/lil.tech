@@ -326,3 +326,45 @@ extension Date {
 
   public var unixMilliseconds: Int { Int((timeIntervalSince1970 * 1000).rounded()) }
 }
+
+/// An ECG recording (`health_electrocardiogram`). `voltages` is its blob's SHA-256 (the server's
+/// `HealthElectrocardiogram` documents the format), downloaded when it's shown.
+@Table
+public struct HealthElectrocardiogram: Equatable, Identifiable, Sendable {
+  public let id: String
+  public var startDate: Int
+  public var endDate: Int
+  public var classification: Int
+  public var symptomsStatus: Int
+  public var averageHeartRate: Double?
+  public var samplingFrequency: Double?
+  public var voltageCount: Int
+  public var voltages: String?
+  public var sourceName: String
+  public var sourceBundleID: String
+  public var sourceRevision: String?
+  public var device: String?
+  public var metadata: String?
+
+  public init(
+    id: String, startDate: Int, endDate: Int, classification: Int, symptomsStatus: Int,
+    averageHeartRate: Double?, samplingFrequency: Double?, voltageCount: Int, voltages: String?,
+    sourceName: String, sourceBundleID: String, sourceRevision: String? = nil,
+    device: String? = nil, metadata: String? = nil
+  ) {
+    self.id = id
+    self.startDate = startDate
+    self.endDate = endDate
+    self.classification = classification
+    self.symptomsStatus = symptomsStatus
+    self.averageHeartRate = averageHeartRate
+    self.samplingFrequency = samplingFrequency
+    self.voltageCount = voltageCount
+    self.voltages = voltages
+    self.sourceName = sourceName
+    self.sourceBundleID = sourceBundleID
+    self.sourceRevision = sourceRevision
+    self.device = device
+    self.metadata = metadata
+  }
+}
