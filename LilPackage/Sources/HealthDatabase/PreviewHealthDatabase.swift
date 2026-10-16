@@ -53,6 +53,7 @@ private struct PreviewData {
       }
     }
     try insertBloodPressure(db)
+    try insertWorkouts(db)
     try insertCharacteristics(db)
     try insertActivitySummaries(db)
   }
@@ -152,6 +153,45 @@ private struct PreviewData {
       }
     }
     if !samples.isEmpty { try HealthSample.insert { samples }.execute(db) }
+  }
+
+  /// A run, a walk or a strength workout most days, with their statistics, and segments for
+  /// the runs. Routes are left out: their locations are blobs, which previews pass directly.
+  private func insertWorkouts(_ db: Database) throws {
+    var random = SplitMix64(seed: "HKWorkoutTypeIdentifier")
+    var workouts: [HealthWorkout] = []
+    for (index, day) in dayStarts.enumerated() {
+      let kind = index % 3
+      let start = day.addingTimeInterval((kind == 2 ? 18 : 7) * 3600)
+      guard start < now else { continue }
+      let minutes = random.next(in: 25...55)
+      let activityType = [37, 52, 50][kind]
+      let distance = kind == 2 ? nil : minutes * (kind == 0 ? 170 : 90)
+      let energy = minutes * (kind == 0 ? 11 : kind == 1 ? 5 : 7)
+      let heartRate = kind == 0 ? 152.0 : kind == 1 ? 104 : 121
+      var statistics =
+        #""HKQuantityTypeIdentifierActiveEnergyBurned":{"unit":"kcal","sum":\#(energy)},"HKQuantityTypeIdentifierHeartRate":{"unit":"count/min","average":\#(heartRate),"minimum":\#(heartRate - 30),"maximum":\#(heartRate + 22)}"#
+      if let distance {
+        statistics +=
+          #","HKQuantityTypeIdentifierDistanceWalkingRunning":{"unit":"m","sum":\#(distance)}"#
+      }
+      let startMS = start.unixMilliseconds
+      let segments =
+        kind == 0
+        ? (0..<3).map { segment in
+          let from = startMS + segment * Int(minutes * 20_000)
+          return #"{"type":7,"startDate":\#(from),"endDate":\#(from + Int(minutes * 20_000))}"#
+        }
+        .joined(separator: ",") : ""
+      workouts.append(
+        HealthWorkout(
+          id: random.uuid(), activityType: activityType, startDate: startMS,
+          endDate: start.addingTimeInterval(minutes * 60 + 90).unixMilliseconds,
+          duration: minutes * 60, activities: "[]", events: "[\(segments)]",
+          statistics: "{\(statistics)}", sourceName: "Apple Watch",
+          sourceBundleID: "com.apple.health.watch", device: Self.watch))
+    }
+    if !workouts.isEmpty { try HealthWorkout.insert { workouts }.execute(db) }
   }
 
   /// A blood pressure reading every other morning.
