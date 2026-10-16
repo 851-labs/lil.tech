@@ -11,17 +11,21 @@ public struct Highlight: Equatable, Identifiable, Sendable {
   public var current: Double
   /// The earlier period's, to compare with.
   public var previous: Double
-  /// The values the chart shows, oldest first: the two weeks' averages for a comparison, each
-  /// week's for a trend.
+  /// When the recent period starts: 7 days ago for a week, 28 for a trend.
+  public var recentStart: Date
+  /// A trend's weekly averages, oldest first, each dated at its week's start (weeks of 7 days
+  /// ending yesterday, not calendar weeks). Weeks without data are left out. Empty for a week.
   public var points: [DailyValue]
 
   public init(
-    typeID: String, kind: Kind, current: Double, previous: Double, points: [DailyValue]
+    typeID: String, kind: Kind, current: Double, previous: Double, recentStart: Date,
+    points: [DailyValue] = []
   ) {
     self.typeID = typeID
     self.kind = kind
     self.current = current
     self.previous = previous
+    self.recentStart = recentStart
     self.points = points
   }
 
@@ -34,7 +38,8 @@ public struct Highlight: Equatable, Identifiable, Sendable {
 
   /// Whether `current` is meaningfully above or below `previous`.
   public var direction: Direction {
-    guard previous != 0 else { return .same }
+    // From nothing, anything is a change.
+    guard previous != 0 else { return current > 0 ? .up : current < 0 ? .down : .same }
     let change = (current - previous) / abs(previous)
     let threshold = kind == .week ? HealthDatabase.weekChange : HealthDatabase.trendChange
     if change >= threshold { return .up }
@@ -86,17 +91,18 @@ extension HealthDatabase {
         guard !values.isEmpty else { return nil }
         return (values.reduce(0, +) / Double(values.count), covered)
       }
+      /// The start of the week `week` weeks back.
+      func weekStart(_ week: Int) -> Date {
+        calendar.date(byAdding: .day, value: -7 * (week + 1), to: today) ?? today
+      }
       if let this = byWeek[0], let last = byWeek[1], this.count >= minimumDaysPerWeek,
-        last.count >= minimumDaysPerWeek, let current = average(0...0),
-        let previous = average(1...1)
+        last.count >= minimumDaysPerWeek
       {
+        let mean = { (days: [DailyValue]) in days.map(\.value).reduce(0, +) / Double(days.count) }
         weekly.append(
           Highlight(
-            typeID: id, kind: .week, current: current.value, previous: previous.value,
-            points: [
-              DailyValue(day: last.map(\.day).min() ?? today, value: previous.value),
-              DailyValue(day: this.map(\.day).min() ?? today, value: current.value),
-            ]))
+            typeID: id, kind: .week, current: mean(this), previous: mean(last),
+            recentStart: weekStart(0)))
       }
       if let recent = average(0...3), recent.weeks >= 3, let earlier = average(4...15),
         earlier.weeks >= 6
@@ -104,11 +110,11 @@ extension HealthDatabase {
         let points = (0...15).reversed().compactMap { week -> DailyValue? in
           guard let values = byWeek[week], !values.isEmpty else { return nil }
           return DailyValue(
-            day: values.map(\.day).min() ?? today,
-            value: values.map(\.value).reduce(0, +) / Double(values.count))
+            day: weekStart(week), value: values.map(\.value).reduce(0, +) / Double(values.count))
         }
         let trend = Highlight(
-          typeID: id, kind: .trend, current: recent.value, previous: earlier.value, points: points)
+          typeID: id, kind: .trend, current: recent.value, previous: earlier.value,
+          recentStart: weekStart(3), points: points)
         if trend.direction != .same { trends.append(trend) }
       }
     }

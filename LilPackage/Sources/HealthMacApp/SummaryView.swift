@@ -38,6 +38,15 @@ struct SummaryView: View {
     .sheet(isPresented: $store.isEditing) {
       PinEditor(store: store)
     }
+    // "Today" and the last 7 days move at midnight, even if nothing syncs.
+    .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+      Task { @MainActor in
+        _ = try? await $highlights.load(
+          HighlightsRequest(day: .now), scheduler: MainQueueScheduler())
+        _ = try? await $summaries.load(
+          PinnedSummaries(ids: store.orderedPins, day: .now), scheduler: MainQueueScheduler())
+      }
+    }
   }
 
   /// The fetched summaries in the pins' order, so a reorder shows at once, before the reload.
@@ -49,6 +58,13 @@ struct SummaryView: View {
 
 /// Summary's highlights, as of when they're fetched.
 struct HighlightsRequest: FetchKeyRequest {
+  /// The day it's for, so a new day is a new request.
+  let day: Date
+
+  init(day: Date = .now) {
+    self.day = Calendar.current.startOfDay(for: day)
+  }
+
   func fetch(_ db: Database) throws -> [Highlight] {
     try HealthDatabase.highlights(now: .now, calendar: .current, db)
   }
@@ -57,6 +73,13 @@ struct HighlightsRequest: FetchKeyRequest {
 /// The pinned types' summaries, in pin order.
 struct PinnedSummaries: FetchKeyRequest {
   let ids: [String]
+  /// The day it's for, so a new day is a new request.
+  let day: Date
+
+  init(ids: [String], day: Date = .now) {
+    self.ids = ids
+    self.day = Calendar.current.startOfDay(for: day)
+  }
 
   func fetch(_ db: Database) throws -> [MetricSummary] {
     try ids.compactMap(HealthCatalog.type(id:)).map {
@@ -119,8 +142,10 @@ struct SummaryContent: View {
             }
           }
         }
-        highlightsSection
-          .padding(.top, 14)
+        VStack(alignment: .leading, spacing: 10) {
+          highlightsSection
+        }
+        .padding(.top, 14)
       }
       .padding(20)
       .frame(maxWidth: 760)

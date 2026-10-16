@@ -30,8 +30,9 @@ struct HighlightCard: View {
   /// The two weeks' averages as bars, this week in the category's color.
   private var comparison: some View {
     Chart {
-      bar("Last Week", highlight.previous, color: Color.gray.opacity(0.35))
-      bar("This Week", highlight.current, color: color)
+      // Rolling weeks ending yesterday, as the sentence says, not calendar weeks.
+      bar("7 Days Before", highlight.previous, color: Color.gray.opacity(0.35))
+      bar("Last 7 Days", highlight.current, color: color)
     }
     .chartXAxis(.hidden)
     .chartYAxis {
@@ -54,7 +55,9 @@ struct HighlightCard: View {
 
   /// Each week's average, the last 4 in color, with both periods' averages as lines.
   private var trend: some View {
-    let recentStart = highlight.points.suffix(4).first?.day ?? .distantFuture
+    // Weeks by position from the first, 7 days apart: a calendar-week axis would bin them wrong.
+    let first = highlight.points.first?.day ?? highlight.recentStart
+    let index = { (day: Date) in Int((day.timeIntervalSince(first) / (7 * 86_400)).rounded()) }
     // Around the values, not from zero, so the change shows.
     let values = highlight.points.map(\.value) + [highlight.current, highlight.previous]
     let (low, high) = (values.min() ?? 0, values.max() ?? 1)
@@ -62,10 +65,10 @@ struct HighlightCard: View {
     return Chart {
       ForEach(highlight.points, id: \.day) { week in
         BarMark(
-          x: .value("Week", week.day, unit: .weekOfYear), yStart: .value("Floor", floor),
-          yEnd: .value("Average", week.value)
+          x: .value("Week", String(index(week.day))), yStart: .value("Floor", floor),
+          yEnd: .value("Average", week.value), width: .ratio(0.7)
         )
-        .foregroundStyle(week.day >= recentStart ? color : Color.gray.opacity(0.35))
+        .foregroundStyle(week.day >= highlight.recentStart ? color : Color.gray.opacity(0.35))
       }
       RuleMark(y: .value("Before", highlight.previous))
         .foregroundStyle(Color.gray)
@@ -74,8 +77,17 @@ struct HighlightCard: View {
         .foregroundStyle(color)
     }
     .chartXAxis(.hidden)
+    // A slot for every week, with data or not.
+    .chartXScale(domain: (0...(highlight.points.last.map { index($0.day) } ?? 15)).map(String.init))
     .chartYAxis {
-      AxisMarks(position: .trailing)
+      AxisMarks(position: .trailing) { value in
+        AxisGridLine()
+        AxisValueLabel {
+          if let number = value.as(Double.self) {
+            Text(MetricFormat.value(number, unit: type.unit, typeID: type.id).number)
+          }
+        }
+      }
     }
     .chartYScale(domain: floor...(high + (high - low) * 0.2 + 1))
     .frame(height: 120)
@@ -85,9 +97,9 @@ struct HighlightCard: View {
 /// How highlights read.
 enum HighlightText {
   static func sentence(_ highlight: Highlight, type: HealthDataType) -> String {
-    let (number, unit) = MetricFormat.value(highlight.current, unit: type.unit, typeID: type.id)
-    let (before, _) = MetricFormat.value(highlight.previous, unit: type.unit, typeID: type.id)
-    let value = unit.isEmpty ? number : "\(number) \(unit)"
+    // Each with its own unit: one can be in km and the other in m.
+    let value = text(highlight.current, type)
+    let before = text(highlight.previous, type)
     let perDay = type.aggregation?.isCumulative == true ? " a day" : ""
     switch highlight.kind {
     case .week:
@@ -103,5 +115,10 @@ enum HighlightText {
       return
         "\(type.name) has been trending \(way): \(value)\(perDay) on average over the last 4 weeks, against \(before) in the 12 before."
     }
+  }
+
+  private static func text(_ value: Double, _ type: HealthDataType) -> String {
+    let (number, unit) = MetricFormat.value(value, unit: type.unit, typeID: type.id)
+    return unit.isEmpty ? number : "\(number) \(unit)"
   }
 }

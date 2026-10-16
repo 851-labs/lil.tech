@@ -35,6 +35,7 @@ private func previewHighlights() -> [Highlight] {
   let start = Calendar.current.date(byAdding: .weekOfYear, value: -16, to: .now) ?? .now
   let trend = Highlight(
     typeID: "HKQuantityTypeIdentifierRestingHeartRate", kind: .trend, current: 58, previous: 66,
+    recentStart: Calendar.current.date(byAdding: .weekOfYear, value: 12, to: start) ?? start,
     points: (0..<16).map { week in
       DailyValue(
         day: Calendar.current.date(byAdding: .weekOfYear, value: week, to: start) ?? start,

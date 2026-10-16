@@ -630,7 +630,7 @@ struct HighlightQueriesTests {
     #expect(week.current == 1_000)
     #expect(week.previous == 800)
     #expect(week.direction == .up)
-    #expect(week.points.map(\.value) == [800, 1_000])
+    #expect(week.recentStart == utc(0, day: 8))
   }
 
   @Test
@@ -662,6 +662,9 @@ struct HighlightQueriesTests {
     #expect(trend.previous == 60)
     #expect(trend.direction == .up)
     #expect(trend.points.count == 16)
+    // Dated at their rolling weeks' starts, 7 days apart, the last 4 from 28 days ago.
+    #expect(trend.points.last?.day == utc(0, day: 8))
+    #expect(trend.recentStart == utc(0, day: -13))
   }
 
   @Test
