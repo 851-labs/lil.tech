@@ -15,11 +15,33 @@ private let pinned = [
 ]
 
 @MainActor
-private func summary(pins: [String], _ state: SummaryContent.State) -> some View {
+private func summary(
+  pins: [String], _ state: SummaryContent.State<[MetricSummary]>,
+  highlights: SummaryContent.State<[Highlight]> = .loaded([])
+) -> some View {
   NavigationStack {
-    SummaryContent(pins: pins, state: state, edit: {}, pin: { _ in })
+    SummaryContent(pins: pins, state: state, highlights: highlights, edit: {}, pin: { _ in })
   }
-  .frame(width: 760, height: 720)
+  .frame(width: 760, height: 1100)
+}
+
+/// The preview database's week highlights (two weeks of data), and a made-up trend.
+@MainActor
+private func previewHighlights() -> [Highlight] {
+  let weeks =
+    (try? makePreviewHealthDatabase().read { db in
+      try HealthDatabase.highlights(now: .now, calendar: .current, db)
+    }) ?? []
+  let start = Calendar.current.date(byAdding: .weekOfYear, value: -16, to: .now) ?? .now
+  let trend = Highlight(
+    typeID: "HKQuantityTypeIdentifierRestingHeartRate", kind: .trend, current: 58, previous: 66,
+    recentStart: Calendar.current.date(byAdding: .weekOfYear, value: 12, to: start) ?? start,
+    points: (0..<16).map { week in
+      DailyValue(
+        day: Calendar.current.date(byAdding: .weekOfYear, value: week, to: start) ?? start,
+        value: week < 12 ? 66 + Double(week % 3) - 1 : 58 + Double(week % 2))
+    })
+  return [trend] + weeks.prefix(2)
 }
 
 @MainActor
@@ -28,7 +50,7 @@ private func previewSummaries(_ ids: [String]) -> [MetricSummary] {
 }
 
 #Preview("Pinned") {
-  summary(pins: pinned, .loaded(previewSummaries(pinned)))
+  summary(pins: pinned, .loaded(previewSummaries(pinned)), highlights: .loaded(previewHighlights()))
 }
 
 #Preview("Nothing pinned") {
@@ -36,11 +58,13 @@ private func previewSummaries(_ ids: [String]) -> [MetricSummary] {
 }
 
 #Preview("Loading") {
-  summary(pins: pinned, .loading)
+  summary(pins: pinned, .loading, highlights: .loading)
 }
 
 #Preview("Failed") {
-  summary(pins: pinned, .failed("The database couldn't be read."))
+  summary(
+    pins: pinned, .failed("The database couldn't be read."),
+    highlights: .failed("The database couldn't be read."))
 }
 
 #Preview("Edit") {

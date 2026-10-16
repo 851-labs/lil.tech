@@ -593,6 +593,95 @@ struct SampleQueriesTests {
 }
 
 @Suite
+struct HighlightQueriesTests {
+  let database: any DatabaseWriter
+  let utcCalendar = calendar("UTC")
+  let steps = "HKQuantityTypeIdentifierStepCount"
+  let resting = "HKQuantityTypeIdentifierRestingHeartRate"
+
+  init() throws {
+    database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthStatisticsDevice.insert { reported(device, paired: true, daysAgo: 0) }.execute(db)
+    }
+  }
+
+  private func highlights() throws -> [Highlight] {
+    // Midday on October 15: today is the 15th.
+    try database.read { db in
+      try HealthDatabase.highlights(
+        now: now.addingTimeInterval(12 * 3600), calendar: utcCalendar, db)
+    }
+  }
+
+  @Test
+  func theLastSevenFullDaysAgainstTheSevenBefore() throws {
+    try database.write { db in
+      // 1,000 a day from the 8th to the 14th, 800 a day from the 1st to the 7th.
+      for day in 1...14 {
+        try HealthStatistic.insert {
+          statistic(steps, at: utc(9, day: day), sum: day >= 8 ? 1_000 : 800)
+        }.execute(db)
+      }
+      // Today isn't over, so it doesn't count.
+      try HealthStatistic.insert { statistic(steps, at: utc(9, day: 15), sum: 10) }.execute(db)
+    }
+    let week = try #require(try highlights().first { $0.typeID == steps && $0.kind == .week })
+    #expect(week.current == 1_000)
+    #expect(week.previous == 800)
+    #expect(week.direction == .up)
+    #expect(week.recentStart == utc(0, day: 8))
+  }
+
+  @Test
+  func aWeekNeedsAFewDaysOfData() throws {
+    try database.write { db in
+      try HealthStatistic.insert {
+        statistic(steps, at: utc(9, day: 13), sum: 1_000)
+        statistic(steps, at: utc(9, day: 14), sum: 1_000)
+        for day in 1...7 { statistic(steps, at: utc(9, day: day), sum: 800) }
+      }.execute(db)
+    }
+    #expect(try highlights().isEmpty)
+  }
+
+  @Test
+  func aTrendIsTheLastFourWeeksAgainstTheTwelveBefore() throws {
+    try database.write { db in
+      for week in 0..<16 {
+        // A reading a few days into each week back from yesterday: 70 lately, 60 before.
+        let day = 14 - week * 7 - 2
+        try HealthSample.insert {
+          sample(resting, at: utc(8, day: day), value: week < 4 ? 70 : 60)
+        }.execute(db)
+      }
+    }
+    let trend = try #require(try highlights().first { $0.kind == .trend })
+    #expect(trend.typeID == resting)
+    #expect(trend.current == 70)
+    #expect(trend.previous == 60)
+    #expect(trend.direction == .up)
+    #expect(trend.points.count == 16)
+    // Dated at their rolling weeks' starts, 7 days apart, the last 4 from 28 days ago.
+    #expect(trend.points.last?.day == utc(0, day: 8))
+    #expect(trend.recentStart == utc(0, day: -13))
+  }
+
+  @Test
+  func aSmallChangeIsntATrend() throws {
+    try database.write { db in
+      for week in 0..<16 {
+        let day = 14 - week * 7 - 2
+        try HealthSample.insert {
+          sample(resting, at: utc(8, day: day), value: week < 4 ? 62 : 60)
+        }.execute(db)
+      }
+    }
+    #expect(try highlights().filter { $0.kind == .trend }.isEmpty)
+  }
+}
+
+@Suite
 struct HealthSyncTests {
   @Test
   func appliesEveryHealthEntity() async throws {
