@@ -19,13 +19,14 @@ public struct HealthBackfillType: Hashable, Sendable {
   }
 
   /// Every quantity and category type the app can read, workouts, State of Mind, scored
-  /// assessments, audiograms, and the correlations, which are read through their component
-  /// types.
+  /// assessments, audiograms, ECGs, and the correlations, which are read through their
+  /// component types.
   public static func all(availableOn version: IOSVersion) -> [Self] {
     HealthCatalog.types(availableOn: version).compactMap { type in
       switch (type.kind, type.readAuthorization) {
       case (.quantity, .standard), (.category, .standard), (.workout, .standard),
-        (.stateOfMind, .standard), (.scoredAssessment, .standard), (.audiogram, .standard):
+        (.stateOfMind, .standard), (.scoredAssessment, .standard), (.audiogram, .standard),
+        (.electrocardiogram, .standard):
         Self(id: type.id)
       case (.correlation, _): Self(id: type.id, isCorrelation: true)
       default: nil
@@ -43,8 +44,15 @@ extension HealthBackfillType {
     case .stateOfMind: return HealthEncoder.stateOfMindEntity
     case .scoredAssessment: return HealthEncoder.scoredAssessmentEntity
     case .audiogram: return HealthEncoder.audiogramEntity
+    case .electrocardiogram: return HealthEncoder.electrocardiogramEntity
     default: return HealthEncoder.sampleEntity
     }
+  }
+
+  /// Objects per page, if not the backfill's default: types with blobs read fewer, since a
+  /// page's blobs are held in memory until they're saved.
+  public var pageSize: Int? {
+    HealthCatalog.type(id: id)?.kind == .electrocardiogram ? 50 : nil
   }
 
   /// The HealthKit type to query and observe, or `nil` if HealthKit doesn't know it.
@@ -171,6 +179,7 @@ extension HealthReader: DependencyKey {
         throw Locked.mapped(error)
       }
       var mutations: [HealthMutation] = []
+      var blobs: [Data] = []
       for sample in result.addedSamples {
         // One sample that can't be encoded is reported and skipped, so it can't stop the rest.
         do {
@@ -184,9 +193,22 @@ extension HealthReader: DependencyKey {
             mutations.append(try HealthEncoder.scoredAssessment(assessment))
           } else if let audiogram = sample as? HKAudiogramSample {
             mutations.append(HealthEncoder.audiogram(audiogram))
+          } else if let ecg = sample as? HKElectrocardiogram {
+            let (mutation, blob) = HealthEncoder.electrocardiogram(
+              try await ElectrocardiogramRecord(ecg, store: store))
+            mutations.append(mutation)
+            if let blob { blobs.append(blob) }
           } else {
             mutations.append(try HealthEncoder.sample(sample))
           }
+        } catch let error as Locked {
+          // Not this sample's fault: the page is read again once the device is unlocked.
+          throw error
+        } catch is CancellationError {
+          throw CancellationError()
+        } catch let error as ElectrocardiogramRecord.VoltagesUnavailable {
+          // Not the recording's fault either: skipping it would move the anchor past it.
+          throw error
         } catch {
           reportIssue(error)
         }
@@ -194,7 +216,7 @@ extension HealthReader: DependencyKey {
       let entity = type.entity
       mutations += result.deletedObjects.map { .delete(entity, id: HealthEncoder.id($0.uuid)) }
       return HealthPage(
-        mutations: mutations,
+        mutations: mutations, blobs: blobs,
         anchor: try NSKeyedArchiver.archivedData(
           withRootObject: result.newAnchor, requiringSecureCoding: true),
         hasMore: result.addedSamples.count + result.deletedObjects.count >= limit)

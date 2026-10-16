@@ -117,6 +117,33 @@ public enum HealthDatabase {
       try #sql(#"CREATE INDEX "healthAudiograms_startDate" ON "healthAudiograms" ("startDate")"#)
         .execute(db)
     }
+    migrator.registerMigration("Create ECGs") { db in
+      try #sql(
+        """
+        CREATE TABLE "healthElectrocardiograms" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "startDate" INTEGER NOT NULL,
+          "endDate" INTEGER NOT NULL,
+          "classification" INTEGER NOT NULL,
+          "symptomsStatus" INTEGER NOT NULL,
+          "averageHeartRate" REAL,
+          "samplingFrequency" REAL,
+          "voltageCount" INTEGER NOT NULL,
+          "voltages" TEXT,
+          "sourceName" TEXT NOT NULL,
+          "sourceBundleID" TEXT NOT NULL,
+          "sourceRevision" TEXT,
+          "device" TEXT,
+          "metadata" TEXT
+        ) STRICT
+        """
+      )
+      .execute(db)
+      try #sql(
+        #"CREATE INDEX "healthElectrocardiograms_startDate" ON "healthElectrocardiograms" ("startDate")"#
+      )
+      .execute(db)
+    }
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
@@ -291,6 +318,15 @@ public enum HealthDatabase {
       HealthAudiogram(
         id: row.id, startDate: row.startDate, endDate: row.endDate,
         points: try json(row.points) ?? "[]", sourceName: row.sourceName,
+        sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
+        device: try json(row.device), metadata: try json(row.metadata))
+    },
+    entity("health_electrocardiogram", Components.Schemas.HealthElectrocardiogram.self) { row in
+      HealthElectrocardiogram(
+        id: row.id, startDate: row.startDate, endDate: row.endDate,
+        classification: row.classification, symptomsStatus: row.symptomsStatus,
+        averageHeartRate: row.averageHeartRate, samplingFrequency: row.samplingFrequency,
+        voltageCount: row.voltageCount, voltages: row.voltages, sourceName: row.sourceName,
         sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
         device: try json(row.device), metadata: try json(row.metadata))
     },

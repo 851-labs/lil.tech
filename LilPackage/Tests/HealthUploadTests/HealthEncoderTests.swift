@@ -290,6 +290,61 @@ struct HealthEncoderTests {
       types.first { $0.id == "HKScoredAssessmentTypeIdentifierPHQ9" }?.entity
         == "health_scored_assessment")
     #expect(types.first { $0.id == "HKDataTypeIdentifierAudiogram" }?.entity == "health_audiogram")
+    let ecg = types.first { $0.id == "HKDataTypeIdentifierElectrocardiogram" }
+    #expect(ecg?.entity == "health_electrocardiogram")
+    // Its voltages are blobs, so it reads small pages.
+    #expect(ecg?.pageSize == 50)
+    #expect(types.first { $0.id == "HKQuantityTypeIdentifierStepCount" }?.pageSize == nil)
+  }
+
+  @Test
+  func electrocardiogramWithItsVoltagesBlob() throws {
+    // Synthetic voltages, as an Apple Watch would record them at 512 Hz (AGENTS.md).
+    let microvolts: [Float] = [0, 12.5, -40.25, 980, .nan]
+    let ecg = ElectrocardiogramRecord(
+      id: UUID(uuidString: "6F1C2A40-0000-4000-8000-0000000000E1")!,
+      classification: HKElectrocardiogram.Classification.sinusRhythm.rawValue,
+      symptomsStatus: HKElectrocardiogram.SymptomsStatus.none.rawValue, averageHeartRate: 62,
+      samplingFrequency: 512, microvolts: microvolts,
+      provenance: HealthEncoder.provenance(
+        of: HKQuantitySample(
+          type: HKQuantityType(.heartRate),
+          quantity: HKQuantity(unit: .count().unitDivided(by: .minute()), doubleValue: 1),
+          start: start, end: start.addingTimeInterval(30))))
+
+    let (mutation, blob) = HealthEncoder.electrocardiogram(ecg)
+    #expect(mutation.entity == "health_electrocardiogram")
+    #expect(mutation.id == "6f1c2a40-0000-4000-8000-0000000000e1")
+    // One little-endian float per measurement.
+    let voltages = try #require(blob)
+    #expect(voltages.count == 20)
+    #expect(Array(voltages.prefix(8)) == [0, 0, 0, 0, 0x00, 0x00, 0x48, 0x41])
+    let decodedVoltages = stride(from: 0, to: voltages.count, by: 4).map { offset in
+      Float(
+        bitPattern: voltages[offset..<offset + 4].reversed().reduce(0) { $0 << 8 | UInt32($1) })
+    }
+    #expect(Array(decodedVoltages.prefix(4)) == Array(microvolts.prefix(4)))
+    #expect(decodedVoltages[4].isNaN)
+    // It's what the server's schema accepts, referring to the blob by its hash.
+    let decoded = try row(mutation, as: Components.Schemas.HealthElectrocardiogram.self)
+    #expect(decoded.classification == 1)
+    #expect(decoded.symptomsStatus == 1)
+    #expect(decoded.averageHeartRate == 62)
+    #expect(decoded.samplingFrequency == 512)
+    #expect(decoded.voltageCount == 5)
+    #expect(decoded.voltages == HealthBlob.sha256(voltages))
+    #expect(decoded.startDate == 1_760_400_000_000)
+
+    // A recording without measurements has no blob.
+    var empty = ecg
+    empty.microvolts = []
+    empty.averageHeartRate = nil
+    let (emptyMutation, emptyBlob) = HealthEncoder.electrocardiogram(empty)
+    #expect(emptyBlob == nil)
+    let emptyRow = try row(emptyMutation, as: Components.Schemas.HealthElectrocardiogram.self)
+    #expect(emptyRow.voltages == nil)
+    #expect(emptyRow.voltageCount == 0)
+    #expect(emptyRow.averageHeartRate == nil)
   }
 
   @Test

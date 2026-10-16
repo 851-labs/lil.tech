@@ -2492,6 +2492,77 @@
           "sourceBundleId"
         ],
         "additionalProperties": true
+      },
+      "HealthElectrocardiogram": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "endDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "classification": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "symptomsStatus": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "averageHeartRate": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "samplingFrequency": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "voltageCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "voltages": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "sourceBundleId": {
+            "type": "string"
+          },
+          "sourceRevision": {},
+          "device": {},
+          "metadata": {}
+        },
+        "required": [
+          "id",
+          "startDate",
+          "endDate",
+          "classification",
+          "symptomsStatus",
+          "voltageCount",
+          "sourceName",
+          "sourceBundleId"
+        ],
+        "additionalProperties": true
       }
     },
     "securitySchemes": {

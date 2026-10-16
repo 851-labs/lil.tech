@@ -638,20 +638,34 @@ struct HealthBackfillTests {
   }
 
   @Test
-  func aBlobTooLargeForTheServerIsSkipped() async throws {
+  func aBlobTooLargeForTheServerIsSkippedWithItsRecord() async throws {
     let tooLarge = Data(count: HealthBlob.maxBytes + 1)
     let uploads = LockIsolated<[String]>([])
+    let uploadedIDs = LockIsolated<[String]>([])
     let backfill = withDependencies {
       $0.healthReader = HealthReader { _, anchor, _ in
         HealthPage(
-          mutations: anchor == nil ? [.delete("health_sample", id: "route-1")] : [],
+          mutations: anchor == nil
+            ? [
+              .delete("health_sample", id: "route-1"),
+              .upsert(
+                "health_electrocardiogram", id: "ecg-1",
+                row: ["voltages": .string(HealthBlob.sha256(tooLarge))]),
+            ] : [],
           blobs: anchor == nil ? [tooLarge] : [], anchor: Data("1".utf8), hasMore: false)
       }
       $0.healthBlobUploader = HealthBlobUploader { sha256, _ in
         uploads.withValue { $0.append(sha256) }
       }
-      $0.healthBatchUploader = HealthBatchUploader { _, _ in
+      $0.healthBatchUploader = HealthBatchUploader { _, file in
         uploads.withValue { $0.append("batch") }
+        let lines = String(decoding: try Gzip.decompress(file), as: UTF8.self)
+          .split(separator: "\n")
+        for line in lines {
+          let object = try JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any]
+          let id = object?["id"] as? String ?? ""
+          uploadedIDs.withValue { $0.append(id) }
+        }
       }
       $0.healthBackfillStorage = .inMemory()
       $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
@@ -669,6 +683,8 @@ struct HealthBackfillTests {
       issue.error as? HealthBlob.TooLarge == HealthBlob.TooLarge(bytes: HealthBlob.maxBytes + 1)
     }
     #expect(uploads.value == ["batch"])
+    // The record that refers to it goes too, so none points at a blob that never arrives.
+    #expect(uploadedIDs.value == ["route-1"])
   }
 
   @Test

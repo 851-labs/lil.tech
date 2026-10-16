@@ -1,5 +1,9 @@
+import { Schema } from "effect";
 import { idPattern } from "../core/Ids.ts";
 import { Column, defineEntity } from "../store/Entities.ts";
+import { HealthBlobHash } from "./HealthBlobs.ts";
+
+const isBlobHash = Schema.is(HealthBlobHash);
 
 // Generic HealthKit data in the user's store. Records are keyed by HealthKit's UUID, lowercased
 // (and checked), so the same sample uploaded by two iPhones is one record. Times are Unix
@@ -202,6 +206,44 @@ export const HealthScoredAssessment = defineEntity("health_scored_assessment", {
 });
 
 /**
+ * ECG recordings (`HKElectrocardiogram`). The voltages are a blob (`src/health/HealthBlobs.ts`):
+ * one little-endian 32-bit float per measurement, in microvolts, Apple Watch's lead I, at
+ * `samplingFrequency` Hz from `startDate`.
+ */
+export const HealthElectrocardiogram = defineEntity("health_electrocardiogram", {
+  clientWritable: false,
+  id: healthKitUUID,
+  fields: {
+    startDate: Column.integer,
+    endDate: Column.integer,
+    /** `HKElectrocardiogram.Classification` raw value. */
+    classification: Column.integer,
+    /** `HKElectrocardiogram.SymptomsStatus` raw value. The symptoms are category samples. */
+    symptomsStatus: Column.integer,
+    /** Beats per minute. */
+    averageHeartRate: Column.nullable(Column.real),
+    /** Hz. */
+    samplingFrequency: Column.nullable(Column.real),
+    voltageCount: Column.integer,
+    /** The voltages blob's SHA-256, or `null` without measurements. */
+    voltages: Column.nullable(Column.text),
+    ...provenance,
+  },
+  checkRow: (_, row) => {
+    if (row.voltages !== null && !isBlobHash(row.voltages)) {
+      return "voltages must be a blob's SHA-256 or null";
+    }
+    if (typeof row.voltageCount !== "number" || row.voltageCount < 0) {
+      return "voltageCount can't be negative";
+    }
+    // Rows are full records, so the two always arrive together.
+    return row.voltageCount > 0 === (row.voltages !== null)
+      ? undefined
+      : "a recording has a voltages blob exactly when it has measurements";
+  },
+});
+
+/**
  * Characteristics (date of birth, sex, blood type, skin type, wheelchair use, move mode), keyed by
  * their type identifier.
  */
@@ -305,4 +347,5 @@ export const healthEntities = [
   HealthStateOfMind,
   HealthScoredAssessment,
   HealthAudiogram,
+  HealthElectrocardiogram,
 ] as const;
