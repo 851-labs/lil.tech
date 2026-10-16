@@ -460,6 +460,33 @@ struct ChartQueriesTests {
   }
 
   @Test
+  func aCumulativeChartAddsSamplesPastItsLastBucket() throws {
+    try database.write { db in
+      try HealthStatistic.insert { statistic(steps.id, at: utc(9, day: 15), sum: 100) }.execute(db)
+      try HealthSample.insert {
+        // Inside the bucket: already counted.
+        sample(steps.id, at: utc(9.2, day: 15), value: 100)
+        // Synced before its bucket.
+        sample(steps.id, at: utc(11, day: 15), value: 40)
+      }.execute(db)
+    }
+    #expect(try chart(steps, .day).points.map(\.value) == [100, 40])
+    #expect(try chart(steps, .day).summary == .total(140))
+  }
+
+  @Test
+  func aCumulativeChartWithoutStatisticsUsesTheSamples() throws {
+    try database.write { db in
+      try HealthSample.insert {
+        sample(steps.id, at: utc(9, day: 13), value: 300)
+        sample(steps.id, at: utc(10, day: 13), value: 200)
+      }.execute(db)
+    }
+    let chart = try chart(steps, .week)
+    #expect(chart.points == [ChartPoint(start: utc(0, day: 13), value: 500)])
+  }
+
+  @Test
   func aCumulativeYearIsEachMonthsAverageDay() throws {
     try database.write { db in
       try HealthStatistic.insert {

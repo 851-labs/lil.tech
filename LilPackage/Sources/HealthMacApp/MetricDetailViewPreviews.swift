@@ -45,6 +45,20 @@ private let heartRate = "HKQuantityTypeIdentifierHeartRate"
   detail(heartRate, .day)
 }
 
+#Preview("Steps, 6 months") {
+  // Two weeks of preview data: the last bars.
+  detail(steps, .sixMonths)
+}
+
+#Preview("Heart rate, year") {
+  detail(heartRate, .year)
+}
+
+#Preview("Not a quantity") {
+  MetricDetailView(type: HealthCatalog.type(id: "HKWorkoutTypeIdentifier")!)
+    .frame(width: 760, height: 400)
+}
+
 #Preview("No data") {
   detail(
     "HKQuantityTypeIdentifierBodyMass", .week,
@@ -52,7 +66,7 @@ private let heartRate = "HKQuantityTypeIdentifierHeartRate"
       .loaded(
         MetricChart(
           interval: ChartRange.week.interval(offset: 0, now: .now, calendar: .current),
-          points: [], summary: nil, unit: "kg"))
+          points: [], summary: nil))
     })
 }
 

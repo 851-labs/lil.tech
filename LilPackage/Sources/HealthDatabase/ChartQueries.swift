@@ -22,6 +22,9 @@ public enum ChartRange: String, CaseIterable, Hashable, Sendable {
     }
   }
 
+  /// The calendar unit of each bar.
+  public var barUnit: Calendar.Component { bucket.component }
+
   /// The period `offset` periods from the one containing `now` (0 is the current one, -1 the
   /// one before).
   public func interval(offset: Int, now: Date, calendar: Calendar) -> DateInterval {
@@ -50,15 +53,11 @@ public struct MetricChart: Equatable, Sendable {
   public var interval: DateInterval
   public var points: [ChartPoint]
   public var summary: Summary?
-  public var unit: String?
 
-  public init(
-    interval: DateInterval, points: [ChartPoint], summary: Summary?, unit: String?
-  ) {
+  public init(interval: DateInterval, points: [ChartPoint], summary: Summary?) {
     self.interval = interval
     self.points = points
     self.summary = summary
-    self.unit = unit
   }
 
   /// What the header shows, as Health does.
@@ -114,11 +113,11 @@ extension HealthDatabase {
           summary = .range(minimum: low, maximum: high)
         }
       }
-      return MetricChart(interval: interval, points: points, summary: summary, unit: type.unit)
+      return MetricChart(interval: interval, points: points, summary: summary)
     }
     let byDay = range == .sixMonths || range == .year
-    let totals = try cumulativeStatistics(
-      of: type.id, in: span, by: byDay ? .day : range.bucket, calendar: calendar, now: now, db)
+    let totals = try cumulativeTotals(
+      of: type.id, in: span, by: byDay ? .day : range.bucket, now: now, calendar: calendar, db)
     let total = totals.reduce(0) { $0 + $1.sum }
     var points = totals.map { ChartPoint(start: $0.start, value: $0.sum) }
     if byDay {
@@ -137,15 +136,47 @@ extension HealthDatabase {
       }
       points = groups.map { ChartPoint(start: $0.start, value: $0.sum / Double($0.days)) }
     }
+    // Longer periods' totals are one a day.
     let summary: MetricChart.Summary? =
       totals.isEmpty
-      ? nil
-      : range == .day
-        ? .total(total) : .dailyAverage(total / Double(Set(dayStarts(totals, calendar)).count))
-    return MetricChart(interval: interval, points: points, summary: summary, unit: type.unit)
+      ? nil : range == .day ? .total(total) : .dailyAverage(total / Double(totals.count))
+    return MetricChart(interval: interval, points: points, summary: summary)
   }
 
-  private static func dayStarts(_ totals: [CumulativeStatistic], _ calendar: Calendar) -> [Date] {
-    totals.map { calendar.startOfDay(for: $0.start) }
+  /// A cumulative type's totals per period, from the statistics source's 30-minute buckets and,
+  /// past the last of them (no statistics at all, or samples synced before their buckets), the
+  /// samples' own totals, as Browse shows them.
+  private static func cumulativeTotals(
+    of type: String, in range: Range<Date>, by period: StatisticsPeriod, now: Date,
+    calendar: Calendar, _ db: Database
+  ) throws -> [CumulativeStatistic] {
+    let statistics = try cumulativeStatistics(
+      of: type, in: range, by: period, calendar: calendar, now: now, db)
+    let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    let lastBucket = try statisticsSource(db, now: now).flatMap { source in
+      try HealthStatistic
+        .where {
+          $0.device.eq(source) && $0.type.eq(type) && $0.bucketStart >= lower
+            && $0.bucketStart < upper
+        }
+        .order { $0.bucketStart.desc() }
+        .select(\.bucketStart)
+        .limit(1)
+        .fetchOne(db)
+    }
+    let covered = lastBucket.map { $0 + 30 * 60_000 } ?? lower
+    let samples =
+      try HealthSample
+      .where { $0.type.eq(type) && $0.startDate >= covered && $0.startDate < upper }
+      .select { ($0.startDate, $0.value) }
+      .fetchAll(db)
+    guard !samples.isEmpty else { return statistics }
+    var sums = Dictionary(uniqueKeysWithValues: statistics.map { ($0.start, $0.sum) })
+    for (start, value) in samples {
+      let date = Date(unixMilliseconds: start)
+      let period = calendar.dateInterval(of: period.component, for: date)?.start ?? date
+      sums[period, default: 0] += value ?? 0
+    }
+    return sums.sorted { $0.key < $1.key }.map { CumulativeStatistic(start: $0.key, sum: $0.value) }
   }
 }

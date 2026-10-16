@@ -11,13 +11,11 @@ struct MetricDetailView: View {
   let type: HealthDataType
   @State private var range = ChartRange.week
   @State private var offset = 0
-  @Fetch private var chart: MetricChart?
+  /// Loaded by the view's task, for quantity types only.
+  @Fetch private var chart: MetricChart? = nil
 
   init(type: HealthDataType) {
     self.type = type
-    _chart = Fetch(
-      wrappedValue: nil, MetricChartRequest(typeID: type.id, range: .week, offset: 0),
-      scheduler: MainQueueScheduler())
   }
 
   var body: some View {
@@ -75,14 +73,14 @@ struct MetricDetailContent: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
-        Picker("Range", selection: $range) {
+        // A new range starts at its current period, in the same change, so it loads once.
+        Picker("Range", selection: Binding(get: { range }, set: { (range, offset) = ($0, 0) })) {
           ForEach(ChartRange.allCases, id: \.self) { range in
             Text(range.rawValue).tag(range)
           }
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        .onChange(of: range) { offset = 0 }
 
         VStack(alignment: .leading, spacing: 12) {
           header
@@ -121,7 +119,7 @@ struct MetricDetailContent: View {
 
   @ViewBuilder private var header: some View {
     let chart: MetricChart? = if case .loaded(let chart) = state { chart } else { nil }
-    let point = hovered.flatMap { date in chart?.points.last { $0.start <= date } }
+    let point = chart.flatMap { hoveredPoint(in: $0) }
     HStack(alignment: .bottom) {
       VStack(alignment: .leading, spacing: 2) {
         Text(label(chart, point: point))
@@ -201,13 +199,13 @@ struct MetricDetailContent: View {
       Chart(chart.points, id: \.start) { point in
         if type.aggregation?.isCumulative == true {
           BarMark(
-            x: .value("Date", point.start, unit: range.unit),
+            x: .value("Date", point.start, unit: range.barUnit),
             y: .value("Value", point.value)
           )
           .foregroundStyle(color.opacity(isHovered(point, in: chart) ? 1 : 0.8))
         } else {
           BarMark(
-            x: .value("Date", point.start, unit: range.unit),
+            x: .value("Date", point.start, unit: range.barUnit),
             yStart: .value("Minimum", point.minimum),
             yEnd: .value("Maximum", point.maximum),
             width: .ratio(0.35)
@@ -216,7 +214,7 @@ struct MetricDetailContent: View {
           .foregroundStyle(color.opacity(isHovered(point, in: chart) ? 1 : 0.8))
         }
       }
-      .chartXScale(domain: chart.interval.start...chart.interval.end)
+      .chartXScale(domain: domain(chart))
       .chartXSelection(value: $hovered)
       .chartYAxis {
         AxisMarks(position: .trailing)
@@ -232,8 +230,22 @@ struct MetricDetailContent: View {
   }
 
   private func isHovered(_ point: ChartPoint, in chart: MetricChart) -> Bool {
-    guard let hovered else { return false }
-    return chart.points.last { $0.start <= hovered } == point
+    hoveredPoint(in: chart) == point
+  }
+
+  /// The point of the bar under the pointer, if that bar has data.
+  private func hoveredPoint(in chart: MetricChart) -> ChartPoint? {
+    guard let hovered, let bar = calendar.dateInterval(of: range.barUnit, for: hovered)
+    else { return nil }
+    return chart.points.first { $0.start == bar.start }
+  }
+
+  /// The chart's span, widened to whole bars: six months' first and last weeks run past them.
+  private func domain(_ chart: MetricChart) -> ClosedRange<Date> {
+    let start = calendar.dateInterval(of: range.barUnit, for: chart.interval.start)?.start
+    let end = calendar.dateInterval(
+      of: range.barUnit, for: chart.interval.end.addingTimeInterval(-1))?.end
+    return (start ?? chart.interval.start)...(end ?? chart.interval.end)
   }
 
   // MARK: Sections
@@ -264,18 +276,6 @@ struct MetricDetailContent: View {
   }
 }
 
-extension ChartRange {
-  /// The calendar unit of each bar.
-  var unit: Calendar.Component {
-    switch self {
-    case .day: .hour
-    case .week, .month: .day
-    case .sixMonths: .weekOfYear
-    case .year: .month
-    }
-  }
-}
-
 /// How the detail writes its periods.
 enum ChartFormat {
   /// The period shown: "Oct 15, 2025", "Oct 12 – 18, 2025", "Oct 2025", "May – Oct 2025", "2025".
@@ -290,8 +290,12 @@ enum ChartFormat {
         Date.IntervalFormatStyle(date: .abbreviated, time: .omitted, timeZone: calendar.timeZone))
     case .month: return interval.start.formatted(style.month(.abbreviated).year())
     case .sixMonths:
+      // The year on both ends when the months span two.
+      let sameYear =
+        calendar.component(.year, from: interval.start) == calendar.component(.year, from: last)
+      let first = sameYear ? style.month(.abbreviated) : style.month(.abbreviated).year()
       return
-        "\(interval.start.formatted(style.month(.abbreviated))) – \(last.formatted(style.month(.abbreviated).year()))"
+        "\(interval.start.formatted(first)) – \(last.formatted(style.month(.abbreviated).year()))"
     case .year: return interval.start.formatted(style.year())
     }
   }
