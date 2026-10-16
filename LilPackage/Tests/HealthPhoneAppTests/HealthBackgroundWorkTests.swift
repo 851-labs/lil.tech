@@ -1,4 +1,5 @@
 import Dependencies
+import Foundation
 import HealthUpload
 import Testing
 
@@ -30,7 +31,8 @@ struct HealthBackgroundWorkTests {
       progress(withData: 5, empty: 5, records: 10_000, total: 40))
     #expect(upload.completed == 50_000)
     #expect(upload.total == 50_000 + 30 * 10_000)
-    #expect(upload.subtitle == "10 of 40 types · 50,000 records")
+    // Not counted (yet): what's gone up.
+    #expect(upload.subtitle == "\(50_000.formatted()) items uploaded")
   }
 
   @Test
@@ -40,7 +42,7 @@ struct HealthBackgroundWorkTests {
     let upload = HealthBackgroundWork.UploadProgress(counted)
     #expect(upload.completed == 50_000)
     #expect(upload.total == 1_234_567)
-    #expect(upload.subtitle == "50,000 of 1,234,567 records")
+    #expect(upload.subtitle == "\((1_234_567 - 50_000).formatted()) items left")
   }
 
   @Test
@@ -165,5 +167,15 @@ struct HealthBackgroundWorkTests {
     task.cancel()
     #expect(await task.value == false)
     #expect(runs.value == 1)
+  }
+
+  @Test
+  func whatsLeftReadsLikeBackupApps() {
+    #expect(UploadCopy.left(records: 10, totalRecords: 11) == "1 item left")
+    #expect(UploadCopy.left(records: 0, totalRecords: 1_500) == "\(1_500.formatted()) items left")
+    // Not counted, or the estimate ran out: what's gone up, never a count that's stuck or
+    // negative.
+    #expect(UploadCopy.left(records: 1, totalRecords: nil) == "1 item uploaded")
+    #expect(UploadCopy.left(records: 12, totalRecords: 11) == "12 items uploaded")
   }
 }

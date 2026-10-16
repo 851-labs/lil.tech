@@ -187,11 +187,8 @@ public enum HealthBackgroundWork {
         let left = Double(progress.totalTypes - progress.finishedTypes)
         total = max(records + 1, records + Int64((left * average).rounded()))
       }
-      subtitle =
-        progress.totalRecords.map {
-          "\(records.formatted()) of \($0.formatted()) records"
-        }
-        ?? "\(progress.finishedTypes) of \(progress.totalTypes) types · \(records.formatted()) records"
+      subtitle = UploadCopy.left(
+        records: progress.uploadedRecords, totalRecords: progress.totalRecords)
     }
   }
 
