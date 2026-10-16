@@ -820,24 +820,35 @@ struct HealthBackfillTests {
     #expect(health.reads.value.suffix(2) == ["BodyTemperature@2", "SleepAnalysis@1"])
   }
 
-  @Test
+  // A hang would block the pre-commit hook: fail instead.
+  @Test(.timeLimit(.minutes(1)))
   func aRunOfEverythingWaitsOutARateLimitAndCarriesOn() async throws {
     let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
     let storage = HealthBackfillStorage.inMemory()
     let (limited, attempts) = (LockIsolated(true), LockIsolated(0))
-    // Sleeps return at once and move the clock on, so the test needn't race the run to its
-    // sleep (advancing a `TestClock` before the run sleeps would leave it asleep for good).
-    let clock = ImmediateClock()
-    let start = clock.now
     let date = LockIsolated(Date(timeIntervalSince1970: 1_760_400_000))
-    let server = FakeServer()
-    let backfill = rateLimitedBackfill(
-      health: health, server: server, storage: storage, limited: limited, attempts: attempts,
-      clock: clock, date: date)
+    let backfill = LockIsolated<HealthBackfill?>(nil)
+    let runningWhileWaiting = LockIsolated<Bool?>(nil)
+    // Sleeps return at once, moving the date on, so the test needn't race the run to its sleep
+    // (advancing a `TestClock` before the run sleeps would leave it asleep for good).
+    let clock = RecordingClock { duration in
+      if let running = backfill.value {
+        // Waiting, and shown as running.
+        var updates = await running.progressUpdates().makeAsyncIterator()
+        let progress = await updates.next()
+        runningWhileWaiting.setValue(progress?.isRunning)
+      }
+      date.withValue { $0.addTimeInterval(TimeInterval(duration.components.seconds)) }
+    }
+    backfill.setValue(
+      rateLimitedBackfill(
+        health: health, server: FakeServer(), storage: storage, limited: limited,
+        attempts: attempts, clock: clock, date: date))
 
-    try await backfill.run()
+    try await backfill.value?.run()
     // It waited out exactly the limit, then went on with the refused upload and the rest.
-    #expect(clock.now == start.advanced(by: .seconds(60)))
+    #expect(clock.sleeps.value == [.seconds(60)])
+    #expect(runningWhileWaiting.value == true)
     #expect(attempts.value == 3)
     #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
   }
@@ -1013,10 +1024,23 @@ struct HealthBackfillTests {
   }
 }
 
-/// Waits until `condition` holds, yielding in between, for up to a second.
-private func eventuallyTrue(_ condition: () -> Bool) async throws {
-  for _ in 0..<1000 where !condition() {
-    try await Task.sleep(for: .milliseconds(1))
+/// An immediate clock that records how long each sleep was for, and runs `onSleep` during it.
+private final class RecordingClock: Clock, Sendable {
+  private let clock = ImmediateClock()
+  private let onSleep: @Sendable (Duration) async -> Void
+  let sleeps = LockIsolated<[Duration]>([])
+
+  init(onSleep: @escaping @Sendable (Duration) async -> Void = { _ in }) {
+    self.onSleep = onSleep
   }
-  #expect(condition())
+
+  var now: ImmediateClock<Duration>.Instant { clock.now }
+  var minimumResolution: Duration { clock.minimumResolution }
+
+  func sleep(until deadline: ImmediateClock<Duration>.Instant, tolerance: Duration?) async throws {
+    let duration = clock.now.duration(to: deadline)
+    sleeps.withValue { $0.append(duration) }
+    await onSleep(duration)
+    try await clock.sleep(until: deadline, tolerance: tolerance)
+  }
 }
