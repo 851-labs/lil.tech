@@ -35,7 +35,17 @@ import {
   HealthBatchTooLarge,
   maxHealthBatchBytes,
 } from "./health/HealthBatches.ts";
-import { UploadSizeLimit } from "./health/HealthApi.ts";
+import { BlobUploadSizeLimit, UploadSizeLimit } from "./health/HealthApi.ts";
+import {
+  HealthBlobFiles,
+  healthBlobDownloadPath,
+  HealthBlobHashMismatch,
+  healthBlobKey,
+  HealthBlobNotFound,
+  healthBlobPrefix,
+  HealthBlobTooLarge,
+  sha256Hex,
+} from "./health/HealthBlobs.ts";
 import {
   HealthBatchFiles,
   HealthBatchQueue,
@@ -55,6 +65,9 @@ import { sessionExpiresHeader } from "./store/LiveNotices.ts";
 import { UserStores, UserStoreUnavailable } from "./store/UserStores.ts";
 import {
   InvalidPartUrl,
+  type OpenedPart,
+  type PartRange,
+  partUrlLifetimeMs,
   PartUrls,
   parseRange,
   SnapshotParts,
@@ -265,10 +278,12 @@ export const MeHandlers = HttpApiBuilder.group(
           yield* stores.forUser(userId).deleteAll();
           // Per request: in the Worker it's built from each request's runtime context.
           const files = yield* HealthBatchFiles;
+          const blobs = yield* HealthBlobFiles;
           // A failure here would leave an account that can't store data, so these steps are
           // retried, and if they still fail the app is told to try again, which finishes it.
           yield* Effect.gen(function* () {
             yield* files.deletePrefix(healthBatchPrefix(userId));
+            yield* blobs.deletePrefix(healthBlobPrefix(userId));
             // Cascades to identities, devices, sessions (so refresh tokens stop working) and
             // connections.
             yield* users.delete(userId);
@@ -286,6 +301,17 @@ export const MeHandlers = HttpApiBuilder.group(
   }),
 );
 
+// Download URLs go to the host the client used, with its scheme (http for `alchemy dev`).
+const origin = HttpServerRequest.HttpServerRequest.use((request) =>
+  Effect.sync(() => {
+    try {
+      return new URL(request.originalUrl).origin;
+    } catch {
+      return `https://${request.headers["host"] ?? "api.lil.tech"}`;
+    }
+  }),
+);
+
 export const SyncHandlers = HttpApiBuilder.group(
   Api,
   "sync",
@@ -295,16 +321,6 @@ export const SyncHandlers = HttpApiBuilder.group(
     // The store comes from the session, never from the request (`docs/SYNC.md`).
     const sessionStore = CurrentSession.use((session) =>
       Effect.succeed(stores.forUser(session.userId)),
-    );
-    // Part URLs go to the host the client used, with its scheme (http for `alchemy dev`).
-    const origin = HttpServerRequest.HttpServerRequest.use((request) =>
-      Effect.sync(() => {
-        try {
-          return new URL(request.originalUrl).origin;
-        } catch {
-          return `https://${request.headers["host"] ?? "api.lil.tech"}`;
-        }
-      }),
     );
     return handlers
       .handle("changes", ({ query }) =>
@@ -345,12 +361,26 @@ export const UploadSizeLimitLayer = Layer.succeed(
   ),
 );
 
+export const BlobUploadSizeLimitLayer = Layer.succeed(
+  BlobUploadSizeLimit,
+  BlobUploadSizeLimit.of((httpEffect) =>
+    Effect.gen(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest;
+      if (Number(request.headers["content-length"] ?? 0) > maxHealthBatchBytes) {
+        return yield* new HealthBlobTooLarge({ maxBytes: maxHealthBatchBytes });
+      }
+      return yield* httpEffect;
+    }),
+  ),
+);
+
 export const HealthHandlers = HttpApiBuilder.group(
   Api,
   "health",
   Effect.fn(function* (handlers) {
     const stores = yield* UserStores;
     const consents = yield* Consents;
+    const partUrls = yield* PartUrls;
     return handlers
       .handle("uploadBatch", ({ params, payload }) =>
         Effect.gen(function* () {
@@ -385,6 +415,60 @@ export const HealthHandlers = HttpApiBuilder.group(
           // Checked first thing (reading the batch's status), before anything reaches R2.
         }).pipe(Effect.catchTag("AccountDeleted", () => Effect.fail(userGone))),
       )
+      .handle("uploadBlob", ({ params, payload }) =>
+        Effect.gen(function* () {
+          const { userId } = yield* CurrentSession;
+          // Per request: in the Worker it's built from each request's runtime context.
+          const blobs = yield* HealthBlobFiles;
+          if (payload.byteLength > maxHealthBatchBytes) {
+            return yield* new HealthBlobTooLarge({ maxBytes: maxHealthBatchBytes });
+          }
+          const store = stores.forUser(userId);
+          const [known, consent] = yield* Effect.all(
+            [
+              // Fails with `StorageFull` for a new blob once the account is over its quota.
+              store.checkHealthBlobUpload(params.sha256),
+              consents.current(userId, "health").pipe(Effect.orDie),
+            ],
+            { concurrency: "unbounded" },
+          );
+          if (known !== null) return { sha256: params.sha256, size: known };
+          if (!isCurrentHealthConsent(consent)) {
+            return yield* new ConsentRequired({ required: healthConsentPolicyVersion });
+          }
+          // Hashed after the cheaper checks: a deleted account still gets a 401, and refused or
+          // repeated uploads don't pay for it.
+          const actual = yield* sha256Hex(payload);
+          if (actual !== params.sha256) {
+            return yield* new HealthBlobHashMismatch({ sha256: params.sha256, actual });
+          }
+          // R2 first, so a recorded blob is always there. The same hash is the same bytes, so
+          // writing it again after a failure in between is harmless.
+          const key = healthBlobKey(userId, params.sha256);
+          yield* blobs.put(key, payload);
+          yield* store.recordHealthBlob(params.sha256, payload.byteLength).pipe(
+            // The account was deleted meanwhile, after its blobs were: this one goes too.
+            Effect.tapError((error) =>
+              error._tag === "AccountDeleted" ? blobs.delete(key) : Effect.void,
+            ),
+          );
+          return { sha256: params.sha256, size: payload.byteLength };
+        }).pipe(Effect.catchTag("AccountDeleted", () => Effect.fail(userGone))),
+      )
+      .handle("blob", ({ params }) =>
+        Effect.gen(function* () {
+          const { userId } = yield* CurrentSession;
+          // The key comes from the session, so only the owner's blobs can be reached.
+          const size = yield* stores.forUser(userId).healthBlobSize(params.sha256);
+          if (size === null) return yield* new HealthBlobNotFound({ sha256: params.sha256 });
+          const token = yield* partUrls.sign(healthBlobKey(userId, params.sha256));
+          return {
+            url: `${yield* origin}${healthBlobDownloadPath}?token=${token}`,
+            // A little before the token's own expiry, which is in whole seconds.
+            expiresAt: (yield* Clock.currentTimeMillis) + partUrlLifetimeMs - 1000,
+          };
+        }).pipe(Effect.catchTag("AccountDeleted", () => Effect.fail(userGone))),
+      )
       .handle("batch", ({ params }) =>
         Effect.gen(function* () {
           const { userId } = yield* CurrentSession;
@@ -397,70 +481,96 @@ export const HealthHandlers = HttpApiBuilder.group(
 );
 
 /**
- * `GET /v1/sync/parts/<token>`: streams a snapshot part from a signed URL in a manifest. Needs no
- * `Authorization` header, so background downloads work; the token is the authorization. Left
- * out of the OpenAPI spec, since clients only follow manifest URLs.
+ * A `GET` route that streams an R2 object from a signed URL, with `Range` support. Needs no
+ * `Authorization` header, so background downloads work; the token is the authorization, and it
+ * only grants keys under `prefix`. Left out of the OpenAPI spec, since clients only follow URLs
+ * the API gave them.
  */
-export const SnapshotPartRoute = HttpRouter.use((router) =>
-  Effect.gen(function* () {
-    const partUrls = yield* PartUrls;
-    yield* router.add(
-      "GET",
-      "/v1/sync/parts",
-      Effect.gen(function* () {
-        const { token } = yield* HttpServerRequest.schemaSearchParams(
-          Schema.Struct({ token: Schema.String }),
-        ).pipe(Effect.mapError((error) => new InvalidPartUrl({ message: error.message })));
-        const key = yield* partUrls.verify(token);
-        const request = yield* HttpServerRequest.HttpServerRequest;
-        const range = parseRange(request.headers["range"]);
-        const part = yield* (yield* SnapshotParts).open(key, range);
-        if (Option.isNone(part)) {
-          return HttpServerResponse.jsonUnsafe({ _tag: "NotFound" }, { status: 404 });
-        }
-        const { body, size, etag } = part.value;
-        const headers = {
-          "content-type": "application/gzip",
-          "accept-ranges": "bytes",
-          etag,
-          "cache-control": "private, max-age=900",
-        };
-        // Resuming an interrupted download asks for the rest of the part.
-        if (range !== undefined) {
-          if (part.value.range === undefined) {
-            yield* Effect.promise(() => body.cancel());
-            return HttpServerResponse.empty({
-              status: 416,
-              headers: { "content-range": `bytes */${size}` },
+const signedDownloadRoute = <R>(options: {
+  readonly path: `/${string}`;
+  readonly prefix: string;
+  readonly contentType: string;
+  readonly open: (
+    key: string,
+    range: PartRange | undefined,
+  ) => Effect.Effect<Option.Option<OpenedPart>, never, R>;
+}) =>
+  HttpRouter.use((router) =>
+    Effect.gen(function* () {
+      const partUrls = yield* PartUrls;
+      yield* router.add(
+        "GET",
+        options.path,
+        Effect.gen(function* () {
+          const { token } = yield* HttpServerRequest.schemaSearchParams(
+            Schema.Struct({ token: Schema.String }),
+          ).pipe(Effect.mapError((error) => new InvalidPartUrl({ message: error.message })));
+          const key = yield* partUrls.verify(token, options.prefix);
+          const request = yield* HttpServerRequest.HttpServerRequest;
+          const range = parseRange(request.headers["range"]);
+          const part = yield* options.open(key, range);
+          if (Option.isNone(part)) {
+            return HttpServerResponse.jsonUnsafe({ _tag: "NotFound" }, { status: 404 });
+          }
+          const { body, size, etag } = part.value;
+          const headers = {
+            "content-type": options.contentType,
+            "accept-ranges": "bytes",
+            etag,
+            "cache-control": "private, max-age=900",
+          };
+          // Resuming an interrupted download asks for the rest of the file.
+          if (range !== undefined) {
+            if (part.value.range === undefined) {
+              yield* Effect.promise(() => body.cancel());
+              return HttpServerResponse.empty({
+                status: 416,
+                headers: { "content-range": `bytes */${size}` },
+              });
+            }
+            const { offset, length } = part.value.range;
+            return HttpServerResponse.raw(body, {
+              status: 206,
+              headers: {
+                ...headers,
+                "content-length": String(length),
+                "content-range": `bytes ${offset}-${offset + length - 1}/${size}`,
+              },
             });
           }
-          const { offset, length } = part.value.range;
           return HttpServerResponse.raw(body, {
-            status: 206,
-            headers: {
-              ...headers,
-              "content-length": String(length),
-              "content-range": `bytes ${offset}-${offset + length - 1}/${size}`,
-            },
+            headers: { ...headers, "content-length": String(size) },
           });
-        }
-        return HttpServerResponse.raw(body, {
-          headers: { ...headers, "content-length": String(size) },
-        });
-      }).pipe(
-        Effect.catchTag("InvalidPartUrl", () =>
-          Effect.succeed(
-            HttpServerResponse.jsonUnsafe(
-              { _tag: "InvalidPartUrl", message: "The part URL is invalid or expired" },
-              { status: 401 },
+        }).pipe(
+          Effect.catchTag("InvalidPartUrl", () =>
+            Effect.succeed(
+              HttpServerResponse.jsonUnsafe(
+                { _tag: "InvalidPartUrl", message: "The URL is invalid or expired" },
+                { status: 401 },
+              ),
             ),
           ),
+          Effect.orDie,
         ),
-        Effect.orDie,
-      ),
-    );
-  }),
-);
+      );
+    }),
+  );
+
+/** `GET /v1/sync/parts?token=…`: a snapshot part, from a signed URL in a manifest. */
+export const SnapshotPartRoute = signedDownloadRoute({
+  path: "/v1/sync/parts",
+  prefix: "snapshots/",
+  contentType: "application/gzip",
+  open: (key, range) => SnapshotParts.use((parts) => parts.open(key, range)),
+});
+
+/** `GET /v1/health/blob-downloads?token=…`: a health blob, from `GET /v1/health/blobs/{sha256}`. */
+export const HealthBlobDownloadRoute = signedDownloadRoute({
+  path: healthBlobDownloadPath,
+  prefix: "health-blobs/",
+  contentType: "application/octet-stream",
+  open: (key, range) => HealthBlobFiles.use((files) => files.open(key, range)),
+});
 
 /**
  * `GET /v1/sync/live`: a WebSocket of live sync notices, handed to the user's store
@@ -530,10 +640,16 @@ export const WorkerHttpLayer = Layer.mergeAll(
   OpenApiRoute,
   DevSignInRoute,
   SnapshotPartRoute,
+  HealthBlobDownloadRoute,
   LiveRoute,
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),
-  Layer.provide([AuthorizationLayer, AddressRateLimitLayer, UploadSizeLimitLayer]),
+  Layer.provide([
+    AuthorizationLayer,
+    AddressRateLimitLayer,
+    UploadSizeLimitLayer,
+    BlobUploadSizeLimitLayer,
+  ]),
   Layer.provide([AppleSignIn.layer, GoogleSignIn.layer, ProviderSignIn.layer]),
   Layer.provide([Auth.layer, PartUrls.layer]),
   Layer.provide(AccessTokens.layer),

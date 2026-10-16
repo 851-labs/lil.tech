@@ -28,6 +28,11 @@ export const HealthBatchBucket = Cloudflare.R2.Bucket("HealthBatchFiles", {
   ],
 });
 export const HealthBatchQueueResource = Cloudflare.Queues.Queue("HealthBatchQueue");
+/**
+ * Health blobs (`src/health/HealthBlobs.ts`), under `health-blobs/<user>/<sha256>`. Immutable, and
+ * kept until the account is deleted.
+ */
+export const HealthBlobBucket = Cloudflare.R2.Bucket("HealthBlobs");
 /** Where a batch's message goes after its last failed attempt, to be looked at by hand. */
 export const HealthBatchDeadLetters = Cloudflare.Queues.Queue("HealthBatchDeadLetters");
 
@@ -36,6 +41,24 @@ export const HealthBatchDeadLetters = Cloudflare.Queues.Queue("HealthBatchDeadLe
  * delivered at most this many times plus one before it's dead-lettered.
  */
 export const maxHealthBatchRetries = 5;
+
+/**
+ * Deletes every object in `bucket` whose key starts with `prefix`: a page of keys at a time (R2
+ * lists up to 1,000), each deleted in one call.
+ */
+export const deletePrefix = (
+  bucket: Pick<Cloudflare.R2.ReadWriteBucketClient, "list" | "delete">,
+  prefix: string,
+) =>
+  Effect.gen(function* () {
+    let cursor: string | undefined;
+    do {
+      const page = yield* bucket.list({ prefix, ...(cursor === undefined ? {} : { cursor }) });
+      const keys = page.objects.map((object) => object.key);
+      if (keys.length > 0) yield* bucket.delete(keys);
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor !== undefined);
+  }).pipe(Effect.mapError((error) => new BatchFilesUnavailable({ message: String(error) })));
 
 /**
  * Binds the batch bucket and queue and consumes the queue, in the Worker's setup. Returns
@@ -67,23 +90,7 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
           Effect.orDie,
         ),
       delete: (key) => inRuntime(bucket.delete(key)).pipe(Effect.orDie),
-      // A page of keys at a time (R2 lists up to 1,000), each deleted in one call.
-      deletePrefix: (prefix) =>
-        Effect.gen(function* () {
-          let cursor: string | undefined;
-          do {
-            const page = yield* bucket.list({
-              prefix,
-              ...(cursor === undefined ? {} : { cursor }),
-            });
-            const keys = page.objects.map((object) => object.key);
-            if (keys.length > 0) yield* bucket.delete(keys);
-            cursor = page.truncated ? page.cursor : undefined;
-          } while (cursor !== undefined);
-        }).pipe(
-          inRuntime,
-          Effect.mapError((error) => new BatchFilesUnavailable({ message: String(error) })),
-        ),
+      deletePrefix: (prefix) => deletePrefix(bucket, prefix).pipe(inRuntime),
     });
   });
   const queueService = Effect.map(Alchemy.RuntimeContext, (runtime) =>

@@ -12,7 +12,8 @@ import { Devices } from "./core/Devices.ts";
 import { Users } from "./core/Users.ts";
 import { Deployment, environmentForStage, stageDomains } from "./Deployment.ts";
 import { HealthBatchFiles, HealthBatchQueue } from "./health/HealthIngestion.ts";
-import { HealthIngestionWorker } from "./health/HealthResources.ts";
+import { HealthBlobFiles } from "./health/HealthBlobs.ts";
+import { deletePrefix, HealthBlobBucket, HealthIngestionWorker } from "./health/HealthResources.ts";
 import { WorkerHttpLayer } from "./Http.ts";
 import {
   type RateLimitCounter,
@@ -23,7 +24,7 @@ import {
 } from "./RateLimits.ts";
 import { objectBody, provideRuntime } from "./Runtime.ts";
 import { SnapshotBucket, UserStore, UserStoreLive } from "./store/UserStore.ts";
-import { SnapshotParts } from "./sync/SnapshotParts.ts";
+import { type OpenedPart, type PartRange, SnapshotParts } from "./sync/SnapshotParts.ts";
 import { UserStores } from "./store/UserStores.ts";
 
 /** Custom domains per stage. Other stages (PR previews, personal stages) use workers.dev. */
@@ -97,6 +98,55 @@ const bindRateLimit = Effect.fnUntraced(function* (name: string, limit: RateLimi
   return counter;
 });
 
+/**
+ * Opens an R2 object, or a byte range of it, for a signed download. Built per request: the
+ * bucket's calls need the request's runtime context.
+ */
+const openObject =
+  (bucket: Pick<Cloudflare.R2.ReadBucketClient, "get" | "head">) =>
+  (runtime: Alchemy.RuntimeContext["Service"]) =>
+  (key: string, range: PartRange | undefined): Effect.Effect<Option.Option<OpenedPart>> =>
+    provideRuntime(runtime)(
+      bucket.get(key, range === undefined ? {} : { range }).pipe(
+        // R2 may reject a range past the end; answer that with the part's size (a 416).
+        Effect.catch((error) =>
+          range === undefined
+            ? Effect.fail(error)
+            : bucket.head(key).pipe(
+                Effect.map((head) =>
+                  head === null
+                    ? null
+                    : {
+                        ...head,
+                        range: { offset: head.size },
+                        readable: new ReadableStream<Uint8Array>(),
+                        body: Stream.empty,
+                      },
+                ),
+              ),
+        ),
+      ),
+    ).pipe(
+      Effect.map((object) => {
+        if (object === null) return Option.none();
+        const applied = object.range as
+          | { offset?: number; length?: number; suffix?: number }
+          | undefined;
+        const offset =
+          applied?.suffix !== undefined
+            ? Math.max(0, object.size - applied.suffix)
+            : (applied?.offset ?? 0);
+        const length = applied?.length ?? object.size - offset;
+        return Option.some({
+          body: objectBody(object),
+          size: object.size,
+          etag: object.httpEtag,
+          ...(range === undefined || offset >= object.size ? {} : { range: { offset, length } }),
+        });
+      }),
+      Effect.orDie,
+    );
+
 // Alchemy's Effect Worker entry imports the module's default export.
 export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
   "Api",
@@ -124,54 +174,23 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       user: yield* bindRateLimit("UserRateLimit", "user"),
       refresh: yield* bindRateLimit("RefreshRateLimit", "refresh"),
     });
-    // Per request: the bucket's calls need the request's runtime context.
+    const blobs = yield* Cloudflare.R2.ReadWriteBucket(yield* HealthBlobBucket);
+    // Per request: the buckets' calls need the request's runtime context.
     const snapshotParts = Effect.map(Alchemy.RuntimeContext, (runtime) =>
-      SnapshotParts.of({
-        open: (key, range) =>
-          provideRuntime(runtime)(
-            snapshots.get(key, range === undefined ? {} : { range }).pipe(
-              // R2 may reject a range past the end; answer that with the part's size (a 416).
-              Effect.catch((error) =>
-                range === undefined
-                  ? Effect.fail(error)
-                  : snapshots.head(key).pipe(
-                      Effect.map((head) =>
-                        head === null
-                          ? null
-                          : {
-                              ...head,
-                              range: { offset: head.size },
-                              readable: new ReadableStream<Uint8Array>(),
-                              body: Stream.empty,
-                            },
-                      ),
-                    ),
-              ),
-            ),
-          ).pipe(
-            Effect.map((object) => {
-              if (object === null) return Option.none();
-              const applied = object.range as
-                | { offset?: number; length?: number; suffix?: number }
-                | undefined;
-              const offset =
-                applied?.suffix !== undefined
-                  ? Math.max(0, object.size - applied.suffix)
-                  : (applied?.offset ?? 0);
-              const length = applied?.length ?? object.size - offset;
-              return Option.some({
-                body: objectBody(object),
-                size: object.size,
-                etag: object.httpEtag,
-                ...(range === undefined || offset >= object.size
-                  ? {}
-                  : { range: { offset, length } }),
-              });
-            }),
-            Effect.orDie,
-          ),
-      }),
+      SnapshotParts.of({ open: openObject(snapshots)(runtime) }),
     );
+    const blobFiles = Effect.map(Alchemy.RuntimeContext, (runtime) => {
+      const inRuntime = provideRuntime(runtime);
+      return HealthBlobFiles.of({
+        put: (key, bytes) =>
+          inRuntime(
+            blobs.put(key, bytes, { httpMetadata: { contentType: "application/octet-stream" } }),
+          ).pipe(Effect.asVoid, Effect.orDie),
+        delete: (key) => inRuntime(blobs.delete(key)).pipe(Effect.orDie),
+        open: openObject(blobs)(runtime),
+        deletePrefix: (prefix) => deletePrefix(blobs, prefix).pipe(inRuntime),
+      });
+    });
     const fetch = yield* HttpRouter.toHttpEffect(
       WorkerHttpLayer.pipe(
         Layer.provide(Layer.succeed(Deployment, deployment)),
@@ -187,6 +206,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
         Effect.provideServiceEffect(HealthBatchFiles, health.files),
         Effect.provideServiceEffect(HealthBatchQueue, health.queue),
         Effect.provideServiceEffect(SnapshotParts, snapshotParts),
+        Effect.provideServiceEffect(HealthBlobFiles, blobFiles),
       ),
     };
   }).pipe(

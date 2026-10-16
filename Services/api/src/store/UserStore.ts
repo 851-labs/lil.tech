@@ -61,6 +61,27 @@ export const storageQuotaBytes = 8 * 1024 ** 3;
  */
 export const storageHardLimitBytes = 9.5 * 1024 ** 3;
 
+const readHealthBlobSize = (sql: StoreSql, sha256: string): number | null => {
+  const row = sql.exec("SELECT size FROM health_blobs WHERE sha256 = ?", sha256)[0];
+  return row === undefined ? null : Number(row["size"]);
+};
+
+const recordHealthBlob = (sql: StoreSql, sha256: string, size: number, at: number) =>
+  sql.transaction(() => {
+    if (readHealthBlobSize(sql, sha256) !== null) return;
+    sql.exec(
+      "INSERT INTO health_blobs (sha256, size, uploaded_at) VALUES (?, ?, ?)",
+      sha256,
+      size,
+      at,
+    );
+    sql.exec(
+      `INSERT INTO meta (key, value) VALUES ('health_blob_bytes', ?)
+       ON CONFLICT (key) DO UPDATE SET value = value + excluded.value`,
+      size,
+    );
+  });
+
 /** Snapshot files that aren't available, for stores built without them (most tests). */
 const noSnapshotFiles: SnapshotFiles = {
   put: () => Effect.die("This store has no snapshot files"),
@@ -88,13 +109,21 @@ export const makeUserStore = (
     deleted ? Effect.fail(new AccountDeleted()) : Effect.void,
   );
 
-  /** Fails once the store's size reaches `limit`. */
+  /** What counts towards the quota: the database, and the health blobs in R2. */
+  const storageBytes = () => sql.databaseSize() + readMeta(sql, "health_blob_bytes", 0);
+  /** Fails once the store's database reaches `limit`. */
   const ensureRoom = (limit: number) =>
     Effect.suspend(() =>
       sql.databaseSize() >= limit
         ? Effect.fail(new StorageFull({ quotaBytes: storageQuotaBytes }))
         : Effect.void,
     );
+  /** Fails once the account's storage, blobs included, reaches its quota. */
+  const ensureQuota = Effect.suspend(() =>
+    storageBytes() >= storageQuotaBytes
+      ? Effect.fail(new StorageFull({ quotaBytes: storageQuotaBytes }))
+      : Effect.void,
+  );
   const healthBatch = (id: string) =>
     ensureNotDeleted.pipe(
       Effect.andThen(Clock.currentTimeMillis),
@@ -183,11 +212,27 @@ export const makeUserStore = (
      * `StorageFull` once the store has reached its quota.
      */
     checkHealthBatchUpload: (id: string) =>
-      healthBatch(id).pipe(
-        Effect.tap((known) => (known === null ? ensureRoom(storageQuotaBytes) : Effect.void)),
+      healthBatch(id).pipe(Effect.tap((known) => (known === null ? ensureQuota : Effect.void))),
+    /** The database's size plus the health blobs', which `storageQuotaBytes` limits. */
+    storageBytes: () => Effect.sync(storageBytes),
+    /** A health blob's size, or `null` if this user never uploaded it. */
+    healthBlobSize: (sha256: string) =>
+      ensureNotDeleted.pipe(Effect.map(() => readHealthBlobSize(sql, sha256))),
+    /**
+     * Before a health blob is uploaded: its size if it's already stored, otherwise `null`, or
+     * `StorageFull` once the account has reached its quota.
+     */
+    checkHealthBlobUpload: (sha256: string) =>
+      ensureNotDeleted.pipe(
+        Effect.map(() => readHealthBlobSize(sql, sha256)),
+        Effect.tap((known) => (known === null ? ensureQuota : Effect.void)),
       ),
-    /** The database's size in bytes, which `storageQuotaBytes` limits. */
-    storageBytes: () => Effect.sync(() => sql.databaseSize()),
+    /** Records a health blob once it's in R2, counting it towards the quota. Idempotent. */
+    recordHealthBlob: (sha256: string, size: number) =>
+      ensureNotDeleted.pipe(
+        Effect.andThen(Clock.currentTimeMillis),
+        Effect.map((at) => recordHealthBlob(sql, sha256, size, at)),
+      ),
     /** Records a health batch as `queued` unless it's already known, and returns its status. */
     receiveHealthBatch: (id: string) =>
       ensureNotDeleted.pipe(

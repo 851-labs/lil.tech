@@ -183,6 +183,11 @@ POST /v1/sync/mutations
   - **Upload:** `PUT /v1/health/batches/<id>` with a client-generated lowercase UUID. The body is a gzip-compressed NDJSON file (`application/gzip`, at most 16 MB), one mutation per line in the push format. Only health entities are allowed, and rows are full records.
   - **Queueing:** the API stores the file in R2, queues it, and answers `202` with the batch's status. Uploading the same ID again only returns its status, so retries are safe.
   - **Applying:** a queue consumer streams the file, at most 64 MB decompressed and 1 MB per line, and applies the lines in chunks of 500, one transaction each. Invalid lines are rejected with their line numbers and reasons, and the rest of the batch still applies. The file is deleted once the batch is applied.
+  - **Blobs:** payloads too big for rows (ECG voltages, workout routes, heartbeat series) are uploaded first as blobs, and rows refer to them by SHA-256 (`src/health/HealthBlobs.ts`).
+    - `PUT /v1/health/blobs/<sha256>` (`application/octet-stream`, at most 16 MB). The server checks the hash and stores the blob in R2 under `health-blobs/<user>/<sha256>`. Blobs are immutable: uploading one that's stored already changes nothing, so retries are safe. Like batches, uploads need consent and room in the quota.
+    - The user's store records each blob's size (`health_blobs`), and the sizes count towards the storage quota.
+    - `GET /v1/health/blobs/<sha256>` returns a download URL signed like snapshot parts' (15 minutes, `Range` supported), only for the user's own blobs. A token for one kind of file doesn't work for the other.
+    - Deleting the account deletes the user's blobs. Deleting unreferenced blobs is 851-2625.
   - **Backfill:** the iPhone pages through each type's history with anchored queries (2,000 objects a page). It writes each page to batch files of at most 4 MB uncompressed, saves the page as pending, and uploads it.
     - A type's anchor is saved only after every batch of the page is accepted.
     - If the app is killed, the pending page is uploaded again under the same batch IDs, which is safe, and nothing is skipped.

@@ -9,7 +9,7 @@ import {
   writeSnapshotStep,
 } from "../../src/store/Snapshots.ts";
 import type { StoreSql } from "../../src/store/StoreSql.ts";
-import { SnapshotParts } from "../../src/sync/SnapshotParts.ts";
+import { type OpenedPart, type PartRange, SnapshotParts } from "../../src/sync/SnapshotParts.ts";
 import { entities } from "../../src/store/Registry.ts";
 import { sessionExpiresHeader } from "../../src/store/LiveNotices.ts";
 import {
@@ -104,6 +104,38 @@ export class TestStores extends Context.Service<
 >()("test/TestStores") {}
 
 /**
+ * Opens a file in `stored`, or a range of it, as R2 does: a satisfiable range is served, one past
+ * the end isn't.
+ */
+export const openStored =
+  (stored: ReadonlyMap<string, Uint8Array>) =>
+  (key: string, range: PartRange | undefined): Effect.Effect<Option.Option<OpenedPart>> =>
+    Effect.sync(() =>
+      Option.map(Option.fromNullishOr(stored.get(key)), (bytes) => {
+        const size = bytes.length;
+        const offset =
+          range === undefined
+            ? 0
+            : "suffix" in range
+              ? Math.max(0, size - range.suffix)
+              : range.offset;
+        const length =
+          range !== undefined && "length" in range && range.length !== undefined
+            ? Math.min(range.length, size - offset)
+            : size - offset;
+        const served = range !== undefined && offset < size;
+        return {
+          body: new Blob([
+            (served ? bytes.slice(offset, offset + length) : bytes) as Uint8Array<ArrayBuffer>,
+          ]).stream(),
+          size,
+          etag: `"${key}"`,
+          ...(served ? { range: { offset, length } } : {}),
+        };
+      }),
+    );
+
+/**
  * `UserStores` and `TestStores` over the same in-memory test stores, and `SnapshotParts` reading
  * their snapshot files.
  */
@@ -121,34 +153,7 @@ export const TestUserStores = Layer.unwrap(
       Layer.succeed(
         SnapshotParts,
         SnapshotParts.of({
-          // Ranges behave like R2's: a satisfiable one is served, one past the end isn't.
-          open: (key, range) =>
-            Effect.sync(() =>
-              Option.map(Option.fromNullishOr(stored.get(key)), (bytes) => {
-                const size = bytes.length;
-                const offset =
-                  range === undefined
-                    ? 0
-                    : "suffix" in range
-                      ? Math.max(0, size - range.suffix)
-                      : range.offset;
-                const length =
-                  range !== undefined && "length" in range && range.length !== undefined
-                    ? Math.min(range.length, size - offset)
-                    : size - offset;
-                const served = range !== undefined && offset < size;
-                return {
-                  body: new Blob([
-                    (served
-                      ? bytes.slice(offset, offset + length)
-                      : bytes) as Uint8Array<ArrayBuffer>,
-                  ]).stream(),
-                  size,
-                  etag: `"${key}"`,
-                  ...(served ? { range: { offset, length } } : {}),
-                };
-              }),
-            ),
+          open: openStored(stored),
         }),
       ),
     );

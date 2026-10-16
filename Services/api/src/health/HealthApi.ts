@@ -10,6 +10,14 @@ import {
   HealthBatchNotFound,
   HealthBatchTooLarge,
 } from "./HealthBatches.ts";
+import {
+  HealthBlob,
+  HealthBlobDownload,
+  HealthBlobHash,
+  HealthBlobHashMismatch,
+  HealthBlobNotFound,
+  HealthBlobTooLarge,
+} from "./HealthBlobs.ts";
 
 // The health part of the API definition. Like `Api.ts`, it holds no server code.
 
@@ -21,6 +29,12 @@ import {
 export class UploadSizeLimit extends HttpApiMiddleware.Service<UploadSizeLimit>()(
   "lil/api/health/UploadSizeLimit",
   { error: HealthBatchTooLarge },
+) {}
+
+/** `UploadSizeLimit` for blob uploads, with their own error. */
+export class BlobUploadSizeLimit extends HttpApiMiddleware.Service<BlobUploadSizeLimit>()(
+  "lil/api/health/BlobUploadSizeLimit",
+  { error: HealthBlobTooLarge },
 ) {}
 
 export class HealthApi extends HttpApiGroup.make("health")
@@ -43,6 +57,33 @@ export class HealthApi extends HttpApiGroup.make("health")
       params: { id: HealthBatchId },
       success: HealthBatch,
       error: [HealthBatchNotFound, UserStoreUnavailable],
+    }),
+  )
+  .add(
+    // Upload a blob (`src/health/HealthBlobs.ts`), named by the SHA-256 of its bytes, before the
+    // rows that refer to it. Uploading one that's stored already changes nothing, so retries are
+    // safe. Same size limit as batches, and like them it needs consent and room in the quota.
+    HttpApiEndpoint.put("uploadBlob", "/v1/health/blobs/:sha256", {
+      params: { sha256: HealthBlobHash },
+      payload: Schema.Uint8Array.pipe(
+        HttpApiSchema.asUint8Array({ contentType: "application/octet-stream" }),
+      ),
+      success: HealthBlob,
+      error: [
+        HealthBlobTooLarge,
+        HealthBlobHashMismatch,
+        StorageFull,
+        UserStoreUnavailable,
+        ConsentRequired,
+      ],
+    }).middleware(BlobUploadSizeLimit),
+  )
+  .add(
+    // A short-lived URL to download one of the user's blobs.
+    HttpApiEndpoint.get("blob", "/v1/health/blobs/:sha256", {
+      params: { sha256: HealthBlobHash },
+      success: HealthBlobDownload,
+      error: [HealthBlobNotFound, UserStoreUnavailable],
     }),
   )
   .middleware(Authorization) {}

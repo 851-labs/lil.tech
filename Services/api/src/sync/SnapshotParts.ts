@@ -6,6 +6,7 @@ import type { SnapshotManifest } from "./SyncApi.ts";
 
 // Downloading snapshot parts (`docs/SYNC.md`): manifests carry short-lived signed URLs, which
 // stream the part from R2 without an `Authorization` header, so background downloads work.
+// Health blobs' download URLs are signed the same way.
 
 /** How long a part URL works. */
 export const partUrlLifetimeMs = 15 * 60 * 1000;
@@ -23,8 +24,8 @@ export class PartUrls extends Context.Service<
   {
     /** A token for downloading `key` until `partUrlLifetimeMs` from now. */
     readonly sign: (key: string) => Effect.Effect<string>;
-    /** The part key a token grants, if it's genuine and unexpired. */
-    readonly verify: (token: string) => Effect.Effect<string, InvalidPartUrl>;
+    /** The key a token grants, if it's genuine, unexpired and under `prefix`. */
+    readonly verify: (token: string, prefix: string) => Effect.Effect<string, InvalidPartUrl>;
   }
 >()("lil/api/sync/PartUrls") {
   static readonly layer = Layer.effect(
@@ -49,7 +50,7 @@ export class PartUrls extends Context.Service<
               .sign(secret),
           );
         }),
-        verify: Effect.fn("PartUrls.verify")(function* (token) {
+        verify: Effect.fn("PartUrls.verify")(function* (token, prefix) {
           const now = yield* Clock.currentTimeMillis;
           const { payload } = yield* Effect.tryPromise({
             try: () =>
@@ -60,8 +61,8 @@ export class PartUrls extends Context.Service<
               }),
             catch: (error) => new InvalidPartUrl({ message: String(error) }),
           });
-          if (typeof payload.sub !== "string" || !payload.sub.startsWith("snapshots/")) {
-            return yield* new InvalidPartUrl({ message: "Not a snapshot part" });
+          if (typeof payload.sub !== "string" || !payload.sub.startsWith(prefix)) {
+            return yield* new InvalidPartUrl({ message: `Not under ${prefix}` });
           }
           return payload.sub;
         }),

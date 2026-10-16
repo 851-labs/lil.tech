@@ -82,8 +82,8 @@
   - The exception is uploads waiting to be applied, such as health batch files. They're staging, not data: keyed by user and batch, deleted once applied, and expired by a 7-day lifecycle rule if anything leaves them behind.
   - Not D1 for user data, because one D1 database has a hard 10 GB cap shared by everyone, and a Worker can't bind a new database per user at runtime.
 - **Backups:** D1 and Durable Object point-in-time recovery (30 days). R2 has none, which is why blobs are immutable.
-- **Storage quota:** each user's store may grow to 8 GB, below the 10 GB a Durable Object can hold. The size is SQLite's used pages (workerd's `databaseSize`), so deleted records make room once the change log is compacted.
-  - At the quota, new batch uploads fail with 507 `StorageFull`, before anything reaches R2. A batch the store already knows still answers with its status.
+- **Storage quota:** each user's store may grow to 8 GB, below the 10 GB a Durable Object can hold. The size is SQLite's used pages (workerd's `databaseSize`), so deleted records make room once the change log is compacted. Health blobs in R2 count towards the same 8 GB.
+  - At the quota, new batch and blob uploads fail with 507 `StorageFull`, before anything reaches R2. A batch or blob the store already knows still answers.
   - Batches accepted before the quota are still applied, because the iPhone never sends a batch again once it's accepted. The gap up to the cap absorbs them.
   - On the iPhone, a 507 ends the backfill run, since every other upload would be refused too.
     - The pending page is kept so it goes up once there's room, and types the run didn't reach are asked for again.
@@ -91,7 +91,7 @@
     - While full, syncs for changes wait 6 hours between tries, and no background task is requested. Opening the app and Try Again always try.
     - The first upload that goes through clears the state.
   - At a 9.5 GB hard limit, writes of new records fail too, so the store never reaches the cap. Deletes still apply. A queued batch that meets the limit fails ("The storage quota is full; N lines were applied before it") rather than retrying.
-  - **Largest users:** after applying each health batch, the queue consumer records the store's size in D1 (`users.storage_bytes`, `storage_measured_at`). That's where the store grows, so the figure doesn't lag uploads. Measurements that arrive out of order don't overwrite later ones, and recording is best-effort. To list the largest users, run `Services/api/scripts/largest-users.sql` in the D1 console for the stage's core database. It shows only IDs and sizes, and tests run that same file.
+  - **Largest users:** after applying each health batch, the queue consumer records the account's storage in D1 (`users.storage_bytes`, `storage_measured_at`): the store's size plus its health blobs'. Batches are where the store grows, and blobs are uploaded just before the batches that refer to them, so the figure lags uploads only briefly. Measurements that arrive out of order don't overwrite later ones, and recording is best-effort. To list the largest users, run `Services/api/scripts/largest-users.sql` in the D1 console for the stage's core database. It shows only IDs and sizes, and tests run that same file.
   - Every error a store returns is listed in `userStoreErrors`, so it crosses Durable Object RPC as itself. Test stores pass any other error as a plain object, as RPC would, so a missing entry fails the tests.
 - **Billing and usage notifications:** Cloudflare emails alexandru@851.sh when the month's spend reaches $25 and again at $100. It also emails when Workers requests, Durable Objects requests, or D1 rows read or written pass what Workers Paid includes, and when R2 class A or B operations pass R2's free tier, meaning we've started paying for them.
   - Queues and CPU time have no usage alerts, so spend covers them.

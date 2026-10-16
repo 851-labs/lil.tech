@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { assert, describe, it } from "@effect/vitest";
 import * as Alchemy from "alchemy";
@@ -37,6 +38,7 @@ import { appleIdentityToken, TestAppleKeys } from "./auth/TestApple.ts";
 import { googleIdToken, TestGoogleClients, TestGoogleKeys } from "./auth/TestGoogle.ts";
 import { TestAuth } from "./auth/TestAuth.ts";
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./health/TestHealthIngestion.ts";
+import { TestHealthBlobBucket, TestHealthBlobs } from "./health/TestHealthBlobs.ts";
 import {
   TestStores,
   TestUserStores,
@@ -80,6 +82,7 @@ const TestServices = Layer.mergeAll(
   TestGoogleClients,
   TestUserStores,
   TestHealthIngestion,
+  TestHealthBlobs,
 );
 
 const send = (handler: Handler, request: Request) =>
@@ -1273,6 +1276,166 @@ describe("/v1/health/batches", () => {
           new Request(`https://api.lil.tech/v1/health/batches/${batchId}`, { method: "PUT" }),
         );
         assert.strictEqual(anonymous.status, 401);
+      }),
+    ),
+  );
+});
+
+describe("/v1/health/blobs", () => {
+  // Synthetic bytes, e.g. an ECG's voltages.
+  const blob = new Uint8Array(Array.from({ length: 1000 }, (_, index) => index % 251));
+  const hashOf = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex") as string;
+  const sha256 = hashOf(blob);
+  const consentingSignIn = Effect.gen(function* () {
+    const session = yield* signIn;
+    yield* (yield* Consents).grant(session.user.id, "health", healthConsentPolicyVersion);
+    return session;
+  });
+  const upload = (handler: Handler, token: string, hash: string, body: Uint8Array) =>
+    send(
+      handler,
+      new Request(`https://api.lil.tech/v1/health/blobs/${hash}`, {
+        method: "PUT",
+        headers: { ...bearer(token), "content-type": "application/octet-stream" },
+        body: body as Uint8Array<ArrayBuffer>,
+      }),
+    );
+  const download = (handler: Handler, token: string, hash: string) =>
+    send(
+      handler,
+      new Request(`https://api.lil.tech/v1/health/blobs/${hash}`, { headers: bearer(token) }),
+    );
+  const fetchBytes = (handler: Handler, url: string, headers: Record<string, string> = {}) =>
+    Effect.promise(async () => {
+      const response = await handler(new Request(url, { headers }));
+      return {
+        status: response.status,
+        headers: response.headers,
+        bytes: new Uint8Array(await response.arrayBuffer()),
+      };
+    });
+
+  it.live("stores a blob once, counts it towards the quota, and serves it to its owner", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* consentingSignIn;
+        const bucket = (yield* TestHealthBlobBucket).files;
+        const store = (yield* UserStores).forUser(user.id);
+        const before = yield* store.storageBytes();
+
+        assert.deepStrictEqual(yield* upload(handler, tokens.accessToken, sha256, blob), {
+          status: 200,
+          body: { sha256, size: 1000 },
+        });
+        assert.deepStrictEqual([...bucket.keys()], [`health-blobs/${user.id}/${sha256}`]);
+        assert.strictEqual((yield* store.storageBytes()) - before, 1000);
+        // Uploading it again changes nothing.
+        assert.deepStrictEqual(yield* upload(handler, tokens.accessToken, sha256, blob), {
+          status: 200,
+          body: { sha256, size: 1000 },
+        });
+        assert.strictEqual((yield* store.storageBytes()) - before, 1000);
+
+        const link = yield* download(handler, tokens.accessToken, sha256);
+        assert.strictEqual(link.status, 200);
+        const { url, expiresAt } = link.body as { url: string; expiresAt: number };
+        assert.match(url, /^https:\/\/api\.lil\.tech\/v1\/health\/blob-downloads\?token=/);
+        assert.isAbove(expiresAt, Date.now());
+        // No `Authorization` needed: the URL is the authorization.
+        const whole = yield* fetchBytes(handler, url);
+        assert.strictEqual(whole.status, 200);
+        assert.deepStrictEqual(whole.bytes, blob);
+        assert.strictEqual(whole.headers.get("content-type"), "application/octet-stream");
+        const part = yield* fetchBytes(handler, url, { range: "bytes=10-19" });
+        assert.strictEqual(part.status, 206);
+        assert.deepStrictEqual(part.bytes, blob.slice(10, 20));
+        assert.strictEqual(part.headers.get("content-range"), "bytes 10-19/1000");
+        // A snapshot part URL's token can't be used for a blob, or the other way round.
+        const swapped = url.replace("/v1/health/blob-downloads", "/v1/sync/parts");
+        assert.strictEqual((yield* fetchBytes(handler, swapped)).status, 401);
+      }),
+    ),
+  );
+
+  it.live("keeps each user's blobs to themselves", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const ada = yield* consentingSignIn;
+        const bob = yield* consentingSignIn;
+        yield* upload(handler, ada.tokens.accessToken, sha256, blob);
+        assert.deepStrictEqual(yield* download(handler, bob.tokens.accessToken, sha256), {
+          status: 404,
+          body: { _tag: "HealthBlobNotFound", sha256 },
+        });
+        // Bob uploading the same bytes stores his own copy.
+        yield* upload(handler, bob.tokens.accessToken, sha256, blob);
+        assert.strictEqual((yield* TestHealthBlobBucket).files.size, 2);
+      }),
+    ),
+  );
+
+  it.live("refuses wrong hashes, oversized blobs, missing consent and a full account", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const bucket = (yield* TestHealthBlobBucket).files;
+        assert.strictEqual(
+          (yield* upload(handler, tokens.accessToken, sha256.toUpperCase(), blob)).status,
+          400,
+        );
+        const tooLarge = new Uint8Array(16 * 1024 * 1024 + 1);
+        assert.deepStrictEqual(
+          yield* upload(handler, tokens.accessToken, hashOf(tooLarge), tooLarge),
+          { status: 413, body: { _tag: "HealthBlobTooLarge", maxBytes: 16 * 1024 * 1024 } },
+        );
+        assert.deepStrictEqual(yield* upload(handler, tokens.accessToken, sha256, blob), {
+          status: 403,
+          body: { _tag: "ConsentRequired", required: healthConsentPolicyVersion },
+        });
+        assert.strictEqual(bucket.size, 0);
+
+        yield* (yield* Consents).grant(user.id, "health", healthConsentPolicyVersion);
+        yield* upload(handler, tokens.accessToken, sha256, blob);
+        const sql = (yield* TestStores).sqlFor(user.id);
+        assert.isDefined(sql);
+        sql.setDatabaseSize(storageQuotaBytes);
+        const next = blob.slice(1);
+        assert.deepStrictEqual(yield* upload(handler, tokens.accessToken, hashOf(next), next), {
+          status: 507,
+          body: { _tag: "StorageFull", quotaBytes: storageQuotaBytes },
+        });
+        // A blob it has still answers.
+        assert.strictEqual((yield* upload(handler, tokens.accessToken, sha256, blob)).status, 200);
+        assert.strictEqual(bucket.size, 1);
+        sql.setDatabaseSize(0);
+        // Bytes that don't match their name aren't stored.
+        const other = "0".repeat(64);
+        assert.deepStrictEqual(yield* upload(handler, tokens.accessToken, other, blob), {
+          status: 400,
+          body: { _tag: "HealthBlobHashMismatch", sha256: other, actual: sha256 },
+        });
+        assert.strictEqual(bucket.size, 1);
+      }),
+    ),
+  );
+
+  it.live("are deleted with the account", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* consentingSignIn;
+        yield* upload(handler, tokens.accessToken, sha256, blob);
+        const store = (yield* TestStores).sqlFor(user.id);
+        const deleted = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/me", {
+            method: "DELETE",
+            headers: bearer(tokens.accessToken),
+          }),
+        );
+        assert.strictEqual(deleted.status, 204);
+        assert.strictEqual((yield* TestHealthBlobBucket).files.size, 0);
+        assert.deepStrictEqual(store?.exec("SELECT count(*) AS n FROM health_blobs"), [{ n: 0 }]);
+        assert.strictEqual((yield* download(handler, tokens.accessToken, sha256)).status, 401);
       }),
     ),
   );
