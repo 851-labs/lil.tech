@@ -3330,6 +3330,8 @@ extension Components {
             public var startDate: Swift.Int
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/endDate`.
             public var endDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/workout`.
+            public var workout: Swift.String?
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/locationCount`.
             public var locationCount: Swift.Int
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/locations`.
@@ -3352,6 +3354,7 @@ extension Components {
             ///   - id:
             ///   - startDate:
             ///   - endDate:
+            ///   - workout:
             ///   - locationCount:
             ///   - locations:
             ///   - sourceName:
@@ -3364,6 +3367,7 @@ extension Components {
                 id: Swift.String,
                 startDate: Swift.Int,
                 endDate: Swift.Int,
+                workout: Swift.String? = nil,
                 locationCount: Swift.Int,
                 locations: Swift.String? = nil,
                 sourceName: Swift.String,
@@ -3376,6 +3380,7 @@ extension Components {
                 self.id = id
                 self.startDate = startDate
                 self.endDate = endDate
+                self.workout = workout
                 self.locationCount = locationCount
                 self.locations = locations
                 self.sourceName = sourceName
@@ -3389,6 +3394,7 @@ extension Components {
                 case id
                 case startDate
                 case endDate
+                case workout
                 case locationCount
                 case locations
                 case sourceName
@@ -3410,6 +3416,10 @@ extension Components {
                 self.endDate = try container.decode(
                     Swift.Int.self,
                     forKey: .endDate
+                )
+                self.workout = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .workout
                 )
                 self.locationCount = try container.decode(
                     Swift.Int.self,
@@ -3443,6 +3453,7 @@ extension Components {
                     "id",
                     "startDate",
                     "endDate",
+                    "workout",
                     "locationCount",
                     "locations",
                     "sourceName",
@@ -3465,6 +3476,10 @@ extension Components {
                 try container.encode(
                     self.endDate,
                     forKey: .endDate
+                )
+                try container.encodeIfPresent(
+                    self.workout,
+                    forKey: .workout
                 )
                 try container.encode(
                     self.locationCount,

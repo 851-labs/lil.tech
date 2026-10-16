@@ -12,6 +12,9 @@ import OpenAPIRuntime
 public struct HealthBackfillType: Hashable, Sendable {
   public let id: String
   public let isCorrelation: Bool
+  /// Skip (and report) a series whose values can't be read, rather than reading the page again:
+  /// set after the type's reads kept failing, so one unreadable record can't hold it up forever.
+  public var skipsUnreadableSeries = false
 
   public init(id: String, isCorrelation: Bool = false) {
     self.id = id
@@ -164,6 +167,28 @@ public struct HealthReader: Sendable {
     public let read: Int
   }
 
+  /// Reads a series' values (`transform` applied to each), mapping a locked device and
+  /// cancellation through, and any other failure to `SeriesUnavailable`. A count other than
+  /// `expected` is reported, and the values are kept as read.
+  static func readSeries<Values: AsyncSequence, Value>(
+    expected: Int, _ values: Values, _ transform: (Values.Element) -> Value
+  ) async throws -> [Value] {
+    var read: [Value] = []
+    read.reserveCapacity(expected)
+    do {
+      for try await element in values { read.append(transform(element)) }
+    } catch {
+      let mapped = Locked.mapped(error)
+      if mapped is Locked || mapped is CancellationError { throw mapped }
+      throw SeriesUnavailable(expected: expected, read: read.count)
+    }
+    try Task.checkCancellation()
+    if read.count != expected {
+      reportIssue(SeriesCountMismatch(expected: expected, read: read.count))
+    }
+    return read
+  }
+
   /// Health can't be read while the device is locked. Not a failure: the work waits until it's
   /// unlocked.
   public struct Locked: Error, Equatable {
@@ -240,8 +265,10 @@ extension HealthReader: DependencyKey {
         } catch is CancellationError {
           throw CancellationError()
         } catch let error as SeriesUnavailable {
-          // Not the record's fault either: skipping it would move the anchor past it.
-          throw error
+          // Not the record's fault either: skipping it would move the anchor past it, unless
+          // the type's reads kept failing.
+          guard type.skipsUnreadableSeries else { throw error }
+          reportIssue(error)
         } catch {
           reportIssue(error)
         }

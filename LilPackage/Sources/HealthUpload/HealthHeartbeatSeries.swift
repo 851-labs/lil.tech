@@ -1,6 +1,5 @@
 public import Foundation
 public import HealthKit
-import IssueReporting
 
 /// A heartbeat series' contents, read out of `HKHeartbeatSeriesSample` and its query
 /// (`init(_:store:)`), so the encoding can be tested without HealthKit.
@@ -28,25 +27,13 @@ extension HeartbeatSeriesRecord {
   /// the device locks meanwhile, and `HealthReader.SeriesUnavailable` if the query fails. A
   /// count that doesn't match is reported, and the beats are kept as read.
   public init(_ series: HKHeartbeatSeriesSample, store: HKHealthStore) async throws {
-    var beats: [TimeInterval] = []
-    var gaps: [Int] = []
-    beats.reserveCapacity(series.count)
-    do {
-      for try await beat in HKHeartbeatSeriesQueryDescriptor(series).results(for: store) {
-        if beat.precededByGap { gaps.append(beats.count) }
-        beats.append(beat.timeIntervalSinceStart)
-      }
-    } catch {
-      let mapped = HealthReader.Locked.mapped(error)
-      if mapped is HealthReader.Locked || mapped is CancellationError { throw mapped }
-      throw HealthReader.SeriesUnavailable(expected: series.count, read: beats.count)
-    }
-    try Task.checkCancellation()
-    if beats.count != series.count {
-      reportIssue(HealthReader.SeriesCountMismatch(expected: series.count, read: beats.count))
-    }
+    let read = try await HealthReader.readSeries(
+      expected: series.count, HKHeartbeatSeriesQueryDescriptor(series).results(for: store)
+    ) { beat in (time: beat.timeIntervalSinceStart, afterGap: beat.precededByGap) }
     self.init(
-      id: series.uuid, beats: beats, gaps: gaps, provenance: HealthEncoder.provenance(of: series))
+      id: series.uuid, beats: read.map(\.time),
+      gaps: read.indices.filter { read[$0].afterGap },
+      provenance: HealthEncoder.provenance(of: series))
   }
 }
 

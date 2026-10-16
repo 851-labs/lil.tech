@@ -36,6 +36,10 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   /// When the Activity summaries were last read and uploaded; `nil` before the first time,
   /// which reads them all.
   public var activitySummariesUploadedAt: Date?
+  /// Reads of each type that failed in a row because a series couldn't be read
+  /// (`HealthReader.SeriesUnavailable`). Past `HealthBackfill.seriesAttempts`, the type skips
+  /// unreadable series.
+  public var seriesFailures: [String: Int] = [:]
 
   public init() {}
 
@@ -59,6 +63,8 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
       try container.decodeIfPresent(Set<String>.self, forKey: .characteristicIDs) ?? []
     activitySummariesUploadedAt = try container.decodeIfPresent(
       Date.self, forKey: .activitySummariesUploadedAt)
+    seriesFailures =
+      try container.decodeIfPresent([String: Int].self, forKey: .seriesFailures) ?? [:]
   }
 
   /// A page written to batch files. Its anchor is committed once every file is accepted.
@@ -109,6 +115,9 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
 /// saved once all of its batches are accepted, so if the app is killed, the page is uploaded
 /// again (batch IDs make that safe) and nothing is skipped.
 public actor HealthBackfill {
+  /// Runs that try a page whose series can't be read before skipping the unreadable ones.
+  static let seriesAttempts = 3
+
   /// Objects per anchored query. Pages are split into batch files below the server's limits.
   static let pageSize = 2000
 
@@ -349,6 +358,10 @@ public actor HealthBackfill {
               // Ending the run, it's still unreached.
               try stopIfRunEnds(error)
               unreached.remove(type.id)
+              if error is HealthReader.SeriesUnavailable {
+                state.seriesFailures[type.id, default: 0] += 1
+                try? storage.saveState(state)
+              }
               // One type can't hold up the rest. Its page is read again next time.
               failures[type.id] = error
               if let pending = state.pending, pending.type == type.id {
@@ -437,7 +450,13 @@ public actor HealthBackfill {
     while !isLast {
       try Task.checkCancellation()
       let anchor = state.anchors[type.id]
-      let page = try await reader.page(type, anchor, type.pageSize ?? Self.pageSize)
+      // A series that couldn't be read keeps the page from moving on, until it's failed
+      // `seriesAttempts` times: then it's skipped, so one record can't hold up the type forever.
+      var reading = type
+      reading.skipsUnreadableSeries =
+        state.seriesFailures[type.id, default: 0] >= Self.seriesAttempts
+      let page = try await reader.page(reading, anchor, type.pageSize ?? Self.pageSize)
+      state.seriesFailures[type.id] = nil
       if page.mutations.isEmpty {
         if anchor == nil, !page.hasMore {
           // Nothing readable yet: keep no anchor, and check again next time.

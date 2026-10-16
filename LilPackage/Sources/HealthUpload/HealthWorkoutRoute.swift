@@ -7,6 +7,8 @@ import IssueReporting
 /// the encoding can be tested without HealthKit.
 public struct WorkoutRouteRecord: Equatable, Sendable {
   public var id: UUID
+  /// The workout it belongs to, if HealthKit links one.
+  public var workout: UUID?
   public var locations: [Location]
   /// Times, source, device and metadata (`HealthEncoder.provenance(of:)`).
   public var provenance: [String: JSONValue]
@@ -41,8 +43,11 @@ public struct WorkoutRouteRecord: Equatable, Sendable {
     }
   }
 
-  public init(id: UUID, locations: [Location], provenance: [String: JSONValue]) {
+  public init(
+    id: UUID, workout: UUID?, locations: [Location], provenance: [String: JSONValue]
+  ) {
     self.id = id
+    self.workout = workout
     self.locations = locations
     self.provenance = provenance
   }
@@ -53,28 +58,47 @@ extension WorkoutRouteRecord {
   /// device locks meanwhile, and `HealthReader.SeriesUnavailable` if the query fails. A count
   /// that doesn't match is reported, and the locations are kept as read.
   public init(_ route: HKWorkoutRoute, store: HKHealthStore) async throws {
-    var locations: [Location] = []
-    locations.reserveCapacity(route.count)
+    let locations = try await HealthReader.readSeries(
+      expected: route.count, HKWorkoutRouteQueryDescriptor(route).results(for: store)
+    ) { location in
+      Location(
+        timestamp: location.timestamp, latitude: location.coordinate.latitude,
+        longitude: location.coordinate.longitude, altitude: location.altitude,
+        horizontalAccuracy: location.horizontalAccuracy,
+        verticalAccuracy: location.verticalAccuracy, speed: location.speed,
+        course: location.course)
+    }
+    self.init(
+      id: route.uuid, workout: try await Self.workout(of: route, store: store),
+      locations: locations, provenance: HealthEncoder.provenance(of: route))
+  }
+
+  /// The workout `route` belongs to. HealthKit only queries routes by workout, so it's found
+  /// among the workouts its time overlaps. `nil` if none links it, or if they can't be read
+  /// (reported): the route still goes up.
+  private static func workout(of route: HKWorkoutRoute, store: HKHealthStore) async throws
+    -> UUID?
+  {
     do {
-      for try await location in HKWorkoutRouteQueryDescriptor(route).results(for: store) {
-        locations.append(
-          Location(
-            timestamp: location.timestamp, latitude: location.coordinate.latitude,
-            longitude: location.coordinate.longitude, altitude: location.altitude,
-            horizontalAccuracy: location.horizontalAccuracy,
-            verticalAccuracy: location.verticalAccuracy, speed: location.speed,
-            course: location.course))
+      let workouts = try await HKSampleQueryDescriptor(
+        predicates: [
+          .workout(HKQuery.predicateForSamples(withStart: route.startDate, end: route.endDate))
+        ], sortDescriptors: [], limit: 10
+      ).result(for: store)
+      for workout in workouts {
+        let routes = try await HKSampleQueryDescriptor(
+          predicates: [.workoutRoute(HKQuery.predicateForObjects(from: workout))],
+          sortDescriptors: []
+        ).result(for: store)
+        if routes.contains(where: { $0.uuid == route.uuid }) { return workout.uuid }
       }
+      return nil
     } catch {
       let mapped = HealthReader.Locked.mapped(error)
       if mapped is HealthReader.Locked || mapped is CancellationError { throw mapped }
-      throw HealthReader.SeriesUnavailable(expected: route.count, read: locations.count)
+      reportIssue(error)
+      return nil
     }
-    try Task.checkCancellation()
-    if locations.count != route.count {
-      reportIssue(HealthReader.SeriesCountMismatch(expected: route.count, read: locations.count))
-    }
-    self.init(id: route.uuid, locations: locations, provenance: HealthEncoder.provenance(of: route))
   }
 }
 
@@ -88,6 +112,7 @@ extension HealthEncoder {
   ) {
     let blob = route.locations.isEmpty ? nil : locationsBlob(route.locations)
     var row = route.provenance
+    row["workout"] = route.workout.map { .string(id($0)) } ?? .null
     row["locationCount"] = .number(Double(route.locations.count))
     row["locations"] = blob.map { .string(HealthBlob.sha256($0)) } ?? .null
     return (.upsert(workoutRouteEntity, id: id(route.id), row: row), blob)
@@ -100,21 +125,24 @@ extension HealthEncoder {
   /// longitude as 64-bit floats, then altitude, horizontal and vertical accuracy, speed and
   /// course as 32-bit floats.
   public static func locationsBlob(_ locations: [WorkoutRouteRecord.Location]) -> Data {
-    var data = Data(capacity: locations.count * locationBytes)
-    func append<T: FixedWidthInteger>(_ value: T) {
-      withUnsafeBytes(of: value.littleEndian) { data.append(contentsOf: $0) }
-    }
-    for location in locations {
-      append(location.timestamp.timeIntervalSince1970.bitPattern)
-      append(location.latitude.bitPattern)
-      append(location.longitude.bitPattern)
-      for value in [
-        location.altitude, location.horizontalAccuracy, location.verticalAccuracy, location.speed,
-        location.course,
-      ] {
-        append(Float(value).bitPattern)
+    var bytes = [UInt8](repeating: 0, count: locations.count * locationBytes)
+    bytes.withUnsafeMutableBytes { buffer in
+      var offset = 0
+      func store<T: FixedWidthInteger>(_ value: T) {
+        buffer.storeBytes(of: value.littleEndian, toByteOffset: offset, as: T.self)
+        offset += MemoryLayout<T>.size
+      }
+      for location in locations {
+        store(location.timestamp.timeIntervalSince1970.bitPattern)
+        store(location.latitude.bitPattern)
+        store(location.longitude.bitPattern)
+        store(Float(location.altitude).bitPattern)
+        store(Float(location.horizontalAccuracy).bitPattern)
+        store(Float(location.verticalAccuracy).bitPattern)
+        store(Float(location.speed).bitPattern)
+        store(Float(location.course).bitPattern)
       }
     }
-    return data
+    return Data(bytes)
   }
 }

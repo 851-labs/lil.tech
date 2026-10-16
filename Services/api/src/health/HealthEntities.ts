@@ -245,12 +245,12 @@ export const HealthElectrocardiogram = defineEntity("health_electrocardiogram", 
 });
 
 /**
- * Workout routes (`HKWorkoutRoute`): the locations recorded during a workout. HealthKit doesn't
- * say which workout a route belongs to, so clients match them by time. The locations are a blob
+ * Workout routes (`HKWorkoutRoute`): the locations recorded during a workout. The locations are a blob
  * (`src/health/HealthBlobs.ts`), 44 bytes each, little-endian: the time (Unix seconds), latitude
  * and longitude (degrees) as 64-bit floats, then altitude, horizontal and vertical accuracy (m),
  * speed (m/s) and course (degrees) as 32-bit floats. Accuracies, speed and course are negative
- * when unknown, as in Core Location.
+ * when unknown, as in Core Location. A later format would add a `locationsFormat` field: rows
+ * without one are this format.
  */
 export const HealthWorkoutRoute = defineEntity("health_workout_route", {
   clientWritable: false,
@@ -259,6 +259,8 @@ export const HealthWorkoutRoute = defineEntity("health_workout_route", {
   fields: {
     startDate: Column.integer,
     endDate: Column.integer,
+    /** The workout's ID, found through HealthKit's workout-to-routes query, or `null`. */
+    workout: Column.nullable(Column.text),
     locationCount: Column.integer,
     /** The locations blob's SHA-256, or `null` without locations. */
     locations: Column.nullable(Column.text),
@@ -267,6 +269,12 @@ export const HealthWorkoutRoute = defineEntity("health_workout_route", {
   checkRow: (_, row) => {
     if (row.locations !== null && !isBlobHash(row.locations)) {
       return "locations must be a blob's SHA-256 or null";
+    }
+    if (
+      row.workout !== null &&
+      !(typeof row.workout === "string" && healthKitUUID.test(row.workout))
+    ) {
+      return "workout must be a lowercase HealthKit UUID or null";
     }
     if (typeof row.locationCount !== "number" || row.locationCount < 0) {
       return "locationCount can't be negative";

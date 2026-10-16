@@ -1,6 +1,5 @@
 public import Foundation
 public import HealthKit
-import IssueReporting
 
 /// An ECG's contents, read out of `HKElectrocardiogram` and its voltage query (`init(_:store:)`),
 /// so the encoding can be tested without HealthKit, which doesn't let apps create ECGs.
@@ -39,25 +38,13 @@ extension ElectrocardiogramRecord {
   /// that doesn't match is reported, and the voltages are kept as read.
   public init(_ ecg: HKElectrocardiogram, store: HKHealthStore) async throws {
     let microvolt = HKUnit.voltUnit(with: .micro)
-    var microvolts: [Float] = []
-    microvolts.reserveCapacity(ecg.numberOfVoltageMeasurements)
-    do {
-      for try await measurement in HKElectrocardiogramQueryDescriptor(ecg).results(for: store) {
-        let value = measurement.quantity(for: .appleWatchSimilarToLeadI)?.doubleValue(
-          for: microvolt)
-        microvolts.append(value.map(Float.init) ?? .nan)
-      }
-    } catch {
-      let mapped = HealthReader.Locked.mapped(error)
-      if mapped is HealthReader.Locked || mapped is CancellationError { throw mapped }
-      throw HealthReader.SeriesUnavailable(
-        expected: ecg.numberOfVoltageMeasurements, read: microvolts.count)
-    }
-    try Task.checkCancellation()
-    if microvolts.count != ecg.numberOfVoltageMeasurements {
-      reportIssue(
-        HealthReader.SeriesCountMismatch(
-          expected: ecg.numberOfVoltageMeasurements, read: microvolts.count))
+    let microvolts = try await HealthReader.readSeries(
+      expected: ecg.numberOfVoltageMeasurements,
+      HKElectrocardiogramQueryDescriptor(ecg).results(for: store)
+    ) { measurement in
+      let value = measurement.quantity(for: .appleWatchSimilarToLeadI)?.doubleValue(
+        for: microvolt)
+      return value.map(Float.init) ?? .nan
     }
     self.init(
       id: ecg.uuid, classification: ecg.classification.rawValue,

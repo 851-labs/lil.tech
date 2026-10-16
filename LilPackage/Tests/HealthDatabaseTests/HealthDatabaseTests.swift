@@ -355,7 +355,8 @@ struct HealthSyncTests {
       upsert(
         14, "health_workout_route", "6f1c2a40-0000-4000-8000-000000000009",
         """
-        "startDate": 1760400000000, "endDate": 1760403600000, "locationCount": 3600,
+        "startDate": 1760400000000, "endDate": 1760403600000,
+        "workout": "6f1c2a40-0000-4000-8000-000000000004", "locationCount": 3600,
         "locations": "\(String(repeating: "b", count: 64))",
         "sourceName": "Test Watch", "sourceBundleId": "com.example"
         """),
@@ -417,6 +418,7 @@ struct HealthSyncTests {
     #expect(series.map(\.gaps) == ["[2]"])
     let routes = try await database.read { db in try HealthWorkoutRoute.fetchAll(db) }
     #expect(routes.map(\.locationCount) == [3600])
+    #expect(routes.map(\.workout) == ["6f1c2a40-0000-4000-8000-000000000004"])
     #expect(routes.map(\.locations) == [String(repeating: "b", count: 64)])
     #expect(workouts.first?.events == #"[{"type":1}]"#)
     #expect(

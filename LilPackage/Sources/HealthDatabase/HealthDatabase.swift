@@ -174,6 +174,7 @@ public enum HealthDatabase {
           "id" TEXT PRIMARY KEY NOT NULL,
           "startDate" INTEGER NOT NULL,
           "endDate" INTEGER NOT NULL,
+          "workout" TEXT,
           "locationCount" INTEGER NOT NULL,
           "locations" TEXT,
           "sourceName" TEXT NOT NULL,
@@ -378,7 +379,7 @@ public enum HealthDatabase {
     },
     entity("health_workout_route", Components.Schemas.HealthWorkoutRoute.self) { row in
       HealthWorkoutRoute(
-        id: row.id, startDate: row.startDate, endDate: row.endDate,
+        id: row.id, startDate: row.startDate, endDate: row.endDate, workout: row.workout,
         locationCount: row.locationCount, locations: row.locations, sourceName: row.sourceName,
         sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
         device: try json(row.device), metadata: try json(row.metadata))
