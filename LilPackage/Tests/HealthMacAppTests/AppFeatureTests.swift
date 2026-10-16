@@ -3,6 +3,7 @@ import Foundation
 import HealthCatalog
 import HealthMacApp
 import LilAuth
+import LilSync
 import Testing
 
 @MainActor
@@ -14,6 +15,7 @@ struct AppFeatureTests {
       AppFeature()
     } withDependencies: {
       $0.auth.signedInUpdates = { updates }
+      $0.sync = .constant(.idle)
     }
 
     let task = await store.send(.task)
@@ -21,6 +23,7 @@ struct AppFeatureTests {
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = true
     }
+    await store.receive(\.syncStatusChanged)
     await store.send(\.binding.selection, .category(.heart)) {
       $0.selection = .category(.heart)
     }
@@ -34,6 +37,90 @@ struct AppFeatureTests {
       $0.searchText = ""
     }
     await task.cancel()
+    // Deleting the local data.
+    await store.finish()
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func syncsWhileSignedInAndDeletesTheLocalDataOnSigningOut() async throws {
+    let (updates, session) = AsyncStream<Bool>.makeStream()
+    let (statuses, status) = AsyncStream<SyncStatus>.makeStream()
+    let events = LockIsolated<[String]>([])
+    // A cached blob, which goes with the account.
+    let blobs = URL.temporaryDirectory.appending(path: "BlobCache-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: blobs, withIntermediateDirectories: true)
+    try Data("synthetic".utf8).write(to: blobs.appending(path: "blob"))
+    let store = TestStore(initialState: AppFeature.State()) {
+      AppFeature()
+    } withDependencies: {
+      $0.auth.signedInUpdates = { updates }
+      $0.sync = SyncClient(
+        run: {
+          events.withValue { $0.append("run") }
+          try? await Task.sleep(for: .seconds(3600))
+          events.withValue { $0.append("run ended") }
+        },
+        listen: { _ in
+          events.withValue { $0.append("listen") }
+          try? await Task.sleep(for: .seconds(3600))
+          events.withValue { $0.append("listen ended") }
+        },
+        syncNow: {},
+        status: { statuses },
+        removeLocalData: { events.withValue { $0.append("removed") } })
+      $0.blobCache = BlobCache(
+        directory: blobs, maxBytes: 1 << 20, url: { _ in throw CancellationError() },
+        download: .testValue)
+    }
+
+    let task = await store.send(.task)
+    session.yield(true)
+    await store.receive(\.signedInChanged) {
+      $0.isSignedIn = true
+    }
+    let syncedAt = Date(timeIntervalSince1970: 1_760_400_000)
+    status.yield(.upToDate(at: syncedAt))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .upToDate(at: syncedAt)
+    }
+    #expect(Set(events.value) == ["run", "listen"])
+
+    // Try Again starts a new pull.
+    await store.send(.retrySyncButtonTapped)
+    while events.value.filter({ $0 == "run" }).count < 2 { await Task.yield() }
+    #expect(events.value.contains("run ended"))
+    // Hearing again that it's signed in doesn't start another sync.
+    session.yield(true)
+    await store.receive(\.signedInChanged)
+
+    session.yield(false)
+    await store.receive(\.signedInChanged) {
+      $0.isSignedIn = false
+      $0.syncStatus = .idle
+    }
+    session.finish()
+    await task.finish()
+    await store.finish()
+    // Stopped, and the local data deleted. The engine makes the deletion wait for a pull being
+    // cancelled (`LilSyncEngine.removeLocalData()`).
+    #expect(events.value.filter { $0 == "run" }.count == 2)
+    #expect(events.value.filter { $0 == "run ended" }.count == 2)
+    #expect(events.value.contains("listen ended"))
+    #expect(events.value.contains("removed"))
+    #expect(!FileManager.default.fileExists(atPath: blobs.path(percentEncoded: false)))
+  }
+
+  @Test
+  func signOutEndsTheSession() async {
+    let signedOut = LockIsolated(false)
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
+      AppFeature()
+    } withDependencies: {
+      $0.auth.signOut = { signedOut.setValue(true) }
+    }
+    await store.send(.signOutButtonTapped)
+    await store.finish()
+    #expect(signedOut.value)
   }
 
   @Test

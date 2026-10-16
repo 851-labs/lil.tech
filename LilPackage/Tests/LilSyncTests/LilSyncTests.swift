@@ -40,8 +40,11 @@ private let notes = SyncEntity.decoding(
 private let syncedAt = Date(timeIntervalSince1970: 1_760_400_000)
 
 /// A database for a client that already started on epoch 1 (`bootstrapped`), or a new one.
-private func makeDatabase(bootstrapped: Bool = true) throws -> any DatabaseWriter {
-  let database = try DatabaseQueue()
+private func makeDatabase(bootstrapped: Bool = true, at path: String? = nil) throws
+  -> any DatabaseWriter
+{
+  // In memory, or a file (in WAL mode) for tests about what the files hold.
+  let database: any DatabaseWriter = try path.map { try DatabasePool(path: $0) } ?? DatabaseQueue()
   var migrator = DatabaseMigrator()
   LilSyncEngine.registerMigrations(in: &migrator)
   migrator.registerMigration("Create note") { db in
@@ -67,6 +70,8 @@ private final class FakeServer: Sendable {
     var failing: Set<Int> = []
     /// Request numbers (1-based) that fail without a connection.
     var offline: Set<Int> = []
+    /// Requests for changes hang until cancelled, like a stalled connection.
+    var hanging = false
     /// Request numbers (1-based) that are rate limited for 30 seconds.
     var rateLimited: Set<Int> = []
     /// Answer with an empty page that claims there's more, like a broken server.
@@ -163,6 +168,10 @@ private final class FakeServer: Sendable {
           state.partBytes.merge(fresh) { _, new in new }
           return try json(.ok, snapshot)
         }
+      }
+      if state.value.hanging {
+        state.withValue { $0.requests.append(-1) }
+        try await Task.sleep(for: .seconds(3600))
       }
       let after =
         Int(
@@ -579,6 +588,20 @@ struct LilSyncEngineTests {
     #expect(statuses.value.suffix(2) == [.offline, .upToDate(at: syncedAt)])
   }
 
+  // A hang would block the pre-commit hook: fail instead.
+  @Test(.timeLimit(.minutes(1)))
+  func stoppingRunStopsItsPullAndLetsTheLocalDataGo() async throws {
+    server.state.withValue { $0.hanging = true }
+    let engine = engine()
+    let running = Task { await engine.run() }
+    try await eventually { server.state.requests.count == 1 }
+    running.cancel()
+    await running.value
+    // Only returns once the hanging pull has stopped.
+    try await engine.removeLocalData()
+    #expect(try cursor() == nil)
+  }
+
   @Test
   func cancellingRunEndsABackoffRightAway() async throws {
     server.state.withValue { $0.failing = [1] }
@@ -630,6 +653,33 @@ struct LilSyncBootstrapTests {
         db)
       return [row?.0, row?.1 ?? nil]
     }
+  }
+
+  @Test
+  func removingTheLocalDataStartsOverAsANewDevice() async throws {
+    let all = [Note(id: "n1", title: "Synthetic note")]
+    server.append(upsert("n1", "Synthetic note"))
+    try server.publishSnapshot(seq: 1, notes: all)
+    let path = URL.temporaryDirectory.appending(path: "lilsync-\(UUID().uuidString).sqlite")
+      .path(percentEncoded: false)
+    let database = try makeDatabase(bootstrapped: false, at: path)
+    let engine = engine(database: database)
+    try await engine.bootstrap()
+    #expect(try storedNotes(database) == all)
+    // A part left by an interrupted bootstrap.
+    try FileManager.default.createDirectory(at: partsDirectory, withIntermediateDirectories: true)
+    try Data("part".utf8).write(to: partsDirectory.appending(path: "left.ndjson.gz"))
+
+    try await engine.removeLocalData()
+    #expect(try storedNotes(database).isEmpty)
+    #expect(try state(database) == [nil, nil])
+    // Gone from the files too, not just unlinked.
+    for file in [path, path + "-wal"] {
+      let bytes = (try? Data(contentsOf: URL(filePath: file))) ?? Data()
+      #expect(bytes.range(of: Data("Synthetic note".utf8)) == nil, "\(file)")
+    }
+    #expect(try FileManager.default.contentsOfDirectory(atPath: partsDirectory.path()).isEmpty)
+    await #expect(throws: SyncError.needsBootstrap) { try await engine.pull() }
   }
 
   @Test
