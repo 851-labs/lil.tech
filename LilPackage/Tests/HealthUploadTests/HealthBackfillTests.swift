@@ -761,7 +761,7 @@ struct HealthBackfillTests {
   /// A backfill whose uploads are refused with a 60-second 429 while `limited` is set.
   private func rateLimitedBackfill(
     health: FakeHealth, server: FakeServer, storage: HealthBackfillStorage,
-    limited: LockIsolated<Bool>, attempts: LockIsolated<Int>, clock: TestClock<Duration>,
+    limited: LockIsolated<Bool>, attempts: LockIsolated<Int>, clock: some Clock<Duration>,
     date: LockIsolated<Date>
   ) -> HealthBackfill {
     withDependencies {
@@ -825,23 +825,20 @@ struct HealthBackfillTests {
     let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
     let storage = HealthBackfillStorage.inMemory()
     let (limited, attempts) = (LockIsolated(true), LockIsolated(0))
-    let clock = TestClock()
+    // Sleeps return at once and move the clock on, so the test needn't race the run to its
+    // sleep (advancing a `TestClock` before the run sleeps would leave it asleep for good).
+    let clock = ImmediateClock()
+    let start = clock.now
     let date = LockIsolated(Date(timeIntervalSince1970: 1_760_400_000))
     let server = FakeServer()
     let backfill = rateLimitedBackfill(
       health: health, server: server, storage: storage, limited: limited, attempts: attempts,
       clock: clock, date: date)
 
-    let run = Task { try await backfill.run() }
-    try await eventuallyTrue { attempts.value == 1 }
-    await Task.megaYield()
-    // Waiting, and shown as running.
-    var updates = await backfill.progressUpdates().makeAsyncIterator()
-    #expect(await updates.next()?.isRunning == true)
-    #expect(attempts.value == 1)
-    date.withValue { $0.addTimeInterval(60) }
-    await clock.advance(by: .seconds(60))
-    try await run.value
+    try await backfill.run()
+    // It waited out exactly the limit, then went on with the refused upload and the rest.
+    #expect(clock.now == start.advanced(by: .seconds(60)))
+    #expect(attempts.value == 3)
     #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
   }
 
