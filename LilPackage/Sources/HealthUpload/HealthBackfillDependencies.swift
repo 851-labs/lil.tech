@@ -18,15 +18,16 @@ public struct HealthBackfillType: Hashable, Sendable {
     self.isCorrelation = isCorrelation
   }
 
-  /// Every quantity and category type the app can read, workouts, State of Mind, scored
-  /// assessments, audiograms, ECGs, heartbeat series, and the correlations, which are read
-  /// through their component types.
+  /// Every quantity and category type the app can read, workouts and their routes, State of
+  /// Mind, scored assessments, audiograms, ECGs, heartbeat series, and the correlations, which are
+  /// read through their component types.
   public static func all(availableOn version: IOSVersion) -> [Self] {
     HealthCatalog.types(availableOn: version).compactMap { type in
       switch (type.kind, type.readAuthorization) {
       case (.quantity, .standard), (.category, .standard), (.workout, .standard),
         (.stateOfMind, .standard), (.scoredAssessment, .standard), (.audiogram, .standard),
-        (.electrocardiogram, .standard), (.heartbeatSeries, .standard):
+        (.electrocardiogram, .standard), (.heartbeatSeries, .standard),
+        (.workoutRoute, .standard):
         Self(id: type.id)
       case (.correlation, _): Self(id: type.id, isCorrelation: true)
       default: nil
@@ -46,6 +47,7 @@ extension HealthBackfillType {
     case .audiogram: return HealthEncoder.audiogramEntity
     case .electrocardiogram: return HealthEncoder.electrocardiogramEntity
     case .heartbeatSeries: return HealthEncoder.heartbeatSeriesEntity
+    case .workoutRoute: return HealthEncoder.workoutRouteEntity
     default: return HealthEncoder.sampleEntity
     }
   }
@@ -57,6 +59,8 @@ extension HealthBackfillType {
     switch HealthCatalog.type(id: id)?.kind {
     case .electrocardiogram: 50
     case .heartbeatSeries: 200
+    // An hour's route is ~160 KB.
+    case .workoutRoute: 10
     default: nil
     }
   }
@@ -214,6 +218,11 @@ extension HealthReader: DependencyKey {
             mutations.append(try HealthEncoder.scoredAssessment(assessment))
           } else if let audiogram = sample as? HKAudiogramSample {
             mutations.append(HealthEncoder.audiogram(audiogram))
+          } else if let route = sample as? HKWorkoutRoute {
+            let (mutation, blob) = HealthEncoder.workoutRoute(
+              try await WorkoutRouteRecord(route, store: store))
+            mutations.append(mutation)
+            if let blob { blobs.append(blob) }
           } else if let series = sample as? HKHeartbeatSeriesSample {
             mutations.append(
               HealthEncoder.heartbeatSeries(try await HeartbeatSeriesRecord(series, store: store)))

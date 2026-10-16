@@ -183,6 +183,15 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CREATE INDEX health_heartbeat_series_start ON health_heartbeat_series (start_date);
     `,
   },
+  {
+    version: 15,
+    name: "health_workout_route",
+    // `HealthWorkoutRoute` in `src/health/HealthEntities.ts`.
+    sql: `
+      CREATE TABLE "health_workout_route" (id TEXT PRIMARY KEY, "start_date" INTEGER NOT NULL, "end_date" INTEGER NOT NULL, "location_count" INTEGER NOT NULL, "locations" TEXT, "source_name" TEXT NOT NULL, "source_bundle_id" TEXT NOT NULL, "source_revision" TEXT, "device" TEXT, "metadata" TEXT) STRICT;
+      CREATE INDEX health_workout_route_start ON health_workout_route (start_date);
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

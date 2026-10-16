@@ -297,7 +297,61 @@ struct HealthEncoderTests {
     let heartbeats = types.first { $0.id == "HKDataTypeIdentifierHeartbeatSeries" }
     #expect(heartbeats?.entity == "health_heartbeat_series")
     #expect(heartbeats?.pageSize == 200)
+    let routes = types.first { $0.id == "HKWorkoutRouteTypeIdentifier" }
+    #expect(routes?.entity == "health_workout_route")
+    #expect(routes?.pageSize == 10)
     #expect(types.first { $0.id == "HKQuantityTypeIdentifierStepCount" }?.pageSize == nil)
+  }
+
+  @Test
+  func workoutRouteWithItsLocationsBlob() throws {
+    // A synthetic route, nowhere in particular (AGENTS.md).
+    let locations = [
+      WorkoutRouteRecord.Location(
+        timestamp: start, latitude: 1.5, longitude: -2.25, altitude: 12, horizontalAccuracy: 4,
+        verticalAccuracy: 3, speed: 2.5, course: 90),
+      WorkoutRouteRecord.Location(
+        timestamp: start.addingTimeInterval(1), latitude: 1.50001, longitude: -2.25001,
+        altitude: 12.5, horizontalAccuracy: 5, verticalAccuracy: -1, speed: -1, course: -1),
+    ]
+    let route = WorkoutRouteRecord(
+      id: UUID(uuidString: "6F1C2A40-0000-4000-8000-0000000000D1")!, locations: locations,
+      provenance: HealthEncoder.provenance(
+        of: HKQuantitySample(
+          type: HKQuantityType(.heartRate),
+          quantity: HKQuantity(unit: .count().unitDivided(by: .minute()), doubleValue: 1),
+          start: start, end: start.addingTimeInterval(1))))
+
+    let (mutation, blob) = HealthEncoder.workoutRoute(route)
+    #expect(mutation.entity == "health_workout_route")
+    let bytes = try #require(blob)
+    #expect(bytes.count == 2 * HealthEncoder.locationBytes)
+    func double(at offset: Int) -> Double {
+      Double(bitPattern: bytes[offset..<offset + 8].reversed().reduce(0) { $0 << 8 | UInt64($1) })
+    }
+    func float(at offset: Int) -> Float {
+      Float(bitPattern: bytes[offset..<offset + 4].reversed().reduce(0) { $0 << 8 | UInt32($1) })
+    }
+    #expect(double(at: 0) == start.timeIntervalSince1970)
+    #expect(double(at: 8) == 1.5)
+    #expect(double(at: 16) == -2.25)
+    #expect(
+      [float(at: 24), float(at: 28), float(at: 32), float(at: 36), float(at: 40)] == [
+        12, 4, 3, 2.5, 90,
+      ])
+    // The second location's unknowns stay negative.
+    #expect(float(at: 44 + 32) == -1)
+    let decoded = try row(mutation, as: Components.Schemas.HealthWorkoutRoute.self)
+    #expect(decoded.locationCount == 2)
+    #expect(decoded.locations == HealthBlob.sha256(bytes))
+
+    // A route without locations has no blob.
+    let (emptyMutation, emptyBlob) = HealthEncoder.workoutRoute(
+      WorkoutRouteRecord(id: route.id, locations: [], provenance: route.provenance))
+    #expect(emptyBlob == nil)
+    let emptyRow = try row(emptyMutation, as: Components.Schemas.HealthWorkoutRoute.self)
+    #expect(emptyRow.locations == nil)
+    #expect(emptyRow.locationCount == 0)
   }
 
   @Test

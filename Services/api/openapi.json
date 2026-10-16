@@ -2602,6 +2602,53 @@
           "sourceBundleId"
         ],
         "additionalProperties": true
+      },
+      "HealthWorkoutRoute": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "endDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "locationCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "locations": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "sourceBundleId": {
+            "type": "string"
+          },
+          "sourceRevision": {},
+          "device": {},
+          "metadata": {}
+        },
+        "required": [
+          "id",
+          "startDate",
+          "endDate",
+          "locationCount",
+          "sourceName",
+          "sourceBundleId"
+        ],
+        "additionalProperties": true
       }
     },
     "securitySchemes": {

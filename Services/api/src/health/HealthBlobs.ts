@@ -3,7 +3,7 @@ import type { UserId } from "../core/Ids.ts";
 import type { OpenedPart, PartRange } from "../sync/SnapshotParts.ts";
 import type { BatchFilesUnavailable } from "./HealthIngestion.ts";
 
-// Health payloads too big for sync rows (ECG voltages, and later workout routes) are
+// Health payloads too big for sync rows (ECG voltages, workout routes' locations) are
 // uploaded as blobs, and rows refer to them by their SHA-256 (`docs/SYNC.md`). A blob's key is
 // its user and its hash, so blobs are immutable and only their owner can reach them.
 

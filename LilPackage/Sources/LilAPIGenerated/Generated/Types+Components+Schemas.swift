@@ -3322,5 +3322,180 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute`.
+        public struct HealthWorkoutRoute: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/startDate`.
+            public var startDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/endDate`.
+            public var endDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/locationCount`.
+            public var locationCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/locations`.
+            public var locations: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/sourceName`.
+            public var sourceName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/sourceBundleId`.
+            public var sourceBundleId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/sourceRevision`.
+            public var sourceRevision: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/device`.
+            public var device: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/metadata`.
+            public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutRoute`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - startDate:
+            ///   - endDate:
+            ///   - locationCount:
+            ///   - locations:
+            ///   - sourceName:
+            ///   - sourceBundleId:
+            ///   - sourceRevision:
+            ///   - device:
+            ///   - metadata:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                startDate: Swift.Int,
+                endDate: Swift.Int,
+                locationCount: Swift.Int,
+                locations: Swift.String? = nil,
+                sourceName: Swift.String,
+                sourceBundleId: Swift.String,
+                sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.startDate = startDate
+                self.endDate = endDate
+                self.locationCount = locationCount
+                self.locations = locations
+                self.sourceName = sourceName
+                self.sourceBundleId = sourceBundleId
+                self.sourceRevision = sourceRevision
+                self.device = device
+                self.metadata = metadata
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case startDate
+                case endDate
+                case locationCount
+                case locations
+                case sourceName
+                case sourceBundleId
+                case sourceRevision
+                case device
+                case metadata
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.startDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .startDate
+                )
+                self.endDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .endDate
+                )
+                self.locationCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .locationCount
+                )
+                self.locations = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .locations
+                )
+                self.sourceName = try container.decode(
+                    Swift.String.self,
+                    forKey: .sourceName
+                )
+                self.sourceBundleId = try container.decode(
+                    Swift.String.self,
+                    forKey: .sourceBundleId
+                )
+                self.sourceRevision = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .sourceRevision
+                )
+                self.device = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .device
+                )
+                self.metadata = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .metadata
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "startDate",
+                    "endDate",
+                    "locationCount",
+                    "locations",
+                    "sourceName",
+                    "sourceBundleId",
+                    "sourceRevision",
+                    "device",
+                    "metadata"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.startDate,
+                    forKey: .startDate
+                )
+                try container.encode(
+                    self.endDate,
+                    forKey: .endDate
+                )
+                try container.encode(
+                    self.locationCount,
+                    forKey: .locationCount
+                )
+                try container.encodeIfPresent(
+                    self.locations,
+                    forKey: .locations
+                )
+                try container.encode(
+                    self.sourceName,
+                    forKey: .sourceName
+                )
+                try container.encode(
+                    self.sourceBundleId,
+                    forKey: .sourceBundleId
+                )
+                try container.encodeIfPresent(
+                    self.sourceRevision,
+                    forKey: .sourceRevision
+                )
+                try container.encodeIfPresent(
+                    self.device,
+                    forKey: .device
+                )
+                try container.encodeIfPresent(
+                    self.metadata,
+                    forKey: .metadata
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
     }
 }

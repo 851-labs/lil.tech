@@ -401,3 +401,37 @@ public struct HealthHeartbeatSeries: Equatable, Identifiable, Sendable {
     self.metadata = metadata
   }
 }
+
+/// A workout route (`health_workout_route`). `locations` is its blob's SHA-256 (the server's
+/// `HealthWorkoutRoute` documents the format), downloaded when it's shown. HealthKit doesn't say
+/// which workout a route belongs to: match them by time.
+@Table
+public struct HealthWorkoutRoute: Equatable, Identifiable, Sendable {
+  public let id: String
+  public var startDate: Int
+  public var endDate: Int
+  public var locationCount: Int
+  public var locations: String?
+  public var sourceName: String
+  public var sourceBundleID: String
+  public var sourceRevision: String?
+  public var device: String?
+  public var metadata: String?
+
+  public init(
+    id: String, startDate: Int, endDate: Int, locationCount: Int, locations: String?,
+    sourceName: String, sourceBundleID: String, sourceRevision: String? = nil,
+    device: String? = nil, metadata: String? = nil
+  ) {
+    self.id = id
+    self.startDate = startDate
+    self.endDate = endDate
+    self.locationCount = locationCount
+    self.locations = locations
+    self.sourceName = sourceName
+    self.sourceBundleID = sourceBundleID
+    self.sourceRevision = sourceRevision
+    self.device = device
+    self.metadata = metadata
+  }
+}
