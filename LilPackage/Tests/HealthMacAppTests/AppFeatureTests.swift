@@ -365,3 +365,26 @@ struct SummaryFeatureTests {
     await store.finish()
   }
 }
+
+struct HighlightTextTests {
+  private let steps = HealthCatalog.type(id: "HKQuantityTypeIdentifierStepCount")!
+  private let resting = HealthCatalog.type(id: "HKQuantityTypeIdentifierRestingHeartRate")!
+
+  @Test
+  func weeksSayWhichWayTheyWent() {
+    let up = Highlight(typeID: steps.id, kind: .week, current: 8_000, previous: 7_000, points: [])
+    #expect(HighlightText.sentence(up, type: steps).contains("a day"))
+    #expect(HighlightText.sentence(up, type: steps).contains("up from"))
+    let same = Highlight(typeID: steps.id, kind: .week, current: 7_100, previous: 7_000, points: [])
+    #expect(HighlightText.sentence(same, type: steps).contains("about the same"))
+  }
+
+  @Test
+  func trendsFollowTheValues() {
+    let down = Highlight(typeID: resting.id, kind: .trend, current: 58, previous: 66, points: [])
+    #expect(down.direction == .down)
+    #expect(HighlightText.sentence(down, type: resting).contains("trending down"))
+    // A discrete type's average isn't per day.
+    #expect(!HighlightText.sentence(down, type: resting).contains("a day"))
+  }
+}

@@ -9,9 +9,11 @@ import SwiftUI
 struct SummaryView: View {
   @Bindable var store: StoreOf<SummaryFeature>
   @Fetch private var summaries: [MetricSummary]
+  @Fetch private var highlights: [Highlight]
 
   init(store: StoreOf<SummaryFeature>) {
     self.store = store
+    _highlights = Fetch(wrappedValue: [], HighlightsRequest(), scheduler: MainQueueScheduler())
     // With the pins' request from the start, so the first frame shows loading, not nothing.
     _summaries = Fetch(
       wrappedValue: [], PinnedSummaries(ids: store.orderedPins), scheduler: MainQueueScheduler())
@@ -23,6 +25,8 @@ struct SummaryView: View {
       pins: pins,
       state: $summaries.loadError.map { .failed($0.localizedDescription) }
         ?? ($summaries.isLoading && summaries.isEmpty ? .loading : .loaded(ordered(pins))),
+      highlights: $highlights.loadError.map { .failed($0.localizedDescription) }
+        ?? ($highlights.isLoading && highlights.isEmpty ? .loading : .loaded(highlights)),
       edit: { store.send(.editButtonTapped) },
       pin: { store.send(.pinButtonTapped($0)) }
     )
@@ -43,6 +47,13 @@ struct SummaryView: View {
   }
 }
 
+/// Summary's highlights, as of when they're fetched.
+struct HighlightsRequest: FetchKeyRequest {
+  func fetch(_ db: Database) throws -> [Highlight] {
+    try HealthDatabase.highlights(now: .now, calendar: .current, db)
+  }
+}
+
 /// The pinned types' summaries, in pin order.
 struct PinnedSummaries: FetchKeyRequest {
   let ids: [String]
@@ -56,14 +67,15 @@ struct PinnedSummaries: FetchKeyRequest {
 
 /// What Summary shows, however it got it.
 struct SummaryContent: View {
-  enum State {
+  enum State<Value> {
     case loading
-    case loaded([MetricSummary])
+    case loaded(Value)
     case failed(String)
   }
 
   let pins: [String]
-  let state: State
+  let state: State<[MetricSummary]>
+  var highlights: State<[Highlight]> = .loaded([])
   let edit: () -> Void
   let pin: (String) -> Void
   var now = Date.now
@@ -107,6 +119,8 @@ struct SummaryContent: View {
             }
           }
         }
+        highlightsSection
+          .padding(.top, 14)
       }
       .padding(20)
       .frame(maxWidth: 760)
@@ -114,6 +128,37 @@ struct SummaryContent: View {
     }
     .background(Color.groupedBackground)
     .navigationTitle("Summary")
+  }
+
+  @ViewBuilder private var highlightsSection: some View {
+    Text("Highlights")
+      .font(.title2.bold())
+    switch highlights {
+    case .loading:
+      ProgressView()
+        .frame(maxWidth: .infinity, minHeight: 120)
+    case .failed(let reason):
+      ContentUnavailableView(
+        "Couldn't Load Highlights", systemImage: "exclamationmark.triangle",
+        description: Text(reason))
+    case .loaded(let highlights) where highlights.isEmpty:
+      Text(
+        "Highlights appear once there are a couple of weeks of steps, energy, heart or weight data to compare."
+      )
+      .foregroundStyle(.secondary)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(14)
+      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+    case .loaded(let highlights):
+      ForEach(highlights) { highlight in
+        if let type = HealthCatalog.type(id: highlight.typeID) {
+          NavigationLink(value: highlight.typeID) {
+            HighlightCard(highlight: highlight, type: type)
+          }
+          .buttonStyle(.plain)
+        }
+      }
+    }
   }
 
   /// With nothing pinned: what Summary is for, and a few metrics to start with.
