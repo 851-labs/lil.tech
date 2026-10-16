@@ -83,9 +83,9 @@ public enum HealthBackgroundWork {
     var running = 0
     /// When one was last asked for, until it starts.
     var requestedAt: Date?
-    /// How long a request is waited for before another can be made: iOS starts one at once or
-    /// not at all (`strategy = .fail`), so a request this old didn't take.
-    static let requestTimeout: TimeInterval = 30
+    /// How long a request is waited for before another can be made. iOS has taken over half a
+    /// minute to start one, so a request older than this didn't take.
+    static let requestTimeout: TimeInterval = 120
 
     /// Whether to ask for a task now, noting that one was. Not while one runs or was just asked
     /// for: opening the app can ask several times before the first one starts.

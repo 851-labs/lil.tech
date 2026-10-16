@@ -190,14 +190,14 @@ struct HealthBackgroundWorkTests {
     #expect(!r2)
     let r3 = upload.start()
     #expect(r3)
-    let r4 = upload.claimRequest(now: now + 60)
+    let r4 = upload.claimRequest(now: now + 200)
     #expect(!r4)
     // iOS running a second anyway: it isn't the only one.
     let r5 = upload.start()
     #expect(!r5)
     upload.running = 0
     // Once none runs, it can be asked for again.
-    let r6 = upload.claimRequest(now: now + 61)
+    let r6 = upload.claimRequest(now: now + 201)
     #expect(r6)
   }
 
@@ -208,9 +208,9 @@ struct HealthBackgroundWorkTests {
     let r7 = upload.claimRequest(now: now)
     #expect(r7)
     // Never started (iOS couldn't run it): after the timeout, ask again.
-    let r8 = upload.claimRequest(now: now + 29)
+    let r8 = upload.claimRequest(now: now + 119)
     #expect(!r8)
-    let r9 = upload.claimRequest(now: now + 31)
+    let r9 = upload.claimRequest(now: now + 121)
     #expect(r9)
   }
 }
