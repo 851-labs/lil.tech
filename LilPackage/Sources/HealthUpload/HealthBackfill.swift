@@ -118,30 +118,63 @@ public actor HealthBackfill {
   /// Runs that try a page whose series can't be read before skipping the unreadable ones.
   static let seriesAttempts = 3
 
-  /// How long an upload the server answers with a transient error waits before each new try:
-  /// about half a minute in all, then it fails as before.
+  /// How long an upload that fails for a moment (`isTransient`) waits before each new try: 15
+  /// seconds in all, within a background HealthKit wake (`HealthObserver.completionDeadline`),
+  /// then it fails as before.
   static let transientRetryDelays: [Duration] = [
-    .seconds(1), .seconds(3), .seconds(8), .seconds(20),
+    .seconds(1), .seconds(2), .seconds(4), .seconds(8),
   ]
 
-  /// Runs `upload`, trying again after each of `transientRetryDelays` while the server answers
-  /// with a transient error (`HealthBatchUploader.Rejected.isTransient`).
+  /// Whether an upload failed for a moment, so it's worth trying again shortly: the server busy
+  /// or restarting (`HealthBatchUploader.Rejected.isTransient`), or the request timing out or
+  /// being dropped.
+  static func isTransient(_ error: any Error) -> Bool {
+    if let error = error as? HealthBatchUploader.Rejected { return error.isTransient }
+    if let error = error as? URLError {
+      return error.code == .timedOut || error.code == .networkConnectionLost
+    }
+    if let error = error as? ClientError { return isTransient(error.underlyingError) }
+    return false
+  }
+
+  /// Runs `upload`, trying again after each of `delays` while it fails for a moment.
   static func retryingTransient(
-    clock: any Clock<Duration>, _ upload: () async throws -> Void
+    _ delays: [Duration], clock: any Clock<Duration>, _ upload: () async throws -> Void
   ) async throws {
-    for delay in transientRetryDelays {
+    for delay in delays {
       do {
         return try await upload()
-      } catch let error as HealthBatchUploader.Rejected where error.isTransient {
+      } catch  where isTransient(error) {
         try await clock.sleep(for: delay)
       }
     }
     try await upload()
   }
 
+  /// The delays before trying an upload again in this run: none once one has used them all up
+  /// without getting through, so a server that's down fails the run's other uploads at once
+  /// rather than each waiting it out.
+  private var retryDelays: [Duration] { serverFailing ? [] : Self.transientRetryDelays }
+
+  /// Runs uploads that retry with `retryDelays`, noting whether the server was still failing
+  /// after them.
+  private func notingServerFailure(_ uploads: () async throws -> Void) async throws {
+    do {
+      try await uploads()
+      serverFailing = false
+    } catch  where Self.isTransient(error) {
+      serverFailing = true
+      throw error
+    }
+  }
+
   /// Uploads a batch file, retrying transient failures.
   private func upload(_ id: String, _ file: Data) async throws {
-    try await Self.retryingTransient(clock: clock) { try await uploader.upload(id, file) }
+    try await notingServerFailure {
+      try await Self.retryingTransient(retryDelays, clock: clock) {
+        try await uploader.upload(id, file)
+      }
+    }
   }
 
   /// Objects per anchored query. Pages are split into batch files below the server's limits.
@@ -230,6 +263,8 @@ public actor HealthBackfill {
   private var storageFullAt: Date?
   /// Until when the server asked for no more uploads (a 429).
   private var rateLimitedUntil: Date?
+  /// An upload in this run failed for a moment even after its retries (`retryDelays`).
+  private var serverFailing = false
   /// While storage is full, how long uploads for changes wait between tries. `run()` (the app
   /// opening, Try Again) always tries.
   static let storageFullRetryInterval: TimeInterval = 6 * 60 * 60
@@ -356,6 +391,7 @@ public actor HealthBackfill {
       return
     }
     let fullRun = syncAllRequested
+    serverFailing = false
     let limitedUntil = rateLimitedUntil.flatMap { now() < $0 ? $0 : nil }
     // Changes wait in `requestedTypes`. A run of everything (the app opening, Continue, a
     // background task) waits out the limit instead, unless it's paused meanwhile.
@@ -779,28 +815,34 @@ public actor HealthBackfill {
     // A few blobs at a time. Each leaves the pending page once it's accepted, so a page that's
     // resumed carries on where it stopped.
     var missingBlob = false
-    try await withThrowingTaskGroup(of: String?.self) { group in
-      var queue = pending.blobs[...]
-      for _ in 0..<Self.blobConcurrency {
-        guard let sha256 = queue.popFirst() else { break }
-        group.addTask { [storage, blobUploader, clock] in
-          try await Self.uploadBlob(
-            sha256, storage: storage, uploader: blobUploader, clock: clock)
-        }
-      }
-      while let uploaded = try await group.next() {
-        guard let sha256 = uploaded else {
-          missingBlob = true
-          group.cancelAll()
-          break
-        }
-        state.pending?.blobs.removeAll { $0 == sha256 }
-        try storage.saveState(state)
-        try storage.removeFile(HealthBackfillState.PendingPage.blobFile(sha256))
-        if let next = queue.popFirst() {
-          group.addTask { [storage, blobUploader, clock] in
-            try await Self.uploadBlob(
-              next, storage: storage, uploader: blobUploader, clock: clock)
+    let delays = retryDelays
+    // Only with blobs: nothing going up isn't the server answering again.
+    if !pending.blobs.isEmpty {
+      try await notingServerFailure {
+        try await withThrowingTaskGroup(of: String?.self) { group in
+          var queue = pending.blobs[...]
+          for _ in 0..<Self.blobConcurrency {
+            guard let sha256 = queue.popFirst() else { break }
+            group.addTask { [storage, blobUploader, clock] in
+              try await Self.uploadBlob(
+                sha256, storage: storage, uploader: blobUploader, delays: delays, clock: clock)
+            }
+          }
+          while let uploaded = try await group.next() {
+            guard let sha256 = uploaded else {
+              missingBlob = true
+              group.cancelAll()
+              break
+            }
+            state.pending?.blobs.removeAll { $0 == sha256 }
+            try storage.saveState(state)
+            try storage.removeFile(HealthBackfillState.PendingPage.blobFile(sha256))
+            if let next = queue.popFirst() {
+              group.addTask { [storage, blobUploader, clock] in
+                try await Self.uploadBlob(
+                  next, storage: storage, uploader: blobUploader, delays: delays, clock: clock)
+              }
+            }
           }
         }
       }
@@ -830,12 +872,12 @@ public actor HealthBackfill {
   /// missing.
   private static func uploadBlob(
     _ sha256: String, storage: HealthBackfillStorage, uploader: HealthBlobUploader,
-    clock: any Clock<Duration>
+    delays: [Duration], clock: any Clock<Duration>
   ) async throws -> String? {
     try Task.checkCancellation()
     guard let blob = try storage.loadFile(HealthBackfillState.PendingPage.blobFile(sha256))
     else { return nil }
-    try await retryingTransient(clock: clock) { try await uploader.upload(sha256, blob) }
+    try await retryingTransient(delays, clock: clock) { try await uploader.upload(sha256, blob) }
     return sha256
   }
 

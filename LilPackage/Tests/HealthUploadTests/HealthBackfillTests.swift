@@ -979,22 +979,23 @@ struct HealthBackfillTests {
     #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
   }
 
-  /// A backfill of temperature and sleep whose temperature uploads are refused with `refusal` the
-  /// first `refusals` times.
+  /// A backfill of temperature and sleep whose temperature uploads (or every upload, with
+  /// `everything`) fail with `refusal` the first `refusals` times.
   private func refusingBackfill(
-    _ refusal: Int, times refusals: Int, server: FakeServer, storage: HealthBackfillStorage,
-    attempts: LockIsolated<Int>, clock: some Clock<Duration>
+    _ refusal: any Error & Sendable, times refusals: Int, everything: Bool = false,
+    server: FakeServer, storage: HealthBackfillStorage, attempts: LockIsolated<Int>,
+    clock: some Clock<Duration>
   ) -> HealthBackfill {
     withDependencies {
       $0.healthReader = FakeHealth(pages: [temperature.id: 1, sleep.id: 1]).reader
       $0.healthBatchUploader = HealthBatchUploader { id, file in
         let lines = String(decoding: try Gzip.decompress(file), as: UTF8.self)
-        if lines.contains(temperature.id) {
+        if everything || lines.contains(temperature.id) {
           let attempt = attempts.withValue {
             $0 += 1
             return $0
           }
-          if attempt <= refusals { throw HealthBatchUploader.Rejected(statusCode: refusal) }
+          if attempt <= refusals { throw refusal }
         }
         try await server.uploader.upload(id, file)
       }
@@ -1016,11 +1017,12 @@ struct HealthBackfillTests {
     )
     let clock = RecordingClock()
     let backfill = refusingBackfill(
-      503, times: 2, server: server, storage: storage, attempts: attempts, clock: clock)
+      HealthBatchUploader.Rejected(statusCode: 503), times: 2, server: server, storage: storage,
+      attempts: attempts, clock: clock)
 
     try await backfill.run()
     // Waited a little longer each time, then went through without failing the type.
-    #expect(clock.sleeps.value == [.seconds(1), .seconds(3)])
+    #expect(clock.sleeps.value == [.seconds(1), .seconds(2)])
     #expect(attempts.value == 3)
     #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
     var updates = await backfill.progressUpdates().makeAsyncIterator()
@@ -1034,7 +1036,8 @@ struct HealthBackfillTests {
     )
     let clock = RecordingClock()
     let backfill = refusingBackfill(
-      503, times: .max, server: server, storage: storage, attempts: attempts, clock: clock)
+      HealthBatchUploader.Rejected(statusCode: 503), times: .max, server: server,
+      storage: storage, attempts: attempts, clock: clock)
 
     await #expect(throws: HealthBatchUploader.Rejected(statusCode: 503)) {
       try await backfill.run()
@@ -1046,20 +1049,62 @@ struct HealthBackfillTests {
     #expect(await backfill.requestedTypes == [temperature.id])
   }
 
-  @Test
-  func anUploadTheServerRefusesForGoodIsntTriedAgain() async throws {
+  @Test(.timeLimit(.minutes(1)))
+  func anUploadThatTimesOutIsTriedAgain() async throws {
     let (server, storage, attempts) = (
       FakeServer(), HealthBackfillStorage.inMemory(), LockIsolated(0)
     )
     let clock = RecordingClock()
     let backfill = refusingBackfill(
-      413, times: 1, server: server, storage: storage, attempts: attempts, clock: clock)
+      URLError(.timedOut), times: 1, server: server, storage: storage, attempts: attempts,
+      clock: clock)
 
-    await #expect(throws: HealthBatchUploader.Rejected(statusCode: 413)) {
+    try await backfill.run()
+    #expect(clock.sleeps.value == [.seconds(1)])
+    #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
+  }
+
+  // A 500 is usually the server failing on that very upload, every time.
+  @Test(.timeLimit(.minutes(1)), arguments: [400, 413, 500])
+  func anUploadTheServerRefusesForGoodIsntTriedAgain(statusCode: Int) async throws {
+    let (server, storage, attempts) = (
+      FakeServer(), HealthBackfillStorage.inMemory(), LockIsolated(0)
+    )
+    let clock = RecordingClock()
+    let backfill = refusingBackfill(
+      HealthBatchUploader.Rejected(statusCode: statusCode), times: 1, server: server,
+      storage: storage, attempts: attempts, clock: clock)
+
+    await #expect(throws: HealthBatchUploader.Rejected(statusCode: statusCode)) {
       try await backfill.run()
     }
     #expect(clock.sleeps.value.isEmpty)
     #expect(attempts.value == 1)
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func aServerThatsDownIsWaitedOutOncePerRun() async throws {
+    let (server, storage, attempts) = (
+      FakeServer(), HealthBackfillStorage.inMemory(), LockIsolated(0)
+    )
+    let clock = RecordingClock()
+    let backfill = refusingBackfill(
+      HealthBatchUploader.Rejected(statusCode: 503), times: .max, everything: true,
+      server: server, storage: storage, attempts: attempts, clock: clock)
+
+    await #expect(throws: HealthBatchUploader.Rejected(statusCode: 503)) {
+      try await backfill.run()
+    }
+    // The first upload waited the retries out; the second type's failed at once.
+    #expect(clock.sleeps.value == HealthBackfill.transientRetryDelays)
+    #expect(attempts.value == HealthBackfill.transientRetryDelays.count + 2)
+    #expect(try storage.loadState()?.finished == [])
+
+    // The next run waits again.
+    await #expect(throws: HealthBatchUploader.Rejected(statusCode: 503)) {
+      try await backfill.run()
+    }
+    #expect(clock.sleeps.value.count == 2 * HealthBackfill.transientRetryDelays.count)
   }
 
   @Test(.timeLimit(.minutes(1)))
