@@ -142,6 +142,7 @@ let package = Package(
         "HealthMacApp",
         "LilAuth",
         "LilSync",
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ]
     ),
     .target(

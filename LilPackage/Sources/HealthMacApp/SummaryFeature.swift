@@ -3,15 +3,12 @@ public import Foundation
 public import HealthCatalog
 import SwiftUI
 
-extension SharedKey where Self == FileStorageKey<[String]>.Default {
+extension SharedKey where Self == AppStorageKey<[String]>.Default {
   /// The data types pinned to Summary, in order. Local to this Mac for now (851-2641), and
-  /// cleared when the account signs out.
+  /// cleared when the account signs out. In user defaults, which save at once: file storage
+  /// waits a second between writes, and a change made just before quitting would be lost.
   static var summaryPins: Self {
-    Self[
-      .fileStorage(
-        .applicationSupportDirectory.appending(
-          path: "\(Bundle.main.bundleIdentifier ?? "tech.lil.health")/SummaryPins.json")),
-      default: []]
+    Self[.appStorage("summaryPins"), default: []]
   }
 }
 
@@ -27,6 +24,13 @@ public struct SummaryFeature {
 
     public init(isEditing: Bool = false) {
       self.isEditing = isEditing
+    }
+
+    /// The pins in order, each once, whatever the file holds.
+    public var orderedPins: [String] {
+      pins.reduce(into: []) { unique, id in
+        if !unique.contains(id) { unique.append(id) }
+      }
     }
 
     /// Metrics that can be pinned and aren't, matching the search, by name.
@@ -65,6 +69,11 @@ public struct SummaryFeature {
 
   public var body: some ReducerOf<Self> {
     BindingReducer()
+      .onChange(of: \.isEditing) { _, state in
+        // However the editor closed (Done, Esc), it opens next time without a search.
+        if !state.isEditing { state.search = "" }
+        return .none
+      }
     Reduce { state, action in
       switch action {
       case .binding:
@@ -86,7 +95,12 @@ public struct SummaryFeature {
         return .none
 
       case .pinsMoved(let source, let destination):
-        state.$pins.withLock { $0.move(fromOffsets: source, toOffset: destination) }
+        // Offsets into what the editor shows: each pin once.
+        let ordered = state.orderedPins
+        state.$pins.withLock { pins in
+          pins = ordered
+          pins.move(fromOffsets: source, toOffset: destination)
+        }
         return .none
 
       case .unpinButtonTapped(let id):

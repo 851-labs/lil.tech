@@ -4,13 +4,21 @@ import HealthDatabase
 import LilSync
 import SQLiteData
 
+extension URL {
+  /// The app's own folder in Application Support: the app isn't sandboxed, so the folder is
+  /// shared with every app otherwise.
+  static var healthAppSupport: URL {
+    applicationSupportDirectory.appending(
+      path: Bundle.main.bundleIdentifier ?? "tech.lil.health", directoryHint: .isDirectory)
+  }
+}
+
 extension DependencyValues {
   /// Opens the Mac's local copy of the user's health data and sets up sync into it. Call it from
   /// `prepareDependencies` at launch. The database is in the app's own folder: the app isn't
   /// sandboxed, and SQLiteData's default location is shared by every app.
   public mutating func prepareHealthSync() throws {
-    let directory = URL.applicationSupportDirectory.appending(
-      path: Bundle.main.bundleIdentifier ?? "tech.lil.health", directoryHint: .isDirectory)
+    let directory = URL.healthAppSupport
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let file = directory.appending(path: "Health.sqlite")
     do {

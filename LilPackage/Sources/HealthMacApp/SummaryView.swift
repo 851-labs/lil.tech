@@ -8,23 +8,38 @@ import SwiftUI
 /// database as sync changes it.
 struct SummaryView: View {
   @Bindable var store: StoreOf<SummaryFeature>
-  @Fetch private var summaries: [MetricSummary] = []
+  @Fetch private var summaries: [MetricSummary]
+
+  init(store: StoreOf<SummaryFeature>) {
+    self.store = store
+    // With the pins' request from the start, so the first frame shows loading, not nothing.
+    _summaries = Fetch(
+      wrappedValue: [], PinnedSummaries(ids: store.orderedPins), scheduler: MainQueueScheduler())
+  }
 
   var body: some View {
+    let pins = store.orderedPins
     SummaryContent(
-      pins: store.pins,
+      pins: pins,
       state: $summaries.loadError.map { .failed($0.localizedDescription) }
-        ?? ($summaries.isLoading ? .loading : .loaded(summaries)),
+        ?? ($summaries.isLoading && summaries.isEmpty ? .loading : .loaded(ordered(pins))),
       edit: { store.send(.editButtonTapped) },
       pin: { store.send(.pinButtonTapped($0)) }
     )
-    .task(id: store.pins) {
-      _ = try? await $summaries.load(
-        PinnedSummaries(ids: store.pins), scheduler: MainQueueScheduler())
+    .onChange(of: pins) { _, pins in
+      Task {
+        _ = try? await $summaries.load(PinnedSummaries(ids: pins), scheduler: MainQueueScheduler())
+      }
     }
     .sheet(isPresented: $store.isEditing) {
       PinEditor(store: store)
     }
+  }
+
+  /// The fetched summaries in the pins' order, so a reorder shows at once, before the reload.
+  private func ordered(_ pins: [String]) -> [MetricSummary] {
+    let byID = Dictionary(summaries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    return pins.compactMap { byID[$0] }
   }
 }
 
@@ -109,8 +124,7 @@ struct SummaryContent: View {
       ForEach(SummaryFeature.State.suggestions, id: \.self) { id in
         if let type = HealthCatalog.type(id: id) {
           HStack {
-            Label(type.name, systemImage: type.category?.symbolName ?? "circle")
-              .foregroundStyle(type.category?.color ?? .accentColor)
+            HealthTypeLabel(type: type)
             Spacer()
             Button("Pin \(type.name)", systemImage: "plus.circle.fill") { pin(id) }
               .labelStyle(.iconOnly)
@@ -132,9 +146,8 @@ struct NoDataCard: View {
 
   var body: some View {
     HStack {
-      Label(type.name, systemImage: type.category?.symbolName ?? "circle")
+      HealthTypeLabel(type: type)
         .font(.headline)
-        .foregroundStyle(type.category?.color ?? .accentColor)
       Spacer()
       Text("No Data")
         .foregroundStyle(.secondary)
@@ -156,11 +169,11 @@ struct PinEditor: View {
     NavigationStack {
       List {
         Section("Pinned") {
-          if store.pins.isEmpty {
+          if store.orderedPins.isEmpty {
             Text("Nothing pinned yet")
               .foregroundStyle(.secondary)
           }
-          ForEach(store.pins, id: \.self) { id in
+          ForEach(store.orderedPins, id: \.self) { id in
             row(id, pinned: true)
           }
           .onMove { store.send(.pinsMoved($0, $1)) }
@@ -185,7 +198,11 @@ struct PinEditor: View {
   private func row(_ id: String, pinned: Bool) -> some View {
     let type = HealthCatalog.type(id: id)
     return HStack {
-      Label(type?.name ?? id, systemImage: type?.category?.symbolName ?? "circle")
+      if let type {
+        HealthTypeLabel(type: type)
+      } else {
+        Text(id)
+      }
       Spacer()
       if pinned {
         Button("Unpin \(type?.name ?? id)", systemImage: "minus.circle.fill") {

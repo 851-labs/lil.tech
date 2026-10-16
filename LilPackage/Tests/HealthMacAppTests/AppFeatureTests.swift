@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import DependenciesTestSupport
 import Foundation
 import HealthCatalog
 import HealthDatabase
@@ -8,6 +9,8 @@ import Testing
 
 @testable import HealthMacApp
 
+// Fresh app storage for each test: pins live there.
+@Suite(.dependencies)
 @MainActor
 struct AppFeatureTests {
   @Test
@@ -269,6 +272,8 @@ struct SampleFormatTests {
   }
 }
 
+// Fresh app storage for each test: pins live there.
+@Suite(.dependencies)
 @MainActor
 struct SummaryFeatureTests {
   private let steps = "HKQuantityTypeIdentifierStepCount"
@@ -298,6 +303,31 @@ struct SummaryFeatureTests {
     await store.send(.doneButtonTapped) {
       $0.isEditing = false
       $0.search = ""
+    }
+  }
+
+  @Test
+  func closingTheEditorAnyWayClearsItsSearch() async {
+    let store = TestStore(initialState: SummaryFeature.State(isEditing: true)) {
+      SummaryFeature()
+    }
+    await store.send(\.binding.search, "sleep") { $0.search = "sleep" }
+    // Esc, through the sheet's binding.
+    await store.send(\.binding.isEditing, false) {
+      $0.isEditing = false
+      $0.search = ""
+    }
+  }
+
+  @Test
+  func duplicatedPinsShowOnceAndMoveAsShown() async {
+    let state = SummaryFeature.State()
+    // E.g. a file edited by hand.
+    state.$pins.withLock { $0 = [steps, heartRate, steps, weight] }
+    #expect(state.orderedPins == [steps, heartRate, weight])
+    let store = TestStore(initialState: state) { SummaryFeature() }
+    await store.send(.pinsMoved([2], 0)) {
+      $0.$pins.withLock { $0 = [self.weight, self.steps, self.heartRate] }
     }
   }
 

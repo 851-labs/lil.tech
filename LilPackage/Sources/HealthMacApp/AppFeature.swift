@@ -113,7 +113,7 @@ public struct AppFeature {
         state.searchText = ""
         state.syncStatus = .idle
         // Pins are the account's choice, like its data.
-        state.summary.isEditing = false
+        state.summary = SummaryFeature.State()
         state.summary.$pins.withLock { $0 = [] }
         // The account's health data leaves the Mac with it. Also when the app opens signed out,
         // in case it quit before it was done. Removing waits for a pull being cancelled to stop
