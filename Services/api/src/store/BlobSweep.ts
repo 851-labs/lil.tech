@@ -52,10 +52,26 @@ const referencedBlobs = (registry: ReadonlyArray<Entity>) => {
   return selects.length === 0 ? "SELECT NULL AS sha256 WHERE 0" : selects.join(" UNION ");
 };
 
+const setSweptAt = (sql: StoreSql, at: number) =>
+  sql.exec(
+    `INSERT INTO meta (key, value) VALUES ('health_blob_swept_at', ?)
+     ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+    at,
+  );
+
+/** After a failed sweep: the next in an hour. */
+export const retryBlobSweepLater = (sql: StoreSql, now: number) =>
+  setSweptAt(sql, now - blobSweepIntervalMs + 60 * 60 * 1000);
+
 /**
  * One sweep: marks blobs that lost their last reference (and unmarks ones referred to again),
  * deletes those unreferenced for the grace period, and deletes objects under the user's prefix
  * that the store never recorded (an upload whose recording failed) once they're as old.
+ *
+ * Rows go before objects, each re-checked in the same transaction, so a blob uploaded again or
+ * referred to meanwhile is kept. An object whose delete then fails is a stray, deleted later. One
+ * race remains: a blob re-uploaded while its object's delete is in flight (it'd have been
+ * unreferenced for 35 days) can lose the object. The record's Mac would then fail to download it.
  */
 export const sweepBlobs = Effect.fnUntraced(function* (
   sql: StoreSql,
@@ -66,7 +82,8 @@ export const sweepBlobs = Effect.fnUntraced(function* (
   const prefix = readBlobPrefix(sql);
   if (prefix === null) return;
   const referenced = referencedBlobs(registry);
-  sql.transaction(() => {
+  const cutoff = now - blobGracePeriodMs;
+  const due = sql.transaction(() => {
     sql.exec(
       `UPDATE health_blobs SET unreferenced_since = ?
        WHERE unreferenced_since IS NULL AND sha256 NOT IN (${referenced})`,
@@ -76,37 +93,38 @@ export const sweepBlobs = Effect.fnUntraced(function* (
       `UPDATE health_blobs SET unreferenced_since = NULL
        WHERE unreferenced_since IS NOT NULL AND sha256 IN (${referenced})`,
     );
-  });
-  const due = sql.exec(
-    `SELECT sha256, size FROM health_blobs WHERE unreferenced_since <= ?
-     ORDER BY unreferenced_since LIMIT ?`,
-    now - blobGracePeriodMs,
-    blobSweepBatch,
-  );
-  // R2 first: a row left behind is deleted again next time, an object without a row isn't.
-  yield* files.delete(due.map((row) => `${prefix}${row["sha256"] as string}`));
-  sql.transaction(() => {
-    for (const row of due) {
+    const rows = sql.exec(
+      `SELECT sha256, size FROM health_blobs WHERE unreferenced_since <= ?
+       ORDER BY unreferenced_since LIMIT ?`,
+      cutoff,
+      blobSweepBatch,
+    );
+    for (const row of rows) {
       sql.exec("DELETE FROM health_blobs WHERE sha256 = ?", row["sha256"] as string);
       sql.exec(
         "UPDATE meta SET value = value - ? WHERE key = 'health_blob_bytes'",
         row["size"] as number,
       );
     }
+    return rows.map((row) => row["sha256"] as string);
   });
-  const known = new Set(
-    sql.exec("SELECT sha256 FROM health_blobs").map((row) => row["sha256"] as string),
+  yield* files.delete(due.map((sha256) => `${prefix}${sha256}`));
+  // With more due than one sweep deletes, the next runs a minute later, and the stray pass,
+  // which lists every object, waits for the last of them.
+  if (due.length === blobSweepBatch) {
+    setSweptAt(sql, now - blobSweepIntervalMs + 60_000);
+    return;
+  }
+  const objects = yield* files.list(prefix);
+  // Read after listing, which awaits: a blob recorded meanwhile isn't a stray.
+  const kept = new Set(
+    sql
+      .exec(`SELECT sha256 FROM health_blobs UNION ${referenced}`)
+      .map((row) => row["sha256"] as string),
   );
-  const strays = (yield* files.list(prefix)).filter(
-    (object) =>
-      !known.has(object.key.slice(prefix.length)) && object.uploaded <= now - blobGracePeriodMs,
+  const strays = objects.filter(
+    (object) => !kept.has(object.key.slice(prefix.length)) && object.uploaded <= cutoff,
   );
   yield* files.delete(strays.map((object) => object.key));
-  // With more due than one sweep deletes, the next runs a minute later.
-  const sweptAt = due.length < blobSweepBatch ? now : now - blobSweepIntervalMs + 60_000;
-  sql.exec(
-    `INSERT INTO meta (key, value) VALUES ('health_blob_swept_at', ?)
-     ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
-    sweptAt,
-  );
+  setSweptAt(sql, now);
 });

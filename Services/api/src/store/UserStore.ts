@@ -1,6 +1,6 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import { Array as Arr, Clock, Effect } from "effect";
+import { Clock, Effect } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import {
   readHealthBatch,
@@ -8,7 +8,7 @@ import {
   saveHealthBatch,
 } from "../health/HealthBatchStore.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
-import { provideRuntime } from "../Runtime.ts";
+import { deleteObjects, listObjects, provideRuntime } from "../Runtime.ts";
 import { applyMutations, readChanges, readEpoch, readHead, readMeta } from "./ChangeLog.ts";
 import {
   AccountDeleted,
@@ -46,7 +46,13 @@ import {
   retireStepInterval,
 } from "./RetiredDevices.ts";
 import { fromDurableObjectStorage, type StoreSql } from "./StoreSql.ts";
-import { type BlobFiles, nextBlobSweepAt, noBlobFiles, sweepBlobs } from "./BlobSweep.ts";
+import {
+  type BlobFiles,
+  nextBlobSweepAt,
+  noBlobFiles,
+  retryBlobSweepLater,
+  sweepBlobs,
+} from "./BlobSweep.ts";
 
 /**
  * How large a store's database may grow before it takes no new uploads: below the 10 GB a Durable
@@ -76,8 +82,7 @@ const recordHealthBlob = (
 ) =>
   sql.transaction(() => {
     sql.exec(
-      `INSERT INTO meta (key, value) VALUES ('health_blob_prefix', ?)
-       ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+      `INSERT INTO meta (key, value) VALUES ('health_blob_prefix', ?) ON CONFLICT (key) DO NOTHING`,
       prefix,
     );
     if (readHealthBlobSize(sql, sha256) !== null) return;
@@ -356,7 +361,17 @@ export const makeUserStore = (
         yield* writeSnapshotStep(sql, registry, files, now);
         yield* doUpkeep(sql, files, now);
         const sweepAt = nextBlobSweepAt(sql);
-        if (sweepAt !== null && sweepAt <= now) yield* sweepBlobs(sql, registry, blobFiles, now);
+        if (sweepAt !== null && sweepAt <= now) {
+          // Its failure doesn't hold up the rest of the alarm, and it's tried again in an hour.
+          yield* sweepBlobs(sql, registry, blobFiles, now).pipe(
+            Effect.catchCause((cause) =>
+              Effect.gen(function* () {
+                yield* Effect.logWarning("Blob sweep failed", cause);
+                retryBlobSweepLater(sql, now);
+              }),
+            ),
+          );
+        }
         if (retiring) {
           if (retireStep(sql, registry, now) > 0) yield* notices.notify(now);
           retiring = hasRetiringDevices(sql);
@@ -432,40 +447,11 @@ export const UserStoreLive = UserStore.make(
           inRuntime(
             bucket.put(key, bytes, { httpMetadata: { contentType: "application/gzip" } }),
           ).pipe(Effect.asVoid, Effect.orDie),
-        // R2 deletes at most 1,000 keys per call.
-        delete: (keys) =>
-          Effect.forEach(
-            Arr.chunksOf(keys, 1000),
-            (chunk) => inRuntime(bucket.delete([...chunk])),
-            {
-              discard: true,
-            },
-          ).pipe(Effect.orDie),
+        delete: (keys) => deleteObjects(bucket, keys).pipe(inRuntime, Effect.orDie),
       };
       const blobFiles: BlobFiles = {
-        // A page of keys at a time; R2 lists up to 1,000.
-        list: (prefix) =>
-          Effect.gen(function* () {
-            const objects: Array<{ key: string; uploaded: number }> = [];
-            let cursor: string | undefined;
-            do {
-              const page = yield* blobBucket.list({
-                prefix,
-                ...(cursor === undefined ? {} : { cursor }),
-              });
-              for (const object of page.objects) {
-                objects.push({ key: object.key, uploaded: object.uploaded.getTime() });
-              }
-              cursor = page.truncated ? page.cursor : undefined;
-            } while (cursor !== undefined);
-            return objects;
-          }).pipe(inRuntime, Effect.orDie),
-        delete: (keys) =>
-          Effect.forEach(
-            Arr.chunksOf(keys, 1000),
-            (chunk) => inRuntime(blobBucket.delete([...chunk])),
-            { discard: true },
-          ).pipe(Effect.orDie),
+        list: (prefix) => listObjects(blobBucket, prefix).pipe(inRuntime, Effect.orDie),
+        delete: (keys) => deleteObjects(blobBucket, keys).pipe(inRuntime, Effect.orDie),
       };
       type Attachment = { readonly expiresAt?: number; readonly closed?: boolean } | null;
       const attachment = (socket: Cloudflare.WebSocket) =>

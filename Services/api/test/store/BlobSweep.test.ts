@@ -144,6 +144,36 @@ describe("sweepBlobs", () => {
     }),
   );
 
+  it.effect("tries a failed sweep again later, and never strays a blob a record refers to", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      const { objects, files } = makeBlobFiles();
+      const failing = { value: true };
+      const store = makeUserStore(sql, undefined, undefined, undefined, {
+        ...files,
+        delete: (keys) =>
+          failing.value ? Effect.die(new Error("R2 is unavailable")) : files.delete(keys),
+      });
+      yield* upload(store, objects, kept);
+      yield* upload(store, objects, dropped);
+      yield* store.applyMutations([ecg(ecgID, kept)]);
+      // Its row went before the object's delete failed: the object is now a stray.
+      yield* after(store, day);
+      yield* after(store, blobGracePeriodMs);
+      assert.deepStrictEqual(sql.exec("SELECT sha256 FROM health_blobs"), [{ sha256: kept }]);
+      assert.isTrue(objects.has(`${prefix}${dropped}`));
+      // The alarm still runs, and the sweep is tried again within the hour.
+      const retryAt = yield* Effect.promise(() => sql.getAlarm());
+      assert.isAtMost(retryAt ?? Infinity, blobGracePeriodMs + day + 60 * 60 * 1000);
+
+      failing.value = false;
+      // A record refers to `kept`, so even without its row it's never a stray.
+      sql.exec("DELETE FROM health_blobs WHERE sha256 = ?", kept);
+      yield* after(store, 60 * 60 * 1000);
+      assert.deepStrictEqual([...objects.keys()], [`${prefix}${kept}`]);
+    }),
+  );
+
   it.effect("doesn't schedule sweeps for a store without blobs", () =>
     Effect.gen(function* () {
       const sql = makeTestStoreSql();
