@@ -410,3 +410,23 @@ struct HighlightTextTests {
     #expect(!HighlightText.sentence(down, type: resting).contains("a day"))
   }
 }
+
+struct SleepFormatTests {
+  @Test
+  func durationsReadLikeHealth() {
+    #expect(SleepFormat.duration(45 * 60) == "45 min")
+    #expect(SleepFormat.duration(7 * 3600) == "7 hr")
+    #expect(SleepFormat.duration(7 * 3600 + 32 * 60) == "7 hr 32 min")
+  }
+
+  @Test
+  func rowsFollowWhatTheSourceRecorded() {
+    let day = Date(timeIntervalSince1970: 1_760_400_000)
+    let staged = SleepNight(
+      day: day, segments: [SleepSegment(stage: .deep, start: day, end: day + 60)], inBed: 60)
+    #expect(SleepFormat.rows(for: staged) == [.awake, .rem, .core, .deep])
+    let estimated = SleepNight(
+      day: day, segments: [SleepSegment(stage: .asleep, start: day, end: day + 60)], inBed: 60)
+    #expect(SleepFormat.rows(for: estimated) == [.awake, .asleep])
+  }
+}

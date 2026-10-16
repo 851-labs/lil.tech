@@ -118,7 +118,8 @@ private struct PreviewData {
       switch type.id {
       case "HKCategoryTypeIdentifierSleepAnalysis":
         // In bed from 23:00, cycling through core (3), deep (4), REM (5) and awake (2).
-        var start = day.addingTimeInterval(-3600)
+        let bedtime = day.addingTimeInterval(-3600)
+        var start = bedtime
         for stage in [3, 4, 3, 5, 3, 4, 5, 2, 3, 5] {
           let minutes = random.next(in: 25...60)
           guard start < now else { break }
@@ -126,6 +127,12 @@ private struct PreviewData {
             sample(type, start: start, minutes: minutes, categoryValue: stage, &random))
           start = start.addingTimeInterval(minutes * 60)
         }
+        // In bed (0) from a little before falling asleep to a little after waking.
+        let inBed = bedtime.addingTimeInterval(-15 * 60)
+        samples.append(
+          sample(
+            type, start: inBed, minutes: start.timeIntervalSince(inBed) / 60 + 10, categoryValue: 0,
+            &random))
       case "HKCategoryTypeIdentifierAppleStandHour":
         for hour in 8..<21 {
           let start = day.addingTimeInterval(Double(hour) * 3600)

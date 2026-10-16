@@ -682,6 +682,87 @@ struct HighlightQueriesTests {
 }
 
 @Suite
+struct SleepQueriesTests {
+  let database: any DatabaseWriter
+  let utcCalendar = calendar("UTC")
+  let sleep = "HKCategoryTypeIdentifierSleepAnalysis"
+
+  init() throws {
+    database = try HealthDatabase.make()
+  }
+
+  private func stage(
+    _ value: Int, from start: Date, hours: Double, source: String = "com.apple.health.watch"
+  ) -> HealthSample {
+    HealthSample(
+      id: UUID().uuidString, type: sleep, startDate: start.unixMilliseconds,
+      endDate: start.addingTimeInterval(hours * 3600).unixMilliseconds, categoryValue: value,
+      sourceName: "Test", sourceBundleID: source)
+  }
+
+  private func nights(endingOn day: Int, count: Int) throws -> [SleepNight] {
+    try database.read { db in
+      try HealthDatabase.sleepNights(
+        endingOn: utc(0, day: day), count: count, calendar: utcCalendar, db)
+    }
+  }
+
+  @Test
+  func aNightBelongsToTheDayItEndsOn() throws {
+    try database.write { db in
+      try HealthSample.insert {
+        // From 23:00 on the 13th: the 14th's night.
+        stage(3, from: utc(23, day: 13), hours: 2)
+        stage(4, from: utc(1, day: 14), hours: 1)
+        stage(2, from: utc(2, day: 14), hours: 0.25)
+        stage(5, from: utc(2.25, day: 14), hours: 1)
+        // An afternoon nap on the 14th: also the 14th's.
+        stage(1, from: utc(15, day: 14), hours: 0.5)
+      }.execute(db)
+    }
+    let nights = try nights(endingOn: 14, count: 2)
+    #expect(nights.map(\.day) == [utc(0, day: 14)])
+    let night = try #require(nights.first)
+    #expect(night.asleep == 4.5 * 3600)
+    #expect(night.durations[.awake] == 0.25 * 3600)
+    #expect(night.hasStages)
+  }
+
+  @Test
+  func oneSourceANightAndInBedFromAll() throws {
+    try database.write { db in
+      try HealthSample.insert {
+        // The Watch's stages, and the iPhone's rougher estimate of the same night.
+        stage(3, from: utc(23, day: 13), hours: 6)
+        stage(1, from: utc(23.5, day: 13), hours: 5, source: "com.apple.health.iphone")
+        // In bed, recorded twice, overlapping.
+        stage(0, from: utc(22.5, day: 13), hours: 7, source: "com.apple.health.iphone")
+        stage(0, from: utc(23, day: 13), hours: 7.5)
+      }.execute(db)
+    }
+    let night = try #require(try nights(endingOn: 14, count: 1).first)
+    #expect(night.asleep == 6 * 3600)
+    #expect(night.segments.map(\.stage) == [.core])
+    // From 22:30 to 06:30, once.
+    #expect(night.inBed == 8 * 3600)
+  }
+
+  @Test
+  func withoutInBedTheNightSpansItsStages() throws {
+    try database.write { db in
+      try HealthSample.insert {
+        stage(1, from: utc(23, day: 13), hours: 3)
+        stage(1, from: utc(3, day: 14), hours: 3)
+      }.execute(db)
+    }
+    let night = try #require(try nights(endingOn: 14, count: 1).first)
+    #expect(night.asleep == 6 * 3600)
+    #expect(night.inBed == 7 * 3600)
+    #expect(!night.hasStages)
+  }
+}
+
+@Suite
 struct HealthSyncTests {
   @Test
   func appliesEveryHealthEntity() async throws {
