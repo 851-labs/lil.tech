@@ -36,6 +36,9 @@ private let notes = SyncEntity.decoding(
   }
 )
 
+/// When the tests' pulls end.
+private let syncedAt = Date(timeIntervalSince1970: 1_760_400_000)
+
 /// A database for a client that already started on epoch 1 (`bootstrapped`), or a new one.
 private func makeDatabase(bootstrapped: Bool = true) throws -> any DatabaseWriter {
   let database = try DatabaseQueue()
@@ -62,6 +65,8 @@ private final class FakeServer: Sendable {
     var horizon = 0
     /// Request numbers (1-based) that fail with a 500.
     var failing: Set<Int> = []
+    /// Request numbers (1-based) that fail without a connection.
+    var offline: Set<Int> = []
     /// Request numbers (1-based) that are rate limited for 30 seconds.
     var rateLimited: Set<Int> = []
     /// Answer with an empty page that claims there's more, like a broken server.
@@ -165,6 +170,9 @@ private final class FakeServer: Sendable {
             .first { $0.name == "after" }?.value ?? "0") ?? 0
       return try state.withValue { state in
         state.requests.append(after)
+        if state.offline.contains(state.requests.count) {
+          throw URLError(.notConnectedToInternet)
+        }
         if state.failing.contains(state.requests.count) {
           return (HTTPResponse(status: .internalServerError), nil)
         }
@@ -235,6 +243,7 @@ struct LilSyncEngineTests {
       $0.snapshotDownloader = server.downloader
       $0.continuousClock = ImmediateClock()
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+      $0.date.now = syncedAt
     } operation: {
       LilSyncEngine(
         entities: entities, syncSchema: syncSchema,
@@ -413,6 +422,7 @@ struct LilSyncEngineTests {
       $0.defaultDatabase = caughtUp
       $0.api = server.client
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+      $0.date.now = syncedAt
     } operation: {
       LilSyncEngine(entities: [notes], syncSchema: 1)
     }
@@ -477,6 +487,7 @@ struct LilSyncEngineTests {
       $0.api = server.client
       $0.continuousClock = clock
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+      $0.date.now = syncedAt
     } operation: {
       LilSyncEngine(entities: [notes], syncSchema: 1)
     }
@@ -501,6 +512,7 @@ struct LilSyncEngineTests {
       $0.api = server.client
       $0.continuousClock = clock
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+      $0.date.now = syncedAt
     } operation: {
       LilSyncEngine(entities: [notes], syncSchema: 1)
     }
@@ -528,10 +540,43 @@ struct LilSyncEngineTests {
     // Cancelling ends the idle wait right away.
     running.cancel()
     await running.value
-    try await eventually { statuses.value.last == .idle }
+    try await eventually { statuses.value.last == .upToDate(at: syncedAt) }
     observing.cancel()
     #expect(statuses.value.first == .idle)
     #expect(statuses.value.contains(.failed("unexpectedStatus(500)")))
+  }
+
+  // A hang would block the pre-commit hook: fail instead.
+  @Test(.timeLimit(.minutes(1)))
+  func aPullWithoutAConnectionIsOfflineUntilOneWorks() async throws {
+    server.append(upsert("n1", "One"))
+    server.state.withValue { $0.offline = [1] }
+    let clock = ManualClock()
+    let engine = withDependencies {
+      $0.defaultDatabase = database
+      $0.api = server.client
+      $0.continuousClock = clock
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+      $0.date.now = syncedAt
+    } operation: {
+      LilSyncEngine(entities: [notes], syncSchema: 1)
+    }
+    let statuses = LockIsolated<[SyncStatus]>([])
+    let updates = await engine.statusUpdates()
+    let observing = Task {
+      for await status in updates { statuses.withValue { $0.append(status) } }
+    }
+    let running = Task { await engine.run() }
+
+    try await clock.waitUntilAsleep(dueWithin: .seconds(1))
+    try await eventually { statuses.value.last == .offline }
+    clock.advance(by: .seconds(1))
+    try await eventually { statuses.value.last == .upToDate(at: syncedAt) }
+    running.cancel()
+    await running.value
+    observing.cancel()
+    // `.idle` first, unless the one-status buffer already replaced it.
+    #expect(statuses.value.suffix(2) == [.offline, .upToDate(at: syncedAt)])
   }
 
   @Test
@@ -543,6 +588,7 @@ struct LilSyncEngineTests {
       $0.api = server.client
       $0.continuousClock = clock
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+      $0.date.now = syncedAt
     } operation: {
       LilSyncEngine(entities: [notes], syncSchema: 1)
     }
@@ -568,6 +614,7 @@ struct LilSyncBootstrapTests {
       // Sleeps last until cancelled: `run()` idles after a pull rather than pulling in a loop.
       $0.continuousClock = ManualClock()
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+      $0.date.now = syncedAt
     } operation: {
       LilSyncEngine(entities: [notes], syncSchema: 1, partsDirectory: partsDirectory)
     }
@@ -737,7 +784,7 @@ struct LilSyncBootstrapTests {
     }
     let running = Task { await engine.run() }
     try await eventually { try storedNotes(database).count == 4 }
-    try await eventually { statuses.value.last == .idle }
+    try await eventually { statuses.value.last == .upToDate(at: syncedAt) }
     running.cancel()
     await running.value
     observing.cancel()
@@ -962,6 +1009,7 @@ struct LilSyncLiveTests {
       $0.liveConnection = live.connection
       $0.continuousClock = clock
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+      $0.date.now = syncedAt
     } operation: {
       LilSyncEngine(entities: [notes], syncSchema: 1)
     }

@@ -8,12 +8,17 @@ import SQLiteData
 
 /// What the UI shows about sync.
 public enum SyncStatus: Equatable, Sendable {
+  /// Not run yet.
   case idle
   /// Catching up. `cursor` and `head` give progress.
   case syncing(cursor: Int, head: Int)
   /// Starting over from a snapshot (`docs/SYNC.md`), as a new device does, or one whose local
   /// data is from another epoch or behind compacted changes: parts downloaded so far, of how many.
   case bootstrapping(downloadedParts: Int, totalParts: Int)
+  /// Caught up with the server as of `at`, the end of the last pull.
+  case upToDate(at: Date)
+  /// The last pull failed because there's no connection. Sync retries with backoff.
+  case offline
   /// The last pull failed. Sync retries with backoff.
   case failed(String)
 }
@@ -32,6 +37,7 @@ public actor LilSyncEngine {
   private let database: any DatabaseWriter
   private let api: any APIProtocol
   private let clock: any Clock<Duration>
+  private let date: DateGenerator
   private let random: WithRandomNumberGenerator
   private let downloader: SnapshotDownloader
   private let liveConnection: LiveConnection
@@ -62,6 +68,7 @@ public actor LilSyncEngine {
     @Dependency(\.defaultDatabase) var database
     @Dependency(\.api) var api
     @Dependency(\.continuousClock) var clock
+    @Dependency(\.date) var date
     @Dependency(\.withRandomNumberGenerator) var random
     @Dependency(\.snapshotDownloader) var downloader
     @Dependency(\.liveConnection) var liveConnection
@@ -82,6 +89,7 @@ public actor LilSyncEngine {
     self.database = database
     self.api = api
     self.clock = clock
+    self.date = date
     self.random = random
   }
 
@@ -125,13 +133,13 @@ public actor LilSyncEngine {
           } catch {
             if Task.isCancelled { return }
             failures += 1
-            setStatus(.failed(String(describing: error)))
+            setStatus(Self.status(for: error))
             delay = backoff(afterFailures: failures, error: error)
           }
         } else {
           failures += 1
           justBootstrapped = false
-          setStatus(.failed(String(describing: error)))
+          setStatus(Self.status(for: error))
           delay = backoff(afterFailures: failures, error: error)
         }
       }
@@ -278,7 +286,7 @@ public actor LilSyncEngine {
         .save(db)
       }
       guard page.hasMore else {
-        setStatus(.idle)
+        setStatus(.upToDate(at: date.now))
         return
       }
       setStatus(.syncing(cursor: page.next, head: page.head))
@@ -529,6 +537,12 @@ public actor LilSyncEngine {
   private func endWait() {
     wake?.resume()
     wake = nil
+  }
+
+  /// How a failed pull shows: offline when there's no connection (`isOfflineError`), failed
+  /// otherwise.
+  static func status(for error: any Error) -> SyncStatus {
+    isOfflineError(error) ? .offline : .failed(String(describing: error))
   }
 
   private func setStatus(_ status: SyncStatus) {

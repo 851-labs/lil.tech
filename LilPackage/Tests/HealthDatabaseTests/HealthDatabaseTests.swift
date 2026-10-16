@@ -376,6 +376,7 @@ struct HealthSyncTests {
       $0.api = api
       $0.continuousClock = ImmediateClock()
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(SplitMix64(seed: "test"))
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
     } operation: {
       LilSyncEngine(
         entities: HealthDatabase.syncEntities, syncSchema: HealthDatabase.syncSchema)
