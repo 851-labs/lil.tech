@@ -16,7 +16,7 @@ private final class FakeBlobs: Sendable {
   let delay: Duration
 
   init(_ blobs: [Data], delay: Duration = .zero) {
-    self.blobs = Dictionary(uniqueKeysWithValues: blobs.map { (BlobCache.sha256($0), $0) })
+    self.blobs = Dictionary(uniqueKeysWithValues: blobs.map { (LilSyncEngine.sha256Hex($0), $0) })
     self.delay = delay
   }
 
@@ -57,7 +57,7 @@ struct BlobCacheTests {
     let server = FakeBlobs([first])
     let directory = temporaryDirectory()
     let cache = server.cache(in: directory)
-    let sha256 = BlobCache.sha256(first)
+    let sha256 = LilSyncEngine.sha256Hex(first)
 
     #expect(try await cache.data(for: sha256) == first)
     #expect(try await cache.data(for: sha256) == first)
@@ -71,7 +71,7 @@ struct BlobCacheTests {
   func concurrentRequestsShareADownload() async throws {
     let server = FakeBlobs([first], delay: .milliseconds(50))
     let cache = server.cache(in: temporaryDirectory())
-    let sha256 = BlobCache.sha256(first)
+    let sha256 = LilSyncEngine.sha256Hex(first)
 
     async let a = cache.data(for: sha256)
     async let b = cache.data(for: sha256)
@@ -86,7 +86,8 @@ struct BlobCacheTests {
     // Room for two.
     let cache = server.cache(in: directory, maxBytes: 800)
     let (a, b, c) = (
-      BlobCache.sha256(first), BlobCache.sha256(second), BlobCache.sha256(third)
+      LilSyncEngine.sha256Hex(first), LilSyncEngine.sha256Hex(second),
+      LilSyncEngine.sha256Hex(third)
     )
 
     _ = try await cache.data(for: a)
@@ -108,7 +109,7 @@ struct BlobCacheTests {
   func anExpiredURLIsAskedForAgainOnce() async throws {
     let server = FakeBlobs([first])
     let cache = server.cache(in: temporaryDirectory())
-    let sha256 = BlobCache.sha256(first)
+    let sha256 = LilSyncEngine.sha256Hex(first)
     server.expiring.withValue {
       _ = $0.insert(
         URL(string: "https://api.lil.tech/v1/health/blob-downloads?token=\(sha256)-1")!)
@@ -116,6 +117,62 @@ struct BlobCacheTests {
 
     #expect(try await cache.data(for: sha256) == first)
     #expect(server.urlRequests.value == 2)
+  }
+
+  @Test
+  func signingOutRemovesEverything() async throws {
+    let server = FakeBlobs([first])
+    let directory = temporaryDirectory()
+    let cache = server.cache(in: directory)
+    _ = try await cache.data(for: LilSyncEngine.sha256Hex(first))
+
+    await cache.removeAll()
+    #expect(!FileManager.default.fileExists(atPath: directory.path()))
+    // Asked for again, it's downloaded again.
+    _ = try await cache.data(for: LilSyncEngine.sha256Hex(first))
+    #expect(server.downloads.value == 2)
+  }
+
+  @Test
+  func aFileDamagedOnDiskIsDownloadedAgain() async throws {
+    let server = FakeBlobs([first])
+    let directory = temporaryDirectory()
+    let cache = server.cache(in: directory)
+    let sha256 = LilSyncEngine.sha256Hex(first)
+    _ = try await cache.data(for: sha256)
+    try Data(repeating: 0, count: 10).write(to: directory.appending(path: sha256))
+
+    #expect(try await cache.data(for: sha256) == first)
+    #expect(server.downloads.value == 2)
+  }
+
+  @Test
+  func aBlobWhoseFreshURLExpiresTooIsNotFound() async throws {
+    let server = FakeBlobs([first])
+    let cache = server.cache(in: temporaryDirectory())
+    let sha256 = LilSyncEngine.sha256Hex(first)
+    server.expiring.withValue {
+      for request in 1...2 {
+        _ = $0.insert(
+          URL(string: "https://api.lil.tech/v1/health/blob-downloads?token=\(sha256)-\(request)")!)
+      }
+    }
+    await #expect(throws: BlobCache.NotFound(sha256: sha256)) {
+      try await cache.data(for: sha256)
+    }
+  }
+
+  @Test
+  func aCancelledRequestStopsWaiting() async throws {
+    let server = FakeBlobs([first], delay: .seconds(60))
+    let cache = server.cache(in: temporaryDirectory())
+    let request = Task { try await cache.data(for: LilSyncEngine.sha256Hex(first)) }
+    try await Task.sleep(for: .milliseconds(50))
+    let start = ContinuousClock.now
+    request.cancel()
+    await #expect(throws: CancellationError.self) { try await request.value }
+    // Not after the minute the download would have taken.
+    #expect(ContinuousClock.now - start < .seconds(10))
   }
 
   @Test
@@ -128,8 +185,13 @@ struct BlobCacheTests {
     await #expect(throws: BlobCache.NotFound(sha256: "not-a-hash")) {
       try await FakeBlobs([]).cache(in: directory).data(for: "not-a-hash")
     }
+    // Hex digits outside ASCII, which the server's form doesn't allow either.
+    let fullwidth = String(repeating: "\u{FF10}", count: 64)
+    await #expect(throws: BlobCache.NotFound(sha256: fullwidth)) {
+      try await FakeBlobs([]).cache(in: directory).data(for: fullwidth)
+    }
     // A server answering with other bytes: nothing is kept.
-    let named = BlobCache.sha256(first)
+    let named = LilSyncEngine.sha256Hex(first)
     let corrupt = BlobCache(
       directory: directory, maxBytes: 1 << 20,
       url: { _ in URL(string: "https://api.lil.tech/v1/health/blob-downloads?token=x")! },
