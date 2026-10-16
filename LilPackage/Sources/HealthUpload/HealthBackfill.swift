@@ -393,6 +393,7 @@ public actor HealthBackfill {
     }
     let fullRun = syncAllRequested
     serverFailing = false
+    let started = ContinuousClock.now
     let limitedUntil = rateLimitedUntil.flatMap { now() < $0 ? $0 : nil }
     // Changes wait in `requestedTypes`. A run of everything (the app opening, Continue, a
     // background task) waits out the limit instead, unless it's paused meanwhile.
@@ -400,9 +401,12 @@ public actor HealthBackfill {
     update { $0.isRunning = true }
     if fullRun { startCounting() }
     if let limitedUntil {
+      BackfillLog.write(
+        "waiting out a rate limit for \(Int(limitedUntil.timeIntervalSince(now())))s")
       do {
         try await clock.sleep(for: .seconds(limitedUntil.timeIntervalSince(now())))
       } catch {
+        BackfillLog.write("cancelled while waiting out a rate limit")
         update { $0.isRunning = false }
         throw CancellationError()
       }
@@ -420,6 +424,9 @@ public actor HealthBackfill {
         update { $0.isRunning = false }
         return
       }
+      // Here, so every run logged as started is logged as ended or stopped.
+      BackfillLog.write(
+        syncAllRequested ? "run started: everything" : "run started: \(requestedTypes.count) types")
       if let pending = state.pending {
         try await upload(pending, &state)
       }
@@ -467,6 +474,7 @@ public actor HealthBackfill {
         // Requests made while the sums went up are handled before the loop ends.
       } while syncAllRequested || !requestedTypes.isEmpty
     } catch {
+      BackfillLog.write("run stopped after \(BackfillLog.since(started)): \(error)")
       let cancelled = Task.isCancelled || error is CancellationError
       // Rate limited, it's paused for a moment rather than failed.
       let rateLimit = error as? HealthBatchUploader.RateLimited
@@ -493,6 +501,9 @@ public actor HealthBackfill {
     }
     // Tried again on the next call.
     requestedTypes.formUnion(failures.keys)
+    BackfillLog.write(
+      "run ended after \(BackfillLog.since(started)), failed: \(failures.keys.map(BackfillLog.name).sorted())"
+    )
     // The first in type order, so the same failures always report the same way.
     let ordered = types.compactMap { failures[$0.id] }
     if let failure = ordered.first {
@@ -541,7 +552,19 @@ public actor HealthBackfill {
       var reading = type
       reading.skipsUnreadableSeries =
         state.seriesFailures[type.id, default: 0] >= Self.seriesAttempts
-      let page = try await reader.page(reading, anchor, type.pageSize ?? Self.pageSize)
+      let readStart = ContinuousClock.now
+      let page: HealthPage
+      do {
+        page = try await reader.page(reading, anchor, type.pageSize ?? Self.pageSize)
+      } catch {
+        BackfillLog.write(
+          "read \(BackfillLog.name(type.id)) failed after \(BackfillLog.since(readStart)): \(error)"
+        )
+        throw error
+      }
+      BackfillLog.write(
+        "read \(BackfillLog.name(type.id)): \(page.mutations.count) in \(BackfillLog.since(readStart))\(page.hasMore ? "" : ", last")"
+      )
       state.seriesFailures[type.id] = nil
       if page.mutations.isEmpty {
         if anchor == nil, !page.hasMore {
@@ -849,11 +872,22 @@ public actor HealthBackfill {
       }
     }
     if missingBlob { return try dropPage() }
+    let uploading = ContinuousClock.now
     for batch in pending.batches {
       try Task.checkCancellation()
       guard let file = try storage.loadFile(batch) else { return try dropPage() }
-      try await upload(batch, file)
+      do {
+        try await upload(batch, file)
+      } catch {
+        BackfillLog.write(
+          "upload \(BackfillLog.name(pending.type)) failed after \(BackfillLog.since(uploading)): \(error)"
+        )
+        throw error
+      }
     }
+    BackfillLog.write(
+      "uploaded \(BackfillLog.name(pending.type)): \(pending.records) records, \(pending.batches.count) batches, \(pending.blobs.count) blobs in \(BackfillLog.since(uploading))"
+    )
     state.anchors[pending.type] = pending.anchor
     if pending.isLast { state.finished.insert(pending.type) }
     state.pending = nil
@@ -925,10 +959,18 @@ public actor HealthBackfill {
     }
     guard !left.isEmpty else { return }
     counting = Task { [counter] in
+      BackfillLog.write("counting \(left.count) types")
       for type in left {
+        let start = ContinuousClock.now
         guard let records = try? await counter.count(type, state.anchors[type.id]) else {
+          // Paused or reset: stop, leaving `counting` to the task that replaced this one.
+          guard !Task.isCancelled else { return }
+          BackfillLog.write(
+            "count \(BackfillLog.name(type.id)) failed after \(BackfillLog.since(start))")
           continue
         }
+        BackfillLog.write(
+          "counted \(BackfillLog.name(type.id)): \(records) in \(BackfillLog.since(start))")
         // Reset or paused meanwhile: the count may be another account's, or stale.
         guard !Task.isCancelled else { return }
         counted(type.id, records: (state.uploadedByType[type.id] ?? 0) + records)

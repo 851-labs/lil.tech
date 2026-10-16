@@ -21,9 +21,15 @@ public enum HealthBackgroundWork {
   /// app, also in `BGTaskSchedulerPermittedIdentifiers`.
   public static let uploadTaskIdentifier = "tech.lil.health.upload"
 
-  /// Registers the background tasks' handlers. Call it from the app's initializer: iOS requires
-  /// it before launch finishes.
+  /// Registers the background tasks' handlers, and in development builds turns on the
+  /// backfill's diagnostics log (`BackfillLog`). Call it from the app's initializer: iOS
+  /// requires it before launch finishes.
   public static func register() {
+    #if DEBUG
+      // What the upload does and how long each step takes, for diagnosing stalls on a device.
+      BackfillLog.isEnabled.setValue(true)
+      BackfillLog.write("launched")
+    #endif
     #if os(iOS)
       BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
         let task = UncheckedSendable(task)
@@ -117,6 +123,7 @@ public enum HealthBackgroundWork {
     while !Task.isCancelled {
       let outcome = await run()
       log.notice("Run ended: \(String(describing: outcome), privacy: .public)")
+      BackfillLog.write("continued task: run ended \(outcome)")
       switch outcome {
       case .finished:
         return true
@@ -132,6 +139,7 @@ public enum HealthBackgroundWork {
         if madeProgress { failures = 0 }
         guard failures < retryDelays.count else {
           log.error("Gave up after \(failures) retries: \(reason, privacy: .public)")
+          BackfillLog.write("continued task: gave up after \(failures) retries: \(reason)")
           await notice(.failed(reason))
           return false
         }
@@ -326,6 +334,7 @@ public enum HealthBackgroundWork {
       let sideTask = side.map { side in Task { await side() } }
       let work = Task { await work() }
       task.expirationHandler = {
+        BackfillLog.write("background task expired: \(task.identifier)")
         work.cancel()
         Task { @MainActor in
           if UIApplication.shared.applicationState != .active { await backfill.pause() }
