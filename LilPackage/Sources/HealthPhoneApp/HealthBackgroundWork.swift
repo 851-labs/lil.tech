@@ -2,6 +2,7 @@ public import ComposableArchitecture
 import Foundation
 import HealthUpload
 import LilAuth
+import OSLog
 
 #if os(iOS)
   import BackgroundTasks
@@ -65,36 +66,70 @@ public enum HealthBackgroundWork {
   static let continuedUploadRunning = LockIsolated(false)
   static let pausedSubtitle = "Paused until you unlock your iPhone"
 
+  /// Why the continued upload ended, in the device's log (Console, `subsystem:tech.lil.health`).
+  static let log = Logger(subsystem: "tech.lil.health", category: "ContinuedUpload")
+
   /// How a run of the backfill for a background task ended.
   enum RunOutcome: Equatable, Sendable {
     case finished
     /// The phone is locked, so Health can't be read.
     case locked
-    /// Failed, cancelled, or not possible (signed out, no consent).
+    /// Some of it failed (a type the server refused, the network): worth another run.
+    case failed(String)
+    /// Can't go on: cancelled, signed out, no consent, or the account's storage is full.
     case stopped
   }
 
-  /// The continued upload's work: runs the backfill and, each time it stops because the phone
-  /// locked, waits for `unlocked` and runs it again, telling `paused` meanwhile. Returns whether
-  /// it finished; it stops on any other outcome, or once cancelled (the task expired). iOS may
-  /// expire a task whose progress stays put for long, as it does while paused: opening the app
-  /// picks the upload up again then.
+  /// What the continued task says instead of its progress.
+  enum Notice: Equatable, Sendable {
+    case locked
+    case retrying(String)
+    case failed(String)
+  }
+
+  /// Waits before running again after a failed run: 30 seconds, then 1, 2 and 5 minutes.
+  static let retryDelays: [Duration] = [.seconds(30), .seconds(60), .seconds(120), .seconds(300)]
+
+  /// The continued upload's work: runs the backfill until it's done.
+  /// - **Locked:** waits for `unlocked`, then runs again.
+  /// - **Failed:** runs again after each of `retryDelays`, since one type failing (e.g. refused
+  ///   by a busy server) doesn't mean the rest of the upload can't go on. Only then is it failed.
+  /// - **Stopped:** ends at once.
+  ///
+  /// `notice` tells the task's UI meanwhile. Returns whether it finished; it stops once
+  /// cancelled (the task expired). iOS may expire a task whose progress stays put for long:
+  /// opening the app picks the upload up again then.
   static func runUntilDone(
     run: @Sendable () async -> RunOutcome,
     unlocked: @Sendable () async -> Void,
-    paused: @Sendable (Bool) async -> Void
+    wait: @Sendable (Duration) async -> Void,
+    notice: @Sendable (Notice?) async -> Void
   ) async -> Bool {
+    var failures = 0
     while !Task.isCancelled {
-      switch await run() {
-      case .finished: return true
-      case .stopped: return false
+      let outcome = await run()
+      log.notice("Run ended: \(String(describing: outcome), privacy: .public)")
+      switch outcome {
+      case .finished:
+        return true
+      case .stopped:
+        return false
       case .locked:
-        await paused(true)
+        await notice(.locked)
         await unlocked()
-        // Expired meanwhile: the task is complete, so nothing more is shown.
-        guard !Task.isCancelled else { return false }
-        await paused(false)
+      case .failed(let reason):
+        guard failures < retryDelays.count else {
+          log.error("Gave up after \(failures) retries: \(reason, privacy: .public)")
+          await notice(.failed(reason))
+          return false
+        }
+        await notice(.retrying(reason))
+        await wait(retryDelays[failures])
+        failures += 1
       }
+      // Expired meanwhile: the task is complete, so nothing more is shown.
+      guard !Task.isCancelled else { return false }
+      await notice(nil)
     }
     return false
   }
@@ -180,8 +215,11 @@ public enum HealthBackgroundWork {
         return .stopped
       } catch is HealthReader.Locked {
         return .locked
-      } catch {
+      } catch is HealthBatchUploader.StorageFull {
         return .stopped
+      } catch {
+        if Task.isCancelled || error is CancellationError { return .stopped }
+        return .failed(error.localizedDescription)
       }
     }
 
@@ -266,7 +304,7 @@ public enum HealthBackgroundWork {
       @Dependency(\.healthBackfill) var healthBackfill
       let backfill = healthBackfill
       let bgTask = UncheckedSendable(task)
-      let isPaused = LockIsolated(false)
+      let notice = LockIsolated<Notice?>(nil)
       let shown = LockIsolated<UploadProgress?>(nil)
       /// Shows `progress`, or the last progress again when the pause changes. In the lock, so
       /// updates from the progress stream and from pausing don't interleave.
@@ -276,8 +314,14 @@ public enum HealthBackgroundWork {
           guard let upload = shown else { return }
           bgTask.value.progress.totalUnitCount = upload.total
           bgTask.value.progress.completedUnitCount = upload.completed
-          bgTask.value.updateTitle(
-            uploadTitle, subtitle: isPaused.value ? pausedSubtitle : upload.subtitle)
+          let subtitle =
+            switch notice.value {
+            case .locked: pausedSubtitle
+            case .retrying(let reason): "Trying again shortly. \(reason)"
+            case .failed(let reason): "Couldn't upload. \(reason)"
+            case nil: upload.subtitle
+            }
+          bgTask.value.updateTitle(uploadTitle, subtitle: subtitle)
         }
       }
       continuedUploadRunning.setValue(true)
@@ -287,8 +331,9 @@ public enum HealthBackgroundWork {
         work: {
           await runUntilDone(
             run: runBackfill, unlocked: waitUntilUnlocked,
-            paused: { paused in
-              isPaused.setValue(paused)
+            wait: { try? await Task.sleep(for: $0) },
+            notice: { new in
+              notice.setValue(new)
               show(nil)
             })
         },
