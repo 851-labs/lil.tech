@@ -206,6 +206,9 @@ extension HealthReader: DependencyKey {
           throw error
         } catch is CancellationError {
           throw CancellationError()
+        } catch let error as ElectrocardiogramRecord.VoltagesUnavailable {
+          // Not the recording's fault either: skipping it would move the anchor past it.
+          throw error
         } catch {
           reportIssue(error)
         }

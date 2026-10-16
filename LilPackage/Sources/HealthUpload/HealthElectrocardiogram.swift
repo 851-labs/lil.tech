@@ -33,8 +33,15 @@ public struct ElectrocardiogramRecord: Equatable, Sendable {
 }
 
 extension ElectrocardiogramRecord {
+  /// The voltages couldn't be read in full. Unlike an encoding error, it isn't the recording's
+  /// fault, so the page is read again rather than the ECG skipped.
+  public struct VoltagesUnavailable: Error, Equatable {
+    public let expected: Int
+    public let read: Int
+  }
+
   /// Reads an ECG out of HealthKit, with its voltages. Throws `HealthReader.Locked` if the
-  /// device locks meanwhile.
+  /// device locks meanwhile, and `VoltagesUnavailable` if the query fails or stops short.
   public init(_ ecg: HKElectrocardiogram, store: HKHealthStore) async throws {
     let microvolt = HKUnit.voltUnit(with: .micro)
     var microvolts: [Float] = []
@@ -46,7 +53,14 @@ extension ElectrocardiogramRecord {
         microvolts.append(value.map(Float.init) ?? .nan)
       }
     } catch {
-      throw HealthReader.Locked.mapped(error)
+      let mapped = HealthReader.Locked.mapped(error)
+      if mapped is HealthReader.Locked || mapped is CancellationError { throw mapped }
+      throw VoltagesUnavailable(
+        expected: ecg.numberOfVoltageMeasurements, read: microvolts.count)
+    }
+    try Task.checkCancellation()
+    guard microvolts.count == ecg.numberOfVoltageMeasurements else {
+      throw VoltagesUnavailable(expected: ecg.numberOfVoltageMeasurements, read: microvolts.count)
     }
     self.init(
       id: ecg.uuid, classification: ecg.classification.rawValue,
@@ -78,10 +92,10 @@ extension HealthEncoder {
 
   /// Voltages as a blob: one little-endian 32-bit float per measurement.
   public static func voltagesBlob(_ microvolts: [Float]) -> Data {
-    var data = Data(capacity: microvolts.count * MemoryLayout<UInt32>.size)
-    for value in microvolts {
-      withUnsafeBytes(of: value.bitPattern.littleEndian) { data.append(contentsOf: $0) }
-    }
-    return data
+    #if _endian(little)
+      microvolts.withUnsafeBytes { Data($0) }
+    #else
+      microvolts.map(\.bitPattern.littleEndian).withUnsafeBytes { Data($0) }
+    #endif
   }
 }

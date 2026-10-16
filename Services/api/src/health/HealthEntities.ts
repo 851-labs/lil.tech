@@ -1,5 +1,9 @@
+import { Schema } from "effect";
 import { idPattern } from "../core/Ids.ts";
 import { Column, defineEntity } from "../store/Entities.ts";
+import { HealthBlobHash } from "./HealthBlobs.ts";
+
+const isBlobHash = Schema.is(HealthBlobHash);
 
 // Generic HealthKit data in the user's store. Records are keyed by HealthKit's UUID, lowercased
 // (and checked), so the same sample uploaded by two iPhones is one record. Times are Unix
@@ -225,11 +229,18 @@ export const HealthElectrocardiogram = defineEntity("health_electrocardiogram", 
     voltages: Column.nullable(Column.text),
     ...provenance,
   },
-  checkRow: (_, row) =>
-    row.voltages === null ||
-    (typeof row.voltages === "string" && /^[0-9a-f]{64}$/.test(row.voltages))
+  checkRow: (_, row) => {
+    if (row.voltages !== null && !isBlobHash(row.voltages)) {
+      return "voltages must be a blob's SHA-256 or null";
+    }
+    if (typeof row.voltageCount !== "number" || row.voltageCount < 0) {
+      return "voltageCount can't be negative";
+    }
+    // Rows are full records, so the two always arrive together.
+    return row.voltageCount > 0 === (row.voltages !== null)
       ? undefined
-      : "voltages must be a blob's SHA-256 or null",
+      : "a recording has a voltages blob exactly when it has measurements";
+  },
 });
 
 /**

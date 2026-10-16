@@ -660,9 +660,27 @@ public actor HealthBackfill {
   private func write(_ page: HealthPage, of type: HealthBackfillType) throws
     -> (HealthBackfillState.PendingPage, [Data], [(sha256: String, data: Data)])
   {
+    var blobs: [(sha256: String, data: Data)] = []
+    var skippedBlobs: Set<String> = []
+    for blob in page.blobs {
+      let sha256 = HealthBlob.sha256(blob)
+      guard blob.count <= HealthBlob.maxBytes else {
+        reportIssue(HealthBlob.TooLarge(bytes: blob.count))
+        skippedBlobs.insert(sha256)
+        continue
+      }
+      if !blobs.contains(where: { $0.sha256 == sha256 }) { blobs.append((sha256, blob)) }
+    }
     var writer = HealthBatchWriter()
     var files: [Data] = []
-    for mutation in page.mutations {
+    // A record whose blob was skipped goes too, so none refers to a blob that never arrives.
+    let mutations = page.mutations.filter { mutation in
+      skippedBlobs.isEmpty
+        || !(mutation.row?.values.contains { value in
+          if case .string(let string) = value { skippedBlobs.contains(string) } else { false }
+        } ?? false)
+    }
+    for mutation in mutations {
       do {
         if let file = try writer.append(mutation) { files.append(file) }
       } catch let error as HealthBatchWriter.LineTooLong {
@@ -670,19 +688,10 @@ public actor HealthBackfill {
       }
     }
     if let file = try writer.finish() { files.append(file) }
-    var blobs: [(sha256: String, data: Data)] = []
-    for blob in page.blobs {
-      guard blob.count <= HealthBlob.maxBytes else {
-        reportIssue(HealthBlob.TooLarge(bytes: blob.count))
-        continue
-      }
-      let sha256 = HealthBlob.sha256(blob)
-      if !blobs.contains(where: { $0.sha256 == sha256 }) { blobs.append((sha256, blob)) }
-    }
     let pending = HealthBackfillState.PendingPage(
       type: type.id, anchor: page.anchor, isLast: !page.hasMore,
       batches: files.map { _ in uuid().uuidString.lowercased() }, blobs: blobs.map(\.sha256),
-      records: page.mutations.count)
+      records: mutations.count)
     return (pending, files, blobs)
   }
 

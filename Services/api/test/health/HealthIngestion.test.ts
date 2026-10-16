@@ -460,8 +460,12 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHeal
         },
         { ...ecg, id: uuid(4702), row: { ...ecg.row, voltages: "not-a-hash" } },
         { ...ecg, id: uuid(4703), row: { ...ecg.row, voltages: "A".repeat(64) } },
+        // The count and the blob must agree.
+        { ...ecg, id: uuid(4704), row: { ...ecg.row, voltages: null } },
+        { ...ecg, id: uuid(4705), row: { ...ecg.row, voltageCount: 0 } },
+        { ...ecg, id: uuid(4706), row: { ...ecg.row, voltageCount: -1, voltages: null } },
       ]);
-      assert.deepInclude(batch, { status: "applied", applied: 2, rejected: 2 });
+      assert.deepInclude(batch, { status: "applied", applied: 2, rejected: 5 });
       const sql = (yield* TestStores).sqlFor(userId);
       assert.deepStrictEqual(
         sql?.exec("SELECT voltage_count, voltages FROM health_electrocardiogram ORDER BY id"),
