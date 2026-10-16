@@ -1,3 +1,4 @@
+import Dependencies
 import HealthUpload
 import Testing
 
@@ -55,5 +56,57 @@ struct HealthBackgroundWorkTests {
     let done = HealthBackgroundWork.UploadProgress(
       progress(withData: 40, empty: 0, records: 100, total: 40))
     #expect(done.completed == done.total)
+  }
+
+  @Test
+  func aContinuedUploadPausesWhileThePhoneIsLocked() async {
+    let outcomes = LockIsolated<[HealthBackgroundWork.RunOutcome]>([.locked, .locked, .finished])
+    let events = LockIsolated<[String]>([])
+    let finished = await HealthBackgroundWork.runUntilDone(
+      run: {
+        events.withValue { $0.append("run") }
+        return outcomes.withValue { $0.removeFirst() }
+      },
+      unlocked: { events.withValue { $0.append("unlocked") } },
+      paused: { paused in events.withValue { $0.append(paused ? "paused" : "resumed") } })
+    #expect(finished)
+    #expect(
+      events.value == [
+        "run", "paused", "unlocked", "resumed", "run", "paused", "unlocked", "resumed", "run",
+      ])
+  }
+
+  @Test
+  func aContinuedUploadStopsOnAnyOtherFailure() async {
+    let runs = LockIsolated(0)
+    let finished = await HealthBackgroundWork.runUntilDone(
+      run: {
+        runs.withValue { $0 += 1 }
+        return .stopped
+      },
+      unlocked: { Issue.record("Waited for an unlock") },
+      paused: { _ in Issue.record("Paused") })
+    #expect(!finished)
+    #expect(runs.value == 1)
+  }
+
+  // A hang would block the pre-commit hook: fail instead.
+  @Test(.timeLimit(.minutes(1)))
+  func anExpiredContinuedUploadStopsWaitingForAnUnlock() async {
+    let runs = LockIsolated(0)
+    let task = Task {
+      await HealthBackgroundWork.runUntilDone(
+        run: {
+          runs.withValue { $0 += 1 }
+          return .locked
+        },
+        // Locked until the task is cancelled.
+        unlocked: { try? await Task.sleep(for: .seconds(60)) },
+        paused: { _ in })
+    }
+    while runs.value == 0 { await Task.yield() }
+    task.cancel()
+    #expect(await task.value == false)
+    #expect(runs.value == 1)
   }
 }
