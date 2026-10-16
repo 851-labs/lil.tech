@@ -1,4 +1,4 @@
-import Dependencies
+import ComposableArchitecture
 import Foundation
 import HealthUpload
 import LilAuth
@@ -25,16 +25,20 @@ public enum HealthBackgroundWork {
     #endif
   }
 
-  /// Asks iOS for background time while signed in with an unfinished backfill, and withdraws the
-  /// request otherwise, or while the account's storage is full, which refuses every upload.
+  /// Asks iOS for background time while signed in, with consent, with an unfinished backfill, and
+  /// withdraws the request otherwise, or while the account's storage is full, which refuses every
+  /// upload.
   public static func scheduleIfNeeded() async {
     #if os(iOS)
       @Dependency(\.healthBackfill) var healthBackfill
       @Dependency(\.authSessions) var authSessions
       var updates = await healthBackfill.progressUpdates().makeAsyncIterator()
       let progress = await updates.next()
+      @Shared(.healthConsentPolicyVersion) var consented
       let signedIn = (try? await authSessions.accessToken()) != nil
-      guard signedIn, let progress, !progress.isFinished, !progress.isStorageFull else {
+      guard signedIn, consented == HealthConsentClient.policyVersion, let progress,
+        !progress.isFinished, !progress.isStorageFull
+      else {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         return
       }
@@ -67,7 +71,9 @@ public enum HealthBackgroundWork {
       }
       let work = Task {
         // Health can't be read while the phone is locked, which is when these tasks usually run.
+        @Shared(.healthConsentPolicyVersion) var consented
         guard await MainActor.run(body: { UIApplication.shared.isProtectedDataAvailable }),
+          consented == HealthConsentClient.policyVersion,
           (try? await sessions.accessToken()) != nil, !Task.isCancelled
         else { return false }
         return (try? await backfill.run()) != nil

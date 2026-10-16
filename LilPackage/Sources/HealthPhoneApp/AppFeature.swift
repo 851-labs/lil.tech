@@ -4,7 +4,7 @@ import HealthKitAccess
 import HealthUpload
 public import LilAuth
 
-/// lil health on the iPhone: sign in, then the home screen.
+/// lil health on the iPhone: sign in, consent, Health access, then the home screen.
 @Reducer
 public struct AppFeature {
   @ObservableState
@@ -13,6 +13,13 @@ public struct AppFeature {
     public var isSignedIn: Bool?
     public var signIn = SignInFeature.State()
     public var syncStatus = SyncStatusFeature.State()
+    /// Asking for consent to processing Health data, after signing in and before Health access.
+    public var healthConsent: HealthConsentFeature.State?
+    /// The policy version consent was given for on this account, if any (`docs/DECISIONS.md`).
+    @Shared(.healthConsentPolicyVersion) public var consentedPolicyVersion: String?
+    /// Whether the consent screen came up on its own since signing in. After Not Now, it's
+    /// reached from the home screen instead.
+    @Shared(.appStorage("askedForHealthConsent")) public var askedForConsent = false
     /// Asking for Health access, after signing in, while Health has types to ask about or the
     /// medications and prescriptions step hasn't been offered yet.
     public var healthAccess: HealthAccessFeature.State?
@@ -23,12 +30,21 @@ public struct AppFeature {
     @Presents public var alert: AlertState<Action.Alert>?
 
     public init(
-      isSignedIn: Bool? = nil, healthAccess: HealthAccessFeature.State? = nil,
-      alert: AlertState<Action.Alert>? = nil
+      isSignedIn: Bool? = nil, healthConsent: HealthConsentFeature.State? = nil,
+      healthAccess: HealthAccessFeature.State? = nil, alert: AlertState<Action.Alert>? = nil
     ) {
       self.isSignedIn = isSignedIn
+      self.healthConsent = healthConsent
       self.healthAccess = healthAccess
       self.alert = alert
+    }
+
+    /// Consent to the policy this app describes is in force, as far as this iPhone knows.
+    public var hasConsent: Bool { consentedPolicyVersion == HealthConsentClient.policyVersion }
+
+    mutating func setConsent(_ given: Bool) {
+      $consentedPolicyVersion.withLock { $0 = given ? HealthConsentClient.policyVersion : nil }
+      syncStatus.hasConsent = given
     }
   }
 
@@ -36,8 +52,11 @@ public struct AppFeature {
     case alert(PresentationAction<Alert>)
     /// Starts uploading the Health history, if it isn't all uploaded.
     case backfill
+    /// What the server says about consent, or `nil` if it couldn't be asked (e.g. offline).
+    case consentChecked(Bool?)
     case healthAccess(HealthAccessFeature.Action)
     case healthAccessChecked(needsRequest: Bool)
+    case healthConsent(HealthConsentFeature.Action)
     /// How many other iPhones are signed in to the account with lil health.
     case otherIPhonesFound(Int)
     /// They couldn't be checked for (e.g. offline), so they're checked for on the next launch.
@@ -54,6 +73,7 @@ public struct AppFeature {
   @Dependency(\.auth) var auth
   @Dependency(\.healthAuthorization) var healthAuthorization
   @Dependency(\.healthBackfill) var healthBackfill
+  @Dependency(\.healthConsent) var healthConsent
 
   enum CancelID { case backfill, signedInChecks }
 
@@ -72,18 +92,51 @@ public struct AppFeature {
         return .none
 
       case .backfill:
+        guard state.hasConsent else { return .none }
         // Failures are kept in the backfill's progress (for the status screen, 851-2557), and
         // it's tried again on the next launch.
-        return .run { [healthBackfill] _ in
+        return .run { [healthBackfill] send in
           // Again now that Health access may have been granted.
           await HealthChanges.observe()
           // Asked for up front: the app may be suspended long before the run ends.
           await HealthBackgroundWork.scheduleIfNeeded()
-          try? await healthBackfill.run()
+          do {
+            try await healthBackfill.run()
+          } catch is HealthBatchUploader.ConsentRequired {
+            // Withdrawn on another iPhone, or the policy changed.
+            await send(.consentChecked(false))
+          } catch {}
           // Withdrawn if it's done (or the user signed out meanwhile).
           await HealthBackgroundWork.scheduleIfNeeded()
         }
         .cancellable(id: CancelID.backfill, cancelInFlight: true)
+
+      case .consentChecked(nil):
+        return .none
+
+      case .consentChecked(true):
+        guard !state.hasConsent else { return .none }
+        // Given before, e.g. on another iPhone or before reinstalling.
+        state.setConsent(true)
+        state.healthConsent = nil
+        return checkHealthAccess()
+
+      case .consentChecked(false):
+        guard state.hasConsent else { return .none }
+        state.setConsent(false)
+        return stopUploading()
+
+      case .healthConsent(.delegate(.agreed)):
+        state.setConsent(true)
+        state.healthConsent = nil
+        return checkHealthAccess()
+
+      case .healthConsent(.delegate(.notNow)):
+        state.healthConsent = nil
+        return .none
+
+      case .healthConsent:
+        return .none
 
       case .healthAccess(.delegate(.finished)):
         state.$offeredPerObject.withLock { $0 = true }
@@ -98,7 +151,9 @@ public struct AppFeature {
         return .none
 
       case .healthAccessChecked(let needsRequest):
-        guard state.isSignedIn == true, state.healthAccess == nil else { return .none }
+        guard state.isSignedIn == true, state.hasConsent, state.healthAccess == nil else {
+          return .none
+        }
         if needsRequest {
           state.healthAccess = HealthAccessFeature.State()
         } else if !state.offeredPerObject {
@@ -122,10 +177,13 @@ public struct AppFeature {
         state.isSignedIn = isSignedIn
         guard isSignedIn else {
           state.signIn = SignInFeature.State()
+          state.healthConsent = nil
           state.healthAccess = nil
           state.syncStatus = SyncStatusFeature.State()
-          // The next account is checked for other iPhones too.
+          // The next account is checked for other iPhones too, and gives its own consent.
           state.$checkedForOtherIPhones.withLock { $0 = false }
+          state.setConsent(false)
+          state.$askedForConsent.withLock { $0 = false }
           // The next account starts its own backfill from the beginning.
           return .merge(
             .cancel(id: CancelID.backfill),
@@ -135,18 +193,26 @@ public struct AppFeature {
         }
         let checkDevices = !state.checkedForOtherIPhones
         state.$checkedForOtherIPhones.withLock { $0 = true }
-        return .run { [healthAuthorization, accountDevices] send in
-          if healthAuthorization.isAvailable() {
-            // If asking fails, there's nothing to show; the sync screen reports missing access.
-            let needsRequest = (try? await healthAuthorization.needsRequest()) ?? false
-            await send(.healthAccessChecked(needsRequest: needsRequest))
+        state.syncStatus.hasConsent = state.hasConsent
+        // Consent comes first, before Health access.
+        if !state.hasConsent, !state.askedForConsent {
+          state.$askedForConsent.withLock { $0 = true }
+          state.healthConsent = HealthConsentFeature.State()
+        }
+        let hasConsent = state.hasConsent
+        return .run { [healthAuthorization, healthConsent, accountDevices] send in
+          if hasConsent, healthAuthorization.isAvailable() {
+            await send(.healthAccessChecked(needsRequest: await Self.needsRequest()))
           }
-          guard checkDevices else { return }
-          do {
-            await send(.otherIPhonesFound(try await accountDevices.otherInstallsOfThisApp()))
-          } catch {
-            await send(.otherIPhonesCheckFailed)
+          if checkDevices {
+            do {
+              await send(.otherIPhonesFound(try await accountDevices.otherInstallsOfThisApp()))
+            } catch {
+              await send(.otherIPhonesCheckFailed)
+            }
           }
+          // It may have been withdrawn on another iPhone, or given there.
+          await send(.consentChecked(try? await healthConsent.isGiven()))
         }
         .cancellable(id: CancelID.signedInChecks, cancelInFlight: true)
 
@@ -161,6 +227,14 @@ public struct AppFeature {
         state.healthAccess = HealthAccessFeature.State()
         return .none
 
+      case .syncStatus(.delegate(.reviewConsent)):
+        state.healthConsent = HealthConsentFeature.State()
+        return .none
+
+      case .syncStatus(.delegate(.consentWithdrawn)):
+        state.setConsent(false)
+        return stopUploading()
+
       case .syncStatus:
         return .none
 
@@ -172,10 +246,41 @@ public struct AppFeature {
         }
       }
     }
+    .ifLet(\.healthConsent, action: \.healthConsent) {
+      HealthConsentFeature()
+    }
     .ifLet(\.healthAccess, action: \.healthAccess) {
       HealthAccessFeature()
     }
     .ifLet(\.$alert, action: \.alert)
+  }
+}
+
+extension AppFeature {
+  /// Whether Health has types to ask about. If asking fails, there's nothing to show; the sync
+  /// screen reports missing access.
+  static func needsRequest() async -> Bool {
+    @Dependency(\.healthAuthorization) var healthAuthorization
+    return (try? await healthAuthorization.needsRequest()) ?? false
+  }
+
+  /// Asks for Health access, or starts the backfill if there's nothing to ask.
+  func checkHealthAccess() -> Effect<Action> {
+    .run { [healthAuthorization] send in
+      guard healthAuthorization.isAvailable() else { return }
+      await send(.healthAccessChecked(needsRequest: await Self.needsRequest()))
+    }
+  }
+
+  /// Without consent: stops the backfill and its background work.
+  func stopUploading() -> Effect<Action> {
+    .merge(
+      .cancel(id: CancelID.backfill),
+      .run { [healthBackfill] _ in
+        await healthBackfill.pause()
+        await HealthBackgroundWork.scheduleIfNeeded()
+      }
+    )
   }
 }
 

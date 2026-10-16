@@ -32,6 +32,8 @@ struct SyncStatusFeatureTests {
     let done = HealthBackfill.TypeProgress(isDone: true, uploadedRecords: 10)
     let notYet = HealthBackfill.TypeProgress(isDone: false, uploadedRecords: 0)
     #expect(State().status == .loading)
+    // Without consent nothing uploads, whatever the progress.
+    #expect(State(progress: progress([steps: notYet]), hasConsent: false).status == .needsConsent)
     #expect(
       State(progress: progress([steps: done]), needsHealthAccess: true).status
         == .needsHealthAccess)
@@ -108,6 +110,8 @@ struct SyncStatusFeatureTests {
     #expect(signedOut.value)
     await store.send(.reviewHealthAccessButtonTapped)
     await store.receive(\.delegate.reviewHealthAccess)
+    await store.send(.reviewConsentButtonTapped)
+    await store.receive(\.delegate.reviewConsent)
     await store.send(.retryButtonTapped)
     await store.receive(\.delegate.retry)
   }
@@ -170,5 +174,33 @@ struct SyncStatusFeatureTests {
         TextState("It isn't possible right now. Please try again later.")
       }
     }
+  }
+
+  @Test
+  func aFailedWithdrawalSaysWhyAndCarriesOn() async {
+    struct Offline: LocalizedError {
+      var errorDescription: String? { "The Internet connection appears to be offline." }
+    }
+    let store = TestStore(initialState: SyncStatusFeature.State()) {
+      SyncStatusFeature()
+    } withDependencies: {
+      $0.healthConsent.withdraw = { throw Offline() }
+      $0.healthBackfill = HealthBackfill(types: [])
+    }
+
+    await store.send(.withdrawConsentButtonTapped) {
+      $0.alert = .confirmWithdrawal
+    }
+    await store.send(.alert(.presented(.confirmWithdrawal))) {
+      $0.alert = nil
+      $0.isWithdrawingConsent = true
+    }
+    await store.receive(\.consentWithdrawalFailed) {
+      $0.isWithdrawingConsent = false
+      $0.alert = .withdrawalFailed("The Internet connection appears to be offline.")
+    }
+    // Consent still stands, so the paused backfill picks up again.
+    await store.receive(\.delegate.retry)
+    #expect(store.state.hasConsent)
   }
 }

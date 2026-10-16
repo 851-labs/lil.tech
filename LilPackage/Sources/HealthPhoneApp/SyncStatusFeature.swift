@@ -14,20 +14,28 @@ public struct SyncStatusFeature {
     public var progress: HealthBackfill.Progress?
     /// Health still has types to ask about (e.g. the person tapped Not Now).
     public var needsHealthAccess = false
+    /// Consent to processing Health data is in force (`AppFeature` keeps it up to date).
+    public var hasConsent: Bool
+    public var isWithdrawingConsent = false
     public var isDeletingAccount = false
     @Presents public var alert: AlertState<Action.Alert>?
 
     public init(
       progress: HealthBackfill.Progress? = nil, needsHealthAccess: Bool = false,
+      hasConsent: Bool = true, isWithdrawingConsent: Bool = false,
       isDeletingAccount: Bool = false, alert: AlertState<Action.Alert>? = nil
     ) {
       self.progress = progress
       self.needsHealthAccess = needsHealthAccess
+      self.hasConsent = hasConsent
+      self.isWithdrawingConsent = isWithdrawingConsent
       self.isDeletingAccount = isDeletingAccount
       self.alert = alert
     }
 
     public enum Status: Equatable {
+      /// Nothing uploads until the person consents (they tapped Not Now, or withdrew it).
+      case needsConsent
       case loading
       case needsHealthAccess
       /// Paused until there's a network connection.
@@ -42,6 +50,7 @@ public struct SyncStatusFeature {
     }
 
     public var status: Status {
+      if !hasConsent { return .needsConsent }
       guard let progress else { return .loading }
       if needsHealthAccess { return .needsHealthAccess }
       if let failure = progress.failure, !progress.isRunning {
@@ -93,6 +102,11 @@ public struct SyncStatusFeature {
     case healthAccessChecked(needsRequest: Bool)
     case retryButtonTapped
     case reviewHealthAccessButtonTapped
+    case reviewConsentButtonTapped
+    case withdrawConsentButtonTapped
+    /// The server recorded the withdrawal.
+    case consentWithdrawn
+    case consentWithdrawalFailed(String)
     case openSettingsButtonTapped
     case signOutButtonTapped
     case deleteAccountButtonTapped
@@ -104,12 +118,17 @@ public struct SyncStatusFeature {
 
     public enum Alert: Equatable {
       case confirmDeletion
+      case confirmWithdrawal
     }
 
     @CasePathable
     public enum Delegate {
       /// Show the Health access onboarding again.
       case reviewHealthAccess
+      /// Show the consent screen.
+      case reviewConsent
+      /// Consent was withdrawn: stop uploading.
+      case consentWithdrawn
       /// Run the backfill now.
       case retry
     }
@@ -118,6 +137,7 @@ public struct SyncStatusFeature {
   @Dependency(\.auth) var auth
   @Dependency(\.healthAuthorization) var healthAuthorization
   @Dependency(\.healthBackfill) var healthBackfill
+  @Dependency(\.healthConsent) var healthConsent
   @Dependency(\.openURL) var openURL
 
   /// The app's page in Settings, where its Health access is.
@@ -155,6 +175,39 @@ public struct SyncStatusFeature {
 
       case .reviewHealthAccessButtonTapped:
         return .send(.delegate(.reviewHealthAccess))
+
+      case .reviewConsentButtonTapped:
+        return .send(.delegate(.reviewConsent))
+
+      case .withdrawConsentButtonTapped:
+        state.alert = .confirmWithdrawal
+        return .none
+
+      case .alert(.presented(.confirmWithdrawal)):
+        state.isWithdrawingConsent = true
+        return .run { [healthBackfill, healthConsent] send in
+          // Nothing more goes up from here, even if the server can't be told yet.
+          await healthBackfill.pause()
+          do {
+            try await healthConsent.withdraw()
+            await send(.consentWithdrawn)
+          } catch {
+            await send(.consentWithdrawalFailed(error.localizedDescription))
+          }
+        }
+
+      case .consentWithdrawn:
+        state.isWithdrawingConsent = false
+        state.hasConsent = false
+        // What's uploaded stays until the account is deleted, which is offered next.
+        state.alert = .consentWithdrawn
+        return .send(.delegate(.consentWithdrawn))
+
+      case .consentWithdrawalFailed(let reason):
+        state.isWithdrawingConsent = false
+        state.alert = .withdrawalFailed(reason)
+        // The paused backfill picks up again.
+        return .send(.delegate(.retry))
 
       case .openSettingsButtonTapped:
         return .run { [openURL] _ in await openURL(Self.settingsURL) }
@@ -215,6 +268,48 @@ extension AlertState where Action == SyncStatusFeature.Action.Alert {
       TextState(
         "This deletes your lil health account and everything uploaded to it, on every device. The data in Health on this iPhone stays."
       )
+    }
+  }
+
+  public static var confirmWithdrawal: Self {
+    Self {
+      TextState("Withdraw Your Consent?")
+    } actions: {
+      ButtonState(role: .destructive, action: .confirmWithdrawal) {
+        TextState("Withdraw")
+      }
+      ButtonState(role: .cancel) {
+        TextState("Cancel")
+      }
+    } message: {
+      TextState(
+        "lil health stops uploading your Health data. What's already uploaded stays in your account until you delete it."
+      )
+    }
+  }
+
+  public static var consentWithdrawn: Self {
+    Self {
+      TextState("Consent Withdrawn")
+    } actions: {
+      ButtonState(role: .destructive, action: .confirmDeletion) {
+        TextState("Delete Account")
+      }
+      ButtonState(role: .cancel) {
+        TextState("Keep Account")
+      }
+    } message: {
+      TextState(
+        "Nothing more is uploaded. To remove what's already uploaded too, delete your account: that deletes everything in it, on every device. The data in Health on this iPhone stays."
+      )
+    }
+  }
+
+  public static func withdrawalFailed(_ reason: String) -> Self {
+    Self {
+      TextState("Your Consent Wasn't Withdrawn")
+    } message: {
+      TextState(reason)
     }
   }
 

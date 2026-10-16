@@ -139,6 +139,7 @@ let package = Package(
         "HealthPhoneApp",
         "HealthUpload",
         "LilAuth",
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ]
     ),
     .target(

@@ -86,6 +86,25 @@ private func statusView(_ state: SyncStatusFeature.State) -> some View {
       }()))
 }
 
+#Preview("Not uploading without consent") {
+  statusView(SyncStatusFeature.State(progress: progress(done: 70), hasConsent: false))
+}
+
+#Preview("Withdraw consent?") {
+  statusView(
+    SyncStatusFeature.State(progress: progress(done: .max), alert: .confirmWithdrawal))
+}
+
+#Preview("Withdrawing consent") {
+  statusView(SyncStatusFeature.State(progress: progress(done: .max), isWithdrawingConsent: true))
+}
+
+#Preview("Consent withdrawn") {
+  statusView(
+    SyncStatusFeature.State(
+      progress: progress(done: 70), hasConsent: false, alert: .consentWithdrawn))
+}
+
 #Preview("Delete account?") {
   statusView(
     SyncStatusFeature.State(progress: progress(done: .max), alert: .confirmDeletion))

@@ -1,4 +1,5 @@
-import Dependencies
+import ComposableArchitecture
+import DependenciesTestSupport
 import Foundation
 import HealthKitAccess
 import HealthPhoneApp
@@ -6,9 +7,11 @@ import HealthUpload
 import LilAuth
 import Testing
 
+// Each test has its own app storage, for the consent flag.
+@Suite(.dependencies)
 struct HealthChangesTests {
   @Test
-  func changesUploadOnlyWhileSignedIn() async throws {
+  func changesUploadOnlyWhileSignedInWithConsent() async throws {
     let onChange = LockIsolated<(@Sendable (String) async -> Void)?>(nil)
     let synced = LockIsolated<[String]>([])
     let reader = HealthReader { type, _, _ in
@@ -48,9 +51,13 @@ struct HealthChangesTests {
             accessToken: "access", accessTokenExpiresAt: Date(timeIntervalSince1970: 1_760_500_000),
             refreshToken: "refresh",
             refreshTokenExpiresAt: Date(timeIntervalSince1970: 1_770_000_000)))
-        // Changes go up once there's a backfill.
+        // Changes go up once there's a backfill, and consent.
         @Dependency(\.healthBackfill) var healthBackfill
         try await healthBackfill.run()
+        await handler("HKQuantityTypeIdentifierBodyMass")
+        #expect(synced.value == ["HKQuantityTypeIdentifierBodyMass"])
+        @Shared(.healthConsentPolicyVersion) var consented
+        $consented.withLock { $0 = HealthConsentClient.policyVersion }
         await handler("HKQuantityTypeIdentifierBodyMass")
         #expect(
           synced.value == ["HKQuantityTypeIdentifierBodyMass", "HKQuantityTypeIdentifierBodyMass"])
