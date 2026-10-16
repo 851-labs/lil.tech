@@ -37,6 +37,8 @@ public struct WorkoutEvent: Codable, Equatable, Sendable {
   public static let pause = 1
   public static let resume = 2
   public static let lap = 3
+  public static let motionPaused = 5
+  public static let motionResumed = 6
   public static let segment = 7
 
   public var duration: TimeInterval { Double(endDate - startDate) / 1000 }
@@ -51,6 +53,33 @@ extension HealthWorkout {
 
   public var decodedEvents: [WorkoutEvent] {
     (try? JSONDecoder().decode([WorkoutEvent].self, from: Data(events.utf8))) ?? []
+  }
+
+  /// When it was paused: from each pause (or motion pause) to the resume after it, or to the
+  /// end.
+  public var pauses: [DateInterval] {
+    var pauses: [DateInterval] = []
+    var pausedAt: Int?
+    for event in decodedEvents.sorted(by: { $0.startDate < $1.startDate }) {
+      switch event.type {
+      case WorkoutEvent.pause, WorkoutEvent.motionPaused:
+        pausedAt = pausedAt ?? event.startDate
+      case WorkoutEvent.resume, WorkoutEvent.motionResumed:
+        if let from = pausedAt, event.startDate > from {
+          pauses.append(
+            DateInterval(
+              start: Date(unixMilliseconds: from), end: Date(unixMilliseconds: event.startDate)))
+        }
+        pausedAt = nil
+      default:
+        break
+      }
+    }
+    if let from = pausedAt, endDate > from {
+      pauses.append(
+        DateInterval(start: Date(unixMilliseconds: from), end: Date(unixMilliseconds: endDate)))
+    }
+    return pauses
   }
 
   /// From start to end, pauses included.
@@ -103,18 +132,23 @@ extension HealthDatabase {
       .fetchAll(db)
   }
 
-  /// The route of a workout, if it has one: linked by HealthKit, or else recorded within it.
+  /// The route of a workout, if it has one: the one HealthKit linked, or else one recorded
+  /// during it. With several, the one with the most locations.
   public static func route(of workout: HealthWorkout, _ db: Database) throws
     -> HealthWorkoutRoute?
   {
-    if let linked = try HealthWorkoutRoute.where({ $0.workout.eq(workout.id) }).fetchOne(db) {
-      return linked
-    }
+    let linked =
+      try HealthWorkoutRoute
+      .where { $0.workout.eq(workout.id) }
+      .order { $0.locationCount.desc() }
+      .fetchOne(db)
+    if let linked { return linked }
     return
       try HealthWorkoutRoute
       .where {
-        $0.workout.is(nil) && $0.startDate >= workout.startDate && $0.endDate <= workout.endDate
+        $0.workout.is(nil) && $0.startDate < workout.endDate && $0.endDate > workout.startDate
       }
+      .order { $0.locationCount.desc() }
       .fetchOne(db)
   }
 
@@ -144,27 +178,44 @@ extension HealthDatabase {
     }
   }
 
-  /// The route cut into kilometers, each with how long it took.
-  public static func splits(_ locations: [RouteLocation], every meters: Double = 1000)
-    -> [RouteSplit]
-  {
+  /// The route cut into kilometers (the last one may be shorter), each with how long it took,
+  /// leaving out the time it was paused. A kilometer ends where the route crosses it, between
+  /// two points, so the distance past it counts toward the next one.
+  public static func splits(
+    _ locations: [RouteLocation], pauses: [DateInterval] = [], every meters: Double = 1000
+  ) -> [RouteSplit] {
     guard var previous = locations.first else { return [] }
     var splits: [RouteSplit] = []
-    var distance = 0.0
+    var covered = 0.0
     var start = previous.time
-    for location in locations.dropFirst() {
-      distance += Self.distance(previous, location)
-      if distance >= meters {
-        splits.append(
-          RouteSplit(distance: distance, duration: location.time.timeIntervalSince(start)))
-        distance = 0
-        start = location.time
+    /// Seconds from `from` to `to`, less the paused time between them.
+    func moving(_ from: Date, _ to: Date) -> TimeInterval {
+      let paused = pauses.reduce(0.0) { total, pause in
+        let overlap = min(pause.end, to).timeIntervalSince(max(pause.start, from))
+        return total + max(overlap, 0)
       }
+      return max(to.timeIntervalSince(from) - paused, 0)
+    }
+    for location in locations.dropFirst() {
+      let step = Self.distance(previous, location)
+      var stepStart = previous.time
+      var left = step
+      // A step can cross more than one kilometer (a GPS gap).
+      while covered + left >= meters, left > 0 {
+        let needed = meters - covered
+        let crossing = stepStart.addingTimeInterval(
+          location.time.timeIntervalSince(stepStart) * needed / left)
+        splits.append(RouteSplit(distance: meters, duration: moving(start, crossing)))
+        left -= needed
+        covered = 0
+        start = crossing
+        stepStart = crossing
+      }
+      covered += left
       previous = location
     }
-    if distance > 0 {
-      splits.append(
-        RouteSplit(distance: distance, duration: previous.time.timeIntervalSince(start)))
+    if covered > 0.5 {
+      splits.append(RouteSplit(distance: covered, duration: moving(start, previous.time)))
     }
     return splits
   }

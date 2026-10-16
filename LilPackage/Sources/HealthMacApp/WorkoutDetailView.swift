@@ -20,16 +20,26 @@ struct WorkoutDetailView: View {
     WorkoutDetailContent(workout: workout, heartRates: heartRates, route: route)
       .task(id: workout.id) {
         let workout = workout
-        heartRates =
-          (try? await database.read { db in
-            try HealthDatabase.samples(
-              of: WorkoutFormat.heartRate,
-              in: Date(
-                unixMilliseconds: workout.startDate)..<Date(
-                  unixMilliseconds: workout.endDate), db)
-          }) ?? []
-        route = await loadRoute(workout)
+        // Both at once: the route may have to be downloaded.
+        async let samples = try? database.read { db in
+          try HealthDatabase.samples(
+            of: WorkoutFormat.heartRate,
+            in: Date(unixMilliseconds: workout.startDate)..<Date(unixMilliseconds: workout.endDate),
+            db)
+        }
+        async let loaded = loadRoute(workout)
+        heartRates = Self.mainSource(await samples ?? [])
+        route = await loaded
       }
+  }
+
+  /// The samples of the source that recorded the most during the workout (usually the Watch),
+  /// so a second device's readings don't zig-zag through the chart.
+  static func mainSource(_ samples: [HealthSample]) -> [HealthSample] {
+    let counts = Dictionary(grouping: samples, by: \.sourceBundleID).mapValues(\.count)
+    guard let source = counts.max(by: { ($0.value, $1.key) < ($1.value, $0.key) })?.key
+    else { return [] }
+    return samples.filter { $0.sourceBundleID == source }
   }
 
   private func loadRoute(_ workout: HealthWorkout) async -> WorkoutDetailContent.Route {
@@ -57,8 +67,21 @@ struct WorkoutDetailContent: View {
   let workout: HealthWorkout
   let heartRates: [HealthSample]
   let route: Route
+  /// Decoded and worked out once, not on every render.
+  private let statistics: [String: WorkoutStatistic]
+  private let splits: [RouteSplit]
 
-  private var statistics: [String: WorkoutStatistic] { workout.decodedStatistics }
+  init(workout: HealthWorkout, heartRates: [HealthSample], route: Route) {
+    self.workout = workout
+    self.heartRates = heartRates
+    self.route = route
+    statistics = workout.decodedStatistics
+    if case .loaded(let locations) = route {
+      splits = HealthDatabase.splits(locations, pauses: workout.pauses)
+    } else {
+      splits = []
+    }
+  }
 
   var body: some View {
     ScrollView {
@@ -126,7 +149,7 @@ struct WorkoutDetailContent: View {
       ("Workout Time", WorkoutFormat.duration(workout.duration), .yellow),
       ("Elapsed Time", WorkoutFormat.duration(workout.elapsed), .yellow),
     ]
-    if let meters = WorkoutFormat.distance(workout), meters > 0 {
+    if let meters = WorkoutFormat.distance(statistics), meters > 0 {
       figures.append(
         (
           "Distance", (meters / 1000).formatted(.number.precision(.fractionLength(2))) + " km",
@@ -211,11 +234,11 @@ struct WorkoutDetailContent: View {
           .frame(height: 300)
           .clipShape(RoundedRectangle(cornerRadius: 8))
       }
-      splits(HealthDatabase.splits(locations))
+      splitsTable
     }
   }
 
-  private func splits(_ splits: [RouteSplit]) -> some View {
+  private var splitsTable: some View {
     VStack(alignment: .leading, spacing: 8) {
       Text("Splits")
         .font(.title3.bold())
@@ -283,6 +306,7 @@ struct WorkoutDetailContent: View {
 
   private func card(@ViewBuilder _ content: () -> some View) -> some View {
     content()
+      .frame(maxWidth: .infinity)
       .padding(12)
       .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
   }
@@ -291,11 +315,16 @@ struct WorkoutDetailContent: View {
 /// A route on a map, colored by pace: green where it was fastest, through yellow, to red where
 /// it was slowest, relative to the route itself.
 struct RouteMap: View {
-  let locations: [RouteLocation]
+  private let pieces: [(coordinates: [CLLocationCoordinate2D], color: Color)]
+  private let bounds: MKMapRect
+
+  init(locations: [RouteLocation]) {
+    pieces = Self.pieces(locations)
+    bounds = Self.bounds(locations)
+  }
 
   var body: some View {
-    let pieces = Self.pieces(locations)
-    Map(initialPosition: .rect(Self.bounds(locations))) {
+    Map(initialPosition: .rect(bounds)) {
       ForEach(Array(pieces.enumerated()), id: \.offset) { _, piece in
         MapPolyline(coordinates: piece.coordinates)
           .stroke(piece.color, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
@@ -336,8 +365,15 @@ struct RouteMap: View {
     let pieceLength = max(locations.count / 60, 2)
     return stride(from: 0, to: locations.count - 1, by: pieceLength - 1).map { start in
       let piece = locations[start...min(start + pieceLength - 1, locations.count - 1)]
-      let speed = piece.map(\.speed).filter { $0 >= 0 }.reduce(0, +) / Double(max(piece.count, 1))
-      let share = fast > slow ? min(max((speed - slow) / (fast - slow), 0), 1) : 1
+      // Over the speeds it knows: unknown ones (negative) aren't slow.
+      let known = piece.map(\.speed).filter { $0 >= 0 }
+      let share: Double
+      if known.isEmpty || fast <= slow {
+        share = 1
+      } else {
+        let speed = known.reduce(0, +) / Double(known.count)
+        share = min(max((speed - slow) / (fast - slow), 0), 1)
+      }
       return (
         piece.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) },
         // Red (slow) through yellow to green (fast).

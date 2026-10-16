@@ -6,11 +6,9 @@ import SwiftUI
 /// Workouts, newest first and grouped by month, as in Health. Each opens its detail. Follows the
 /// local database as sync changes it.
 struct WorkoutsView: View {
-  let type: HealthDataType
   @Fetch private var workouts: [HealthWorkout]
 
-  init(type: HealthDataType) {
-    self.type = type
+  init() {
     _workouts = Fetch(
       wrappedValue: [], RecentWorkouts(), scheduler: MainQueueScheduler())
   }
@@ -69,6 +67,11 @@ struct WorkoutsContent: View {
               }
             }
           }
+          if workouts.count >= RecentWorkouts.limit {
+            Text("Showing the \(RecentWorkouts.limit.formatted()) most recent workouts.")
+              .font(.footnote)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }
@@ -105,7 +108,7 @@ struct WorkoutRow: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(WorkoutActivity.name(workout.activityType))
           .font(.headline)
-        Text(WorkoutFormat.headline(workout))
+        Text(WorkoutFormat.headline(workout, workout.decodedStatistics))
           .font(.system(.title3, design: .rounded).weight(.semibold))
           .foregroundStyle(.green)
       }
@@ -119,26 +122,32 @@ struct WorkoutRow: View {
 
 /// How workouts' figures read.
 enum WorkoutFormat {
-  static let distance = "HKQuantityTypeIdentifierDistanceWalkingRunning"
-  static let cyclingDistance = "HKQuantityTypeIdentifierDistanceCycling"
-  static let swimmingDistance = "HKQuantityTypeIdentifierDistanceSwimming"
+  /// The kinds of distance a workout can record, the usual ones first.
+  static let distances = [
+    "HKQuantityTypeIdentifierDistanceWalkingRunning", "HKQuantityTypeIdentifierDistanceCycling",
+    "HKQuantityTypeIdentifierDistanceSwimming", "HKQuantityTypeIdentifierDistanceWheelchair",
+    "HKQuantityTypeIdentifierDistanceDownhillSnowSports",
+    "HKQuantityTypeIdentifierDistanceCrossCountrySkiing",
+    "HKQuantityTypeIdentifierDistancePaddleSports", "HKQuantityTypeIdentifierDistanceRowing",
+    "HKQuantityTypeIdentifierDistanceSkatingSports",
+  ]
   static let activeEnergy = "HKQuantityTypeIdentifierActiveEnergyBurned"
   static let basalEnergy = "HKQuantityTypeIdentifierBasalEnergyBurned"
   static let heartRate = "HKQuantityTypeIdentifierHeartRate"
 
   /// The workout's distance in meters, whichever kind it recorded.
-  static func distance(_ workout: HealthWorkout) -> Double? {
-    let statistics = workout.decodedStatistics
-    return [distance, cyclingDistance, swimmingDistance].lazy
-      .compactMap { statistics[$0]?.sum }.first
+  static func distance(_ statistics: [String: WorkoutStatistic]) -> Double? {
+    distances.lazy.compactMap { statistics[$0]?.sum }.first
   }
 
   /// Distance if it has one, otherwise active energy, otherwise its time.
-  static func headline(_ workout: HealthWorkout) -> String {
-    if let meters = distance(workout), meters > 0 {
+  static func headline(_ workout: HealthWorkout, _ statistics: [String: WorkoutStatistic])
+    -> String
+  {
+    if let meters = distance(statistics), meters > 0 {
       return (meters / 1000).formatted(.number.precision(.fractionLength(2))) + " km"
     }
-    if let energy = workout.decodedStatistics[activeEnergy]?.sum, energy > 0 {
+    if let energy = statistics[activeEnergy]?.sum, energy > 0 {
       return "\(Int(energy.rounded())) kcal"
     }
     return duration(workout.duration)

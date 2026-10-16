@@ -842,6 +842,32 @@ struct WorkoutQueriesTests {
   }
 
   @Test
+  func aRouteOverlappingTheWorkoutCounts() throws {
+    let running = workout("run", at: utc(8))
+    try database.write { db in
+      try HealthWorkout.insert { running }.execute(db)
+      try HealthWorkoutRoute.insert {
+        // Ends a little after the workout.
+        HealthWorkoutRoute(
+          id: "overlapping", startDate: utc(8.1).unixMilliseconds,
+          endDate: utc(8.6).unixMilliseconds, workout: nil, locationCount: 2, locations: "abc",
+          sourceName: "Test", sourceBundleID: "com.example")
+      }.execute(db)
+    }
+    #expect(try database.read { try HealthDatabase.route(of: running, $0) }?.id == "overlapping")
+  }
+
+  @Test
+  func pausesRunFromPauseToResume() {
+    var paused = workout("run", at: utc(8))
+    let start = paused.startDate
+    paused.events =
+      #"[{"type":1,"startDate":\#(start + 60_000),"endDate":\#(start + 60_000)},{"type":2,"startDate":\#(start + 120_000),"endDate":\#(start + 120_000)},{"type":5,"startDate":\#(start + 600_000),"endDate":\#(start + 600_000)}]"#
+    #expect(
+      paused.pauses.map(\.duration) == [60, Double(paused.endDate - start - 600_000) / 1000])
+  }
+
+  @Test
   func routeBlobsDecodeAndSplitByKilometer() {
     // Synthetic: north from (0, 0), 0.0045° (about 500 m) every 150 seconds.
     var blob = Data()
@@ -865,9 +891,33 @@ struct WorkoutQueriesTests {
     #expect(abs(locations[2].latitude - 0.009) < 1e-12)
     #expect(abs(locations[0].speed - 3.3) < 1e-6)
     let splits = HealthDatabase.splits(locations)
-    // About 2 km: two kilometers of about 300 seconds each.
-    #expect(splits.count == 2)
+    // About 2 km: one full kilometer at about 300 seconds, the rest carried into the next.
+    #expect(splits.first?.distance == 1000)
     #expect(splits.allSatisfy { abs($0.pace - 300) < 3 })
+    // Every meter counts once: the splits add up to the route.
+    let total = zip(locations, locations.dropFirst()).reduce(0) {
+      $0 + HealthDatabase.distance($1.0, $1.1)
+    }
+    #expect(abs(splits.map(\.distance).reduce(0, +) - total) < 0.01)
+  }
+
+  @Test
+  func pausedTimeIsntPartOfASplit() {
+    // Synthetic: 2 km due north at 5 m/s, with a 4-minute pause during the first kilometer.
+    let start = Date(timeIntervalSince1970: 1_760_400_000)
+    let step = 0.0009  // about 100 m
+    var locations: [RouteLocation] = []
+    var time = start
+    for index in 0...20 {
+      locations.append(
+        RouteLocation(
+          time: time, latitude: Double(index) * step, longitude: 0, altitude: 0, speed: 5))
+      time = time.addingTimeInterval(index == 4 ? 240 + 20 : 20)
+    }
+    let pause = DateInterval(start: start.addingTimeInterval(100), duration: 240)
+    let splits = HealthDatabase.splits(locations, pauses: [pause])
+    #expect(abs(splits[0].duration - 200) < 2)
+    #expect(abs(splits[1].duration - 200) < 2)
   }
 }
 

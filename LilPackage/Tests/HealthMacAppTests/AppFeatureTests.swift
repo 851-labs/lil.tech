@@ -468,8 +468,37 @@ struct WorkoutFormatTests {
     #expect(pieces.last?.coordinates.last?.longitude == locations.last?.longitude)
     let hue = { (color: Color) in NSColor(color).usingColorSpace(.deviceRGB)?.hueComponent ?? -1 }
     #expect(hue(pieces.first!.color) > 0.3)
+    // Unknown speeds aren't slow.
+    let unknown = (0..<50).map { index in
+      RouteLocation(
+        time: start.addingTimeInterval(Double(index)), latitude: 0, longitude: Double(index) * 1e-4,
+        altitude: 0, speed: index.isMultiple(of: 2) ? -1 : 5)
+    }
+    let known = (0..<50).map { index in
+      RouteLocation(
+        time: start.addingTimeInterval(Double(index)), latitude: 0, longitude: Double(index) * 1e-4,
+        altitude: 0, speed: index < 25 ? 2 : 5)
+    }
+    let mixed = RouteMap.pieces(known + unknown)
+    #expect(hue(mixed.last!.color) > 0.3)
     // Red's hue is 0, or 1 as it wraps around.
     let slow = hue(pieces.last!.color)
     #expect(min(slow, 1 - slow) < 0.05)
+  }
+}
+
+struct WorkoutHeartRateTests {
+  // Main actor: it's the view's.
+  @Test @MainActor
+  func theChartUsesTheMainSource() {
+    let sample = { (source: String, value: Double) in
+      HealthSample(
+        id: UUID().uuidString, type: "HKQuantityTypeIdentifierHeartRate", startDate: 0,
+        endDate: 0, value: value, unit: "count/min", sourceName: source, sourceBundleID: source)
+    }
+    let samples = [
+      sample("watch", 150), sample("strap", 90), sample("watch", 152), sample("watch", 149),
+    ]
+    #expect(WorkoutDetailView.mainSource(samples).map(\.value) == [150, 152, 149])
   }
 }
