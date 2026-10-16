@@ -33,6 +33,16 @@ struct HealthBackgroundWorkTests {
   }
 
   @Test
+  func countedRecordsMakeTheTotalExact() {
+    var counted = progress(withData: 5, empty: 5, records: 10_000, total: 40)
+    counted.totalRecords = 1_234_567
+    let upload = HealthBackgroundWork.UploadProgress(counted)
+    #expect(upload.completed == 50_000)
+    #expect(upload.total == 1_234_567)
+    #expect(upload.subtitle == "50,000 of 1,234,567 records")
+  }
+
+  @Test
   func theEstimateNeverReachesTheEndEarly() {
     // Empty types done first don't make the end look near.
     let emptyFirst = HealthBackgroundWork.UploadProgress(

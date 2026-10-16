@@ -113,7 +113,8 @@ struct HealthBackfillTests {
             temperature.id: .init(isDone: true, uploadedRecords: 6),
             sleep.id: .init(isDone: true, uploadedRecords: 3),
           ],
-          lastUploadAt: Date(timeIntervalSince1970: 1_760_400_000)))
+          // Every type finished, so every record is known.
+          lastUploadAt: Date(timeIntervalSince1970: 1_760_400_000), totalRecords: 9))
 
     // Running again catches every type up from its anchor: nothing new, so nothing uploaded.
     try await backfill.run()
@@ -727,6 +728,73 @@ struct HealthBackfillTests {
     #expect(uploads.value == 1)
     #expect(try storage.loadState()?.seriesFailures == [:])
     #expect(try storage.loadState()?.finished == [temperature.id])
+  }
+
+  @Test
+  func countsTheRecordsLeftForAnExactTotal() async throws {
+    let health = FakeHealth(pages: [temperature.id: 2, sleep.id: 1])
+    let server = FakeServer()
+    let storage = HealthBackfillStorage.inMemory()
+    // The second upload waits, so the progress can be seen mid-run.
+    let (gate, open) = AsyncStream<Void>.makeStream()
+    let uploads = LockIsolated(0)
+    let backfill = withDependencies {
+      $0.healthReader = health.reader
+      $0.healthBatchUploader = HealthBatchUploader { id, file in
+        if uploads.withValue({
+          $0 += 1
+          return $0
+        }) == 2 {
+          for await _ in gate { break }
+        }
+        try await server.uploader.upload(id, file)
+      }
+      // As many records as the fake has left after the anchor.
+      $0.healthRecordCounter = HealthRecordCounter { type, anchor in
+        let read = anchor.map { Int(String(decoding: $0, as: UTF8.self))! } ?? 0
+        return ((health.pageCounts.value[type.id] ?? 0) - read) * health.perPage
+      }
+      $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [temperature, sleep])
+    }
+
+    let run = Task { try await backfill.run() }
+    var updates = await backfill.progressUpdates().makeAsyncIterator()
+    var midRun: HealthBackfill.Progress?
+    while let progress = await updates.next() {
+      if progress.uploadedRecords == 3, progress.totalRecords != nil {
+        midRun = progress
+        break
+      }
+    }
+    // Before the upload's done: 9 records in all, 3 of them uploaded.
+    #expect(midRun?.totalRecords == 9)
+    #expect(midRun?.isFinished == false)
+    open.yield()
+    open.finish()
+    try await run.value
+    #expect(await backfill.currentProgress().totalRecords == 9)
+    #expect(await backfill.currentProgress().uploadedRecords == 9)
+  }
+
+  @Test
+  func withoutCountingTheTotalIsUnknown() async throws {
+    let health = FakeHealth(pages: [temperature.id: 1])
+    let backfill = makeBackfill(
+      [temperature], health: health, server: FakeServer(), storage: .inMemory())
+    try await backfill.run()
+    // Finished, so every type's records are known.
+    #expect(await backfill.currentProgress().totalRecords == 3)
+
+    let unfinished = makeBackfill(
+      [temperature, sleep], health: FakeHealth(pages: [temperature.id: 1, sleep.id: 1]),
+      server: FakeServer(), storage: .inMemory())
+    #expect(await unfinished.currentProgress().totalRecords == nil)
   }
 
   @Test

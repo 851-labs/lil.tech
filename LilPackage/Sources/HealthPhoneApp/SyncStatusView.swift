@@ -109,22 +109,16 @@ private struct StatusHeader: View {
           .foregroundStyle(.secondary)
         Button("Try Again") { store.send(.retryButtonTapped) }
           .buttonStyle(.bordered)
-      case .uploading(let finished, let total, let records):
+      case .uploading(let finished, let total, let records, let totalRecords):
         Label("Uploading your Health history", systemImage: "icloud.and.arrow.up")
           .foregroundStyle(.blue)
-        ProgressView(value: Double(finished), total: Double(max(total, 1)))
-        Text("\(finished) of \(total) types · \(records.formatted()) records")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-          .monospacedDigit()
-      case .paused(let finished, let total, let records):
+        UploadCounts(
+          finishedTypes: finished, totalTypes: total, records: records, totalRecords: totalRecords)
+      case .paused(let finished, let total, let records, let totalRecords):
         Label("Upload paused", systemImage: "pause.circle")
           .foregroundStyle(.orange)
-        ProgressView(value: Double(finished), total: Double(max(total, 1)))
-        Text("\(finished) of \(total) types · \(records.formatted()) records")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-          .monospacedDigit()
+        UploadCounts(
+          finishedTypes: finished, totalTypes: total, records: records, totalRecords: totalRecords)
         Text("It continues in the background, or now.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
@@ -171,5 +165,33 @@ private struct CategoryRow: View {
         .accessibilityLabel("Uploading")
       }
     }
+  }
+}
+
+/// An upload's progress: by records once they've been counted. Until then the bar is
+/// indeterminate, since the share of types done says little (empty types finish first), and a
+/// bar by types would jump back once the records are counted.
+private struct UploadCounts: View {
+  let finishedTypes: Int
+  let totalTypes: Int
+  let records: Int
+  let totalRecords: Int?
+
+  var body: some View {
+    Group {
+      if let totalRecords {
+        ProgressView(value: Double(records), total: Double(max(totalRecords, 1)))
+      } else {
+        ProgressView()
+          .progressViewStyle(.linear)
+      }
+    }
+    Text(
+      totalRecords.map { "\(records.formatted()) of \($0.formatted()) records" }
+        ?? "\(finishedTypes) of \(totalTypes) types · \(records.formatted()) records"
+    )
+    .font(.subheadline)
+    .foregroundStyle(.secondary)
+    .monospacedDigit()
   }
 }

@@ -136,11 +136,16 @@ public actor HealthBackfill {
     /// Each type's progress, by HealthKit type identifier.
     public var types: [String: TypeProgress] = [:]
     public var lastUploadAt: Date?
+    /// All the records to upload, uploaded or not, once every type left has been counted
+    /// (`HealthRecordCounter`), else `nil`. Never less than `uploadedRecords`. Close rather
+    /// than exact: it counts samples, while some upload as several records (a blood pressure
+    /// reading and its two values), and deletions upload as records too.
+    public var totalRecords: Int?
 
     public init(
       finishedTypes: Int, totalTypes: Int, uploadedRecords: Int, isRunning: Bool,
       failure: String? = nil, isOffline: Bool = false, isStorageFull: Bool = false,
-      types: [String: TypeProgress] = [:], lastUploadAt: Date? = nil
+      types: [String: TypeProgress] = [:], lastUploadAt: Date? = nil, totalRecords: Int? = nil
     ) {
       self.finishedTypes = finishedTypes
       self.totalTypes = totalTypes
@@ -151,6 +156,7 @@ public actor HealthBackfill {
       self.isStorageFull = isStorageFull
       self.types = types
       self.lastUploadAt = lastUploadAt
+      self.totalRecords = totalRecords
     }
 
     public var isFinished: Bool { finishedTypes == totalTypes }
@@ -175,6 +181,12 @@ public actor HealthBackfill {
   private let statisticsReader: HealthStatisticsReader
   private let characteristicsReader: HealthCharacteristicsReader
   private let activitySummaryReader: HealthActivitySummaryReader
+  private let counter: HealthRecordCounter
+  /// Each type's records as counted (`HealthRecordCounter`): those uploaded when it was counted,
+  /// plus those after its anchor then.
+  private var countedRecords: [String: Int] = [:]
+  /// Counting the types left, while a run of everything is going.
+  private var counting: Task<Void, Never>?
   private let uuid: UUIDGenerator
   private let now: @Sendable () -> Date
   private let clock: any Clock<Duration>
@@ -205,6 +217,7 @@ public actor HealthBackfill {
     @Dependency(\.healthStatisticsReader) var statisticsReader
     @Dependency(\.healthCharacteristicsReader) var characteristicsReader
     @Dependency(\.healthActivitySummaryReader) var activitySummaryReader
+    @Dependency(\.healthRecordCounter) var counter
     @Dependency(\.date) var date
     @Dependency(\.continuousClock) var clock
     self.types = types
@@ -216,6 +229,7 @@ public actor HealthBackfill {
     self.statisticsReader = statisticsReader
     self.characteristicsReader = characteristicsReader
     self.activitySummaryReader = activitySummaryReader
+    self.counter = counter
     self.uuid = uuid
     self.now = { date.now }
     let state = (try? storage.loadState()) ?? nil
@@ -270,6 +284,8 @@ public actor HealthBackfill {
   /// Stops the run, e.g. when a background task's time is up. Everything is kept: the pending
   /// page goes up on the next run. Waits until it has stopped.
   public func pause() async {
+    counting?.cancel()
+    counting = nil
     guard let running else { return }
     running.task.cancel()
     _ = try? await running.task.value
@@ -292,6 +308,9 @@ public actor HealthBackfill {
         for file in pending.files { try? storage.removeFile(file) }
       }
       withErrorReporting { try storage.saveState(nil) }
+      counting?.cancel()
+      counting = nil
+      countedRecords = [:]
       let reset = Self.progress(types, HealthBackfillState())
       update { $0 = reset }
     }
@@ -316,6 +335,7 @@ public actor HealthBackfill {
     // background task) waits out the limit instead, unless it's paused meanwhile.
     if limitedUntil != nil, !syncAllRequested { return }
     update { $0.isRunning = true }
+    if fullRun { startCounting() }
     if let limitedUntil {
       do {
         try await clock.sleep(for: .seconds(limitedUntil.timeIntervalSince(now())))
@@ -816,7 +836,57 @@ public actor HealthBackfill {
       $0.uploadedRecords = counts.uploadedRecords
       $0.types = counts.types
       $0.lastUploadAt = counts.lastUploadAt
+      $0.totalRecords = totalRecords(counts)
     }
+  }
+
+  /// Counts the records of every type left, once per launch, for the progress's
+  /// `totalRecords`. Each from the anchor in the saved state, with that state's uploaded records,
+  /// so the two agree however far the upload has got meanwhile. Best-effort: a type that can't
+  /// be counted leaves the total unknown.
+  private func startCounting() {
+    guard counting == nil,
+      let state = try? storage.loadState() ?? HealthBackfillState()
+    else { return }
+    let left = types.filter {
+      !state.finished.contains($0.id) && countedRecords[$0.id] == nil
+    }
+    guard !left.isEmpty else { return }
+    counting = Task { [counter] in
+      for type in left {
+        guard let records = try? await counter.count(type, state.anchors[type.id]) else {
+          continue
+        }
+        // Reset or paused meanwhile: the count may be another account's, or stale.
+        guard !Task.isCancelled else { return }
+        counted(type.id, records: (state.uploadedByType[type.id] ?? 0) + records)
+      }
+      // Types that couldn't be counted (e.g. the phone locked) are tried again next run.
+      counting = nil
+    }
+  }
+
+  private func counted(_ type: String, records: Int) {
+    countedRecords[type] = records
+    update { $0.totalRecords = totalRecords($0) }
+  }
+
+  /// Every type's records: what's uploaded for a finished type, as counted for the rest. `nil`
+  /// while a type left hasn't been counted.
+  private func totalRecords(_ progress: Progress) -> Int? {
+    var total = 0
+    for type in types {
+      let uploaded = progress.types[type.id]?.uploadedRecords ?? 0
+      if progress.types[type.id]?.isDone == true {
+        total += uploaded
+      } else if let counted = countedRecords[type.id] {
+        // New samples may have been counted since; deletions can make it smaller.
+        total += max(counted, uploaded)
+      } else {
+        return nil
+      }
+    }
+    return max(total, progress.uploadedRecords)
   }
 
   /// Network errors mean the run is paused until there's a connection, not failing.

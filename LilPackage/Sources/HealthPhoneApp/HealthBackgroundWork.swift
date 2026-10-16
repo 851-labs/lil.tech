@@ -73,6 +73,9 @@ public enum HealthBackgroundWork {
       completed = records
       if progress.isFinished {
         total = records
+      } else if let counted = progress.totalRecords {
+        // Every type left counted: exact, short of the end until it's done.
+        total = max(Int64(counted), records + 1)
       } else {
         // Each type left counts as much as an average finished type with data: empty types
         // finish first and would otherwise make the end look near. Rough early on.
@@ -85,7 +88,10 @@ public enum HealthBackgroundWork {
         total = max(records + 1, records + Int64((left * average).rounded()))
       }
       subtitle =
-        "\(progress.finishedTypes) of \(progress.totalTypes) types · \(records.formatted()) records"
+        progress.totalRecords.map {
+          "\(records.formatted()) of \($0.formatted()) records"
+        }
+        ?? "\(progress.finishedTypes) of \(progress.totalTypes) types · \(records.formatted()) records"
     }
   }
 
