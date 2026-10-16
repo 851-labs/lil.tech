@@ -21,12 +21,15 @@ public enum HealthBackgroundWork {
   /// app, also in `BGTaskSchedulerPermittedIdentifiers`.
   public static let uploadTaskIdentifier = "tech.lil.health.upload"
 
-  /// Registers the background tasks' handlers, and turns on the backfill's diagnostics log
-  /// (`BackfillLog`). Call it from the app's initializer: iOS requires it before launch finishes.
+  /// Registers the background tasks' handlers, and in development builds turns on the
+  /// backfill's diagnostics log (`BackfillLog`). Call it from the app's initializer: iOS
+  /// requires it before launch finishes.
   public static func register() {
-    // What the upload does and how long each step takes, for diagnosing stalls on a device.
-    BackfillLog.isEnabled.set(true)
-    BackfillLog.write("launched")
+    #if DEBUG
+      // What the upload does and how long each step takes, for diagnosing stalls on a device.
+      BackfillLog.isEnabled.setValue(true)
+      BackfillLog.write("launched")
+    #endif
     #if os(iOS)
       BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
         let task = UncheckedSendable(task)

@@ -394,8 +394,6 @@ public actor HealthBackfill {
     let fullRun = syncAllRequested
     serverFailing = false
     let started = ContinuousClock.now
-    BackfillLog.write(
-      fullRun ? "run started: everything" : "run started: \(requestedTypes.count) types")
     let limitedUntil = rateLimitedUntil.flatMap { now() < $0 ? $0 : nil }
     // Changes wait in `requestedTypes`. A run of everything (the app opening, Continue, a
     // background task) waits out the limit instead, unless it's paused meanwhile.
@@ -403,9 +401,12 @@ public actor HealthBackfill {
     update { $0.isRunning = true }
     if fullRun { startCounting() }
     if let limitedUntil {
+      BackfillLog.write(
+        "waiting out a rate limit for \(Int(limitedUntil.timeIntervalSince(now())))s")
       do {
         try await clock.sleep(for: .seconds(limitedUntil.timeIntervalSince(now())))
       } catch {
+        BackfillLog.write("cancelled while waiting out a rate limit")
         update { $0.isRunning = false }
         throw CancellationError()
       }
@@ -423,6 +424,9 @@ public actor HealthBackfill {
         update { $0.isRunning = false }
         return
       }
+      // Here, so every run logged as started is logged as ended or stopped.
+      BackfillLog.write(
+        syncAllRequested ? "run started: everything" : "run started: \(requestedTypes.count) types")
       if let pending = state.pending {
         try await upload(pending, &state)
       }
@@ -959,6 +963,8 @@ public actor HealthBackfill {
       for type in left {
         let start = ContinuousClock.now
         guard let records = try? await counter.count(type, state.anchors[type.id]) else {
+          // Paused or reset: stop, leaving `counting` to the task that replaced this one.
+          guard !Task.isCancelled else { return }
           BackfillLog.write(
             "count \(BackfillLog.name(type.id)) failed after \(BackfillLog.since(start))")
           continue

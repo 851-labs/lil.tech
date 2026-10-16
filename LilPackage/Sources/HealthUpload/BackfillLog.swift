@@ -1,3 +1,4 @@
+public import Dependencies
 import Foundation
 import OSLog
 
@@ -8,7 +9,7 @@ import OSLog
 ///
 /// Off until the app turns it on, so tests and previews write nothing.
 public enum BackfillLog {
-  public static let isEnabled = LockIsolatedFlag()
+  public static let isEnabled = LockIsolated(false)
 
   static let logger = Logger(subsystem: "tech.lil.health", category: "Backfill")
   private static let queue = DispatchQueue(label: "tech.lil.health.backfill-log")
@@ -32,9 +33,12 @@ public enum BackfillLog {
         try? manager.removeItem(at: previous)
         try? manager.moveItem(at: file, to: previous)
       }
-      if let handle = try? FileHandle(forWritingTo: file) {
-        handle.seekToEndOfFile()
-        handle.write(Data(line.utf8))
+      if manager.fileExists(atPath: file.path) {
+        // The throwing calls: the older ones raise an exception on an I/O error, which would
+        // crash the app over a log line.
+        guard let handle = try? FileHandle(forWritingTo: file) else { return }
+        _ = try? handle.seekToEnd()
+        try? handle.write(contentsOf: Data(line.utf8))
         try? handle.close()
       } else {
         try? manager.createDirectory(
@@ -54,19 +58,5 @@ public enum BackfillLog {
   /// A short name for a type: `HKQuantityTypeIdentifierStepCount` reads `StepCount`.
   static func name(_ type: String) -> String {
     type.components(separatedBy: "Identifier").last.flatMap { $0.isEmpty ? nil : $0 } ?? type
-  }
-}
-
-/// A flag safe to read from any thread.
-public final class LockIsolatedFlag: @unchecked Sendable {
-  private let lock = NSLock()
-  private var flag = false
-
-  public var value: Bool {
-    lock.withLock { flag }
-  }
-
-  public func set(_ value: Bool) {
-    lock.withLock { flag = value }
   }
 }
