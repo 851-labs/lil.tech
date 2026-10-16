@@ -189,6 +189,9 @@ struct MetricFormatTests {
     #expect(MetricFormat.value(0.97, unit: "%", typeID: "x").unit == "%")
     #expect(MetricFormat.value(0.97, unit: "%", typeID: "x").number == 97.formatted())
     #expect(MetricFormat.value(62, unit: "count/min", typeID: "x").unit == "BPM")
+    // Whole numbers for BPM, as Health shows them; decimals for small values otherwise.
+    #expect(MetricFormat.value(56.6, unit: "count/min", typeID: "x").number == 57.formatted())
+    #expect(MetricFormat.value(4.51, unit: "L", typeID: "x").number == 4.51.formatted())
     #expect(
       MetricFormat.value(
         15, unit: "count/min", typeID: "HKQuantityTypeIdentifierRespiratoryRate"

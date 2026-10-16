@@ -89,7 +89,7 @@ struct SidebarView: View {
 }
 
 /// What's selected. Summary gets its own view (851-2580); a category lists its metrics, and a
-/// metric opens its detail (851-2578).
+/// metric, from there or from search, opens its detail.
 struct DetailView: View {
   let selection: SidebarItem?
 
@@ -102,12 +102,15 @@ struct DetailView: View {
     case .category(let category):
       NavigationStack {
         CategoryView(category: category)
-          .navigationDestination(for: String.self) { MetricDetailPlaceholder(typeID: $0) }
+          .navigationDestination(for: String.self) { MetricDetail(typeID: $0) }
       }
       // A new stack for each category, so one's pushed metric doesn't show under another.
       .id(category)
     case .dataType(let id):
-      MetricDetailPlaceholder(typeID: id)
+      NavigationStack {
+        MetricDetail(typeID: id)
+      }
+      .id(id)
     }
   }
 }
