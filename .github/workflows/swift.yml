@@ -30,7 +30,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The packages need Swift 6.4 (Xcode 27). Picks the newest installed Xcode 27 release.
       # The same Xcode as on our Macs: the packages need Swift 6.4. Bump it with them.
       - name: Select Xcode
         id: xcode
