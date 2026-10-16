@@ -1,20 +1,26 @@
 #!/bin/sh
 # Runs the checks GitHub used to run before every merge (`docs/DECISIONS.md`). The pre-commit
 # hook (`lefthook.yml`) runs the parts a commit touches.
-# Usage: scripts/check [--swift] [--services]   (both when neither is given)
+# Usage: scripts/check [--hook] [--swift] [--services]   (both parts when neither is given)
 #   --swift     Swift lint, the package's tests, and both apps' builds.
-#   --services  Formatting, lint and type checks (`scripts/format --lint`, which also checks the
-#               OpenAPI spec and the generated Swift client), and every Services package's tests.
-set -eu
+#   --services  Format, lint and type checks (`scripts/format --lint --services`, which also checks
+#               the OpenAPI spec is fresh), the generated Swift client regenerated and compared,
+#               and every Services package's tests.
+#   --hook      Refuse to run while the checked paths have unstaged or untracked changes: the
+#               checks see the working tree, so it has to match what's being committed.
+# Every step runs even after one fails, so one failure doesn't hide another.
+set -u
 
 swift=false
 services=false
+hook=false
 for arg in "$@"; do
   case "$arg" in
     --swift) swift=true ;;
     --services) services=true ;;
+    --hook) hook=true ;;
     *)
-      echo "usage: scripts/check [--swift] [--services]" >&2
+      echo "usage: scripts/check [--hook] [--swift] [--services]" >&2
       exit 2
       ;;
   esac
@@ -26,23 +32,53 @@ fi
 
 cd "$(dirname "$0")/.."
 
+# As on GitHub: our targets treat warnings as errors (`LilPackage/Package.swift`).
+export CI=1
+# Builds of their own, so they neither invalidate nor wait on Xcode's and everyday `swift test`'s.
+scratch="$PWD/.build-check"
+
+status=0
+step() {
+  "$@" || status=1
+}
+
 if $swift; then
-  scripts/format --lint --swift
-  # CI makes the targets treat warnings as errors (`LilPackage/Package.swift`).
-  (cd LilPackage && CI=1 swift test --quiet)
-  # Unsigned, as on CI: this only checks that the apps build.
-  for scheme in LilMessages LilHealthiOS; do
-    case "$scheme" in
-      LilMessages) destination='platform=macOS' ;;
-      *) destination='generic/platform=iOS Simulator' ;;
-    esac
-    xcodebuild -workspace Lil.xcworkspace -scheme "$scheme" -destination "$destination" \
-      -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO \
-      build -quiet
-  done
+  paths="LilPackage Apps Tools Lil.xcworkspace .swift-format scripts"
+else
+  paths="Services Tools LilPackage/Sources/LilAPIGenerated scripts"
+fi
+if $swift && $services; then
+  paths="LilPackage Apps Tools Lil.xcworkspace .swift-format Services scripts"
+fi
+if $hook; then
+  # shellcheck disable=SC2086
+  dirty=$(git status --porcelain --untracked-files=all -- $paths lefthook.yml |
+    grep -v '^[MADRC] ' || true)
+  if [ -n "$dirty" ]; then
+    echo "error: these have changes that aren't staged, so the checks wouldn't see what's being" >&2
+    echo "committed. Stage them, or set them aside with 'git stash --keep-index -u':" >&2
+    echo "$dirty" >&2
+    exit 1
+  fi
+fi
+
+if $swift; then
+  step scripts/format --lint --swift
+  step sh -c 'cd LilPackage && swift test --quiet --scratch-path "$1/package"' _ "$scratch"
+  # Unsigned: this only checks that the apps build.
+  step xcodebuild -workspace Lil.xcworkspace -scheme LilMessages -destination 'platform=macOS' \
+    -derivedDataPath "$scratch/DerivedData" -skipMacroValidation \
+    -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO build -quiet
+  step xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS \
+    -destination 'generic/platform=iOS Simulator' -derivedDataPath "$scratch/DerivedData" \
+    -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO \
+    build -quiet
 fi
 
 if $services; then
-  scripts/format --lint
-  (cd Services && vp run -r test)
+  step scripts/format --lint --services
+  step scripts/generate-api-client --check
+  step sh -c 'cd Services && vp run -r test'
 fi
+
+exit "$status"

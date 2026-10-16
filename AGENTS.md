@@ -13,7 +13,9 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   4. Move the ticket to In Review.
 - Run `scripts/format` before committing. `scripts/format --lint` must pass. It covers the Swift code and the TypeScript in `Services/`.
 - **Checks run before every commit**, in a [lefthook](https://lefthook.dev) pre-commit hook (`lefthook.yml`), not on GitHub. Set it up once per clone: `brew install lefthook`, then `lefthook install`.
-  - The hook runs `scripts/check` for the parts a commit touches. `--swift`: Swift lint, `CI=1 swift test` (warnings as errors) and both app builds. `--services`: `scripts/format --lint` (including the OpenAPI spec and generated client) and every Services package's tests.
+  - The hook runs `scripts/check` for the parts a commit touches, with warnings as errors (`CI=1`). `--swift`: Swift lint, the package's tests and both app builds. `--services`: `scripts/format --lint --services` (format, lint, type checks and a fresh OpenAPI spec), the generated client regenerated and compared (`scripts/generate-api-client --check`), and every Services package's tests.
+  - Its builds go to `.build-check/`, apart from Xcode's and everyday `swift test`'s, so the first run after cloning is slow and later ones take about a minute.
+  - The checks see the working tree, so the hook refuses to run while the paths it checks have unstaged or untracked changes. Stage them, or set them aside with `git stash --keep-index -u`.
   - A failing check blocks the commit. Fix it rather than skipping the hook (`LEFTHOOK=0 git commit …` is for emergencies only).
   - The Swift workflow (`.github/workflows/swift.yml`) is off for now. It can still be run by hand from the Actions tab.
 - Don't bundle unrelated changes. If you find extra work, file a new ticket.
@@ -51,7 +53,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - **Compatibility:** installed apps keep running old clients.
   - Adding response fields is safe, because the spec allows additional properties.
   - Adding a case to a response enum, or removing or renaming anything, breaks them. Add a new field or a new endpoint instead.
-  - `scripts/format --lint`, in the pre-commit hook, regenerates both and fails if either is stale. (`scripts/generate-api-client --check-stamp` checks only the stamp, for machines that can't run the generator, such as Linux.)
+  - `scripts/format --lint` fails if the spec is stale, or if the client's stamp doesn't match the spec, generator pin and config. The pre-commit hook also regenerates the client into a temporary directory and compares it (`scripts/generate-api-client --check`), which catches hand edits too.
 - Apps use the client through `@Dependency(\.api)` (from `LilAPI`). Tests get a client that fails every request and reports an issue; answer requests with `Client.mock { request, body in … }`. `LIL_API_URL` in a scheme's environment points an app at another deployment, such as a PR preview.
 
 ### Deploying the API

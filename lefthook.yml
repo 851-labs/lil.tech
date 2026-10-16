@@ -5,7 +5,7 @@ pre-commit:
   parallel: true
   jobs:
     - name: swift
-      run: scripts/check --swift
+      run: scripts/check --hook --swift
       glob:
         - "LilPackage/**"
         - "Apps/**"
@@ -16,9 +16,11 @@ pre-commit:
         - "scripts/check"
         - "lefthook.yml"
     - name: services
-      run: scripts/check --services
+      run: scripts/check --hook --services
       glob:
         - "Services/**"
+        # The generated client's stamp covers the generator's pin and config.
+        - "Tools/**"
         - "scripts/format"
         - "scripts/check"
         - "scripts/generate-api-client"
