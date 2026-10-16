@@ -2,7 +2,7 @@
 # Runs the checks GitHub used to run before every merge (`docs/DECISIONS.md`). The pre-commit
 # hook (`lefthook.yml`) runs the parts a commit touches.
 # Usage: scripts/check [--hook] [--swift] [--services]   (both parts when neither is given)
-#   --swift     Swift lint, the package's tests, and both apps' builds.
+#   --swift     Swift lint, the package's tests, and the apps' builds.
 #   --services  Format, lint and type checks (`scripts/format --lint --services`, which also checks
 #               the OpenAPI spec is fresh), the generated Swift client regenerated and compared,
 #               and every Services package's tests.
@@ -67,6 +67,9 @@ if $swift; then
   step sh -c 'cd LilPackage && swift test --quiet --scratch-path "$1/package"' _ "$scratch"
   # Unsigned: this only checks that the apps build.
   step xcodebuild -workspace Lil.xcworkspace -scheme LilMessages -destination 'platform=macOS' \
+    -derivedDataPath "$scratch/DerivedData" -skipMacroValidation \
+    -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO build -quiet
+  step xcodebuild -workspace Lil.xcworkspace -scheme LilHealth -destination 'platform=macOS' \
     -derivedDataPath "$scratch/DerivedData" -skipMacroValidation \
     -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO build -quiet
   step xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS \

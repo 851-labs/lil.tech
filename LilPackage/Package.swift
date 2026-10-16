@@ -15,6 +15,7 @@ let package = Package(
     .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
     .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
     .library(name: "HealthKitAccess", targets: ["HealthKitAccess"]),
+    .library(name: "HealthMacApp", targets: ["HealthMacApp"]),
     .library(name: "HealthPhoneApp", targets: ["HealthPhoneApp"]),
     .library(name: "HealthUpload", targets: ["HealthUpload"]),
     .library(name: "LilAPI", targets: ["LilAPI"]),
@@ -120,6 +121,22 @@ let package = Package(
       name: "HealthKitAccessTests",
       dependencies: [
         "HealthKitAccess"
+      ]
+    ),
+    .target(
+      name: "HealthMacApp",
+      dependencies: [
+        "HealthCatalog",
+        "LilAuth",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+      ]
+    ),
+    .testTarget(
+      name: "HealthMacAppTests",
+      dependencies: [
+        "HealthCatalog",
+        "HealthMacApp",
+        "LilAuth",
       ]
     ),
     .target(

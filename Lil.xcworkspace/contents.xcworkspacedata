@@ -2,6 +2,9 @@
 <Workspace
    version = "1.0">
    <FileRef
+      location = "group:Apps/LilHealth/LilHealth.xcodeproj">
+   </FileRef>
+   <FileRef
       location = "group:Apps/LilHealthiOS/LilHealthiOS.xcodeproj">
    </FileRef>
    <FileRef
