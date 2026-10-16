@@ -5,6 +5,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>tech.lil.health.sync</string>
+		<string>tech.lil.health.upload</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

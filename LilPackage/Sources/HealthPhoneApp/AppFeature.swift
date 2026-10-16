@@ -143,11 +143,12 @@ public struct AppFeature {
       case .healthAccess(.delegate(.finished)):
         state.$offeredPerObject.withLock { $0 = true }
         state.healthAccess = nil
-        return .send(.backfill)
+        // Onboarding is done: the first upload starts, and carries on after the app is left.
+        return .merge(.send(.backfill), continueInBackground(state))
 
       case .healthAccess(.delegate(.skipped)):
         state.healthAccess = nil
-        return .send(.backfill)
+        return .merge(.send(.backfill), continueInBackground(state))
 
       case .healthAccess:
         return .none
@@ -225,7 +226,7 @@ public struct AppFeature {
         return .none
 
       case .syncStatus(.delegate(.retry)):
-        return .send(.backfill)
+        return .merge(.send(.backfill), continueInBackground(state))
 
       case .syncStatus(.delegate(.reviewHealthAccess)):
         state.healthAccess = HealthAccessFeature.State()
@@ -287,6 +288,13 @@ extension AppFeature {
       await send(
         .healthAccessChecked(needsRequest: await Self.needsRequest(healthAuthorization)))
     }
+  }
+
+  /// Keeps an upload the user just started going after they leave the app, with consent, as the
+  /// backfill itself needs.
+  func continueInBackground(_ state: State) -> Effect<Action> {
+    guard state.hasConsent else { return .none }
+    return .run { _ in await HealthBackgroundWork.continueInBackground() }
   }
 
   /// Without consent: stops the backfill and its background work.
