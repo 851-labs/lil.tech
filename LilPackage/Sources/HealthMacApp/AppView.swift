@@ -27,7 +27,7 @@ public struct AppView: View {
         NavigationSplitView {
           SidebarView(store: store)
         } detail: {
-          DetailView(selection: store.selection)
+          DetailView(store: store)
         }
       }
     }
@@ -88,17 +88,18 @@ struct SidebarView: View {
   }
 }
 
-/// What's selected. Summary gets its own view (851-2580); a category lists its metrics, and a
-/// metric, from there or from search, opens its detail.
+/// What's selected: Summary's pins, a category's metrics, or a metric found by search. A
+/// metric's card opens its detail.
 struct DetailView: View {
-  let selection: SidebarItem?
+  let store: StoreOf<AppFeature>
 
   var body: some View {
-    switch selection {
+    switch store.selection {
     case .summary, nil:
-      ContentUnavailableView(
-        "Summary", systemImage: "heart.text.square.fill",
-        description: Text("Your pinned metrics and highlights will appear here."))
+      NavigationStack {
+        SummaryView(store: store.scope(\.summary, action: \.summary))
+          .navigationDestination(for: String.self) { MetricDetail(typeID: $0) }
+      }
     case .category(let category):
       NavigationStack {
         CategoryView(category: category)

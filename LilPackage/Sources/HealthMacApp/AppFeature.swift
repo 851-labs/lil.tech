@@ -18,15 +18,17 @@ public struct AppFeature {
     public var searchText = ""
     /// Shown in the sidebar's footer.
     public var syncStatus: SyncStatus
+    public var summary: SummaryFeature.State
 
     public init(
       isSignedIn: Bool? = nil, selection: SidebarItem? = .summary, searchText: String = "",
-      syncStatus: SyncStatus = .idle
+      syncStatus: SyncStatus = .idle, summary: SummaryFeature.State = SummaryFeature.State()
     ) {
       self.isSignedIn = isSignedIn
       self.selection = selection
       self.searchText = searchText
       self.syncStatus = syncStatus
+      self.summary = summary
     }
 
     /// The search, without surrounding spaces.
@@ -51,6 +53,7 @@ public struct AppFeature {
     case signedInChanged(Bool)
     case signIn(SignInFeature.Action)
     case signOutButtonTapped
+    case summary(SummaryFeature.Action)
     case syncStatusChanged(SyncStatus)
     case task
   }
@@ -85,6 +88,9 @@ public struct AppFeature {
     Scope(\.signIn, action: \.signIn) {
       SignInFeature()
     }
+    Scope(\.summary, action: \.summary) {
+      SummaryFeature()
+    }
     Reduce { state, action in
       switch action {
       case .binding:
@@ -106,6 +112,9 @@ public struct AppFeature {
         state.selection = .summary
         state.searchText = ""
         state.syncStatus = .idle
+        // Pins are the account's choice, like its data.
+        state.summary = SummaryFeature.State()
+        state.summary.$pins.withLock { $0 = [] }
         // The account's health data leaves the Mac with it. Also when the app opens signed out,
         // in case it quit before it was done. Removing waits for a pull being cancelled to stop
         // (`LilSyncEngine.removeLocalData()`).
@@ -124,6 +133,9 @@ public struct AppFeature {
       case .signOutButtonTapped:
         // The session's updates say when it's done.
         return .run { [auth] _ in await auth.signOut() }
+
+      case .summary:
+        return .none
 
       case .syncStatusChanged(let status):
         state.syncStatus = status
