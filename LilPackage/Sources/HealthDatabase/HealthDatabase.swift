@@ -144,6 +144,29 @@ public enum HealthDatabase {
       )
       .execute(db)
     }
+    migrator.registerMigration("Create heartbeat series") { db in
+      try #sql(
+        """
+        CREATE TABLE "healthHeartbeatSeries" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "startDate" INTEGER NOT NULL,
+          "endDate" INTEGER NOT NULL,
+          "beats" TEXT NOT NULL,
+          "gaps" TEXT NOT NULL,
+          "sourceName" TEXT NOT NULL,
+          "sourceBundleID" TEXT NOT NULL,
+          "sourceRevision" TEXT,
+          "device" TEXT,
+          "metadata" TEXT
+        ) STRICT
+        """
+      )
+      .execute(db)
+      try #sql(
+        #"CREATE INDEX "healthHeartbeatSeries_startDate" ON "healthHeartbeatSeries" ("startDate")"#
+      )
+      .execute(db)
+    }
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
@@ -329,6 +352,14 @@ public enum HealthDatabase {
         voltageCount: row.voltageCount, voltages: row.voltages, sourceName: row.sourceName,
         sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
         device: try json(row.device), metadata: try json(row.metadata))
+    },
+    entity("health_heartbeat_series", Components.Schemas.HealthHeartbeatSeries.self) { row in
+      HealthHeartbeatSeries(
+        id: row.id, startDate: row.startDate, endDate: row.endDate,
+        beats: try json(row.beats) ?? "[]", gaps: try json(row.gaps) ?? "[]",
+        sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
+        sourceRevision: try json(row.sourceRevision), device: try json(row.device),
+        metadata: try json(row.metadata))
     },
     entity("health_statistics_device", Components.Schemas.HealthStatisticsDevice.self) { row in
       HealthStatisticsDevice(

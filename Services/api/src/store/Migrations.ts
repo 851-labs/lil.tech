@@ -174,6 +174,15 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CREATE INDEX health_blobs_unreferenced ON health_blobs (unreferenced_since);
     `,
   },
+  {
+    version: 14,
+    name: "health_heartbeat_series",
+    // `HealthHeartbeatSeries` in `src/health/HealthEntities.ts`.
+    sql: `
+      CREATE TABLE "health_heartbeat_series" (id TEXT PRIMARY KEY, "start_date" INTEGER NOT NULL, "end_date" INTEGER NOT NULL, "beats" TEXT NOT NULL, "gaps" TEXT NOT NULL, "source_name" TEXT NOT NULL, "source_bundle_id" TEXT NOT NULL, "source_revision" TEXT, "device" TEXT, "metadata" TEXT) STRICT;
+      CREATE INDEX health_heartbeat_series_start ON health_heartbeat_series (start_date);
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

@@ -346,6 +346,12 @@ struct HealthSyncTests {
         "voltageCount": 15360, "voltages": "\(String(repeating: "a", count: 64))",
         "sourceName": "Test Watch", "sourceBundleId": "com.example"
         """),
+      upsert(
+        13, "health_heartbeat_series", "6f1c2a40-0000-4000-8000-000000000008",
+        """
+        "startDate": 1760400000000, "endDate": 1760400060000, "beats": [0, 0.82, 1.65],
+        "gaps": [2], "sourceName": "Test Watch", "sourceBundleId": "com.example"
+        """),
     ]
     let api = Client.mock { request, _ in
       #expect(request.path?.hasPrefix("/v1/sync/changes") == true)
@@ -354,7 +360,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 12, head: 12, hasMore: false)))
+              epoch: 1, changes: changes, next: 13, head: 13, hasMore: false)))
       )
     }
     let engine = withDependencies {
@@ -399,6 +405,9 @@ struct HealthSyncTests {
     let ecgs = try await database.read { db in try HealthElectrocardiogram.fetchAll(db) }
     #expect(ecgs.map(\.voltages) == [String(repeating: "a", count: 64)])
     #expect(ecgs.map(\.averageHeartRate) == [62])
+    let series = try await database.read { db in try HealthHeartbeatSeries.fetchAll(db) }
+    #expect(series.map(\.beats) == ["[0,0.82,1.65]"])
+    #expect(series.map(\.gaps) == ["[2]"])
     #expect(workouts.first?.events == #"[{"type":1}]"#)
     #expect(
       workouts.first?.statistics

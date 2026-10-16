@@ -477,6 +477,42 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHeal
     }),
   );
 
+  it.effect("applies heartbeat series", () =>
+    Effect.gen(function* () {
+      const series = {
+        entity: "health_heartbeat_series",
+        op: "upsert",
+        id: uuid(4800),
+        row: {
+          startDate: 1760400000000,
+          endDate: 1760400060000,
+          beats: [0, 0.82, 1.65, 3.31],
+          gaps: [3],
+          sourceName: "Test Watch",
+          sourceBundleId: "com.apple.health.00000000",
+        },
+      };
+      const { batch } = yield* ingest([
+        series,
+        { ...series, id: uuid(4801), row: { ...series.row, beats: [], gaps: [] } },
+        // Not ascending, negative, or gaps outside the beats.
+        { ...series, id: uuid(4802), row: { ...series.row, beats: [1, 0.5] } },
+        { ...series, id: uuid(4803), row: { ...series.row, beats: [-1] } },
+        { ...series, id: uuid(4804), row: { ...series.row, gaps: [4] } },
+        { ...series, id: uuid(4805), row: { ...series.row, gaps: [2, 2] } },
+      ]);
+      assert.deepInclude(batch, { status: "applied", applied: 2, rejected: 4 });
+      const sql = (yield* TestStores).sqlFor(userId);
+      assert.deepStrictEqual(
+        sql?.exec("SELECT beats, gaps FROM health_heartbeat_series ORDER BY id"),
+        [
+          { beats: "[0,0.82,1.65,3.31]", gaps: "[3]" },
+          { beats: "[]", gaps: "[]" },
+        ],
+      );
+    }),
+  );
+
   it.effect("applies deletes as tombstones", () =>
     Effect.gen(function* () {
       yield* ingest([sample(30)]);

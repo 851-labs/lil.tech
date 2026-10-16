@@ -19,14 +19,14 @@ public struct HealthBackfillType: Hashable, Sendable {
   }
 
   /// Every quantity and category type the app can read, workouts, State of Mind, scored
-  /// assessments, audiograms, ECGs, and the correlations, which are read through their
-  /// component types.
+  /// assessments, audiograms, ECGs, heartbeat series, and the correlations, which are read
+  /// through their component types.
   public static func all(availableOn version: IOSVersion) -> [Self] {
     HealthCatalog.types(availableOn: version).compactMap { type in
       switch (type.kind, type.readAuthorization) {
       case (.quantity, .standard), (.category, .standard), (.workout, .standard),
         (.stateOfMind, .standard), (.scoredAssessment, .standard), (.audiogram, .standard),
-        (.electrocardiogram, .standard):
+        (.electrocardiogram, .standard), (.heartbeatSeries, .standard):
         Self(id: type.id)
       case (.correlation, _): Self(id: type.id, isCorrelation: true)
       default: nil
@@ -45,14 +45,20 @@ extension HealthBackfillType {
     case .scoredAssessment: return HealthEncoder.scoredAssessmentEntity
     case .audiogram: return HealthEncoder.audiogramEntity
     case .electrocardiogram: return HealthEncoder.electrocardiogramEntity
+    case .heartbeatSeries: return HealthEncoder.heartbeatSeriesEntity
     default: return HealthEncoder.sampleEntity
     }
   }
 
   /// Objects per page, if not the backfill's default: types with blobs read fewer, since a
-  /// page's blobs are held in memory until they're saved.
+  /// page's blobs are held in memory until they're saved, and so do types with a series query
+  /// per object.
   public var pageSize: Int? {
-    HealthCatalog.type(id: id)?.kind == .electrocardiogram ? 50 : nil
+    switch HealthCatalog.type(id: id)?.kind {
+    case .electrocardiogram: 50
+    case .heartbeatSeries: 200
+    default: nil
+    }
   }
 
   /// The HealthKit type to query and observe, or `nil` if HealthKit doesn't know it.
@@ -139,6 +145,21 @@ public struct HealthReader: Sendable {
     let id: String
   }
 
+  /// A series (an ECG's voltages, a heartbeat series' beats) couldn't be read: its query failed.
+  /// Unlike an encoding error, it isn't the record's fault, so the page is read again rather
+  /// than the record skipped, which would move the anchor past it.
+  public struct SeriesUnavailable: Error, Equatable {
+    public let expected: Int
+    public let read: Int
+  }
+
+  /// A series' query finished with a different number of values than its sample says. It's
+  /// uploaded as read and reported: reading it again would only get the same.
+  public struct SeriesCountMismatch: Error, Equatable {
+    public let expected: Int
+    public let read: Int
+  }
+
   /// Health can't be read while the device is locked. Not a failure: the work waits until it's
   /// unlocked.
   public struct Locked: Error, Equatable {
@@ -193,6 +214,9 @@ extension HealthReader: DependencyKey {
             mutations.append(try HealthEncoder.scoredAssessment(assessment))
           } else if let audiogram = sample as? HKAudiogramSample {
             mutations.append(HealthEncoder.audiogram(audiogram))
+          } else if let series = sample as? HKHeartbeatSeriesSample {
+            mutations.append(
+              HealthEncoder.heartbeatSeries(try await HeartbeatSeriesRecord(series, store: store)))
           } else if let ecg = sample as? HKElectrocardiogram {
             let (mutation, blob) = HealthEncoder.electrocardiogram(
               try await ElectrocardiogramRecord(ecg, store: store))
@@ -206,8 +230,8 @@ extension HealthReader: DependencyKey {
           throw error
         } catch is CancellationError {
           throw CancellationError()
-        } catch let error as ElectrocardiogramRecord.VoltagesUnavailable {
-          // Not the recording's fault either: skipping it would move the anchor past it.
+        } catch let error as SeriesUnavailable {
+          // Not the record's fault either: skipping it would move the anchor past it.
           throw error
         } catch {
           reportIssue(error)

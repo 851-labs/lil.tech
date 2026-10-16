@@ -368,3 +368,36 @@ public struct HealthElectrocardiogram: Equatable, Identifiable, Sendable {
     self.metadata = metadata
   }
 }
+
+/// A heartbeat series (`health_heartbeat_series`). `beats` and `gaps` are JSON, as the server
+/// documents them.
+@Table("healthHeartbeatSeries")
+public struct HealthHeartbeatSeries: Equatable, Identifiable, Sendable {
+  public let id: String
+  public var startDate: Int
+  public var endDate: Int
+  public var beats: String
+  public var gaps: String
+  public var sourceName: String
+  public var sourceBundleID: String
+  public var sourceRevision: String?
+  public var device: String?
+  public var metadata: String?
+
+  public init(
+    id: String, startDate: Int, endDate: Int, beats: String, gaps: String, sourceName: String,
+    sourceBundleID: String, sourceRevision: String? = nil, device: String? = nil,
+    metadata: String? = nil
+  ) {
+    self.id = id
+    self.startDate = startDate
+    self.endDate = endDate
+    self.beats = beats
+    self.gaps = gaps
+    self.sourceName = sourceName
+    self.sourceBundleID = sourceBundleID
+    self.sourceRevision = sourceRevision
+    self.device = device
+    self.metadata = metadata
+  }
+}

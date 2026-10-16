@@ -1,5 +1,6 @@
 public import Foundation
 public import HealthKit
+import IssueReporting
 
 /// An ECG's contents, read out of `HKElectrocardiogram` and its voltage query (`init(_:store:)`),
 /// so the encoding can be tested without HealthKit, which doesn't let apps create ECGs.
@@ -33,15 +34,9 @@ public struct ElectrocardiogramRecord: Equatable, Sendable {
 }
 
 extension ElectrocardiogramRecord {
-  /// The voltages couldn't be read in full. Unlike an encoding error, it isn't the recording's
-  /// fault, so the page is read again rather than the ECG skipped.
-  public struct VoltagesUnavailable: Error, Equatable {
-    public let expected: Int
-    public let read: Int
-  }
-
   /// Reads an ECG out of HealthKit, with its voltages. Throws `HealthReader.Locked` if the
-  /// device locks meanwhile, and `VoltagesUnavailable` if the query fails or stops short.
+  /// device locks meanwhile, and `HealthReader.SeriesUnavailable` if the query fails. A count
+  /// that doesn't match is reported, and the voltages are kept as read.
   public init(_ ecg: HKElectrocardiogram, store: HKHealthStore) async throws {
     let microvolt = HKUnit.voltUnit(with: .micro)
     var microvolts: [Float] = []
@@ -55,12 +50,14 @@ extension ElectrocardiogramRecord {
     } catch {
       let mapped = HealthReader.Locked.mapped(error)
       if mapped is HealthReader.Locked || mapped is CancellationError { throw mapped }
-      throw VoltagesUnavailable(
+      throw HealthReader.SeriesUnavailable(
         expected: ecg.numberOfVoltageMeasurements, read: microvolts.count)
     }
     try Task.checkCancellation()
-    guard microvolts.count == ecg.numberOfVoltageMeasurements else {
-      throw VoltagesUnavailable(expected: ecg.numberOfVoltageMeasurements, read: microvolts.count)
+    if microvolts.count != ecg.numberOfVoltageMeasurements {
+      reportIssue(
+        HealthReader.SeriesCountMismatch(
+          expected: ecg.numberOfVoltageMeasurements, read: microvolts.count))
     }
     self.init(
       id: ecg.uuid, classification: ecg.classification.rawValue,

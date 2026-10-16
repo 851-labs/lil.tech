@@ -2563,6 +2563,45 @@
           "sourceBundleId"
         ],
         "additionalProperties": true
+      },
+      "HealthHeartbeatSeries": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "endDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "beats": {},
+          "gaps": {},
+          "sourceName": {
+            "type": "string"
+          },
+          "sourceBundleId": {
+            "type": "string"
+          },
+          "sourceRevision": {},
+          "device": {},
+          "metadata": {}
+        },
+        "required": [
+          "id",
+          "startDate",
+          "endDate",
+          "beats",
+          "gaps",
+          "sourceName",
+          "sourceBundleId"
+        ],
+        "additionalProperties": true
       }
     },
     "securitySchemes": {
