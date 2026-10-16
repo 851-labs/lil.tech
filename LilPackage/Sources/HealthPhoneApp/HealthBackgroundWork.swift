@@ -89,7 +89,7 @@ public enum HealthBackgroundWork {
       }
       subtitle =
         progress.totalRecords.map {
-          "\(records.formatted()) of \(Int64(max($0, progress.uploadedRecords)).formatted()) records"
+          "\(records.formatted()) of \($0.formatted()) records"
         }
         ?? "\(progress.finishedTypes) of \(progress.totalTypes) types · \(records.formatted()) records"
     }

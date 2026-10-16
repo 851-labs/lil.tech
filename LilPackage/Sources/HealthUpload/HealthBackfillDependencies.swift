@@ -189,6 +189,25 @@ public struct HealthReader: Sendable {
     return read
   }
 
+  static func unarchiveAnchor(_ data: Data?) throws -> HKQueryAnchor? {
+    try data.flatMap {
+      try NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: $0)
+    }
+  }
+
+  /// One anchored page of a type's samples and deletions after `anchor`, through `Locked`.
+  static func anchoredPage(
+    _ type: HKSampleType, after anchor: HKQueryAnchor?, limit: Int, in store: HKHealthStore
+  ) async throws -> HKAnchoredObjectQueryDescriptor<HKSample>.Result {
+    do {
+      return try await HKAnchoredObjectQueryDescriptor(
+        predicates: [.sample(type: type)], anchor: anchor, limit: limit
+      ).result(for: store)
+    } catch {
+      throw Locked.mapped(error)
+    }
+  }
+
   /// Health can't be read while the device is locked. Not a failure: the work waits until it's
   /// unlocked.
   public struct Locked: Error, Equatable {
@@ -217,17 +236,8 @@ extension HealthReader: DependencyKey {
     let store = HKHealthStore()
     return Self { type, anchorData, limit in
       guard let sampleType = type.sampleType else { throw UnknownType(id: type.id) }
-      let anchor = try anchorData.flatMap {
-        try NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: $0)
-      }
-      let descriptor = HKAnchoredObjectQueryDescriptor(
-        predicates: [.sample(type: sampleType)], anchor: anchor, limit: limit)
-      let result: HKAnchoredObjectQueryDescriptor<HKSample>.Result
-      do {
-        result = try await descriptor.result(for: store)
-      } catch {
-        throw Locked.mapped(error)
-      }
+      let result = try await anchoredPage(
+        sampleType, after: try unarchiveAnchor(anchorData), limit: limit, in: store)
       var mutations: [HealthMutation] = []
       var blobs: [Data] = []
       for sample in result.addedSamples {
@@ -455,8 +465,8 @@ extension DependencyValues {
   }
 }
 
-/// Counts a type's samples after an anchor without reading them out, so the upload's progress
-/// has a real total. Much faster than the upload: large pages, nothing encoded or sent.
+/// Counts a type's samples after an anchor, so the upload's progress has a real total. Much
+/// faster than the upload: nothing is encoded or sent.
 public struct HealthRecordCounter: Sendable {
   public var count: @Sendable (_ type: HealthBackfillType, _ anchor: Data?) async throws -> Int
 
@@ -469,8 +479,9 @@ public struct HealthRecordCounter: Sendable {
   /// Counting isn't available (tests that don't count, previews): the total stays unknown.
   public struct Unavailable: Error {}
 
-  /// Objects per counting query.
-  static let pageSize = 20_000
+  /// Objects per counting query: enough to be quick, few enough to keep memory down while the
+  /// upload runs alongside.
+  static let pageSize = 5_000
 }
 
 extension HealthRecordCounter: DependencyKey {
@@ -478,20 +489,12 @@ extension HealthRecordCounter: DependencyKey {
     let store = HKHealthStore()
     return Self { type, anchorData in
       guard let sampleType = type.sampleType else { throw HealthReader.UnknownType(id: type.id) }
-      var anchor = try anchorData.flatMap {
-        try NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: $0)
-      }
+      var anchor = try HealthReader.unarchiveAnchor(anchorData)
       var count = 0
       while true {
         try Task.checkCancellation()
-        let result: HKAnchoredObjectQueryDescriptor<HKSample>.Result
-        do {
-          result = try await HKAnchoredObjectQueryDescriptor(
-            predicates: [.sample(type: sampleType)], anchor: anchor, limit: pageSize
-          ).result(for: store)
-        } catch {
-          throw HealthReader.Locked.mapped(error)
-        }
+        let result = try await HealthReader.anchoredPage(
+          sampleType, after: anchor, limit: pageSize, in: store)
         count += result.addedSamples.count
         anchor = result.newAnchor
         if result.addedSamples.count + result.deletedObjects.count < pageSize { return count }

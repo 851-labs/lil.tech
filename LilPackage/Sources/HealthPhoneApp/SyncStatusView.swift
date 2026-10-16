@@ -168,7 +168,9 @@ private struct CategoryRow: View {
   }
 }
 
-/// An upload's progress: by records once they've been counted, by types until then.
+/// An upload's progress: by records once they've been counted. Until then the bar is
+/// indeterminate, since the share of types done says little (empty types finish first), and a
+/// bar by types would jump back once the records are counted.
 private struct UploadCounts: View {
   let finishedTypes: Int
   let totalTypes: Int
@@ -176,18 +178,20 @@ private struct UploadCounts: View {
   let totalRecords: Int?
 
   var body: some View {
-    if let totalRecords {
-      ProgressView(value: Double(records), total: Double(max(totalRecords, 1)))
-      Text("\(records.formatted()) of \(totalRecords.formatted()) records")
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-        .monospacedDigit()
-    } else {
-      ProgressView(value: Double(finishedTypes), total: Double(max(totalTypes, 1)))
-      Text("\(finishedTypes) of \(totalTypes) types · \(records.formatted()) records")
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-        .monospacedDigit()
+    Group {
+      if let totalRecords {
+        ProgressView(value: Double(records), total: Double(max(totalRecords, 1)))
+      } else {
+        ProgressView()
+          .progressViewStyle(.linear)
+      }
     }
+    Text(
+      totalRecords.map { "\(records.formatted()) of \($0.formatted()) records" }
+        ?? "\(finishedTypes) of \(totalTypes) types · \(records.formatted()) records"
+    )
+    .font(.subheadline)
+    .foregroundStyle(.secondary)
+    .monospacedDigit()
   }
 }

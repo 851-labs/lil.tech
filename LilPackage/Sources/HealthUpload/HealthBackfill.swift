@@ -137,7 +137,9 @@ public actor HealthBackfill {
     public var types: [String: TypeProgress] = [:]
     public var lastUploadAt: Date?
     /// All the records to upload, uploaded or not, once every type left has been counted
-    /// (`HealthRecordCounter`), else `nil`. Never less than `uploadedRecords`.
+    /// (`HealthRecordCounter`), else `nil`. Never less than `uploadedRecords`. Close rather
+    /// than exact: it counts samples, while some upload as several records (a blood pressure
+    /// reading and its two values), and deletions upload as records too.
     public var totalRecords: Int?
 
     public init(
@@ -282,6 +284,8 @@ public actor HealthBackfill {
   /// Stops the run, e.g. when a background task's time is up. Everything is kept: the pending
   /// page goes up on the next run. Waits until it has stopped.
   public func pause() async {
+    counting?.cancel()
+    counting = nil
     guard let running else { return }
     running.task.cancel()
     _ = try? await running.task.value
@@ -841,16 +845,24 @@ public actor HealthBackfill {
   /// so the two agree however far the upload has got meanwhile. Best-effort: a type that can't
   /// be counted leaves the total unknown.
   private func startCounting() {
-    guard counting == nil else { return }
-    counting = Task { [types, counter, storage] in
-      for type in types {
+    guard counting == nil,
+      let state = try? storage.loadState() ?? HealthBackfillState()
+    else { return }
+    let left = types.filter {
+      !state.finished.contains($0.id) && countedRecords[$0.id] == nil
+    }
+    guard !left.isEmpty else { return }
+    counting = Task { [counter] in
+      for type in left {
+        guard let records = try? await counter.count(type, state.anchors[type.id]) else {
+          continue
+        }
+        // Reset or paused meanwhile: the count may be another account's, or stale.
         guard !Task.isCancelled else { return }
-        guard let state = try? storage.loadState() ?? HealthBackfillState(),
-          !state.finished.contains(type.id)
-        else { continue }
-        guard let left = try? await counter.count(type, state.anchors[type.id]) else { continue }
-        counted(type.id, records: (state.uploadedByType[type.id] ?? 0) + left)
+        counted(type.id, records: (state.uploadedByType[type.id] ?? 0) + records)
       }
+      // Types that couldn't be counted (e.g. the phone locked) are tried again next run.
+      counting = nil
     }
   }
 
