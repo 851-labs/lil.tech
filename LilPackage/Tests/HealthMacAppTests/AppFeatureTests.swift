@@ -268,3 +268,70 @@ struct SampleFormatTests {
     #expect(SampleFormat.time(span, calendar: utc) != SampleFormat.time(moment, calendar: utc))
   }
 }
+
+@MainActor
+struct SummaryFeatureTests {
+  private let steps = "HKQuantityTypeIdentifierStepCount"
+  private let heartRate = "HKQuantityTypeIdentifierHeartRate"
+  private let weight = "HKQuantityTypeIdentifierBodyMass"
+
+  @Test
+  func pinsUnpinsAndReorders() async {
+    let store = TestStore(initialState: SummaryFeature.State()) { SummaryFeature() }
+    await store.send(.editButtonTapped) { $0.isEditing = true }
+    await store.send(.pinButtonTapped(steps)) { $0.$pins.withLock { $0 = [self.steps] } }
+    await store.send(.pinButtonTapped(heartRate)) {
+      $0.$pins.withLock { $0 = [self.steps, self.heartRate] }
+    }
+    // Pinning twice doesn't duplicate it.
+    await store.send(.pinButtonTapped(steps))
+    await store.send(.pinButtonTapped(weight)) {
+      $0.$pins.withLock { $0 = [self.steps, self.heartRate, self.weight] }
+    }
+    await store.send(.pinsMoved([2], 0)) {
+      $0.$pins.withLock { $0 = [self.weight, self.steps, self.heartRate] }
+    }
+    await store.send(.unpinButtonTapped(steps)) {
+      $0.$pins.withLock { $0 = [self.weight, self.heartRate] }
+    }
+    await store.send(\.binding.search, "heart") { $0.search = "heart" }
+    await store.send(.doneButtonTapped) {
+      $0.isEditing = false
+      $0.search = ""
+    }
+  }
+
+  @Test
+  func theEditorOffersWhatIsntPinnedMatchingTheSearch() {
+    var state = SummaryFeature.State()
+    state.$pins.withLock { $0 = [heartRate] }
+    state.search = "heart rate"
+    let names = state.unpinned.map(\.name)
+    #expect(names.contains("Resting Heart Rate"))
+    #expect(!names.contains("Heart Rate"))
+    #expect(names.allSatisfy { $0.localizedStandardContains("heart rate") })
+  }
+
+  @Test
+  func signingOutClearsThePins() async {
+    let (updates, session) = AsyncStream<Bool>.makeStream()
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
+      AppFeature()
+    } withDependencies: {
+      $0.auth.signedInUpdates = { updates }
+      $0.sync = .constant(.idle)
+    }
+    await store.send(.summary(.pinButtonTapped(steps))) {
+      $0.summary.$pins.withLock { $0 = [self.steps] }
+    }
+    let task = await store.send(.task)
+    session.yield(false)
+    await store.receive(\.signedInChanged) {
+      $0.isSignedIn = false
+      $0.summary.$pins.withLock { $0 = [] }
+    }
+    session.finish()
+    await task.finish()
+    await store.finish()
+  }
+}
