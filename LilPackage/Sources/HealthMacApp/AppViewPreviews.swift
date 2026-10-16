@@ -1,0 +1,37 @@
+import ComposableArchitecture
+import HealthCatalog
+import SwiftUI
+
+// In their own file: previewing a file with a `List` of `ForEach` rows trips an assertion in
+// SwiftUI's macOS `List` (AGENTS.md).
+
+@MainActor
+private func appView(_ state: AppFeature.State) -> some View {
+  // `EmptyReducer`: the view's task would replace the state with the real session's.
+  AppView(store: Store(initialState: state) { EmptyReducer() })
+    .frame(width: 960, height: 640)
+}
+
+#Preview("Launching") {
+  appView(AppFeature.State())
+}
+
+#Preview("Signed out") {
+  appView(AppFeature.State(isSignedIn: false))
+}
+
+#Preview("Summary") {
+  appView(AppFeature.State(isSignedIn: true))
+}
+
+#Preview("A category") {
+  appView(AppFeature.State(isSignedIn: true, selection: .category(.heart)))
+}
+
+#Preview("Search results") {
+  appView(AppFeature.State(isSignedIn: true, searchText: "heart"))
+}
+
+#Preview("Search without results") {
+  appView(AppFeature.State(isSignedIn: true, searchText: "xylophone"))
+}

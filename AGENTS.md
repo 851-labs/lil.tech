@@ -13,7 +13,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   4. Move the ticket to In Review.
 - Run `scripts/format` before committing. `scripts/format --lint` must pass. It covers the Swift code and the TypeScript in `Services/`.
 - **Checks run before every commit**, in a [lefthook](https://lefthook.dev) pre-commit hook (`lefthook.yml`), not on GitHub. Set it up once per clone: `brew install lefthook`, then `lefthook install`.
-  - The hook runs `scripts/check` for the parts a commit touches, with warnings as errors (`CI=1`). `--swift`: Swift lint, the package's tests and both app builds. `--services`: `scripts/format --lint --services` (format, lint, type checks and a fresh OpenAPI spec), the generated client regenerated and compared (`scripts/generate-api-client --check`), and every Services package's tests.
+  - The hook runs `scripts/check` for the parts a commit touches, with warnings as errors (`CI=1`). `--swift`: Swift lint, the package's tests and the app builds. `--services`: `scripts/format --lint --services` (format, lint, type checks and a fresh OpenAPI spec), the generated client regenerated and compared (`scripts/generate-api-client --check`), and every Services package's tests.
   - Its builds go to `.build-check/`, apart from Xcode's and everyday `swift test`'s, so the first run after cloning is slow and later ones take about a minute.
   - The checks see the working tree, so the hook refuses to run while the paths it checks have unstaged or untracked changes. Stage them, or set them aside with `git stash --keep-index -u`.
   - A failing check blocks the commit. Fix it rather than skipping the hook (`LEFTHOOK=0 git commit …` is for emergencies only).
@@ -26,6 +26,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - From the command line:
   - Package tests: `cd LilPackage && swift test`
   - App: `xcodebuild -workspace Lil.xcworkspace -scheme LilMessages -destination 'platform=macOS' -skipMacroValidation build`
+  - lil health on Mac: `xcodebuild -workspace Lil.xcworkspace -scheme LilHealth -destination 'platform=macOS' -skipMacroValidation build`
   - lil health on iOS: `xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS -destination 'generic/platform=iOS Simulator' -skipMacroValidation build`
 - `-skipMacroValidation` skips Xcode's one-time "trust this macro" prompt for package macros (TCA, CasePaths, etc.) in command-line builds.
 - **Xcode macro trust.** In Xcode, package macros must be trusted once per version: click the macro error, then "Trust & Enable". After a dependency update, an error saying a macro "was changed since a previous approval" means the new version needs trusting again. Approvals live in `~/Library/org.swift.swiftpm/security/macros.json`, keyed by package, macro target and git revision. If you edit that file, remove stale entries for the same target and restart Xcode, because its build service caches the list.

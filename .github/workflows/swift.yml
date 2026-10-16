@@ -62,6 +62,13 @@ jobs:
           -destination 'platform=macOS' -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile
           CODE_SIGNING_ALLOWED=NO build -quiet
 
+      - name: Build lil health for Mac
+        if: ${{ !cancelled() }}
+        run: >-
+          xcodebuild -workspace Lil.xcworkspace -scheme LilHealth
+          -destination 'platform=macOS' -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile
+          CODE_SIGNING_ALLOWED=NO build -quiet
+
       - name: Build lil health for iOS
         if: ${{ !cancelled() }}
         run: >-
