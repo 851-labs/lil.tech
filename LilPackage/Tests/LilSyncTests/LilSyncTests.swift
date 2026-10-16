@@ -537,18 +537,20 @@ struct LilSyncEngineTests {
   @Test
   func cancellingRunEndsABackoffRightAway() async throws {
     server.state.withValue { $0.failing = [1] }
+    let clock = ManualClock()
     let engine = withDependencies {
       $0.defaultDatabase = database
       $0.api = server.client
-      $0.continuousClock = TestClock()
+      $0.continuousClock = clock
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
     } operation: {
       LilSyncEngine(entities: [notes], syncSchema: 1)
     }
     let running = Task { await engine.run() }
-    try await eventually { server.state.requests.count == 1 }
+    // In the backoff, not still pulling.
+    try await clock.waitUntilAsleep(dueWithin: .seconds(1))
     running.cancel()
-    // The test clock never advances, so this only returns because cancellation ends the wait.
+    // The clock never advances, so this only returns because cancellation ends the wait.
     await running.value
   }
 }
@@ -563,7 +565,8 @@ struct LilSyncBootstrapTests {
       $0.defaultDatabase = database
       $0.api = server.client
       $0.snapshotDownloader = server.downloader
-      $0.continuousClock = ImmediateClock()
+      // Sleeps last until cancelled: `run()` idles after a pull rather than pulling in a loop.
+      $0.continuousClock = ManualClock()
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
     } operation: {
       LilSyncEngine(entities: [notes], syncSchema: 1, partsDirectory: partsDirectory)
@@ -760,6 +763,7 @@ private final class SleepRecordingClock: Clock, Sendable {
   var minimumResolution: Duration { .zero }
 
   func sleep(until deadline: Instant, tolerance: Duration?) async throws {
+    try Task.checkCancellation()
     let count = sleeps.withValue {
       $0.append(now.duration(to: deadline))
       return $0.count
@@ -773,6 +777,8 @@ private final class SleepRecordingClock: Clock, Sendable {
 
 /// A clock that tests move on by hand, like `TestClock`, but that can wait until the code under
 /// test is asleep: advancing a `TestClock` before then is missed, and the sleep never ends.
+/// Unlike `TestClock`, an advance goes straight to its end, so a sleep started by a task it wakes
+/// counts from there.
 private final class ManualClock: Clock, Sendable {
   typealias Instant = ImmediateClock<Duration>.Instant
 
@@ -785,7 +791,8 @@ private final class ManualClock: Clock, Sendable {
   private struct State {
     var now = Instant()
     var sleepers: [Sleeper] = []
-    /// Sleeps cancelled before they started waiting.
+    /// Sleeps cancelled while not waiting: before they started (then they end at once), or after
+    /// they ended (harmless).
     var cancelled: Set<UUID> = []
   }
 
@@ -818,15 +825,21 @@ private final class ManualClock: Clock, Sendable {
     }
   }
 
-  /// Waits until a sleep that ends within `duration` from now is in progress.
+  /// Whether a sleep that ends within `duration` from now is in progress.
+  func isAsleep(dueWithin duration: Duration) -> Bool {
+    let state = state.value
+    return state.sleepers.contains { $0.deadline <= state.now.advanced(by: duration) }
+  }
+
+  struct NeverAsleep: Error {}
+
+  /// Waits until a sleep that ends within `duration` from now is in progress. Throws if none
+  /// starts, so the test stops there rather than going on in the wrong state.
   func waitUntilAsleep(
     dueWithin duration: Duration, sourceLocation: SourceLocation = #_sourceLocation
   ) async throws {
-    try await eventually(
-      {
-        let state = state.value
-        return state.sleepers.contains { $0.deadline <= state.now.advanced(by: duration) }
-      }, sourceLocation: sourceLocation)
+    try await eventually({ isAsleep(dueWithin: duration) }, sourceLocation: sourceLocation)
+    guard isAsleep(dueWithin: duration) else { throw NeverAsleep() }
   }
 
   /// Moves time on by `duration`, ending the sleeps that are due.
@@ -990,8 +1003,10 @@ struct LilSyncLiveTests {
     let running = Task { await engine.run() }
     try await clock.waitUntilAsleep(dueWithin: .seconds(1))
     await engine.syncNow()
-    await Task.megaYield()
+    // Time for the engine to act on it, if it wrongly would.
+    try await Task.sleep(for: .milliseconds(50))
     #expect(server.state.requests.count == 1)
+    #expect(clock.isAsleep(dueWithin: .seconds(1)))
     clock.advance(by: .seconds(1))
     try await eventually { server.state.requests.count == 2 }
     running.cancel()
@@ -1047,8 +1062,9 @@ struct LilSyncLiveTests {
     live.latest()?.finish(throwing: URLError(.networkConnectionLost))
     // Between 1 and 2 seconds, with jitter.
     try await clock.waitUntilAsleep(dueWithin: .seconds(2))
+    #expect(!clock.isAsleep(dueWithin: .seconds(0.99)))
     clock.advance(by: .seconds(0.9))
-    await Task.megaYield()
+    try await Task.sleep(for: .milliseconds(50))
     #expect(live.connections.value.count == 2)
     clock.advance(by: .seconds(1.2))
     try await eventually { live.connections.value.count == 3 }
