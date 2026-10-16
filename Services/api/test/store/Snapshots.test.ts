@@ -258,6 +258,26 @@ describe("compaction", () => {
       }),
   );
 
+  it.effect("deletes a chunk at a time, so one alarm can't hold the store for long", () =>
+    Effect.gen(function* () {
+      const { sql, store, files } = makeStore();
+      yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
+      yield* writeSnapshot(sql, files);
+      yield* TestClock.adjust("31 days");
+      const chunked = { ...policy, compactionChunk: 2 };
+      const seqs = () => sql.exec("SELECT seq FROM changes ORDER BY seq").map((row) => row["seq"]);
+
+      compactChanges(sql, yield* Clock.currentTimeMillis, chunked);
+      assert.deepStrictEqual(seqs(), [3, 4, 5]);
+      compactChanges(sql, yield* Clock.currentTimeMillis, chunked);
+      assert.deepStrictEqual(seqs(), [5]);
+      // The horizon moves with each chunk, so readers behind it learn they're compacted.
+      assert.strictEqual((readChanges(sql, 3, 10) as { _tag?: string })._tag, "ChangesCompacted");
+      compactChanges(sql, yield* Clock.currentTimeMillis, chunked);
+      assert.deepStrictEqual(seqs(), []);
+    }),
+  );
+
   it.effect("does nothing without a snapshot", () =>
     Effect.gen(function* () {
       const { sql, store } = makeStore();

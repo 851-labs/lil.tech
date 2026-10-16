@@ -14,12 +14,17 @@ export const snapshotPolicy = {
   minChanges: 50_000,
   /** ...or this long after the last one (or the first change), if anything changed. */
   maxAge: 7 * 24 * 60 * 60 * 1000,
-  /** Records per part, so a failed download only retries one part. */
-  partRecords: 250_000,
+  /**
+   * Records per part, so a failed download only retries one part. Each alarm writes one part,
+   * and a store can do nothing else meanwhile, so it's small: about a second's work.
+   */
+  partRecords: 25_000,
   /** Rows read per query while writing a part. */
   pageRows: 5_000,
   /** Changes covered by the latest snapshot are deleted once they're this old. */
   changeRetention: 30 * 24 * 60 * 60 * 1000,
+  /** Changes deleted per alarm at most; the rest go in the alarms after. */
+  compactionChunk: 50_000,
   /** A replaced snapshot stays downloadable this long, for clients midway through it. */
   replacedRetention: 7 * 24 * 60 * 60 * 1000,
 };
@@ -226,11 +231,15 @@ export const compactChanges = (sql: StoreSql, now: number, policy = snapshotPoli
     now - policy.changeRetention,
   )[0]?.["seq"];
   if (typeof newest !== "number") return;
+  // A chunk at a time, so one alarm can't hold the store for long.
+  const oldest = sql.exec("SELECT min(seq) AS seq FROM changes")[0]?.["seq"];
+  const upTo =
+    typeof oldest === "number" ? Math.min(newest, oldest + policy.compactionChunk - 1) : newest;
   sql.transaction(() => {
-    sql.exec("DELETE FROM changes WHERE seq <= ?", newest);
+    sql.exec("DELETE FROM changes WHERE seq <= ?", upTo);
     sql.exec(
       "INSERT INTO meta (key, value) VALUES ('horizon', ?) ON CONFLICT (key) DO UPDATE SET value = max(value, excluded.value)",
-      newest,
+      upTo,
     );
   });
 };
@@ -346,6 +355,9 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
       text += `${JSON.stringify(record)}\n`;
     }
     if (text !== "") yield* gzip.write(text);
+    // Lets the store's other calls in between pages (uploads, ingestion): compressing alone
+    // never gives up the event loop.
+    yield* Effect.promise(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
     records += rows.length;
     afterId = (rows[rows.length - 1]?.["id"] as string | undefined) ?? afterId;
     if (rows.length < limit) {

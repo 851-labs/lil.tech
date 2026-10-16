@@ -110,7 +110,7 @@ GET /v1/sync/snapshots/<id>
   - `snapshot` is absent when the store has none yet (a new user). The client sets `epoch`, keeps `cursor = 0` and pulls the whole log.
   - The endpoint never returns a snapshot from an older epoch. While a new epoch's snapshot is still being written, it answers `503` with `Retry-After`.
 - Part URLs are short-lived (about 15 minutes) and need no `Authorization` header, so background downloads work. They point at `/v1/sync/parts?token=…`, whose token is signed by the server for one part of the requesting user's snapshot. When they expire mid-download, the client asks for **the same snapshot** with `GET /v1/sync/snapshots/<id>`, which re-signs the URLs. A snapshot stays available for 7 days after a newer one replaces it. If it's gone (`410`), the client starts the bootstrap over, so it never mixes parts from two snapshots.
-- **Format:** each part is gzip-compressed NDJSON, one record per line in the same encoding as a change's `row`. Parts hold at most 250,000 records, so a failed download only retries one part.
+- **Format:** each part is gzip-compressed NDJSON, one record per line in the same encoding as a change's `row`. Parts hold at most 25,000 records, so a failed download only retries one part.
 - **Why not a SQLite file:** the client's tables don't mirror the server's (each app keeps only what it renders, in its own layout). A Durable Object also can't hand out its database as a file. NDJSON streams straight into batched inserts.
 - **Loading:**
   1. Download and check each part (`sha256`).
@@ -124,7 +124,7 @@ GET /v1/sync/snapshots/<id>
 - The snapshot is tagged with `S`, the store's `head` when it started. It pages through each entity table **by `id`** (`WHERE id > :last ORDER BY id LIMIT :n`), never by offset, and writes the parts to R2.
 - Writes keep flowing while the snapshot is written, so some rows in it may be newer than `S`. That's safe: the client pulls everything after `S` next, and full-row upserts and deletes give the same result when applied again. Keyset paging makes sure no row that existed at `S` is skipped when earlier rows are deleted between pages.
 - The manifest is written last, and only then becomes the latest snapshot.
-- It's written one part per alarm, and the alarm is set again right away until it's done. No single invocation runs long, and requests are served in between.
+- It's written one part per alarm, and the alarm is set again right away until it's done. A store does one thing at a time, so parts are small (about a second's work), and writing a part yields between pages so uploads and ingestion get in. A 250,000-record part on a ~500 MB store once took 22 s and got uploads refused as overloaded (503).
 - Publishing a snapshot runs compaction (below) and deletes snapshots replaced more than 7 days ago, with their parts.
 
 ### Migrations and restores
@@ -139,6 +139,7 @@ Clients see the new epoch on their next pull and bootstrap from a snapshot that 
 ### Compaction
 
 - Changes are deleted when they're both covered by the latest snapshot (`seq <= S`) and older than 30 days. Clients that synced within the last 30 days never need to bootstrap again.
+- It deletes at most 50,000 changes per alarm, oldest first, and the rest in the alarms after, so it never holds the store for long.
 - The store remembers its **horizon**, the highest `seq` it has deleted. A pull with `after < horizon` answers `410 Gone` with `{ "reason": "compacted" }`, and the client bootstraps.
 
 ## Live updates
@@ -260,7 +261,8 @@ An epoch mismatch isn't an error status: pulls always return the store's `epoch`
 |---|---|
 | Changes per pull page | 1,000 by default, 5,000 maximum |
 | Mutations per push | 500 |
-| Records per snapshot part | 250,000 |
+| Records per snapshot part | 25,000 (one part per alarm, about a second's work) |
+| Changes compacted per alarm | 50,000 |
 | Change log retention | Covered by a snapshot and older than 30 days |
 | Replaced snapshot retention | 7 days |
 | Mutation ID memory | 7 days |
