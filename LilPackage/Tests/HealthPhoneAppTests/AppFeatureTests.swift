@@ -82,6 +82,7 @@ struct AppFeatureTests {
   func asksForHealthAccessAfterSigningIn() async {
     consented()
     let needsRequest = LockIsolated(true)
+    let started = LockIsolated(0)
     let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
       AppFeature()
     } withDependencies: {
@@ -93,6 +94,7 @@ struct AppFeatureTests {
       $0.accountDevices = AccountDevices { 0 }
       $0.healthAuthorization.needsRequest = { needsRequest.value }
       $0.healthConsent.isGiven = { true }
+      $0.backgroundUpload.start = { started.withValue { $0 += 1 } }
     }
 
     await store.send(.signedInChanged(true)) {
@@ -109,7 +111,7 @@ struct AppFeatureTests {
       $0.$offeredPerObject.withLock { $0 = true }
     }
 
-    await store.receive(\.backfill)
+    await store.receive(\.startUpload)
 
     // Once everything was offered and Health has nothing to ask, there's no onboarding: the
     // backfill starts.
@@ -134,6 +136,7 @@ struct AppFeatureTests {
       $0.accountDevices = AccountDevices { 0 }
       $0.healthAuthorization.needsRequest = { true }
       $0.healthConsent.isGiven = { true }
+      $0.backgroundUpload.start = {}
     }
 
     await store.send(.signedInChanged(true)) {
@@ -148,7 +151,7 @@ struct AppFeatureTests {
     await store.send(.healthAccess(.delegate(.skipped))) {
       $0.healthAccess = nil
     }
-    await store.receive(\.backfill)
+    await store.receive(\.startUpload)
     await store.send(.signedInChanged(true))
     await store.receive(\.consentChecked)
     await store.receive(\.healthAccessChecked) {
@@ -336,8 +339,9 @@ struct AppFeatureTests {
   }
 
   @Test
-  func tryAgainRunsTheBackfill() async {
+  func tryAgainRunsTheBackfillAndKeepsItGoingInTheBackground() async {
     consented()
+    let started = LockIsolated(0)
     let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
       AppFeature()
     } withDependencies: {
@@ -345,11 +349,50 @@ struct AppFeatureTests {
       $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
       $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
       $0.healthAuthorization.isAvailable = { false }
+      $0.backgroundUpload.start = { started.withValue { $0 += 1 } }
     }
 
     await store.send(.syncStatus(.retryButtonTapped))
     await store.receive(\.syncStatus.delegate.retry)
-    await store.receive(\.backfill)
+    await store.receive(\.startUpload)
+    await store.finish()
+    #expect(started.value == 1)
+  }
+
+  @Test
+  func comingBackToTheAppPicksTheUploadUpAgain() async {
+    consented()
+    let started = LockIsolated(0)
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
+      AppFeature()
+    } withDependencies: {
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+      $0.healthAuthorization.isAvailable = { false }
+      $0.backgroundUpload.start = { started.withValue { $0 += 1 } }
+    }
+
+    await store.send(.returnedToForeground)
+    await store.receive(\.startUpload)
+    await store.finish()
+    #expect(started.value == 1)
+
+    // Not without consent, nor before onboarding is done.
+    @Shared(.healthConsentPolicyVersion) var consented
+    $consented.withLock { $0 = nil }
+    await store.send(.returnedToForeground)
+    await store.receive(\.startUpload)
+    await store.finish()
+    #expect(started.value == 1)
+  }
+
+  @Test
+  func notSignedInNothingPicksUp() async {
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
+      AppFeature()
+    }
+    await store.send(.returnedToForeground)
   }
 
   @Test

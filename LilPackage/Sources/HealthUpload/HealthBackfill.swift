@@ -223,6 +223,9 @@ public actor HealthBackfill {
   }
 
   /// The progress now and after every change.
+  /// The progress now.
+  public func currentProgress() -> Progress { progress }
+
   public func progressUpdates() -> AsyncStream<Progress> {
     let (stream, continuation) = AsyncStream<Progress>.makeStream(
       bufferingPolicy: .bufferingNewest(1))

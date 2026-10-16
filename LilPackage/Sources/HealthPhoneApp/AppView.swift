@@ -4,6 +4,9 @@ public import SwiftUI
 
 public struct AppView: View {
   @Bindable var store: StoreOf<AppFeature>
+  @Environment(\.scenePhase) private var scenePhase
+  /// Whether the app went to the background since it was last in front.
+  @State private var wasInBackground = false
 
   public init(store: StoreOf<AppFeature>) {
     self.store = store
@@ -30,6 +33,17 @@ public struct AppView: View {
     }
     .alert($store.scope(\.alert, action: \.alert))
     .task { await store.send(.task).finish() }
+    .onChange(of: scenePhase) { _, phase in
+      switch phase {
+      case .background:
+        wasInBackground = true
+      case .active where wasInBackground:
+        wasInBackground = false
+        store.send(.returnedToForeground)
+      default:
+        break
+      }
+    }
   }
 }
 
