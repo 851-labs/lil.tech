@@ -36,10 +36,10 @@ private let notes = SyncEntity.decoding(
   }
 )
 
-/// A database for a client that already started on epoch 1 (`bootstrapped`), or a new one.
 /// When the tests' pulls end.
 private let syncedAt = Date(timeIntervalSince1970: 1_760_400_000)
 
+/// A database for a client that already started on epoch 1 (`bootstrapped`), or a new one.
 private func makeDatabase(bootstrapped: Bool = true) throws -> any DatabaseWriter {
   let database = try DatabaseQueue()
   var migrator = DatabaseMigrator()
@@ -575,15 +575,8 @@ struct LilSyncEngineTests {
     running.cancel()
     await running.value
     observing.cancel()
-    #expect(statuses.value == [.idle, .offline, .upToDate(at: syncedAt)])
-  }
-
-  @Test
-  func noConnectionIsOfflineButASlowServerIsnt() {
-    #expect(LilSyncEngine.isOffline(URLError(.notConnectedToInternet)))
-    #expect(LilSyncEngine.isOffline(URLError(.networkConnectionLost)))
-    #expect(!LilSyncEngine.isOffline(URLError(.timedOut)))
-    #expect(!LilSyncEngine.isOffline(SyncError.needsBootstrap))
+    // `.idle` first, unless the one-status buffer already replaced it.
+    #expect(statuses.value.suffix(2) == [.offline, .upToDate(at: syncedAt)])
   }
 
   @Test

@@ -4,6 +4,7 @@ public import Foundation
 import HealthCatalog
 import HealthKitAccess
 import IssueReporting
+import LilAPI
 import OpenAPIRuntime
 
 /// What the backfill has done and is doing. Saved after every step, so a killed app resumes
@@ -961,16 +962,7 @@ public actor HealthBackfill {
   }
 
   /// Network errors mean the run is paused until there's a connection, not failing.
-  static func isOffline(_ error: any Error) -> Bool {
-    let offline: Set<URLError.Code> = [
-      // Not `.timedOut`: a slow server isn't the phone being offline.
-      .notConnectedToInternet, .networkConnectionLost, .cannotFindHost,
-      .cannotConnectToHost, .dnsLookupFailed, .dataNotAllowed, .internationalRoamingOff,
-    ]
-    if let error = error as? URLError { return offline.contains(error.code) }
-    if let error = error as? ClientError { return isOffline(error.underlyingError) }
-    return false
-  }
+  static func isOffline(_ error: any Error) -> Bool { isOfflineError(error) }
 
   private func update(_ change: (inout Progress) -> Void) {
     change(&progress)

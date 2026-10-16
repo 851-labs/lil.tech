@@ -4,7 +4,6 @@ public import Foundation
 import GzipFiles
 import IssueReporting
 import LilAPI
-import OpenAPIRuntime
 import SQLiteData
 
 /// What the UI shows about sync.
@@ -38,7 +37,7 @@ public actor LilSyncEngine {
   private let database: any DatabaseWriter
   private let api: any APIProtocol
   private let clock: any Clock<Duration>
-  private let now: @Sendable () -> Date
+  private let date: DateGenerator
   private let random: WithRandomNumberGenerator
   private let downloader: SnapshotDownloader
   private let liveConnection: LiveConnection
@@ -90,7 +89,7 @@ public actor LilSyncEngine {
     self.database = database
     self.api = api
     self.clock = clock
-    self.now = { date.now }
+    self.date = date
     self.random = random
   }
 
@@ -287,7 +286,7 @@ public actor LilSyncEngine {
         .save(db)
       }
       guard page.hasMore else {
-        setStatus(.upToDate(at: now()))
+        setStatus(.upToDate(at: date.now))
         return
       }
       setStatus(.syncing(cursor: page.next, head: page.head))
@@ -540,21 +539,10 @@ public actor LilSyncEngine {
     wake = nil
   }
 
-  /// How a failed pull shows: offline when there's no connection, failed otherwise.
+  /// How a failed pull shows: offline when there's no connection (`isOfflineError`), failed
+  /// otherwise.
   static func status(for error: any Error) -> SyncStatus {
-    isOffline(error) ? .offline : .failed(String(describing: error))
-  }
-
-  /// Whether `error` means there's no connection, rather than the server failing. Not
-  /// `.timedOut`: a slow server isn't the device being offline.
-  static func isOffline(_ error: any Error) -> Bool {
-    let offline: Set<URLError.Code> = [
-      .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost,
-      .dnsLookupFailed, .dataNotAllowed, .internationalRoamingOff,
-    ]
-    if let error = error as? URLError { return offline.contains(error.code) }
-    if let error = error as? ClientError { return isOffline(error.underlyingError) }
-    return false
+    isOfflineError(error) ? .offline : .failed(String(describing: error))
   }
 
   private func setStatus(_ status: SyncStatus) {
