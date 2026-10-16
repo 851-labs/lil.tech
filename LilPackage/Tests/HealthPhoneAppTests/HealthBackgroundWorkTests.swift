@@ -58,77 +58,91 @@ struct HealthBackgroundWorkTests {
     #expect(done.completed == done.total)
   }
 
-  @Test
-  func aContinuedUploadPausesWhileThePhoneIsLocked() async {
-    let outcomes = LockIsolated<[HealthBackgroundWork.RunOutcome]>([.locked, .locked, .finished])
+  /// Runs `runUntilDone` with these outcomes in turn, recording what it did.
+  private func run(
+    _ outcomes: [HealthBackgroundWork.RunOutcome]
+  ) async -> (finished: Bool, events: [String]) {
+    let outcomes = LockIsolated(outcomes)
     let events = LockIsolated<[String]>([])
     let finished = await HealthBackgroundWork.runUntilDone(
       run: {
         events.withValue { $0.append("run") }
-        return outcomes.withValue { $0.removeFirst() }
+        return outcomes.withValue { $0.isEmpty ? .stopped : $0.removeFirst() }
       },
       unlocked: { events.withValue { $0.append("unlocked") } },
-      wait: { _ in Issue.record("Waited without a failure") },
-      notice: { notice in events.withValue { $0.append(notice == .locked ? "paused" : "resumed") } }
-    )
+      online: { events.withValue { $0.append("online") } },
+      wait: { delay in events.withValue { $0.append("wait \(delay.components.seconds)") } },
+      notice: { notice in
+        events.withValue { $0.append(notice.map { "notice \($0)" } ?? "cleared") }
+      })
+    return (finished, events.value)
+  }
+
+  @Test
+  func aContinuedUploadPausesWhileThePhoneIsLocked() async {
+    let (finished, events) = await run([.locked, .finished])
+    #expect(finished)
+    #expect(events == ["run", "notice locked", "unlocked", "cleared", "run"])
+  }
+
+  @Test
+  func aContinuedUploadPausesWhileOffline() async {
+    // Offline doesn't use up the retries.
+    let (finished, events) = await run([.offline, .offline, .finished])
     #expect(finished)
     #expect(
-      events.value == [
-        "run", "paused", "unlocked", "resumed", "run", "paused", "unlocked", "resumed", "run",
+      events == [
+        "run", "notice offline", "online", "cleared", "run", "notice offline", "online", "cleared",
+        "run",
       ])
   }
 
   @Test
   func aRunWithAFailedTypeIsTriedAgainAfterAWhile() async {
-    let outcomes = LockIsolated<[HealthBackgroundWork.RunOutcome]>([
-      .failed("The server answered HTTP 503"), .finished,
-    ])
-    let waits = LockIsolated<[Duration]>([])
-    let notices = LockIsolated<[HealthBackgroundWork.Notice?]>([])
-    let finished = await HealthBackgroundWork.runUntilDone(
-      run: { outcomes.withValue { $0.removeFirst() } },
-      unlocked: { Issue.record("Waited for an unlock") },
-      wait: { delay in waits.withValue { $0.append(delay) } },
-      notice: { notice in notices.withValue { $0.append(notice) } })
+    let (finished, events) = await run([.failed("503", madeProgress: false), .finished])
     // One failed type doesn't end the upload.
     #expect(finished)
-    #expect(waits.value == [.seconds(30)])
-    #expect(notices.value == [.retrying("The server answered HTTP 503"), nil])
+    #expect(events == ["run", "notice retrying(\"503\")", "wait 15", "cleared", "run"])
   }
 
   @Test
   func aTypeThatKeepsFailingEndsTheUploadAfterTheRetries() async {
-    let runs = LockIsolated(0)
-    let waits = LockIsolated<[Duration]>([])
-    let notices = LockIsolated<[HealthBackgroundWork.Notice?]>([])
-    let finished = await HealthBackgroundWork.runUntilDone(
-      run: {
-        runs.withValue { $0 += 1 }
-        return .failed("Steps couldn't be read")
-      },
-      unlocked: {},
-      wait: { delay in waits.withValue { $0.append(delay) } },
-      notice: { notice in notices.withValue { $0.append(notice) } })
+    let failures = Array(
+      repeating: HealthBackgroundWork.RunOutcome.failed("Steps", madeProgress: false),
+      count: HealthBackgroundWork.retryDelays.count + 1)
+    let (finished, events) = await run(failures)
     #expect(!finished)
-    #expect(runs.value == HealthBackgroundWork.retryDelays.count + 1)
-    #expect(waits.value == HealthBackgroundWork.retryDelays)
+    #expect(events.filter { $0 == "run" }.count == HealthBackgroundWork.retryDelays.count + 1)
+    #expect(
+      events.filter { $0.hasPrefix("wait") } == ["wait 15", "wait 30", "wait 60", "wait 120"])
     // Says why at the end.
-    #expect(notices.value.last == .failed("Steps couldn't be read"))
+    #expect(events.last == "notice failed(\"Steps\")")
+  }
+
+  @Test
+  func aRunThatUploadedSomethingStartsTheRetriesOver() async {
+    let (finished, events) = await run([
+      .failed("503", madeProgress: false), .failed("503", madeProgress: false),
+      .failed("503", madeProgress: true), .finished,
+    ])
+    #expect(finished)
+    #expect(events.filter { $0.hasPrefix("wait") } == ["wait 15", "wait 30", "wait 15"])
   }
 
   @Test
   func aContinuedUploadStopsWhenItCantGoOn() async {
-    let runs = LockIsolated(0)
-    let finished = await HealthBackgroundWork.runUntilDone(
-      run: {
-        runs.withValue { $0 += 1 }
-        return .stopped
-      },
-      unlocked: { Issue.record("Waited for an unlock") },
-      wait: { _ in Issue.record("Waited to retry") },
-      notice: { _ in Issue.record("Showed a notice") })
+    let (finished, events) = await run([.stopped])
     #expect(!finished)
-    #expect(runs.value == 1)
+    #expect(events == ["run"])
+  }
+
+  @Test
+  func reasonsAreReadable() {
+    struct Plain: Error {}
+    #expect(
+      HealthBackgroundWork.reason(HealthBatchUploader.StorageFull())
+        == "Your lil account's storage is full")
+    #expect(HealthBackgroundWork.reason(Plain()) == "Some Health data couldn't be uploaded.")
   }
 
   // A hang would block the pre-commit hook: fail instead.
@@ -143,6 +157,7 @@ struct HealthBackgroundWorkTests {
         },
         // Locked until the task is cancelled.
         unlocked: { try? await Task.sleep(for: .seconds(60)) },
+        online: {},
         wait: { _ in },
         notice: { _ in })
     }
