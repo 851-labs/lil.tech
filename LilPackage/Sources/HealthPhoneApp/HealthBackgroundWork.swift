@@ -76,7 +76,16 @@ public enum HealthBackgroundWork {
           consented == HealthConsentClient.policyVersion,
           (try? await sessions.accessToken()) != nil, !Task.isCancelled
         else { return false }
-        return (try? await backfill.run()) != nil
+        do {
+          try await backfill.run()
+          return true
+        } catch is HealthBatchUploader.ConsentRequired {
+          // Withdrawn on another iPhone, or the policy changed: nothing uploads until it's given.
+          $consented.withLock { $0 = nil }
+          return false
+        } catch {
+          return false
+        }
       }
       task.expirationHandler = {
         // Time's up, even before the run started: stop everything and complete now.

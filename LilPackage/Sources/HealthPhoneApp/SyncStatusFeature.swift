@@ -14,20 +14,19 @@ public struct SyncStatusFeature {
     public var progress: HealthBackfill.Progress?
     /// Health still has types to ask about (e.g. the person tapped Not Now).
     public var needsHealthAccess = false
-    /// Consent to processing Health data is in force (`AppFeature` keeps it up to date).
-    public var hasConsent: Bool
+    /// The policy version consent was given for, if any (`AppFeature`).
+    @Shared(.healthConsentPolicyVersion) public var consentedPolicyVersion: String?
     public var isWithdrawingConsent = false
     public var isDeletingAccount = false
     @Presents public var alert: AlertState<Action.Alert>?
 
     public init(
       progress: HealthBackfill.Progress? = nil, needsHealthAccess: Bool = false,
-      hasConsent: Bool = true, isWithdrawingConsent: Bool = false,
+      isWithdrawingConsent: Bool = false,
       isDeletingAccount: Bool = false, alert: AlertState<Action.Alert>? = nil
     ) {
       self.progress = progress
       self.needsHealthAccess = needsHealthAccess
-      self.hasConsent = hasConsent
       self.isWithdrawingConsent = isWithdrawingConsent
       self.isDeletingAccount = isDeletingAccount
       self.alert = alert
@@ -48,6 +47,8 @@ public struct SyncStatusFeature {
       case paused(finishedTypes: Int, totalTypes: Int, records: Int)
       case upToDate(lastUpload: Date?)
     }
+
+    public var hasConsent: Bool { consentedPolicyVersion == HealthConsentClient.policyVersion }
 
     public var status: Status {
       if !hasConsent { return .needsConsent }
@@ -185,8 +186,10 @@ public struct SyncStatusFeature {
 
       case .alert(.presented(.confirmWithdrawal)):
         state.isWithdrawingConsent = true
+        // Nothing more goes up from here, even before the server is told: without it, nothing
+        // starts uploading, including in the background.
+        state.$consentedPolicyVersion.withLock { $0 = nil }
         return .run { [healthBackfill, healthConsent] send in
-          // Nothing more goes up from here, even if the server can't be told yet.
           await healthBackfill.pause()
           do {
             try await healthConsent.withdraw()
@@ -198,16 +201,16 @@ public struct SyncStatusFeature {
 
       case .consentWithdrawn:
         state.isWithdrawingConsent = false
-        state.hasConsent = false
         // What's uploaded stays until the account is deleted, which is offered next.
         state.alert = .consentWithdrawn
         return .send(.delegate(.consentWithdrawn))
 
       case .consentWithdrawalFailed(let reason):
         state.isWithdrawingConsent = false
+        // Consent still stands. Uploading stays paused until the next change, launch or Continue.
+        state.$consentedPolicyVersion.withLock { $0 = HealthConsentClient.policyVersion }
         state.alert = .withdrawalFailed(reason)
-        // The paused backfill picks up again.
-        return .send(.delegate(.retry))
+        return .none
 
       case .openSettingsButtonTapped:
         return .run { [openURL] _ in await openURL(Self.settingsURL) }

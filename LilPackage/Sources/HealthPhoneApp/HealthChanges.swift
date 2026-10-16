@@ -20,7 +20,12 @@ public enum HealthChanges {
         (try? await authSessions.accessToken()) != nil
       else { return }
       // Failures are kept in the progress, and the type is tried again on the next change.
-      try? await healthBackfill.syncChanges(of: [type])
+      do {
+        try await healthBackfill.syncChanges(of: [type])
+      } catch is HealthBatchUploader.ConsentRequired {
+        // Withdrawn on another iPhone, or the policy changed: nothing uploads until it's given.
+        $consented.withLock { $0 = nil }
+      } catch {}
     }
   }
 }

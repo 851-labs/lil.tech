@@ -30,7 +30,11 @@ public struct HealthConsentClient: Sendable {
   public struct Failed: LocalizedError, Equatable {
     public let statusCode: Int
 
-    public var errorDescription: String? { "The server answered HTTP \(statusCode)" }
+    public var errorDescription: String? {
+      statusCode == 429
+        ? "Too many requests. Try again in a minute."
+        : "lil health's server couldn't do that right now (HTTP \(statusCode)). Try again later."
+    }
   }
 
   /// The privacy policy changed since this version of the app.

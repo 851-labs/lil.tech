@@ -44,7 +44,6 @@ public struct AppFeature {
 
     mutating func setConsent(_ given: Bool) {
       $consentedPolicyVersion.withLock { $0 = given ? HealthConsentClient.policyVersion : nil }
-      syncStatus.hasConsent = given
     }
   }
 
@@ -75,7 +74,7 @@ public struct AppFeature {
   @Dependency(\.healthBackfill) var healthBackfill
   @Dependency(\.healthConsent) var healthConsent
 
-  enum CancelID { case backfill, signedInChecks }
+  enum CancelID { case backfill, consentCheck, signedInChecks }
 
   public init() {}
 
@@ -116,20 +115,23 @@ public struct AppFeature {
 
       case .consentChecked(true):
         guard !state.hasConsent else { return .none }
-        // Given before, e.g. on another iPhone or before reinstalling.
+        // Given before, e.g. on another iPhone or before reinstalling. Health access is checked
+        // next, by the effect that asked.
         state.setConsent(true)
         state.healthConsent = nil
-        return checkHealthAccess()
+        return .none
 
       case .consentChecked(false):
         guard state.hasConsent else { return .none }
         state.setConsent(false)
+        state.healthAccess = nil
         return stopUploading()
 
       case .healthConsent(.delegate(.agreed)):
         state.setConsent(true)
         state.healthConsent = nil
-        return checkHealthAccess()
+        // A check that started before agreeing would answer for before.
+        return .merge(.cancel(id: CancelID.consentCheck), checkHealthAccess())
 
       case .healthConsent(.delegate(.notNow)):
         state.healthConsent = nil
@@ -193,7 +195,6 @@ public struct AppFeature {
         }
         let checkDevices = !state.checkedForOtherIPhones
         state.$checkedForOtherIPhones.withLock { $0 = true }
-        state.syncStatus.hasConsent = state.hasConsent
         // Consent comes first, before Health access.
         if !state.hasConsent, !state.askedForConsent {
           state.$askedForConsent.withLock { $0 = true }
@@ -201,8 +202,13 @@ public struct AppFeature {
         }
         let hasConsent = state.hasConsent
         return .run { [healthAuthorization, healthConsent, accountDevices] send in
-          if hasConsent, healthAuthorization.isAvailable() {
-            await send(.healthAccessChecked(needsRequest: await Self.needsRequest()))
+          // It may have been withdrawn on another iPhone, or given there. Asked before uploading
+          // anything; offline, this iPhone's answer stands.
+          let given = await Self.checkConsent(healthConsent)
+          await send(.consentChecked(given))
+          if given ?? hasConsent, healthAuthorization.isAvailable() {
+            await send(
+              .healthAccessChecked(needsRequest: await Self.needsRequest(healthAuthorization)))
           }
           if checkDevices {
             do {
@@ -211,8 +217,6 @@ public struct AppFeature {
               await send(.otherIPhonesCheckFailed)
             }
           }
-          // It may have been withdrawn on another iPhone, or given there.
-          await send(.consentChecked(try? await healthConsent.isGiven()))
         }
         .cancellable(id: CancelID.signedInChecks, cancelInFlight: true)
 
@@ -231,8 +235,12 @@ public struct AppFeature {
         state.healthConsent = HealthConsentFeature.State()
         return .none
 
+      case .syncStatus(.alert(.presented(.confirmWithdrawal))):
+        // A check that started before withdrawing would answer for before.
+        return .cancel(id: CancelID.consentCheck)
+
       case .syncStatus(.delegate(.consentWithdrawn)):
-        state.setConsent(false)
+        state.healthAccess = nil
         return stopUploading()
 
       case .syncStatus:
@@ -259,16 +267,25 @@ public struct AppFeature {
 extension AppFeature {
   /// Whether Health has types to ask about. If asking fails, there's nothing to show; the sync
   /// screen reports missing access.
-  static func needsRequest() async -> Bool {
-    @Dependency(\.healthAuthorization) var healthAuthorization
-    return (try? await healthAuthorization.needsRequest()) ?? false
+  static func needsRequest(_ healthAuthorization: HealthAuthorization) async -> Bool {
+    (try? await healthAuthorization.needsRequest()) ?? false
+  }
+
+  /// What the server says about consent. `nil` if it couldn't be asked, or if consent was given
+  /// or withdrawn here meanwhile (`CancelID.consentCheck`), which makes the answer stale.
+  static func checkConsent(_ healthConsent: HealthConsentClient) async -> Bool? {
+    await withTaskCancellation(id: CancelID.consentCheck, cancelInFlight: true) {
+      let given = try? await healthConsent.isGiven()
+      return Task.isCancelled ? nil : given
+    }
   }
 
   /// Asks for Health access, or starts the backfill if there's nothing to ask.
   func checkHealthAccess() -> Effect<Action> {
     .run { [healthAuthorization] send in
       guard healthAuthorization.isAvailable() else { return }
-      await send(.healthAccessChecked(needsRequest: await Self.needsRequest()))
+      await send(
+        .healthAccessChecked(needsRequest: await Self.needsRequest(healthAuthorization)))
     }
   }
 

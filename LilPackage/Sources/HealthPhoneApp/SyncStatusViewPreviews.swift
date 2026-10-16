@@ -29,9 +29,12 @@ private func progress(
 }
 
 @MainActor
-private func statusView(_ state: SyncStatusFeature.State) -> some View {
+private func statusView(_ state: SyncStatusFeature.State, consented: Bool = true) -> some View {
+  state.$consentedPolicyVersion.withLock {
+    $0 = consented ? HealthConsentClient.policyVersion : nil
+  }
   // `EmptyReducer`: the view's task would replace the state with the real backfill's.
-  SyncStatusView(store: Store(initialState: state) { EmptyReducer() })
+  return SyncStatusView(store: Store(initialState: state) { EmptyReducer() })
 }
 
 #Preview("Checking") {
@@ -87,7 +90,7 @@ private func statusView(_ state: SyncStatusFeature.State) -> some View {
 }
 
 #Preview("Not uploading without consent") {
-  statusView(SyncStatusFeature.State(progress: progress(done: 70), hasConsent: false))
+  statusView(SyncStatusFeature.State(progress: progress(done: 70)), consented: false)
 }
 
 #Preview("Withdraw consent?") {
@@ -101,8 +104,8 @@ private func statusView(_ state: SyncStatusFeature.State) -> some View {
 
 #Preview("Consent withdrawn") {
   statusView(
-    SyncStatusFeature.State(
-      progress: progress(done: 70), hasConsent: false, alert: .consentWithdrawn))
+    SyncStatusFeature.State(progress: progress(done: 70), alert: .consentWithdrawn),
+    consented: false)
 }
 
 #Preview("Delete account?") {
