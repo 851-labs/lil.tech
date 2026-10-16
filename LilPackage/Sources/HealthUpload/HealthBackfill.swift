@@ -455,15 +455,14 @@ public actor HealthBackfill {
       }
       state.empty.remove(type.id)
       markStatistics(of: type, changedBy: page.mutations, &state)
-      let (pending, files) = try write(page, of: type)
+      let (pending, files, blobs) = try write(page, of: type)
       // The page is saved before its files, so a kill in between leaves no orphans: the
       // missing files make the next run read the page again.
       state.pending = pending
       try storage.saveState(state)
       for (batch, file) in zip(pending.batches, files) { try storage.saveFile(batch, file) }
-      for blob in page.blobs {
-        try storage.saveFile(
-          HealthBackfillState.PendingPage.blobFile(HealthBlob.sha256(blob)), blob)
+      for (sha256, blob) in blobs {
+        try storage.saveFile(HealthBackfillState.PendingPage.blobFile(sha256), blob)
       }
       try await upload(pending, &state)
       isLast = pending.isLast
@@ -656,10 +655,10 @@ public actor HealthBackfill {
     return startingBackfill ? HealthBackfillState() : nil
   }
 
-  /// Writes a page's mutations to batch files, in memory. A record too long for the server is
-  /// skipped and reported, so it can't stop the backfill.
+  /// Writes a page's mutations to batch files, in memory, and names its blobs. A record or blob
+  /// too large for the server is skipped and reported, so it can't stop the backfill.
   private func write(_ page: HealthPage, of type: HealthBackfillType) throws
-    -> (HealthBackfillState.PendingPage, [Data])
+    -> (HealthBackfillState.PendingPage, [Data], [(sha256: String, data: Data)])
   {
     var writer = HealthBatchWriter()
     var files: [Data] = []
@@ -671,15 +670,20 @@ public actor HealthBackfill {
       }
     }
     if let file = try writer.finish() { files.append(file) }
-    var blobs: [String] = []
-    for sha256 in page.blobs.map(HealthBlob.sha256) where !blobs.contains(sha256) {
-      blobs.append(sha256)
+    var blobs: [(sha256: String, data: Data)] = []
+    for blob in page.blobs {
+      guard blob.count <= HealthBlob.maxBytes else {
+        reportIssue(HealthBlob.TooLarge(bytes: blob.count))
+        continue
+      }
+      let sha256 = HealthBlob.sha256(blob)
+      if !blobs.contains(where: { $0.sha256 == sha256 }) { blobs.append((sha256, blob)) }
     }
     let pending = HealthBackfillState.PendingPage(
       type: type.id, anchor: page.anchor, isLast: !page.hasMore,
-      batches: files.map { _ in uuid().uuidString.lowercased() }, blobs: blobs,
+      batches: files.map { _ in uuid().uuidString.lowercased() }, blobs: blobs.map(\.sha256),
       records: page.mutations.count)
-    return (pending, files)
+    return (pending, files, blobs)
   }
 
   /// Uploads a page's blobs, then its batches, so no row arrives before its blob. Then commits
@@ -695,12 +699,34 @@ public actor HealthBackfill {
       state.pending = nil
       try storage.saveState(state)
     }
-    for sha256 in pending.blobs {
-      try Task.checkCancellation()
-      guard let blob = try storage.loadFile(HealthBackfillState.PendingPage.blobFile(sha256))
-      else { return try dropPage() }
-      try await blobUploader.upload(sha256, blob)
+    // A few blobs at a time. Each leaves the pending page once it's accepted, so a page that's
+    // resumed carries on where it stopped.
+    var missingBlob = false
+    try await withThrowingTaskGroup(of: String?.self) { group in
+      var queue = pending.blobs[...]
+      for _ in 0..<Self.blobConcurrency {
+        guard let sha256 = queue.popFirst() else { break }
+        group.addTask { [storage, blobUploader] in
+          try await Self.uploadBlob(sha256, storage: storage, uploader: blobUploader)
+        }
+      }
+      while let uploaded = try await group.next() {
+        guard let sha256 = uploaded else {
+          missingBlob = true
+          group.cancelAll()
+          break
+        }
+        state.pending?.blobs.removeAll { $0 == sha256 }
+        try storage.saveState(state)
+        try storage.removeFile(HealthBackfillState.PendingPage.blobFile(sha256))
+        if let next = queue.popFirst() {
+          group.addTask { [storage, blobUploader] in
+            try await Self.uploadBlob(next, storage: storage, uploader: blobUploader)
+          }
+        }
+      }
     }
+    if missingBlob { return try dropPage() }
     for batch in pending.batches {
       try Task.checkCancellation()
       guard let file = try storage.loadFile(batch) else { return try dropPage() }
@@ -715,6 +741,22 @@ public actor HealthBackfill {
     try storage.saveState(state)
     for file in pending.files { try storage.removeFile(file) }
     updateCounts(state)
+  }
+
+  /// Blobs uploaded at once. They're independent, and only have to arrive before the page's
+  /// batches.
+  static let blobConcurrency = 4
+
+  /// Uploads a pending page's blob from its file. Returns its SHA-256, or `nil` if the file is
+  /// missing.
+  private static func uploadBlob(
+    _ sha256: String, storage: HealthBackfillStorage, uploader: HealthBlobUploader
+  ) async throws -> String? {
+    try Task.checkCancellation()
+    guard let blob = try storage.loadFile(HealthBackfillState.PendingPage.blobFile(sha256))
+    else { return nil }
+    try await uploader.upload(sha256, blob)
+    return sha256
   }
 
   /// The counts in `state`, not running and without a failure.

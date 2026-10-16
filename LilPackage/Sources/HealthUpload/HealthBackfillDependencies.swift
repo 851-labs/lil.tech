@@ -73,10 +73,18 @@ public struct HealthPage: Sendable {
   }
 }
 
-/// Names a blob as the server does: the SHA-256 of its bytes, in lowercase hex.
 public enum HealthBlob {
+  /// The largest blob the server takes, as for batch files.
+  public static let maxBytes = 16 * 1024 * 1024
+
+  /// Names a blob as the server does: the SHA-256 of its bytes, in lowercase hex.
   public static func sha256(_ data: Data) -> String {
     SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+  }
+
+  /// A blob over `maxBytes`, which the server would always refuse.
+  public struct TooLarge: Error, Equatable {
+    public let bytes: Int
   }
 }
 
@@ -236,10 +244,12 @@ public struct HealthBackfillStorage: Sendable {
     )
   }
 
-  /// Files in `directory`: the state as JSON, and each batch file.
+  /// Files in `directory`: the state as JSON, each batch file, and each blob.
   public static func directory(_ directory: URL) -> Self {
     let stateURL = directory.appending(path: "state.json")
-    let file = { @Sendable (name: String) in directory.appending(path: "\(name).ndjson.gz") }
+    let file = { @Sendable (name: String) in
+      directory.appending(path: name.hasPrefix("blob-") ? "\(name).bin" : "\(name).ndjson.gz")
+    }
     let prepare = { @Sendable in
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
