@@ -503,6 +503,184 @@ struct HealthBackfillTests {
   }
 
   @Test
+  func blobsGoUpBeforeTheBatchesThatReferToThem() async throws {
+    // Synthetic payloads, e.g. ECG voltages.
+    let voltages = Data((0..<1000).map { UInt8($0 % 251) })
+    let route = Data("synthetic route".utf8)
+    let uploads = LockIsolated<[String]>([])
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = HealthReader { _, anchor, _ in
+        HealthPage(
+          mutations: anchor == nil ? [.delete("health_sample", id: "ecg-1")] : [],
+          // The same blob twice goes up once.
+          blobs: anchor == nil ? [voltages, route, voltages] : [], anchor: Data("1".utf8),
+          hasMore: false)
+      }
+      $0.healthBlobUploader = HealthBlobUploader { sha256, data in
+        #expect(HealthBlob.sha256(data) == sha256)
+        uploads.withValue { $0.append(sha256) }
+      }
+      $0.healthBatchUploader = HealthBatchUploader { _, _ in
+        uploads.withValue { $0.append("batch") }
+      }
+      $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [temperature])
+    }
+
+    try await backfill.run()
+    // The blobs go up at the same time, and both before the batch.
+    #expect(uploads.value.count == 3)
+    #expect(
+      Set(uploads.value.prefix(2)) == [HealthBlob.sha256(voltages), HealthBlob.sha256(route)])
+    #expect(uploads.value.last == "batch")
+    // The files are gone once the page is uploaded.
+    #expect(try storage.loadFile("blob-\(HealthBlob.sha256(voltages))") == nil)
+    #expect(try storage.loadState()?.pending == nil)
+  }
+
+  @Test
+  func aPageWithBlobsIsKeptUntilTheyGoUp() async throws {
+    let voltages = Data((0..<1000).map { UInt8($0 % 251) })
+    let sha256 = HealthBlob.sha256(voltages)
+    let full = LockIsolated(true)
+    let uploads = LockIsolated<[String]>([])
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = HealthReader { _, anchor, _ in
+        HealthPage(
+          mutations: anchor == nil ? [.delete("health_sample", id: "ecg-1")] : [],
+          blobs: anchor == nil ? [voltages] : [], anchor: Data("1".utf8), hasMore: false)
+      }
+      $0.healthBlobUploader = HealthBlobUploader { sha256, _ in
+        if full.value { throw HealthBatchUploader.StorageFull() }
+        uploads.withValue { $0.append(sha256) }
+      }
+      $0.healthBatchUploader = HealthBatchUploader { _, _ in
+        uploads.withValue { $0.append("batch") }
+      }
+      $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [temperature])
+    }
+
+    // A blob's refusal ends the run like a batch's, before any batch goes up.
+    await #expect(throws: HealthBatchUploader.StorageFull.self) { try await backfill.run() }
+    #expect(uploads.value.isEmpty)
+    let pending = try #require(try storage.loadState()?.pending)
+    #expect(pending.blobs == [sha256])
+    #expect(try storage.loadFile("blob-\(sha256)") == voltages)
+
+    full.setValue(false)
+    try await backfill.run()
+    #expect(uploads.value == [sha256, "batch"])
+    #expect(try storage.loadFile("blob-\(sha256)") == nil)
+  }
+
+  @Test
+  func blobsAreNamedAsTheServerNamesThem() {
+    #expect(
+      HealthBlob.sha256(Data("abc".utf8))
+        == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+  }
+
+  @Test
+  func aResumedPageUploadsOnlyTheBlobsLeft() async throws {
+    let blobs = (0..<6).map { Data("synthetic blob \($0)".utf8) }
+    let refused = HealthBlob.sha256(blobs[3])
+    let full = LockIsolated(true)
+    let uploads = LockIsolated<[String]>([])
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = HealthReader { _, anchor, _ in
+        HealthPage(
+          mutations: anchor == nil ? [.delete("health_sample", id: "ecg-1")] : [],
+          blobs: anchor == nil ? blobs : [], anchor: Data("1".utf8), hasMore: false)
+      }
+      $0.healthBlobUploader = HealthBlobUploader { sha256, _ in
+        if full.value, sha256 == refused { throw HealthBatchUploader.StorageFull() }
+        uploads.withValue { $0.append(sha256) }
+      }
+      $0.healthBatchUploader = HealthBatchUploader { _, _ in
+        uploads.withValue { $0.append("batch") }
+      }
+      $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [temperature])
+    }
+
+    await #expect(throws: HealthBatchUploader.StorageFull.self) { try await backfill.run() }
+    let left = try #require(try storage.loadState()?.pending).blobs
+    #expect(left.contains(refused))
+    #expect(!uploads.value.contains("batch"))
+
+    // The next run uploads only what the page still lists, then the batch.
+    full.setValue(false)
+    let before = uploads.value.count
+    try await backfill.run()
+    let resumed = Array(uploads.value.dropFirst(before))
+    #expect(Set(resumed.dropLast()) == Set(left))
+    #expect(resumed.count == left.count + 1)
+    #expect(resumed.last == "batch")
+  }
+
+  @Test
+  func aBlobTooLargeForTheServerIsSkipped() async throws {
+    let tooLarge = Data(count: HealthBlob.maxBytes + 1)
+    let uploads = LockIsolated<[String]>([])
+    let backfill = withDependencies {
+      $0.healthReader = HealthReader { _, anchor, _ in
+        HealthPage(
+          mutations: anchor == nil ? [.delete("health_sample", id: "route-1")] : [],
+          blobs: anchor == nil ? [tooLarge] : [], anchor: Data("1".utf8), hasMore: false)
+      }
+      $0.healthBlobUploader = HealthBlobUploader { sha256, _ in
+        uploads.withValue { $0.append(sha256) }
+      }
+      $0.healthBatchUploader = HealthBatchUploader { _, _ in
+        uploads.withValue { $0.append("batch") }
+      }
+      $0.healthBackfillStorage = .inMemory()
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [temperature])
+    }
+
+    // Reported, and the rest of the page still goes up rather than being refused forever.
+    try await withKnownIssue {
+      try await backfill.run()
+    } matching: { issue in
+      issue.error as? HealthBlob.TooLarge == HealthBlob.TooLarge(bytes: HealthBlob.maxBytes + 1)
+    }
+    #expect(uploads.value == ["batch"])
+  }
+
+  @Test
+  func pagesSavedBeforeBlobsHaveNone() throws {
+    let saved = Data(
+      #"{"type":"t","anchor":"MQ==","isLast":true,"batches":["b"],"records":1}"#.utf8)
+    let pending = try JSONDecoder().decode(HealthBackfillState.PendingPage.self, from: saved)
+    #expect(pending.blobs == [])
+    #expect(pending.batches == ["b"])
+  }
+
+  @Test
   func aFullAccountStopsTheRunAndKeepsThePage() async throws {
     let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
     let full = LockIsolated(true)

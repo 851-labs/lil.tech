@@ -69,7 +69,38 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
     public var isLast: Bool
     /// Batch IDs, which are also the files' names.
     public var batches: [String]
+    /// The page's blobs' SHA-256s. Their files are named `blobFile(_:)`.
+    public var blobs: [String]
     public var records: Int
+
+    init(
+      type: String, anchor: Data, isLast: Bool, batches: [String], blobs: [String] = [],
+      records: Int
+    ) {
+      self.type = type
+      self.anchor = anchor
+      self.isLast = isLast
+      self.batches = batches
+      self.blobs = blobs
+      self.records = records
+    }
+
+    /// Pages saved before blobs existed have none.
+    public init(from decoder: any Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      type = try container.decode(String.self, forKey: .type)
+      anchor = try container.decode(Data.self, forKey: .anchor)
+      isLast = try container.decode(Bool.self, forKey: .isLast)
+      batches = try container.decode([String].self, forKey: .batches)
+      blobs = try container.decodeIfPresent([String].self, forKey: .blobs) ?? []
+      records = try container.decode(Int.self, forKey: .records)
+    }
+
+    /// Where a blob of the page waits to go up.
+    static func blobFile(_ sha256: String) -> String { "blob-\(sha256)" }
+
+    /// Every file the page keeps until it's uploaded.
+    var files: [String] { batches + blobs.map(Self.blobFile) }
   }
 }
 
@@ -131,6 +162,7 @@ public actor HealthBackfill {
   private let reader: HealthReader
   private let storage: HealthBackfillStorage
   private let uploader: HealthBatchUploader
+  private let blobUploader: HealthBlobUploader
   private let statisticsReader: HealthStatisticsReader
   private let characteristicsReader: HealthCharacteristicsReader
   private let activitySummaryReader: HealthActivitySummaryReader
@@ -159,6 +191,7 @@ public actor HealthBackfill {
     @Dependency(\.healthReader) var reader
     @Dependency(\.healthBackfillStorage) var storage
     @Dependency(\.healthBatchUploader) var uploader
+    @Dependency(\.healthBlobUploader) var blobUploader
     @Dependency(\.uuid) var uuid
     @Dependency(\.healthStatisticsReader) var statisticsReader
     @Dependency(\.healthCharacteristicsReader) var characteristicsReader
@@ -170,6 +203,7 @@ public actor HealthBackfill {
     self.reader = reader
     self.storage = storage
     self.uploader = uploader
+    self.blobUploader = blobUploader
     self.statisticsReader = statisticsReader
     self.characteristicsReader = characteristicsReader
     self.activitySummaryReader = activitySummaryReader
@@ -243,7 +277,7 @@ public actor HealthBackfill {
       rateLimitedUntil = nil
       // Even if the state can't be read, everything goes: `saveState(nil)` removes the files.
       if let pending = (try? storage.loadState())??.pending {
-        for batch in pending.batches { try? storage.removeFile(batch) }
+        for file in pending.files { try? storage.removeFile(file) }
       }
       withErrorReporting { try storage.saveState(nil) }
       let reset = Self.progress(types, HealthBackfillState())
@@ -318,7 +352,7 @@ public actor HealthBackfill {
               // One type can't hold up the rest. Its page is read again next time.
               failures[type.id] = error
               if let pending = state.pending, pending.type == type.id {
-                for batch in pending.batches { try? storage.removeFile(batch) }
+                for file in pending.files { try? storage.removeFile(file) }
                 state.pending = nil
                 try storage.saveState(state)
               }
@@ -421,12 +455,15 @@ public actor HealthBackfill {
       }
       state.empty.remove(type.id)
       markStatistics(of: type, changedBy: page.mutations, &state)
-      let (pending, files) = try write(page, of: type)
+      let (pending, files, blobs) = try write(page, of: type)
       // The page is saved before its files, so a kill in between leaves no orphans: the
       // missing files make the next run read the page again.
       state.pending = pending
       try storage.saveState(state)
       for (batch, file) in zip(pending.batches, files) { try storage.saveFile(batch, file) }
+      for (sha256, blob) in blobs {
+        try storage.saveFile(HealthBackfillState.PendingPage.blobFile(sha256), blob)
+      }
       try await upload(pending, &state)
       isLast = pending.isLast
     }
@@ -618,10 +655,10 @@ public actor HealthBackfill {
     return startingBackfill ? HealthBackfillState() : nil
   }
 
-  /// Writes a page's mutations to batch files, in memory. A record too long for the server is
-  /// skipped and reported, so it can't stop the backfill.
+  /// Writes a page's mutations to batch files, in memory, and names its blobs. A record or blob
+  /// too large for the server is skipped and reported, so it can't stop the backfill.
   private func write(_ page: HealthPage, of type: HealthBackfillType) throws
-    -> (HealthBackfillState.PendingPage, [Data])
+    -> (HealthBackfillState.PendingPage, [Data], [(sha256: String, data: Data)])
   {
     var writer = HealthBatchWriter()
     var files: [Data] = []
@@ -633,26 +670,66 @@ public actor HealthBackfill {
       }
     }
     if let file = try writer.finish() { files.append(file) }
+    var blobs: [(sha256: String, data: Data)] = []
+    for blob in page.blobs {
+      guard blob.count <= HealthBlob.maxBytes else {
+        reportIssue(HealthBlob.TooLarge(bytes: blob.count))
+        continue
+      }
+      let sha256 = HealthBlob.sha256(blob)
+      if !blobs.contains(where: { $0.sha256 == sha256 }) { blobs.append((sha256, blob)) }
+    }
     let pending = HealthBackfillState.PendingPage(
       type: type.id, anchor: page.anchor, isLast: !page.hasMore,
-      batches: files.map { _ in uuid().uuidString.lowercased() }, records: page.mutations.count)
-    return (pending, files)
+      batches: files.map { _ in uuid().uuidString.lowercased() }, blobs: blobs.map(\.sha256),
+      records: page.mutations.count)
+    return (pending, files, blobs)
   }
 
-  /// Uploads a page's batches, then commits its anchor.
+  /// Uploads a page's blobs, then its batches, so no row arrives before its blob. Then commits
+  /// its anchor.
   private func upload(
     _ pending: HealthBackfillState.PendingPage, _ state: inout HealthBackfillState
   ) async throws {
+    // The run stopped before writing them all: drop the page, and read it again from the anchor
+    // before it. Records are keyed by UUID and blobs by hash, so whatever already went up is
+    // harmless.
+    func dropPage() throws {
+      for file in pending.files { try storage.removeFile(file) }
+      state.pending = nil
+      try storage.saveState(state)
+    }
+    // A few blobs at a time. Each leaves the pending page once it's accepted, so a page that's
+    // resumed carries on where it stopped.
+    var missingBlob = false
+    try await withThrowingTaskGroup(of: String?.self) { group in
+      var queue = pending.blobs[...]
+      for _ in 0..<Self.blobConcurrency {
+        guard let sha256 = queue.popFirst() else { break }
+        group.addTask { [storage, blobUploader] in
+          try await Self.uploadBlob(sha256, storage: storage, uploader: blobUploader)
+        }
+      }
+      while let uploaded = try await group.next() {
+        guard let sha256 = uploaded else {
+          missingBlob = true
+          group.cancelAll()
+          break
+        }
+        state.pending?.blobs.removeAll { $0 == sha256 }
+        try storage.saveState(state)
+        try storage.removeFile(HealthBackfillState.PendingPage.blobFile(sha256))
+        if let next = queue.popFirst() {
+          group.addTask { [storage, blobUploader] in
+            try await Self.uploadBlob(next, storage: storage, uploader: blobUploader)
+          }
+        }
+      }
+    }
+    if missingBlob { return try dropPage() }
     for batch in pending.batches {
       try Task.checkCancellation()
-      guard let file = try storage.loadFile(batch) else {
-        // The run stopped before writing it: drop the page, and read it again from the anchor
-        // before it. Records are keyed by UUID, so whatever already went up is harmless.
-        for batch in pending.batches { try storage.removeFile(batch) }
-        state.pending = nil
-        try storage.saveState(state)
-        return
-      }
+      guard let file = try storage.loadFile(batch) else { return try dropPage() }
       try await uploader.upload(batch, file)
     }
     state.anchors[pending.type] = pending.anchor
@@ -662,8 +739,24 @@ public actor HealthBackfill {
     state.uploadedByType[pending.type, default: 0] += pending.records
     if !pending.batches.isEmpty { state.lastUploadAt = now() }
     try storage.saveState(state)
-    for batch in pending.batches { try storage.removeFile(batch) }
+    for file in pending.files { try storage.removeFile(file) }
     updateCounts(state)
+  }
+
+  /// Blobs uploaded at once. They're independent, and only have to arrive before the page's
+  /// batches.
+  static let blobConcurrency = 4
+
+  /// Uploads a pending page's blob from its file. Returns its SHA-256, or `nil` if the file is
+  /// missing.
+  private static func uploadBlob(
+    _ sha256: String, storage: HealthBackfillStorage, uploader: HealthBlobUploader
+  ) async throws -> String? {
+    try Task.checkCancellation()
+    guard let blob = try storage.loadFile(HealthBackfillState.PendingPage.blobFile(sha256))
+    else { return nil }
+    try await uploader.upload(sha256, blob)
+    return sha256
   }
 
   /// The counts in `state`, not running and without a failure.

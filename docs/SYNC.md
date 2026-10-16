@@ -188,6 +188,7 @@ POST /v1/sync/mutations
     - The user's store records each blob's size (`health_blobs`), and the sizes count towards the storage quota.
     - `GET /v1/health/blobs/<sha256>` returns a download URL signed like snapshot parts' (15 minutes, `Range` supported), only for the user's own blobs. A token for one kind of file doesn't work for the other.
     - Deleting the account deletes the user's blobs. Deleting unreferenced blobs is 851-2625.
+    - The iPhone's backfill keeps a page's blobs with its batch files and uploads them first (`HealthBlobUploader`), so a row never arrives before its blob. The page is kept until both are accepted.
   - **Backfill:** the iPhone pages through each type's history with anchored queries (2,000 objects a page). It writes each page to batch files of at most 4 MB uncompressed, saves the page as pending, and uploads it.
     - A type's anchor is saved only after every batch of the page is accepted.
     - If the app is killed, the pending page is uploaded again under the same batch IDs, which is safe, and nothing is skipped.
