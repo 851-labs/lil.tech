@@ -19,6 +19,8 @@ export const snapshotPolicy = {
    * and a store can do nothing else meanwhile, so it's small: about a second's work.
    */
   partRecords: 25_000,
+  /** ...and at most this many bytes of rows before compression, for entities with big rows. */
+  partBytes: 8 * 1024 * 1024,
   /** Rows read per query while writing a part. */
   pageRows: 5_000,
   /** Changes covered by the latest snapshot are deleted once they're this old. */
@@ -218,23 +220,26 @@ const sha256Hex = (bytes: Uint8Array) =>
   );
 
 /**
- * Deletes the changes the latest snapshot covers once they're older than `changeRetention`, and
- * raises the horizon to the newest one deleted. Never deletes changes newer than the snapshot.
+ * Deletes the oldest changes the latest snapshot covers once they're older than
+ * `changeRetention`, at most `compactionChunk` per call (the alarm calls again while more are
+ * due), and raises the horizon to the newest one deleted. Never deletes changes newer than the
+ * snapshot. Only reads the oldest change and the chunk, so it's cheap when there's nothing to do.
  */
 export const compactChanges = (sql: StoreSql, now: number, policy = snapshotPolicy) => {
   const latest = latestSummary(sql);
-  if (latest === null) return;
+  const first = firstChange(sql);
+  if (latest === null || first === null) return;
   // `seq` and `at` both increase, so the deletable changes are a prefix of the log.
-  const newest = sql.exec(
-    "SELECT max(seq) AS seq FROM changes WHERE seq <= ? AND at < ?",
+  const cutoff = now - policy.changeRetention;
+  if (first.seq > latest.seq || first.at >= cutoff) return;
+  const upTo = sql.exec(
+    `SELECT max(seq) AS seq FROM (
+      SELECT seq FROM changes WHERE seq <= ? AND at < ? ORDER BY seq LIMIT ?)`,
     latest.seq,
-    now - policy.changeRetention,
+    cutoff,
+    policy.compactionChunk,
   )[0]?.["seq"];
-  if (typeof newest !== "number") return;
-  // A chunk at a time, so one alarm can't hold the store for long.
-  const oldest = sql.exec("SELECT min(seq) AS seq FROM changes")[0]?.["seq"];
-  const upTo =
-    typeof oldest === "number" ? Math.min(newest, oldest + policy.compactionChunk - 1) : newest;
+  if (typeof upTo !== "number") return;
   sql.transaction(() => {
     sql.exec("DELETE FROM changes WHERE seq <= ?", upTo);
     sql.exec(
@@ -341,9 +346,20 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
     WHERE id > ? ORDER BY id LIMIT ?`;
   const gzip = gzipWriter();
   let records = 0;
+  let textBytes = 0;
   let afterId = job.afterId ?? "";
   let exhausted = false;
-  while (records < policy.partRecords) {
+  while (records < policy.partRecords && textBytes < policy.partBytes) {
+    if (records > 0) {
+      // Lets the store's other calls in between pages (uploads, ingestion): reading and
+      // compressing alone never give up the event loop.
+      yield* Effect.yieldNow;
+      // The store was deleted meanwhile: nothing of it goes to R2.
+      if (readJob(sql)?.snapshotId !== snapshotId) {
+        yield* gzip.finish;
+        return "idle" as const;
+      }
+    }
     const limit = Math.min(policy.pageRows, policy.partRecords - records);
     const rows = sql.exec(page, afterId, limit);
     let text = "";
@@ -355,9 +371,7 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
       text += `${JSON.stringify(record)}\n`;
     }
     if (text !== "") yield* gzip.write(text);
-    // Lets the store's other calls in between pages (uploads, ingestion): compressing alone
-    // never gives up the event loop.
-    yield* Effect.promise(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+    textBytes += text.length;
     records += rows.length;
     afterId = (rows[rows.length - 1]?.["id"] as string | undefined) ?? afterId;
     if (rows.length < limit) {
