@@ -267,6 +267,122 @@ struct HealthQueriesTests {
 }
 
 @Suite
+struct BrowseQueriesTests {
+  let database: any DatabaseWriter
+  let utcCalendar = calendar("UTC")
+
+  init() throws {
+    database = try HealthDatabase.make()
+  }
+
+  private func summary(_ id: String) throws -> MetricSummary {
+    let type = try #require(HealthCatalog.type(id: id))
+    return try database.read { db in
+      try HealthDatabase.metricSummary(of: type, now: now, calendar: utcCalendar, db)
+    }
+  }
+
+  @Test
+  func aCumulativeTypeShowsItsLatestDaysTotalAndTheWeekBefore() throws {
+    let steps = "HKQuantityTypeIdentifierStepCount"
+    try database.write { db in
+      try HealthStatisticsDevice.insert { reported(device, paired: true, daysAgo: 0) }.execute(db)
+      try HealthStatistic.insert {
+        // Too old for the week ending on the 14th.
+        statistic(steps, at: utc(9, day: 6), sum: 999)
+        statistic(steps, at: utc(9, day: 12), sum: 1_000)
+        statistic(steps, at: utc(9, day: 14), sum: 300)
+        statistic(steps, at: utc(9.5, day: 14), sum: 200)
+      }.execute(db)
+    }
+    let summary = try summary(steps)
+    #expect(summary.latestDate == utc(0, day: 14))
+    #expect(summary.latestValue == 500)
+    #expect(summary.isDailyTotal)
+    #expect(summary.unit == "count")
+    #expect(
+      summary.days == [
+        DailyValue(day: utc(0, day: 12), value: 1_000),
+        DailyValue(day: utc(0, day: 14), value: 500),
+      ])
+  }
+
+  @Test
+  func aLatestDayTheBucketsDontCoverYetUsesItsSamples() throws {
+    let steps = "HKQuantityTypeIdentifierStepCount"
+    try database.write { db in
+      try HealthStatisticsDevice.insert { reported(device, paired: true, daysAgo: 0) }.execute(db)
+      try HealthStatistic.insert { statistic(steps, at: utc(9, day: 13), sum: 4_000) }.execute(db)
+      // Synced before today's buckets.
+      try HealthSample.insert { sample(steps, at: utc(0.1), value: 120) }.execute(db)
+    }
+    let summary = try summary(steps)
+    #expect(summary.latestDate == utc(0))
+    #expect(summary.latestValue == 120)
+    #expect(summary.days.map(\.value) == [4_000, 120])
+  }
+
+  @Test
+  func aCumulativeTypeWithoutStatisticsAddsUpItsSamples() throws {
+    let water = "HKQuantityTypeIdentifierDietaryWater"
+    try database.write { db in
+      try HealthSample.insert {
+        sample(water, at: utc(8), value: 0.25)
+        sample(water, at: utc(12), value: 0.5)
+      }.execute(db)
+    }
+    let summary = try summary(water)
+    #expect(summary.latestDate == utc(0))
+    #expect(summary.latestValue == 0.75)
+  }
+
+  @Test
+  func aDiscreteTypeShowsItsLatestSampleAndDailyAverages() throws {
+    let weight = "HKQuantityTypeIdentifierBodyMass"
+    try database.write { db in
+      try HealthSample.insert {
+        sample(weight, at: utc(8, day: 13), value: 70)
+        sample(weight, at: utc(20, day: 13), value: 72)
+        sample(weight, at: utc(8), value: 71.5)
+      }.execute(db)
+    }
+    let summary = try summary(weight)
+    #expect(summary.latestDate == utc(8))
+    #expect(summary.latestValue == 71.5)
+    #expect(!summary.isDailyTotal)
+    #expect(summary.days.map(\.value) == [71, 71.5])
+  }
+
+  @Test
+  func typesWithoutAValueShowWhenTheyWereLastRecorded() throws {
+    let headache = "HKCategoryTypeIdentifierHeadache"
+    try database.write { db in
+      try HealthSample.insert {
+        HealthSample(
+          id: "h1", type: headache, startDate: utc(10).unixMilliseconds,
+          endDate: utc(11).unixMilliseconds, categoryValue: 1, sourceName: "Test",
+          sourceBundleID: "com.example")
+      }.execute(db)
+      try HealthActivitySummary.insert { HealthActivitySummary(id: "2025-10-13") }.execute(db)
+    }
+    #expect(try summary(headache).latestDate == utc(10))
+    #expect(try summary(headache).latestValue == nil)
+    #expect(try summary("HKActivitySummaryTypeIdentifier").latestDate == utc(0, day: 13))
+    // A day's, not a moment's.
+    #expect(try summary("HKActivitySummaryTypeIdentifier").isDailyTotal)
+  }
+
+  @Test
+  func typesWithoutDataHaveNone() throws {
+    let summaries = try database.read { db in
+      try HealthDatabase.metricSummaries(in: .heart, now: now, calendar: utcCalendar, db)
+    }
+    #expect(summaries.map(\.id) == HealthCatalog.types(in: .heart).map(\.id))
+    #expect(summaries.allSatisfy { !$0.hasData })
+  }
+}
+
+@Suite
 struct HealthSyncTests {
   @Test
   func appliesEveryHealthEntity() async throws {
