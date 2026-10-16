@@ -463,11 +463,15 @@ struct LilSyncEngineTests {
     }
   }
 
-  @Test
+  // A hang would block the pre-commit hook: fail instead.
+  @Test(.timeLimit(.minutes(1)))
   func aRateLimitIsWaitedOut() async throws {
     server.append(upsert("n1", "One"))
     server.state.withValue { $0.rateLimited = [1] }
-    let clock = TestClock()
+    // Records each sleep rather than racing the engine to it with a `TestClock`: advancing one
+    // before the engine sleeps would be missed. The first (the rate limit) returns at once; the
+    // idle wait after the pull suspends, so the engine doesn't pull again.
+    let clock = SleepRecordingClock(immediateSleeps: 1)
     let engine = withDependencies {
       $0.defaultDatabase = database
       $0.api = server.client
@@ -478,14 +482,13 @@ struct LilSyncEngineTests {
     }
     let running = Task { await engine.run() }
 
-    try await eventually { server.state.requests.count == 1 }
-    // Not the usual 1 second after a first failure: the 30 the server asked for.
-    await clock.advance(by: .seconds(29))
-    #expect(server.state.requests.count == 1)
-    await clock.advance(by: .seconds(1))
     try await eventually { try storedNotes() == [Note(id: "n1", title: "One")] }
+    try await eventually { clock.sleeps.value.count == 2 }
     running.cancel()
     await running.value
+    // Not the usual 1 second after a first failure: the 30 the server asked for, then the pull.
+    #expect(clock.sleeps.value.first == .seconds(30))
+    #expect(server.state.requests.count == 2)
   }
 
   @Test
@@ -737,14 +740,46 @@ struct LilSyncBootstrapTests {
   }
 }
 
-/// Waits for `condition`, which other tasks make true, yielding in between.
+/// A clock that records how long each sleep was for. The first `immediateSleeps` return at once;
+/// later ones suspend until cancelled.
+private final class SleepRecordingClock: Clock, Sendable {
+  private let clock = ImmediateClock()
+  private let immediateSleeps: Int
+  let sleeps = LockIsolated<[Duration]>([])
+
+  init(immediateSleeps: Int) {
+    self.immediateSleeps = immediateSleeps
+  }
+
+  var now: ImmediateClock<Duration>.Instant { clock.now }
+  var minimumResolution: Duration { clock.minimumResolution }
+
+  func sleep(until deadline: ImmediateClock<Duration>.Instant, tolerance: Duration?) async throws {
+    let count = sleeps.withValue {
+      $0.append(clock.now.duration(to: deadline))
+      return $0.count
+    }
+    if count > immediateSleeps {
+      try await Task.sleep(for: .seconds(3600))
+    }
+    try await clock.sleep(until: deadline, tolerance: tolerance)
+  }
+}
+
+/// Waits for `condition`, which other tasks make true, yielding in between. Bounded by time
+/// rather than a number of yields, so a busy machine (e.g. the pre-commit hook building the apps
+/// alongside) doesn't make it give up early.
 private func eventually(
   _ condition: () throws -> Bool,
   sourceLocation: SourceLocation = #_sourceLocation
 ) async throws {
-  for _ in 0..<10_000 {
+  let deadline = ContinuousClock.now.advanced(by: .seconds(30))
+  while ContinuousClock.now < deadline {
     if try condition() { return }
     await Task.yield()
+    if try condition() { return }
+    // A pause rather than spinning, which would take the CPU from the tasks being waited on.
+    try await Task.sleep(for: .milliseconds(1))
   }
   Issue.record("Condition never became true", sourceLocation: sourceLocation)
 }
