@@ -255,7 +255,7 @@ export const HealthHeartbeatSeries = defineEntity("health_heartbeat_series", {
   fields: {
     startDate: Column.integer,
     endDate: Column.integer,
-    /** Each beat's time, in seconds since `startDate`, ascending. */
+    /** Each beat's time, in seconds since `startDate`, in order (rounded to 0.1 ms). */
     beats: Column.json,
     /** The indices of the beats preceded by a gap (beats HealthKit couldn't measure). */
     gaps: Column.json,
@@ -270,16 +270,14 @@ const checkHeartbeats = (beats: unknown, gaps: unknown): string | undefined => {
   let previous = -Infinity;
   for (const beat of beats) {
     if (typeof beat !== "number" || beat < 0 || beat < previous) {
-      return "beats must be non-negative seconds, ascending";
+      return "beats must be non-negative seconds, in order";
     }
     previous = beat;
   }
-  if (!Array.isArray(gaps)) return "gaps must be an array";
+  if (!isRawValues(gaps)) return "gaps must be an array of integers";
   let previousGap = -1;
-  for (const gap of gaps) {
-    if (!Number.isInteger(gap) || gap <= previousGap || gap >= beats.length) {
-      return "gaps must be ascending indices of beats";
-    }
+  for (const gap of gaps as Array<number>) {
+    if (gap <= previousGap || gap >= beats.length) return "gaps must be ascending indices of beats";
     previousGap = gap;
   }
   return undefined;

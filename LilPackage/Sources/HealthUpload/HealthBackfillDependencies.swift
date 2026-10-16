@@ -145,16 +145,23 @@ public struct HealthReader: Sendable {
     let id: String
   }
 
-  /// Health can't be read while the device is locked. Not a failure: the work waits until it's
-  /// unlocked.
-  /// A series (an ECG's voltages, a heartbeat series' beats) couldn't be read in full. Unlike an
-  /// encoding error, it isn't the record's fault, so the page is read again rather than the
-  /// record skipped, which would move the anchor past it.
+  /// A series (an ECG's voltages, a heartbeat series' beats) couldn't be read: its query failed.
+  /// Unlike an encoding error, it isn't the record's fault, so the page is read again rather
+  /// than the record skipped, which would move the anchor past it.
   public struct SeriesUnavailable: Error, Equatable {
     public let expected: Int
     public let read: Int
   }
 
+  /// A series' query finished with a different number of values than its sample says. It's
+  /// uploaded as read and reported: reading it again would only get the same.
+  public struct SeriesCountMismatch: Error, Equatable {
+    public let expected: Int
+    public let read: Int
+  }
+
+  /// Health can't be read while the device is locked. Not a failure: the work waits until it's
+  /// unlocked.
   public struct Locked: Error, Equatable {
     public init() {}
 

@@ -322,6 +322,13 @@ struct HealthEncoderTests {
     let row = try #require(encoded["row"] as? [String: Any])
     #expect(row["beats"] as? [Double] == [0, 0.82, 1.65, 3.31])
     #expect(row["gaps"] as? [Int] == [3])
+
+    // Rounded to 0.1 ms, so a long series stays within a batch line.
+    var precise = series
+    precise.beats = [0.123456789]
+    let rounded = try #require(
+      try line(HealthEncoder.heartbeatSeries(precise))["row"] as? [String: Any])
+    #expect(rounded["beats"] as? [Double] == [0.1235])
   }
 
   @Test
