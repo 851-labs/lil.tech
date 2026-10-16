@@ -47,8 +47,10 @@ public enum HealthBackgroundWork {
     #if os(iOS)
       @Dependency(\.healthBackfill) var healthBackfill
       let progress = await healthBackfill.currentProgress()
-      // Nothing to do, or nothing that could go up: no task to show.
-      guard !progress.isFinished, !progress.isStorageFull else { return }
+      // Nothing to do, or nothing that could go up: no task to show. One still running (e.g.
+      // paused while the phone was locked) carries on by itself.
+      guard !progress.isFinished, !progress.isStorageFull, !continuedUploadRunning.value
+      else { return }
       let request = BGContinuedProcessingTaskRequest(
         identifier: uploadTaskIdentifier, title: uploadTitle,
         subtitle: UploadProgress(progress).subtitle)
@@ -59,6 +61,8 @@ public enum HealthBackgroundWork {
   }
 
   static let uploadTitle = "Uploading your Health history"
+  /// Whether a continued upload task is running, so another isn't requested alongside it.
+  static let continuedUploadRunning = LockIsolated(false)
   static let pausedSubtitle = "Paused until you unlock your iPhone"
 
   /// How a run of the backfill for a background task ended.
@@ -72,7 +76,9 @@ public enum HealthBackgroundWork {
 
   /// The continued upload's work: runs the backfill and, each time it stops because the phone
   /// locked, waits for `unlocked` and runs it again, telling `paused` meanwhile. Returns whether
-  /// it finished; it stops on any other outcome, or once cancelled (the task expired).
+  /// it finished; it stops on any other outcome, or once cancelled (the task expired). iOS may
+  /// expire a task whose progress stays put for long, as it does while paused: opening the app
+  /// picks the upload up again then.
   static func runUntilDone(
     run: @Sendable () async -> RunOutcome,
     unlocked: @Sendable () async -> Void,
@@ -85,6 +91,8 @@ public enum HealthBackgroundWork {
       case .locked:
         await paused(true)
         await unlocked()
+        // Expired meanwhile: the task is complete, so nothing more is shown.
+        guard !Task.isCancelled else { return false }
         await paused(false)
       }
     }
@@ -158,10 +166,12 @@ public enum HealthBackgroundWork {
       @Dependency(\.healthBackfill) var backfill
       @Dependency(\.authSessions) var sessions
       @Shared(.healthConsentPolicyVersion) var consented
+      // First, so a locked phone (the usual case for a `BGProcessingTask`) doesn't refresh the
+      // token for nothing.
+      guard await isUnlocked() else { return .locked }
       guard consented == HealthConsentClient.policyVersion,
         (try? await sessions.accessToken()) != nil, !Task.isCancelled
       else { return .stopped }
-      guard await isUnlocked() else { return .locked }
       do {
         try await backfill.run()
         return .finished
@@ -179,18 +189,36 @@ public enum HealthBackgroundWork {
       await MainActor.run { UIApplication.shared.isProtectedDataAvailable }
     }
 
-    /// Returns once the phone is unlocked, or the task is cancelled. Checks every few seconds,
-    /// which can't miss an unlock the way a notification posted just before observing could.
-    /// Already unlocked (Health said locked just as the phone was unlocked), it waits a moment
-    /// first, so the run isn't retried in a tight loop.
+    /// Returns once the phone is unlocked, or the task is cancelled. Observes the unlock before
+    /// checking, so it can't miss one. Already unlocked (Health said locked just as the phone was
+    /// unlocked), it waits a few seconds, so the run isn't retried in a tight loop.
     private static func waitUntilUnlocked() async {
-      while !Task.isCancelled {
-        try? await Task.sleep(for: .seconds(3))
-        if await isUnlocked() { return }
+      let unlocks = await MainActor.run {
+        UncheckedSendable(
+          NotificationCenter.default.notifications(
+            named: UIApplication.protectedDataDidBecomeAvailableNotification))
+      }
+      guard !(await isUnlocked()) else {
+        try? await Task.sleep(for: .seconds(10))
+        return
+      }
+      await withTaskGroup(of: Void.self) { group in
+        group.addTask {
+          for await _ in unlocks.value { return }
+        }
+        // In case the notification never comes, and so cancellation always ends the wait.
+        group.addTask {
+          while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(60))
+            if await isUnlocked() { return }
+          }
+        }
+        await group.next()
+        group.cancelAll()
       }
     }
 
-    /// Runs `task`'s work (`runBackfill`), completing the task exactly once: when the work ends,
+    /// Runs `task`'s work (e.g. `runBackfill`), completing the task exactly once: when the work ends,
     /// or when iOS expires the task (or the user cancels it), which stops the work. The
     /// backfill is only paused then if the app isn't in front, where its own run carries on.
     private static func perform(
@@ -239,13 +267,21 @@ public enum HealthBackgroundWork {
       let backfill = healthBackfill
       let bgTask = UncheckedSendable(task)
       let isPaused = LockIsolated(false)
-      @Sendable func show(_ progress: HealthBackfill.Progress) {
-        let upload = UploadProgress(progress)
-        bgTask.value.progress.totalUnitCount = upload.total
-        bgTask.value.progress.completedUnitCount = upload.completed
-        bgTask.value.updateTitle(
-          uploadTitle, subtitle: isPaused.value ? pausedSubtitle : upload.subtitle)
+      let shown = LockIsolated<UploadProgress?>(nil)
+      /// Shows `progress`, or the last progress again when the pause changes. In the lock, so
+      /// updates from the progress stream and from pausing don't interleave.
+      @Sendable func show(_ progress: HealthBackfill.Progress?) {
+        shown.withValue { shown in
+          if let progress { shown = UploadProgress(progress) }
+          guard let upload = shown else { return }
+          bgTask.value.progress.totalUnitCount = upload.total
+          bgTask.value.progress.completedUnitCount = upload.completed
+          bgTask.value.updateTitle(
+            uploadTitle, subtitle: isPaused.value ? pausedSubtitle : upload.subtitle)
+        }
       }
+      continuedUploadRunning.setValue(true)
+      defer { continuedUploadRunning.setValue(false) }
       await perform(
         task,
         work: {
@@ -253,7 +289,7 @@ public enum HealthBackgroundWork {
             run: runBackfill, unlocked: waitUntilUnlocked,
             paused: { paused in
               isPaused.setValue(paused)
-              show(await backfill.currentProgress())
+              show(nil)
             })
         },
         alongside: {
