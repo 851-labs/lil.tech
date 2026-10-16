@@ -1,4 +1,4 @@
-import Dependencies
+import ComposableArchitecture
 import HealthKitAccess
 import HealthUpload
 import LilAuth
@@ -7,7 +7,7 @@ import LilAuth
 public enum HealthChanges {
   /// Starts observing every type. Call it at every launch, from the app's initializer: background
   /// launches don't connect a scene, so a view's task would be too late. Changes are uploaded
-  /// only while signed in.
+  /// only while signed in, with consent.
   public static func observe() async {
     @Dependency(\.healthAuthorization) var healthAuthorization
     @Dependency(\.healthObserver) var healthObserver
@@ -15,9 +15,17 @@ public enum HealthChanges {
     @Dependency(\.authSessions) var authSessions
     guard healthAuthorization.isAvailable() else { return }
     await healthObserver.start(HealthBackfillType.current) { type in
-      guard (try? await authSessions.accessToken()) != nil else { return }
+      @Shared(.healthConsentPolicyVersion) var consented
+      guard consented == HealthConsentClient.policyVersion,
+        (try? await authSessions.accessToken()) != nil
+      else { return }
       // Failures are kept in the progress, and the type is tried again on the next change.
-      try? await healthBackfill.syncChanges(of: [type])
+      do {
+        try await healthBackfill.syncChanges(of: [type])
+      } catch is HealthBatchUploader.ConsentRequired {
+        // Withdrawn on another iPhone, or the policy changed: nothing uploads until it's given.
+        $consented.withLock { $0 = nil }
+      } catch {}
     }
   }
 }

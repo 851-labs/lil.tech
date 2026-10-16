@@ -27,6 +27,9 @@ public struct SyncStatusView: View {
         Section {
           Button("Health Access in Settings") { store.send(.openSettingsButtonTapped) }
           Link("Privacy Policy", destination: privacyPolicy)
+          if store.hasConsent {
+            Button("Withdraw Consent") { store.send(.withdrawConsentButtonTapped) }
+          }
           Button("Sign Out") { store.send(.signOutButtonTapped) }
           Button("Delete Account", role: .destructive) {
             store.send(.deleteAccountButtonTapped)
@@ -38,12 +41,13 @@ public struct SyncStatusView: View {
         }
       }
       .navigationTitle("lil health")
-      .disabled(store.isDeletingAccount)
+      .disabled(store.isDeletingAccount || store.isWithdrawingConsent)
       .overlay {
-        if store.isDeletingAccount {
+        if store.isDeletingAccount || store.isWithdrawingConsent {
           ZStack {
             Rectangle().fill(.regularMaterial).ignoresSafeArea()
-            ProgressView("Deleting your account…")
+            ProgressView(
+              store.isDeletingAccount ? "Deleting your account…" : "Withdrawing your consent…")
           }
         }
       }
@@ -59,6 +63,16 @@ private struct StatusHeader: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       switch store.status {
+      case .needsConsent:
+        Label("Not uploading", systemImage: "hand.raised")
+          .foregroundStyle(.secondary)
+        Text(
+          "lil health uploads your Health data only with your consent. Anything uploaded before stays in your account until you delete it."
+        )
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        Button("Review Consent") { store.send(.reviewConsentButtonTapped) }
+          .buttonStyle(.borderedProminent)
       case .loading:
         Label("Checking…", systemImage: "arrow.triangle.2.circlepath")
       case .needsHealthAccess:

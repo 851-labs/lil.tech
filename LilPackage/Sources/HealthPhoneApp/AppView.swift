@@ -19,7 +19,9 @@ public struct AppView: View {
           store: store.scope(\.signIn, action: \.signIn), appName: "lil health",
           privacyPolicy: privacyPolicy)
       case true:
-        if let healthAccess = store.scope(\.healthAccess, action: \.healthAccess) {
+        if let healthConsent = store.scope(\.healthConsent, action: \.healthConsent) {
+          HealthConsentView(store: healthConsent)
+        } else if let healthAccess = store.scope(\.healthAccess, action: \.healthAccess) {
           HealthAccessView(store: healthAccess)
         } else {
           SyncStatusView(store: store.scope(\.syncStatus, action: \.syncStatus))
@@ -38,6 +40,13 @@ public struct AppView: View {
 
 #Preview("Signed out") {
   AppView(store: Store(initialState: AppFeature.State(isSignedIn: false)) { EmptyReducer() })
+}
+
+#Preview("Asking for consent") {
+  AppView(
+    store: Store(
+      initialState: AppFeature.State(isSignedIn: true, healthConsent: HealthConsentFeature.State())
+    ) { EmptyReducer() })
 }
 
 #Preview("Asking for Health access") {

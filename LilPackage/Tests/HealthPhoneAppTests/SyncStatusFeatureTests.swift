@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import DependenciesTestSupport
 import Foundation
 import HealthCatalog
 import HealthKitAccess
@@ -24,11 +25,17 @@ private func progress(
     lastUploadAt: lastUpload)
 }
 
+// Each test has its own app storage, for the consent flag.
 @MainActor
+@Suite(.dependencies)
 struct SyncStatusFeatureTests {
   @Test
   func statusFollowsTheProgress() {
     typealias State = SyncStatusFeature.State
+    @Shared(.healthConsentPolicyVersion) var consented
+    // Without consent nothing uploads, whatever the progress.
+    #expect(State(progress: progress([:])).status == .needsConsent)
+    $consented.withLock { $0 = HealthConsentClient.policyVersion }
     let done = HealthBackfill.TypeProgress(isDone: true, uploadedRecords: 10)
     let notYet = HealthBackfill.TypeProgress(isDone: false, uploadedRecords: 0)
     #expect(State().status == .loading)
@@ -108,6 +115,8 @@ struct SyncStatusFeatureTests {
     #expect(signedOut.value)
     await store.send(.reviewHealthAccessButtonTapped)
     await store.receive(\.delegate.reviewHealthAccess)
+    await store.send(.reviewConsentButtonTapped)
+    await store.receive(\.delegate.reviewConsent)
     await store.send(.retryButtonTapped)
     await store.receive(\.delegate.retry)
   }
@@ -169,6 +178,37 @@ struct SyncStatusFeatureTests {
       } message: {
         TextState("It isn't possible right now. Please try again later.")
       }
+    }
+  }
+
+  @Test
+  func aFailedWithdrawalSaysWhy() async {
+    struct Offline: LocalizedError {
+      var errorDescription: String? { "The Internet connection appears to be offline." }
+    }
+    @Shared(.healthConsentPolicyVersion) var consented
+    $consented.withLock { $0 = HealthConsentClient.policyVersion }
+    let store = TestStore(initialState: SyncStatusFeature.State()) {
+      SyncStatusFeature()
+    } withDependencies: {
+      $0.healthConsent.withdraw = { throw Offline() }
+      $0.healthBackfill = HealthBackfill(types: [])
+    }
+
+    await store.send(.withdrawConsentButtonTapped) {
+      $0.alert = .confirmWithdrawal
+    }
+    // Nothing uploads from the moment it's confirmed.
+    await store.send(.alert(.presented(.confirmWithdrawal))) {
+      $0.alert = nil
+      $0.isWithdrawingConsent = true
+      $0.$consentedPolicyVersion.withLock { $0 = nil }
+    }
+    // Consent still stands. Uploading stays paused rather than starting again.
+    await store.receive(\.consentWithdrawalFailed) {
+      $0.isWithdrawingConsent = false
+      $0.$consentedPolicyVersion.withLock { $0 = HealthConsentClient.policyVersion }
+      $0.alert = .withdrawalFailed("The Internet connection appears to be offline.")
     }
   }
 }
