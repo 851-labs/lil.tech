@@ -101,9 +101,19 @@ struct MetricDetailContent: View {
           .foregroundStyle(.secondary)
         }
         VStack(spacing: 0) {
-          linkRow("Show All Data")
+          NavigationLink {
+            AllDataView(type: type)
+          } label: {
+            linkRow("Show All Data")
+          }
+          .buttonStyle(.plain)
           Divider().padding(.leading, 14)
-          linkRow("Data Sources")
+          NavigationLink {
+            DataSourcesView(type: type)
+          } label: {
+            linkRow("Data Sources")
+          }
+          .buttonStyle(.plain)
         }
         .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
       }
@@ -261,7 +271,6 @@ struct MetricDetailContent: View {
     }
   }
 
-  /// Show All Data and Data Sources come with 851-2582.
   private func linkRow(_ title: String) -> some View {
     HStack {
       Text(title)
@@ -272,7 +281,7 @@ struct MetricDetailContent: View {
     }
     .padding(.horizontal, 14)
     .padding(.vertical, 10)
-    .foregroundStyle(.secondary)
+    .contentShape(Rectangle())
   }
 }
 

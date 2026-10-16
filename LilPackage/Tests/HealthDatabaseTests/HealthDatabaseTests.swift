@@ -518,6 +518,81 @@ struct ChartQueriesTests {
 }
 
 @Suite
+struct SampleQueriesTests {
+  let database: any DatabaseWriter
+  let weight = "HKQuantityTypeIdentifierBodyMass"
+
+  init() throws {
+    database = try HealthDatabase.make()
+  }
+
+  @Test
+  func pagesGoNewestFirstWithoutSkippingTies() throws {
+    var samples = (0..<5).map { sample(weight, at: utc(Double($0)), value: 70) }
+    // Two at the same moment.
+    samples.append(sample(weight, at: utc(4), value: 71))
+    try database.write { db in try HealthSample.insert { samples }.execute(db) }
+    var seen: [HealthSample] = []
+    var cursor: SampleCursor?
+    while true {
+      let page = try database.read { db in
+        try HealthDatabase.samplePage(of: weight, after: cursor, limit: 2, db)
+      }
+      guard let last = page.last else { break }
+      seen += page
+      cursor = SampleCursor(after: last)
+    }
+    #expect(seen.count == 6)
+    #expect(Set(seen.map(\.id)) == Set(samples.map(\.id)))
+    #expect(seen.map(\.startDate) == seen.map(\.startDate).sorted(by: >))
+  }
+
+  @Test
+  func sourcesAreTheAppsAndDevicesThatWroteTheType() throws {
+    let watch = #"{"name":"Apple Watch","model":"Watch","softwareVersion":"26.0"}"#
+    // The same watch after an update.
+    let updatedWatch = #"{"name":"Apple Watch","model":"Watch","softwareVersion":"26.1"}"#
+    var a = sample(weight, at: utc(1), value: 70, source: "com.example.scale")
+    a.sourceName = "Scale"
+    var b = sample(weight, at: utc(2), value: 70, source: "com.example.scale")
+    b.sourceName = "Scale"
+    b.device = watch
+    var c = sample(weight, at: utc(3), value: 70)
+    c.device = updatedWatch
+    try database.write { db in
+      try HealthSample.insert {
+        a
+        b
+        c
+      }.execute(db)
+    }
+    let sources = try database.read { db in try HealthDatabase.sampleSources(of: weight, db) }
+    let (apps, devices) = (sources.apps, sources.devices)
+    #expect(apps.map(\.id) == ["com.example.scale", "com.example"])
+    #expect(apps.map(\.count) == [2, 1])
+    #expect(devices.map(\.device.name) == ["Apple Watch"])
+    #expect(devices.map(\.count) == [2])
+  }
+
+  @Test
+  func aSamplesDeviceRevisionAndMetadataDecode() {
+    var heartRate = sample("HKQuantityTypeIdentifierHeartRate", at: utc(1), value: 60)
+    heartRate.device = #"{"name":"Apple Watch","manufacturer":"Apple Inc."}"#
+    heartRate.sourceRevision = #"{"version":"26.0","productType":"Watch7,1"}"#
+    heartRate.metadata =
+      #"{"HKMetadataKeyHeartRateMotionContext":1,"Custom":{"a":true},"HKMetadataKeyWasUserEntered":true,"Infinite":null}"#
+    #expect(heartRate.decodedDevice?.manufacturer == "Apple Inc.")
+    #expect(heartRate.decodedSourceRevision?.productType == "Watch7,1")
+    #expect(
+      heartRate.metadataEntries.map(\.key) == [
+        "Custom", "HKMetadataKeyHeartRateMotionContext", "HKMetadataKeyWasUserEntered", "Infinite",
+      ])
+    // Booleans read as words, and nulls (values JSON can't hold) as a dash.
+    #expect(heartRate.metadataEntries.map(\.value) == [#"{"a":true}"#, "1", "Yes", "–"])
+  }
+}
+
+@Suite
 struct HealthSyncTests {
   @Test
   func appliesEveryHealthEntity() async throws {
