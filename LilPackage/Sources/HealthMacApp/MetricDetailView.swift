@@ -22,6 +22,8 @@ struct MetricDetailView: View {
     Group {
       if type.id == HealthDatabase.sleepType {
         SleepDetailView(type: type)
+      } else if type.kind == .workout {
+        WorkoutsView(type: type)
       } else if type.kind == .quantity {
         MetricDetailContent(
           type: type, range: $range, offset: $offset,

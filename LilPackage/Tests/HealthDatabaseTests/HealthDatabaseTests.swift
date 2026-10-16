@@ -778,6 +778,100 @@ struct SleepQueriesTests {
 }
 
 @Suite
+struct WorkoutQueriesTests {
+  let database: any DatabaseWriter
+
+  init() throws {
+    database = try HealthDatabase.make()
+  }
+
+  private func workout(_ id: String, at start: Date, minutes: Double = 30) -> HealthWorkout {
+    HealthWorkout(
+      id: id, activityType: 37, startDate: start.unixMilliseconds,
+      endDate: start.addingTimeInterval(minutes * 60).unixMilliseconds, duration: minutes * 60,
+      activities: "[]",
+      events: #"[{"type":7,"startDate":0,"endDate":60000,"metadata":null}]"#,
+      statistics:
+        #"{"HKQuantityTypeIdentifierDistanceWalkingRunning":{"unit":"m","sum":5000,"average":null,"minimum":null,"maximum":null,"mostRecent":null}}"#,
+      sourceName: "Test", sourceBundleID: "com.example")
+  }
+
+  @Test
+  func workoutsGoNewestFirstAndDecodeTheirJSON() throws {
+    try database.write { db in
+      try HealthWorkout.insert {
+        workout("a", at: utc(8, day: 12))
+        workout("b", at: utc(8, day: 14))
+        workout("c", at: utc(8, day: 13))
+      }.execute(db)
+    }
+    let workouts = try database.read { db in try HealthDatabase.workouts(limit: 2, db) }
+    #expect(workouts.map(\.id) == ["b", "c"])
+    let older = try database.read { db in
+      try HealthDatabase.workouts(before: utc(8, day: 13), limit: 10, db)
+    }
+    #expect(older.map(\.id) == ["a"])
+    let first = try #require(workouts.first)
+    #expect(first.decodedStatistics["HKQuantityTypeIdentifierDistanceWalkingRunning"]?.sum == 5000)
+    #expect(first.decodedEvents.map(\.type) == [WorkoutEvent.segment])
+    #expect(first.elapsed == 30 * 60)
+  }
+
+  @Test
+  func aRouteIsLinkedOrRecordedDuringTheWorkout() throws {
+    let running = workout("run", at: utc(8))
+    try database.write { db in
+      try HealthWorkout.insert { running }.execute(db)
+      try HealthWorkoutRoute.insert {
+        HealthWorkoutRoute(
+          id: "unlinked", startDate: utc(8.1).unixMilliseconds, endDate: utc(8.4).unixMilliseconds,
+          workout: nil, locationCount: 2, locations: "abc", sourceName: "Test",
+          sourceBundleID: "com.example")
+      }.execute(db)
+    }
+    #expect(try database.read { try HealthDatabase.route(of: running, $0) }?.id == "unlinked")
+    try database.write { db in
+      try HealthWorkoutRoute.insert {
+        HealthWorkoutRoute(
+          id: "linked", startDate: utc(8).unixMilliseconds, endDate: utc(8.5).unixMilliseconds,
+          workout: "run", locationCount: 2, locations: "def", sourceName: "Test",
+          sourceBundleID: "com.example")
+      }.execute(db)
+    }
+    #expect(try database.read { try HealthDatabase.route(of: running, $0) }?.id == "linked")
+  }
+
+  @Test
+  func routeBlobsDecodeAndSplitByKilometer() {
+    // Synthetic: north from (0, 0), 0.0045° (about 500 m) every 150 seconds.
+    var blob = Data()
+    for index in 0..<5 {
+      func append<T: FixedWidthInteger>(_ value: T) {
+        withUnsafeBytes(of: value.littleEndian) { blob.append(contentsOf: $0) }
+      }
+      append((1_760_400_000 + Double(index) * 150).bitPattern)
+      append((Double(index) * 0.0045).bitPattern)
+      append(Double(0).bitPattern)
+      append(Float(10).bitPattern)
+      append(Float(5).bitPattern)
+      append(Float(5).bitPattern)
+      append(Float(3.3).bitPattern)
+      append(Float(0).bitPattern)
+    }
+    // A partial record at the end is left out.
+    blob.append(contentsOf: [1, 2, 3])
+    let locations = HealthDatabase.routeLocations(blob)
+    #expect(locations.count == 5)
+    #expect(abs(locations[2].latitude - 0.009) < 1e-12)
+    #expect(abs(locations[0].speed - 3.3) < 1e-6)
+    let splits = HealthDatabase.splits(locations)
+    // About 2 km: two kilometers of about 300 seconds each.
+    #expect(splits.count == 2)
+    #expect(splits.allSatisfy { abs($0.pace - 300) < 3 })
+  }
+}
+
+@Suite
 struct HealthSyncTests {
   @Test
   func appliesEveryHealthEntity() async throws {
