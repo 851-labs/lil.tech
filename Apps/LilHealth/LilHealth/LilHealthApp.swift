@@ -29,9 +29,18 @@ struct LilHealthApp: App {
     }
     .commands {
       CommandGroup(after: .appSettings) {
-        Button("Sign Out") { Self.store.send(.signOutButtonTapped) }
-          .disabled(Self.store.isSignedIn != true)
+        SignOutCommand(store: Self.store)
       }
     }
+  }
+}
+
+/// Sign Out in the app menu. A view, so it follows the store's session as it changes.
+private struct SignOutCommand: View {
+  let store: StoreOf<AppFeature>
+
+  var body: some View {
+    Button("Sign Out") { store.send(.signOutButtonTapped) }
+      .disabled(store.isSignedIn != true)
   }
 }

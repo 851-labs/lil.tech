@@ -37,6 +37,8 @@ struct AppFeatureTests {
       $0.searchText = ""
     }
     await task.cancel()
+    // Deleting the local data.
+    await store.finish()
   }
 
   @Test(.timeLimit(.minutes(1)))

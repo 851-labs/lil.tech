@@ -113,8 +113,9 @@ public struct AppFeature {
           .cancel(id: CancelID.pull),
           .cancel(id: CancelID.sync),
           .run { [sync, blobCache] _ in
-            try await sync.removeLocalData()
+            // First, so it's done even if the database can't be.
             await blobCache.removeAll()
+            try await sync.removeLocalData()
           } catch: { error, _ in
             reportIssue(error)
           }

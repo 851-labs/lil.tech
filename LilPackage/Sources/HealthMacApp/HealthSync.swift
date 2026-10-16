@@ -12,7 +12,18 @@ extension DependencyValues {
     let directory = URL.applicationSupportDirectory.appending(
       path: Bundle.main.bundleIdentifier ?? "tech.lil.health", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    defaultDatabase = try HealthDatabase.make(at: directory.appending(path: "Health.sqlite"))
+    let file = directory.appending(path: "Health.sqlite")
+    do {
+      defaultDatabase = try HealthDatabase.make(at: file)
+    } catch {
+      // Damaged, or from a newer release: it's only a copy of the server's, so it starts over
+      // and syncs again.
+      for suffix in ["", "-wal", "-shm"] {
+        try? FileManager.default.removeItem(
+          at: directory.appending(path: "Health.sqlite\(suffix)"))
+      }
+      defaultDatabase = try HealthDatabase.make(at: file)
+    }
     sync = .live(entities: HealthDatabase.syncEntities, syncSchema: HealthDatabase.syncSchema)
   }
 }

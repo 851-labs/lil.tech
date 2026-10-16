@@ -140,6 +140,7 @@ let package = Package(
         "HealthCatalog",
         "HealthMacApp",
         "LilAuth",
+        "LilSync",
       ]
     ),
     .target(

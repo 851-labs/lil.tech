@@ -25,9 +25,13 @@ struct SyncFooterView: View {
         }
       }
       Spacer(minLength: 0)
-      if case .failed = status {
+      switch status {
+      case .failed, .offline:
+        // Without waiting out the backoff, e.g. once the connection is back.
         Button("Try Again", action: retry)
           .controlSize(.small)
+      default:
+        EmptyView()
       }
       Menu {
         Button("Sign Out", action: signOut)

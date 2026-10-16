@@ -218,6 +218,8 @@ public actor LilSyncEngine {
   /// turns: a pull that read the cursor before a bootstrap committed mustn't write after it.
   private var operation: Task<Void, Never>?
 
+  /// Runs `body` after the operations before it. Cancelling the caller cancels `body`, e.g.
+  /// stopping ``run()`` stops its pull's requests and downloads.
   private func exclusively(_ body: @escaping @Sendable () async throws -> Void) async throws {
     let previous = operation
     let task = Task<Result<Void, any Error>, Never> {
@@ -225,12 +227,17 @@ public actor LilSyncEngine {
       return await Result { try await body() }
     }
     operation = Task { _ = await task.value }
-    try await task.value.get()
+    try await withTaskCancellationHandler {
+      try await task.value.get()
+    } onCancel: {
+      task.cancel()
+    }
   }
 
   /// Deletes the local data, where the sync is, and downloaded snapshot parts, e.g. when the
   /// account signs out: the next pull starts over as a new device. Waits for a pull or bootstrap
-  /// in progress, so nothing it was writing lands afterwards.
+  /// in progress, so nothing it was writing lands afterwards. The database is vacuumed and its
+  /// write-ahead log truncated, so the deleted rows don't linger in the files.
   public func removeLocalData() async throws {
     try await exclusively { try await self.deleteLocalData() }
   }
@@ -240,6 +247,8 @@ public actor LilSyncEngine {
       for entity in entities.values { try entity.clear(db) }
       try SyncState.find(SyncState.singletonID).delete().execute(db)
     }
+    try await database.vacuum()
+    _ = try await database.writeWithoutTransaction { try $0.checkpoint(.truncate) }
     removeDownloadedParts(keeping: [])
     setStatus(.idle)
   }
