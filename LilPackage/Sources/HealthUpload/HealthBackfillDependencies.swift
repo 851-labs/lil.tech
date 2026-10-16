@@ -396,6 +396,11 @@ public struct HealthBatchUploader: Sendable {
     public let statusCode: Int
 
     public var errorDescription: String? { "The server answered HTTP \(statusCode)" }
+
+    /// The server failing for a moment (e.g. the user's store busy or restarting), so the upload
+    /// is worth trying again shortly. Not a 500: that's usually the server failing on this very
+    /// upload, every time.
+    public var isTransient: Bool { [502, 503, 504].contains(statusCode) }
   }
 
   /// Too many requests (a 429): nothing more uploads for `retryAfter` seconds.

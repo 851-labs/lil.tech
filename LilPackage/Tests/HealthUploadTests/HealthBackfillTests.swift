@@ -979,6 +979,173 @@ struct HealthBackfillTests {
     #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
   }
 
+  /// A backfill of temperature and sleep whose temperature uploads (or every upload, with
+  /// `everything`) fail with `refusal` the first `refusals` times.
+  private func refusingBackfill(
+    _ refusal: any Error & Sendable, times refusals: Int, everything: Bool = false,
+    server: FakeServer, storage: HealthBackfillStorage, attempts: LockIsolated<Int>,
+    clock: some Clock<Duration>
+  ) -> HealthBackfill {
+    withDependencies {
+      $0.healthReader = FakeHealth(pages: [temperature.id: 1, sleep.id: 1]).reader
+      $0.healthBatchUploader = HealthBatchUploader { id, file in
+        let lines = String(decoding: try Gzip.decompress(file), as: UTF8.self)
+        if everything || lines.contains(temperature.id) {
+          let attempt = attempts.withValue {
+            $0 += 1
+            return $0
+          }
+          if attempt <= refusals { throw refusal }
+        }
+        try await server.uploader.upload(id, file)
+      }
+      $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+      $0.continuousClock = clock
+    } operation: {
+      HealthBackfill(types: [temperature, sleep])
+    }
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func anUploadTheServerIsBusyForIsTriedAgain() async throws {
+    let (server, storage, attempts) = (
+      FakeServer(), HealthBackfillStorage.inMemory(), LockIsolated(0)
+    )
+    let clock = RecordingClock()
+    let backfill = refusingBackfill(
+      HealthBatchUploader.Rejected(statusCode: 503), times: 2, server: server, storage: storage,
+      attempts: attempts, clock: clock)
+
+    try await backfill.run()
+    // Waited a little longer each time, then went through without failing the type.
+    #expect(clock.sleeps.value == [.seconds(1), .seconds(2)])
+    #expect(attempts.value == 3)
+    #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
+    var updates = await backfill.progressUpdates().makeAsyncIterator()
+    #expect(await updates.next()?.failure == nil)
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func anUploadTheServerKeepsRefusingFailsItsTypeAfterTheRetries() async throws {
+    let (server, storage, attempts) = (
+      FakeServer(), HealthBackfillStorage.inMemory(), LockIsolated(0)
+    )
+    let clock = RecordingClock()
+    let backfill = refusingBackfill(
+      HealthBatchUploader.Rejected(statusCode: 503), times: .max, server: server,
+      storage: storage, attempts: attempts, clock: clock)
+
+    await #expect(throws: HealthBatchUploader.Rejected(statusCode: 503)) {
+      try await backfill.run()
+    }
+    #expect(clock.sleeps.value == HealthBackfill.transientRetryDelays)
+    #expect(attempts.value == HealthBackfill.transientRetryDelays.count + 1)
+    // The other type still went up.
+    #expect(try storage.loadState()?.finished == [sleep.id])
+    #expect(await backfill.requestedTypes == [temperature.id])
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func anUploadThatTimesOutIsTriedAgain() async throws {
+    let (server, storage, attempts) = (
+      FakeServer(), HealthBackfillStorage.inMemory(), LockIsolated(0)
+    )
+    let clock = RecordingClock()
+    let backfill = refusingBackfill(
+      URLError(.timedOut), times: 1, server: server, storage: storage, attempts: attempts,
+      clock: clock)
+
+    try await backfill.run()
+    #expect(clock.sleeps.value == [.seconds(1)])
+    #expect(try storage.loadState()?.finished == [temperature.id, sleep.id])
+  }
+
+  // A 500 is usually the server failing on that very upload, every time.
+  @Test(.timeLimit(.minutes(1)), arguments: [400, 413, 500])
+  func anUploadTheServerRefusesForGoodIsntTriedAgain(statusCode: Int) async throws {
+    let (server, storage, attempts) = (
+      FakeServer(), HealthBackfillStorage.inMemory(), LockIsolated(0)
+    )
+    let clock = RecordingClock()
+    let backfill = refusingBackfill(
+      HealthBatchUploader.Rejected(statusCode: statusCode), times: 1, server: server,
+      storage: storage, attempts: attempts, clock: clock)
+
+    await #expect(throws: HealthBatchUploader.Rejected(statusCode: statusCode)) {
+      try await backfill.run()
+    }
+    #expect(clock.sleeps.value.isEmpty)
+    #expect(attempts.value == 1)
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func aServerThatsDownIsWaitedOutOncePerRun() async throws {
+    let (server, storage, attempts) = (
+      FakeServer(), HealthBackfillStorage.inMemory(), LockIsolated(0)
+    )
+    let clock = RecordingClock()
+    let backfill = refusingBackfill(
+      HealthBatchUploader.Rejected(statusCode: 503), times: .max, everything: true,
+      server: server, storage: storage, attempts: attempts, clock: clock)
+
+    await #expect(throws: HealthBatchUploader.Rejected(statusCode: 503)) {
+      try await backfill.run()
+    }
+    // The first upload waited the retries out; the second type's failed at once.
+    #expect(clock.sleeps.value == HealthBackfill.transientRetryDelays)
+    #expect(attempts.value == HealthBackfill.transientRetryDelays.count + 2)
+    #expect(try storage.loadState()?.finished == [])
+
+    // The next run waits again.
+    await #expect(throws: HealthBatchUploader.Rejected(statusCode: 503)) {
+      try await backfill.run()
+    }
+    #expect(clock.sleeps.value.count == 2 * HealthBackfill.transientRetryDelays.count)
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func aBlobTheServerIsBusyForIsTriedAgain() async throws {
+    let voltages = Data((0..<1000).map { UInt8($0 % 251) })
+    let busy = LockIsolated(1)
+    let uploads = LockIsolated<[String]>([])
+    let clock = RecordingClock()
+    let backfill = withDependencies {
+      $0.healthReader = HealthReader { _, anchor, _ in
+        HealthPage(
+          mutations: anchor == nil ? [.delete("health_sample", id: "ecg-1")] : [],
+          blobs: anchor == nil ? [voltages] : [], anchor: Data("1".utf8), hasMore: false)
+      }
+      $0.healthBlobUploader = HealthBlobUploader { sha256, _ in
+        if busy.withValue({
+          $0 -= 1
+          return $0 >= 0
+        }) {
+          throw HealthBatchUploader.Rejected(statusCode: 502)
+        }
+        uploads.withValue { $0.append(sha256) }
+      }
+      $0.healthBatchUploader = HealthBatchUploader { _, _ in
+        uploads.withValue { $0.append("batch") }
+      }
+      $0.healthBackfillStorage = .inMemory()
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+      $0.continuousClock = clock
+    } operation: {
+      HealthBackfill(types: [temperature])
+    }
+
+    try await backfill.run()
+    #expect(clock.sleeps.value == [.seconds(1)])
+    #expect(uploads.value == [HealthBlob.sha256(voltages), "batch"])
+  }
+
   @Test
   func uploadsCharacteristicsWhenTheyChange() async throws {
     let server = FakeServer()
@@ -1151,22 +1318,28 @@ struct HealthBackfillTests {
 }
 
 /// An immediate clock that records how long each sleep was for, and runs `onSleep` during it.
+/// Not `ImmediateClock` itself: its sleeps wait on background-priority tasks, which tests that
+/// spin waiting for a state can starve when they run alongside.
 private final class RecordingClock: Clock, Sendable {
-  private let clock = ImmediateClock()
+  typealias Instant = ImmediateClock<Duration>.Instant
+
   private let onSleep: @Sendable (Duration) async -> Void
+  private let current = LockIsolated(Instant())
   let sleeps = LockIsolated<[Duration]>([])
 
   init(onSleep: @escaping @Sendable (Duration) async -> Void = { _ in }) {
     self.onSleep = onSleep
   }
 
-  var now: ImmediateClock<Duration>.Instant { clock.now }
-  var minimumResolution: Duration { clock.minimumResolution }
+  var now: Instant { current.value }
+  var minimumResolution: Duration { .zero }
 
-  func sleep(until deadline: ImmediateClock<Duration>.Instant, tolerance: Duration?) async throws {
-    let duration = clock.now.duration(to: deadline)
+  func sleep(until deadline: Instant, tolerance: Duration?) async throws {
+    let duration = now.duration(to: deadline)
     sleeps.withValue { $0.append(duration) }
     await onSleep(duration)
-    try await clock.sleep(until: deadline, tolerance: tolerance)
+    try Task.checkCancellation()
+    current.withValue { $0 = max($0, deadline) }
+    await Task.yield()
   }
 }
