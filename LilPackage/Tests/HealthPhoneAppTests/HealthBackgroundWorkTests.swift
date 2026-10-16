@@ -178,4 +178,54 @@ struct HealthBackgroundWorkTests {
     #expect(UploadCopy.left(records: 1, totalRecords: nil) == "1 item uploaded")
     #expect(UploadCopy.left(records: 12, totalRecords: 11) == "12 items uploaded")
   }
+
+  @Test
+  func oneContinuedTaskAtATime() {
+    let now = ContinuousClock.now
+    var upload = HealthBackgroundWork.ContinuedUpload()
+    let first = upload.claimRequest(now: now)
+    #expect(first == now)
+    // Asked for again before it starts, e.g. by launch and by returning to the app.
+    let again = upload.claimRequest(now: now + .seconds(1))
+    #expect(again == nil)
+    let started = upload.start()
+    #expect(started)
+    let whileRunning = upload.claimRequest(now: now + .seconds(200))
+    #expect(whileRunning == nil)
+    // iOS running a second anyway: it isn't the only one, and isn't counted.
+    let second = upload.start()
+    #expect(!second)
+    #expect(upload.running == 1)
+    upload.end()
+    // Once none runs, it can be asked for again.
+    let next = upload.claimRequest(now: now + .seconds(201))
+    #expect(next != nil)
+  }
+
+  @Test
+  func aRequestThatDidntTakeIsAskedForAgain() {
+    let now = ContinuousClock.now
+    var upload = HealthBackgroundWork.ContinuedUpload()
+    _ = upload.claimRequest(now: now)
+    // Never started (iOS couldn't run it): after the timeout, ask again.
+    let early = upload.claimRequest(now: now + .seconds(59))
+    #expect(early == nil)
+    let late = upload.claimRequest(now: now + .seconds(61))
+    #expect(late != nil)
+  }
+
+  @Test
+  func aFailedRequestReleasesOnlyItsOwnClaim() {
+    let now = ContinuousClock.now
+    var upload = HealthBackgroundWork.ContinuedUpload()
+    let old = upload.claimRequest(now: now)!
+    let newer = upload.claimRequest(now: now + .seconds(61))!
+    // The old request's failure comes in late: the newer claim stands.
+    upload.release(old)
+    let blocked = upload.claimRequest(now: now + .seconds(62))
+    #expect(blocked == nil)
+    upload.release(newer)
+    let free = upload.claimRequest(now: now + .seconds(63))
+    #expect(free != nil)
+  }
 }
