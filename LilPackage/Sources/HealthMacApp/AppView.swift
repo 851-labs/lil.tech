@@ -88,8 +88,8 @@ struct SidebarView: View {
   }
 }
 
-/// What's selected. Summary and Browse get their own views (851-2580, 851-2579); for now a
-/// category lists its data types.
+/// What's selected. Summary gets its own view (851-2580); a category lists its metrics, and a
+/// metric opens its detail (851-2578).
 struct DetailView: View {
   let selection: SidebarItem?
 
@@ -100,17 +100,14 @@ struct DetailView: View {
         "Summary", systemImage: "heart.text.square.fill",
         description: Text("Your pinned metrics and highlights will appear here."))
     case .category(let category):
-      // Including types also listed under another category (e.g. Blood Pressure in Vitals).
-      List(HealthCatalog.types(in: category), id: \.id) { type in
-        Text(type.name)
+      NavigationStack {
+        CategoryView(category: category)
+          .navigationDestination(for: String.self) { MetricDetailPlaceholder(typeID: $0) }
       }
-      .navigationTitle(category.name)
+      // A new stack for each category, so one's pushed metric doesn't show under another.
+      .id(category)
     case .dataType(let id):
-      let type = HealthCatalog.type(id: id)
-      ContentUnavailableView(
-        type?.name ?? "Unknown Data Type",
-        systemImage: type?.category?.symbolName ?? "questionmark",
-        description: Text(type?.category?.name ?? ""))
+      MetricDetailPlaceholder(typeID: id)
     }
   }
 }

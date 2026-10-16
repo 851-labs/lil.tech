@@ -1,0 +1,194 @@
+public import Foundation
+public import HealthCatalog
+public import SQLiteData
+
+/// What Browse shows for one data type: its latest value, and the days before it.
+public struct MetricSummary: Equatable, Identifiable, Sendable {
+  /// The data type's ID.
+  public let id: String
+  /// When the latest data is from: a cumulative type's latest day, otherwise its latest record.
+  /// `nil` without any data.
+  public var latestDate: Date?
+  /// The latest value in `unit`: a cumulative type's total that day, a discrete type's latest
+  /// sample. `nil` for types without a single value (e.g. symptoms, workouts).
+  public var latestValue: Double?
+  public var unit: String?
+  /// Whether `latestDate` is a whole day (a total) rather than a moment.
+  public var isDailyTotal: Bool
+  /// One value a day for the week ending on the latest day, oldest first: totals for cumulative
+  /// types, averages for discrete ones. Days without data are left out.
+  public var days: [DailyValue]
+
+  public init(
+    id: String, latestDate: Date? = nil, latestValue: Double? = nil, unit: String? = nil,
+    isDailyTotal: Bool = false, days: [DailyValue] = []
+  ) {
+    self.id = id
+    self.latestDate = latestDate
+    self.latestValue = latestValue
+    self.unit = unit
+    self.isDailyTotal = isDailyTotal
+    self.days = days
+  }
+
+  public var hasData: Bool { latestDate != nil }
+}
+
+public struct DailyValue: Equatable, Sendable {
+  public var day: Date
+  public var value: Double
+
+  public init(day: Date, value: Double) {
+    self.day = day
+    self.value = value
+  }
+}
+
+extension HealthDatabase {
+  /// Days a summary's chart covers, ending on the latest day.
+  static let summaryDays = 7
+
+  /// Summaries of every type Browse lists under `category`, in the catalog's order.
+  public static func metricSummaries(
+    in category: HealthCategory, now: Date, calendar: Calendar, _ db: Database
+  ) throws -> [MetricSummary] {
+    try HealthCatalog.types(in: category).map {
+      try metricSummary(of: $0, now: now, calendar: calendar, db)
+    }
+  }
+
+  /// A type's latest value and the week ending on it.
+  public static func metricSummary(
+    of type: HealthDataType, now: Date, calendar: Calendar, _ db: Database
+  ) throws -> MetricSummary {
+    switch type.kind {
+    case .quantity where type.aggregation?.isCumulative == true:
+      return try cumulativeSummary(of: type, now: now, calendar: calendar, db)
+    case .quantity:
+      return try discreteSummary(of: type, calendar: calendar, db)
+    default:
+      return MetricSummary(
+        id: type.id, latestDate: try latestDate(of: type, calendar: calendar, db))
+    }
+  }
+
+  /// The latest day's total, from the statistics source's buckets or, without any, the samples.
+  private static func cumulativeSummary(
+    of type: HealthDataType, now: Date, calendar: Calendar, _ db: Database
+  ) throws -> MetricSummary {
+    let source = try statisticsSource(db, now: now)
+    let latestBucket = try source.flatMap { source in
+      try HealthStatistic
+        .where { $0.device.eq(source) && $0.type.eq(type.id) }
+        .order { $0.bucketStart.desc() }
+        .select(\.bucketStart)
+        .limit(1)
+        .fetchOne(db)
+    }
+    let latestSample = try latestSample(of: type.id, db)
+    let latest = [latestBucket, latestSample?.startDate].compactMap { $0 }.max()
+    guard let latest else { return MetricSummary(id: type.id) }
+    let latestDay = calendar.startOfDay(for: Date(unixMilliseconds: latest))
+    let week = weekEnding(on: latestDay, calendar: calendar)
+    var days = try cumulativeStatistics(
+      of: type.id, in: week, by: .day, calendar: calendar, now: now, db
+    )
+    .map { DailyValue(day: $0.start, value: $0.sum) }
+    if days.isEmpty {
+      // No statistics for it: the samples' own totals.
+      var totals: [Date: Double] = [:]
+      for sample in try samples(of: type.id, in: week, db) {
+        totals[calendar.startOfDay(for: Date(unixMilliseconds: sample.startDate)), default: 0] +=
+          sample.value ?? 0
+      }
+      days = totals.sorted { $0.key < $1.key }.map { DailyValue(day: $0.key, value: $0.value) }
+    }
+    return MetricSummary(
+      id: type.id, latestDate: latestDay, latestValue: days.last { $0.day == latestDay }?.value,
+      unit: type.unit, isDailyTotal: true, days: days)
+  }
+
+  /// The latest sample, and daily averages for the week ending on its day.
+  private static func discreteSummary(
+    of type: HealthDataType, calendar: Calendar, _ db: Database
+  ) throws -> MetricSummary {
+    guard let latest = try latestSample(of: type.id, db) else { return MetricSummary(id: type.id) }
+    let date = Date(unixMilliseconds: latest.startDate)
+    let days = try discreteStatistics(
+      of: type.id, in: weekEnding(on: calendar.startOfDay(for: date), calendar: calendar),
+      by: .day, calendar: calendar, db
+    )
+    .map { DailyValue(day: $0.start, value: $0.average) }
+    return MetricSummary(
+      id: type.id, latestDate: date, latestValue: latest.value, unit: latest.unit ?? type.unit,
+      days: days)
+  }
+
+  /// When a type without a single value was last recorded, from wherever it's stored. `nil` for
+  /// types that aren't synced yet.
+  private static func latestDate(
+    of type: HealthDataType, calendar: Calendar, _ db: Database
+  ) throws -> Date? {
+    let milliseconds: Int?
+    switch type.kind {
+    case .category:
+      milliseconds = try latestSample(of: type.id, db)?.startDate
+    case .correlation:
+      milliseconds =
+        try HealthCorrelation.where { $0.type.eq(type.id) }
+        .order { $0.startDate.desc() }.select(\.startDate).limit(1).fetchOne(db)
+    case .workout:
+      milliseconds =
+        try HealthWorkout.order { $0.startDate.desc() }.select(\.startDate).limit(1).fetchOne(db)
+    case .workoutRoute:
+      milliseconds =
+        try HealthWorkoutRoute.order { $0.startDate.desc() }.select(\.startDate).limit(1)
+        .fetchOne(db)
+    case .stateOfMind:
+      milliseconds =
+        try HealthStateOfMind.order { $0.startDate.desc() }.select(\.startDate).limit(1)
+        .fetchOne(db)
+    case .scoredAssessment:
+      milliseconds =
+        try HealthScoredAssessment.where { $0.type.eq(type.id) }
+        .order { $0.startDate.desc() }.select(\.startDate).limit(1).fetchOne(db)
+    case .audiogram:
+      milliseconds =
+        try HealthAudiogram.order { $0.startDate.desc() }.select(\.startDate).limit(1)
+        .fetchOne(db)
+    case .electrocardiogram:
+      milliseconds =
+        try HealthElectrocardiogram.order { $0.startDate.desc() }.select(\.startDate).limit(1)
+        .fetchOne(db)
+    case .heartbeatSeries:
+      milliseconds =
+        try HealthHeartbeatSeries.order { $0.startDate.desc() }.select(\.startDate).limit(1)
+        .fetchOne(db)
+    case .activitySummary:
+      // Keyed by their day, `yyyy-MM-dd`, which sorts by date.
+      let day = try HealthActivitySummary.order { $0.id.desc() }.select(\.id).limit(1)
+        .fetchOne(db)
+      return day.flatMap { gregorianDay($0, calendar: calendar) }
+    case .quantity, .characteristic, .medication, .medicationDoseEvent, .visionPrescription,
+      .document:
+      milliseconds = nil
+    }
+    return milliseconds.map(Date.init(unixMilliseconds:))
+  }
+
+  /// The start of a `yyyy-MM-dd` day in `calendar`'s time zone.
+  private static func gregorianDay(_ id: String, calendar: Calendar) -> Date? {
+    let parts = id.split(separator: "-").compactMap { Int($0) }
+    guard parts.count == 3 else { return nil }
+    var gregorian = Calendar(identifier: .gregorian)
+    gregorian.timeZone = calendar.timeZone
+    return gregorian.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+  }
+
+  /// The `summaryDays` days ending with `day` (a start of day).
+  private static func weekEnding(on day: Date, calendar: Calendar) -> Range<Date> {
+    let end = calendar.date(byAdding: .day, value: 1, to: day) ?? day
+    let start = calendar.date(byAdding: .day, value: 1 - summaryDays, to: day) ?? day
+    return start..<end
+  }
+}
