@@ -76,6 +76,14 @@ struct SidebarView: View {
       }
     }
     .searchable(text: $store.searchText, placement: .sidebar, prompt: "Search")
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      VStack(spacing: 0) {
+        Divider()
+        SyncFooterView(
+          status: store.syncStatus, retry: { store.send(.retrySyncButtonTapped) },
+          signOut: { store.send(.signOutButtonTapped) })
+      }
+    }
     .navigationSplitViewColumnWidth(min: 200, ideal: 240)
   }
 }

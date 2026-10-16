@@ -21,6 +21,8 @@ public struct SyncClient: Sendable {
   public var syncNow: @Sendable () async -> Void
   /// The current status, then every change to it.
   public var status: @Sendable () async -> AsyncStream<SyncStatus>
+  /// Deletes the local copy, e.g. when signing out. See ``LilSyncEngine/removeLocalData()``.
+  public var removeLocalData: @Sendable () async throws -> Void
 
   public init(
     run: @escaping @Sendable () async -> Void,
@@ -28,12 +30,14 @@ public struct SyncClient: Sendable {
       @escaping @Sendable (_ accessToken: @escaping @Sendable () async throws -> String) async ->
       Void,
     syncNow: @escaping @Sendable () async -> Void,
-    status: @escaping @Sendable () async -> AsyncStream<SyncStatus>
+    status: @escaping @Sendable () async -> AsyncStream<SyncStatus>,
+    removeLocalData: @escaping @Sendable () async throws -> Void
   ) {
     self.run = run
     self.listen = listen
     self.syncNow = syncNow
     self.status = status
+    self.removeLocalData = removeLocalData
   }
 
   /// A client backed by a ``LilSyncEngine`` for the app's entities. The engine is made on first
@@ -53,7 +57,8 @@ public struct SyncClient: Sendable {
       run: { await resolve().run() },
       listen: { accessToken in await resolve().listen(accessToken: accessToken) },
       syncNow: { await resolve().syncNow() },
-      status: { await resolve().statusUpdates() }
+      status: { await resolve().statusUpdates() },
+      removeLocalData: { try await resolve().removeLocalData() }
     )
   }
 
@@ -63,7 +68,8 @@ public struct SyncClient: Sendable {
       run: {},
       listen: { _ in },
       syncNow: {},
-      status: { AsyncStream { $0.yield(status) } }
+      status: { AsyncStream { $0.yield(status) } },
+      removeLocalData: {}
     )
   }
 }
@@ -78,7 +84,10 @@ extension SyncClient: DependencyKey {
         reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:syncSchema:) at launch.")
       },
       syncNow: {},
-      status: { AsyncStream { $0.yield(.idle) } }
+      status: { AsyncStream { $0.yield(.idle) } },
+      removeLocalData: {
+        reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:syncSchema:) at launch.")
+      }
     )
   }
   public static let previewValue = Self.constant(.idle)
@@ -90,7 +99,8 @@ extension SyncClient: DependencyKey {
       status: {
         reportIssue("Unimplemented: @Dependency(\\.sync).status")
         return AsyncStream { $0.finish() }
-      }
+      },
+      removeLocalData: { reportIssue("Unimplemented: @Dependency(\\.sync).removeLocalData") }
     )
   }
 }

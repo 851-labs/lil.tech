@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import HealthCatalog
+import LilSync
 import SwiftUI
 
 // In their own file: previewing a file with a `List` of `ForEach` rows trips an assertion in
@@ -21,7 +22,14 @@ private func appView(_ state: AppFeature.State) -> some View {
 }
 
 #Preview("Summary") {
-  appView(AppFeature.State(isSignedIn: true))
+  appView(
+    AppFeature.State(isSignedIn: true, syncStatus: .upToDate(at: .now.addingTimeInterval(-120))))
+}
+
+#Preview("First sync") {
+  appView(
+    AppFeature.State(
+      isSignedIn: true, syncStatus: .bootstrapping(downloadedParts: 12, totalParts: 80)))
 }
 
 #Preview("A category") {

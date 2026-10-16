@@ -127,8 +127,11 @@ let package = Package(
       name: "HealthMacApp",
       dependencies: [
         "HealthCatalog",
+        "HealthDatabase",
         "LilAuth",
+        "LilSync",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
       ]
     ),
     .testTarget(

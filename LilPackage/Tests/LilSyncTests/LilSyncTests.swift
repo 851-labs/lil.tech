@@ -633,6 +633,26 @@ struct LilSyncBootstrapTests {
   }
 
   @Test
+  func removingTheLocalDataStartsOverAsANewDevice() async throws {
+    let all = [Note(id: "n1", title: "One")]
+    server.append(upsert("n1", "One"))
+    try server.publishSnapshot(seq: 1, notes: all)
+    let database = try makeDatabase(bootstrapped: false)
+    let engine = engine(database: database)
+    try await engine.bootstrap()
+    #expect(try storedNotes(database) == all)
+    // A part left by an interrupted bootstrap.
+    try FileManager.default.createDirectory(at: partsDirectory, withIntermediateDirectories: true)
+    try Data("part".utf8).write(to: partsDirectory.appending(path: "left.ndjson.gz"))
+
+    try await engine.removeLocalData()
+    #expect(try storedNotes(database).isEmpty)
+    #expect(try state(database) == [nil, nil])
+    #expect(try FileManager.default.contentsOfDirectory(atPath: partsDirectory.path()).isEmpty)
+    await #expect(throws: SyncError.needsBootstrap) { try await engine.pull() }
+  }
+
+  @Test
   func aNewDeviceStartsFromTheSnapshotThenPullsTheChangesAfterIt() async throws {
     let notesAtSnapshot = ["a", "b", "c", "d", "e"].map { Note(id: $0, title: "Note \($0)") }
     for note in notesAtSnapshot { server.append(upsert(note.id, note.title)) }

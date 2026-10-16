@@ -2,9 +2,11 @@ public import ComposableArchitecture
 import Foundation
 public import HealthCatalog
 public import LilAuth
+public import LilSync
 
 /// lil health on the Mac: sign in, then iPad Health's layout, a sidebar of Summary and the
-/// Health categories beside what's selected.
+/// Health categories beside what's selected. While signed in, it syncs the account's health data
+/// into the local database; signing out deletes it.
 @Reducer
 public struct AppFeature {
   @ObservableState
@@ -14,13 +16,17 @@ public struct AppFeature {
     public var signIn = SignInFeature.State()
     public var selection: SidebarItem? = .summary
     public var searchText = ""
+    /// Shown in the sidebar's footer.
+    public var syncStatus: SyncStatus
 
     public init(
-      isSignedIn: Bool? = nil, selection: SidebarItem? = .summary, searchText: String = ""
+      isSignedIn: Bool? = nil, selection: SidebarItem? = .summary, searchText: String = "",
+      syncStatus: SyncStatus = .idle
     ) {
       self.isSignedIn = isSignedIn
       self.selection = selection
       self.searchText = searchText
+      self.syncStatus = syncStatus
     }
 
     /// The search, without surrounding spaces.
@@ -41,12 +47,28 @@ public struct AppFeature {
 
   public enum Action: BindableAction {
     case binding(BindingAction<State>)
+    case retrySyncButtonTapped
     case signedInChanged(Bool)
     case signIn(SignInFeature.Action)
+    case signOutButtonTapped
+    case syncStatusChanged(SyncStatus)
     case task
   }
 
+  enum CancelID {
+    /// Pulling (`SyncClient.run`), restarted by Try Again.
+    case pull
+    /// Everything that runs while signed in.
+    case sync
+  }
+
+  /// The session ended between handing a live connection a token and asking for it.
+  struct SignedOut: Error {}
+
   @Dependency(\.auth) var auth
+  @Dependency(\.authSessions) var authSessions
+  @Dependency(\.blobCache) var blobCache
+  @Dependency(\.sync) var sync
 
   public init() {}
 
@@ -68,14 +90,42 @@ public struct AppFeature {
       case .binding:
         return .none
 
+      case .retrySyncButtonTapped:
+        // A new pull right away: asking the running one (`syncNow`) wouldn't cut its backoff
+        // after a failure short.
+        return pull()
+
       case .signedInChanged(let isSignedIn):
+        let wasSignedIn = state.isSignedIn
         state.isSignedIn = isSignedIn
-        if !isSignedIn {
-          // The next account starts afresh.
-          state.signIn = SignInFeature.State()
-          state.selection = .summary
-          state.searchText = ""
+        if isSignedIn {
+          return wasSignedIn == true ? .none : startSync()
         }
+        // The next account starts afresh.
+        state.signIn = SignInFeature.State()
+        state.selection = .summary
+        state.searchText = ""
+        state.syncStatus = .idle
+        // The account's health data leaves the Mac with it. Also when the app opens signed out,
+        // in case it quit before it was done. Removing waits for a pull being cancelled to stop
+        // (`LilSyncEngine.removeLocalData()`).
+        return .merge(
+          .cancel(id: CancelID.pull),
+          .cancel(id: CancelID.sync),
+          .run { [sync, blobCache] _ in
+            try await sync.removeLocalData()
+            await blobCache.removeAll()
+          } catch: { error, _ in
+            reportIssue(error)
+          }
+        )
+
+      case .signOutButtonTapped:
+        // The session's updates say when it's done.
+        return .run { [auth] _ in await auth.signOut() }
+
+      case .syncStatusChanged(let status):
+        state.syncStatus = status
         return .none
 
       case .signIn:
@@ -90,6 +140,31 @@ public struct AppFeature {
         }
       }
     }
+  }
+
+  /// Pulls, follows live notices of new changes, and reports the status, until signed out.
+  private func startSync() -> Effect<Action> {
+    .merge(
+      pull(),
+      .run { [sync, authSessions] _ in
+        await sync.listen {
+          guard let token = try await authSessions.accessToken() else { throw SignedOut() }
+          return token
+        }
+      }
+      .cancellable(id: CancelID.sync),
+      .run { [sync] send in
+        for await status in await sync.status() {
+          await send(.syncStatusChanged(status))
+        }
+      }
+      .cancellable(id: CancelID.sync)
+    )
+  }
+
+  private func pull() -> Effect<Action> {
+    .run { [sync] _ in await sync.run() }
+      .cancellable(id: CancelID.pull, cancelInFlight: true)
   }
 }
 

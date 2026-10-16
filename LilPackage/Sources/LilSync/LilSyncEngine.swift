@@ -228,6 +228,22 @@ public actor LilSyncEngine {
     try await task.value.get()
   }
 
+  /// Deletes the local data, where the sync is, and downloaded snapshot parts, e.g. when the
+  /// account signs out: the next pull starts over as a new device. Waits for a pull or bootstrap
+  /// in progress, so nothing it was writing lands afterwards.
+  public func removeLocalData() async throws {
+    try await exclusively { try await self.deleteLocalData() }
+  }
+
+  private func deleteLocalData() async throws {
+    try await database.write { [entities] db in
+      for entity in entities.values { try entity.clear(db) }
+      try SyncState.find(SyncState.singletonID).delete().execute(db)
+    }
+    removeDownloadedParts(keeping: [])
+    setStatus(.idle)
+  }
+
   /// Pulls pages until caught up. Throws ``SyncError/needsBootstrap`` when the local data must be
   /// replaced from a snapshot, and other errors for failures worth retrying.
   public func pull() async throws {
