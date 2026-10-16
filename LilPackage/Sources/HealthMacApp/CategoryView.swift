@@ -191,16 +191,16 @@ struct Sparkline: View {
   }
 }
 
-/// What a selected metric shows until it has its own view (851-2578).
-struct MetricDetailPlaceholder: View {
+/// A metric's detail, by its type's ID.
+struct MetricDetail: View {
   let typeID: String
 
   var body: some View {
-    let type = HealthCatalog.type(id: typeID)
-    ContentUnavailableView(
-      type?.name ?? "Unknown Data Type",
-      systemImage: type?.category?.symbolName ?? "questionmark",
-      description: Text(type?.category?.name ?? ""))
+    if let type = HealthCatalog.type(id: typeID) {
+      MetricDetailView(type: type)
+    } else {
+      ContentUnavailableView("Unknown Data Type", systemImage: "questionmark")
+    }
   }
 }
 

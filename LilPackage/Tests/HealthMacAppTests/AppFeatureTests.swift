@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import HealthCatalog
+import HealthDatabase
 import LilAuth
 import LilSync
 import Testing
@@ -189,6 +190,12 @@ struct MetricFormatTests {
     #expect(MetricFormat.value(0.97, unit: "%", typeID: "x").unit == "%")
     #expect(MetricFormat.value(0.97, unit: "%", typeID: "x").number == 97.formatted())
     #expect(MetricFormat.value(62, unit: "count/min", typeID: "x").unit == "BPM")
+    // Whole numbers for BPM, as Health shows them; decimals for small values otherwise.
+    #expect(MetricFormat.value(56.6, unit: "count/min", typeID: "x").number == 57.formatted())
+    #expect(MetricFormat.value(4.51, unit: "L", typeID: "x").number == 4.51.formatted())
+    let respiratory = "HKQuantityTypeIdentifierRespiratoryRate"
+    #expect(
+      MetricFormat.value(15.5, unit: "count/min", typeID: respiratory).number == 15.5.formatted())
     #expect(
       MetricFormat.value(
         15, unit: "count/min", typeID: "HKQuantityTypeIdentifierRespiratoryRate"
@@ -205,6 +212,17 @@ struct MetricFormatTests {
     let stairs = "HKQuantityTypeIdentifierStairAscentSpeed"
     #expect(MetricFormat.value(0.5, unit: "m/s", typeID: stairs).unit == "m/s")
     #expect(MetricFormat.value(1, unit: "mg/dL", typeID: "x").unit == "mg/dL")
+  }
+
+  @Test
+  func sixMonthsAcrossAYearNameBothYears() {
+    let interval = ChartRange.sixMonths.interval(offset: -1, now: now, calendar: utc)
+    let span = ChartFormat.span(interval, range: .sixMonths, calendar: utc)
+    #expect(span.contains("2024") && span.contains("2025"))
+    let current = ChartFormat.span(
+      ChartRange.sixMonths.interval(offset: 0, now: now, calendar: utc), range: .sixMonths,
+      calendar: utc)
+    #expect(current.components(separatedBy: "2025").count == 2)
   }
 
   @Test

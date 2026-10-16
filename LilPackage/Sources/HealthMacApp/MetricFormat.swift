@@ -7,7 +7,12 @@ enum MetricFormat {
     number: String, unit: String
   ) {
     let (shown, label) = converted(value, unit: unit, typeID: typeID)
-    let digits = abs(shown) >= 100 || label == "%" ? 0 : abs(shown) >= 10 ? 1 : 2
+    // Whole numbers for counts and the like, as Health shows them (not breaths a minute).
+    let whole: Set = [
+      "steps", "floors", "pushes", "strokes", "times", "BPM", "RPM", "kcal", "%", "ms", "mmHg",
+      "mg/dL", "dB", "W",
+    ]
+    let digits = whole.contains(label) || abs(shown) >= 100 ? 0 : abs(shown) >= 10 ? 1 : 2
     return (shown.formatted(.number.precision(.fractionLength(0...digits))), label)
   }
 

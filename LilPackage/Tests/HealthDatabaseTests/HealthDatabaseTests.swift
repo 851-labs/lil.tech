@@ -383,6 +383,141 @@ struct BrowseQueriesTests {
 }
 
 @Suite
+struct ChartQueriesTests {
+  let database: any DatabaseWriter
+  let utcCalendar = calendar("UTC")
+  let steps = try! #require(HealthCatalog.type(id: "HKQuantityTypeIdentifierStepCount"))
+  let heartRate = try! #require(HealthCatalog.type(id: "HKQuantityTypeIdentifierHeartRate"))
+
+  init() throws {
+    database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthStatisticsDevice.insert { reported(device, paired: true, daysAgo: 0) }.execute(db)
+    }
+  }
+
+  private func chart(_ type: HealthDataType, _ range: ChartRange, offset: Int = 0) throws
+    -> MetricChart
+  {
+    // Midday on Wednesday, October 15, 2025.
+    let noon = now.addingTimeInterval(12 * 3600)
+    return try database.read { db in
+      try HealthDatabase.metricChart(
+        of: type, range: range, offset: offset, now: noon, calendar: utcCalendar, db)
+    }
+  }
+
+  @Test
+  func periodsFollowTheCalendar() {
+    let noon = now.addingTimeInterval(12 * 3600)
+    let interval = { (range: ChartRange, offset: Int) in
+      range.interval(offset: offset, now: noon, calendar: utcCalendar)
+    }
+    #expect(interval(.day, 0) == DateInterval(start: utc(0, day: 15), end: utc(0, day: 16)))
+    // Weeks start on Sunday in this calendar.
+    #expect(interval(.week, 0) == DateInterval(start: utc(0, day: 12), end: utc(0, day: 19)))
+    #expect(interval(.week, -1) == DateInterval(start: utc(0, day: 5), end: utc(0, day: 12)))
+    #expect(interval(.month, 0).start == utc(0, day: 1))
+    // May through October, then November through April before it.
+    let sixMonths = interval(.sixMonths, 0)
+    #expect(utcCalendar.component(.month, from: sixMonths.start) == 5)
+    #expect(sixMonths.end == utc(0, day: 32))
+    #expect(interval(.sixMonths, -1).end == sixMonths.start)
+    #expect(utcCalendar.component(.month, from: interval(.year, 0).start) == 1)
+  }
+
+  @Test
+  func aCumulativeDayIsHourlyTotalsAndItsTotal() throws {
+    try database.write { db in
+      try HealthStatistic.insert {
+        statistic(steps.id, at: utc(9, day: 15), sum: 100)
+        statistic(steps.id, at: utc(9.5, day: 15), sum: 50)
+        statistic(steps.id, at: utc(14, day: 15), sum: 200)
+        statistic(steps.id, at: utc(9, day: 14), sum: 999)
+      }.execute(db)
+    }
+    let chart = try chart(steps, .day)
+    #expect(chart.points.map(\.value) == [150, 200])
+    #expect(chart.points.map(\.start) == [utc(9, day: 15), utc(14, day: 15)])
+    #expect(chart.summary == .total(350))
+  }
+
+  @Test
+  func aCumulativeWeekIsDailyTotalsAndItsAverageDay() throws {
+    try database.write { db in
+      try HealthStatistic.insert {
+        statistic(steps.id, at: utc(9, day: 13), sum: 1_000)
+        statistic(steps.id, at: utc(9, day: 15), sum: 3_000)
+        // The week before.
+        statistic(steps.id, at: utc(9, day: 11), sum: 500)
+      }.execute(db)
+    }
+    let chart = try chart(steps, .week)
+    #expect(chart.points.map(\.value) == [1_000, 3_000])
+    // Per day with data.
+    #expect(chart.summary == .dailyAverage(2_000))
+    #expect(try self.chart(steps, .week, offset: -1).summary == .dailyAverage(500))
+  }
+
+  @Test
+  func aCumulativeChartAddsSamplesPastItsLastBucket() throws {
+    try database.write { db in
+      try HealthStatistic.insert { statistic(steps.id, at: utc(9, day: 15), sum: 100) }.execute(db)
+      try HealthSample.insert {
+        // Inside the bucket: already counted.
+        sample(steps.id, at: utc(9.2, day: 15), value: 100)
+        // Synced before its bucket.
+        sample(steps.id, at: utc(11, day: 15), value: 40)
+      }.execute(db)
+    }
+    #expect(try chart(steps, .day).points.map(\.value) == [100, 40])
+    #expect(try chart(steps, .day).summary == .total(140))
+  }
+
+  @Test
+  func aCumulativeChartWithoutStatisticsUsesTheSamples() throws {
+    try database.write { db in
+      try HealthSample.insert {
+        sample(steps.id, at: utc(9, day: 13), value: 300)
+        sample(steps.id, at: utc(10, day: 13), value: 200)
+      }.execute(db)
+    }
+    let chart = try chart(steps, .week)
+    #expect(chart.points == [ChartPoint(start: utc(0, day: 13), value: 500)])
+  }
+
+  @Test
+  func aCumulativeYearIsEachMonthsAverageDay() throws {
+    try database.write { db in
+      try HealthStatistic.insert {
+        statistic(steps.id, at: utc(9, day: 13), sum: 1_000)
+        statistic(steps.id, at: utc(9, day: 15), sum: 3_000)
+        statistic(steps.id, at: utc(9, day: -20), sum: 6_000)
+      }.execute(db)
+    }
+    let chart = try chart(steps, .year)
+    #expect(chart.points.map(\.value) == [6_000, 2_000])
+    #expect(chart.summary == .dailyAverage(10_000 / 3))
+  }
+
+  @Test
+  func aDiscreteTypeChartsEachBucketsAverageAndRange() throws {
+    try database.write { db in
+      try HealthSample.insert {
+        sample(heartRate.id, at: utc(9, day: 15), value: 60)
+        sample(heartRate.id, at: utc(9.5, day: 15), value: 100)
+        sample(heartRate.id, at: utc(20, day: 13), value: 55)
+      }.execute(db)
+    }
+    let week = try chart(heartRate, .week)
+    #expect(week.points.map(\.minimum) == [55, 60])
+    #expect(week.points.map(\.maximum) == [55, 100])
+    #expect(week.summary == .range(minimum: 55, maximum: 100))
+    #expect(try chart(heartRate, .week, offset: -1).summary == nil)
+  }
+}
+
+@Suite
 struct HealthSyncTests {
   @Test
   func appliesEveryHealthEntity() async throws {
