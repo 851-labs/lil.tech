@@ -57,20 +57,52 @@ public enum HealthBackgroundWork {
       let progress = await healthBackfill.currentProgress()
       // Nothing to do, or nothing that could go up: no task to show. One still running (e.g.
       // paused while the phone was locked) carries on by itself.
-      guard !progress.isFinished, !progress.isStorageFull, !continuedUploadRunning.value
+      guard !progress.isFinished, !progress.isStorageFull,
+        continuedUpload.withValue({ $0.claimRequest(now: .now) })
       else { return }
       let request = BGContinuedProcessingTaskRequest(
         identifier: uploadTaskIdentifier, title: uploadTitle,
         subtitle: UploadProgress(progress).subtitle)
       // If iOS can't run it now, the upload still goes on while the app is open.
       request.strategy = .fail
-      try? BGTaskScheduler.shared.submit(request)
+      do {
+        try BGTaskScheduler.shared.submit(request)
+        BackfillLog.write("continued task requested")
+      } catch {
+        BackfillLog.write("continued task not accepted: \(error)")
+        continuedUpload.withValue { $0.requestedAt = nil }
+      }
     #endif
   }
 
   static let uploadTitle = "Uploading your Health history"
-  /// Whether a continued upload task is running, so another isn't requested alongside it.
-  static let continuedUploadRunning = LockIsolated(false)
+  /// The continued upload tasks asked for and running, so there's only ever one.
+  static let continuedUpload = LockIsolated(ContinuedUpload())
+
+  struct ContinuedUpload: Equatable, Sendable {
+    var running = 0
+    /// When one was last asked for, until it starts.
+    var requestedAt: Date?
+    /// How long a request is waited for before another can be made: iOS starts one at once or
+    /// not at all (`strategy = .fail`), so a request this old didn't take.
+    static let requestTimeout: TimeInterval = 30
+
+    /// Whether to ask for a task now, noting that one was. Not while one runs or was just asked
+    /// for: opening the app can ask several times before the first one starts.
+    mutating func claimRequest(now: Date) -> Bool {
+      guard running == 0 else { return false }
+      if let requestedAt, now.timeIntervalSince(requestedAt) < Self.requestTimeout { return false }
+      requestedAt = now
+      return true
+    }
+
+    /// A task starting. Returns whether it's the only one.
+    mutating func start() -> Bool {
+      requestedAt = nil
+      running += 1
+      return running == 1
+    }
+  }
   static let pausedSubtitle = "Paused until you unlock your iPhone"
 
   /// Why the continued upload ended, in the device's log (Console, `subsystem:tech.lil.health`).
@@ -379,8 +411,20 @@ public enum HealthBackgroundWork {
           bgTask.value.updateTitle(uploadTitle, subtitle: subtitle)
         }
       }
-      continuedUploadRunning.setValue(true)
-      defer { continuedUploadRunning.setValue(false) }
+      let id = String(UUID().uuidString.prefix(8))
+      guard continuedUpload.withValue({ $0.start() }) else {
+        // iOS ran a second one anyway: the first is doing the work.
+        BackfillLog.write("continued task \(id) started alongside another: completed")
+        continuedUpload.withValue { $0.running -= 1 }
+        task.setTaskCompleted(success: true)
+        return
+      }
+      let started = ContinuousClock.now
+      BackfillLog.write("continued task \(id) started")
+      defer {
+        continuedUpload.withValue { $0.running -= 1 }
+        BackfillLog.write("continued task \(id) ended after \(BackfillLog.since(started))")
+      }
       await perform(
         task,
         work: {

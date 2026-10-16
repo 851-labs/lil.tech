@@ -178,4 +178,39 @@ struct HealthBackgroundWorkTests {
     #expect(UploadCopy.left(records: 1, totalRecords: nil) == "1 item uploaded")
     #expect(UploadCopy.left(records: 12, totalRecords: 11) == "12 items uploaded")
   }
+
+  @Test
+  func oneContinuedTaskAtATime() {
+    let now = Date(timeIntervalSince1970: 1_760_400_000)
+    var upload = HealthBackgroundWork.ContinuedUpload()
+    let r1 = upload.claimRequest(now: now)
+    #expect(r1)
+    // Asked for again before it starts, e.g. by launch and by returning to the app.
+    let r2 = upload.claimRequest(now: now + 1)
+    #expect(!r2)
+    let r3 = upload.start()
+    #expect(r3)
+    let r4 = upload.claimRequest(now: now + 60)
+    #expect(!r4)
+    // iOS running a second anyway: it isn't the only one.
+    let r5 = upload.start()
+    #expect(!r5)
+    upload.running = 0
+    // Once none runs, it can be asked for again.
+    let r6 = upload.claimRequest(now: now + 61)
+    #expect(r6)
+  }
+
+  @Test
+  func aRequestThatDidntTakeIsAskedForAgain() {
+    let now = Date(timeIntervalSince1970: 1_760_400_000)
+    var upload = HealthBackgroundWork.ContinuedUpload()
+    let r7 = upload.claimRequest(now: now)
+    #expect(r7)
+    // Never started (iOS couldn't run it): after the timeout, ask again.
+    let r8 = upload.claimRequest(now: now + 29)
+    #expect(!r8)
+    let r9 = upload.claimRequest(now: now + 31)
+    #expect(r9)
+  }
 }
