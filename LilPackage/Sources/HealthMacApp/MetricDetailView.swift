@@ -20,7 +20,9 @@ struct MetricDetailView: View {
 
   var body: some View {
     Group {
-      if type.kind == .quantity {
+      if type.id == HealthDatabase.sleepType {
+        SleepDetailView(type: type)
+      } else if type.kind == .quantity {
         MetricDetailContent(
           type: type, range: $range, offset: $offset,
           state: $chart.loadError.map { .failed($0.localizedDescription) }
