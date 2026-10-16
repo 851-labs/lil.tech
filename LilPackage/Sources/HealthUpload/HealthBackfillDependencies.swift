@@ -447,6 +447,64 @@ extension HealthBatchUploader: DependencyKey {
   }
 }
 
+extension DependencyValues {
+  /// Counts the records the backfill has left, for its progress.
+  public var healthRecordCounter: HealthRecordCounter {
+    get { self[HealthRecordCounter.self] }
+    set { self[HealthRecordCounter.self] = newValue }
+  }
+}
+
+/// Counts a type's samples after an anchor without reading them out, so the upload's progress
+/// has a real total. Much faster than the upload: large pages, nothing encoded or sent.
+public struct HealthRecordCounter: Sendable {
+  public var count: @Sendable (_ type: HealthBackfillType, _ anchor: Data?) async throws -> Int
+
+  public init(
+    count: @escaping @Sendable (_ type: HealthBackfillType, _ anchor: Data?) async throws -> Int
+  ) {
+    self.count = count
+  }
+
+  /// Counting isn't available (tests that don't count, previews): the total stays unknown.
+  public struct Unavailable: Error {}
+
+  /// Objects per counting query.
+  static let pageSize = 20_000
+}
+
+extension HealthRecordCounter: DependencyKey {
+  public static var liveValue: Self {
+    let store = HKHealthStore()
+    return Self { type, anchorData in
+      guard let sampleType = type.sampleType else { throw HealthReader.UnknownType(id: type.id) }
+      var anchor = try anchorData.flatMap {
+        try NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: $0)
+      }
+      var count = 0
+      while true {
+        try Task.checkCancellation()
+        let result: HKAnchoredObjectQueryDescriptor<HKSample>.Result
+        do {
+          result = try await HKAnchoredObjectQueryDescriptor(
+            predicates: [.sample(type: sampleType)], anchor: anchor, limit: pageSize
+          ).result(for: store)
+        } catch {
+          throw HealthReader.Locked.mapped(error)
+        }
+        count += result.addedSamples.count
+        anchor = result.newAnchor
+        if result.addedSamples.count + result.deletedObjects.count < pageSize { return count }
+      }
+    }
+  }
+
+  /// Not reported as unimplemented: counting is best-effort, and most backfill tests don't count.
+  public static var testValue: Self {
+    Self { _, _ in throw Unavailable() }
+  }
+}
+
 /// Uploads a blob (`PUT /v1/health/blobs/{sha256}`) before the batches whose rows refer to it.
 /// Failures are `HealthBatchUploader`'s errors, so the backfill treats them alike.
 public struct HealthBlobUploader: Sendable {

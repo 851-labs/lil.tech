@@ -42,9 +42,10 @@ public struct SyncStatusFeature {
       /// The account's storage is full, so nothing more uploads until there's room.
       case storageFull
       case failed(String)
-      case uploading(finishedTypes: Int, totalTypes: Int, records: Int)
+      /// `totalRecords` once every type left has been counted.
+      case uploading(finishedTypes: Int, totalTypes: Int, records: Int, totalRecords: Int? = nil)
       /// Not finished and not running, e.g. iOS paused it or the phone is locked.
-      case paused(finishedTypes: Int, totalTypes: Int, records: Int)
+      case paused(finishedTypes: Int, totalTypes: Int, records: Int, totalRecords: Int? = nil)
       case upToDate(lastUpload: Date?)
     }
 
@@ -62,10 +63,10 @@ public struct SyncStatusFeature {
         return progress.isRunning
           ? .uploading(
             finishedTypes: progress.finishedTypes, totalTypes: progress.totalTypes,
-            records: progress.uploadedRecords)
+            records: progress.uploadedRecords, totalRecords: progress.totalRecords)
           : .paused(
             finishedTypes: progress.finishedTypes, totalTypes: progress.totalTypes,
-            records: progress.uploadedRecords)
+            records: progress.uploadedRecords, totalRecords: progress.totalRecords)
       }
       return .upToDate(lastUpload: progress.lastUploadAt)
     }

@@ -109,22 +109,16 @@ private struct StatusHeader: View {
           .foregroundStyle(.secondary)
         Button("Try Again") { store.send(.retryButtonTapped) }
           .buttonStyle(.bordered)
-      case .uploading(let finished, let total, let records):
+      case .uploading(let finished, let total, let records, let totalRecords):
         Label("Uploading your Health history", systemImage: "icloud.and.arrow.up")
           .foregroundStyle(.blue)
-        ProgressView(value: Double(finished), total: Double(max(total, 1)))
-        Text("\(finished) of \(total) types · \(records.formatted()) records")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-          .monospacedDigit()
-      case .paused(let finished, let total, let records):
+        UploadCounts(
+          finishedTypes: finished, totalTypes: total, records: records, totalRecords: totalRecords)
+      case .paused(let finished, let total, let records, let totalRecords):
         Label("Upload paused", systemImage: "pause.circle")
           .foregroundStyle(.orange)
-        ProgressView(value: Double(finished), total: Double(max(total, 1)))
-        Text("\(finished) of \(total) types · \(records.formatted()) records")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-          .monospacedDigit()
+        UploadCounts(
+          finishedTypes: finished, totalTypes: total, records: records, totalRecords: totalRecords)
         Text("It continues in the background, or now.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
@@ -170,6 +164,30 @@ private struct CategoryRow: View {
         .controlSize(.small)
         .accessibilityLabel("Uploading")
       }
+    }
+  }
+}
+
+/// An upload's progress: by records once they've been counted, by types until then.
+private struct UploadCounts: View {
+  let finishedTypes: Int
+  let totalTypes: Int
+  let records: Int
+  let totalRecords: Int?
+
+  var body: some View {
+    if let totalRecords {
+      ProgressView(value: Double(records), total: Double(max(totalRecords, 1)))
+      Text("\(records.formatted()) of \(totalRecords.formatted()) records")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .monospacedDigit()
+    } else {
+      ProgressView(value: Double(finishedTypes), total: Double(max(totalTypes, 1)))
+      Text("\(finishedTypes) of \(totalTypes) types · \(records.formatted()) records")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .monospacedDigit()
     }
   }
 }

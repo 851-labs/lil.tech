@@ -45,6 +45,11 @@ struct SyncStatusFeatureTests {
     #expect(
       State(progress: progress([steps: done, sleep: notYet], running: true)).status
         == .uploading(finishedTypes: 1, totalTypes: 2, records: 10))
+    var counted = progress([steps: done, sleep: notYet], running: true)
+    counted.totalRecords = 25
+    #expect(
+      State(progress: counted).status
+        == .uploading(finishedTypes: 1, totalTypes: 2, records: 10, totalRecords: 25))
     #expect(
       State(progress: progress([steps: done, sleep: notYet])).status
         == .paused(finishedTypes: 1, totalTypes: 2, records: 10))

@@ -49,6 +49,16 @@ private func statusView(_ state: SyncStatusFeature.State, consented: Bool = true
   statusView(SyncStatusFeature.State(progress: progress(done: 40, running: true)))
 }
 
+#Preview("Uploading, counted") {
+  statusView(
+    SyncStatusFeature.State(
+      progress: {
+        var counted = progress(done: 40, running: true)
+        counted.totalRecords = 1_284_000
+        return counted
+      }()))
+}
+
 #Preview("Up to date") {
   statusView(SyncStatusFeature.State(progress: progress(done: .max)))
 }
