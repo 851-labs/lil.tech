@@ -75,29 +75,42 @@ private func sources(_ state: DataSourcesContent.State) -> some View {
   let found = try! makePreviewHealthDatabase().read { db in
     try HealthDatabase.sampleSources(of: heartRate.id, db)
   }
-  return sources(.loaded(apps: found.apps, devices: found.devices))
+  return sources(.loaded(found))
 }
 
 #Preview("Several sources") {
   sources(
     .loaded(
-      apps: [
-        SampleSource(
-          id: "com.apple.health.watch", name: "Apple Watch", count: 48_210, latest: .now),
-        SampleSource(id: "com.example.strap", name: "Synthetic Strap", count: 1_204, latest: .now),
-        SampleSource(id: "com.apple.health.iphone", name: "iPhone", count: 12, latest: .now),
-      ],
-      devices: [
-        SampleDeviceSummary(
-          device: SampleDevice(name: "Apple Watch", model: "Watch"), count: 48_210),
-        SampleDeviceSummary(device: SampleDevice(name: "Strap", model: "S1"), count: 1_204),
-      ]))
+      SampleSources(
+        apps: [
+          SampleSource(id: "com.apple.health.watch", name: "Apple Watch", count: 48_210),
+          SampleSource(id: "com.example.strap", name: "Synthetic Strap", count: 1_204),
+          SampleSource(id: "com.apple.health.iphone", name: "iPhone", count: 12),
+        ],
+        devices: [
+          SampleDeviceSummary(
+            device: SampleDevice(name: "Apple Watch", model: "Watch"), count: 48_210),
+          SampleDeviceSummary(device: SampleDevice(name: "Strap", model: "S1"), count: 1_204),
+        ])))
 }
 
 #Preview("Sources, empty") {
-  sources(.loaded(apps: [], devices: []))
+  sources(.loaded(SampleSources(apps: [], devices: [])))
 }
 
 #Preview("Sources, loading") {
   sources(.loading)
+}
+
+#Preview("Sources, failed") {
+  sources(.failed("The database couldn't be read."))
+}
+
+#Preview("All data, more failed") {
+  NavigationStack {
+    AllDataContent(
+      type: heartRate, state: .loaded(previewSamples(heartRate, limit: 3), hasMore: true),
+      moreFailed: true, loadMore: {})
+  }
+  .frame(width: 560, height: 360)
 }

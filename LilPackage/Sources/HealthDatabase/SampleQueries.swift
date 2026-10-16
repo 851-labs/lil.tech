@@ -1,4 +1,4 @@
-public import Foundation
+import Foundation
 public import SQLiteData
 
 /// Where a page of samples ends, for the next: the last sample's start and ID.
@@ -18,13 +18,22 @@ public struct SampleSource: Equatable, Identifiable, Sendable {
   public let id: String
   public var name: String
   public var count: Int
-  public var latest: Date
 
-  public init(id: String, name: String, count: Int, latest: Date) {
+  public init(id: String, name: String, count: Int) {
     self.id = id
     self.name = name
     self.count = count
-    self.latest = latest
+  }
+}
+
+/// The apps and devices a type's samples came from.
+public struct SampleSources: Equatable, Sendable {
+  public var apps: [SampleSource]
+  public var devices: [SampleDeviceSummary]
+
+  public init(apps: [SampleSource], devices: [SampleDeviceSummary]) {
+    self.apps = apps
+    self.devices = devices
   }
 }
 
@@ -91,10 +100,17 @@ extension HealthSample {
       let text: String
       switch value {
       case let string as String: text = string
+      // JSON's `true` and `false` come back as numbers too.
+      case let number as NSNumber where CFGetTypeID(number) == CFBooleanGetTypeID():
+        text = number.boolValue ? "Yes" : "No"
       case let number as NSNumber: text = number.stringValue
+      // The iPhone uploads values JSON can't hold (e.g. infinity) as `null`.
+      case is NSNull: text = "–"
       default:
+        // Only arrays and objects reach here, which JSON writing accepts.
         text =
-          (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]))
+          (try? JSONSerialization.data(
+            withJSONObject: value, options: [.sortedKeys, .fragmentsAllowed]))
           .map { String(decoding: $0, as: UTF8.self) } ?? "\(value)"
       }
       return (key, text)
@@ -111,9 +127,9 @@ extension HealthDatabase {
     try HealthSample
       .where { sample in
         if let cursor {
-          sample.type.eq(type)
-            && (sample.startDate < cursor.startDate
-              || (sample.startDate.eq(cursor.startDate) && sample.id < cursor.id))
+          // The plain bound first, so SQLite can seek the (type, startDate) index to it.
+          sample.type.eq(type) && sample.startDate <= cursor.startDate
+            && (sample.startDate < cursor.startDate || sample.id < cursor.id)
         } else {
           sample.type.eq(type)
         }
@@ -125,20 +141,14 @@ extension HealthDatabase {
 
   /// The apps and devices a type's samples came from, most samples first. Read-only: which
   /// source wins is set in Health on the iPhone.
-  public static func sampleSources(
-    of type: String, _ db: Database
-  ) throws -> (apps: [SampleSource], devices: [SampleDeviceSummary]) {
+  public static func sampleSources(of type: String, _ db: Database) throws -> SampleSources {
     let apps =
       try HealthSample
       .where { $0.type.eq(type) }
       .group(by: \.sourceBundleID)
-      .select { ($0.sourceBundleID, $0.sourceName.max(), $0.id.count(), $0.startDate.max()) }
+      .select { ($0.sourceBundleID, $0.sourceName.max(), $0.id.count()) }
       .fetchAll(db)
-      .map { bundle, name, count, latest in
-        SampleSource(
-          id: bundle, name: name ?? bundle, count: count,
-          latest: Date(unixMilliseconds: latest ?? 0))
-      }
+      .map { bundle, name, count in SampleSource(id: bundle, name: name ?? bundle, count: count) }
       .sorted { ($0.count, $1.name) > ($1.count, $0.name) }
     // Devices are stored as JSON whose versions change with updates: one entry per name and
     // model.
@@ -153,12 +163,11 @@ extension HealthDatabase {
       guard let json,
         let device = try? JSONDecoder().decode(SampleDevice.self, from: Data(json.utf8))
       else { continue }
-      let summary = SampleDeviceSummary(device: device, count: count)
-      devices[summary.id, default: summary].count += devices[summary.id] == nil ? 0 : count
+      let summary = SampleDeviceSummary(device: device, count: 0)
+      devices[summary.id, default: summary].count += count
     }
-    return (
-      apps,
-      devices.values.sorted { ($0.count, $1.id) > ($1.count, $0.id) }
-    )
+    return SampleSources(
+      apps: apps, devices: devices.values.sorted { ($0.count, $1.id) > ($1.count, $0.id) })
   }
+
 }

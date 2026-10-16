@@ -1,28 +1,34 @@
-import Dependencies
 import HealthCatalog
 import HealthDatabase
 import SQLiteData
 import SwiftUI
 
-/// The apps and devices a type's data came from. Read-only: which source Health prefers is set
-/// on the iPhone.
+/// The apps and devices a type's data came from, following the local database as sync changes
+/// it. Read-only: which source Health prefers is set on the iPhone.
 struct DataSourcesView: View {
   let type: HealthDataType
-  @Dependency(\.defaultDatabase) private var database
-  @State private var state = DataSourcesContent.State.loading
+  @Fetch private var sources: SampleSources
+
+  init(type: HealthDataType) {
+    self.type = type
+    _sources = Fetch(
+      wrappedValue: SampleSources(apps: [], devices: []), SourcesRequest(typeID: type.id),
+      scheduler: MainQueueScheduler())
+  }
 
   var body: some View {
-    DataSourcesContent(type: type, state: state)
-      .task {
-        do {
-          let sources = try await database.read { [type] db in
-            try HealthDatabase.sampleSources(of: type.id, db)
-          }
-          state = .loaded(apps: sources.apps, devices: sources.devices)
-        } catch {
-          state = .failed(error.localizedDescription)
-        }
-      }
+    DataSourcesContent(
+      type: type,
+      state: $sources.loadError.map { .failed($0.localizedDescription) }
+        ?? ($sources.isLoading ? .loading : .loaded(sources)))
+  }
+}
+
+struct SourcesRequest: FetchKeyRequest {
+  let typeID: String
+
+  func fetch(_ db: Database) throws -> SampleSources {
+    try HealthDatabase.sampleSources(of: typeID, db)
   }
 }
 
@@ -30,7 +36,7 @@ struct DataSourcesView: View {
 struct DataSourcesContent: View {
   enum State {
     case loading
-    case loaded(apps: [SampleSource], devices: [SampleDeviceSummary])
+    case loaded(SampleSources)
     case failed(String)
   }
 
@@ -47,14 +53,14 @@ struct DataSourcesContent: View {
         ContentUnavailableView(
           "Couldn't Load Sources", systemImage: "exclamationmark.triangle",
           description: Text(reason))
-      case .loaded(let apps, _) where apps.isEmpty:
+      case .loaded(let sources) where sources.apps.isEmpty:
         ContentUnavailableView(
           "No Sources", systemImage: "app.dashed",
           description: Text("Apps and devices that record \(type.name) will appear here."))
-      case .loaded(let apps, let devices):
+      case .loaded(let sources):
         Form {
           Section {
-            ForEach(apps) { app in
+            ForEach(sources.apps) { app in
               LabeledContent(app.name, value: samples(app.count))
             }
           } header: {
@@ -62,9 +68,9 @@ struct DataSourcesContent: View {
           } footer: {
             Text("Which source Health prefers is set in Health on your iPhone.")
           }
-          if !devices.isEmpty {
+          if !sources.devices.isEmpty {
             Section("Devices") {
-              ForEach(devices) { summary in
+              ForEach(sources.devices) { summary in
                 LabeledContent(
                   summary.device.name ?? summary.device.model ?? "Unknown Device",
                   value: samples(summary.count))

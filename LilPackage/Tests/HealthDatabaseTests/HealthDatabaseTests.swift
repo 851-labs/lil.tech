@@ -566,12 +566,10 @@ struct SampleQueriesTests {
         c
       }.execute(db)
     }
-    let (apps, devices) = try database.read { db in
-      try HealthDatabase.sampleSources(of: weight, db)
-    }
+    let sources = try database.read { db in try HealthDatabase.sampleSources(of: weight, db) }
+    let (apps, devices) = (sources.apps, sources.devices)
     #expect(apps.map(\.id) == ["com.example.scale", "com.example"])
     #expect(apps.map(\.count) == [2, 1])
-    #expect(apps.first?.latest == utc(2))
     #expect(devices.map(\.device.name) == ["Apple Watch"])
     #expect(devices.map(\.count) == [2])
   }
@@ -581,12 +579,16 @@ struct SampleQueriesTests {
     var heartRate = sample("HKQuantityTypeIdentifierHeartRate", at: utc(1), value: 60)
     heartRate.device = #"{"name":"Apple Watch","manufacturer":"Apple Inc."}"#
     heartRate.sourceRevision = #"{"version":"26.0","productType":"Watch7,1"}"#
-    heartRate.metadata = #"{"HKMetadataKeyHeartRateMotionContext":1,"Custom":{"a":true}}"#
+    heartRate.metadata =
+      #"{"HKMetadataKeyHeartRateMotionContext":1,"Custom":{"a":true},"HKMetadataKeyWasUserEntered":true,"Infinite":null}"#
     #expect(heartRate.decodedDevice?.manufacturer == "Apple Inc.")
     #expect(heartRate.decodedSourceRevision?.productType == "Watch7,1")
     #expect(
-      heartRate.metadataEntries.map(\.key) == ["Custom", "HKMetadataKeyHeartRateMotionContext"])
-    #expect(heartRate.metadataEntries.map(\.value) == [#"{"a":true}"#, "1"])
+      heartRate.metadataEntries.map(\.key) == [
+        "Custom", "HKMetadataKeyHeartRateMotionContext", "HKMetadataKeyWasUserEntered", "Infinite",
+      ])
+    // Booleans read as words, and nulls (values JSON can't hold) as a dash.
+    #expect(heartRate.metadataEntries.map(\.value) == [#"{"a":true}"#, "1", "Yes", "–"])
   }
 }
 

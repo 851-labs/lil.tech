@@ -11,14 +11,19 @@ struct AllDataView: View {
   @Dependency(\.defaultDatabase) private var database
   @State private var state = AllDataContent.State.loading
   @State private var isLoadingMore = false
+  /// The last page after the first failed to load.
+  @State private var moreFailed = false
 
   static let pageSize = 200
 
   var body: some View {
-    AllDataContent(type: type, state: state) {
+    AllDataContent(type: type, state: state, moreFailed: moreFailed) {
       Task { await loadMore() }
     }
-    .task { await loadMore() }
+    .task {
+      // Only the first time: coming back from a sample doesn't load another page.
+      if case .loading = state { await loadMore() }
+    }
   }
 
   private func loadMore() async {
@@ -30,6 +35,7 @@ struct AllDataView: View {
     }
     guard !isLoadingMore else { return }
     isLoadingMore = true
+    moreFailed = false
     defer { isLoadingMore = false }
     let (cursor, limit) = (loaded.last.map(SampleCursor.init(after:)), Self.pageSize)
     do {
@@ -38,7 +44,11 @@ struct AllDataView: View {
       }
       state = .loaded(loaded + page, hasMore: page.count == Self.pageSize)
     } catch {
-      if loaded.isEmpty { state = .failed(error.localizedDescription) }
+      if loaded.isEmpty {
+        state = .failed(error.localizedDescription)
+      } else {
+        moreFailed = true
+      }
     }
   }
 }
@@ -53,6 +63,7 @@ struct AllDataContent: View {
 
   let type: HealthDataType
   let state: State
+  var moreFailed = false
   let loadMore: () -> Void
   var calendar = Calendar.current
   var now = Date.now
@@ -79,31 +90,45 @@ struct AllDataContent: View {
   }
 
   private func list(_ samples: [HealthSample], hasMore: Bool) -> some View {
-    let days = Dictionary(grouping: samples) {
-      calendar.startOfDay(for: Date(unixMilliseconds: $0.startDate))
-    }
-    .sorted { $0.key > $1.key }
-    return List {
-      ForEach(days, id: \.key) { day, samples in
-        Section(MetricFormat.date(day, isDay: true, now: now, calendar: calendar)) {
-          ForEach(samples) { sample in
+    List {
+      ForEach(days(samples), id: \.day) { section in
+        Section(MetricFormat.date(section.day, isDay: true, now: now, calendar: calendar)) {
+          ForEach(section.samples) { sample in
             NavigationLink {
               SampleDetailView(type: type, sample: sample)
             } label: {
               SampleRow(type: type, sample: sample, calendar: calendar)
             }
-            .onAppear {
-              if sample.id == samples.last?.id, day == days.last?.key { loadMore() }
-            }
           }
         }
       }
-      if hasMore {
+      if moreFailed {
+        Button("Couldn't load more. Try Again", action: loadMore)
+          .frame(maxWidth: .infinity)
+      } else if hasMore {
+        // Loads the next page when the end of the list comes into view.
         ProgressView()
           .frame(maxWidth: .infinity)
           .onAppear(perform: loadMore)
       }
     }
+  }
+
+  /// The samples (newest first) by day, asking the calendar only when a sample leaves the day
+  /// before it.
+  private func days(_ samples: [HealthSample]) -> [(day: Date, samples: [HealthSample])] {
+    var days: [(day: Date, samples: [HealthSample])] = []
+    var current: DateInterval?
+    for sample in samples {
+      let date = Date(unixMilliseconds: sample.startDate)
+      if let current, current.contains(date), !days.isEmpty {
+        days[days.count - 1].samples.append(sample)
+      } else {
+        current = calendar.dateInterval(of: .day, for: date)
+        days.append((current?.start ?? date, [sample]))
+      }
+    }
+    return days
   }
 }
 
