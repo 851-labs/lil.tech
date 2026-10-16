@@ -165,6 +165,15 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CREATE INDEX health_electrocardiogram_start ON health_electrocardiogram (start_date);
     `,
   },
+  {
+    version: 13,
+    name: "health_blob_references",
+    // When each blob lost its last reference, for the sweep (`src/store/BlobSweep.ts`).
+    sql: `
+      ALTER TABLE health_blobs ADD COLUMN unreferenced_since INTEGER;
+      CREATE INDEX health_blobs_unreferenced ON health_blobs (unreferenced_since);
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

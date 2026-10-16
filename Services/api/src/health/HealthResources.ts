@@ -28,11 +28,7 @@ export const HealthBatchBucket = Cloudflare.R2.Bucket("HealthBatchFiles", {
   ],
 });
 export const HealthBatchQueueResource = Cloudflare.Queues.Queue("HealthBatchQueue");
-/**
- * Health blobs (`src/health/HealthBlobs.ts`), under `health-blobs/<user>/<sha256>`. Immutable, and
- * kept until the account is deleted.
- */
-export const HealthBlobBucket = Cloudflare.R2.Bucket("HealthBlobs");
+
 /** Where a batch's message goes after its last failed attempt, to be looked at by hand. */
 export const HealthBatchDeadLetters = Cloudflare.Queues.Queue("HealthBatchDeadLetters");
 

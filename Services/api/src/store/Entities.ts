@@ -74,6 +74,8 @@ export interface Entity {
   readonly isValidId: (id: string) => boolean;
   /** For records that belong to the device uploading them (`DeviceScoped`). */
   readonly deviceScoped?: DeviceScoped;
+  /** The columns that hold a health blob's SHA-256, which keep it from being swept. */
+  readonly blobColumns: ReadonlyArray<string>;
   /**
    * Checks a whole record beyond its fields' types, returning why it's invalid. The store runs it
    * on every upsert, with the merged row.
@@ -119,8 +121,18 @@ export const defineEntity = (
     readonly id?: RegExp;
     readonly deviceScoped?: DeviceScoped;
     readonly checkRow?: CheckRow;
+    /**
+     * Nullable text fields that refer to health blobs by SHA-256 (`src/store/BlobSweep.ts`): a
+     * blob no record refers to is deleted after a grace period.
+     */
+    readonly blobs?: ReadonlyArray<string>;
   },
 ): Entity => {
+  for (const field of options.blobs ?? []) {
+    if (options.fields[field]?.type !== "text") {
+      throw new Error(`${name}.${field} must be a text field to hold a blob's SHA-256`);
+    }
+  }
   const { deviceScoped } = options;
   if (deviceScoped !== undefined && options.fields.device?.type !== "text") {
     throw new Error(`Device-scoped entity ${name} needs a text device field`);
@@ -168,6 +180,7 @@ export const defineEntity = (
       }).annotate({ identifier: `lil/api/sync/${schemaName(name)}` }),
     isValidId: (id) => id !== "" && (options.id?.test(id) ?? true),
     ...(options.deviceScoped === undefined ? {} : { deviceScoped: options.deviceScoped }),
+    blobColumns: (options.blobs ?? []).map(columnName),
     ...(options.checkRow === undefined ? {} : { checkRow: options.checkRow }),
     decodeFields: Schema.decodeUnknownResult(fieldsSchema) as Entity["decodeFields"],
     statements: {

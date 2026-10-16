@@ -13,7 +13,7 @@ import { Users } from "./core/Users.ts";
 import { Deployment, environmentForStage, stageDomains } from "./Deployment.ts";
 import { HealthBatchFiles, HealthBatchQueue } from "./health/HealthIngestion.ts";
 import { HealthBlobFiles } from "./health/HealthBlobs.ts";
-import { deletePrefix, HealthBlobBucket, HealthIngestionWorker } from "./health/HealthResources.ts";
+import { deletePrefix, HealthIngestionWorker } from "./health/HealthResources.ts";
 import { WorkerHttpLayer } from "./Http.ts";
 import {
   type RateLimitCounter,
@@ -23,7 +23,7 @@ import {
   rateLimits,
 } from "./RateLimits.ts";
 import { objectBody, provideRuntime } from "./Runtime.ts";
-import { SnapshotBucket, UserStore, UserStoreLive } from "./store/UserStore.ts";
+import { HealthBlobBucket, SnapshotBucket, UserStore, UserStoreLive } from "./store/UserStore.ts";
 import { type OpenedPart, type PartRange, SnapshotParts } from "./sync/SnapshotParts.ts";
 import { UserStores } from "./store/UserStores.ts";
 
