@@ -1,3 +1,4 @@
+import CryptoKit
 public import Dependencies
 public import Foundation
 public import HealthCatalog
@@ -57,14 +58,25 @@ extension HealthBackfillType {
 /// One page of an anchored query, already encoded.
 public struct HealthPage: Sendable {
   public var mutations: [HealthMutation]
+  /// Payloads too big for rows (e.g. an ECG's voltages), which the mutations refer to by SHA-256
+  /// (`HealthBlob.sha256`). They go up before the page's batches.
+  public var blobs: [Data]
   /// Where the next page starts, archived.
   public var anchor: Data
   public var hasMore: Bool
 
-  public init(mutations: [HealthMutation], anchor: Data, hasMore: Bool) {
+  public init(mutations: [HealthMutation], blobs: [Data] = [], anchor: Data, hasMore: Bool) {
     self.mutations = mutations
+    self.blobs = blobs
     self.anchor = anchor
     self.hasMore = hasMore
+  }
+}
+
+/// Names a blob as the server does: the SHA-256 of its bytes, in lowercase hex.
+public enum HealthBlob {
+  public static func sha256(_ data: Data) -> String {
+    SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
   }
 }
 
@@ -85,6 +97,12 @@ extension DependencyValues {
   public var healthBatchUploader: HealthBatchUploader {
     get { self[HealthBatchUploader.self] }
     set { self[HealthBatchUploader.self] = newValue }
+  }
+
+  /// Uploads a blob.
+  public var healthBlobUploader: HealthBlobUploader {
+    get { self[HealthBlobUploader.self] }
+    set { self[HealthBlobUploader.self] = newValue }
   }
 }
 
@@ -334,5 +352,47 @@ extension HealthBatchUploader: DependencyKey {
 
   public static var testValue: Self {
     Self { _, _ in reportIssue("Unimplemented: @Dependency(\\.healthBatchUploader).upload") }
+  }
+}
+
+/// Uploads a blob (`PUT /v1/health/blobs/{sha256}`) before the batches whose rows refer to it.
+/// Failures are `HealthBatchUploader`'s errors, so the backfill treats them alike.
+public struct HealthBlobUploader: Sendable {
+  /// Uploads `data` under its SHA-256. Uploading a blob the server has already is safe.
+  public var upload: @Sendable (_ sha256: String, _ data: Data) async throws -> Void
+
+  public init(upload: @escaping @Sendable (_ sha256: String, _ data: Data) async throws -> Void) {
+    self.upload = upload
+  }
+}
+
+extension HealthBlobUploader: DependencyKey {
+  /// Through the API client, like batches (`HealthBatchUploader.liveValue`).
+  public static var liveValue: Self {
+    @Dependency(\.api) var api
+    return Self { sha256, data in
+      let output = try await api.healthUploadBlob(
+        path: .init(sha256: sha256), body: .binary(HTTPBody(data)))
+      switch output {
+      case .ok: return
+      case .badRequest: throw HealthBatchUploader.Rejected(statusCode: 400)
+      case .unauthorized: throw HealthBatchUploader.Rejected(statusCode: 401)
+      case .forbidden: throw HealthBatchUploader.ConsentRequired()
+      case .contentTooLarge: throw HealthBatchUploader.Rejected(statusCode: 413)
+      case .serviceUnavailable: throw HealthBatchUploader.Rejected(statusCode: 503)
+      case .tooManyRequests(let response):
+        let seconds = Components.Schemas.TooManyRequests.retryAfterSeconds {
+          try response.body.json
+        }
+        throw HealthBatchUploader.RateLimited(retryAfter: TimeInterval(seconds))
+      case .code507: throw HealthBatchUploader.StorageFull()
+      case .undocumented(let statusCode, _):
+        throw HealthBatchUploader.Rejected(statusCode: statusCode)
+      }
+    }
+  }
+
+  public static var testValue: Self {
+    Self { _, _ in reportIssue("Unimplemented: @Dependency(\\.healthBlobUploader).upload") }
   }
 }
