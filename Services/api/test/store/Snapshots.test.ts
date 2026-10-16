@@ -199,6 +199,53 @@ describe("snapshots", () => {
     }),
   );
 
+  it.effect("uploads nothing if the store is deleted in between a part's pages", () =>
+    Effect.gen(function* () {
+      const { sql, store, stored, files } = makeStore();
+      yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
+      const all = [...entities, testNote];
+      const now = yield* Clock.currentTimeMillis;
+      // Up to `test_note`'s second part, which reads a page, gives up the event loop, then reads
+      // another.
+      for (let step = 0; step < 100; step++) {
+        yield* writeSnapshotStep(sql, all, files, now, policy);
+        if (stored.size > 0) break;
+      }
+      let puts = 0;
+      const counted: SnapshotFiles = {
+        ...files,
+        put: (key, bytes) => Effect.sync(() => puts++).pipe(Effect.andThen(files.put(key, bytes))),
+      };
+      const [result] = yield* Effect.all(
+        [
+          writeSnapshotStep(sql, all, counted, now, policy),
+          Effect.yieldNow.pipe(Effect.andThen(store.deleteAll()), Effect.orDie),
+        ],
+        { concurrency: 2 },
+      );
+      assert.strictEqual(result, "idle");
+      assert.strictEqual(puts, 0);
+      assert.strictEqual(stored.size, 0);
+    }),
+  );
+
+  it.effect("ends a part early at its byte budget", () =>
+    Effect.gen(function* () {
+      const { sql, store, stored, files } = makeStore();
+      yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
+      // Any page goes over, so every part is one page.
+      yield* writeTestSnapshot(sql, files, { ...policy, partBytes: 1 });
+      const parts = readSnapshot(sql, latestSnapshot(sql)!.id)!.entities.find(
+        (entity) => entity.entity === "test_note",
+      )!.parts;
+      assert.deepStrictEqual(
+        parts.map((part) => part.records),
+        [2, 2, 1],
+      );
+      assert.strictEqual(stored.size, 3);
+    }),
+  );
+
   it.effect("a part uploaded while the store is deleted is deleted too", () =>
     Effect.gen(function* () {
       const sql = makeTestStoreSql();
@@ -256,6 +303,26 @@ describe("compaction", () => {
         );
         assert.strictEqual(readHead(sql), 7);
       }),
+  );
+
+  it.effect("deletes a chunk at a time, so one alarm can't hold the store for long", () =>
+    Effect.gen(function* () {
+      const { sql, store, files } = makeStore();
+      yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
+      yield* writeSnapshot(sql, files);
+      yield* TestClock.adjust("31 days");
+      const chunked = { ...policy, compactionChunk: 2 };
+      const seqs = () => sql.exec("SELECT seq FROM changes ORDER BY seq").map((row) => row["seq"]);
+
+      compactChanges(sql, yield* Clock.currentTimeMillis, chunked);
+      assert.deepStrictEqual(seqs(), [3, 4, 5]);
+      compactChanges(sql, yield* Clock.currentTimeMillis, chunked);
+      assert.deepStrictEqual(seqs(), [5]);
+      // The horizon moves with each chunk, so readers behind it learn they're compacted.
+      assert.strictEqual((readChanges(sql, 3, 10) as { _tag?: string })._tag, "ChangesCompacted");
+      compactChanges(sql, yield* Clock.currentTimeMillis, chunked);
+      assert.deepStrictEqual(seqs(), []);
+    }),
   );
 
   it.effect("does nothing without a snapshot", () =>
