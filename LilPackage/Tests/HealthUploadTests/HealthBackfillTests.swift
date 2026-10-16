@@ -688,6 +688,48 @@ struct HealthBackfillTests {
   }
 
   @Test
+  func aSeriesThatKeepsFailingIsSkippedAfterSomeAttempts() async throws {
+    let reads = LockIsolated(0)
+    let uploads = LockIsolated(0)
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      // A page whose series can't be read, unless the reader may skip it.
+      $0.healthReader = HealthReader { type, anchor, _ in
+        reads.withValue { $0 += 1 }
+        guard anchor == nil else {
+          return HealthPage(mutations: [], anchor: Data("1".utf8), hasMore: false)
+        }
+        guard type.skipsUnreadableSeries else {
+          throw HealthReader.SeriesUnavailable(expected: 15360, read: 0)
+        }
+        return HealthPage(
+          mutations: [.delete("health_sample", id: "other-1")], anchor: Data("1".utf8),
+          hasMore: false)
+      }
+      $0.healthBatchUploader = HealthBatchUploader { _, _ in uploads.withValue { $0 += 1 } }
+      $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [temperature])
+    }
+
+    // A failure might pass, so the page is read again a few times first.
+    for attempt in 1...HealthBackfill.seriesAttempts {
+      await #expect(throws: HealthReader.SeriesUnavailable.self) { try await backfill.run() }
+      #expect(try storage.loadState()?.seriesFailures == [temperature.id: attempt])
+    }
+    #expect(uploads.value == 0)
+    // Then the rest of the page goes up without it, and the count starts over.
+    try await backfill.run()
+    #expect(uploads.value == 1)
+    #expect(try storage.loadState()?.seriesFailures == [:])
+    #expect(try storage.loadState()?.finished == [temperature.id])
+  }
+
+  @Test
   func pagesSavedBeforeBlobsHaveNone() throws {
     let saved = Data(
       #"{"type":"t","anchor":"MQ==","isLast":true,"batches":["b"],"records":1}"#.utf8)

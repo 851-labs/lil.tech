@@ -477,6 +477,47 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHeal
     }),
   );
 
+  it.effect("applies workout routes, which refer to their locations blob", () =>
+    Effect.gen(function* () {
+      const route = {
+        entity: "health_workout_route",
+        op: "upsert",
+        id: uuid(4900),
+        row: {
+          startDate: 1760400000000,
+          endDate: 1760403600000,
+          workout: uuid(4950),
+          locationCount: 3600,
+          locations: "b".repeat(64),
+          sourceName: "Test Watch",
+          sourceBundleId: "com.apple.health.00000000",
+        },
+      };
+      const { batch } = yield* ingest([
+        route,
+        {
+          ...route,
+          id: uuid(4901),
+          row: { ...route.row, workout: null, locationCount: 0, locations: null },
+        },
+        { ...route, id: uuid(4904), row: { ...route.row, workout: "Not-A-UUID" } },
+        { ...route, id: uuid(4902), row: { ...route.row, locations: null } },
+        { ...route, id: uuid(4903), row: { ...route.row, locations: "not-a-hash" } },
+      ]);
+      assert.deepInclude(batch, { status: "applied", applied: 2, rejected: 3 });
+      const sql = (yield* TestStores).sqlFor(userId);
+      assert.deepStrictEqual(
+        sql?.exec(
+          "SELECT workout, location_count, locations FROM health_workout_route ORDER BY id",
+        ),
+        [
+          { workout: uuid(4950), location_count: 3600, locations: "b".repeat(64) },
+          { workout: null, location_count: 0, locations: null },
+        ],
+      );
+    }),
+  );
+
   it.effect("applies heartbeat series", () =>
     Effect.gen(function* () {
       const series = {

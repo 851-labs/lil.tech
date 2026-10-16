@@ -245,6 +245,47 @@ export const HealthElectrocardiogram = defineEntity("health_electrocardiogram", 
 });
 
 /**
+ * Workout routes (`HKWorkoutRoute`): the locations recorded during a workout. The locations are a blob
+ * (`src/health/HealthBlobs.ts`), 44 bytes each, little-endian: the time (Unix seconds), latitude
+ * and longitude (degrees) as 64-bit floats, then altitude, horizontal and vertical accuracy (m),
+ * speed (m/s) and course (degrees) as 32-bit floats. Accuracies, speed and course are negative
+ * when unknown, as in Core Location. A later format would add a `locationsFormat` field: rows
+ * without one are this format.
+ */
+export const HealthWorkoutRoute = defineEntity("health_workout_route", {
+  clientWritable: false,
+  id: healthKitUUID,
+  blobs: ["locations"],
+  fields: {
+    startDate: Column.integer,
+    endDate: Column.integer,
+    /** The workout's ID, found through HealthKit's workout-to-routes query, or `null`. */
+    workout: Column.nullable(Column.text),
+    locationCount: Column.integer,
+    /** The locations blob's SHA-256, or `null` without locations. */
+    locations: Column.nullable(Column.text),
+    ...provenance,
+  },
+  checkRow: (_, row) => {
+    if (row.locations !== null && !isBlobHash(row.locations)) {
+      return "locations must be a blob's SHA-256 or null";
+    }
+    if (
+      row.workout !== null &&
+      !(typeof row.workout === "string" && healthKitUUID.test(row.workout))
+    ) {
+      return "workout must be a lowercase HealthKit UUID or null";
+    }
+    if (typeof row.locationCount !== "number" || row.locationCount < 0) {
+      return "locationCount can't be negative";
+    }
+    return row.locationCount > 0 === (row.locations !== null)
+      ? undefined
+      : "a route has a locations blob exactly when it has locations";
+  },
+});
+
+/**
  * Heartbeat series (`HKHeartbeatSeriesSample`): the beat-to-beat timings behind Apple Watch's
  * heart rate variability readings, about a minute and a hundred beats each, so they're kept in
  * the row rather than as a blob.
@@ -389,4 +430,5 @@ export const healthEntities = [
   HealthAudiogram,
   HealthElectrocardiogram,
   HealthHeartbeatSeries,
+  HealthWorkoutRoute,
 ] as const;

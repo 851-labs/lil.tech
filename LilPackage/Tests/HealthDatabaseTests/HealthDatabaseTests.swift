@@ -352,6 +352,14 @@ struct HealthSyncTests {
         "startDate": 1760400000000, "endDate": 1760400060000, "beats": [0, 0.82, 1.65],
         "gaps": [2], "sourceName": "Test Watch", "sourceBundleId": "com.example"
         """),
+      upsert(
+        14, "health_workout_route", "6f1c2a40-0000-4000-8000-000000000009",
+        """
+        "startDate": 1760400000000, "endDate": 1760403600000,
+        "workout": "6f1c2a40-0000-4000-8000-000000000004", "locationCount": 3600,
+        "locations": "\(String(repeating: "b", count: 64))",
+        "sourceName": "Test Watch", "sourceBundleId": "com.example"
+        """),
     ]
     let api = Client.mock { request, _ in
       #expect(request.path?.hasPrefix("/v1/sync/changes") == true)
@@ -360,7 +368,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 13, head: 13, hasMore: false)))
+              epoch: 1, changes: changes, next: 14, head: 14, hasMore: false)))
       )
     }
     let engine = withDependencies {
@@ -408,6 +416,10 @@ struct HealthSyncTests {
     let series = try await database.read { db in try HealthHeartbeatSeries.fetchAll(db) }
     #expect(series.map(\.beats) == ["[0,0.82,1.65]"])
     #expect(series.map(\.gaps) == ["[2]"])
+    let routes = try await database.read { db in try HealthWorkoutRoute.fetchAll(db) }
+    #expect(routes.map(\.locationCount) == [3600])
+    #expect(routes.map(\.workout) == ["6f1c2a40-0000-4000-8000-000000000004"])
+    #expect(routes.map(\.locations) == [String(repeating: "b", count: 64)])
     #expect(workouts.first?.events == #"[{"type":1}]"#)
     #expect(
       workouts.first?.statistics
