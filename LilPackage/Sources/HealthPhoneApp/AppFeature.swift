@@ -51,6 +51,12 @@ public struct AppFeature {
     case alert(PresentationAction<Alert>)
     /// Starts uploading the Health history, if it isn't all uploaded.
     case backfill
+    /// The app came back to the front after being in the background: an upload left unfinished
+    /// (e.g. the phone locked) picks up again.
+    case returnedToForeground
+    /// The user started an upload (finishing onboarding, Continue): the backfill, kept going
+    /// after they leave the app.
+    case startUpload
     /// What the server says about consent, or `nil` if it couldn't be asked (e.g. offline).
     case consentChecked(Bool?)
     case healthAccess(HealthAccessFeature.Action)
@@ -73,6 +79,7 @@ public struct AppFeature {
   @Dependency(\.healthAuthorization) var healthAuthorization
   @Dependency(\.healthBackfill) var healthBackfill
   @Dependency(\.healthConsent) var healthConsent
+  @Dependency(\.backgroundUpload) var backgroundUpload
 
   enum CancelID { case backfill, consentCheck, signedInChecks }
 
@@ -91,24 +98,15 @@ public struct AppFeature {
         return .none
 
       case .backfill:
-        guard state.hasConsent else { return .none }
-        // Failures are kept in the backfill's progress (for the status screen, 851-2557), and
-        // it's tried again on the next launch.
-        return .run { [healthBackfill] send in
-          // Again now that Health access may have been granted.
-          await HealthChanges.observe()
-          // Asked for up front: the app may be suspended long before the run ends.
-          await HealthBackgroundWork.scheduleIfNeeded()
-          do {
-            try await healthBackfill.run()
-          } catch is HealthBatchUploader.ConsentRequired {
-            // Withdrawn on another iPhone, or the policy changed.
-            await send(.consentChecked(false))
-          } catch {}
-          // Withdrawn if it's done (or the user signed out meanwhile).
-          await HealthBackgroundWork.scheduleIfNeeded()
-        }
-        .cancellable(id: CancelID.backfill, cancelInFlight: true)
+        return backfill(state, continuing: false)
+
+      case .returnedToForeground:
+        guard state.isSignedIn == true, state.healthConsent == nil, state.healthAccess == nil
+        else { return .none }
+        return .send(.startUpload)
+
+      case .startUpload:
+        return backfill(state, continuing: true)
 
       case .consentChecked(nil):
         return .none
@@ -144,11 +142,11 @@ public struct AppFeature {
         state.$offeredPerObject.withLock { $0 = true }
         state.healthAccess = nil
         // Onboarding is done: the first upload starts, and carries on after the app is left.
-        return .merge(.send(.backfill), continueInBackground(state))
+        return .send(.startUpload)
 
       case .healthAccess(.delegate(.skipped)):
         state.healthAccess = nil
-        return .merge(.send(.backfill), continueInBackground(state))
+        return .send(.startUpload)
 
       case .healthAccess:
         return .none
@@ -226,7 +224,7 @@ public struct AppFeature {
         return .none
 
       case .syncStatus(.delegate(.retry)):
-        return .merge(.send(.backfill), continueInBackground(state))
+        return .send(.startUpload)
 
       case .syncStatus(.delegate(.reviewHealthAccess)):
         state.healthAccess = HealthAccessFeature.State()
@@ -290,11 +288,27 @@ extension AppFeature {
     }
   }
 
-  /// Keeps an upload the user just started going after they leave the app, with consent, as the
-  /// backfill itself needs.
-  func continueInBackground(_ state: State) -> Effect<Action> {
+  /// Runs the backfill, with consent. `continuing`, for an upload the user started: it's kept
+  /// going after they leave the app (`BackgroundUpload`). Failures are kept in the backfill's
+  /// progress (for the status screen), and it's tried again on the next launch.
+  func backfill(_ state: State, continuing: Bool) -> Effect<Action> {
     guard state.hasConsent else { return .none }
-    return .run { _ in await HealthBackgroundWork.continueInBackground() }
+    return .run { [healthBackfill, backgroundUpload] send in
+      // Again now that Health access may have been granted.
+      await HealthChanges.observe()
+      // Asked for up front: the app may be suspended long before the run ends.
+      await HealthBackgroundWork.scheduleIfNeeded()
+      if continuing { await backgroundUpload.start() }
+      do {
+        try await healthBackfill.run()
+      } catch is HealthBatchUploader.ConsentRequired {
+        // Withdrawn on another iPhone, or the policy changed.
+        await send(.consentChecked(false))
+      } catch {}
+      // Withdrawn if it's done (or the user signed out meanwhile).
+      await HealthBackgroundWork.scheduleIfNeeded()
+    }
+    .cancellable(id: CancelID.backfill, cancelInFlight: true)
   }
 
   /// Without consent: stops the backfill and its background work.

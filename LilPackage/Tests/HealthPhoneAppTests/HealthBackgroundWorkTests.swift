@@ -4,36 +4,46 @@ import Testing
 @testable import HealthPhoneApp
 
 struct HealthBackgroundWorkTests {
-  private func progress(finished: Int, total: Int, records: Int) -> HealthBackfill.Progress {
-    HealthBackfill.Progress(
-      finishedTypes: finished, totalTypes: total, uploadedRecords: records, isRunning: true)
+  /// Synthetic progress: `withData` finished types of `records` records each, `empty` finished
+  /// types without any, out of `total`.
+  private func progress(withData: Int, empty: Int, records: Int, total: Int)
+    -> HealthBackfill.Progress
+  {
+    var types: [String: HealthBackfill.TypeProgress] = [:]
+    for index in 0..<withData {
+      types["data-\(index)"] = .init(isDone: true, uploadedRecords: records)
+    }
+    for index in 0..<empty { types["empty-\(index)"] = .init(isDone: true, uploadedRecords: 0) }
+    for index in (withData + empty)..<total {
+      types["left-\(index)"] = .init(isDone: false, uploadedRecords: 0)
+    }
+    return HealthBackfill.Progress(
+      finishedTypes: withData + empty, totalTypes: total, uploadedRecords: withData * records,
+      isRunning: true, types: types)
   }
 
   @Test
   func anUploadReportsRecordsAgainstAnEstimatedTotal() {
-    // A quarter of the types done with 50,000 records: about 200,000 in all.
+    // Each type left counts as much as an average finished one with data; empty ones don't.
     let upload = HealthBackgroundWork.UploadProgress(
-      progress(finished: 10, total: 40, records: 50_000))
+      progress(withData: 5, empty: 5, records: 10_000, total: 40))
     #expect(upload.completed == 50_000)
-    #expect(upload.total == 200_000)
+    #expect(upload.total == 50_000 + 30 * 10_000)
     #expect(upload.subtitle == "10 of 40 types · 50,000 records")
   }
 
   @Test
   func theEstimateNeverReachesTheEndEarly() {
-    // Before the first type is done, it counts as one.
-    let starting = HealthBackgroundWork.UploadProgress(
-      progress(finished: 0, total: 40, records: 2_000))
-    #expect(starting.total == 80_000)
-    // Nothing uploaded yet: still short of done.
-    let empty = HealthBackgroundWork.UploadProgress(progress(finished: 0, total: 40, records: 0))
-    #expect(empty.completed < empty.total)
-    // All but the last type: still short of done.
+    // Empty types done first don't make the end look near.
+    let emptyFirst = HealthBackgroundWork.UploadProgress(
+      progress(withData: 0, empty: 35, records: 0, total: 40))
+    #expect(emptyFirst.completed < emptyFirst.total)
     let almost = HealthBackgroundWork.UploadProgress(
-      progress(finished: 39, total: 40, records: 100))
+      progress(withData: 39, empty: 0, records: 100, total: 40))
     #expect(almost.completed < almost.total)
     // Done: complete.
-    let done = HealthBackgroundWork.UploadProgress(progress(finished: 40, total: 40, records: 100))
+    let done = HealthBackgroundWork.UploadProgress(
+      progress(withData: 40, empty: 0, records: 100, total: 40))
     #expect(done.completed == done.total)
   }
 }
