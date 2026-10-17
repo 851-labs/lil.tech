@@ -580,6 +580,20 @@ public actor HealthBackfill {
         "read \(BackfillLog.name(type.id)): \(page.mutations.count) in \(BackfillLog.seconds(readTime))\(page.hasMore ? "" : ", last")"
       )
       state.seriesFailures[type.id] = nil
+      if page.hasMore {
+        // Read while this page is encoded, saved and uploaded. From where this page ends, as the
+        // loop would read it next: a good read clears the series failures, so nothing is
+        // skipped.
+        var following = type
+        following.skipsUnreadableSeries = false
+        let reader = reader
+        let from = page.anchor
+        next = Task {
+          let start = ContinuousClock.now
+          let page = try await reader.page(following, from, limit)
+          return (page, ContinuousClock.now - start)
+        }
+      }
       if page.mutations.isEmpty {
         if anchor == nil, !page.hasMore {
           // Nothing readable yet: keep no anchor, and check again next time.
@@ -597,29 +611,19 @@ public actor HealthBackfill {
       }
       state.empty.remove(type.id)
       markStatistics(of: type, changedBy: page.mutations, &state)
-      let (pending, files, blobs) = try write(page, of: type)
-      // The page is saved before its files, so a kill in between leaves no orphans: the
-      // missing files make the next run read the page again.
-      state.pending = pending
-      try storage.saveState(state)
-      for (batch, file) in zip(pending.batches, files) { try storage.saveFile(batch, file) }
-      for (sha256, blob) in blobs {
-        try storage.saveFile(HealthBackfillState.PendingPage.blobFile(sha256), blob)
-      }
-      if page.hasMore {
-        // From where this page ends, as the loop would read it next: a good read clears the
-        // series failures, so nothing is skipped.
-        var following = type
-        following.skipsUnreadableSeries = false
-        let reader = reader
-        let from = page.anchor
-        next = Task {
-          let start = ContinuousClock.now
-          let page = try await reader.page(following, from, limit)
-          return (page, ContinuousClock.now - start)
-        }
-      }
+      let pending: HealthBackfillState.PendingPage
       do {
+        let files: [Data]
+        let blobs: [(sha256: String, data: Data)]
+        (pending, files, blobs) = try write(page, of: type)
+        // The page is saved before its files, so a kill in between leaves no orphans: the
+        // missing files make the next run read the page again.
+        state.pending = pending
+        try storage.saveState(state)
+        for (batch, file) in zip(pending.batches, files) { try storage.saveFile(batch, file) }
+        for (sha256, blob) in blobs {
+          try storage.saveFile(HealthBackfillState.PendingPage.blobFile(sha256), blob)
+        }
         try await upload(pending, &state)
       } catch {
         // The read ahead stops before the run moves on, so it can't overlap the next type's.
