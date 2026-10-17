@@ -13,7 +13,9 @@
 
     /// A year a time, before what's there already, so adding again makes a longer history.
     nonisolated static let days = 365
-    nonisolated static let batchSize = 10_000
+    /// Samples per save. Each save wakes the app's own observer, which recomputes a type's sums
+    /// from the earliest sample saved to now, so few big saves rather than many small ones.
+    nonisolated static let batchSize = 100_000
 
     private(set) var isAdding = false
     private(set) var saved: Int?
@@ -24,7 +26,6 @@
     /// Where the year being added starts and ends, and how far each series got, so a run that
     /// stopped carries on rather than adding the same samples again.
     private nonisolated static let progressKey = "syntheticHealthDataProgress"
-    private nonisolated static let earliestKey = "syntheticHealthDataEarliest"
 
     private struct Progress: Codable {
       var start: Date
@@ -69,14 +70,17 @@
       try await store.requestAuthorization(
         toShare: Set(series.map { HKQuantityType($0.0) }), read: [])
       let defaults = UserDefaults.standard
-      var progress =
-        defaults.data(forKey: progressKey).flatMap {
-          try? JSONDecoder().decode(Progress.self, from: $0)
-        }
-        ?? {
-          let end = (defaults.object(forKey: earliestKey) as? Date) ?? .now
-          return Progress(start: end.addingTimeInterval(-Double(days) * 86_400), end: end)
-        }()
+      var progress: Progress
+      if let saved = defaults.data(forKey: progressKey),
+        let resumed = try? JSONDecoder().decode(Progress.self, from: saved)
+      {
+        progress = resumed
+      } else {
+        // Before the earliest sample it added, as Health has it: kept across reinstalls.
+        let end = try await earliestSample(in: store) ?? .now
+        progress = Progress(start: end.addingTimeInterval(-Double(days) * 86_400), end: end)
+      }
+      let calendar = Calendar.current
       var generator = SystemRandomNumberGenerator()
       var saved = 0
       for (identifier, unit, interval) in series {
@@ -93,7 +97,7 @@
           await report(saved)
         }
         while time < progress.end {
-          let hour = Calendar.current.component(.hour, from: time)
+          let hour = calendar.component(.hour, from: time)
           // Awake from 7:00 to 23:00, except heart rate and basal energy, around the clock.
           let awake = (7..<23).contains(hour)
           if awake || identifier == .heartRate || identifier == .basalEnergyBurned {
@@ -118,8 +122,18 @@
         defaults.set(try JSONEncoder().encode(progress), forKey: progressKey)
       }
       defaults.removeObject(forKey: progressKey)
-      defaults.set(progress.start, forKey: earliestKey)
       return saved
+    }
+
+    /// When the earliest sample this app added starts, if there's one.
+    private nonisolated static func earliestSample(in store: HKHealthStore) async throws -> Date? {
+      let descriptor = HKSampleQueryDescriptor(
+        predicates: series.map {
+          .quantitySample(
+            type: HKQuantityType($0.0), predicate: HKQuery.predicateForObjects(from: .default()))
+        },
+        sortDescriptors: [SortDescriptor(\.startDate, order: .forward)], limit: 1)
+      return try await descriptor.result(for: store).first?.startDate
     }
   }
 

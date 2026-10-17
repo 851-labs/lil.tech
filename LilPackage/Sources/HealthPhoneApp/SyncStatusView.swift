@@ -40,7 +40,10 @@ public struct SyncStatusView: View {
           )
         }
         #if targetEnvironment(simulator)
-          SyntheticHealthSection()
+          // Not in previews, which also run in the simulator.
+          if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
+            SyntheticHealthSection()
+          }
         #endif
       }
       .navigationTitle("lil health")
