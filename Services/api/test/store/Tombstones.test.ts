@@ -72,10 +72,19 @@ describe("samples by type and start", () => {
   it("serves samples logged without a copy by key, even with an ID stored under two keys", () => {
     const { sql, apply } = makeStore();
     const moved = 1760500000000;
-    apply([sample(1), sample(2, { value: 2.5 })], 0, false);
-    apply([remove(1)], 0, false);
+    apply([sample(1), sample(2, { value: 2.5 })]);
+    apply([remove(1)]);
     // Back under another start: its old row stays, no longer tombstoned.
-    apply([sample(1, { startDate: moved, endDate: moved + 60000 })], 0, false);
+    apply([sample(1, { startDate: moved, endDate: moved + 60000 })]);
+    // By default, changes keep their key, not a copy.
+    assert.deepStrictEqual(
+      sql.exec("SELECT row, key FROM changes WHERE op = 'upsert' ORDER BY seq"),
+      [
+        { row: "", key: `["${steps}",1760400060000]` },
+        { row: "", key: `["${steps}",1760400120000]` },
+        { row: "", key: `["${steps}",${moved}]` },
+      ],
+    );
     assert.deepStrictEqual(
       sql.exec("SELECT start_date FROM health_sample WHERE id = ? ORDER BY start_date", uuid(1)),
       [{ start_date: 1760400060000 }, { start_date: moved }],

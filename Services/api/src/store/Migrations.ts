@@ -219,10 +219,9 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
     version: 17,
     name: "changes_key",
     // `key` holds an upsert's record's key fields' values as a JSON array (`Entity.key`), or NULL
-    // without key fields, so `readChanges` can read its row from its table. Once changes stop
-    // carrying a copy of their row (`logsRowCopies`), their `row` is '' (the CHECK on `changes`
-    // still wants one). Code from before this can't read those, which is why copies stay until no
-    // rollback can reach it.
+    // without key fields, so `readChanges` can read its row from its table. Since 851-2676,
+    // changes don't carry a copy of their row (`logsRowCopies`): their `row` is '' (the CHECK on
+    // `changes` still wants one). Code from before 851-2673 can't read those (`docs/SYNC.md`).
     sql: "ALTER TABLE changes ADD COLUMN key TEXT;",
   },
 ];

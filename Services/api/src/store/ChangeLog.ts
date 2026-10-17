@@ -59,9 +59,9 @@ const toRow = (
 
 /**
  * Whether upserts' changes carry a copy of their row (`changes.row`) as well as their key (store
- * migration 17). Code from before that migration can't serve changes without one, so copies were
- * kept until the version that reads both was live (851-2673). Rolling back past it needs them
- * turned on again first, and a rollback after that (`docs/SYNC.md`).
+ * migration 17). Code from before 851-2673 can't serve changes without one, so copies stayed until
+ * it was live. Rolling back to it or later is safe. Rolling back further needs copies turned on
+ * first, and then the changes logged without one compacted away, or a new epoch (`docs/SYNC.md`).
  */
 export const logsRowCopies = false;
 
@@ -375,13 +375,23 @@ export const readChanges = (
 ): ChangesPage | ChangesCompacted =>
   sql.transaction(() => {
     if (after < readHorizon(sql)) return new ChangesCompacted({ reason: "compacted" });
-    const logged = sql.exec(
+    const read = sql.exec(
       "SELECT seq, entity, id, op, row, key, at FROM changes WHERE seq > ? ORDER BY seq LIMIT ?",
       after,
       limit,
     );
+    // A change logged without a copy, of an entity this code doesn't know (e.g. after a
+    // rollback), can't be served: the page stops before it, so clients wait for code that knows it
+    // rather than skip it for good.
+    const unknown = read.findIndex(
+      (change) =>
+        change["op"] === "upsert" &&
+        change["row"] === "" &&
+        !entities.has(change["entity"] as string),
+    );
+    const logged = unknown === -1 ? read : read.slice(0, unknown);
     const rows = readLoggedRows(sql, entities, logged);
-    const changes = logged.flatMap((change): Array<Change> => {
+    const changes = logged.map((change): Change => {
       const seq = change["seq"] as number;
       const base = {
         seq,
@@ -390,19 +400,15 @@ export const readChanges = (
         at: change["at"] as number,
       };
       const copy = change["row"];
-      if (change["op"] === "delete") return [{ ...base, op: "delete" }];
+      if (change["op"] === "delete") return { ...base, op: "delete" };
       if (typeof copy === "string" && copy !== "") {
-        return [{ ...base, op: "upsert", row: JSON.parse(copy) as Record<string, Schema.Json> }];
+        return { ...base, op: "upsert", row: JSON.parse(copy) as Record<string, Schema.Json> };
       }
-      // An entity this code doesn't know (e.g. after a rollback) has no row to read: left out,
-      // as clients that don't know it ignore it.
-      if (!entities.has(base.entity)) return [];
       // Its record is gone (deleted since, by a later change): a delete gets the same result.
       const row = rows.get(seq);
-      return [row === undefined ? { ...base, op: "delete" } : { ...base, op: "upsert", row }];
+      return row === undefined ? { ...base, op: "delete" } : { ...base, op: "upsert", row };
     });
     const head = readHead(sql);
-    // The log's, not the page's: a change left out still moves the cursor.
-    const next = (logged.at(-1)?.["seq"] as number | undefined) ?? after;
+    const next = changes.at(-1)?.seq ?? after;
     return { epoch: readEpoch(sql), changes, next, head, hasMore: next < head };
   });
