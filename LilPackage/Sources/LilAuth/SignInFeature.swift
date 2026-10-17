@@ -31,6 +31,14 @@ public struct SignInFeature {
     /// Whether the app has a Google OAuth client, so the Google button is shown.
     public var isGoogleAvailable: Bool
 
+    /// The API that Apple's web sign-in returns through (`AppleWebAuthorizationRequest`), on the
+    /// Mac, which can't use the native sheet. `nil` on the iPhone, which does, and on a preview
+    /// deployment, which Apple can't return to.
+    public var appleWebAPI: URL?
+
+    /// The Apple sign-in in the browser, while it's open (the Mac).
+    public var appleWebRequest: AppleWebAuthorizationRequest?
+
     /// Whether the app talks to a preview deployment, where it can sign in to a synthetic test
     /// account (`AuthClient.signInToTestAccount`).
     public var isTestAccountAvailable: Bool
@@ -44,7 +52,16 @@ public struct SignInFeature {
       self.nonce = nonce
       self.googleRequest = googleRequest
       self.isGoogleAvailable = googleOAuth.clientID != nil
-      if case .preview = APIEnvironment.current() {
+      let environment = APIEnvironment.current()
+      #if os(macOS)
+        switch environment {
+        case .prod, .staging: self.appleWebAPI = environment.baseURL
+        case .preview: self.appleWebAPI = nil
+        }
+      #else
+        self.appleWebAPI = nil
+      #endif
+      if case .preview = environment {
         self.isTestAccountAvailable = true
       } else {
         self.isTestAccountAvailable = false
@@ -67,6 +84,10 @@ public struct SignInFeature {
     case appleButtonTapped
     case appleAuthorizationFinished(Result<AppleCredential, AppleAuthorizationError>)
     case googleButtonTapped
+    /// The Mac's Sign in with Apple button: Apple's web page, in the browser.
+    case appleWebButtonTapped
+    /// The browser came back from Apple's web sign-in, through the API's return URL.
+    case appleWebAuthorizationFinished(Result<URL, AppleAuthorizationError>)
     /// Signs in to the synthetic account shared by test devices, on a preview deployment.
     case testAccountButtonTapped
     /// The app is signed out, with the last account's data gone, e.g. once it opens. On a
@@ -90,11 +111,12 @@ public struct SignInFeature {
     case failed(String)
   }
 
-  enum CancelID { case google }
+  enum CancelID { case google, appleWeb }
 
   /// The synthetic account test devices sign in to, so an iPhone and a Mac share it.
   public static let testAccount = "e2e"
 
+  @Dependency(\.appleWebSignIn) var appleWebSignIn
   @Dependency(\.auth) var auth
   @Dependency(\.googleOAuth) var googleOAuth
   @Dependency(\.launchSignIn) var launchSignIn
@@ -110,36 +132,35 @@ public struct SignInFeature {
         state.nonce = withRandomNumberGenerator { Nonce.randomHex(bytes: 32, using: &$0) }
         return .none
 
-      case .appleAuthorizationFinished(.success(var credential)):
-        if credential.givenName != nil || credential.familyName != nil {
-          state.givenName = credential.givenName
-          state.familyName = credential.familyName
-        } else {
-          credential.givenName = state.givenName
-          credential.familyName = state.familyName
+      case .appleAuthorizationFinished(let result):
+        return finishApple(result, &state)
+
+      case .appleWebButtonTapped:
+        guard let api = state.appleWebAPI else { return .none }
+        state.clearFailure()
+        let request = withRandomNumberGenerator {
+          AppleWebAuthorizationRequest.make(api: api, using: &$0)
         }
-        guard let nonce = state.nonce else {
-          state.status = .failed(SignInError.rejected.message)
+        // Kept where the native sheet keeps it, so both sign in the same way.
+        state.nonce = request.nonce
+        state.appleWebRequest = request
+        return .run { [appleWebSignIn] send in
+          await send(.appleWebAuthorizationFinished(await appleWebSignIn.authorize(request)))
+        }
+        .cancellable(id: CancelID.appleWeb, cancelInFlight: true)
+
+      case .appleWebAuthorizationFinished(let result):
+        // Gone by the time the browser answered (e.g. the test account was signed in to instead).
+        guard let request = state.appleWebRequest else {
+          state.nonce = nil
           return .none
         }
-        state.status = .signingIn
-        return .run { [auth, credential] send in
-          do throws(SignInError) {
-            try await auth.signInWithApple(credential, nonce)
-            await send(.signInSucceeded)
-          } catch {
-            await send(.signInFailed(error))
-          }
-        }
-
-      case .appleAuthorizationFinished(.failure(.canceled)):
-        state.nonce = nil
-        return .none
-
-      case .appleAuthorizationFinished(.failure(.failed(let reason))):
-        state.nonce = nil
-        state.status = .failed(SignInError.failed(reason).message)
-        return .none
+        state.appleWebRequest = nil
+        return finishApple(
+          result.flatMap { callback in
+            Result { () throws(AppleAuthorizationError) in try request.credential(from: callback) }
+          },
+          &state)
 
       case .googleButtonTapped:
         guard let clientID = googleOAuth.clientID else {
@@ -222,12 +243,51 @@ public struct SignInFeature {
     }
   }
 
+  /// Signs in with Apple's answer, from the native sheet (the iPhone) or Apple's web page (the
+  /// Mac), with the nonce kept for the request.
+  private func finishApple(
+    _ result: Result<AppleCredential, AppleAuthorizationError>, _ state: inout State
+  ) -> Effect<Action> {
+    switch result {
+    case .success(var credential):
+      if credential.givenName != nil || credential.familyName != nil {
+        state.givenName = credential.givenName
+        state.familyName = credential.familyName
+      } else {
+        credential.givenName = state.givenName
+        credential.familyName = state.familyName
+      }
+      guard let nonce = state.nonce else {
+        state.status = .failed(SignInError.rejected.message)
+        return .none
+      }
+      state.status = .signingIn
+      return .run { [auth, credential] send in
+        do throws(SignInError) {
+          try await auth.signInWithApple(credential, nonce)
+          await send(.signInSucceeded)
+        } catch {
+          await send(.signInFailed(error))
+        }
+      }
+    case .failure(.canceled):
+      state.nonce = nil
+      return .none
+    case .failure(.failed(let reason)):
+      state.nonce = nil
+      state.status = .failed(SignInError.failed(reason).message)
+      return .none
+    }
+  }
+
   private func signInToTestAccount(_ state: inout State) -> Effect<Action> {
-    // Instead of a Google sign-in still open in the browser.
+    // Instead of a Google or Apple sign-in still open in the browser.
     state.googleRequest = nil
+    state.appleWebRequest = nil
     state.status = .signingIn
     return .merge(
       .cancel(id: CancelID.google),
+      .cancel(id: CancelID.appleWeb),
       .run { [auth] send in
         do throws(SignInError) {
           try await auth.signInToTestAccount(SignInFeature.testAccount)

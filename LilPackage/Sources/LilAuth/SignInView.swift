@@ -3,8 +3,9 @@ public import ComposableArchitecture
 public import Foundation
 public import SwiftUI
 
-/// The sign-in screen: the app's name, the stock Sign in with Apple button, a Google button, and
-/// what's happening, with a link to the privacy policy if there's one.
+/// The sign-in screen: the app's name, a Sign in with Apple button (the stock one on the iPhone,
+/// Apple's web page on the Mac), a Google button, and what's happening, with a link to the privacy
+/// policy if there's one.
 public struct SignInView: View {
   let store: StoreOf<SignInFeature>
   let appName: String
@@ -32,16 +33,41 @@ public struct SignInView: View {
       VStack(spacing: 12) {
         ZStack {
           VStack(spacing: 12) {
-            SignInWithAppleButton(.signIn) { request in
-              store.send(.appleButtonTapped)
-              request.requestedScopes = [.fullName, .email]
-              request.nonce = store.nonceHash
-            } onCompletion: { result in
-              store.send(.appleAuthorizationFinished(Self.credential(from: result)))
-            }
-            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-            .frame(maxWidth: 320)
-            .frame(height: 44)
+            #if os(macOS)
+              // Apple's web page: the native sheet needs an entitlement that Developer ID builds
+              // can't have (`docs/DECISIONS.md`).
+              if store.appleWebAPI != nil {
+                // Apple's colors for its button: black on light, white on dark.
+                Button {
+                  store.send(.appleWebButtonTapped)
+                } label: {
+                  Label("Sign in with Apple", systemImage: "apple.logo")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(
+                      colorScheme == .dark ? Color.white : Color.black,
+                      in: .rect(cornerRadius: 8)
+                    )
+                    .contentShape(.rect(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: 320)
+                .opacity(store.appleWebRequest == nil ? 1 : 0.5)
+                .disabled(store.appleWebRequest != nil)
+              }
+            #else
+              SignInWithAppleButton(.signIn) { request in
+                store.send(.appleButtonTapped)
+                request.requestedScopes = [.fullName, .email]
+                request.nonce = store.nonceHash
+              } onCompletion: { result in
+                store.send(.appleAuthorizationFinished(Self.credential(from: result)))
+              }
+              .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+              .frame(maxWidth: 320)
+              .frame(height: 44)
+            #endif
 
             if store.isGoogleAvailable {
               Button {
@@ -140,6 +166,8 @@ public struct SignInView: View {
 #Preview("Pointed at a preview deployment") {
   var state = SignInFeature.State()
   state.isTestAccountAvailable = true
+  // Apple can't return to a preview: the Mac has no Apple button there.
+  state.appleWebAPI = nil
   return SignInView(
     store: Store(initialState: state) { SignInFeature() }, appName: "lil health",
     privacyPolicy: URL(string: "https://lil.tech/privacy"))
@@ -187,4 +215,14 @@ public struct SignInView: View {
       SignInFeature()
     },
     appName: "lil health")
+}
+
+#Preview("Apple's page open (the Mac)") {
+  var state = SignInFeature.State()
+  state.appleWebRequest = AppleWebAuthorizationRequest(
+    redirectURI: URL(string: "https://api.lil.tech/v1/auth/apple/web")!, nonce: "nonce",
+    state: "state")
+  return SignInView(
+    store: Store(initialState: state) { SignInFeature() }, appName: "lil health",
+    privacyPolicy: URL(string: "https://lil.tech/privacy"))
 }

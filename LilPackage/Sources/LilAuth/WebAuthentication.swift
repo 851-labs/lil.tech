@@ -13,14 +13,35 @@ import Dependencies
 func authorizeInBrowser(
   _ request: GoogleAuthorizationRequest
 ) async -> Result<URL, GoogleAuthorizationError> {
+  await openInBrowser(request.url, until: request.callbackScheme, service: "Google").mapError {
+    switch $0 {
+    case .canceled: .canceled
+    case .failed(let reason): .failed(reason)
+    }
+  }
+}
+
+/// Why a browser sheet closed without its callback.
+enum BrowserAuthorizationError: Error, Equatable {
+  case canceled
+  case failed(String)
+}
+
+/// Opens `url` in a browser sheet over the app's key window, until it redirects to
+/// `callbackScheme`, and returns that URL. `service` names whose page it is, for errors.
+/// Cancelling the calling task closes the sheet.
+@MainActor
+func openInBrowser(
+  _ url: URL, until callbackScheme: String, service: String
+) async -> Result<URL, BrowserAuthorizationError> {
   let anchor = KeyWindowAnchor()
   let browser = BrowserSession()
   let continuation = LockIsolated<
-    CheckedContinuation<Result<URL, GoogleAuthorizationError>, Never>?
+    CheckedContinuation<Result<URL, BrowserAuthorizationError>, Never>?
   >(
     nil)
   // The session's handler and a failed start can both finish it, so only the first resumes.
-  let finish = { @Sendable (result: Result<URL, GoogleAuthorizationError>) in
+  let finish = { @Sendable (result: Result<URL, BrowserAuthorizationError>) in
     continuation.withValue {
       $0?.resume(returning: result)
       $0 = nil
@@ -30,7 +51,7 @@ func authorizeInBrowser(
     await withCheckedContinuation { resume in
       continuation.setValue(resume)
       let started = ASWebAuthenticationSession(
-        url: request.url, callback: .customScheme(request.callbackScheme)
+        url: url, callback: .customScheme(callbackScheme)
       ) { url, error in
         if let url {
           finish(.success(url))
@@ -39,13 +60,13 @@ func authorizeInBrowser(
         {
           finish(.failure(.canceled))
         } else {
-          finish(.failure(.failed(error?.localizedDescription ?? "Google didn't answer")))
+          finish(.failure(.failed(error?.localizedDescription ?? "\(service) didn't answer")))
         }
       }
       started.presentationContextProvider = anchor
       browser.session = started
       if !started.start() {
-        finish(.failure(.failed("Couldn't open Google's sign-in page")))
+        finish(.failure(.failed("Couldn't open \(service)'s sign-in page")))
       }
     }
   } onCancel: {
