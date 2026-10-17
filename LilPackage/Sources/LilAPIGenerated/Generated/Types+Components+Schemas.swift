@@ -1158,6 +1158,8 @@ extension Components {
             public var identityToken: Swift.String
             /// - Remark: Generated from `#/components/schemas/AppleSignInRequest/nonce`.
             public var nonce: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AppleSignInRequest/authorizationCode`.
+            public var authorizationCode: Swift.String?
             /// - Remark: Generated from `#/components/schemas/AppleSignInRequest/fullName`.
             public struct FullNamePayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/AppleSignInRequest/fullName/givenName`.
@@ -1190,22 +1192,26 @@ extension Components {
             /// - Parameters:
             ///   - identityToken:
             ///   - nonce:
+            ///   - authorizationCode:
             ///   - fullName:
             ///   - device:
             public init(
                 identityToken: Swift.String,
                 nonce: Swift.String,
+                authorizationCode: Swift.String? = nil,
                 fullName: Components.Schemas.AppleSignInRequest.FullNamePayload? = nil,
                 device: Components.Schemas.DeviceInfo
             ) {
                 self.identityToken = identityToken
                 self.nonce = nonce
+                self.authorizationCode = authorizationCode
                 self.fullName = fullName
                 self.device = device
             }
             public enum CodingKeys: String, CodingKey {
                 case identityToken
                 case nonce
+                case authorizationCode
                 case fullName
                 case device
             }

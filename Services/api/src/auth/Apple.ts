@@ -13,6 +13,9 @@ import {
 /** Who issues Sign in with Apple identity tokens. */
 export const appleIssuer = "https://appleid.apple.com";
 
+/** The iPhone app's App ID, which its native sheet's tokens are issued to. */
+export const appleAppId = "tech.lil.health";
+
 /** The Services ID the Mac's web sign-in uses (`AppleWebSignIn.ts`), under `tech.lil.health`. */
 export const appleWebServicesId = "tech.lil.health.web";
 
@@ -21,7 +24,7 @@ export const appleWebServicesId = "tech.lil.health.web";
  * Services ID for the Mac's web sign-in (`AppleWebSignIn.ts`). The Services ID is grouped under
  * the App ID, so a person gets the same Apple user ID in both (851-2538).
  */
-export const appleAudiences = ["tech.lil.health", appleWebServicesId];
+export const appleAudiences = [appleAppId, appleWebServicesId];
 
 /** Apple's token signing keys. */
 export class AppleKeys extends Context.Service<AppleKeys, ProviderKeys>()(
@@ -34,6 +37,7 @@ export class AppleKeys extends Context.Service<AppleKeys, ProviderKeys>()(
 
 const AppleClaims = Schema.Struct({
   sub: Schema.NonEmptyString,
+  aud: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
   nonce: Schema.String,
   exp: Schema.Number,
   email: Schema.optionalKey(Schema.String),
@@ -42,6 +46,12 @@ const AppleClaims = Schema.Struct({
     Schema.Union([Schema.Boolean, Schema.Literals(["true", "false"])]),
   ),
 });
+
+/** Who Apple says signed in, and which of `appleAudiences` the token was issued to. */
+export interface AppleIdentity extends VerifiedIdentity {
+  /** The client ID Apple's token endpoints need for this sign-in's tokens (`AppleTokens.ts`). */
+  readonly clientId: string;
+}
 
 /** Verifies Sign in with Apple identity tokens. */
 export class AppleSignIn extends Context.Service<
@@ -57,7 +67,7 @@ export class AppleSignIn extends Context.Service<
       fullName:
         | { readonly givenName?: string | null; readonly familyName?: string | null }
         | undefined,
-    ) => Effect.Effect<VerifiedIdentity, InvalidIdentityToken | SignInUnavailable>;
+    ) => Effect.Effect<AppleIdentity, InvalidIdentityToken | SignInUnavailable>;
   }
 >()("lil/api/auth/AppleSignIn") {
   static readonly layer = Layer.effect(
@@ -80,6 +90,13 @@ export class AppleSignIn extends Context.Service<
           });
           yield* checkNonce("Apple", claims.nonce, nonce);
           yield* useOnce(tokenUses, "Apple", identityToken, { expiresAt: claims.exp * 1000, now });
+          // `verifyProviderToken` checked it's one of them.
+          const clientId =
+            appleAudiences.find((audience) =>
+              typeof claims.aud === "string"
+                ? claims.aud === audience
+                : claims.aud.includes(audience),
+            ) ?? appleAppId;
           const name = [fullName?.givenName, fullName?.familyName].filter(Boolean).join(" ");
           return {
             provider: "apple",
@@ -87,7 +104,8 @@ export class AppleSignIn extends Context.Service<
             email: claims.email ?? null,
             emailVerified: claims.email_verified === true || claims.email_verified === "true",
             displayName: name === "" ? null : name,
-          } satisfies VerifiedIdentity;
+            clientId,
+          } satisfies AppleIdentity;
         }),
       });
     }),

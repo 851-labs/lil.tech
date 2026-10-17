@@ -4,8 +4,10 @@ import * as SQL from "alchemy/SQL/D1";
 import { Config, Effect, Layer, Option, Redacted, Stream } from "effect";
 import { HttpRouter } from "effect/http";
 import { AppleKeys } from "./auth/Apple.ts";
+import { AppleTokens, revokeAppleTokens } from "./auth/AppleTokens.ts";
 import { GoogleClients, GoogleKeys } from "./auth/Google.ts";
 import { SessionKey } from "./auth/Tokens.ts";
+import { AppleTokenRevocations } from "./core/AppleTokenRevocations.ts";
 import { CoreDatabase, CoreRepositories } from "./core/CoreDatabase.ts";
 import { retireSignedOutDevices } from "./core/DeviceCleanup.ts";
 import { Devices } from "./core/Devices.ts";
@@ -29,12 +31,17 @@ import { UserStores } from "./store/UserStores.ts";
 
 /** Custom domains per stage. Other stages (PR previews, personal stages) use workers.dev. */
 
+/** Deployments that must be able to revoke Sign in with Apple tokens (`AppleTokens.ts`). */
+const appleSignInKeyRequired: ReadonlySet<string> = new Set(["staging", "prod"]);
+
 /**
  * The Worker's props. Alchemy also evaluates them inside the running Worker, where there's no
  * `Stage`, so the deploy-time work (picking the domain, checking the environment, binding the
- * session key) only happens when a stage is present. `sessionKey` makes the key at deploy time.
+ * secrets) only happens when a stage is present. `makeKey` makes a random key at deploy time.
+ * The Sign in with Apple key comes from the deploy's `LIL_APPLE_SIGN_IN_KEY` (a PKCS #8 PEM),
+ * which staging and prod need.
  */
-export const makeApiWorkerProps = <Key, E, R>(sessionKey: Effect.Effect<Key, E, R>) =>
+export const makeApiWorkerProps = <Key, E, R>(makeKey: (id: string) => Effect.Effect<Key, E, R>) =>
   Effect.gen(function* () {
     const main = import.meta.url;
     const stage = yield* Effect.serviceOption(Alchemy.Stage);
@@ -46,29 +53,38 @@ export const makeApiWorkerProps = <Key, E, R>(sessionKey: Effect.Effect<Key, E, 
         `LIL_ENVIRONMENT is "${environment}" but stage "${stage.value}" expects "${expected}"`,
       );
     }
+    const appleSignInKey = yield* Config.Redacted("LIL_APPLE_SIGN_IN_KEY").pipe(Config.option);
+    if (Option.isNone(appleSignInKey) && appleSignInKeyRequired.has(environment)) {
+      return yield* Effect.die(`LIL_APPLE_SIGN_IN_KEY is needed to deploy ${environment}`);
+    }
     const domain = stageDomains[stage.value]?.api;
     return {
       main,
       ...(domain === undefined ? {} : { domain }),
-      env: { LIL_SESSION_KEY: yield* sessionKey },
+      env: {
+        // Generated once per stage and kept in Alchemy's state, so redeploys don't sign everyone
+        // out or lose the stored Apple tokens.
+        LIL_SESSION_KEY: yield* makeKey("SessionSigningKey"),
+        LIL_TOKEN_KEY: yield* makeKey("AppleTokenKey"),
+        ...(Option.isSome(appleSignInKey) ? { LIL_APPLE_SIGN_IN_KEY: appleSignInKey.value } : {}),
+      },
     };
   });
 
-// Generated once per stage and kept in Alchemy's state, so redeploys don't sign everyone out.
-const apiWorkerProps = makeApiWorkerProps(Alchemy.makeRandom("SessionSigningKey"));
+const apiWorkerProps = makeApiWorkerProps(Alchemy.makeRandom);
 
 /**
- * The key that signs access tokens, bound by `apiWorkerProps`. It's only missing while Alchemy
- * plans a deploy, which runs the Worker's setup but never serves a request, so that gets a
- * throwaway random key. The deployed bundle (where Alchemy sets `__ALCHEMY_RUNTIME__`) refuses to
- * start without the real one.
+ * A secret bound by `apiWorkerProps`. It's only missing while Alchemy plans a deploy, which runs
+ * the Worker's setup but never serves a request, so that gets a throwaway random one. The deployed
+ * bundle (where Alchemy sets `__ALCHEMY_RUNTIME__`) refuses to start without the real one.
  */
-const readSessionKey = Effect.gen(function* () {
-  const key = yield* Config.Redacted("LIL_SESSION_KEY").pipe(Config.option);
-  if (Option.isSome(key)) return key.value;
-  if (globalThis.__ALCHEMY_RUNTIME__) return yield* Effect.die("LIL_SESSION_KEY is not bound");
-  return Redacted.make(crypto.randomUUID());
-});
+const readSecret = (name: string) =>
+  Effect.gen(function* () {
+    const secret = yield* Config.Redacted(name).pipe(Config.option);
+    if (Option.isSome(secret)) return secret.value;
+    if (globalThis.__ALCHEMY_RUNTIME__) return yield* Effect.die(`${name} is not bound`);
+    return Redacted.make(crypto.randomUUID());
+  });
 
 /**
  * Binds a rate limit and counts with it. The namespace ID only matters at deploy time; the running
@@ -153,7 +169,11 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
   apiWorkerProps,
   Effect.gen(function* () {
     const deployment = yield* Deployment.config;
-    const key = yield* readSessionKey;
+    const key = yield* readSecret("LIL_SESSION_KEY");
+    const appleTokens = AppleTokens.make({
+      signingKey: yield* Config.Redacted("LIL_APPLE_SIGN_IN_KEY").pipe(Config.option),
+      tokenSecret: yield* readSecret("LIL_TOKEN_KEY"),
+    });
     const core = yield* Cloudflare.D1.QueryDatabase(CoreDatabase);
     const userStores = UserStores.fromNamespace(yield* UserStore);
     const health = yield* HealthIngestionWorker(
@@ -162,10 +182,24 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
     );
     // Daily, at a quiet hour for most users.
     yield* Cloudflare.Workers.cron("23 4 * * *", () =>
-      retireSignedOutDevices().pipe(
-        Effect.tap((retired) => Effect.log(`Retired ${retired} signed-out devices`)),
-        Effect.provide(Devices.layer.pipe(Layer.provide(SQL.D1Layer(core)))),
+      Effect.all(
+        [
+          retireSignedOutDevices().pipe(
+            Effect.tap((retired) => Effect.log(`Retired ${retired} signed-out devices`)),
+          ),
+          revokeAppleTokens().pipe(
+            Effect.tap((revoked) => Effect.log(`Revoked ${revoked} Apple tokens`)),
+          ),
+        ],
+        { mode: "result" },
+      ).pipe(
+        Effect.provide(
+          Layer.mergeAll(Devices.layer, AppleTokenRevocations.layer).pipe(
+            Layer.provide(SQL.D1Layer(core)),
+          ),
+        ),
         Effect.provideService(UserStores, userStores),
+        Effect.provideService(AppleTokens, appleTokens),
       ),
     );
     const snapshots = yield* Cloudflare.R2.ReadBucket(yield* SnapshotBucket);
@@ -195,6 +229,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       WorkerHttpLayer.pipe(
         Layer.provide(Layer.succeed(Deployment, deployment)),
         Layer.provide(Layer.succeed(SessionKey, key)),
+        Layer.provide(Layer.succeed(AppleTokens, appleTokens)),
         Layer.provide([AppleKeys.layer, GoogleKeys.layer, GoogleClients.layer]),
         Layer.provide(Layer.succeed(UserStores, userStores)),
         Layer.provide(Layer.succeed(RateLimits, limits)),

@@ -7,6 +7,7 @@ import { AppleSignIn } from "./auth/Apple.ts";
 import { GoogleSignIn } from "./auth/Google.ts";
 import { Auth } from "./auth/Auth.ts";
 import { ProviderSignIn, type VerifiedIdentity } from "./auth/ProviderSignIn.ts";
+import { AppleTokens, revokeAppleTokens } from "./auth/AppleTokens.ts";
 import { AppleWebCallbackRoute } from "./auth/AppleWebSignIn.ts";
 import { DevSignInRoute } from "./auth/DevSignIn.ts";
 import {
@@ -27,6 +28,7 @@ import {
   healthConsentPolicyVersion,
   isCurrentHealthConsent,
 } from "./core/Consents.ts";
+import { AppleTokenRevocations } from "./core/AppleTokenRevocations.ts";
 import { retireDevice } from "./core/DeviceCleanup.ts";
 import { Devices } from "./core/Devices.ts";
 import { Identities } from "./core/Identities.ts";
@@ -144,6 +146,8 @@ export const AuthHandlers = HttpApiBuilder.group(
   Effect.fn(function* (handlers) {
     const auth = yield* Auth;
     const apple = yield* AppleSignIn;
+    const appleTokens = yield* AppleTokens;
+    const identities = yield* Identities;
     const google = yield* GoogleSignIn;
     const providerSignIn = yield* ProviderSignIn;
     const devices = yield* Devices;
@@ -161,9 +165,32 @@ export const AuthHandlers = HttpApiBuilder.group(
         auth.refresh(payload.refreshToken).pipe(Effect.catchTag("SqlError", Effect.die)),
       )
       .handle("apple", ({ payload }) =>
-        apple
-          .verify(payload.identityToken, payload.nonce, payload.fullName)
-          .pipe(Effect.flatMap((identity) => signIn(identity, payload.device))),
+        Effect.gen(function* () {
+          const identity = yield* apple.verify(
+            payload.identityToken,
+            payload.nonce,
+            payload.fullName,
+          );
+          const tokens = yield* signIn(identity, payload.device);
+          // Only once signed in, so the identity exists, and it never fails the sign-in.
+          if (payload.authorizationCode !== undefined) {
+            const refreshToken = yield* appleTokens.exchange(
+              payload.authorizationCode,
+              identity.clientId,
+              identity.subject,
+            );
+            if (Option.isSome(refreshToken)) {
+              yield* identities
+                .saveAppleToken(identity.subject, refreshToken.value, identity.clientId)
+                .pipe(
+                  Effect.catchCause((cause) =>
+                    Effect.logWarning("Saving Apple's refresh token failed", cause),
+                  ),
+                );
+            }
+          }
+          return tokens;
+        }),
       )
       .handle("google", ({ payload }) =>
         google
@@ -209,6 +236,8 @@ export const MeHandlers = HttpApiBuilder.group(
     const devices = yield* Devices;
     const stores = yield* UserStores;
     const consents = yield* Consents;
+    const appleTokens = yield* AppleTokens;
+    const appleRevocations = yield* AppleTokenRevocations;
     return handlers
       .handle("me", () =>
         Effect.gen(function* () {
@@ -282,12 +311,18 @@ export const MeHandlers = HttpApiBuilder.group(
           const blobs = yield* HealthBlobFiles;
           // A failure here would leave an account that can't store data, so these steps are
           // retried, and if they still fail the app is told to try again, which finishes it.
-          yield* Effect.gen(function* () {
+          const revoking = yield* Effect.gen(function* () {
             yield* files.deletePrefix(healthBatchPrefix(userId));
             yield* blobs.deletePrefix(healthBlobPrefix(userId));
+            // Kept apart from the identities first, so they're revoked even if revoking now fails.
+            const identityIds = yield* appleRevocations.addForUser(
+              userId,
+              yield* Clock.currentTimeMillis,
+            );
             // Cascades to identities, devices, sessions (so refresh tokens stop working) and
             // connections.
             yield* users.delete(userId);
+            return identityIds;
           }).pipe(
             Effect.retry({ schedule: Schedule.exponential("200 millis"), times: 3 }),
             Effect.mapError(
@@ -296,6 +331,14 @@ export const MeHandlers = HttpApiBuilder.group(
                   message: "Deleting the account didn't finish; try again",
                 }),
             ),
+          );
+          // Revoked now if Apple answers, and otherwise by the daily cleanup. The account is
+          // already gone, so this never fails the request.
+          yield* appleRevocations.find(revoking).pipe(
+            Effect.flatMap(revokeAppleTokens),
+            Effect.provideService(AppleTokens, appleTokens),
+            Effect.provideService(AppleTokenRevocations, appleRevocations),
+            Effect.catchCause((cause) => Effect.logWarning("Revoking Apple tokens failed", cause)),
           );
         }),
       );
@@ -634,7 +677,7 @@ const OpenApiRoute = HttpRouter.add(
 /**
  * Every route of the API, with the platform services a Worker can provide: Alchemy's
  * `Http.Platform` stubs file responses and gives `HttpApiBuilder` a no-op `FileSystem`, since
- * Workers have no file system. Needs `Deployment`, `SessionKey`, `AppleKeys`, `GoogleKeys`,
+ * Workers have no file system. Needs `Deployment`, `SessionKey`, `AppleKeys`, `AppleTokens`, `GoogleKeys`,
  * `GoogleClients`, the core repositories, `UserStores` and `RateLimits`, and `HealthBatchFiles`,
  * `HealthBatchQueue` and `SnapshotParts` per request.
  */

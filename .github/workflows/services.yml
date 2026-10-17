@@ -138,6 +138,8 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Staging and prod revoke Sign in with Apple tokens (851-2612). Previews don't get it.
+      LIL_APPLE_SIGN_IN_KEY: ${{ secrets.LIL_APPLE_SIGN_IN_KEY }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-services

@@ -80,6 +80,12 @@ export class AppleSignInRequest extends Schema.Class<AppleSignInRequest>(
   identityToken: Schema.String.check(Schema.isMaxLength(8192)),
   /** The random nonce whose SHA-256 (hex) the app passed to Apple as the request's nonce. */
   nonce: Schema.String.check(Schema.isMaxLength(256)),
+  /**
+   * `ASAuthorizationAppleIDCredential.authorizationCode`, as a string (or the web sign-in's
+   * `code`). The server redeems it for a token it revokes when the account is deleted, as Apple
+   * requires. Older apps don't send it.
+   */
+  authorizationCode: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(1024))),
   /** Apple only gives the app the user's name on their first sign-in. */
   fullName: Schema.optionalKey(
     Schema.Struct({

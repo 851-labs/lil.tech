@@ -71,10 +71,12 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   - For scripts, `LIL_SIGN_IN_TO_TEST_ACCOUNT=1` in the environment does the same when the app opens signed out, e.g. `open -n --env LIL_API_URL=… --env LIL_SIGN_IN_TO_TEST_ACCOUNT=1 "lil health.app"` (or `SIMCTL_CHILD_LIL_SIGN_IN_TO_TEST_ACCOUNT=1 xcrun simctl launch …`).
   - Merging to `main` deploys staging, then prod, and `scripts/check-deploy` waits until each serves the new commit.
   - CI authenticates with the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets (token "lil.tech CI (Alchemy deploys)": account 851, zone `lil.tech`).
+  - The `LIL_APPLE_SIGN_IN_KEY` repo secret, the Sign in with Apple key, goes to staging and prod deploys only.
   - Previews run PR code with that deploy token, and Cloudflare can't limit `Workers Scripts:Edit` to particular Workers. Only branches pushed to this repo get previews (fork PRs get no secrets), so only give push access to people you'd trust with prod.
 - **Deploying by hand** (from `Services/api`), rarely needed since CI deploys `main`:
   - `vp run deploy:staging` deploys to `api.staging.lil.tech`.
   - `vp run deploy:prod` deploys to `api.lil.tech`.
+  - Staging and prod need the Sign in with Apple key in `LIL_APPLE_SIGN_IN_KEY`, e.g. `LIL_APPLE_SIGN_IN_KEY="$(op document get 'lil health – Sign in with Apple key (J59CSK4YXA)')" vp run deploy:prod`.
   - `vp run deploy` deploys your personal stage, on workers.dev only.
   - `node scripts/notifications.ts` applies the account's billing and usage notification policies. They're account-wide, so no stage deploys them. See DECISIONS.md for credentials.
   - Each script sets `LIL_ENVIRONMENT` and `LIL_VERSION` (the git SHA, with `-dirty` for uncommitted changes), which the Worker reads at deploy time. Deploy prod from a clean tree.

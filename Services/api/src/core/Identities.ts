@@ -40,6 +40,15 @@ export class Identities extends Context.Service<
       userId: UserId,
     ) => Effect.Effect<ReadonlyArray<Identity>, SqlError.SqlError>;
     readonly delete: (id: IdentityId) => Effect.Effect<void, SqlError.SqlError>;
+    /**
+     * Keeps Apple's refresh token (encrypted, see `AppleTokens`) for the Apple account `subject`,
+     * and the client ID it was issued to, so deleting the account can revoke it.
+     */
+    readonly saveAppleToken: (
+      subject: string,
+      refreshToken: string,
+      clientId: string,
+    ) => Effect.Effect<void, SqlError.SqlError>;
   }
 >()("lil/api/core/Identities") {
   static readonly layer = Layer.effect(
@@ -76,6 +85,13 @@ export class Identities extends Context.Service<
         delete: Effect.fn("Identities.delete")(function* (id) {
           yield* sql`DELETE FROM identities WHERE id = ${id}`;
         }),
+        saveAppleToken: Effect.fn("Identities.saveAppleToken")(
+          function* (subject, refreshToken, clientId) {
+            yield* sql`UPDATE identities
+              SET apple_refresh_token = ${refreshToken}, apple_client_id = ${clientId}
+              WHERE provider = 'apple' AND subject = ${subject}`;
+          },
+        ),
       });
     }),
   );

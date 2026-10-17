@@ -18,10 +18,10 @@ export const appleWebOrigin = "https://appleid.apple.com";
 export const maxAppleWebPostBytes = 16 * 1024;
 
 /**
- * What Apple posts that the app needs: `user` only comes with the first sign-in. Not `code`,
- * which nothing redeems, so it doesn't go further than this.
+ * What Apple posts that the app needs: `user` only comes with the first sign-in, and the app sends
+ * `code` back with the identity token for the server to redeem (`AppleTokens.ts`).
  */
-const forwarded = ["id_token", "state", "user", "error"] as const;
+const forwarded = ["id_token", "code", "state", "user", "error"] as const;
 
 /** A redirect to the app's callback with `fields`. It always ends there, so the sheet closes. */
 const toApp = (fields: Readonly<Record<string, string>>) => {
