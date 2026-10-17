@@ -36,6 +36,114 @@ struct SignInFeatureTests {
     await store.receive(\.delegate.signedIn)
   }
 
+  #if os(macOS)
+    @Test
+    func signingInThroughApplesWebPageOnTheMac() async throws {
+      let api = URL(string: "https://api.lil.tech")!
+      var initial = SignInFeature.State()
+      initial.appleWebAPI = api
+      var zeros = Zeros()
+      let request = AppleWebAuthorizationRequest.make(api: api, using: &zeros)
+      // Apple's page, for the Services ID, returning through the API.
+      let page = try #require(URLComponents(url: request.url, resolvingAgainstBaseURL: false))
+      let query = Dictionary(
+        uniqueKeysWithValues: (page.queryItems ?? []).map { ($0.name, $0.value) })
+      #expect(page.host == "appleid.apple.com")
+      #expect(query["client_id"] == "tech.lil.health.web")
+      #expect(query["redirect_uri"] == "https://api.lil.tech/v1/auth/apple/web")
+      #expect(query["response_mode"] == "form_post")
+      #expect(query["nonce"] == Nonce.sha256Hex(zeroNonce))
+      let store = TestStore(initialState: initial) {
+        SignInFeature()
+      } withDependencies: {
+        $0.withRandomNumberGenerator = WithRandomNumberGenerator(Zeros())
+        $0.appleWebSignIn = AppleWebSignIn { request in
+          var callback = URLComponents(string: "tech.lil.health://apple-signin/")!
+          callback.queryItems = [
+            URLQueryItem(name: "id_token", value: "apple-token"),
+            URLQueryItem(name: "state", value: request.state),
+            URLQueryItem(
+              name: "user", value: #"{"name":{"firstName":"Ada","lastName":"Lovelace"}}"#),
+          ]
+          return .success(callback.url!)
+        }
+        $0.auth.signInWithApple = { credential, nonce in
+          #expect(
+            credential
+              == AppleCredential(
+                identityToken: "apple-token", givenName: "Ada", familyName: "Lovelace"))
+          #expect(nonce == zeroNonce)
+        }
+      }
+
+      await store.send(.appleWebButtonTapped) {
+        $0.nonce = zeroNonce
+        $0.appleWebRequest = request
+      }
+      await store.receive(\.appleWebAuthorizationFinished) {
+        $0.appleWebRequest = nil
+      }
+      await store.receive(\.appleAuthorizationFinished) {
+        $0.givenName = "Ada"
+        $0.familyName = "Lovelace"
+        $0.status = .signingIn
+      }
+      await store.receive(\.signInSucceeded) {
+        $0.nonce = nil
+        $0.givenName = nil
+        $0.familyName = nil
+        $0.status = .signedIn
+      }
+      await store.receive(\.delegate.signedIn)
+    }
+
+    @Test
+    func applesWebPageCanceledOrMismatched() async {
+      var initial = SignInFeature.State()
+      initial.appleWebAPI = URL(string: "https://api.lil.tech")!
+      let answer = LockIsolated<
+        @Sendable (AppleWebAuthorizationRequest) -> Result<
+          URL, SignInFeature.AppleAuthorizationError
+        >
+      >({ _ in .failure(.canceled) })
+      let store = TestStore(initialState: initial) {
+        SignInFeature()
+      } withDependencies: {
+        $0.withRandomNumberGenerator = WithRandomNumberGenerator(Zeros())
+        $0.appleWebSignIn = AppleWebSignIn { request in answer.value(request) }
+      }
+      store.exhaustivity = .off
+
+      // Closed: nothing happens.
+      await store.send(.appleWebButtonTapped)
+      await store.receive(\.appleAuthorizationFinished)
+      #expect(store.state.status == .signedOut)
+      #expect(store.state.nonce == nil)
+      #expect(store.state.appleWebRequest == nil)
+
+      // An answer to another request: refused.
+      answer.setValue { _ in
+        .success(URL(string: "tech.lil.health://apple-signin/?id_token=t&state=other")!)
+      }
+      await store.send(.appleWebButtonTapped)
+      await store.receive(\.appleAuthorizationFinished)
+      #expect(
+        store.state.status == .failed(SignInError.failed("Apple's answer didn't match").message))
+
+      // Cancelled on Apple's page, which the API passes on as an error.
+      answer.setValue { request in
+        .success(
+          URL(
+            string:
+              "tech.lil.health://apple-signin/?error=user_cancelled_authorize&state=\(request.state)"
+          )!)
+      }
+      await store.send(.appleWebButtonTapped)
+      await store.receive(\.appleAuthorizationFinished)
+      #expect(store.state.status == .signedOut)
+    }
+  #endif
+
   @Test
   func cancelingApplesSheet() async {
     let store = TestStore(initialState: SignInFeature.State()) {
