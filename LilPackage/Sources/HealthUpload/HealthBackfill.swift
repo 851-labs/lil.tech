@@ -179,8 +179,9 @@ public actor HealthBackfill {
   }
 
   /// Objects per anchored query. Pages are split into batch files below the server's limits.
-  /// Big pages make few uploads: each costs about the same whatever its size.
-  static let pageSize = 20_000
+  /// Big pages make few uploads, each costing about the same whatever its size. Two are in
+  /// memory at once (one uploading, the next read), so not bigger.
+  static let pageSize = 10_000
 
   public struct Progress: Equatable, Sendable {
     /// Types with nothing left to upload, as far as anyone can tell.
@@ -546,7 +547,9 @@ public actor HealthBackfill {
   /// while one uploads; it's only kept, and its anchor saved, once the one before is accepted.
   private func sync(_ type: HealthBackfillType, _ state: inout HealthBackfillState) async throws {
     var isLast = false
-    var next: Task<HealthPage, any Error>?
+    let limit = type.pageSize ?? Self.pageSize
+    /// The next page, being read, with how long the read took.
+    var next: Task<(HealthPage, Duration), any Error>?
     defer { next?.cancel() }
     while !isLast {
       try Task.checkCancellation()
@@ -558,12 +561,14 @@ public actor HealthBackfill {
         state.seriesFailures[type.id, default: 0] >= Self.seriesAttempts
       let readStart = ContinuousClock.now
       let page: HealthPage
+      let readTime: Duration
       do {
         if let read = next {
           next = nil
-          page = try await read.value
+          (page, readTime) = try await read.value
         } else {
-          page = try await reader.page(reading, anchor, type.pageSize ?? Self.pageSize)
+          page = try await reader.page(reading, anchor, limit)
+          readTime = ContinuousClock.now - readStart
         }
       } catch {
         BackfillLog.write(
@@ -572,7 +577,7 @@ public actor HealthBackfill {
         throw error
       }
       BackfillLog.write(
-        "read \(BackfillLog.name(type.id)): \(page.mutations.count) in \(BackfillLog.since(readStart))\(page.hasMore ? "" : ", last")"
+        "read \(BackfillLog.name(type.id)): \(page.mutations.count) in \(BackfillLog.seconds(readTime))\(page.hasMore ? "" : ", last")"
       )
       state.seriesFailures[type.id] = nil
       if page.mutations.isEmpty {
@@ -602,14 +607,34 @@ public actor HealthBackfill {
         try storage.saveFile(HealthBackfillState.PendingPage.blobFile(sha256), blob)
       }
       if page.hasMore {
-        // From where this page ends: its anchor is saved only once its upload is accepted.
+        // From where this page ends, as the loop would read it next: a good read clears the
+        // series failures, so nothing is skipped.
         var following = type
         following.skipsUnreadableSeries = false
         let reader = reader
         let from = page.anchor
-        next = Task { try await reader.page(following, from, type.pageSize ?? Self.pageSize) }
+        next = Task {
+          let start = ContinuousClock.now
+          let page = try await reader.page(following, from, limit)
+          return (page, ContinuousClock.now - start)
+        }
       }
-      try await upload(pending, &state)
+      do {
+        try await upload(pending, &state)
+      } catch {
+        // The read ahead stops before the run moves on, so it can't overlap the next type's.
+        next?.cancel()
+        _ = try? await next?.value
+        next = nil
+        throw error
+      }
+      // A page given up on (its files went missing) leaves the anchor where it was: the read
+      // ahead started past it, so it's dropped and the loop reads from the anchor again.
+      if state.anchors[type.id] != page.anchor, let read = next {
+        read.cancel()
+        _ = try? await read.value
+        next = nil
+      }
       isLast = pending.isLast
     }
   }

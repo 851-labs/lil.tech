@@ -50,8 +50,12 @@ public enum BackfillLog {
 
   /// Seconds since `start`, for messages.
   public static func since(_ start: ContinuousClock.Instant) -> String {
-    let duration = ContinuousClock.now - start
-    return (Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18)
+    seconds(ContinuousClock.now - start)
+  }
+
+  /// `1.25s`.
+  public static func seconds(_ duration: Duration) -> String {
+    (Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18)
       .formatted(.number.precision(.fractionLength(2))) + "s"
   }
 

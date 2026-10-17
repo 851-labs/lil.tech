@@ -177,7 +177,8 @@ struct HealthBackfillTests {
     }
 
     try await backfill.run()
-    #expect(overlapped.value == [true, true, true])
+    // The last upload has no next page to wait for.
+    #expect(overlapped.value.prefix(2) == [true, true])
     #expect(
       health.reads.value == ["BodyTemperature@0", "BodyTemperature@1", "BodyTemperature@2"])
     #expect(server.records.value.count == 9)
@@ -205,6 +206,34 @@ struct HealthBackfillTests {
       ])
     #expect(server.records.value.count == 9)
     #expect(try storage.loadState()?.anchors[temperature.id] == Data("3".utf8))
+  }
+
+  @Test
+  func aPageGivenUpOnIsReadAgainRatherThanSkipped() async throws {
+    let health = FakeHealth(pages: [temperature.id: 3])
+    let server = FakeServer()
+    // The second page's file goes missing once, so its upload gives the page up.
+    let memory = HealthBackfillStorage.inMemory()
+    let saved = LockIsolated(0)
+    var storage = memory
+    storage.saveFile = { name, data in
+      let count = saved.withValue {
+        $0 += 1
+        return $0
+      }
+      if count != 2 { try memory.saveFile(name, data) }
+    }
+    let backfill = makeBackfill([temperature], health: health, server: server, storage: storage)
+
+    try await backfill.run()
+    // Read again from the first page's anchor, not past the page given up on.
+    #expect(
+      health.reads.value == [
+        "BodyTemperature@0", "BodyTemperature@1", "BodyTemperature@2", "BodyTemperature@1",
+        "BodyTemperature@2",
+      ])
+    #expect(server.records.value.count == 9)
+    #expect(try storage.loadState()?.finished == [temperature.id])
   }
 
   @Test
