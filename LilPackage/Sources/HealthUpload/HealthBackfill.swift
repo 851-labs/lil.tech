@@ -178,10 +178,15 @@ public actor HealthBackfill {
     }
   }
 
-  /// Objects per anchored query. Pages are split into batch files below the server's limits.
-  /// Big pages make few uploads, each costing about the same whatever its size. Two are in
-  /// memory at once (one uploading, the next read), so not bigger.
-  static let pageSize = 10_000
+  /// Objects per anchored query. Two are in memory at once (one uploading, the next read), so
+  /// not bigger.
+  static let pageSize = 20_000
+  /// Records per batch file, so a page makes several that upload at once: an upload mostly
+  /// waits on the server (1–2 s, whatever its size), not the network. The server applies
+  /// batches in chunks of the same size.
+  static let batchRecords = 5_000
+  /// A page's batches uploaded at once.
+  static let batchConcurrency = 4
 
   public struct Progress: Equatable, Sendable {
     /// Types with nothing left to upload, as far as anyone can tell.
@@ -846,7 +851,7 @@ public actor HealthBackfill {
       }
       if !blobs.contains(where: { $0.sha256 == sha256 }) { blobs.append((sha256, blob)) }
     }
-    var writer = HealthBatchWriter()
+    var writer = HealthBatchWriter(maxRecords: Self.batchRecords)
     var files: [Data] = []
     // A record whose blob was skipped goes too, so none refers to a blob that never arrives.
     let mutations = page.mutations.filter { mutation in
@@ -920,17 +925,35 @@ public actor HealthBackfill {
     }
     if missingBlob { return try dropPage() }
     let uploading = ContinuousClock.now
+    // A page's few files, all loaded first: one missing drops the page.
+    var files: [(batch: String, file: Data)] = []
     for batch in pending.batches {
-      try Task.checkCancellation()
       guard let file = try storage.loadFile(batch) else { return try dropPage() }
-      do {
-        try await upload(batch, file)
-      } catch {
-        BackfillLog.write(
-          "upload \(BackfillLog.name(pending.type)) failed after \(BackfillLog.since(uploading)): \(error)"
-        )
-        throw error
+      files.append((batch, file))
+    }
+    // A few at a time, in any order: the anchor only moves once they're all accepted, and a
+    // batch that went up before a failure is known to the server by its ID when it's tried again.
+    do {
+      try await notingServerFailure { [files] in
+        try await withThrowingTaskGroup(of: Void.self) { group in
+          var queue = files[...]
+          func uploadNext() {
+            guard let (batch, file) = queue.popFirst() else { return }
+            group.addTask { [uploader, clock, delays] in
+              try await Self.retryingTransient(delays, clock: clock) {
+                try await uploader.upload(batch, file)
+              }
+            }
+          }
+          for _ in 0..<Self.batchConcurrency { uploadNext() }
+          while try await group.next() != nil { uploadNext() }
+        }
       }
+    } catch {
+      BackfillLog.write(
+        "upload \(BackfillLog.name(pending.type)) failed after \(BackfillLog.since(uploading)): \(error)"
+      )
+      throw error
     }
     BackfillLog.write(
       "uploaded \(BackfillLog.name(pending.type)): \(pending.records) records, \(pending.batches.count) batches, \(pending.blobs.count) blobs in \(BackfillLog.since(uploading))"

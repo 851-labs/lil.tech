@@ -17,11 +17,12 @@ private let heartRate = HealthBackfillType(id: "HKQuantityTypeIdentifierHeartRat
 private final class FakeHealth: Sendable {
   /// Each type's pages so far; adding one is new data.
   let pageCounts: LockIsolated<[String: Int]>
-  let perPage = 3
+  let perPage: Int
   let reads = LockIsolated<[String]>([])
 
-  init(pages: [String: Int]) {
+  init(pages: [String: Int], perPage: Int = 3) {
     self.pageCounts = LockIsolated(pages)
+    self.perPage = perPage
   }
 
   var reader: HealthReader {
@@ -210,6 +211,48 @@ struct HealthBackfillTests {
     // The last page has no next page to wait for.
     #expect(overlapped.value.prefix(2) == [true, true])
     #expect(server.records.value.count == 9)
+  }
+
+  @Test
+  func aPagesBatchesUploadAtOnce() async throws {
+    // Three batch files: two full, and one record.
+    let health = FakeHealth(
+      pages: [temperature.id: 1], perPage: 2 * HealthBackfill.batchRecords + 1)
+    let server = FakeServer()
+    let inFlight = LockIsolated(0)
+    let mostInFlight = LockIsolated(0)
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = health.reader
+      // Each upload waits (up to 2 s) for another to start, which only happens if they overlap.
+      $0.healthBatchUploader = HealthBatchUploader { id, file in
+        let now = inFlight.withValue {
+          $0 += 1
+          return $0
+        }
+        mostInFlight.withValue { $0 = max($0, now) }
+        var waited = 0
+        while mostInFlight.value < 2, waited < 200 {
+          try await Task.sleep(for: .milliseconds(10))
+          waited += 1
+        }
+        defer { inFlight.withValue { $0 -= 1 } }
+        try await server.uploader.upload(id, file)
+      }
+      $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [temperature])
+    }
+
+    try await backfill.run()
+    #expect(mostInFlight.value >= 2)
+    #expect(server.accepted.value.count == 3)
+    #expect(server.records.value.count == 2 * HealthBackfill.batchRecords + 1)
+    #expect(try storage.loadState()?.finished.contains(temperature.id) == true)
   }
 
   @Test

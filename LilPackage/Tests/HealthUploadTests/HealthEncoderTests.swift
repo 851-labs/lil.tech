@@ -489,6 +489,20 @@ struct HealthBatchWriterTests {
   }
 
   @Test
+  func cutsFilesByCount() throws {
+    var writer = HealthBatchWriter(maxRecords: 2)
+    var files: [Data] = []
+    for _ in 0..<5 {
+      if let file = try writer.append(mutation(10)) { files.append(file) }
+    }
+    if let file = try writer.finish() { files.append(file) }
+    let counts = try files.map {
+      try String(decoding: Gzip.decompress($0), as: UTF8.self).split(separator: "\n").count
+    }
+    #expect(counts == [2, 2, 1])
+  }
+
+  @Test
   func linesOverTheServersLimitAreRejected() throws {
     var writer = HealthBatchWriter()
     #expect(throws: HealthBatchWriter.LineTooLong.self) {
