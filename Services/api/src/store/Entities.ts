@@ -179,6 +179,7 @@ export const defineEntity = (
   });
   const columns = fields.map(({ column }) => `"${column}"`);
   const keyColumns = [...key.map(columnName), "id"];
+  const quotedKey = keyColumns.map((column) => `"${column}"`).join(", ");
   const fieldSchema = (type: Column) => {
     const schema = fieldSchemas[type.type];
     return type.nullable ? Schema.NullOr(schema) : schema;
@@ -215,13 +216,12 @@ export const defineEntity = (
     decodeFields: Schema.decodeUnknownResult(fieldsSchema) as Entity["decodeFields"],
     statements: {
       select: `SELECT ${["id", ...columns].join(", ")} FROM "${name}"
-        WHERE (${keyColumns.map((column) => `"${column}"`).join(", ")})
-          IN (SELECT ${keyColumns.map((_, index) => `value ->> ${index}`).join(", ")} FROM json_each(?))`,
+        WHERE (${quotedKey}) IN (SELECT ${keyColumns.map((_, index) => `value ->> ${index}`).join(", ")} FROM json_each(?))`,
       // `WHERE TRUE` tells SQLite's parser that `ON CONFLICT` isn't part of a join.
       upsert: `INSERT INTO "${name}" (${["id", ...columns].join(", ")})
         SELECT ${["id", ...columns].map((_, index) => `value ->> ${index}`).join(", ")}
           FROM json_each(?) WHERE TRUE
-        ON CONFLICT (${keyColumns.map((column) => `"${column}"`).join(", ")}) DO UPDATE SET ${columns.map((column) => `${column} = excluded.${column}`).join(", ")}`,
+        ON CONFLICT (${quotedKey}) DO UPDATE SET ${columns.map((column) => `${column} = excluded.${column}`).join(", ")}`,
       ...(key.length === 0 ? { delete: `DELETE FROM "${name}" WHERE id = ? RETURNING id` } : {}),
     },
   };

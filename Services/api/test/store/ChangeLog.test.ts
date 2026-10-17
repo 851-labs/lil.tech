@@ -5,6 +5,7 @@ import {
   readChanges,
   readHead,
   upsertGroupSize,
+  writeBytes,
 } from "../../src/store/ChangeLog.ts";
 import type { Mutation } from "../../src/store/Changes.ts";
 import { entities } from "../../src/store/Registry.ts";
@@ -230,16 +231,43 @@ describe("applyMutations", () => {
     }),
   );
 
-  it("applies upserts in groups of at most upsertGroupSize", () => {
+  it("applies an ID repeated right after a full group as a merge into the first", () => {
     const { sql } = makeStore();
     const entities = new Map([[note.name, note]]);
-    const count = upsertGroupSize * 2 + 1;
+    const first = Array.from({ length: upsertGroupSize }, (_, n) =>
+      upsert(`n${String(n).padStart(5, "0")}`),
+    );
     const result = applyMutations(
       sql,
       entities,
-      Array.from({ length: count }, (_, n) => upsert(`n${String(n).padStart(5, "0")}`)),
+      [...first, upsert("n00000", { title: "Renamed" }), upsert("n00001", { score: 3 })],
       0,
     );
+    assert.deepStrictEqual(result, { head: upsertGroupSize + 2, appended: upsertGroupSize + 2 });
+    assert.deepStrictEqual(
+      changes(sql)
+        .slice(-2)
+        .map((change) => change["row"]),
+      [
+        { id: "n00000", ...fields({ title: "Renamed" }) },
+        { id: "n00001", ...fields({ score: 3 }) },
+      ],
+    );
+  });
+
+  it("writes a group with big records in parts", () => {
+    const { sql } = makeStore();
+    const entities = new Map([[note.name, note]]);
+    // About 10 KB each: a group of 100 is several parts of `writeBytes`.
+    const big = ["x".repeat(10_000)];
+    const count = 100;
+    const result = applyMutations(
+      sql,
+      entities,
+      Array.from({ length: count }, (_, n) => upsert(`n${n}`, fields({ tags: big }))),
+      0,
+    );
+    assert.isAbove(count * 10_000, writeBytes * 2);
     assert.deepStrictEqual(result, { head: count, appended: count });
     assert.lengthOf(ids(sql), count);
     assert.deepStrictEqual(

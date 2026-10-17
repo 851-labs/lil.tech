@@ -69,6 +69,41 @@ const log = (sql: StoreSql) => {
 };
 
 describe("samples by type and start", () => {
+  it("finds, merges and revives a group's records by their key, in one call", () => {
+    const { sql, apply } = makeStore();
+    apply([sample(0), sample(1), sample(2)]);
+    apply([remove(1)]);
+    const result = apply([
+      sample(0, { value: 2.5 }),
+      sample(1, { value: 11 }),
+      sample(2),
+      sample(3),
+    ]);
+    // Sample 2 is unchanged, so nothing's appended for it.
+    assert.deepStrictEqual(result, { head: 7, appended: 3 });
+    assert.deepStrictEqual(stored(sql), [0, 1, 2, 3]);
+    assert.deepStrictEqual(tombstoned(sql), []);
+    assert.deepStrictEqual(
+      sql.exec("SELECT value, typeof(value) AS type FROM health_sample ORDER BY id"),
+      [
+        { value: 2.5, type: "real" },
+        { value: 11, type: "real" },
+        { value: 2, type: "real" },
+        { value: 3, type: "real" },
+      ],
+    );
+    assert.deepStrictEqual(
+      sql
+        .exec("SELECT id, op FROM changes WHERE seq > 4 ORDER BY seq")
+        .map((change) => [Number((change["id"] as string).slice(-12)), change["op"]]),
+      [
+        [0, "upsert"],
+        [1, "upsert"],
+        [3, "upsert"],
+      ],
+    );
+  });
+
   it("finds a sample by its type, start and ID, so re-uploading it changes nothing", () => {
     const { sql, apply } = makeStore();
     apply([sample(1), sample(2)]);
