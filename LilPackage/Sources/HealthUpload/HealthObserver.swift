@@ -44,11 +44,19 @@ extension HealthObserver: DependencyKey {
     return Self { types, onChange in
       let sampleTypes = types.compactMap { type in type.sampleType.map { (type.id, $0) } }
       // Every query first, so each type is watched before any delivery is turned on. Calling
-      // again (e.g. after Health access was granted) adds no second query for a type.
+      // again (e.g. after Health access was granted) adds no second query for a type, unless
+      // its query failed.
       for (id, sampleType) in sampleTypes where observed.withValue({ $0.insert(id).inserted }) {
         let query = HKObserverQuery(sampleType: sampleType, predicate: nil) {
-          _, completion, error in
-          guard error == nil else { return completion() }
+          query, completion, error in
+          if let error {
+            // E.g. at a fresh install's launch, before Health access was asked for. The query
+            // is over, so the type is watched again by the next call (after access is granted).
+            BackfillLog.write("observing \(id) failed: \(error.localizedDescription)")
+            store.stop(query)
+            observed.withValue { _ = $0.remove(id) }
+            return completion()
+          }
           let done = UncheckedSendable(completion)
           Task {
             await handle(id, onChange)
