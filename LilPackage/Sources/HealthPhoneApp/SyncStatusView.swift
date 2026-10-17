@@ -39,6 +39,12 @@ public struct SyncStatusView: View {
             "Health doesn't tell apps what you turned off. If a category stays empty, check its access in Settings."
           )
         }
+        #if targetEnvironment(simulator)
+          // Not in previews, which also run in the simulator.
+          if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
+            SyntheticHealthSection()
+          }
+        #endif
       }
       .navigationTitle("lil health")
       .disabled(store.isDeletingAccount || store.isWithdrawingConsent)
