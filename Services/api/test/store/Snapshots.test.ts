@@ -29,9 +29,10 @@ import {
 
 const day = 24 * 60 * 60 * 1000;
 /** Tiny parts and pages, so a handful of records spans several of each. */
-const policy = { ...snapshotPolicy, minChanges: 5, partRecords: 3, pageRows: 2 };
+const policy = { ...snapshotPolicy, minChanges: 5, partRecords: 3, pageRows: 2, quietPeriod: 0 };
 
 const note = testNoteMutation;
+const all = [...entities, testNote];
 const remove = (id: string): Mutation => ({ entity: "test_note", op: "delete", id });
 
 const makeFiles = makeTestSnapshotFiles;
@@ -183,7 +184,6 @@ describe("snapshots", () => {
     Effect.gen(function* () {
       const { sql, store, stored, files } = makeStore();
       yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
-      const all = [...entities, testNote];
       const now = yield* Clock.currentTimeMillis;
       // Write until it's in the middle of `test_note`, the last entity.
       for (let step = 0; step < 100; step++) {
@@ -203,7 +203,6 @@ describe("snapshots", () => {
     Effect.gen(function* () {
       const { sql, store, stored, files } = makeStore();
       yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
-      const all = [...entities, testNote];
       const now = yield* Clock.currentTimeMillis;
       // Up to `test_note`'s second part, which reads a page, gives up the event loop, then reads
       // another.
@@ -343,9 +342,11 @@ describe("the store's alarm", () => {
         Array.from({ length: snapshotPolicy.minChanges }, (_, n) => note(`n${n}`)),
       );
       const now = yield* Clock.currentTimeMillis;
-      assert.strictEqual(yield* Effect.promise(() => sql.getAlarm()), now + 1);
+      // Due, but changes just arrived: once they've stopped for the quiet period.
+      const quiet = now + snapshotPolicy.quietPeriod;
+      assert.strictEqual(yield* Effect.promise(() => sql.getAlarm()), quiet);
       yield* store.alarm();
-      assert.strictEqual(yield* Effect.promise(() => sql.getAlarm()), now + 1);
+      assert.strictEqual(yield* Effect.promise(() => sql.getAlarm()), quiet);
     }),
   );
 
@@ -360,6 +361,76 @@ describe("the store's alarm", () => {
         yield* store.alarm();
       }
       assert.isNotNull(latestSnapshot(sql));
+    }),
+  );
+
+  it.effect("waits for uploads to go quiet before snapshotting", () =>
+    Effect.gen(function* () {
+      const { sql, store, files } = makeStore();
+      const quiet = { ...policy, quietPeriod: 120_000 };
+      yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
+      const start = yield* Clock.currentTimeMillis;
+      // Due, but changes are still arriving: not yet.
+      assert.strictEqual(nextSnapshotAt(sql, start, quiet), start + 120_000);
+      assert.strictEqual(yield* writeSnapshotStep(sql, all, files, start, quiet), "idle");
+      // More arrive a minute later: the wait starts over from them.
+      yield* TestClock.adjust("1 minute");
+      yield* store.applyMutations([note("f")]);
+      const later = yield* Clock.currentTimeMillis;
+      assert.strictEqual(nextSnapshotAt(sql, later, quiet), later + 120_000);
+      // Two quiet minutes later, it's due.
+      yield* TestClock.adjust("2 minutes");
+      assert.strictEqual(nextSnapshotAt(sql, later + 120_000, quiet), later + 120_000);
+    }),
+  );
+
+  it.effect("snapshots a store that never goes quiet within the maximum deferral", () =>
+    Effect.gen(function* () {
+      const { sql, store } = makeStore();
+      const quiet = { ...policy, quietPeriod: 120_000, maxDeferral: 10 * 60_000 };
+      yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
+      const due = yield* Clock.currentTimeMillis;
+      // A change every minute, never two quiet minutes in a row.
+      for (let minute = 0; minute < 12; minute++) {
+        yield* TestClock.adjust("1 minute");
+        yield* store.applyMutations([note(`m${minute}`)]);
+      }
+      const now = yield* Clock.currentTimeMillis;
+      assert.strictEqual(nextSnapshotAt(sql, now, quiet), now);
+      assert.isAtLeast(now, due + quiet.maxDeferral);
+    }),
+  );
+
+  it.effect("a snapshot in progress pauses while uploads arrive", () =>
+    Effect.gen(function* () {
+      const { sql, store, stored, files } = makeStore();
+      yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
+      const now = yield* Clock.currentTimeMillis;
+      // Started with no quiet period, so it's under way.
+      assert.strictEqual(yield* writeSnapshotStep(sql, all, files, now, policy), "continue");
+      const quiet = { ...policy, quietPeriod: 120_000 };
+      yield* store.applyMutations([note("f")]);
+      const written = stored.size;
+      assert.strictEqual(yield* writeSnapshotStep(sql, all, files, now, quiet), "idle");
+      assert.strictEqual(stored.size, written);
+      assert.strictEqual(nextAlarmAt(sql, now, quiet), now + 120_000);
+    }),
+  );
+
+  it.effect("the more a store holds, the more must change before the next snapshot", () =>
+    Effect.gen(function* () {
+      const { sql, store, files } = makeStore();
+      const share = { ...policy, minChanges: 2, changeShare: 0.5 };
+      yield* store.applyMutations(["a", "b", "c", "d", "e", "f", "g", "h"].map((id) => note(id)));
+      yield* writeTestSnapshot(sql, files, share);
+      const week = 7 * day;
+      // 8 records: half of them must change. 3 changes aren't enough...
+      yield* store.applyMutations(["a", "b", "c"].map((id) => note(id, "edited")));
+      const now = yield* Clock.currentTimeMillis;
+      assert.strictEqual(nextSnapshotAt(sql, now, share), now + week);
+      // ...4 are.
+      yield* store.applyMutations([note("d", "edited")]);
+      assert.strictEqual(nextSnapshotAt(sql, now, share), now);
     }),
   );
 

@@ -10,10 +10,24 @@ import type { SqlRow, StoreSql } from "./StoreSql.ts";
 // log behind the latest snapshot and deleting replaced snapshots.
 
 export const snapshotPolicy = {
-  /** Write a snapshot once this many changes have happened since the last one... */
+  /**
+   * A snapshot is due once this share of the latest snapshot's records have changed since it,
+   * and at least `minChanges`. Rewriting a store of millions for a few thousand changes isn't
+   * worth it: a new device pulls those from the log.
+   */
+  changeShare: 0.25,
+  /** ...and at least this many changes... */
   minChanges: 50_000,
   /** ...or this long after the last one (or the first change), if anything changed. */
   maxAge: 7 * 24 * 60 * 60 * 1000,
+  /**
+   * A due snapshot waits until no changes have arrived for this long: during a bulk upload the
+   * store would otherwise rewrite everything stored so far, again and again, while the uploads
+   * and their applies wait their turn.
+   */
+  quietPeriod: 2 * 60 * 1000,
+  /** ...but no longer than this after it became due, so a store that never goes quiet still gets one. */
+  maxDeferral: 60 * 60 * 1000,
   /**
    * Records per part, so a failed download only retries one part. Each alarm writes one part,
    * and a store can do nothing else meanwhile, so it's small: about a second's work.
@@ -101,15 +115,44 @@ export const latestSnapshot = (sql: StoreSql): Snapshot | null => {
   return row === undefined ? null : toSnapshot(row);
 };
 
-/** The latest snapshot's `seq` and start, without reading its parts. */
+/** The latest snapshot's `seq`, start and number of records. */
 const latestSummary = (sql: StoreSql) => {
   const row = sql.exec(
-    latestQuery.replace("SELECT *", "SELECT seq, created_at"),
+    latestQuery.replace("SELECT *", "SELECT seq, created_at, entities"),
     readEpoch(sql),
   )[0];
-  return row === undefined
-    ? null
-    : { seq: row["seq"] as number, createdAt: row["created_at"] as number };
+  if (row === undefined) return null;
+  const entities = JSON.parse(row["entities"] as string) as Array<SnapshotEntity>;
+  return {
+    seq: row["seq"] as number,
+    createdAt: row["created_at"] as number,
+    records: entities.reduce(
+      (total, entity) => total + entity.parts.reduce((sum, part) => sum + part.records, 0),
+      0,
+    ),
+  };
+};
+
+/** When the newest change arrived, or `null` with an empty log. */
+const lastChangeAt = (sql: StoreSql) => {
+  const at = sql.exec("SELECT at FROM changes ORDER BY seq DESC LIMIT 1")[0]?.["at"];
+  return typeof at === "number" ? at : null;
+};
+
+/** When change `seq` (or the first after it still in the log) arrived. */
+const changeAt = (sql: StoreSql, seq: number) => {
+  const at = sql.exec("SELECT at FROM changes WHERE seq >= ? ORDER BY seq LIMIT 1", seq)[0]?.["at"];
+  return typeof at === "number" ? at : null;
+};
+
+/**
+ * Not before the store has been quiet for `quietPeriod`, but no later than `maxDeferral` after
+ * `due`.
+ */
+const deferWhileIngesting = (sql: StoreSql, due: number, now: number, policy: SnapshotPolicy) => {
+  const last = lastChangeAt(sql);
+  const quiet = last === null ? due : last + policy.quietPeriod;
+  return Math.max(now, due, Math.min(quiet, due + policy.maxDeferral));
 };
 
 /** The oldest change still in the log. `seq` and `at` both increase, so it's the first. */
@@ -127,9 +170,17 @@ export const nextSnapshotAt = (sql: StoreSql, now: number, policy = snapshotPoli
   const latest = latestSummary(sql);
   const covered = latest?.seq ?? 0;
   if (head <= covered) return null;
-  if (head - covered >= policy.minChanges) return now;
+  const enough = Math.max(
+    policy.minChanges,
+    Math.ceil((latest?.records ?? 0) * policy.changeShare),
+  );
   const since = latest?.createdAt ?? firstChange(sql)?.at ?? now;
-  return Math.max(now, since + policy.maxAge);
+  // Due when enough had changed (when the change that made it enough arrived), or at `maxAge`.
+  const due =
+    head - covered >= enough
+      ? Math.min(changeAt(sql, covered + enough) ?? now, since + policy.maxAge)
+      : since + policy.maxAge;
+  return deferWhileIngesting(sql, due, now, policy);
 };
 
 /** When upkeep is next due: compacting the log, or deleting a replaced snapshot. */
@@ -177,7 +228,8 @@ const saveJob = (sql: StoreSql, job: Job) =>
 
 /** When the store's alarm should next go off for snapshot work and upkeep, or `null`. */
 export const nextAlarmAt = (sql: StoreSql, now: number, policy = snapshotPolicy) => {
-  if (readJob(sql) !== null) return now;
+  // A snapshot in progress pauses while changes arrive, as starting one does.
+  if (readJob(sql) !== null) return deferWhileIngesting(sql, now, now, policy);
   const times = [nextSnapshotAt(sql, now, policy), nextUpkeepAt(sql, policy)].filter(
     (time): time is number => time !== null,
   );
@@ -291,6 +343,8 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
   policy: SnapshotPolicy = snapshotPolicy,
 ) {
   let job = readJob(sql);
+  // One in progress pauses while changes arrive, even when the alarm went off for other upkeep.
+  if (job !== null && deferWhileIngesting(sql, now, now, policy) > now) return "idle" as const;
   if (job === null) {
     if (nextSnapshotAt(sql, now, policy) !== now) return "idle" as const;
     const snapshotId = yield* makeId("snp");
