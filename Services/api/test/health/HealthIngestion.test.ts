@@ -683,6 +683,31 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHeal
     }),
   );
 
+  it.effect("refuses a device's records at once when it signs out during the batch", () =>
+    Effect.gen(function* () {
+      // A device of its own, so other tests' devices stay signed in.
+      const device = "dev_000000000000000000000000sx" as DeviceId;
+      const statistics = Array.from({ length: healthChunkSize * 2 }, (_, index) =>
+        statistic(1760400000000 + (index + 1000) * 1_800_000, index),
+      );
+      const lines = [...statistics, sample(70_000)];
+      const store = (yield* UserStores).forUser(userId);
+      let calls = 0;
+      const { batch } = yield* withApplyMutations(
+        ingest(lines, newBatchId(), device),
+        (call, apply) =>
+          Effect.gen(function* () {
+            calls = call;
+            if (call === 1) yield* store.retireDevice(device);
+            return yield* apply;
+          }),
+      );
+      assert.deepInclude(batch, { status: "applied", applied: 1, rejected: statistics.length });
+      // The chunk being applied and the one read meanwhile are refused a call each.
+      assert.isAtMost(calls, 3);
+    }),
+  );
+
   it.effect("fails a batch that isn't gzip, or whose file is gone", () =>
     Effect.gen(function* () {
       const { files } = yield* TestHealthOutbox;

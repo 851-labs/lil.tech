@@ -2,6 +2,7 @@ import { Clock, Context, Effect, Fiber, Option, Result, Schema } from "effect";
 import type { DeviceId, UserId } from "../core/Ids.ts";
 import { Mutation } from "../store/Changes.ts";
 import { stampDevice } from "../store/Entities.ts";
+import { deviceSignedOut } from "../store/RetiredDevices.ts";
 import { Users } from "../core/Users.ts";
 import { UserStores } from "../store/UserStores.ts";
 import type { HealthBatch, RejectedLine } from "./HealthBatches.ts";
@@ -58,7 +59,10 @@ export class HealthBatchQueue extends Context.Service<
  * each costs a round trip, so big batches are applied in few of them (`docs/SYNC.md`).
  */
 export const healthChunkSize = 5_000;
-/** The most line text per store call, so a call stays well under the RPC message limit. */
+/**
+ * The most line text per store call, in characters, so a call stays well under the RPC message
+ * limit (32 MiB) even if every character takes 4 bytes.
+ */
 export const healthChunkBytes = 4 * 1024 * 1024;
 /** The most a batch may decompress to. Lines are read as a stream, so this bounds work, not memory. */
 export const maxDecompressedBatchBytes = 64 * 1024 * 1024;
@@ -96,7 +100,7 @@ const parseLine = (
   if (entity.deviceScoped !== undefined) {
     if (deviceId === undefined) return Result.fail(`${entity.name} needs the uploading device`);
     // Its records were deleted when it signed out (`docs/SYNC.md`), and mustn't come back.
-    if (deviceRetired) return Result.fail("The device signed out");
+    if (deviceRetired) return Result.fail(deviceSignedOut);
     if (!entity.deviceScoped.id.test(mutation.id)) {
       return Result.fail(`Invalid ${entity.name} ID ${mutation.id}`);
     }
@@ -206,11 +210,12 @@ const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessag
   const key = healthBatchKey(message.userId, message.batchId);
 
   // Checked once for the batch: all its device-scoped lines are from the same device.
-  const { batch: begun, deviceRetired } = yield* store.beginHealthBatch(
+  const { batch: begun, deviceRetired: retiredAtStart } = yield* store.beginHealthBatch(
     message.batchId,
     message.deviceId,
   );
   if (begun.status !== "applying") return undefined;
+  let deviceRetired = retiredAtStart;
   const { receivedAt } = begun;
   const startedAt = yield* Clock.currentTimeMillis;
   const finish = (batch: Omit<HealthBatch, "id" | "receivedAt" | "finishedAt">) =>
@@ -223,14 +228,15 @@ const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessag
         finishedAt,
       });
       yield* files.delete(key);
-      // The apply rate, in the message itself: Workers Logs keeps only the text.
+      // The apply rate, in the message itself: Workers Logs keeps only the text. The wait since
+      // the upload includes any earlier attempts.
       if (batch.status === "applied") {
-        const lines = batch.lines ?? 0;
+        const applied = batch.applied ?? 0;
         const applyMs = finishedAt - startedAt;
-        const rate = Math.round(lines / (Math.max(applyMs, 1) / 1000));
+        const rate = Math.round(applied / (Math.max(applyMs, 1) / 1000));
         yield* Effect.logInfo(
-          `Health batch applied: ${lines} lines in ${applyMs} ms, ${rate} items/s, ` +
-            `after ${startedAt - receivedAt} ms queued`,
+          `Health batch applied: ${applied} of ${batch.lines ?? 0} lines in ${applyMs} ms, ` +
+            `${rate} items/s, ${startedAt - receivedAt} ms after it was received`,
         );
       }
       return bytes;
@@ -260,6 +266,20 @@ const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessag
       }
       const error = result.failure;
       if (error._tag !== "InvalidMutation") return yield* error;
+      // The device signed out while the batch was being applied: all its records are refused
+      // at once, rather than one store call each.
+      if (error.message === deviceSignedOut) {
+        deviceRetired = true;
+        const kept = chunk.filter(({ line, mutation }) => {
+          const refused =
+            mutation.op === "upsert" &&
+            healthEntitiesByName.get(mutation.entity)?.deviceScoped !== undefined;
+          if (refused) rejected.push({ line, message: error.message });
+          return !refused;
+        });
+        chunk.splice(0, chunk.length, ...kept);
+        continue;
+      }
       const [invalid] = chunk.splice(error.index, 1);
       if (invalid !== undefined) rejected.push({ line: invalid.line, message: error.message });
     }

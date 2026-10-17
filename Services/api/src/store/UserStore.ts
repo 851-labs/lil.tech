@@ -39,6 +39,7 @@ import {
 } from "./Snapshots.ts";
 import { entities } from "./Registry.ts";
 import {
+  deviceSignedOut,
   hasRetiringDevices,
   markRetired,
   retiredAmong,
@@ -154,6 +155,7 @@ export const makeUserStore = (
       Effect.map((now) => readHealthBatch(sql, id, now)),
     );
 
+  const isRetired = (device: string) => retiredAmong(sql, new Set([device])).size > 0;
   /** Whether a retired device still has records to delete, kept so writes don't have to ask. */
   let retiring = hasRetiringDevices(sql);
 
@@ -200,7 +202,7 @@ export const makeUserStore = (
         yield* scheduleAlarm(now);
       }),
     /** Whether a device was retired, so its records are refused. */
-    isRetired: (device: string) => Effect.sync(() => retiredAmong(sql, new Set([device])).size > 0),
+    isRetired: (device: string) => Effect.sync(() => isRetired(device)),
     /** The store's schema version, which can be newer than this code's after a rollback. */
     schemaVersion: () => Effect.sync(() => schemaVersion(sql)),
     /**
@@ -300,9 +302,7 @@ export const makeUserStore = (
             receivedAt: known?.receivedAt ?? at,
           };
           saveHealthBatch(sql, batch, at);
-          const deviceRetired =
-            device !== undefined && retiredAmong(sql, new Set([device])).size > 0;
-          return { batch, deviceRetired };
+          return { batch, deviceRetired: device !== undefined && isRetired(device) };
         }),
       ),
     /** Records a health batch's outcome, and returns the storage the account now takes. */
@@ -325,7 +325,7 @@ export const makeUserStore = (
           yield* ensureRoom(storageHardLimitBytes);
         }
         // A retired device's records are deleted, and mustn't come back. Ingestion drops them
-        // first (`isRetired`), so this is a backstop.
+        // first (`beginHealthBatch`), so this is a backstop.
         const deviceOf = (mutation: Mutation) =>
           mutation.op === "upsert" &&
           entitiesByName.get(mutation.entity)?.deviceScoped !== undefined &&
@@ -341,7 +341,7 @@ export const makeUserStore = (
           return device !== undefined && retired.has(device);
         });
         if (index !== -1) {
-          return yield* new InvalidMutation({ index, message: "The device signed out" });
+          return yield* new InvalidMutation({ index, message: deviceSignedOut });
         }
         const at = yield* Clock.currentTimeMillis;
         const applied = yield* Effect.suspend(() => {
