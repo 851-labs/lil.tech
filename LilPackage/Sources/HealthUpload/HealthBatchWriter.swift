@@ -2,11 +2,12 @@ public import Foundation
 import GzipFiles
 
 /// Collects mutations into gzip NDJSON batch files (`docs/SYNC.md`). Files are cut by
-/// uncompressed size: at most 4 MB, well under the server's 16 MB compressed and 64 MB
-/// decompressed limits whatever the data (DEFLATE barely expands anything), and small enough for
-/// the iPhone's memory limits in the background.
+/// uncompressed size: at most 15 MB, under the server's 16 MB compressed and 64 MB decompressed
+/// limits whatever the data (DEFLATE expands incompressible data by well under 1%). That fits a
+/// whole page of samples (about 5 MB for 10,000), so a page is one upload: the server takes about
+/// as long for one batch of 2,000 as of 20,000.
 public struct HealthBatchWriter {
-  public static let maxFileBytes = 4 * 1024 * 1024
+  public static let maxFileBytes = 15 * 1024 * 1024
   /// The server rejects longer lines.
   public static let maxLineBytes = 1024 * 1024
 
@@ -26,7 +27,8 @@ public struct HealthBatchWriter {
 
   public init(maxFileBytes: Int = Self.maxFileBytes) {
     self.maxFileBytes = maxFileBytes
-    lines.reserveCapacity(maxFileBytes)
+    // Most files are far smaller than the limit (characteristics, a chunk of sums).
+    lines.reserveCapacity(min(maxFileBytes, 1024 * 1024))
   }
 
   /// Mutations waiting for the next file.
