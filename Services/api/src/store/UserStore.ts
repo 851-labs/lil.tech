@@ -159,6 +159,30 @@ export const makeUserStore = (
   /** Whether a retired device still has records to delete, kept so writes don't have to ask. */
   let retiring = hasRetiringDevices(sql);
 
+  /**
+   * Deletes everything in a store marked for deletion and its snapshot files, from the alarm,
+   * logging each step. Connected clients then see `head` go back to 0 and start over; their
+   * sockets still close when their tokens expire.
+   */
+  const wipe = Effect.fnUntraced(function* () {
+    const started = yield* Clock.currentTimeMillis;
+    const keys = allSnapshotKeys(sql);
+    yield* files.delete(keys);
+    const filesDeleted = yield* Clock.currentTimeMillis;
+    yield* Effect.logInfo(
+      `Deleting the store: ${keys.length} snapshot files deleted in ${filesDeleted - started} ms`,
+    );
+    yield* Effect.promise(() => sql.deleteAll());
+    alarmAt = null;
+    migrate(sql);
+    sql.exec("INSERT INTO meta (key, value) VALUES ('deleted', 1)");
+    retiring = false;
+    const now = yield* Clock.currentTimeMillis;
+    yield* Effect.logInfo(`Deleting the store: its database deleted in ${now - filesDeleted} ms`);
+    yield* notices.announce(now);
+    yield* scheduleAlarm(now, { afterAlarm: true, sockets: true });
+  });
+
   /** When the alarm is set for, once known, so most writes don't have to ask. */
   let alarmAt: number | null | undefined;
   /**
@@ -206,24 +230,25 @@ export const makeUserStore = (
     /** The store's schema version, which can be newer than this code's after a rollback. */
     schemaVersion: () => Effect.sync(() => schemaVersion(sql)),
     /**
-     * Deletes everything in the store and its snapshot files, for account deletion, leaving it
-     * empty at the latest schema and marked deleted: writes fail with `AccountDeleted` from then
-     * on (user IDs are never reused). It's idempotent, so a call that fails partway can be
-     * retried.
+     * Deletes the store, for account deletion. It's marked deleted at once, so writes fail with
+     * `AccountDeleted` from then on (user IDs are never reused), and a snapshot being written
+     * stops. The alarm then deletes everything in it and its snapshot files (`wipe`), however
+     * long a big store takes, leaving it empty at the latest schema. Idempotent.
      */
     deleteAll: () =>
       Effect.gen(function* () {
-        yield* files.delete(allSnapshotKeys(sql));
-        yield* Effect.promise(() => sql.deleteAll());
-        alarmAt = null;
-        migrate(sql);
-        sql.exec("INSERT INTO meta (key, value) VALUES ('deleted', 1)");
+        if (readMeta(sql, "wiping", 0) === 1 || (deleted && readHead(sql) === 0)) return;
+        sql.transaction(() => {
+          sql.exec(
+            `INSERT INTO meta (key, value) VALUES ('deleted', 1), ('wiping', 1)
+              ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+          );
+          sql.exec("DELETE FROM snapshot_job");
+        });
         deleted = true;
-        // Connected clients see `head` go back to 0 and start over; their sockets still close
-        // when their tokens expire.
         const now = yield* Clock.currentTimeMillis;
-        yield* notices.announce(now);
-        yield* scheduleAlarm(now, { sockets: true });
+        yield* Effect.promise(() => sql.setAlarm(now + 1));
+        alarmAt = now + 1;
       }),
     /** A page of the change log (see `readChanges`). */
     readChanges: (after: number, limit: number) =>
@@ -389,6 +414,7 @@ export const makeUserStore = (
     alarm: () =>
       Effect.gen(function* () {
         alarmAt = null;
+        if (readMeta(sql, "wiping", 0) === 1) return yield* wipe();
         const now = yield* Clock.currentTimeMillis;
         yield* notices.closeExpired(now);
         yield* writeSnapshotStep(sql, registry, files, now);

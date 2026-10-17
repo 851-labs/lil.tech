@@ -225,6 +225,8 @@ describe("snapshots", () => {
       );
       assert.strictEqual(result, "idle");
       assert.strictEqual(puts, 0);
+      // The alarm deletes the parts written before.
+      yield* store.alarm();
       assert.strictEqual(stored.size, 0);
     }),
   );
@@ -473,6 +475,7 @@ describe("the store's alarm", () => {
       yield* writeSnapshot(sql, files);
       assert.isAbove(stored.size, 0);
       yield* store.deleteAll();
+      yield* store.alarm();
       assert.strictEqual(stored.size, 0);
     }),
   );

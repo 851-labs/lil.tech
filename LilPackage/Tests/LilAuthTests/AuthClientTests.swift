@@ -137,6 +137,17 @@ struct AuthClientTests {
     await #expect(throws: AccountDeletionError.unavailable) { try await auth.deleteAccount() }
     #expect(try store.load() == session(1))
   }
+
+  /// A server too slow to answer isn't the device being offline.
+  @Test
+  func aTimedOutDeletionIsntOffline() async throws {
+    let (auth, _) = makeAuth(stored: session(1)) { _, _ in throw URLError(.timedOut) }
+    await #expect(throws: AccountDeletionError.unavailable) { try await auth.deleteAccount() }
+    let (offline, _) = makeAuth(stored: session(1)) { _, _ in
+      throw URLError(.notConnectedToInternet)
+    }
+    await #expect(throws: AccountDeletionError.offline) { try await offline.deleteAccount() }
+  }
 }
 
 /// The live client, signed in as `stored` (or signed out), talking to a server that answers
