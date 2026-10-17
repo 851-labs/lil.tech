@@ -67,8 +67,10 @@
       progress report: @escaping @Sendable (Int) async -> Void
     ) async throws -> Int {
       let store = HKHealthStore()
-      try await store.requestAuthorization(
-        toShare: Set(series.map { HKQuantityType($0.0) }), read: [])
+      // Read too: asked about writing alone, Health turns off reading the same types, and the
+      // app would stop hearing about them.
+      let types = Set(series.map { HKQuantityType($0.0) })
+      try await store.requestAuthorization(toShare: types, read: types)
       let defaults = UserDefaults.standard
       var progress: Progress
       if let saved = defaults.data(forKey: progressKey),
