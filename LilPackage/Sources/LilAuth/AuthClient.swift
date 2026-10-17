@@ -121,6 +121,11 @@ public struct AuthClient: Sendable {
   public var deleteAccount: @Sendable () async throws(AccountDeletionError) -> Void
   /// Whether the app is signed in, now and after every change.
   public var signedInUpdates: @Sendable () async -> AsyncStream<Bool>
+  /// Signs in to a synthetic account on a preview deployment, by name, made the first time, so
+  /// an iPhone and a Mac can share it (`POST /v1/auth/dev`, which only previews have). For
+  /// checking sync end to end with synthetic data, from simulator and Debug Mac builds pointed at
+  /// a preview (`APIEnvironment`).
+  public var signInToTestAccount: @Sendable (_ account: String) async throws(SignInError) -> Void
 
   public init(
     signInWithApple:
@@ -130,8 +135,10 @@ public struct AuthClient: Sendable {
       @escaping @Sendable (_ idToken: String, _ nonce: String) async throws(SignInError) -> Void,
     signOut: @escaping @Sendable () async -> Void,
     deleteAccount: @escaping @Sendable () async throws(AccountDeletionError) -> Void,
-    signedInUpdates: @escaping @Sendable () async -> AsyncStream<Bool>
+    signedInUpdates: @escaping @Sendable () async -> AsyncStream<Bool>,
+    signInToTestAccount: @escaping @Sendable (_ account: String) async throws(SignInError) -> Void
   ) {
+    self.signInToTestAccount = signInToTestAccount
     self.deleteAccount = deleteAccount
     self.signInWithApple = signInWithApple
     self.signInWithGoogle = signInWithGoogle
@@ -164,6 +171,7 @@ extension AuthClient: DependencyKey {
       case .unavailable: throw .unavailable
       case .signUpUnavailableInRegion: throw .signUpUnavailableInRegion
       case .unexpected(let statusCode): throw .failed("HTTP \(statusCode)")
+      case .refused(let reason): throw .failed(reason)
       }
     }
     return Self(
@@ -229,7 +237,28 @@ extension AuthClient: DependencyKey {
           throw statusCode >= 500 ? .unavailable : .failed
         }
       },
-      signedInUpdates: { await sessions.signedInUpdates() }
+      signedInUpdates: { await sessions.signedInUpdates() },
+      signInToTestAccount: { account throws(SignInError) in
+        guard case .preview(let base) = APIEnvironment.current() else { throw .unavailable }
+        try await signIn {
+          var request = URLRequest(url: base.appending(path: "v1/auth/dev"))
+          request.httpMethod = "POST"
+          request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+          request.httpBody = try JSONEncoder().encode([
+            "account": account, "app": device.app, "platform": device.platform.rawValue,
+          ])
+          let (data, response) = try await URLSession.shared.data(for: request)
+          switch (response as? HTTPURLResponse)?.statusCode ?? 0 {
+          case 200:
+            return .signedIn(
+              try? JSONDecoder().decode(Components.Schemas.TokenPair.self, from: data))
+          case let status:
+            // The server's reason, e.g. that the stage has too many users.
+            let reason = try? JSONDecoder().decode([String: String].self, from: data)["message"]
+            return .refused(reason ?? "HTTP \(status)")
+          }
+        }
+      }
     )
   }
 
@@ -238,7 +267,8 @@ extension AuthClient: DependencyKey {
     signInWithGoogle: { _, _ throws(SignInError) in },
     signOut: {},
     deleteAccount: { () throws(AccountDeletionError) in },
-    signedInUpdates: { AsyncStream { $0.yield(false) } }
+    signedInUpdates: { AsyncStream { $0.yield(false) } },
+    signInToTestAccount: { _ throws(SignInError) in }
   )
 
   public static var testValue: Self {
@@ -256,6 +286,9 @@ extension AuthClient: DependencyKey {
       signedInUpdates: {
         reportIssue("Unimplemented: @Dependency(\\.auth).signedInUpdates")
         return AsyncStream { $0.finish() }
+      },
+      signInToTestAccount: { _ throws(SignInError) in
+        reportIssue("Unimplemented: @Dependency(\\.auth).signInToTestAccount")
       }
     )
   }
@@ -268,4 +301,6 @@ private enum SignInOutcome {
   case unavailable
   case signUpUnavailableInRegion
   case unexpected(Int)
+  /// Refused, with the server's reason.
+  case refused(String)
 }

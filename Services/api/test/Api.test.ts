@@ -590,6 +590,43 @@ describe("POST /v1/auth/dev", () => {
     );
   }
 
+  it.live("signs devices in to the same named account", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const me = (token: string) =>
+            send(handler, new Request("https://api.lil.tech/v1/me", { headers: bearer(token) }));
+          const phone = (yield* devSignIn(handler, { account: "e2e", platform: "ios" })).body as {
+            accessToken: string;
+          };
+          const mac = (yield* devSignIn(handler, { account: "e2e" })).body as {
+            accessToken: string;
+          };
+          const other = (yield* devSignIn(handler, { account: "other" })).body as {
+            accessToken: string;
+          };
+          const [a, b, c] = [
+            (yield* me(phone.accessToken)).body as { id: string; displayName: string },
+            (yield* me(mac.accessToken)).body as { id: string },
+            (yield* me(other.accessToken)).body as { id: string },
+          ];
+          assert.strictEqual(a.id, b.id);
+          assert.strictEqual(a.displayName, "e2e");
+          assert.notStrictEqual(a.id, c.id);
+          // A full stage still lets an existing account sign in.
+          const users = yield* Users;
+          yield* Effect.forEach(
+            Array.from({ length: maxDevUsers }),
+            () => users.create({ displayName: null }),
+            { discard: true },
+          );
+          assert.strictEqual((yield* devSignIn(handler, { account: "e2e" })).status, 200);
+          assert.strictEqual((yield* devSignIn(handler, { account: "new" })).status, 429);
+        }),
+      { environment: "preview", version: "1" },
+    ),
+  );
+
   it.live("refuses once the stage has too many users", () =>
     withApi(
       (handler) =>

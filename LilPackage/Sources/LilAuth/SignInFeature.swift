@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 public import Foundation
+import LilAPI
 
 /// Signing in with Apple (the stock button) or Google (in the browser), then exchanging the
 /// provider's token for a session.
@@ -30,6 +31,10 @@ public struct SignInFeature {
     /// Whether the app has a Google OAuth client, so the Google button is shown.
     public var isGoogleAvailable: Bool
 
+    /// Whether the app talks to a preview deployment, where it can sign in to a synthetic test
+    /// account (`AuthClient.signInToTestAccount`).
+    public var isTestAccountAvailable: Bool
+
     public init(
       status: Status = .signedOut, nonce: String? = nil,
       googleRequest: GoogleAuthorizationRequest? = nil
@@ -39,6 +44,11 @@ public struct SignInFeature {
       self.nonce = nonce
       self.googleRequest = googleRequest
       self.isGoogleAvailable = googleOAuth.clientID != nil
+      if case .preview = APIEnvironment.current() {
+        self.isTestAccountAvailable = true
+      } else {
+        self.isTestAccountAvailable = false
+      }
     }
 
     /// Starting another try clears the last one's error.
@@ -57,6 +67,8 @@ public struct SignInFeature {
     case appleButtonTapped
     case appleAuthorizationFinished(Result<AppleCredential, AppleAuthorizationError>)
     case googleButtonTapped
+    /// Signs in to the synthetic account shared by test devices, on a preview deployment.
+    case testAccountButtonTapped
     /// The browser came back with Google's redirect.
     case googleAuthorizationFinished(Result<URL, GoogleAuthorizationError>)
     case signInSucceeded
@@ -76,6 +88,9 @@ public struct SignInFeature {
   }
 
   enum CancelID { case google }
+
+  /// The synthetic account test devices sign in to, so an iPhone and a Mac share it.
+  public static let testAccount = "e2e"
 
   @Dependency(\.auth) var auth
   @Dependency(\.googleOAuth) var googleOAuth
@@ -137,6 +152,22 @@ public struct SignInFeature {
           await send(.googleAuthorizationFinished(await googleOAuth.authorize(request)))
         }
         .cancellable(id: CancelID.google, cancelInFlight: true)
+
+      case .testAccountButtonTapped:
+        // Instead of a Google sign-in still open in the browser.
+        state.googleRequest = nil
+        state.status = .signingIn
+        return .merge(
+          .cancel(id: CancelID.google),
+          .run { [auth] send in
+            do throws(SignInError) {
+              try await auth.signInToTestAccount(SignInFeature.testAccount)
+              await send(.signInSucceeded)
+            } catch {
+              await send(.signInFailed(error))
+            }
+          }
+        )
 
       case .googleAuthorizationFinished(.success(let callback)):
         guard let request = state.googleRequest else { return .none }
