@@ -159,10 +159,11 @@ public actor HealthBackfill {
 
   /// Runs uploads that retry with `retryDelays`, noting whether the server was still failing
   /// after them.
-  private func notingServerFailure(_ uploads: () async throws -> Void) async throws {
+  private func notingServerFailure<T>(_ uploads: () async throws -> T) async throws -> T {
     do {
-      try await uploads()
+      let result = try await uploads()
       serverFailing = false
+      return result
     } catch  where Self.isTransient(error) {
       serverFailing = true
       throw error
@@ -178,10 +179,14 @@ public actor HealthBackfill {
     }
   }
 
-  /// Objects per anchored query. Pages are split into batch files below the server's limits.
-  /// Big pages make few uploads, each costing about the same whatever its size. Two are in
-  /// memory at once (one uploading, the next read), so not bigger.
+  /// Objects per anchored query. Two are in memory at once (one uploading, the next read), so
+  /// not bigger.
   static let pageSize = 10_000
+  /// Records per batch file, so a page makes several that upload at once: an upload mostly
+  /// waits on the server (1–2 s, whatever its size), not the network.
+  static let batchRecords = 2_500
+  /// A page's batches uploaded at once.
+  static let batchConcurrency = 4
 
   public struct Progress: Equatable, Sendable {
     /// Types with nothing left to upload, as far as anyone can tell.
@@ -846,7 +851,7 @@ public actor HealthBackfill {
       }
       if !blobs.contains(where: { $0.sha256 == sha256 }) { blobs.append((sha256, blob)) }
     }
-    var writer = HealthBatchWriter()
+    var writer = HealthBatchWriter(maxRecords: Self.batchRecords)
     var files: [Data] = []
     // A record whose blob was skipped goes too, so none refers to a blob that never arrives.
     let mutations = page.mutations.filter { mutation in
@@ -920,18 +925,46 @@ public actor HealthBackfill {
     }
     if missingBlob { return try dropPage() }
     let uploading = ContinuousClock.now
-    for batch in pending.batches {
-      try Task.checkCancellation()
-      guard let file = try storage.loadFile(batch) else { return try dropPage() }
-      do {
-        try await upload(batch, file)
-      } catch {
-        BackfillLog.write(
-          "upload \(BackfillLog.name(pending.type)) failed after \(BackfillLog.since(uploading)): \(error)"
-        )
-        throw error
+    // A few at a time, in any order: the anchor only moves once they're all accepted, and a
+    // batch that went up before a failure is known to the server by its ID when it's tried again.
+    // A page's records are each its own object (HealthKit's are immutable), so their order
+    // doesn't matter. Each file is loaded as it goes up; one missing drops the page.
+    var missingBatch = false
+    do {
+      // Read now: the blobs' uploads above may have found the server answering again.
+      let delays = retryDelays
+      missingBatch = try await notingServerFailure {
+        try await withThrowingTaskGroup(of: Bool.self) { group in
+          var queue = pending.batches[...]
+          func uploadNext() {
+            guard let batch = queue.popFirst() else { return }
+            group.addTask { [storage, uploader, clock] in
+              try Task.checkCancellation()
+              guard let file = try storage.loadFile(batch) else { return false }
+              try await Self.retryingTransient(delays, clock: clock) {
+                try await uploader.upload(batch, file)
+              }
+              return true
+            }
+          }
+          for _ in 0..<Self.batchConcurrency { uploadNext() }
+          while let uploaded = try await group.next() {
+            guard uploaded else {
+              group.cancelAll()
+              return true
+            }
+            uploadNext()
+          }
+          return false
+        }
       }
+    } catch {
+      BackfillLog.write(
+        "upload \(BackfillLog.name(pending.type)) failed after \(BackfillLog.since(uploading)): \(error)"
+      )
+      throw error
     }
+    if missingBatch { return try dropPage() }
     BackfillLog.write(
       "uploaded \(BackfillLog.name(pending.type)): \(pending.records) records, \(pending.batches.count) batches, \(pending.blobs.count) blobs in \(BackfillLog.since(uploading))"
     )

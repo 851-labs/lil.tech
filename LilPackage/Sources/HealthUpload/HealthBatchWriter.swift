@@ -3,9 +3,8 @@ import GzipFiles
 
 /// Collects mutations into gzip NDJSON batch files (`docs/SYNC.md`). Files are cut by
 /// uncompressed size: at most 15 MB, under the server's 16 MB compressed and 64 MB decompressed
-/// limits whatever the data (DEFLATE expands incompressible data by well under 1%). That fits a
-/// whole page of samples (about 5 MB for 10,000), so a page is one upload: the server takes about
-/// as long for one batch of 2,000 as of 20,000.
+/// limits whatever the data (DEFLATE expands incompressible data by well under 1%). They can also
+/// be cut by count (`maxRecords`), so a page makes several files that upload at once.
 public struct HealthBatchWriter {
   public static let maxFileBytes = 15 * 1024 * 1024
   /// The server rejects longer lines.
@@ -17,6 +16,8 @@ public struct HealthBatchWriter {
   }
 
   public let maxFileBytes: Int
+  /// Mutations per file at most.
+  public let maxRecords: Int
   private var lines = Data()
   private var count = 0
   private let encoder: JSONEncoder = {
@@ -25,8 +26,9 @@ public struct HealthBatchWriter {
     return encoder
   }()
 
-  public init(maxFileBytes: Int = Self.maxFileBytes) {
+  public init(maxFileBytes: Int = Self.maxFileBytes, maxRecords: Int = .max) {
     self.maxFileBytes = maxFileBytes
+    self.maxRecords = maxRecords
     // Most files are far smaller than the limit (characteristics, a chunk of sums).
     lines.reserveCapacity(min(maxFileBytes, 1024 * 1024))
   }
@@ -34,14 +36,15 @@ public struct HealthBatchWriter {
   /// Mutations waiting for the next file.
   public var pendingCount: Int { count }
 
-  /// Adds a mutation. Returns a finished file when this one wouldn't fit in the current file.
+  /// Adds a mutation. Returns a finished file when this one wouldn't fit in the current file, or
+  /// it already holds `maxRecords`.
   public mutating func append(_ mutation: HealthMutation) throws -> Data? {
     let line = try encoder.encode(mutation)
     guard line.count <= Self.maxLineBytes else {
       throw LineTooLong(entity: mutation.entity, id: mutation.id)
     }
     var finished: Data?
-    if count > 0, lines.count + 1 + line.count > maxFileBytes {
+    if count >= maxRecords || (count > 0 && lines.count + 1 + line.count > maxFileBytes) {
       finished = try finish()
     }
     if count > 0 { lines.append(0x0a) }
