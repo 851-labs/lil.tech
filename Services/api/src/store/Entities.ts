@@ -50,7 +50,8 @@ export const columnName = (field: string) =>
 
 /**
  * A kind of record with its own table in the store (`docs/SYNC.md`). Its table has an `id` column
- * and one `snake_case` column per field.
+ * and one `snake_case` column per field, and its primary key is its key fields' columns, then
+ * `id`.
  */
 export interface Entity {
   readonly name: string;
@@ -62,6 +63,14 @@ export interface Entity {
     readonly column: string;
     readonly type: Column;
   }>;
+  /**
+   * Fields that lead the table's primary key, before `id`, so records are stored in their order
+   * (`docs/SYNC.md`). A record's are set when it's created and never change, so every upsert must
+   * include them. Empty for most entities, which are keyed by `id` alone.
+   */
+  readonly key: ReadonlyArray<string>;
+  /** The table's primary key: the key fields' columns, then `id`. */
+  readonly keyColumns: ReadonlyArray<string>;
   /** The name of its row schema in OpenAPI (`health_sample` → `HealthSample`). */
   readonly schemaName: string;
   /**
@@ -85,11 +94,14 @@ export interface Entity {
   readonly decodeFields: (
     row: unknown,
   ) => Result.Result<Readonly<Record<string, Schema.Json>>, Schema.SchemaError>;
-  /** The statements `applyMutations` runs, built once. */
+  /**
+   * The statements `applyMutations` runs, built once. `select` takes the key fields' values, then
+   * the ID. There's a `delete` by ID only without key fields: with them, deletes leave tombstones.
+   */
   readonly statements: {
     readonly select: string;
     readonly upsert: string;
-    readonly delete: string;
+    readonly delete?: string;
   };
 }
 
@@ -126,8 +138,20 @@ export const defineEntity = (
      * blob no record refers to is deleted after a grace period.
      */
     readonly blobs?: ReadonlyArray<string>;
+    /** Non-nullable text or integer fields that lead the primary key (`Entity.key`). */
+    readonly key?: ReadonlyArray<string>;
   },
 ): Entity => {
+  const key = options.key ?? [];
+  for (const field of key) {
+    const type = options.fields[field];
+    if (type === undefined || type.nullable || (type.type !== "text" && type.type !== "integer")) {
+      throw new Error(`${name}.${field} must be a non-nullable text or integer field to be a key`);
+    }
+  }
+  if (key.length > 0 && options.deviceScoped !== undefined) {
+    throw new Error(`Device-scoped entity ${name} can't have key fields`);
+  }
   for (const field of options.blobs ?? []) {
     if (options.fields[field]?.type !== "text") {
       throw new Error(`${name}.${field} must be a text field to hold a blob's SHA-256`);
@@ -151,6 +175,7 @@ export const defineEntity = (
     return { field, column: columnName(field), type };
   });
   const columns = fields.map(({ column }) => `"${column}"`);
+  const keyColumns = [...key.map(columnName), "id"];
   const fieldSchema = (type: Column) => {
     const schema = fieldSchemas[type.type];
     return type.nullable ? Schema.NullOr(schema) : schema;
@@ -164,6 +189,8 @@ export const defineEntity = (
     name,
     clientWritable: options.clientWritable,
     fields,
+    key,
+    keyColumns,
     schemaName: schemaName(name),
     rowSchema: () =>
       Schema.Struct({
@@ -184,14 +211,35 @@ export const defineEntity = (
     ...(options.checkRow === undefined ? {} : { checkRow: options.checkRow }),
     decodeFields: Schema.decodeUnknownResult(fieldsSchema) as Entity["decodeFields"],
     statements: {
-      select: `SELECT ${["id", ...columns].join(", ")} FROM "${name}" WHERE id = ?`,
+      select: `SELECT ${["id", ...columns].join(", ")} FROM "${name}"
+        WHERE ${keyColumns.map((column) => `"${column}" = ?`).join(" AND ")}`,
       upsert: `INSERT INTO "${name}" (${["id", ...columns].join(", ")})
         VALUES (${["?", ...columns.map(() => "?")].join(", ")})
-        ON CONFLICT (id) DO UPDATE SET ${columns.map((column) => `${column} = excluded.${column}`).join(", ")}`,
-      delete: `DELETE FROM "${name}" WHERE id = ? RETURNING id`,
+        ON CONFLICT (${keyColumns.map((column) => `"${column}"`).join(", ")}) DO UPDATE SET ${columns.map((column) => `${column} = excluded.${column}`).join(", ")}`,
+      ...(key.length === 0 ? { delete: `DELETE FROM "${name}" WHERE id = ? RETURNING id` } : {}),
     },
   };
 };
+
+/** An entity's primary key columns, quoted and comma-separated, for SQL. */
+export const keyList = (entity: Entity) =>
+  entity.keyColumns.map((column) => `"${column}"`).join(", ");
+
+/**
+ * Its rows before or after `key` in key order, as a `WHERE` clause and its bindings: all of them
+ * for no key.
+ */
+export const comparedToKey = (
+  entity: Entity,
+  operator: ">" | "<=",
+  key: ReadonlyArray<SqlValue> | null,
+) =>
+  key === null
+    ? { where: "TRUE", bindings: [] as ReadonlyArray<SqlValue> }
+    : {
+        where: `(${keyList(entity)}) ${operator} (${entity.keyColumns.map(() => "?").join(", ")})`,
+        bindings: key,
+      };
 
 /**
  * A device-scoped record's ID as stored: the device's own record (`self`) is keyed by the device,
@@ -201,12 +249,19 @@ export const defineEntity = (
 export const stampDevice = (deviceId: string, id: string) =>
   id === "self" ? deviceId : `${deviceId}/${id}`;
 
-/** The `CREATE TABLE` statement for an entity's first migration. */
-export const createEntityTable = (entity: Entity) => {
+/**
+ * The `CREATE TABLE` statement for an entity's first migration. With key fields, the table is
+ * stored in its primary key's order (`WITHOUT ROWID`), with no other copy of it.
+ */
+export const createEntityTable = (entity: Entity, name = entity.name) => {
   const columns = entity.fields.map(
     ({ column, type }) => `"${column}" ${sqlTypes[type.type]}${type.nullable ? "" : " NOT NULL"}`,
   );
-  return `CREATE TABLE "${entity.name}" (id TEXT PRIMARY KEY, ${columns.join(", ")}) STRICT;`;
+  if (entity.key.length === 0) {
+    return `CREATE TABLE "${name}" (id TEXT PRIMARY KEY, ${columns.join(", ")}) STRICT;`;
+  }
+  const key = entity.keyColumns.map((column) => `"${column}"`).join(", ");
+  return `CREATE TABLE "${name}" (id TEXT NOT NULL, ${columns.join(", ")}, PRIMARY KEY (${key})) STRICT, WITHOUT ROWID;`;
 };
 
 /** JSON with object keys sorted, so equal values are stored identically. */

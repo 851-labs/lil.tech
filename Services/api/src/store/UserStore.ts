@@ -47,6 +47,7 @@ import {
   retireStepInterval,
 } from "./RetiredDevices.ts";
 import { fromDurableObjectStorage, type StoreSql } from "./StoreSql.ts";
+import { nextTombstoneSweepAt, sweepTombstones } from "./Tombstones.ts";
 import {
   type BlobFiles,
   nextBlobSweepAt,
@@ -177,9 +178,14 @@ export const makeUserStore = (
     const retireAt = retiring ? now + retireStepInterval : null;
     // A store being deleted is wiped as soon as it can be.
     const wipeAt = wiping ? now : null;
-    const times = [nextAlarmAt(sql, now), expiry, retireAt, nextBlobSweepAt(sql), wipeAt].filter(
-      (time): time is number => time !== null,
-    );
+    const times = [
+      nextAlarmAt(sql, now),
+      expiry,
+      retireAt,
+      nextBlobSweepAt(sql),
+      nextTombstoneSweepAt(sql, now),
+      wipeAt,
+    ].filter((time): time is number => time !== null);
     if (times.length === 0) return;
     const due = Math.min(...times);
     // Right after the alarm ran, it's spent, whatever the runtime still reports.
@@ -451,6 +457,7 @@ export const makeUserStore = (
           if (retireStep(sql, registry, now) > 0) yield* notices.notify(now);
           retiring = hasRetiringDevices(sql);
         }
+        sweepTombstones(sql, registry, now);
         yield* scheduleAlarm(now, { afterAlarm: true, sockets: true });
       }).pipe(
         Effect.catchCause((cause) =>

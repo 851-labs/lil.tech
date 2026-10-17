@@ -23,6 +23,16 @@ private func row<Row: Decodable>(_ mutation: HealthMutation, as _: Row.Type) thr
 }
 
 struct HealthEncoderTests {
+  /// Pinned: a sample's start is part of how the server finds it.
+  @Test
+  func datesRoundToTheNearestMillisecond() {
+    // Exact in binary: 1/1024 s is 0.977 ms, and 3/1024 s is 2.93 ms.
+    #expect(HealthEncoder.milliseconds(Date(timeIntervalSince1970: 1.0 / 1024)) == 1)
+    #expect(HealthEncoder.milliseconds(Date(timeIntervalSince1970: 3.0 / 1024)) == 3)
+    #expect(
+      HealthEncoder.milliseconds(Date(timeIntervalSince1970: 1_760_400_000)) == 1_760_400_000_000)
+  }
+
   @Test
   func quantitySampleInTheCatalogsUnit() throws {
     let device = HKDevice(

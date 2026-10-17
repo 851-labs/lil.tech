@@ -205,6 +205,9 @@ public enum HealthEncoder {
     ]
   }
 
+  /// Unix milliseconds, rounded to the nearest. Never change how: the server finds a sample by
+  /// its type, start date and UUID (`docs/SYNC.md`), so a sample uploaded again with its start
+  /// rounded differently would be stored twice.
   static func milliseconds(_ date: Date) -> Double {
     (date.timeIntervalSince1970 * 1000).rounded()
   }
