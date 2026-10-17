@@ -11,6 +11,7 @@ import {
   type UserStoreMethods,
   userStoreErrors,
 } from "../../src/store/UserStore.ts";
+import { entities } from "../../src/store/Registry.ts";
 import { UserStores } from "../../src/store/UserStores.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
 
@@ -89,12 +90,31 @@ describe("makeUserStore", () => {
     }),
   );
 
-  it.effect("deleteAll empties the store, leaving it at the latest schema", () =>
+  it.effect("deleteAll marks the store deleted at once, and its alarm empties it", () =>
     Effect.gen(function* () {
       const sql = makeTestStoreSql();
       const store = makeUserStore(sql);
       sql.exec("INSERT INTO meta (key, value) VALUES ('epoch', '3')");
+      yield* store.applyMutations([
+        {
+          entity: "health_characteristic",
+          op: "upsert",
+          id: "HKCharacteristicTypeIdentifierBiologicalSex",
+          row: { value: "female" },
+        },
+      ]);
       yield* store.deleteAll();
+      // Deleted, not yet emptied: the alarm is due right away.
+      assert.strictEqual(yield* Effect.promise(() => sql.getAlarm()), 1);
+      assert.lengthOf(sql.exec("SELECT * FROM health_characteristic"), 1);
+      assert.strictEqual(
+        (yield* Effect.flip(store.receiveHealthBatch("00000000-0000-4000-8000-000000000002")))._tag,
+        "AccountDeleted",
+      );
+      // Nor can it be read, e.g. with an access token that outlived the account.
+      assert.deepInclude(yield* store.readChanges(0, 10), { head: 0, changes: [] });
+      assert.isNull((yield* store.bootstrap()).snapshot);
+      yield* store.alarm();
       // Only the mark that the account is gone.
       assert.deepStrictEqual(sql.exec("SELECT * FROM meta"), [{ key: "deleted", value: 1 }]);
       assert.strictEqual(yield* store.schemaVersion(), storeMigrations.length);
@@ -117,6 +137,29 @@ describe("makeUserStore", () => {
         store.receiveHealthBatch("00000000-0000-4000-8000-000000000001"),
       );
       assert.strictEqual(upload._tag, "AccountDeleted");
+    }),
+  );
+});
+
+describe("deleting a store", () => {
+  it.effect("a wipe that fails is tried again by the next alarm", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      let failures = 1;
+      const store = makeUserStore(sql, entities, {
+        put: () => Effect.void,
+        delete: () => (failures-- > 0 ? Effect.die("R2 is down") : Effect.void),
+      });
+      sql.exec("INSERT INTO meta (key, value) VALUES ('epoch', 2)");
+      yield* store.deleteAll();
+      yield* store.alarm();
+      // Still marked for deleting, with the alarm set a minute later.
+      assert.strictEqual(yield* Effect.promise(() => sql.getAlarm()), 60_000);
+      assert.lengthOf(sql.exec("SELECT * FROM meta WHERE key = 'epoch'"), 1);
+      // Deleting again meanwhile changes nothing.
+      yield* store.deleteAll();
+      yield* store.alarm();
+      assert.deepStrictEqual(sql.exec("SELECT * FROM meta"), [{ key: "deleted", value: 1 }]);
     }),
   );
 });

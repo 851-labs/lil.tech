@@ -1185,6 +1185,8 @@ describe("/v1/health/batches", () => {
           }),
         );
         assert.strictEqual(deleted.status, 204);
+        // The store is emptied by its alarm, which is due at once.
+        yield* (yield* UserStores).forUser(user.id).alarm();
 
         // Nothing left in the core database…
         const sql = yield* SqlClient.SqlClient;
@@ -1440,6 +1442,7 @@ describe("/v1/health/blobs", () => {
           }),
         );
         assert.strictEqual(deleted.status, 204);
+        yield* (yield* UserStores).forUser(user.id).alarm();
         assert.strictEqual((yield* TestHealthBlobBucket).files.size, 0);
         assert.deepStrictEqual(store?.exec("SELECT count(*) AS n FROM health_blobs"), [{ n: 0 }]);
         assert.strictEqual((yield* download(handler, tokens.accessToken, sha256)).status, 401);

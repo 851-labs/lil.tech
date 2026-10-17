@@ -140,6 +140,7 @@ describe("live notices", () => {
       live.connect("phone", 15 * 60 * 1000);
       yield* write(store, "a");
       yield* store.deleteAll();
+      yield* store.alarm();
       assert.deepStrictEqual(live.sent.get("phone")?.at(-1), { type: "head", seq: 0 });
     }),
   );

@@ -206,8 +206,15 @@ extension AuthClient: DependencyKey {
         do {
           output = try await api.deleteMe()
         } catch {
-          let underlying = (error as? ClientError)?.underlyingError ?? error
-          throw underlying is URLError ? .offline : .failed
+          // A timeout or any other network failure isn't the device being offline. The error can
+          // be wrapped twice, when refreshing the token failed.
+          if isOfflineError(error) { throw .offline }
+          var underlying: any Error = error
+          while let wrapped = underlying as? ClientError { underlying = wrapped.underlyingError }
+          guard let urlError = underlying as? URLError, urlError.code != .cancelled else {
+            throw .failed
+          }
+          throw .unavailable
         }
         switch output {
         case .noContent:
