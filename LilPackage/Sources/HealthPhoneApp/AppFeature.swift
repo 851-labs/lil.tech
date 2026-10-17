@@ -152,6 +152,8 @@ public struct AppFeature {
         return .none
 
       case .healthAccessChecked(let needsRequest):
+        // The status screen shows the same answer, as soon as it's known.
+        state.syncStatus.needsHealthAccess = needsRequest
         guard state.isSignedIn == true, state.hasConsent, state.healthAccess == nil else {
           return .none
         }

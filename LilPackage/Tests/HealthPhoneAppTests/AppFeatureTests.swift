@@ -72,6 +72,7 @@ struct AppFeatureTests {
     }
     // The sheet was answered before, but the medications step never offered.
     await store.receive(\.healthAccessChecked) {
+      $0.syncStatus.needsHealthAccess = false
       $0.healthAccess = HealthAccessFeature.State(step: .perObject)
     }
     await store.receive(\.otherIPhonesFound)
@@ -103,6 +104,7 @@ struct AppFeatureTests {
     }
     await store.receive(\.consentChecked)
     await store.receive(\.healthAccessChecked) {
+      $0.syncStatus.needsHealthAccess = true
       $0.healthAccess = HealthAccessFeature.State()
     }
     await store.receive(\.otherIPhonesFound)
@@ -118,7 +120,9 @@ struct AppFeatureTests {
     needsRequest.setValue(false)
     await store.send(.signedInChanged(true))
     await store.receive(\.consentChecked)
-    await store.receive(\.healthAccessChecked)
+    await store.receive(\.healthAccessChecked) {
+      $0.syncStatus.needsHealthAccess = false
+    }
     await store.receive(\.backfill)
   }
 
@@ -145,6 +149,7 @@ struct AppFeatureTests {
     }
     await store.receive(\.consentChecked)
     await store.receive(\.healthAccessChecked) {
+      $0.syncStatus.needsHealthAccess = true
       $0.healthAccess = HealthAccessFeature.State()
     }
     await store.receive(\.otherIPhonesFound)
@@ -432,6 +437,7 @@ struct AppFeatureTests {
     }
     #expect(given.value)
     await store.receive(\.healthAccessChecked) {
+      $0.syncStatus.needsHealthAccess = true
       $0.healthAccess = HealthAccessFeature.State()
     }
   }

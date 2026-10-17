@@ -67,6 +67,14 @@ struct SyncStatusFeatureTests {
     #expect(
       State(progress: progress([steps: notYet], failure: "Full", storageFull: true)).status
         == .storageFull)
+    // Before Health says whether to ask for access, a new install isn't paused, it's checking.
+    #expect(State(progress: progress([sleep: notYet])).status == .loading)
+    #expect(
+      State(progress: progress([sleep: notYet]), needsHealthAccess: false).status
+        == .paused(finishedTypes: 0, totalTypes: 1, records: 0))
+    // Finished with nothing to upload is up to date, answer or not.
+    let empty = HealthBackfill.TypeProgress(isDone: true, uploadedRecords: 0)
+    #expect(State(progress: progress([sleep: empty])).status == .upToDate(lastUpload: lastUpload))
   }
 
   @Test

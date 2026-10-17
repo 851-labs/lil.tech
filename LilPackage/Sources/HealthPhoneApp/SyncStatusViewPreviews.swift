@@ -41,6 +41,10 @@ private func statusView(_ state: SyncStatusFeature.State, consented: Bool = true
   statusView(SyncStatusFeature.State())
 }
 
+#Preview("Checking Health access on a new install") {
+  statusView(SyncStatusFeature.State(progress: progress(done: 0), needsHealthAccess: nil))
+}
+
 #Preview("Health access needed") {
   statusView(SyncStatusFeature.State(progress: progress(done: 0), needsHealthAccess: true))
 }
