@@ -179,7 +179,8 @@ public actor HealthBackfill {
   }
 
   /// Objects per anchored query. Pages are split into batch files below the server's limits.
-  static let pageSize = 2000
+  /// Big pages make few uploads: each costs about the same whatever its size.
+  static let pageSize = 20_000
 
   public struct Progress: Equatable, Sendable {
     /// Types with nothing left to upload, as far as anyone can tell.
@@ -541,9 +542,12 @@ public actor HealthBackfill {
     if let consent = error as? HealthBatchUploader.ConsentRequired { throw consent }
   }
 
-  /// Uploads a type's pages from its anchor until there are no more.
+  /// Uploads a type's pages from its anchor until there are no more. The next page is read
+  /// while one uploads; it's only kept, and its anchor saved, once the one before is accepted.
   private func sync(_ type: HealthBackfillType, _ state: inout HealthBackfillState) async throws {
     var isLast = false
+    var next: Task<HealthPage, any Error>?
+    defer { next?.cancel() }
     while !isLast {
       try Task.checkCancellation()
       let anchor = state.anchors[type.id]
@@ -555,7 +559,12 @@ public actor HealthBackfill {
       let readStart = ContinuousClock.now
       let page: HealthPage
       do {
-        page = try await reader.page(reading, anchor, type.pageSize ?? Self.pageSize)
+        if let read = next {
+          next = nil
+          page = try await read.value
+        } else {
+          page = try await reader.page(reading, anchor, type.pageSize ?? Self.pageSize)
+        }
       } catch {
         BackfillLog.write(
           "read \(BackfillLog.name(type.id)) failed after \(BackfillLog.since(readStart)): \(error)"
@@ -591,6 +600,14 @@ public actor HealthBackfill {
       for (batch, file) in zip(pending.batches, files) { try storage.saveFile(batch, file) }
       for (sha256, blob) in blobs {
         try storage.saveFile(HealthBackfillState.PendingPage.blobFile(sha256), blob)
+      }
+      if page.hasMore {
+        // From where this page ends: its anchor is saved only once its upload is accepted.
+        var following = type
+        following.skipsUnreadableSeries = false
+        let reader = reader
+        let from = page.anchor
+        next = Task { try await reader.page(following, from, type.pageSize ?? Self.pageSize) }
       }
       try await upload(pending, &state)
       isLast = pending.isLast

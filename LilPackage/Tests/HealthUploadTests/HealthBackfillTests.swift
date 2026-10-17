@@ -147,6 +147,67 @@ struct HealthBackfillTests {
   }
 
   @Test
+  func theNextPageIsReadWhileOneUploads() async throws {
+    let health = FakeHealth(pages: [temperature.id: 3])
+    let server = FakeServer()
+    let overlapped = LockIsolated<[Bool]>([])
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = health.reader
+      // Each upload waits (up to 2 s) for the next page's read, which only happens if reading
+      // overlaps uploading.
+      $0.healthBatchUploader = HealthBatchUploader { id, file in
+        let uploaded = server.accepted.value.count
+        var waited = 0
+        while health.reads.value.count <= uploaded + 1, uploaded < 2, waited < 200 {
+          try await Task.sleep(for: .milliseconds(10))
+          waited += 1
+        }
+        let didOverlap = waited < 200
+        overlapped.withValue { $0.append(didOverlap) }
+        try await server.uploader.upload(id, file)
+      }
+      $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [temperature])
+    }
+
+    try await backfill.run()
+    #expect(overlapped.value == [true, true, true])
+    #expect(
+      health.reads.value == ["BodyTemperature@0", "BodyTemperature@1", "BodyTemperature@2"])
+    #expect(server.records.value.count == 9)
+  }
+
+  @Test
+  func aPageReadAheadIsDroppedWhenTheUploadBeforeItFails() async throws {
+    let health = FakeHealth(pages: [temperature.id: 3])
+    let server = FakeServer()
+    server.failing.setValue([1])
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = makeBackfill([temperature], health: health, server: server, storage: storage)
+
+    await #expect(throws: FakeServer.Offline.self) { try await backfill.run() }
+    // The second page was read ahead, but nothing moved: no anchor, nothing pending.
+    #expect(health.reads.value == ["BodyTemperature@0", "BodyTemperature@1"])
+    let stopped = try #require(try storage.loadState())
+    #expect(stopped.anchors[temperature.id] == nil)
+    #expect(stopped.pending == nil)
+
+    try await backfill.run()
+    #expect(
+      health.reads.value.suffix(3) == [
+        "BodyTemperature@0", "BodyTemperature@1", "BodyTemperature@2",
+      ])
+    #expect(server.records.value.count == 9)
+    #expect(try storage.loadState()?.anchors[temperature.id] == Data("3".utf8))
+  }
+
+  @Test
   func aFailingTypeDoesntHoldUpTheOthers() async throws {
     let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
     let broken = LockIsolated(true)
