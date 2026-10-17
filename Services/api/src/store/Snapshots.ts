@@ -115,28 +115,55 @@ export const latestSnapshot = (sql: StoreSql): Snapshot | null => {
   return row === undefined ? null : toSnapshot(row);
 };
 
-/** The latest snapshot's `seq`, start and number of records. */
+/** The latest snapshot's `seq`, start and finish, without reading its parts. */
 const latestSummary = (sql: StoreSql) => {
   const row = sql.exec(
-    latestQuery.replace("SELECT *", "SELECT seq, created_at, entities"),
+    latestQuery.replace("SELECT *", "SELECT seq, created_at, finished_at"),
     readEpoch(sql),
   )[0];
-  if (row === undefined) return null;
-  const entities = JSON.parse(row["entities"] as string) as Array<SnapshotEntity>;
-  return {
-    seq: row["seq"] as number,
-    createdAt: row["created_at"] as number,
-    records: entities.reduce(
-      (total, entity) => total + entity.parts.reduce((sum, part) => sum + part.records, 0),
-      0,
-    ),
-  };
+  return row === undefined
+    ? null
+    : {
+        seq: row["seq"] as number,
+        createdAt: row["created_at"] as number,
+        finishedAt: row["finished_at"] as number,
+      };
 };
 
-/** When the newest change arrived, or `null` with an empty log. */
-const lastChangeAt = (sql: StoreSql) => {
-  const at = sql.exec("SELECT at FROM changes ORDER BY seq DESC LIMIT 1")[0]?.["at"];
-  return typeof at === "number" ? at : null;
+/** How many records the latest snapshot holds, from its manifest. */
+const latestRecords = (sql: StoreSql) => {
+  const row = sql.exec(latestQuery.replace("SELECT *", "SELECT entities"), readEpoch(sql))[0];
+  if (row === undefined) return 0;
+  const entities = JSON.parse(row["entities"] as string) as Array<SnapshotEntity>;
+  return entities.reduce(
+    (total, entity) => total + entity.parts.reduce((sum, part) => sum + part.records, 0),
+    0,
+  );
+};
+
+/**
+ * Notes that the store is ingesting (a batch received or applied), so snapshots wait: uploads
+ * that change nothing (a batch sent again) are work the snapshot would compete with too.
+ */
+export const noteIngestion = (sql: StoreSql, at: number) =>
+  sql.exec(
+    `INSERT INTO meta (key, value) VALUES ('ingested_at', ?)
+      ON CONFLICT (key) DO UPDATE SET value = max(value, excluded.value)`,
+    at,
+  );
+
+/** When the store last took in anything: a change, or a batch received or applied. */
+const lastActivityAt = (sql: StoreSql) => {
+  const change = sql.exec("SELECT at FROM changes ORDER BY seq DESC LIMIT 1")[0]?.["at"];
+  const ingested = sql.exec("SELECT value FROM meta WHERE key = 'ingested_at'")[0]?.["value"];
+  const times = [change, ingested].filter((at): at is number => typeof at === "number");
+  return times.length === 0 ? null : Math.max(...times);
+};
+
+/** The oldest change still in the log. `seq` and `at` both increase, so it's the first. */
+const firstChange = (sql: StoreSql) => {
+  const row = sql.exec("SELECT seq, at FROM changes ORDER BY seq LIMIT 1")[0];
+  return row === undefined ? null : { seq: row["seq"] as number, at: row["at"] as number };
 };
 
 /** When change `seq` (or the first after it still in the log) arrived. */
@@ -150,15 +177,9 @@ const changeAt = (sql: StoreSql, seq: number) => {
  * `due`.
  */
 const deferWhileIngesting = (sql: StoreSql, due: number, now: number, policy: SnapshotPolicy) => {
-  const last = lastChangeAt(sql);
+  const last = lastActivityAt(sql);
   const quiet = last === null ? due : last + policy.quietPeriod;
   return Math.max(now, due, Math.min(quiet, due + policy.maxDeferral));
-};
-
-/** The oldest change still in the log. `seq` and `at` both increase, so it's the first. */
-const firstChange = (sql: StoreSql) => {
-  const row = sql.exec("SELECT seq, at FROM changes ORDER BY seq LIMIT 1")[0];
-  return row === undefined ? null : { seq: row["seq"] as number, at: row["at"] as number };
 };
 
 /**
@@ -170,17 +191,30 @@ export const nextSnapshotAt = (sql: StoreSql, now: number, policy = snapshotPoli
   const latest = latestSummary(sql);
   const covered = latest?.seq ?? 0;
   if (head <= covered) return null;
+  const since = latest?.createdAt ?? firstChange(sql)?.at ?? now;
   const enough = Math.max(
     policy.minChanges,
-    Math.ceil((latest?.records ?? 0) * policy.changeShare),
+    Math.ceil((latest === null ? 0 : latestRecords(sql)) * policy.changeShare),
   );
-  const since = latest?.createdAt ?? firstChange(sql)?.at ?? now;
-  // Due when enough had changed (when the change that made it enough arrived), or at `maxAge`.
-  const due =
-    head - covered >= enough
-      ? Math.min(changeAt(sql, covered + enough) ?? now, since + policy.maxAge)
-      : since + policy.maxAge;
+  // Due when enough had changed (when the change that made it enough arrived), or at `maxAge`,
+  // but not before the latest finished: a long snapshot mustn't make the next one start at once.
+  const enoughAt = head - covered >= enough ? (changeAt(sql, covered + enough) ?? since) : null;
+  const due = Math.max(
+    Math.min(enoughAt ?? Infinity, since + policy.maxAge),
+    latest?.finishedAt ?? 0,
+  );
   return deferWhileIngesting(sql, due, now, policy);
+};
+
+/**
+ * When snapshot work is next due: continuing the one in progress, which pauses while the store
+ * ingests but for no longer than `maxDeferral` after it started, or starting the next one.
+ */
+const nextSnapshotWorkAt = (sql: StoreSql, now: number, policy: SnapshotPolicy) => {
+  const job = readJob(sql);
+  if (job === null) return nextSnapshotAt(sql, now, policy);
+  const started = readSnapshotRow(sql, job.snapshotId)?.createdAt ?? now;
+  return deferWhileIngesting(sql, started, now, policy);
 };
 
 /** When upkeep is next due: compacting the log, or deleting a replaced snapshot. */
@@ -228,9 +262,7 @@ const saveJob = (sql: StoreSql, job: Job) =>
 
 /** When the store's alarm should next go off for snapshot work and upkeep, or `null`. */
 export const nextAlarmAt = (sql: StoreSql, now: number, policy = snapshotPolicy) => {
-  // A snapshot in progress pauses while changes arrive, as starting one does.
-  if (readJob(sql) !== null) return deferWhileIngesting(sql, now, now, policy);
-  const times = [nextSnapshotAt(sql, now, policy), nextUpkeepAt(sql, policy)].filter(
+  const times = [nextSnapshotWorkAt(sql, now, policy), nextUpkeepAt(sql, policy)].filter(
     (time): time is number => time !== null,
   );
   return times.length === 0 ? null : Math.min(...times);
@@ -342,11 +374,10 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
   now: number,
   policy: SnapshotPolicy = snapshotPolicy,
 ) {
+  // Not yet, even when the alarm went off for other upkeep.
+  if (nextSnapshotWorkAt(sql, now, policy) !== now) return "idle" as const;
   let job = readJob(sql);
-  // One in progress pauses while changes arrive, even when the alarm went off for other upkeep.
-  if (job !== null && deferWhileIngesting(sql, now, now, policy) > now) return "idle" as const;
   if (job === null) {
-    if (nextSnapshotAt(sql, now, policy) !== now) return "idle" as const;
     const snapshotId = yield* makeId("snp");
     sql.transaction(() => {
       sql.exec(

@@ -1,4 +1,5 @@
 import type { StoreSql } from "../store/StoreSql.ts";
+import { noteIngestion } from "../store/Snapshots.ts";
 import type { HealthBatch, RejectedLine } from "./HealthBatches.ts";
 
 // Health batch status, kept in the user's store (store migration 4).
@@ -35,6 +36,7 @@ export const readHealthBatch = (sql: StoreSql, id: string, now: number): HealthB
 
 /** Records a batch as `queued` unless it's already known, and returns its status. */
 export const receiveHealthBatch = (sql: StoreSql, id: string, at: number): HealthBatch => {
+  noteIngestion(sql, at);
   sql.exec(
     `INSERT INTO health_batches (id, status, received_at, updated_at) VALUES (?, 'queued', ?, ?)
       ON CONFLICT (id) DO NOTHING`,
@@ -48,6 +50,7 @@ export const receiveHealthBatch = (sql: StoreSql, id: string, at: number): Healt
 };
 
 export const saveHealthBatch = (sql: StoreSql, batch: HealthBatch, at: number): void => {
+  noteIngestion(sql, at);
   sql.exec(
     `INSERT INTO health_batches
       (id, status, received_at, finished_at, lines, applied, rejected, rejected_lines, failure,

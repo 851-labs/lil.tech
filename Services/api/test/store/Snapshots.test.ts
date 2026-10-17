@@ -11,6 +11,7 @@ import {
   doUpkeep,
   latestSnapshot,
   nextAlarmAt,
+  noteIngestion,
   nextSnapshotAt,
   readSnapshot,
   type SnapshotFiles,
@@ -414,6 +415,37 @@ describe("the store's alarm", () => {
       assert.strictEqual(yield* writeSnapshotStep(sql, all, files, now, quiet), "idle");
       assert.strictEqual(stored.size, written);
       assert.strictEqual(nextAlarmAt(sql, now, quiet), now + 120_000);
+    }),
+  );
+
+  it.effect("a paused snapshot carries on within the maximum deferral if uploads never stop", () =>
+    Effect.gen(function* () {
+      const { sql, store, files } = makeStore();
+      yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
+      const start = yield* Clock.currentTimeMillis;
+      assert.strictEqual(yield* writeSnapshotStep(sql, all, files, start, policy), "continue");
+      const quiet = { ...policy, quietPeriod: 120_000, maxDeferral: 10 * 60_000 };
+      // A change every minute.
+      for (let minute = 0; minute < 12; minute++) {
+        yield* TestClock.adjust("1 minute");
+        yield* store.applyMutations([note(`m${minute}`)]);
+      }
+      const now = yield* Clock.currentTimeMillis;
+      assert.strictEqual(yield* writeSnapshotStep(sql, all, files, now, quiet), "continue");
+    }),
+  );
+
+  it.effect("uploads that change nothing still count as ingesting", () =>
+    Effect.gen(function* () {
+      const { sql, store } = makeStore();
+      const quiet = { ...policy, quietPeriod: 120_000 };
+      yield* store.applyMutations(["a", "b", "c", "d", "e"].map((id) => note(id)));
+      yield* TestClock.adjust("5 minutes");
+      const now = yield* Clock.currentTimeMillis;
+      assert.strictEqual(nextSnapshotAt(sql, now, quiet), now);
+      // A batch sent again: nothing changes, but the store is busy with it.
+      noteIngestion(sql, now);
+      assert.strictEqual(nextSnapshotAt(sql, now, quiet), now + 120_000);
     }),
   );
 
