@@ -8,6 +8,7 @@ import {
   failHealthBatch,
   healthBatchKey,
   storageFullFailure,
+  healthChunkBytes,
   healthChunkSize,
   ingestHealthBatch,
   maxBatchLineLength,
@@ -15,7 +16,7 @@ import {
 } from "../../src/health/HealthIngestion.ts";
 import { storageHardLimitBytes } from "../../src/store/UserStore.ts";
 import { Users } from "../../src/core/Users.ts";
-import { UserStores } from "../../src/store/UserStores.ts";
+import { UserStores, UserStoreUnavailable } from "../../src/store/UserStores.ts";
 import { TestCore } from "../core/TestCoreDatabase.ts";
 import { TestStores, TestUserStores } from "../store/TestUserStores.ts";
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./TestHealthIngestion.ts";
@@ -66,6 +67,39 @@ const ingest = (
     );
     const batch = yield* (yield* UserStores).forUser(userId).healthBatch(batchId);
     return { batchId, batch };
+  });
+
+/**
+ * Runs `effect` with the user's store calling `applyMutations` through `wrap`, given the call's
+ * number (from 1).
+ */
+const withApplyMutations = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+  wrap: (
+    call: number,
+    apply: Effect.Effect<unknown, unknown>,
+    mutations: ReadonlyArray<unknown>,
+  ) => Effect.Effect<unknown, unknown>,
+) =>
+  Effect.gen(function* () {
+    const stores = yield* UserStores;
+    let calls = 0;
+    const wrapped = UserStores.of({
+      ...stores,
+      forUser: (id) => {
+        const store = stores.forUser(id);
+        const applyMutations: typeof store.applyMutations = (mutations) =>
+          wrap(++calls, store.applyMutations(mutations), mutations) as ReturnType<
+            typeof store.applyMutations
+          >;
+        // The client is a proxy with no properties of its own, so it's wrapped in another.
+        return new Proxy(store, {
+          get: (target, method) =>
+            method === "applyMutations" ? applyMutations : Reflect.get(target, method),
+        });
+      },
+    });
+    return yield* effect.pipe(Effect.provideService(UserStores, wrapped));
   });
 
 const changesFor = (id: string) =>
@@ -590,6 +624,65 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHeal
     }),
   );
 
+  it.effect("applies chunks in order, reading the next while one is applied", () =>
+    Effect.gen(function* () {
+      const count = healthChunkSize * 2 + 3;
+      const lines = Array.from({ length: count }, (_, index) => sample(40_000 + index));
+      // The first sample again at the end, in the last chunk, with a new value.
+      lines.push(sample(40_000, { value: 99 }));
+      const sizes: Array<number> = [];
+      const { batch } = yield* withApplyMutations(ingest(lines), (_, apply, mutations) =>
+        Effect.sync(() => sizes.push(mutations.length)).pipe(Effect.andThen(apply)),
+      );
+      assert.deepInclude(batch, { status: "applied", lines: count + 1, applied: count + 1 });
+      assert.deepStrictEqual(sizes, [healthChunkSize, healthChunkSize, 4]);
+      assert.deepStrictEqual(
+        (yield* changesFor(uuid(40_000))).map((change) => change["op"]),
+        ["upsert", "upsert"],
+      );
+      const sql = (yield* TestStores).sqlFor(userId);
+      assert.deepStrictEqual(
+        sql?.exec("SELECT value FROM health_sample WHERE id = ?", uuid(40_000)),
+        [{ value: 99 }],
+      );
+    }),
+  );
+
+  it.effect("ends a chunk at its size in bytes", () =>
+    Effect.gen(function* () {
+      // Lines of a fifth of a chunk's bytes and a little more, so five fill one.
+      const metadata = { note: "x".repeat(Math.ceil(healthChunkBytes / 5)) };
+      const lines = Array.from({ length: 6 }, (_, index) => sample(60_000 + index, { metadata }));
+      const sizes: Array<number> = [];
+      const { batch } = yield* withApplyMutations(ingest(lines), (_, apply, mutations) =>
+        Effect.sync(() => sizes.push(mutations.length)).pipe(Effect.andThen(apply)),
+      );
+      assert.deepInclude(batch, { status: "applied", applied: 6 });
+      assert.deepStrictEqual(sizes, [5, 1]);
+    }),
+  );
+
+  it.effect("fails the batch when a chunk fails while the next is read", () =>
+    Effect.gen(function* () {
+      const lines = Array.from({ length: healthChunkSize * 2 + 1 }, (_, index) =>
+        sample(20_000 + index),
+      );
+      const batchId = newBatchId();
+      const error = yield* withApplyMutations(Effect.flip(ingest(lines, batchId)), (call, apply) =>
+        call === 2
+          ? Effect.fail(new UserStoreUnavailable({ message: "The store restarted" }))
+          : apply,
+      );
+      assert.strictEqual(error._tag, "UserStoreUnavailable");
+      // The first chunk stays applied; the queue retries the batch, which applies again.
+      assert.strictEqual((yield* changesFor(uuid(20_000))).length, 1);
+      assert.deepStrictEqual(yield* changesFor(uuid(20_000 + healthChunkSize)), []);
+      assert.deepInclude(yield* (yield* UserStores).forUser(userId).healthBatch(batchId), {
+        status: "applying",
+      });
+    }),
+  );
+
   it.effect("fails a batch that isn't gzip, or whose file is gone", () =>
     Effect.gen(function* () {
       const { files } = yield* TestHealthOutbox;
@@ -710,7 +803,7 @@ describe("ingestHealthBatch when the store is unavailable", () => {
         const unavailable = UserStores.fromNamespace({
           getByName: () =>
             ({
-              healthBatch: () =>
+              beginHealthBatch: () =>
                 Effect.fail({
                   _tag: "RpcCallError",
                   cause: Object.assign(new Error("reset"), { retryable: true }),

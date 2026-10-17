@@ -282,6 +282,39 @@ export const makeUserStore = (
         Effect.map((at) => saveHealthBatch(sql, batch, at)),
       ),
     /**
+     * Before a queued health batch is applied, in one call: a batch that's already `applied` or
+     * `failed` is returned as it is, to be skipped. Otherwise it's marked `applying` and returned,
+     * with whether `device` (the uploading device, if known) was retired.
+     */
+    beginHealthBatch: (id: string, device?: string) =>
+      ensureNotDeleted.pipe(
+        Effect.andThen(Clock.currentTimeMillis),
+        Effect.map((at) => {
+          const known = readHealthBatch(sql, id, at);
+          if (known?.status === "applied" || known?.status === "failed") {
+            return { batch: known, deviceRetired: false };
+          }
+          const batch: HealthBatch = {
+            id,
+            status: "applying",
+            receivedAt: known?.receivedAt ?? at,
+          };
+          saveHealthBatch(sql, batch, at);
+          const deviceRetired =
+            device !== undefined && retiredAmong(sql, new Set([device])).size > 0;
+          return { batch, deviceRetired };
+        }),
+      ),
+    /** Records a health batch's outcome, and returns the storage the account now takes. */
+    finishHealthBatch: (batch: HealthBatch) =>
+      ensureNotDeleted.pipe(
+        Effect.andThen(Clock.currentTimeMillis),
+        Effect.map((at) => {
+          saveHealthBatch(sql, batch, at);
+          return storageBytes();
+        }),
+      ),
+    /**
      * Applies mutations in one transaction (see `applyMutations`). Past `storageHardLimitBytes`,
      * only deletes are applied: a call with an upsert fails with `StorageFull`.
      */
