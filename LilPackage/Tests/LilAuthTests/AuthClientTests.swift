@@ -17,14 +17,30 @@ struct AuthClientTests {
         Components.Schemas.AppleSignInRequest.self, from: Data(try await string(body).utf8))
       #expect(sent.identityToken == "apple-token")
       #expect(sent.nonce == "raw-nonce")
+      #expect(sent.authorizationCode == "apple-code")
       #expect(sent.fullName?.givenName == "Ada")
       #expect(sent.device.app == "test")
       #expect(sent.device.platform == .macos)
       return tokenPair(1)
     }
     try await auth.signInWithApple(
-      AppleCredential(identityToken: "apple-token", givenName: "Ada"), "raw-nonce")
+      AppleCredential(
+        identityToken: "apple-token", authorizationCode: "apple-code", givenName: "Ada"),
+      "raw-nonce")
     #expect(try store.load() == session(1))
+  }
+
+  @Test
+  func unusableAuthorizationCodesAreLeftOut() {
+    #expect(AppleCredential.authorizationCode("c0de") == "c0de")
+    #expect(AppleCredential.authorizationCode(Data("c0de".utf8)) == "c0de")
+    #expect(AppleCredential.authorizationCode(nil as String?) == nil)
+    #expect(AppleCredential.authorizationCode(nil as Data?) == nil)
+    #expect(AppleCredential.authorizationCode("") == nil)
+    #expect(AppleCredential.authorizationCode(String(repeating: "c", count: 1025)) == nil)
+    withKnownIssue {
+      #expect(AppleCredential.authorizationCode(Data([0xFF, 0xFE])) == nil)
+    }
   }
 
   @Test

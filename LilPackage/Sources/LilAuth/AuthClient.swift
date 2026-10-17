@@ -10,14 +10,43 @@ import OpenAPIRuntime
 /// What Sign in with Apple hands the app.
 public struct AppleCredential: Equatable, Sendable {
   public var identityToken: String
+  /// Apple's single-use authorization code. The server redeems it for a token it revokes when the
+  /// account is deleted, as Apple requires.
+  public var authorizationCode: String?
   /// Apple only gives the name on the first sign-in.
   public var givenName: String?
   public var familyName: String?
 
-  public init(identityToken: String, givenName: String? = nil, familyName: String? = nil) {
+  public init(
+    identityToken: String, authorizationCode: String? = nil, givenName: String? = nil,
+    familyName: String? = nil
+  ) {
     self.identityToken = identityToken
+    self.authorizationCode = authorizationCode
     self.givenName = givenName
     self.familyName = familyName
+  }
+
+  /// The longest authorization code the API takes. Apple's are far shorter.
+  static let maxAuthorizationCodeLength = 1024
+
+  /// `code`, unless it's empty or too long for the API, which would refuse the whole sign-in. The
+  /// sign-in works without it; the account just can't have its Apple token revoked.
+  static func authorizationCode(_ code: String?) -> String? {
+    guard let code, !code.isEmpty, code.utf8.count <= maxAuthorizationCodeLength else {
+      return nil
+    }
+    return code
+  }
+
+  /// The native sheet's code, which comes as UTF-8 data.
+  static func authorizationCode(_ data: Data?) -> String? {
+    guard let data else { return nil }
+    guard let code = String(data: data, encoding: .utf8) else {
+      reportIssue("Apple's authorization code isn't UTF-8")
+      return nil
+    }
+    return authorizationCode(code)
   }
 }
 
@@ -179,6 +208,7 @@ extension AuthClient: DependencyKey {
         let request = Components.Schemas.AppleSignInRequest(
           identityToken: credential.identityToken,
           nonce: nonce,
+          authorizationCode: credential.authorizationCode,
           fullName: .init(givenName: credential.givenName, familyName: credential.familyName),
           device: .init(app: device.app, platform: device.platform, name: device.name)
         )

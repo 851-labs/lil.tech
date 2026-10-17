@@ -66,14 +66,15 @@ struct SignInFeatureTests {
           return .success(
             URL(
               string:
-                "tech.lil.health://apple-signin/?id_token=apple-token&state=\(request.state)&user=\(user)"
+                "tech.lil.health://apple-signin/?id_token=apple-token&code=c0de&state=\(request.state)&user=\(user)"
             )!)
         }
         $0.auth.signInWithApple = { credential, nonce in
           #expect(
             credential
               == AppleCredential(
-                identityToken: "apple-token", givenName: "Mary Ann", familyName: "van der Berg"))
+                identityToken: "apple-token", authorizationCode: "c0de", givenName: "Mary Ann",
+                familyName: "van der Berg"))
           #expect(nonce == zeroNonce)
         }
       }
@@ -95,6 +96,18 @@ struct SignInFeatureTests {
         $0.status = .signedIn
       }
       await store.receive(\.delegate.signedIn)
+    }
+
+    @Test
+    func applesWebAnswerWithoutACodeStillSignsIn() throws {
+      var generator = Zeros()
+      let request = AppleWebAuthorizationRequest.make(
+        api: URL(string: "https://api.lil.tech")!, using: &generator)
+      for query in ["", "&code="] {
+        let callback = URL(
+          string: "tech.lil.health://apple-signin/?id_token=t\(query)&state=\(request.state)")!
+        #expect(try request.credential(from: callback) == AppleCredential(identityToken: "t"))
+      }
     }
 
     @Test
