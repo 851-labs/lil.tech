@@ -185,6 +185,34 @@ struct HealthBackfillTests {
   }
 
   @Test
+  func theNextPageIsReadWhileOneIsSaved() async throws {
+    let health = FakeHealth(pages: [temperature.id: 3])
+    let server = FakeServer()
+    let overlapped = LockIsolated<[Bool]>([])
+    var storage = HealthBackfillStorage.inMemory()
+    let save = storage.saveFile
+    // Saving a page's file waits (up to 2 s) for the next page's read, which only happens if
+    // reading overlaps saving.
+    storage.saveFile = { name, data in
+      let saved = overlapped.value.count
+      var waited = 0
+      while health.reads.value.count <= saved + 1, saved < 2, waited < 200 {
+        usleep(10_000)
+        waited += 1
+      }
+      let didOverlap = waited < 200
+      overlapped.withValue { $0.append(didOverlap) }
+      try save(name, data)
+    }
+    let backfill = makeBackfill([temperature], health: health, server: server, storage: storage)
+
+    try await backfill.run()
+    // The last page has no next page to wait for.
+    #expect(overlapped.value.prefix(2) == [true, true])
+    #expect(server.records.value.count == 9)
+  }
+
+  @Test
   func aPageReadAheadIsDroppedWhenTheUploadBeforeItFails() async throws {
     let health = FakeHealth(pages: [temperature.id: 3])
     let server = FakeServer()

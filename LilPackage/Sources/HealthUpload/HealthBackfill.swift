@@ -551,91 +551,96 @@ public actor HealthBackfill {
     /// The next page, being read, with how long the read took.
     var next: Task<(HealthPage, Duration), any Error>?
     defer { next?.cancel() }
-    while !isLast {
-      try Task.checkCancellation()
-      let anchor = state.anchors[type.id]
-      // A series that couldn't be read keeps the page from moving on, until it's failed
-      // `seriesAttempts` times: then it's skipped, so one record can't hold up the type forever.
-      var reading = type
-      reading.skipsUnreadableSeries =
-        state.seriesFailures[type.id, default: 0] >= Self.seriesAttempts
-      let readStart = ContinuousClock.now
-      let page: HealthPage
-      let readTime: Duration
-      do {
-        if let read = next {
-          next = nil
-          (page, readTime) = try await read.value
-        } else {
-          page = try await reader.page(reading, anchor, limit)
-          readTime = ContinuousClock.now - readStart
+    do {
+      while !isLast {
+        try Task.checkCancellation()
+        let anchor = state.anchors[type.id]
+        // A series that couldn't be read keeps the page from moving on, until it's failed
+        // `seriesAttempts` times: then it's skipped, so one record can't hold up the type
+        // forever.
+        var reading = type
+        reading.skipsUnreadableSeries =
+          state.seriesFailures[type.id, default: 0] >= Self.seriesAttempts
+        let readStart = ContinuousClock.now
+        let page: HealthPage
+        let readTime: Duration
+        do {
+          if let read = next {
+            next = nil
+            (page, readTime) = try await read.value
+          } else {
+            page = try await reader.page(reading, anchor, limit)
+            readTime = ContinuousClock.now - readStart
+          }
+        } catch {
+          BackfillLog.write(
+            "read \(BackfillLog.name(type.id)) failed after \(BackfillLog.since(readStart)): \(error)"
+          )
+          throw error
         }
-      } catch {
         BackfillLog.write(
-          "read \(BackfillLog.name(type.id)) failed after \(BackfillLog.since(readStart)): \(error)"
+          "read \(BackfillLog.name(type.id)): \(page.mutations.count) in \(BackfillLog.seconds(readTime))\(page.hasMore ? "" : ", last")"
         )
-        throw error
-      }
-      BackfillLog.write(
-        "read \(BackfillLog.name(type.id)): \(page.mutations.count) in \(BackfillLog.seconds(readTime))\(page.hasMore ? "" : ", last")"
-      )
-      state.seriesFailures[type.id] = nil
-      if page.mutations.isEmpty {
-        if anchor == nil, !page.hasMore {
-          // Nothing readable yet: keep no anchor, and check again next time.
-          guard !state.empty.contains(type.id) else { return }
-          state.empty.insert(type.id)
-        } else {
-          // Nothing changed: just move the anchor, without a pending page.
-          state.anchors[type.id] = page.anchor
-          if !page.hasMore { state.finished.insert(type.id) }
+        state.seriesFailures[type.id] = nil
+        if page.mutations.isEmpty {
+          if anchor == nil, !page.hasMore {
+            // Nothing readable yet: keep no anchor, and check again next time.
+            guard !state.empty.contains(type.id) else { return }
+            state.empty.insert(type.id)
+          } else {
+            // Nothing changed: just move the anchor, without a pending page.
+            state.anchors[type.id] = page.anchor
+            if !page.hasMore { state.finished.insert(type.id) }
+          }
+          try storage.saveState(state)
+          updateCounts(state)
+          isLast = !page.hasMore
+          continue
         }
+        state.empty.remove(type.id)
+        // Read while this page is encoded, saved and uploaded.
+        if page.hasMore { next = Self.readAhead(type, after: page.anchor, limit, reader) }
+        markStatistics(of: type, changedBy: page.mutations, &state)
+        let (pending, files, blobs) = try write(page, of: type)
+        // The page is saved before its files, so a kill in between leaves no orphans: the
+        // missing files make the next run read the page again.
+        state.pending = pending
         try storage.saveState(state)
-        updateCounts(state)
-        isLast = !page.hasMore
-        continue
-      }
-      state.empty.remove(type.id)
-      markStatistics(of: type, changedBy: page.mutations, &state)
-      let (pending, files, blobs) = try write(page, of: type)
-      // The page is saved before its files, so a kill in between leaves no orphans: the
-      // missing files make the next run read the page again.
-      state.pending = pending
-      try storage.saveState(state)
-      for (batch, file) in zip(pending.batches, files) { try storage.saveFile(batch, file) }
-      for (sha256, blob) in blobs {
-        try storage.saveFile(HealthBackfillState.PendingPage.blobFile(sha256), blob)
-      }
-      if page.hasMore {
-        // From where this page ends, as the loop would read it next: a good read clears the
-        // series failures, so nothing is skipped.
-        var following = type
-        following.skipsUnreadableSeries = false
-        let reader = reader
-        let from = page.anchor
-        next = Task {
-          let start = ContinuousClock.now
-          let page = try await reader.page(following, from, limit)
-          return (page, ContinuousClock.now - start)
+        for (batch, file) in zip(pending.batches, files) { try storage.saveFile(batch, file) }
+        for (sha256, blob) in blobs {
+          try storage.saveFile(HealthBackfillState.PendingPage.blobFile(sha256), blob)
         }
-      }
-      do {
         try await upload(pending, &state)
-      } catch {
-        // The read ahead stops before the run moves on, so it can't overlap the next type's.
-        next?.cancel()
-        _ = try? await next?.value
-        next = nil
-        throw error
+        // A page given up on (its files went missing) leaves the anchor where it was: the read
+        // ahead started past it, so it's dropped and the loop reads from the anchor again.
+        if state.anchors[type.id] != page.anchor, let read = next {
+          read.cancel()
+          _ = try? await read.value
+          next = nil
+        }
+        isLast = pending.isLast
       }
-      // A page given up on (its files went missing) leaves the anchor where it was: the read
-      // ahead started past it, so it's dropped and the loop reads from the anchor again.
-      if state.anchors[type.id] != page.anchor, let read = next {
-        read.cancel()
-        _ = try? await read.value
-        next = nil
-      }
-      isLast = pending.isLast
+    } catch {
+      // Whatever failed, the read ahead stops before the run moves on, so it can't overlap the
+      // next type's.
+      next?.cancel()
+      _ = try? await next?.value
+      throw error
+    }
+  }
+
+  /// Starts reading the page after `anchor`, as the loop would read it next: a good read clears
+  /// the series failures, so nothing is skipped. Off the actor, so it overlaps the current page's
+  /// encoding and saving.
+  private nonisolated static func readAhead(
+    _ type: HealthBackfillType, after anchor: Data?, _ limit: Int, _ reader: HealthReader
+  ) -> Task<(HealthPage, Duration), any Error> {
+    var following = type
+    following.skipsUnreadableSeries = false
+    return Task {
+      let start = ContinuousClock.now
+      let page = try await reader.page(following, anchor, limit)
+      return (page, ContinuousClock.now - start)
     }
   }
 
