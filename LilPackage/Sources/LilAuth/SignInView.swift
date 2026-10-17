@@ -55,6 +55,13 @@ public struct SignInView: View {
               .frame(maxWidth: 320)
               .disabled(store.googleRequest != nil)
             }
+
+            if store.isTestAccountAvailable {
+              Button("Sign in to a Test Account") {
+                store.send(.testAccountButtonTapped)
+              }
+              .font(.callout)
+            }
           }
           .opacity(showsButtons ? 1 : 0)
           .disabled(!showsButtons)
@@ -128,6 +135,14 @@ public struct SignInView: View {
   SignInView(
     store: Store(initialState: SignInFeature.State()) { SignInFeature() },
     appName: "lil health", privacyPolicy: URL(string: "https://lil.tech/privacy"))
+}
+
+#Preview("Pointed at a preview deployment") {
+  var state = SignInFeature.State()
+  state.isTestAccountAvailable = true
+  return SignInView(
+    store: Store(initialState: state) { SignInFeature() }, appName: "lil health",
+    privacyPolicy: URL(string: "https://lil.tech/privacy"))
 }
 
 #Preview("Signing in") {

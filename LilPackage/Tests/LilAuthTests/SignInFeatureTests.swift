@@ -171,6 +171,29 @@ struct SignInFeatureTests {
   }
 
   @Test
+  func signingInToTheTestAccount() async {
+    let store = TestStore(initialState: SignInFeature.State(status: .failed("Earlier error"))) {
+      SignInFeature()
+    } withDependencies: {
+      $0.auth.signInToTestAccount = { account in #expect(account == "e2e") }
+    }
+
+    await store.send(.testAccountButtonTapped) {
+      $0.status = .signingIn
+    }
+    await store.receive(\.signInSucceeded) {
+      $0.status = .signedIn
+    }
+    await store.receive(\.delegate.signedIn)
+  }
+
+  @Test
+  func aTestAccountIsOnlyOfferedForAPreview() {
+    // Tests talk to staging, which has no test accounts.
+    #expect(SignInFeature.State().isTestAccountAvailable == false)
+  }
+
+  @Test
   func closingGooglesSheetAfterAFailure() async {
     let store = TestStore(initialState: SignInFeature.State(status: .failed("Earlier error"))) {
       SignInFeature()

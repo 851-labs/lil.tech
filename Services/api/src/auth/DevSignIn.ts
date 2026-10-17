@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { DevicePlatform, Devices } from "../core/Devices.ts";
 import { Users } from "../core/Users.ts";
@@ -19,6 +19,11 @@ export const maxDevUsers = 1000;
 
 const DevSignInRequest = Schema.Struct({
   displayName: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  /**
+   * A synthetic account to sign in to, by name, made the first time: so an iPhone and a Mac sign
+   * in to the same one.
+   */
+  account: Schema.optionalKey(Schema.NonEmptyString),
   app: Schema.optionalKey(Schema.NonEmptyString),
   platform: Schema.optionalKey(DevicePlatform),
 });
@@ -35,9 +40,10 @@ const badRequest = (message: string) =>
   HttpServerResponse.jsonUnsafe({ _tag: "BadRequest", message }, { status: 400 });
 
 /**
- * `POST /v1/auth/dev`: signs in as a new synthetic user with no identities, for checking PR
- * previews end to end and for simulator builds while provider sign-in isn't available. It's left
- * out of the OpenAPI spec, and only registered in `devSignInEnvironments`; elsewhere it's a 404.
+ * `POST /v1/auth/dev`: signs in as a synthetic user with no identities, for checking PR previews
+ * end to end and for simulator and Debug Mac builds pointed at one. A new user each time, or the
+ * one named `account`, made the first time, so several devices can share it. It's left out of the
+ * OpenAPI spec, and only registered in `devSignInEnvironments`; elsewhere it's a 404.
  */
 export const DevSignInRoute = HttpRouter.use((router) =>
   Effect.gen(function* () {
@@ -55,13 +61,19 @@ export const DevSignInRoute = HttpRouter.use((router) =>
         const request = yield* readRequest.pipe(
           Effect.mapError((error) => badRequest(error.message)),
         );
-        if ((yield* users.count) >= maxDevUsers) {
+        const existing =
+          request.account === undefined
+            ? Option.none()
+            : yield* users.findSynthetic(request.account);
+        if (Option.isNone(existing) && (yield* users.count) >= maxDevUsers) {
           return HttpServerResponse.jsonUnsafe(
             { _tag: "TooManyUsers", message: `This stage already has ${maxDevUsers} users` },
             { status: 429 },
           );
         }
-        const user = yield* users.create({ displayName: request.displayName ?? null });
+        const user = Option.isSome(existing)
+          ? existing.value
+          : yield* users.create({ displayName: request.account ?? request.displayName ?? null });
         const tokens = yield* Effect.gen(function* () {
           const device = yield* devices.create({
             userId: user.id,
@@ -70,8 +82,12 @@ export const DevSignInRoute = HttpRouter.use((router) =>
             name: "Dev sign-in",
           });
           return yield* auth.issueSession(user.id, device.id);
-          // Deleting the user deletes its device and sessions too.
-        }).pipe(Effect.onError(() => users.delete(user.id).pipe(Effect.ignore)));
+          // Deleting a new user deletes its device and sessions too.
+        }).pipe(
+          Effect.onError(() =>
+            Option.isSome(existing) ? Effect.void : users.delete(user.id).pipe(Effect.ignore),
+          ),
+        );
         return yield* HttpServerResponse.schemaJson(TokenPair)(tokens);
       }).pipe(
         Effect.catchTag("TooManyRequests", tooManyRequests),

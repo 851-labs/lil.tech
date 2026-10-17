@@ -27,6 +27,13 @@ export class Users extends Context.Service<
     /** How many users there are. */
     readonly count: Effect.Effect<number, SqlError.SqlError>;
     /**
+     * A user with this display name and no sign-in identities: one dev sign-in made
+     * (`src/auth/DevSignIn.ts`).
+     */
+    readonly findSynthetic: (
+      displayName: string,
+    ) => Effect.Effect<Option.Option<User>, SqlError.SqlError>;
+    /**
      * Records the size of the user's store, measured at `measuredAt`, unless a later measurement
      * is already recorded.
      */
@@ -56,6 +63,14 @@ export class Users extends Context.Service<
         }),
         findById: Effect.fn("Users.findById")(function* (id) {
           const rows = yield* sql`${select} WHERE id = ${id}`;
+          const row = rows[0];
+          if (row === undefined) return Option.none();
+          return Option.some(yield* decodeUser(row).pipe(Effect.orDie));
+        }),
+        findSynthetic: Effect.fn("Users.findSynthetic")(function* (displayName) {
+          const rows = yield* sql`${select} WHERE display_name = ${displayName}
+            AND NOT EXISTS (SELECT 1 FROM identities WHERE identities.user_id = users.id)
+            ORDER BY created_at LIMIT 1`;
           const row = rows[0];
           if (row === undefined) return Option.none();
           return Option.some(yield* decodeUser(row).pipe(Effect.orDie));
