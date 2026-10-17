@@ -165,7 +165,8 @@ describe("samples by type and start", () => {
     assert.deepStrictEqual(tombstoned(sql), [1]);
     // A record that was never stored can't be told apart, so its delete is logged too.
     assert.strictEqual(apply([remove(9)]).appended, 1);
-    assert.deepStrictEqual(log(sql), ["upsert 1", "upsert 2", "delete 1", "delete 9"]);
+    // Sample 1's upsert is served as a delete once it's tombstoned.
+    assert.deepStrictEqual(log(sql), ["delete 1", "upsert 2", "delete 1", "delete 9"]);
   });
 
   it("an upsert after a delete brings the record back, as a new one", () => {

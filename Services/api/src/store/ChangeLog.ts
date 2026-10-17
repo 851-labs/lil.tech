@@ -59,10 +59,11 @@ const toRow = (
 
 /**
  * Whether upserts' changes carry a copy of their row (`changes.row`) as well as their key (store
- * migration 17). Code from before it can't serve changes without one, so copies stay until the
- * oldest version a rollback can reach reads both (`docs/SYNC.md`).
+ * migration 17). Code from before that migration can't serve changes without one, so copies were
+ * kept until the version that reads both was live (851-2673). Rolling back past it needs them
+ * turned on again first, and a rollback after that (`docs/SYNC.md`).
  */
-export const logsRowCopies = true;
+export const logsRowCopies = false;
 
 /** A record's key fields' values and ID as one string, to match stored rows to records. */
 const recordKey = (values: ReadonlyArray<SqlValue>) => JSON.stringify(values);
