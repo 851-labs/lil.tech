@@ -46,8 +46,8 @@ const remove = (n: number): Mutation => ({ entity: "health_sample", op: "delete"
 const makeStore = () => {
   const sql = makeTestStoreSql();
   migrate(sql);
-  const apply = (mutations: ReadonlyArray<Mutation>, at = 0) =>
-    applyMutations(sql, entitiesByName, mutations, at);
+  const apply = (mutations: ReadonlyArray<Mutation>, at = 0, copyRows?: boolean) =>
+    applyMutations(sql, entitiesByName, mutations, at, copyRows);
   return { sql, apply };
 };
 
@@ -63,12 +63,40 @@ const tombstoned = (sql: StoreSql) =>
     .map((row) => Number((row["id"] as string).slice(-12)));
 
 const log = (sql: StoreSql) => {
-  const page = readChanges(sql, 0, 1000);
+  const page = readChanges(sql, entitiesByName, 0, 1000);
   if (!("changes" in page)) return assert.fail("compacted");
   return page.changes.map((change) => `${change.op} ${Number(change.id.slice(-12))}`);
 };
 
 describe("samples by type and start", () => {
+  it("serves samples logged without a copy by key, even with an ID stored under two keys", () => {
+    const { sql, apply } = makeStore();
+    const moved = 1760500000000;
+    apply([sample(1), sample(2, { value: 2.5 })], 0, false);
+    apply([remove(1)], 0, false);
+    // Back under another start: its old row stays, no longer tombstoned.
+    apply([sample(1, { startDate: moved, endDate: moved + 60000 })], 0, false);
+    assert.deepStrictEqual(
+      sql.exec("SELECT start_date FROM health_sample WHERE id = ? ORDER BY start_date", uuid(1)),
+      [{ start_date: 1760400060000 }, { start_date: moved }],
+    );
+    const page = readChanges(sql, entitiesByName, 0, 10);
+    if (!("changes" in page)) return assert.fail("compacted");
+    assert.deepStrictEqual(
+      page.changes.map((change) => [
+        change.op,
+        "row" in change ? change.row["startDate"] : null,
+        "row" in change ? change.row["value"] : null,
+      ]),
+      [
+        ["upsert", 1760400060000, 1],
+        ["upsert", 1760400120000, 2.5],
+        ["delete", null, null],
+        ["upsert", moved, 1],
+      ],
+    );
+  });
+
   it("finds, merges and revives a group's records by their key, in one call", () => {
     const { sql, apply } = makeStore();
     apply([sample(0), sample(1), sample(2)]);

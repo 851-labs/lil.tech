@@ -38,11 +38,99 @@ const sameValues = (a: ReadonlyArray<SqlValue>, b: ReadonlyArray<SqlValue>) =>
 export const upsertGroupSize = 500;
 
 /**
- * A group's rows written at once at most, as JSON (`applyMutations`). Its parameters hold each row
- * about twice (the columns and the change log's copy), escaped, so they stay far below SQLite's
- * 2 MB limit for a string whatever the records.
+ * A group's rows written at once at most, as JSON (`applyMutations`): each row's values, and its
+ * copy in the change log counted twice for escaping. UTF-8 takes at most 3 bytes a character, so
+ * the parameters stay below SQLite's 2 MB limit for a string whatever the records.
  */
 export const writeBytes = 256 * 1024;
+
+/** A record as the change log serves it: its ID and every field, from its columns' values. */
+const toRow = (
+  entity: Entity,
+  id: string,
+  values: ReadonlyArray<SqlValue>,
+): Record<string, Schema.Json> => {
+  const row: Record<string, Schema.Json> = { id };
+  entity.fields.forEach(({ field, type }, position) => {
+    row[field] = fromColumnValue(type, values[position]);
+  });
+  return row;
+};
+
+/**
+ * Whether upserts' changes carry a copy of their row (`changes.row`) as well as their key (store
+ * migration 17). Code from before it can't serve changes without one, so copies stay until the
+ * oldest version a rollback can reach reads both (`docs/SYNC.md`).
+ */
+export const logsRowCopies = true;
+
+/** A record's key fields' values and ID as one string, to match stored rows to records. */
+const recordKey = (values: ReadonlyArray<SqlValue>) => JSON.stringify(values);
+
+/**
+ * The stored rows of `keys`, a JSON array of `[...key fields' values, id]` arrays, by
+ * `recordKey`: a table with key fields can hold the same ID under two keys.
+ */
+const selectStored = (sql: StoreSql, entity: Entity, keys: string): Map<string, SqlRow> => {
+  const stored = new Map<string, SqlRow>();
+  for (const row of sql.exec(entity.statements.select, keys)) {
+    stored.set(recordKey(entity.keyColumns.map((column) => row[column] ?? null)), row);
+  }
+  return stored;
+};
+
+/**
+ * The current rows of the records whose upserts were logged without a copy (store migration 17),
+ * by `seq`: read from their tables in groups, by key and ID. A record that's gone, or tombstoned,
+ * has none.
+ */
+const readLoggedRows = (
+  sql: StoreSql,
+  entities: ReadonlyMap<string, Entity>,
+  logged: ReadonlyArray<SqlRow>,
+): Map<number, Record<string, Schema.Json>> => {
+  const wanted = new Map<Entity, Array<SqlRow>>();
+  for (const change of logged) {
+    if (change["op"] !== "upsert" || change["row"] !== "") continue;
+    const entity = entities.get(change["entity"] as string);
+    if (entity === undefined) continue;
+    const changes = wanted.get(entity) ?? [];
+    changes.push(change);
+    wanted.set(entity, changes);
+  }
+  const rows = new Map<number, Record<string, Schema.Json>>();
+  if (wanted.size === 0) return rows;
+  const anyTombstones = sql.exec("SELECT 1 FROM tombstones LIMIT 1").length > 0;
+  for (const [entity, changes] of wanted) {
+    for (let start = 0; start < changes.length; start += upsertGroupSize) {
+      const group = changes.slice(start, start + upsertGroupSize);
+      const records = group.map((change) => [
+        ...(change["key"] === null ? [] : (JSON.parse(change["key"] as string) as Array<SqlValue>)),
+        change["id"] as string,
+      ]);
+      const keys = JSON.stringify(records);
+      const stored = selectStored(sql, entity, keys);
+      const tombstoned = new Set<string>();
+      if (entity.key.length > 0 && anyTombstones) {
+        const rows = sql.exec(
+          `SELECT id FROM tombstones
+            WHERE entity = ? AND id IN (SELECT value ->> '$[#-1]' FROM json_each(?))`,
+          entity.name,
+          keys,
+        );
+        for (const row of rows) tombstoned.add(row["id"] as string);
+      }
+      group.forEach((change, position) => {
+        const id = change["id"] as string;
+        const record = stored.get(recordKey(records[position]!));
+        if (record === undefined || tombstoned.has(id)) return;
+        const values = entity.fields.map(({ column }) => record[column] ?? null);
+        rows.set(change["seq"] as number, toRow(entity, id, values));
+      });
+    }
+  }
+  return rows;
+};
 
 /**
  * Applies `mutations` in order and appends one change per record that changed, all in one
@@ -55,8 +143,10 @@ export const writeBytes = 256 * 1024;
  *   non-nullable field.
  * - An upsert that leaves the stored row unchanged, or a delete of a record that doesn't exist,
  *   appends nothing, so retries don't grow the log.
- * - A change's `row` is the whole record as stored, with every field this code knows. Rolling the
- *   server back past an entity schema change therefore needs a new epoch (see `docs/SYNC.md`).
+ * - An upsert's change keeps the record's key (`key`, and its ID), and a copy of its row while
+ *   `copyRows` (`logsRowCopies`). Without one, `readChanges` serves it with the whole record as
+ *   it is now. Rolling the server back past an entity schema change therefore needs a new epoch
+ *   (see `docs/SYNC.md`).
  * - For an entity with key fields (`Entity.key`), upserts find the record by them and its ID, so
  *   they must include them. A delete leaves a tombstone, and the record's row is removed later
  *   (`src/store/Tombstones.ts`): it can't be found by its ID alone. Its first delete is appended
@@ -68,6 +158,7 @@ export const applyMutations = (
   entities: ReadonlyMap<string, Entity>,
   mutations: ReadonlyArray<Mutation>,
   at: number,
+  copyRows = logsRowCopies,
 ): AppliedMutations =>
   sql.transaction(() => {
     const start = readHead(sql);
@@ -160,14 +251,12 @@ export const applyMutations = (
         if (failure !== undefined) break;
         decoded.push({ index, id: mutation.id, set, keyValues });
       }
-      const stored = new Map<string, SqlRow>();
+      let stored = new Map<string, SqlRow>();
       // A record deleted earlier, whose row may not be removed yet, comes back as a new one.
       const revived = new Set<string>();
       if (decoded.length > 0) {
         const keys = JSON.stringify(decoded.map(({ id, keyValues }) => [...keyValues, id]));
-        for (const row of sql.exec(entity.statements.select, keys)) {
-          stored.set(row["id"] as string, row);
-        }
+        stored = selectStored(sql, entity, keys);
         if (entity.key.length > 0 && hasTombstones()) {
           const revivedRows = sql.exec(
             `DELETE FROM tombstones
@@ -181,15 +270,17 @@ export const applyMutations = (
           if (revived.size > 0) tombstones = undefined;
         }
       }
-      let upserts: Array<ReadonlyArray<SqlValue>> = [];
-      let changes: Array<readonly [number, string, string]> = [];
+      // Each row's JSON, joined into the statement's array parameter when it's written.
+      let upserts: Array<string> = [];
+      let changes: Array<readonly [number, string, string, string | null]> = [];
       let bytes = 0;
       const write = () => {
         if (upserts.length === 0) return;
-        sql.exec(entity.statements.upsert, JSON.stringify(upserts));
+        sql.exec(entity.statements.upsert, `[${upserts.join(",")}]`);
         sql.exec(
-          `INSERT INTO changes (seq, entity, id, op, row, at)
-            SELECT value ->> 0, ?, value ->> 1, 'upsert', value ->> 2, ? FROM json_each(?)`,
+          `INSERT INTO changes (seq, entity, id, op, row, key, at)
+            SELECT value ->> 0, ?, value ->> 1, 'upsert', value ->> 2, value ->> 3, ?
+            FROM json_each(?)`,
           entity.name,
           at,
           JSON.stringify(changes),
@@ -198,8 +289,8 @@ export const applyMutations = (
         changes = [];
         bytes = 0;
       };
-      for (const { index, id, set } of decoded) {
-        const before = revived.has(id) ? undefined : stored.get(id);
+      for (const { index, id, set, keyValues } of decoded) {
+        const before = revived.has(id) ? undefined : stored.get(recordKey([...keyValues, id]));
         const values = entity.fields.map(({ field, column, type }) =>
           field in set ? toColumnValue(type, set[field] ?? null) : (before?.[column] ?? null),
         );
@@ -209,12 +300,10 @@ export const applyMutations = (
         if (missing !== undefined) {
           throw new InvalidMutation({ index, message: `Missing ${missing.field}` });
         }
-        const row: Record<string, Schema.Json> = { id };
-        entity.fields.forEach(({ field, type }, position) => {
-          row[field] = fromColumnValue(type, values[position]);
-        });
-        const invalid = entity.checkRow?.(id, row);
-        if (invalid !== undefined) throw new InvalidMutation({ index, message: invalid });
+        if (entity.checkRow !== undefined) {
+          const invalid = entity.checkRow(id, toRow(entity, id, values));
+          if (invalid !== undefined) throw new InvalidMutation({ index, message: invalid });
+        }
         if (
           before !== undefined &&
           sameValues(
@@ -224,10 +313,12 @@ export const applyMutations = (
         ) {
           continue;
         }
-        const json = JSON.stringify(row);
-        upserts.push([id, ...values]);
-        changes.push([++head, id, json]);
-        bytes += json.length;
+        const upsert = JSON.stringify([id, ...values]);
+        const copy = copyRows ? JSON.stringify(toRow(entity, id, values)) : "";
+        const key = entity.key.length > 0 ? JSON.stringify(keyValues) : null;
+        upserts.push(upsert);
+        changes.push([++head, id, copy, key]);
+        bytes += upsert.length + copy.length * 2 + (key?.length ?? 0);
         if (bytes >= writeBytes) write();
       }
       if (failure !== undefined) throw failure;
@@ -272,32 +363,45 @@ export const applyMutations = (
 
 /**
  * Up to `limit` changes after `after`, or `ChangesCompacted` if some of them were deleted. Reads
- * in one transaction, so `epoch`, `head` and the page agree.
+ * in one transaction, so `epoch`, `head` and the page agree. Upserts come with their records'
+ * current rows (`readLoggedRows`); one whose record is gone is served as a delete.
  */
 export const readChanges = (
   sql: StoreSql,
+  entities: ReadonlyMap<string, Entity>,
   after: number,
   limit: number,
 ): ChangesPage | ChangesCompacted =>
   sql.transaction(() => {
     if (after < readHorizon(sql)) return new ChangesCompacted({ reason: "compacted" });
-    const changes = sql
-      .exec(
-        "SELECT seq, entity, id, op, row, at FROM changes WHERE seq > ? ORDER BY seq LIMIT ?",
-        after,
-        limit,
-      )
-      .map((change): Change => ({
-        seq: change["seq"] as number,
+    const logged = sql.exec(
+      "SELECT seq, entity, id, op, row, key, at FROM changes WHERE seq > ? ORDER BY seq LIMIT ?",
+      after,
+      limit,
+    );
+    const rows = readLoggedRows(sql, entities, logged);
+    const changes = logged.flatMap((change): Array<Change> => {
+      const seq = change["seq"] as number;
+      const base = {
+        seq,
         entity: change["entity"] as string,
         id: change["id"] as string,
-        op: change["op"] as Change["op"],
-        ...(change["row"] === null
-          ? {}
-          : { row: JSON.parse(change["row"] as string) as Record<string, Schema.Json> }),
         at: change["at"] as number,
-      }));
+      };
+      const copy = change["row"];
+      if (change["op"] === "delete") return [{ ...base, op: "delete" }];
+      if (typeof copy === "string" && copy !== "") {
+        return [{ ...base, op: "upsert", row: JSON.parse(copy) as Record<string, Schema.Json> }];
+      }
+      // An entity this code doesn't know (e.g. after a rollback) has no row to read: left out,
+      // as clients that don't know it ignore it.
+      if (!entities.has(base.entity)) return [];
+      // Its record is gone (deleted since, by a later change): a delete gets the same result.
+      const row = rows.get(seq);
+      return [row === undefined ? { ...base, op: "delete" } : { ...base, op: "upsert", row }];
+    });
     const head = readHead(sql);
-    const next = changes.at(-1)?.seq ?? after;
+    // The log's, not the page's: a change left out still moves the cursor.
+    const next = (logged.at(-1)?.["seq"] as number | undefined) ?? after;
     return { epoch: readEpoch(sql), changes, next, head, hasMore: next < head };
   });

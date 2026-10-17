@@ -16,6 +16,7 @@ import { makeTestStoreSql } from "./TestStoreSql.ts";
 import { makeTestStore, testNote } from "./TestUserStores.ts";
 
 const note = testNote;
+const noteEntities = new Map([[note.name, note]]);
 
 const fields = (overrides: Record<string, unknown> = {}) => ({
   title: "Note",
@@ -302,11 +303,67 @@ describe("applyMutations", () => {
 });
 
 describe("readChanges", () => {
+  it("serves upserts logged without a copy with their records' current rows", () => {
+    const { sql } = makeStore();
+    const apply = (mutations: ReadonlyArray<Mutation>) =>
+      applyMutations(sql, noteEntities, mutations, 0, false);
+    apply([upsert("n1", fields({ score: 4 })), upsert("n2")]);
+    apply([upsert("n1", { title: "Renamed" })]);
+    apply([remove("n2")]);
+    assert.deepStrictEqual(sql.exec("SELECT row, key FROM changes WHERE op = 'upsert'"), [
+      { row: "", key: null },
+      { row: "", key: null },
+      { row: "", key: null },
+    ]);
+    const renamed = { id: "n1", ...fields({ score: 4, title: "Renamed" }) };
+    assert.deepStrictEqual(readChanges(sql, noteEntities, 0, 10), {
+      epoch: 1,
+      changes: [
+        { seq: 1, entity: "test_note", id: "n1", op: "upsert", row: renamed, at: 0 },
+        // Deleted since: served as a delete, which ends the same way.
+        { seq: 2, entity: "test_note", id: "n2", op: "delete", at: 0 },
+        { seq: 3, entity: "test_note", id: "n1", op: "upsert", row: renamed, at: 0 },
+        { seq: 4, entity: "test_note", id: "n2", op: "delete", at: 0 },
+      ],
+      next: 4,
+      head: 4,
+      hasMore: false,
+    });
+  });
+
+  it("serves changes logged with and without copies together", () => {
+    const { sql } = makeStore();
+    applyMutations(sql, noteEntities, [upsert("n1", fields({ title: "Copied" }))], 0, true);
+    applyMutations(sql, noteEntities, [upsert("n2")], 0, false);
+    const page = readChanges(sql, noteEntities, 0, 10);
+    if (!("changes" in page)) return assert.fail("compacted");
+    assert.deepStrictEqual(
+      page.changes.map((change) => ("row" in change ? change.row : null)),
+      [
+        { id: "n1", ...fields({ title: "Copied" }) },
+        { id: "n2", ...fields() },
+      ],
+    );
+  });
+
+  it("leaves out upserts of an entity it doesn't know, still moving the cursor", () => {
+    const { sql } = makeStore();
+    applyMutations(sql, noteEntities, [upsert("n1"), upsert("n2")], 0, false);
+    // A reader without the entity, as after a rollback.
+    assert.deepStrictEqual(readChanges(sql, new Map(), 0, 10), {
+      epoch: 1,
+      changes: [],
+      next: 2,
+      head: 2,
+      hasMore: false,
+    });
+  });
+
   it("pages through the log", () => {
     const { sql } = makeStore();
     const entities = new Map([[note.name, note]]);
     applyMutations(sql, entities, [upsert("n1"), upsert("n2"), remove("n1")], 7);
-    assert.deepStrictEqual(readChanges(sql, 0, 2), {
+    assert.deepStrictEqual(readChanges(sql, noteEntities, 0, 2), {
       epoch: 1,
       changes: [
         {
@@ -330,14 +387,14 @@ describe("readChanges", () => {
       head: 3,
       hasMore: true,
     });
-    assert.deepStrictEqual(readChanges(sql, 2, 2), {
+    assert.deepStrictEqual(readChanges(sql, noteEntities, 2, 2), {
       epoch: 1,
       changes: [{ seq: 3, entity: "test_note", id: "n1", op: "delete", at: 7 }],
       next: 3,
       head: 3,
       hasMore: false,
     });
-    assert.deepStrictEqual(readChanges(sql, 3, 2), {
+    assert.deepStrictEqual(readChanges(sql, noteEntities, 3, 2), {
       epoch: 1,
       changes: [],
       next: 3,
@@ -348,7 +405,7 @@ describe("readChanges", () => {
 
   it("returns an empty page for an empty log", () => {
     const { sql } = makeStore();
-    assert.deepStrictEqual(readChanges(sql, 0, 1000), {
+    assert.deepStrictEqual(readChanges(sql, noteEntities, 0, 1000), {
       epoch: 1,
       changes: [],
       next: 0,
@@ -362,8 +419,14 @@ describe("readChanges", () => {
     applyMutations(sql, new Map([[note.name, note]]), [upsert("n1"), upsert("n2")], 0);
     sql.exec("DELETE FROM changes WHERE seq <= 1");
     sql.exec("INSERT INTO meta (key, value) VALUES ('horizon', 1)");
-    assert.strictEqual((readChanges(sql, 0, 10) as { _tag?: string })._tag, "ChangesCompacted");
-    assert.lengthOf((readChanges(sql, 1, 10) as unknown as { changes: Array<unknown> }).changes, 1);
+    assert.strictEqual(
+      (readChanges(sql, noteEntities, 0, 10) as { _tag?: string })._tag,
+      "ChangesCompacted",
+    );
+    assert.lengthOf(
+      (readChanges(sql, noteEntities, 1, 10) as unknown as { changes: Array<unknown> }).changes,
+      1,
+    );
   });
 });
 

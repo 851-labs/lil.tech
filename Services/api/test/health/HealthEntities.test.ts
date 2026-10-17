@@ -2,6 +2,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
 import type { Mutation } from "../../src/store/Changes.ts";
 import { readChanges } from "../../src/store/ChangeLog.ts";
+import { entities } from "../../src/store/Registry.ts";
 import { makeUserStore } from "../../src/store/UserStore.ts";
 import { makeTestStoreSql } from "../store/TestStoreSql.ts";
 
@@ -112,6 +113,8 @@ const records: ReadonlyArray<{
   },
 ];
 
+const entitiesByName = new Map(entities.map((entity) => [entity.name, entity]));
+
 describe("health entities", () => {
   it.effect("insert, update and delete through applyMutations, with every change in the log", () =>
     Effect.gen(function* () {
@@ -131,7 +134,7 @@ describe("health entities", () => {
         records.map((record): Mutation => ({ entity: record.entity, op: "delete", id: record.id })),
       );
 
-      const page = readChanges(sql, 0, 100);
+      const page = readChanges(sql, entitiesByName, 0, 100);
       if (!("changes" in page)) return assert.fail("compacted");
       const n = records.length;
       assert.strictEqual(page.head, n * 3);

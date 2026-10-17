@@ -275,7 +275,7 @@ export const makeUserStore = (
         if (deleted) {
           return Effect.succeed({ epoch: 1, changes: [], next: 0, head: 0, hasMore: false });
         }
-        const page = readChanges(sql, after, limit);
+        const page = readChanges(sql, entitiesByName, after, limit);
         return page instanceof ChangesCompacted ? Effect.fail(page) : Effect.succeed(page);
       }),
     /** An uploaded health batch's status, or `null` if it was never received. */
