@@ -2,6 +2,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
 import type { Mutation } from "../../src/store/Changes.ts";
 import { readChanges } from "../../src/store/ChangeLog.ts";
+import { entities } from "../../src/store/Registry.ts";
 import { makeUserStore } from "../../src/store/UserStore.ts";
 import { makeTestStoreSql } from "../store/TestStoreSql.ts";
 
@@ -112,6 +113,8 @@ const records: ReadonlyArray<{
   },
 ];
 
+const entitiesByName = new Map(entities.map((entity) => [entity.name, entity]));
+
 describe("health entities", () => {
   it.effect("insert, update and delete through applyMutations, with every change in the log", () =>
     Effect.gen(function* () {
@@ -125,27 +128,36 @@ describe("health entities", () => {
           row: record[field] as Mutation extends { row: infer R } ? R : never,
         }));
 
+      // The log serves each record's current row (`docs/SYNC.md`), so it's read after each step.
+      const read = (after: number) => {
+        const page = readChanges(sql, entitiesByName, after, 100);
+        return "changes" in page ? page.changes : assert.fail("compacted");
+      };
+      const n = records.length;
       yield* store.applyMutations(upserts("row"));
+      const inserted = read(0);
       yield* store.applyMutations(upserts("update"));
+      const updated = read(n);
       yield* store.applyMutations(
         records.map((record): Mutation => ({ entity: record.entity, op: "delete", id: record.id })),
       );
-
-      const page = readChanges(sql, 0, 100);
-      if (!("changes" in page)) return assert.fail("compacted");
-      const n = records.length;
-      assert.strictEqual(page.head, n * 3);
+      const deleted = read(2 * n);
+      // Once deleted, their earlier upserts read as deletes too.
+      const all = read(0);
+      assert.lengthOf(all, 3 * n);
       records.forEach((record, index) => {
-        const [inserted, updated, deleted] = [index, n + index, 2 * n + index].map(
-          (position) => page.changes[position],
-        );
-        assert.deepStrictEqual(inserted?.row, { id: record.id, ...record.row }, record.entity);
         assert.deepStrictEqual(
-          updated?.row,
+          inserted[index]?.row,
+          { id: record.id, ...record.row },
+          record.entity,
+        );
+        assert.deepStrictEqual(
+          updated[index]?.row,
           { id: record.id, ...record.row, ...record.update },
           record.entity,
         );
-        assert.deepInclude(deleted, { entity: record.entity, id: record.id, op: "delete" });
+        assert.deepInclude(deleted[index], { entity: record.entity, id: record.id, op: "delete" });
+        assert.deepInclude(all[index], { entity: record.entity, id: record.id, op: "delete" });
       });
       // A sample's row stays until the alarm sweeps its tombstone (`Tombstones.test.ts`).
       assert.deepStrictEqual(

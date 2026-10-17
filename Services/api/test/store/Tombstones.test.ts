@@ -63,7 +63,7 @@ const tombstoned = (sql: StoreSql) =>
     .map((row) => Number((row["id"] as string).slice(-12)));
 
 const log = (sql: StoreSql) => {
-  const page = readChanges(sql, 0, 1000);
+  const page = readChanges(sql, entitiesByName, 0, 1000);
   if (!("changes" in page)) return assert.fail("compacted");
   return page.changes.map((change) => `${change.op} ${Number(change.id.slice(-12))}`);
 };
@@ -127,6 +127,28 @@ describe("samples by type and start", () => {
     assert.throws(() => apply([partial]), InvalidMutation, "Missing type");
   });
 
+  it("serves logged samples with their current rows, found by key", () => {
+    const { sql, apply } = makeStore();
+    apply([sample(1, { value: 2.5, metadata: { HKTimeZone: "Europe/Bucharest" } }), sample(2)]);
+    apply([sample(1, { value: 3 })]);
+    const page = readChanges(sql, entitiesByName, 0, 10);
+    if (!("changes" in page)) return assert.fail("compacted");
+    const current = (n: number, overrides: Record<string, unknown> = {}) => ({
+      id: uuid(n),
+      categoryValue: null,
+      correlationId: null,
+      sourceRevision: null,
+      device: null,
+      metadata: null,
+      ...(sample(n, overrides) as { row: Record<string, unknown> }).row,
+    });
+    const one = current(1, { value: 3, metadata: { HKTimeZone: "Europe/Bucharest" } });
+    assert.deepStrictEqual(
+      page.changes.map((change) => ("row" in change ? change.row : change.op)),
+      [one, current(2), one],
+    );
+  });
+
   it("a delete leaves a tombstone and logs the delete once", () => {
     const { sql, apply } = makeStore();
     apply([sample(1), sample(2)]);
@@ -137,7 +159,8 @@ describe("samples by type and start", () => {
     assert.deepStrictEqual(tombstoned(sql), [1]);
     // A record that was never stored can't be told apart, so its delete is logged too.
     assert.strictEqual(apply([remove(9)]).appended, 1);
-    assert.deepStrictEqual(log(sql), ["upsert 1", "upsert 2", "delete 1", "delete 9"]);
+    // Sample 1's upsert is served as a delete once it's tombstoned.
+    assert.deepStrictEqual(log(sql), ["delete 1", "upsert 2", "delete 1", "delete 9"]);
   });
 
   it("an upsert after a delete brings the record back, as a new one", () => {

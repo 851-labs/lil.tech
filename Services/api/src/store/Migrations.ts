@@ -215,6 +215,16 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CREATE INDEX tombstones_at ON tombstones (at);
     `,
   },
+  {
+    version: 17,
+    name: "changes_key",
+    // An upsert's change no longer copies its row: its `row` is '' (the CHECK on `changes` still
+    // wants one), and `key` holds the record's key fields' values as a JSON array (`Entity.key`),
+    // or NULL without key fields. `readChanges` reads the row from the record's table. Changes
+    // from before keep their rows. Older code can't read the new ones, so rolling back past this
+    // needs a new epoch (`docs/SYNC.md`).
+    sql: "ALTER TABLE changes ADD COLUMN key TEXT;",
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

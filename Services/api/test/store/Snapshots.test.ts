@@ -34,6 +34,7 @@ const policy = { ...snapshotPolicy, minChanges: 5, partRecords: 3, pageRows: 2, 
 
 const note = testNoteMutation;
 const all = [...entities, testNote];
+const testEntities = new Map(all.map((entity) => [entity.name, entity]));
 const remove = (id: string): Mutation => ({ entity: "test_note", op: "delete", id });
 
 const makeFiles = makeTestSnapshotFiles;
@@ -57,7 +58,7 @@ type Replica = Map<string, unknown>;
 
 /** Applies log changes to a replica the way a client does. */
 const applyLog = (sql: StoreSql, replica: Replica, after: number) => {
-  const page = readChanges(sql, after, 100_000);
+  const page = readChanges(sql, testEntities, after, 100_000);
   if (!("changes" in page)) return assert.fail("compacted");
   for (const change of page.changes) {
     if (change.entity !== "test_note") continue;
@@ -290,9 +291,12 @@ describe("compaction", () => {
         const remaining = sql.exec("SELECT seq FROM changes ORDER BY seq").map((row) => row["seq"]);
         assert.deepStrictEqual(remaining, [6, 7]);
         assert.strictEqual(snapshot?.seq, 6);
-        assert.strictEqual((readChanges(sql, 0, 10) as { _tag?: string })._tag, "ChangesCompacted");
+        assert.strictEqual(
+          (readChanges(sql, testEntities, 0, 10) as { _tag?: string })._tag,
+          "ChangesCompacted",
+        );
         assert.lengthOf(
-          (readChanges(sql, 5, 10) as unknown as { changes: Array<unknown> }).changes,
+          (readChanges(sql, testEntities, 5, 10) as unknown as { changes: Array<unknown> }).changes,
           2,
         );
 
@@ -321,7 +325,10 @@ describe("compaction", () => {
       compactChanges(sql, yield* Clock.currentTimeMillis, chunked);
       assert.deepStrictEqual(seqs(), [5]);
       // The horizon moves with each chunk, so readers behind it learn they're compacted.
-      assert.strictEqual((readChanges(sql, 3, 10) as { _tag?: string })._tag, "ChangesCompacted");
+      assert.strictEqual(
+        (readChanges(sql, testEntities, 3, 10) as { _tag?: string })._tag,
+        "ChangesCompacted",
+      );
       compactChanges(sql, yield* Clock.currentTimeMillis, chunked);
       assert.deepStrictEqual(seqs(), []);
     }),
