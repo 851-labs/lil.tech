@@ -99,6 +99,18 @@ struct SignInFeatureTests {
     }
 
     @Test
+    func applesWebAnswerWithoutACodeStillSignsIn() throws {
+      var generator = Zeros()
+      let request = AppleWebAuthorizationRequest.make(
+        api: URL(string: "https://api.lil.tech")!, using: &generator)
+      for query in ["", "&code="] {
+        let callback = URL(
+          string: "tech.lil.health://apple-signin/?id_token=t\(query)&state=\(request.state)")!
+        #expect(try request.credential(from: callback) == AppleCredential(identityToken: "t"))
+      }
+    }
+
+    @Test
     func applesWebPageCanceledOrMismatched() async {
       var initial = SignInFeature.State()
       initial.appleWebAPI = URL(string: "https://api.lil.tech")!

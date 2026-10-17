@@ -31,6 +31,19 @@ struct AuthClientTests {
   }
 
   @Test
+  func unusableAuthorizationCodesAreLeftOut() {
+    #expect(AppleCredential.authorizationCode("c0de") == "c0de")
+    #expect(AppleCredential.authorizationCode(Data("c0de".utf8)) == "c0de")
+    #expect(AppleCredential.authorizationCode(nil as String?) == nil)
+    #expect(AppleCredential.authorizationCode(nil as Data?) == nil)
+    #expect(AppleCredential.authorizationCode("") == nil)
+    #expect(AppleCredential.authorizationCode(String(repeating: "c", count: 1025)) == nil)
+    withKnownIssue {
+      #expect(AppleCredential.authorizationCode(Data([0xFF, 0xFE])) == nil)
+    }
+  }
+
+  @Test
   func signingInWithGoogleStartsASession() async throws {
     let (auth, store) = makeAuth { request, body in
       #expect(request.path == "/v1/auth/google")

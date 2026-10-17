@@ -70,7 +70,7 @@ public struct AppleWebAuthorizationRequest: Equatable, Sendable {
       }
     }
     return AppleCredential(
-      identityToken: token, authorizationCode: value("code").flatMap { $0.isEmpty ? nil : $0 },
+      identityToken: token, authorizationCode: AppleCredential.authorizationCode(value("code")),
       givenName: name?.firstName, familyName: name?.lastName)
   }
 

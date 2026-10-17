@@ -26,6 +26,28 @@ public struct AppleCredential: Equatable, Sendable {
     self.givenName = givenName
     self.familyName = familyName
   }
+
+  /// The longest authorization code the API takes. Apple's are far shorter.
+  static let maxAuthorizationCodeLength = 1024
+
+  /// `code`, unless it's empty or too long for the API, which would refuse the whole sign-in. The
+  /// sign-in works without it; the account just can't have its Apple token revoked.
+  static func authorizationCode(_ code: String?) -> String? {
+    guard let code, !code.isEmpty, code.utf8.count <= maxAuthorizationCodeLength else {
+      return nil
+    }
+    return code
+  }
+
+  /// The native sheet's code, which comes as UTF-8 data.
+  static func authorizationCode(_ data: Data?) -> String? {
+    guard let data else { return nil }
+    guard let code = String(data: data, encoding: .utf8) else {
+      reportIssue("Apple's authorization code isn't UTF-8")
+      return nil
+    }
+    return authorizationCode(code)
+  }
 }
 
 /// Why signing in didn't work, worded for the sign-in screen.
