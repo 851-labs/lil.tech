@@ -1,6 +1,5 @@
 import { Clock, Context, Effect, Layer, Schema } from "effect";
 import { IdentityTokenUses } from "../core/IdentityTokenUses.ts";
-import { appleWebServicesId } from "./AppleWebSignIn.ts";
 import type { InvalidIdentityToken, SignInUnavailable } from "./AuthApi.ts";
 import type { VerifiedIdentity } from "./ProviderSignIn.ts";
 import {
@@ -13,6 +12,9 @@ import {
 
 /** Who issues Sign in with Apple identity tokens. */
 export const appleIssuer = "https://appleid.apple.com";
+
+/** The Services ID the Mac's web sign-in uses (`AppleWebSignIn.ts`), under `tech.lil.health`. */
+export const appleWebServicesId = "tech.lil.health.web";
 
 /**
  * What Apple puts in the token's audience: the iPhone app's App ID for its native sheet, and the

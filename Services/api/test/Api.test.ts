@@ -1,4 +1,5 @@
-import { appleWebCallback, appleWebServicesId } from "../src/auth/AppleWebSignIn.ts";
+import { appleWebServicesId } from "../src/auth/Apple.ts";
+import { appleWebCallback, appleWebOrigin } from "../src/auth/AppleWebSignIn.ts";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
@@ -562,7 +563,10 @@ describe("POST /v1/auth/apple/web", () => {
           handler(
             new Request("https://api.lil.tech/v1/auth/apple/web", {
               method: "POST",
-              headers: { "content-type": "application/x-www-form-urlencoded" },
+              headers: {
+                "content-type": "application/x-www-form-urlencoded",
+                origin: appleWebOrigin,
+              },
               body: new URLSearchParams({
                 id_token: "a.b.c",
                 code: "c0de",
@@ -579,9 +583,9 @@ describe("POST /v1/auth/apple/web", () => {
           `${location.protocol}//${location.host}${location.pathname}`,
           appleWebCallback,
         );
+        // Not Apple's authorization code, which nothing redeems.
         assert.deepStrictEqual(Object.fromEntries(location.searchParams), {
           id_token: "a.b.c",
-          code: "c0de",
           state: "s+1",
           user: '{"name":{"firstName":"Ada","lastName":null}}',
         });
@@ -599,6 +603,21 @@ describe("POST /v1/auth/apple/web", () => {
           new URL(cancelled.headers.get("location") ?? "").searchParams.get("error"),
           "user_cancelled_authorize",
         );
+        // Not from Apple's page, or too big to be: the app gets an error, never a token.
+        const refused = (init: RequestInit) =>
+          Effect.promise(async () => {
+            const response = await handler(
+              new Request("https://api.lil.tech/v1/auth/apple/web", { method: "POST", ...init }),
+            );
+            return new URL(response.headers.get("location") ?? "").searchParams;
+          });
+        const forged = yield* refused({
+          headers: { origin: "https://evil.example" },
+          body: new URLSearchParams({ id_token: "x.y.z", state: "s" }),
+        });
+        assert.deepStrictEqual(Object.fromEntries(forged), { error: "invalid_origin" });
+        const big = yield* refused({ body: "id_token=" + "x".repeat(20_000) });
+        assert.deepStrictEqual(Object.fromEntries(big), { error: "request_too_large" });
       }),
     ),
   );
