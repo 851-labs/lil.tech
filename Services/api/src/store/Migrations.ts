@@ -192,6 +192,29 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CREATE INDEX health_workout_route_start ON health_workout_route (start_date);
     `,
   },
+  {
+    version: 16,
+    name: "health_sample_by_time",
+    // `HealthSample`'s key fields (`Entity.key`): stored by type, start and ID, so a backfill's
+    // batches write next to each other instead of all over a UUID index (`docs/SYNC.md`). Copying
+    // is fine for stores of synthetic data; prod's one store was emptied first (851-2651). The
+    // primary key replaces `health_sample_type_start`. `tombstones` is `src/store/Tombstones.ts`.
+    sql: `
+      CREATE TABLE "health_sample_by_time" (id TEXT NOT NULL, "type" TEXT NOT NULL, "start_date" INTEGER NOT NULL, "end_date" INTEGER NOT NULL, "value" REAL, "unit" TEXT, "category_value" INTEGER, "correlation_id" TEXT, "source_name" TEXT NOT NULL, "source_bundle_id" TEXT NOT NULL, "source_revision" TEXT, "device" TEXT, "metadata" TEXT, PRIMARY KEY ("type", "start_date", "id")) STRICT, WITHOUT ROWID;
+      INSERT INTO health_sample_by_time (id, type, start_date, end_date, value, unit, category_value, correlation_id, source_name, source_bundle_id, source_revision, device, metadata)
+        SELECT id, type, start_date, end_date, value, unit, category_value, correlation_id, source_name, source_bundle_id, source_revision, device, metadata FROM health_sample;
+      DROP TABLE health_sample;
+      ALTER TABLE health_sample_by_time RENAME TO health_sample;
+      CREATE INDEX health_sample_correlation ON health_sample (correlation_id) WHERE correlation_id IS NOT NULL;
+      CREATE TABLE tombstones (
+        entity TEXT NOT NULL,
+        id TEXT NOT NULL,
+        at INTEGER NOT NULL,
+        PRIMARY KEY (entity, id)
+      ) STRICT, WITHOUT ROWID;
+      CREATE INDEX tombstones_at ON tombstones (at);
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

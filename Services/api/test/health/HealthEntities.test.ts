@@ -35,7 +35,8 @@ const records: ReadonlyArray<{
     entity: "health_sample",
     id: "6f1c2a40-0000-4000-8000-000000000001",
     row: steps,
-    update: { value: 415 },
+    // Updates of samples include their key fields.
+    update: { type: steps.type, startDate: steps.startDate, value: 415 },
   },
   {
     entity: "health_sample",
@@ -47,7 +48,11 @@ const records: ReadonlyArray<{
       unit: null,
       categoryValue: 3,
     },
-    update: { categoryValue: 4 },
+    update: {
+      type: "HKCategoryTypeIdentifierSleepAnalysis",
+      startDate: steps.startDate,
+      categoryValue: 4,
+    },
   },
   {
     entity: "health_correlation",
@@ -142,8 +147,12 @@ describe("health entities", () => {
         );
         assert.deepInclude(deleted, { entity: record.entity, id: record.id, op: "delete" });
       });
+      // A sample's row stays until the alarm sweeps its tombstone (`Tombstones.test.ts`).
+      assert.deepStrictEqual(
+        sql.exec("SELECT id FROM tombstones ORDER BY id").map((row) => row["id"]),
+        records.filter((record) => record.entity === "health_sample").map((record) => record.id),
+      );
       for (const table of [
-        "health_sample",
         "health_correlation",
         "health_characteristic",
         "health_activity_summary",
@@ -250,23 +259,26 @@ describe("health entities", () => {
     }),
   );
 
-  it("indexes samples and correlations by type and start", () => {
+  it("stores samples by type and start, and indexes correlations by them", () => {
     const sql = makeTestStoreSql();
     makeUserStore(sql);
     const indexes = sql
       .exec("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'health_%'")
       .map((row) => row["name"]);
-    assert.includeMembers(indexes, ["health_sample_type_start", "health_correlation_type_start"]);
-    const plan = sql
-      .exec(
-        "EXPLAIN QUERY PLAN SELECT id FROM health_sample WHERE type = ? AND start_date > ?",
-        "HKQuantityTypeIdentifierStepCount",
-        0,
-      )
-      .map((row) => row["detail"] as string);
-    assert.isTrue(
-      plan.some((detail) => detail.includes("health_sample_type_start")),
-      plan.join(),
+    assert.include(indexes, "health_correlation_type_start");
+    assert.notInclude(indexes, "health_sample_type_start");
+    const plan = (query: string) =>
+      sql
+        .exec(`EXPLAIN QUERY PLAN ${query}`, "HKQuantityTypeIdentifierStepCount", 0)
+        .map((row) => row["detail"] as string)
+        .join();
+    // The table itself is in key order: a range of a type's samples is a search of it.
+    const range = plan("SELECT id FROM health_sample WHERE type = ? AND start_date > ?");
+    assert.include(range, "SEARCH health_sample USING PRIMARY KEY", range);
+    const after = plan(
+      "SELECT id FROM health_sample WHERE (type, start_date, id) > (?, ?, '') ORDER BY type, start_date, id",
     );
+    assert.include(after, "SEARCH health_sample USING PRIMARY KEY", after);
+    assert.notInclude(after, "TEMP B-TREE", after);
   });
 });

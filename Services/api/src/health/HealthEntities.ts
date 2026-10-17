@@ -26,10 +26,14 @@ const provenance = {
   metadata: Column.nullable(Column.json),
 };
 
-/** Quantity and category samples. */
+/**
+ * Quantity and category samples. Stored by type and start date (HealthKit never changes a
+ * sample's), so a backfill, a type at a time in time order, writes next to itself.
+ */
 export const HealthSample = defineEntity("health_sample", {
   clientWritable: false,
   id: healthKitUUID,
+  key: ["type", "startDate"],
   fields: {
     /** The HealthKit type identifier, e.g. `HKQuantityTypeIdentifierStepCount`. */
     type: Column.text,

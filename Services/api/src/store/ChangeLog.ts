@@ -7,7 +7,7 @@ import {
   type Mutation,
 } from "./Changes.ts";
 import { type Entity, fromColumnValue, toColumnValue } from "./Entities.ts";
-import type { SqlValue, StoreSql } from "./StoreSql.ts";
+import type { SqlRow, SqlValue, StoreSql } from "./StoreSql.ts";
 
 export const readMeta = (sql: StoreSql, key: string, fallback: number): number =>
   Number(sql.exec("SELECT value FROM meta WHERE key = ?", key)[0]?.["value"] ?? fallback);
@@ -44,6 +44,11 @@ const sameValues = (a: ReadonlyArray<SqlValue>, b: ReadonlyArray<SqlValue>) =>
  *   appends nothing, so retries don't grow the log.
  * - A change's `row` is the whole record as stored, with every field this code knows. Rolling the
  *   server back past an entity schema change therefore needs a new epoch (see `docs/SYNC.md`).
+ * - For an entity with key fields (`Entity.key`), upserts find the record by them and its ID, so
+ *   they must include them. A delete leaves a tombstone, and the record's row is removed later
+ *   (`src/store/Tombstones.ts`): it can't be found by its ID alone. Its first delete is appended
+ *   whether or not the record exists; deleting it again appends nothing. An upsert after the
+ *   delete brings it back, as a new record.
  */
 export const applyMutations = (
   sql: StoreSql,
@@ -65,6 +70,10 @@ export const applyMutations = (
 
     const start = readHead(sql);
     let head = start;
+    // Looked up once, and only for entities with key fields: most transactions have none.
+    let tombstones: boolean | undefined;
+    const hasTombstones = () =>
+      (tombstones ??= sql.exec("SELECT 1 FROM tombstones LIMIT 1").length > 0);
     for (const [index, mutation] of mutations.entries()) {
       const entity = entities.get(mutation.entity);
       if (entity === undefined) {
@@ -74,8 +83,21 @@ export const applyMutations = (
         throw new InvalidMutation({ index, message: `Invalid ${entity.name} ID ${mutation.id}` });
       }
       if (mutation.op === "delete") {
-        if (sql.exec(entity.statements.delete, mutation.id).length > 0)
+        if (entity.key.length > 0) {
+          const added = sql.exec(
+            `INSERT INTO tombstones (entity, id, at) VALUES (?, ?, ?)
+              ON CONFLICT (entity, id) DO NOTHING RETURNING id`,
+            entity.name,
+            mutation.id,
+            at,
+          );
+          if (added.length > 0) {
+            tombstones = true;
+            append(++head, mutation, null);
+          }
+        } else if (sql.exec(entity.statements.delete, mutation.id).length > 0) {
           append(++head, mutation, null);
+        }
         continue;
       }
 
@@ -84,7 +106,31 @@ export const applyMutations = (
         throw new InvalidMutation({ index, message: decoded.failure.message });
       }
       const set = decoded.success;
-      const stored = sql.exec(entity.statements.select, mutation.id)[0];
+      const keyValues: Array<SqlValue> = [];
+      for (const field of entity.key) {
+        const value = set[field];
+        if (value === undefined || value === null) {
+          throw new InvalidMutation({ index, message: `Missing ${field}` });
+        }
+        keyValues.push(value as SqlValue);
+      }
+      let stored: SqlRow | undefined = sql.exec(
+        entity.statements.select,
+        ...keyValues,
+        mutation.id,
+      )[0];
+      // A record deleted earlier, whose row may not be removed yet, comes back as a new one.
+      if (
+        entity.key.length > 0 &&
+        hasTombstones() &&
+        sql.exec(
+          "DELETE FROM tombstones WHERE entity = ? AND id = ? RETURNING id",
+          entity.name,
+          mutation.id,
+        ).length > 0
+      ) {
+        stored = undefined;
+      }
       const values = entity.fields.map(({ field, column, type }) =>
         field in set ? toColumnValue(type, set[field] ?? null) : (stored?.[column] ?? null),
       );

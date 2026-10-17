@@ -2,7 +2,8 @@ import { Effect } from "effect";
 import { makeId } from "../core/Ids.ts";
 import { readEpoch, readHead } from "./ChangeLog.ts";
 import { type Entity, fromColumnValue } from "./Entities.ts";
-import type { SqlRow, StoreSql } from "./StoreSql.ts";
+import type { SqlRow, SqlValue, StoreSql } from "./StoreSql.ts";
+import { afterKey } from "./Tombstones.ts";
 
 // Snapshots of a store (`docs/SYNC.md`): every record as of a `seq`, in gzip NDJSON parts in R2,
 // so a new device doesn't replay the whole change log. Written a part per alarm, so writes keep
@@ -423,16 +424,33 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
     return "idle" as const;
   }
 
-  // One part: rows after the cursor, by `id` (never by offset, so rows deleted meanwhile can't
-  // make it skip any), a page at a time. Writes interleave between pages; replaying the changes
-  // after the snapshot's `seq` fixes up anything newer.
+  // One part: rows after the cursor, in the table's key order (never by offset, so rows deleted
+  // meanwhile can't make it skip any), a page at a time. Writes interleave between pages;
+  // replaying the changes after the snapshot's `seq` fixes up anything newer. With key fields,
+  // the cursor is the last row's key as JSON, and tombstoned records are left out.
+  const keyed = entity.key.length > 0;
+  if (keyed && job.afterId !== null && !job.afterId.startsWith("[")) {
+    // A cursor from before the entity had key fields: this snapshot starts over when next due.
+    yield* deleteSnapshot(sql, files, snapshot);
+    return "idle" as const;
+  }
   const columns = entity.fields.map(({ column }) => `"${column}"`);
-  const page = `SELECT ${["id", ...columns].join(", ")} FROM "${entity.name}"
-    WHERE id > ? ORDER BY id LIMIT ?`;
+  const key = entity.keyColumns.map((column) => `"${column}"`).join(", ");
+  const pageAfter = (after: string | null) => {
+    if (!keyed) return { where: "id > ?", bindings: [after ?? ""] };
+    const from = afterKey(
+      entity,
+      after === null ? null : (JSON.parse(after) as ReadonlyArray<SqlValue>),
+    );
+    return {
+      where: `${from.where} AND id NOT IN (SELECT id FROM tombstones WHERE entity = ?)`,
+      bindings: [...from.bindings, entity.name],
+    };
+  };
   const gzip = gzipWriter();
   let records = 0;
   let textBytes = 0;
-  let afterId = job.afterId ?? "";
+  let afterId = job.afterId;
   let exhausted = false;
   while (records < policy.partRecords && textBytes < policy.partBytes) {
     if (records > 0) {
@@ -446,7 +464,13 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
       }
     }
     const limit = Math.min(policy.pageRows, policy.partRecords - records);
-    const rows = sql.exec(page, afterId, limit);
+    const after = pageAfter(afterId);
+    const rows = sql.exec(
+      `SELECT ${["id", ...columns].join(", ")} FROM "${entity.name}" WHERE ${after.where}
+        ORDER BY ${key} LIMIT ?`,
+      ...after.bindings,
+      limit,
+    );
     let text = "";
     for (const row of rows) {
       const record: Record<string, unknown> = { id: row["id"] };
@@ -458,7 +482,12 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
     if (text !== "") yield* gzip.write(text);
     textBytes += text.length;
     records += rows.length;
-    afterId = (rows[rows.length - 1]?.["id"] as string | undefined) ?? afterId;
+    const lastRow = rows[rows.length - 1];
+    if (lastRow !== undefined) {
+      afterId = keyed
+        ? JSON.stringify(entity.keyColumns.map((column) => lastRow[column]))
+        : (lastRow["id"] as string);
+    }
     if (rows.length < limit) {
       exhausted = true;
       break;
