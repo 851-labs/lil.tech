@@ -69,6 +69,9 @@ public struct SignInFeature {
     case googleButtonTapped
     /// Signs in to the synthetic account shared by test devices, on a preview deployment.
     case testAccountButtonTapped
+    /// The app is signed out, with the last account's data gone, e.g. once it opens. On a
+    /// scripted run, it signs in to the test account (`LaunchSignIn`).
+    case readyToSignIn
     /// The browser came back with Google's redirect.
     case googleAuthorizationFinished(Result<URL, GoogleAuthorizationError>)
     case signInSucceeded
@@ -92,28 +95,9 @@ public struct SignInFeature {
   /// The synthetic account test devices sign in to, so an iPhone and a Mac share it.
   public static let testAccount = "e2e"
 
-  /// Whether the app signs in to the test account when it opens signed out, for scripted
-  /// end-to-end runs: with `LIL_SIGN_IN_TO_TEST_ACCOUNT=1` in the environment, where the test
-  /// account is available (a preview deployment), e.g.
-  /// `open -n --env LIL_API_URL=… --env LIL_SIGN_IN_TO_TEST_ACCOUNT=1 "lil health.app"`.
-  public static func signsInToTestAccountAtLaunch() -> Bool {
-    signsInToTestAccountAtLaunch(
-      environment: ProcessInfo.processInfo.environment,
-      allowsOverride: APIEnvironment.allowsOverride)
-  }
-
-  static func signsInToTestAccountAtLaunch(
-    environment: [String: String], allowsOverride: Bool
-  ) -> Bool {
-    guard environment["LIL_SIGN_IN_TO_TEST_ACCOUNT"] == "1",
-      case .preview = APIEnvironment.current(
-        environment: environment, allowsOverride: allowsOverride)
-    else { return false }
-    return true
-  }
-
   @Dependency(\.auth) var auth
   @Dependency(\.googleOAuth) var googleOAuth
+  @Dependency(\.launchSignIn) var launchSignIn
   @Dependency(\.withRandomNumberGenerator) var withRandomNumberGenerator
 
   public init() {}
@@ -173,23 +157,16 @@ public struct SignInFeature {
         }
         .cancellable(id: CancelID.google, cancelInFlight: true)
 
+      case .readyToSignIn:
+        guard state.isTestAccountAvailable, state.status == .signedOut, launchSignIn.claim()
+        else { return .none }
+        return signInToTestAccount(&state)
+
       case .testAccountButtonTapped:
-        // Instead of a Google sign-in still open in the browser.
-        state.googleRequest = nil
-        state.status = .signingIn
-        return .merge(
-          .cancel(id: CancelID.google),
-          .run { [auth] send in
-            do throws(SignInError) {
-              try await auth.signInToTestAccount(SignInFeature.testAccount)
-              await send(.signInSucceeded)
-            } catch {
-              await send(.signInFailed(error))
-            }
-          }
-        )
+        return signInToTestAccount(&state)
 
       case .googleAuthorizationFinished(.success(let callback)):
+
         guard let request = state.googleRequest else { return .none }
         state.googleRequest = nil
         let code: String
@@ -243,5 +220,22 @@ public struct SignInFeature {
         return .none
       }
     }
+  }
+
+  private func signInToTestAccount(_ state: inout State) -> Effect<Action> {
+    // Instead of a Google sign-in still open in the browser.
+    state.googleRequest = nil
+    state.status = .signingIn
+    return .merge(
+      .cancel(id: CancelID.google),
+      .run { [auth] send in
+        do throws(SignInError) {
+          try await auth.signInToTestAccount(SignInFeature.testAccount)
+          await send(.signInSucceeded)
+        } catch {
+          await send(.signInFailed(error))
+        }
+      }
+    )
   }
 }

@@ -191,7 +191,11 @@ public struct AppFeature {
           return .merge(
             .cancel(id: CancelID.backfill),
             .cancel(id: CancelID.signedInChecks),
-            .run { [healthBackfill] _ in await healthBackfill.reset() }
+            .run { [healthBackfill] send in
+              await healthBackfill.reset()
+              // Only now, so a scripted run's sign-in doesn't back up into a reset.
+              await send(.signIn(.readyToSignIn))
+            }
           )
         }
         let checkDevices = !state.checkedForOtherIPhones
@@ -249,14 +253,8 @@ public struct AppFeature {
 
       case .task:
         return .run { [auth] send in
-          var isLaunch = true
           for await isSignedIn in await auth.signedInUpdates() {
             await send(.signedInChanged(isSignedIn))
-            // Opened signed out, in a scripted end-to-end run.
-            if isLaunch, !isSignedIn, SignInFeature.signsInToTestAccountAtLaunch() {
-              await send(.signIn(.testAccountButtonTapped))
-            }
-            isLaunch = false
           }
         }
       }

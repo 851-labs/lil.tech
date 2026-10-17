@@ -121,12 +121,16 @@ public struct AppFeature {
         return .merge(
           .cancel(id: CancelID.pull),
           .cancel(id: CancelID.sync),
-          .run { [sync, blobCache] _ in
+          .run { [sync, blobCache] send in
             // First, so it's done even if the database can't be.
             await blobCache.removeAll()
-            try await sync.removeLocalData()
-          } catch: { error, _ in
-            reportIssue(error)
+            do {
+              try await sync.removeLocalData()
+            } catch {
+              reportIssue(error)
+            }
+            // Only now, so a scripted run's sign-in doesn't sync into data being removed.
+            await send(.signIn(.readyToSignIn))
           }
         )
 
@@ -147,14 +151,8 @@ public struct AppFeature {
 
       case .task:
         return .run { [auth] send in
-          var isLaunch = true
           for await isSignedIn in await auth.signedInUpdates() {
             await send(.signedInChanged(isSignedIn))
-            // Opened signed out, in a scripted end-to-end run.
-            if isLaunch, !isSignedIn, SignInFeature.signsInToTestAccountAtLaunch() {
-              await send(.signIn(.testAccountButtonTapped))
-            }
-            isLaunch = false
           }
         }
       }
