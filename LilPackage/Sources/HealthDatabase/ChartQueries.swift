@@ -153,11 +153,12 @@ extension HealthDatabase {
     let statistics = try cumulativeStatistics(
       of: type, in: range, by: period, calendar: calendar, now: now, db)
     let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    // Empty buckets don't count as covered: samples that arrived before their sums still show.
     let lastBucket = try statisticsSource(db, now: now).flatMap { source in
       try HealthStatistic
         .where {
           $0.device.eq(source) && $0.type.eq(type) && $0.bucketStart >= lower
-            && $0.bucketStart < upper
+            && $0.bucketStart < upper && $0.sum > 0
         }
         .order { $0.bucketStart.desc() }
         .select(\.bucketStart)

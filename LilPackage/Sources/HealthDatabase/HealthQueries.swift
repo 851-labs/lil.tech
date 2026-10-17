@@ -69,10 +69,14 @@ extension HealthDatabase {
     }?.device
   }
 
-  /// The most recent sample of a type, by when it started.
-  public static func latestSample(of type: String, _ db: Database) throws -> HealthSample? {
-    try HealthSample
-      .where { $0.type.eq(type) }
+  /// The most recent sample of a type, by when it started, of those started by `now` if given.
+  public static func latestSample(
+    of type: String, startedBy now: Date? = nil, _ db: Database
+  ) throws -> HealthSample? {
+    let upper = now?.unixMilliseconds ?? .max
+    return
+      try HealthSample
+      .where { $0.type.eq(type) && $0.startDate <= upper }
       .order { $0.startDate.desc() }
       .limit(1)
       .fetchOne(db)
@@ -93,7 +97,8 @@ extension HealthDatabase {
   /// A cumulative type's totals per period in `range`, from the statistics source's 30-minute
   /// buckets. Periods follow `calendar` (the Mac's time zone). Buckets are placed by their
   /// start, so days are exact in whole- and half-hour time zones; in :45 offsets they're off by
-  /// up to 15 minutes. Periods without data are left out.
+  /// up to 15 minutes. Periods without data are left out, and so are empty buckets: the iPhone
+  /// sends zeros (up to a day ahead) to overwrite sums that are gone.
   public static func cumulativeStatistics(
     of type: String, in range: Range<Date>, by period: StatisticsPeriod, calendar: Calendar,
     now: Date, _ db: Database
@@ -104,7 +109,7 @@ extension HealthDatabase {
       try HealthStatistic
       .where {
         $0.device.eq(source) && $0.type.eq(type) && $0.bucketStart >= lower
-          && $0.bucketStart < upper
+          && $0.bucketStart < upper && $0.sum > 0
       }
       .order(by: \.bucketStart)
       .select { ($0.bucketStart, $0.sum) }
