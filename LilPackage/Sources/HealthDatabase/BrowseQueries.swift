@@ -81,9 +81,14 @@ extension HealthDatabase {
     of type: HealthDataType, now: Date, calendar: Calendar, _ db: Database
   ) throws -> MetricSummary {
     let source = try statisticsSource(db, now: now)
+    // The iPhone sends empty buckets up to a day ahead (to overwrite sums that are gone), so the
+    // latest day is the latest with anything in it that has started.
+    let started = now.unixMilliseconds
     let latestBucket = try source.flatMap { source in
       try HealthStatistic
-        .where { $0.device.eq(source) && $0.type.eq(type.id) }
+        .where {
+          $0.device.eq(source) && $0.type.eq(type.id) && $0.sum > 0 && $0.bucketStart <= started
+        }
         .order { $0.bucketStart.desc() }
         .select(\.bucketStart)
         .limit(1)

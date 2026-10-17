@@ -308,6 +308,23 @@ struct BrowseQueriesTests {
   }
 
   @Test
+  func emptyBucketsAheadArentTheLatestDay() throws {
+    let steps = "HKQuantityTypeIdentifierStepCount"
+    try database.write { db in
+      try HealthStatisticsDevice.insert { reported(device, paired: true, daysAgo: 0) }.execute(db)
+      try HealthStatistic.insert {
+        statistic(steps, at: utc(9, day: 13), sum: 4_000)
+        // Zero-filled today and tomorrow, as the iPhone sends them.
+        statistic(steps, at: utc(9), sum: 0)
+        statistic(steps, at: utc(9, day: 15), sum: 0)
+      }.execute(db)
+    }
+    let summary = try summary(steps)
+    #expect(summary.latestDate == utc(0, day: 13))
+    #expect(summary.latestValue == 4_000)
+  }
+
+  @Test
   func aLatestDayTheBucketsDontCoverYetUsesItsSamples() throws {
     let steps = "HKQuantityTypeIdentifierStepCount"
     try database.write { db in
