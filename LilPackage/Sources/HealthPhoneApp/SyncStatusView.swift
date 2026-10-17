@@ -39,6 +39,9 @@ public struct SyncStatusView: View {
             "Health doesn't tell apps what you turned off. If a category stays empty, check its access in Settings."
           )
         }
+        #if targetEnvironment(simulator)
+          SyntheticHealthSection()
+        #endif
       }
       .navigationTitle("lil health")
       .disabled(store.isDeletingAccount || store.isWithdrawingConsent)
