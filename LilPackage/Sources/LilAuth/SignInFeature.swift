@@ -52,15 +52,16 @@ public struct SignInFeature {
       self.nonce = nonce
       self.googleRequest = googleRequest
       self.isGoogleAvailable = googleOAuth.clientID != nil
+      let environment = APIEnvironment.current()
       #if os(macOS)
-        switch APIEnvironment.current() {
-        case .prod, .staging: self.appleWebAPI = APIEnvironment.current().baseURL
+        switch environment {
+        case .prod, .staging: self.appleWebAPI = environment.baseURL
         case .preview: self.appleWebAPI = nil
         }
       #else
         self.appleWebAPI = nil
       #endif
-      if case .preview = APIEnvironment.current() {
+      if case .preview = environment {
         self.isTestAccountAvailable = true
       } else {
         self.isTestAccountAvailable = false
@@ -131,31 +132,8 @@ public struct SignInFeature {
         state.nonce = withRandomNumberGenerator { Nonce.randomHex(bytes: 32, using: &$0) }
         return .none
 
-      case .appleAuthorizationFinished(.success(var credential)):
-        if credential.givenName != nil || credential.familyName != nil {
-          state.givenName = credential.givenName
-          state.familyName = credential.familyName
-        } else {
-          credential.givenName = state.givenName
-          credential.familyName = state.familyName
-        }
-        guard let nonce = state.nonce else {
-          state.status = .failed(SignInError.rejected.message)
-          return .none
-        }
-        state.status = .signingIn
-        return .run { [auth, credential] send in
-          do throws(SignInError) {
-            try await auth.signInWithApple(credential, nonce)
-            await send(.signInSucceeded)
-          } catch {
-            await send(.signInFailed(error))
-          }
-        }
-
-      case .appleAuthorizationFinished(.failure(.canceled)):
-        state.nonce = nil
-        return .none
+      case .appleAuthorizationFinished(let result):
+        return finishApple(result, &state)
 
       case .appleWebButtonTapped:
         guard let api = state.appleWebAPI else { return .none }
@@ -163,6 +141,7 @@ public struct SignInFeature {
         let request = withRandomNumberGenerator {
           AppleWebAuthorizationRequest.make(api: api, using: &$0)
         }
+        // Kept where the native sheet keeps it, so both sign in the same way.
         state.nonce = request.nonce
         state.appleWebRequest = request
         return .run { [appleWebSignIn] send in
@@ -170,25 +149,18 @@ public struct SignInFeature {
         }
         .cancellable(id: CancelID.appleWeb, cancelInFlight: true)
 
-      case .appleWebAuthorizationFinished(.success(let callback)):
-        guard let request = state.appleWebRequest else { return .none }
-        state.appleWebRequest = nil
-        // On through the native sheet's path, which signs in with the nonce kept for it.
-        do throws(AppleAuthorizationError) {
-          let credential = try request.credential(from: callback)
-          return .send(.appleAuthorizationFinished(.success(credential)))
-        } catch {
-          return .send(.appleAuthorizationFinished(.failure(error)))
+      case .appleWebAuthorizationFinished(let result):
+        // Gone by the time the browser answered (e.g. the test account was signed in to instead).
+        guard let request = state.appleWebRequest else {
+          state.nonce = nil
+          return .none
         }
-
-      case .appleWebAuthorizationFinished(.failure(let error)):
         state.appleWebRequest = nil
-        return .send(.appleAuthorizationFinished(.failure(error)))
-
-      case .appleAuthorizationFinished(.failure(.failed(let reason))):
-        state.nonce = nil
-        state.status = .failed(SignInError.failed(reason).message)
-        return .none
+        return finishApple(
+          result.flatMap { callback in
+            Result { () throws(AppleAuthorizationError) in try request.credential(from: callback) }
+          },
+          &state)
 
       case .googleButtonTapped:
         guard let clientID = googleOAuth.clientID else {
@@ -268,6 +240,43 @@ public struct SignInFeature {
       case .delegate:
         return .none
       }
+    }
+  }
+
+  /// Signs in with Apple's answer, from the native sheet (the iPhone) or Apple's web page (the
+  /// Mac), with the nonce kept for the request.
+  private func finishApple(
+    _ result: Result<AppleCredential, AppleAuthorizationError>, _ state: inout State
+  ) -> Effect<Action> {
+    switch result {
+    case .success(var credential):
+      if credential.givenName != nil || credential.familyName != nil {
+        state.givenName = credential.givenName
+        state.familyName = credential.familyName
+      } else {
+        credential.givenName = state.givenName
+        credential.familyName = state.familyName
+      }
+      guard let nonce = state.nonce else {
+        state.status = .failed(SignInError.rejected.message)
+        return .none
+      }
+      state.status = .signingIn
+      return .run { [auth, credential] send in
+        do throws(SignInError) {
+          try await auth.signInWithApple(credential, nonce)
+          await send(.signInSucceeded)
+        } catch {
+          await send(.signInFailed(error))
+        }
+      }
+    case .failure(.canceled):
+      state.nonce = nil
+      return .none
+    case .failure(.failed(let reason)):
+      state.nonce = nil
+      state.status = .failed(SignInError.failed(reason).message)
+      return .none
     }
   }
 

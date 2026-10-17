@@ -58,20 +58,22 @@ struct SignInFeatureTests {
       } withDependencies: {
         $0.withRandomNumberGenerator = WithRandomNumberGenerator(Zeros())
         $0.appleWebSignIn = AppleWebSignIn { request in
-          var callback = URLComponents(string: "tech.lil.health://apple-signin/")!
-          callback.queryItems = [
-            URLQueryItem(name: "id_token", value: "apple-token"),
-            URLQueryItem(name: "state", value: request.state),
-            URLQueryItem(
-              name: "user", value: #"{"name":{"firstName":"Ada","lastName":"Lovelace"}}"#),
-          ]
-          return .success(callback.url!)
+          // As the API redirects: form-encoded, spaces as "+".
+          let user = #"{"name":{"firstName":"Mary Ann","lastName":"van der Berg"}}"#
+            .addingPercentEncoding(
+              withAllowedCharacters: .alphanumerics.union(.init(charactersIn: " ")))!
+            .replacingOccurrences(of: " ", with: "+")
+          return .success(
+            URL(
+              string:
+                "tech.lil.health://apple-signin/?id_token=apple-token&state=\(request.state)&user=\(user)"
+            )!)
         }
         $0.auth.signInWithApple = { credential, nonce in
           #expect(
             credential
               == AppleCredential(
-                identityToken: "apple-token", givenName: "Ada", familyName: "Lovelace"))
+                identityToken: "apple-token", givenName: "Mary Ann", familyName: "van der Berg"))
           #expect(nonce == zeroNonce)
         }
       }
@@ -82,10 +84,8 @@ struct SignInFeatureTests {
       }
       await store.receive(\.appleWebAuthorizationFinished) {
         $0.appleWebRequest = nil
-      }
-      await store.receive(\.appleAuthorizationFinished) {
-        $0.givenName = "Ada"
-        $0.familyName = "Lovelace"
+        $0.givenName = "Mary Ann"
+        $0.familyName = "van der Berg"
         $0.status = .signingIn
       }
       await store.receive(\.signInSucceeded) {
@@ -116,7 +116,7 @@ struct SignInFeatureTests {
 
       // Closed: nothing happens.
       await store.send(.appleWebButtonTapped)
-      await store.receive(\.appleAuthorizationFinished)
+      await store.receive(\.appleWebAuthorizationFinished)
       #expect(store.state.status == .signedOut)
       #expect(store.state.nonce == nil)
       #expect(store.state.appleWebRequest == nil)
@@ -126,7 +126,7 @@ struct SignInFeatureTests {
         .success(URL(string: "tech.lil.health://apple-signin/?id_token=t&state=other")!)
       }
       await store.send(.appleWebButtonTapped)
-      await store.receive(\.appleAuthorizationFinished)
+      await store.receive(\.appleWebAuthorizationFinished)
       #expect(
         store.state.status == .failed(SignInError.failed("Apple's answer didn't match").message))
 
@@ -139,7 +139,7 @@ struct SignInFeatureTests {
           )!)
       }
       await store.send(.appleWebButtonTapped)
-      await store.receive(\.appleAuthorizationFinished)
+      await store.receive(\.appleWebAuthorizationFinished)
       #expect(store.state.status == .signedOut)
     }
   #endif

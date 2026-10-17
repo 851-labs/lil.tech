@@ -37,17 +37,23 @@ public struct SignInView: View {
               // Apple's web page: the native sheet needs an entitlement that Developer ID builds
               // can't have (`docs/DECISIONS.md`).
               if store.appleWebAPI != nil {
+                // Apple's colors for its button: black on light, white on dark.
                 Button {
                   store.send(.appleWebButtonTapped)
                 } label: {
                   Label("Sign in with Apple", systemImage: "apple.logo")
-                    .frame(maxWidth: .infinity)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(
+                      colorScheme == .dark ? Color.white : Color.black,
+                      in: .rect(cornerRadius: 8)
+                    )
+                    .contentShape(.rect(cornerRadius: 8))
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(colorScheme == .dark ? .white : .black)
-                .foregroundStyle(colorScheme == .dark ? .black : .white)
-                .controlSize(.extraLarge)
+                .buttonStyle(.plain)
                 .frame(maxWidth: 320)
+                .opacity(store.appleWebRequest == nil ? 1 : 0.5)
                 .disabled(store.appleWebRequest != nil)
               }
             #else
@@ -160,6 +166,8 @@ public struct SignInView: View {
 #Preview("Pointed at a preview deployment") {
   var state = SignInFeature.State()
   state.isTestAccountAvailable = true
+  // Apple can't return to a preview: the Mac has no Apple button there.
+  state.appleWebAPI = nil
   return SignInView(
     store: Store(initialState: state) { SignInFeature() }, appName: "lil health",
     privacyPolicy: URL(string: "https://lil.tech/privacy"))
@@ -207,4 +215,14 @@ public struct SignInView: View {
       SignInFeature()
     },
     appName: "lil health")
+}
+
+#Preview("Apple's page open (the Mac)") {
+  var state = SignInFeature.State()
+  state.appleWebRequest = AppleWebAuthorizationRequest(
+    redirectURI: URL(string: "https://api.lil.tech/v1/auth/apple/web")!, nonce: "nonce",
+    state: "state")
+  return SignInView(
+    store: Store(initialState: state) { SignInFeature() }, appName: "lil health",
+    privacyPolicy: URL(string: "https://lil.tech/privacy"))
 }

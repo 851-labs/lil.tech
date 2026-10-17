@@ -44,8 +44,8 @@ public struct AppleWebAuthorizationRequest: Equatable, Sendable {
   public func credential(
     from callback: URL
   ) throws(SignInFeature.AppleAuthorizationError) -> AppleCredential {
-    let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
-    let value = { (name: String) in items.first { $0.name == name }?.value }
+    let query = CallbackQuery(callback)
+    let value = { (name: String) in query[name] }
     if let error = value("error") {
       throw error == "user_cancelled_authorize" ? .canceled : .failed("Apple answered \(error)")
     }
@@ -60,8 +60,14 @@ public struct AppleWebAuthorizationRequest: Equatable, Sendable {
       }
       let name: Name?
     }
-    let name = value("user").flatMap {
-      try? JSONDecoder().decode(User.self, from: Data($0.utf8)).name
+    // Apple only gives the name once, so one that can't be read is worth hearing about.
+    var name: User.Name?
+    if let user = value("user") {
+      do {
+        name = try JSONDecoder().decode(User.self, from: Data(user.utf8)).name
+      } catch {
+        reportIssue(error, "Apple's name couldn't be read")
+      }
     }
     return AppleCredential(
       identityToken: token, givenName: name?.firstName, familyName: name?.lastName)

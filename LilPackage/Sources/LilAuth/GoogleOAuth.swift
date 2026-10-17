@@ -47,8 +47,8 @@ public struct GoogleAuthorizationRequest: Equatable, Sendable {
 
   /// The authorization code in Google's redirect.
   public func code(from callback: URL) throws(GoogleAuthorizationError) -> String {
-    let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
-    let value = { (name: String) in items.first { $0.name == name }?.value }
+    let query = CallbackQuery(callback)
+    let value = { (name: String) in query[name] }
     if let error = value("error") {
       throw error == "access_denied" ? .canceled : .failed("Google answered \(error)")
     }
