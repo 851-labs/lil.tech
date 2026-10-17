@@ -1,7 +1,8 @@
-import { Clock, Context, Effect, Option, Result, Schema } from "effect";
+import { Clock, Context, Effect, Fiber, Option, Result, Schema } from "effect";
 import type { DeviceId, UserId } from "../core/Ids.ts";
 import { Mutation } from "../store/Changes.ts";
 import { stampDevice } from "../store/Entities.ts";
+import { deviceSignedOut } from "../store/RetiredDevices.ts";
 import { Users } from "../core/Users.ts";
 import { UserStores } from "../store/UserStores.ts";
 import type { HealthBatch, RejectedLine } from "./HealthBatches.ts";
@@ -53,8 +54,16 @@ export class HealthBatchQueue extends Context.Service<
   { readonly send: (message: HealthBatchMessage) => Effect.Effect<void> }
 >()("lil/api/health/HealthBatchQueue") {}
 
-/** Mutations applied per store call. Each call is one transaction in the store. */
-export const healthChunkSize = 500;
+/**
+ * The most mutations applied per store call. Each call is one transaction in the store, and
+ * each costs a round trip, so big batches are applied in few of them (`docs/SYNC.md`).
+ */
+export const healthChunkSize = 5_000;
+/**
+ * The most line text per store call, in characters, so a call stays well under the RPC message
+ * limit (32 MiB) even if every character takes 4 bytes.
+ */
+export const healthChunkBytes = 4 * 1024 * 1024;
 /** The most a batch may decompress to. Lines are read as a stream, so this bounds work, not memory. */
 export const maxDecompressedBatchBytes = 64 * 1024 * 1024;
 const maxRejectedLines = 100;
@@ -91,7 +100,7 @@ const parseLine = (
   if (entity.deviceScoped !== undefined) {
     if (deviceId === undefined) return Result.fail(`${entity.name} needs the uploading device`);
     // Its records were deleted when it signed out (`docs/SYNC.md`), and mustn't come back.
-    if (deviceRetired) return Result.fail("The device signed out");
+    if (deviceRetired) return Result.fail(deviceSignedOut);
     if (!entity.deviceScoped.id.test(mutation.id)) {
       return Result.fail(`Invalid ${entity.name} ID ${mutation.id}`);
     }
@@ -191,27 +200,48 @@ const forEachLine = Effect.fnUntraced(function* <E, R>(
  * rows changes nothing. Fails only when retrying could help, e.g. the store is unavailable.
  *
  * The file is streamed and applied a chunk at a time, so a file that turns out to be corrupt
- * partway can be partly applied before the batch fails.
+ * partway can be partly applied before the batch fails. The next chunk is read while one is
+ * being applied, and chunks are applied in order. Returns the storage the account takes
+ * afterwards, unless the batch was finished already.
  */
 const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessage) {
   const files = yield* HealthBatchFiles;
   const store = (yield* UserStores).forUser(message.userId);
   const key = healthBatchKey(message.userId, message.batchId);
 
-  const known = yield* store.healthBatch(message.batchId);
-  if (known?.status === "applied" || known?.status === "failed") return;
-  const receivedAt = known?.receivedAt ?? (yield* Clock.currentTimeMillis);
+  // Checked once for the batch: all its device-scoped lines are from the same device.
+  const { batch: begun, deviceRetired: retiredAtStart } = yield* store.beginHealthBatch(
+    message.batchId,
+    message.deviceId,
+  );
+  if (begun.status !== "applying") return undefined;
+  let deviceRetired = retiredAtStart;
+  const { receivedAt } = begun;
+  const startedAt = yield* Clock.currentTimeMillis;
   const finish = (batch: Omit<HealthBatch, "id" | "receivedAt" | "finishedAt">) =>
     Effect.gen(function* () {
       const finishedAt = yield* Clock.currentTimeMillis;
-      yield* store.saveHealthBatch({ ...batch, id: message.batchId, receivedAt, finishedAt });
+      const bytes = yield* store.finishHealthBatch({
+        ...batch,
+        id: message.batchId,
+        receivedAt,
+        finishedAt,
+      });
       yield* files.delete(key);
+      // The apply rate, in the message itself: Workers Logs keeps only the text. The wait since
+      // the upload includes any earlier attempts.
+      if (batch.status === "applied") {
+        const applied = batch.applied ?? 0;
+        const applyMs = finishedAt - startedAt;
+        const rate = Math.round(applied / (Math.max(applyMs, 1) / 1000));
+        yield* Effect.logInfo(
+          `Health batch applied: ${applied} of ${batch.lines ?? 0} lines in ${applyMs} ms, ` +
+            `${rate} items/s, ${startedAt - receivedAt} ms after it was received`,
+        );
+      }
+      return bytes;
     });
 
-  yield* store.saveHealthBatch({ id: message.batchId, status: "applying", receivedAt });
-  // Checked once for the batch: all its device-scoped lines are from the same device.
-  const deviceRetired =
-    message.deviceId !== undefined && (yield* store.isRetired(message.deviceId));
   const stream = yield* files.open(key);
   if (Option.isNone(stream)) {
     return yield* finish({ status: "failed", failure: "The batch file is missing" });
@@ -220,10 +250,11 @@ const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessag
   let lines = 0;
   let applied = 0;
   const rejected: Array<RejectedLine> = [];
-  const chunk: Array<ParsedLine> = [];
+  let chunk: Array<ParsedLine> = [];
+  let chunkBytes = 0;
   // If the store rejects a mutation anyway (e.g. a field it validates differently), that line is
   // rejected and the rest of the chunk is tried again.
-  const applyChunk = Effect.gen(function* () {
+  const applyChunk = Effect.fnUntraced(function* (chunk: Array<ParsedLine>) {
     while (chunk.length > 0) {
       const result = yield* store
         .applyMutations(chunk.map(({ mutation }) => mutation))
@@ -235,10 +266,37 @@ const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessag
       }
       const error = result.failure;
       if (error._tag !== "InvalidMutation") return yield* error;
+      // The device signed out while the batch was being applied: all its records are refused
+      // at once, rather than one store call each.
+      if (error.message === deviceSignedOut) {
+        deviceRetired = true;
+        const kept = chunk.filter(({ line, mutation }) => {
+          const refused =
+            mutation.op === "upsert" &&
+            healthEntitiesByName.get(mutation.entity)?.deviceScoped !== undefined;
+          if (refused) rejected.push({ line, message: error.message });
+          return !refused;
+        });
+        chunk.splice(0, chunk.length, ...kept);
+        continue;
+      }
       const [invalid] = chunk.splice(error.index, 1);
       if (invalid !== undefined) rejected.push({ line: invalid.line, message: error.message });
     }
   });
+  // The chunk being applied while the next one is read: at most one, so they apply in order.
+  let applying: Fiber.Fiber<void, Effect.Error<ReturnType<typeof applyChunk>>> | undefined;
+  const settle = Effect.suspend(() => {
+    const fiber = applying;
+    applying = undefined;
+    return fiber === undefined ? Effect.void : Fiber.join(fiber);
+  });
+  const nextChunk = () => {
+    const full = chunk;
+    chunk = [];
+    chunkBytes = 0;
+    return full;
+  };
 
   const read = yield* forEachLine(stream.value, (content, line) =>
     Effect.gen(function* () {
@@ -258,9 +316,19 @@ const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessag
         return;
       }
       chunk.push({ line, mutation: parsed.success });
-      if (chunk.length >= healthChunkSize) yield* applyChunk;
+      chunkBytes += content.length;
+      if (chunk.length >= healthChunkSize || chunkBytes >= healthChunkBytes) {
+        yield* settle;
+        applying = yield* Effect.forkChild(applyChunk(nextChunk()));
+      }
     }),
-  ).pipe(Effect.andThen(applyChunk), Effect.result);
+  ).pipe(
+    Effect.andThen(settle),
+    Effect.andThen(Effect.suspend(() => applyChunk(nextChunk()))),
+    // A chunk still being applied finishes first; if it fails, that's the batch's failure.
+    Effect.catch((error) => settle.pipe(Effect.andThen(Effect.fail(error)))),
+    Effect.result,
+  );
   if (Result.isFailure(read)) {
     switch (read.failure._tag) {
       case "BatchUnreadable":
@@ -274,7 +342,7 @@ const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessag
   }
 
   rejected.sort((a, b) => a.line - b.line);
-  yield* finish({
+  return yield* finish({
     status: "applied",
     lines,
     applied,
@@ -294,19 +362,18 @@ const dropBatchFile = Effect.fnUntraced(function* (message: HealthBatchMessage) 
 export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
   message: HealthBatchMessage,
 ) {
-  yield* applyHealthBatch(message).pipe(
-    Effect.catchTag("AccountDeleted", () => dropBatchFile(message)),
+  const bytes = yield* applyHealthBatch(message).pipe(
+    Effect.catchTag("AccountDeleted", () => dropBatchFile(message).pipe(Effect.as(undefined))),
   );
-  yield* recordStorage(message.userId);
+  if (bytes !== undefined) yield* recordStorage(message.userId, bytes);
 });
 
 /**
  * Records the store's size in D1 for finding the largest users, after a batch made it grow. It's
- * best-effort: nothing fails the batch, including a store too old to measure itself.
+ * best-effort: nothing fails the batch.
  */
-const recordStorage = (userId: UserId) =>
+const recordStorage = (userId: UserId, bytes: number) =>
   Effect.gen(function* () {
-    const bytes = yield* (yield* UserStores).forUser(userId).storageBytes();
     const measuredAt = yield* Clock.currentTimeMillis;
     yield* (yield* Users).recordStorage(userId, bytes, measuredAt);
   }).pipe(Effect.ignoreCause({ log: "Warn", message: "Recording the store's size failed" }));

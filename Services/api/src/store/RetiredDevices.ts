@@ -8,6 +8,9 @@ import type { StoreSql } from "./StoreSql.ts";
 // device-scoped entity with many rows needs an index on `device`, like `health_statistic`'s.
 
 /** Records deleted per alarm, in one transaction each. */
+/** Why the store refuses a retired device's records. */
+export const deviceSignedOut = "The device signed out";
+
 export const retireChunkSize = 2000;
 
 /** The time between retirement alarms, so deleting a large device doesn't monopolize the store. */
