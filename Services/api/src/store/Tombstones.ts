@@ -1,4 +1,5 @@
-import type { Entity } from "./Entities.ts";
+import { comparedToKey, type Entity, keyList } from "./Entities.ts";
+import { deferWhileIngesting, type SnapshotPolicy, snapshotPolicy } from "./Snapshots.ts";
 import type { SqlValue, StoreSql } from "./StoreSql.ts";
 
 // Records of an entity with key fields (`Entity.key`) are stored in their key's order, so one
@@ -7,8 +8,11 @@ import type { SqlValue, StoreSql } from "./StoreSql.ts";
 // each such table a chunk at a time. Until then, reads skip tombstoned records (`docs/SYNC.md`).
 
 export const tombstonePolicy = {
-  /** How long the oldest tombstone waits before a pass starts, so a pass covers many. */
-  delay: 60 * 60 * 1000,
+  /**
+   * How long the oldest tombstone waits before a pass starts. A pass reads every row of the
+   * tables it covers, so it runs at most about daily, however few tombstones there are.
+   */
+  delay: 24 * 60 * 60 * 1000,
   /** Rows looked at per alarm, in one transaction. */
   chunkRows: 50_000,
   /** The time between a pass's alarms, so it doesn't monopolize the store. */
@@ -17,9 +21,12 @@ export const tombstonePolicy = {
 
 export type TombstonePolicy = typeof tombstonePolicy;
 
-/** A pass in progress: the entity it's on, the last key it looked at, and when it started. */
+/**
+ * A pass in progress: the table it's on (entities are swept in name order), the last key it
+ * looked at, and when it started.
+ */
 interface Pass {
-  readonly entity: number;
+  readonly entity: string;
   readonly after: ReadonlyArray<SqlValue> | null;
   readonly startedAt: number;
   readonly steppedAt: number;
@@ -42,67 +49,82 @@ const savePass = (sql: StoreSql, pass: Pass | null) => {
   );
 };
 
-/** `"a", "b"`: an entity's primary key columns, for SQL. */
-const keyList = (entity: Entity) => entity.keyColumns.map((column) => `"${column}"`).join(", ");
-
 /**
- * Its rows after `after` in key order, as a `WHERE` clause and its bindings (none from the start).
+ * When the alarm should next sweep tombstones, or `null` if there's nothing to sweep. Like
+ * snapshots, it waits while the store is taking in uploads (`deferWhileIngesting`).
  */
-export const afterKey = (entity: Entity, after: ReadonlyArray<SqlValue> | null) =>
-  after === null
-    ? { where: "TRUE", bindings: [] as ReadonlyArray<SqlValue> }
-    : {
-        where: `(${keyList(entity)}) > (${entity.keyColumns.map(() => "?").join(", ")})`,
-        bindings: after,
-      };
-
-/** When the alarm should next sweep tombstones, or `null` if there's nothing to sweep. */
-export const nextTombstoneSweepAt = (sql: StoreSql, policy = tombstonePolicy): number | null => {
+export const nextTombstoneSweepAt = (
+  sql: StoreSql,
+  now: number,
+  policy = tombstonePolicy,
+  quiet: SnapshotPolicy = snapshotPolicy,
+): number | null => {
   const pass = readPass(sql);
-  if (pass !== null) return pass.steppedAt + policy.stepInterval;
   const oldest = sql.exec("SELECT min(at) AS at FROM tombstones")[0]?.["at"];
-  return typeof oldest === "number" ? oldest + policy.delay : null;
+  const due =
+    pass !== null
+      ? pass.steppedAt + policy.stepInterval
+      : typeof oldest === "number"
+        ? oldest + policy.delay
+        : null;
+  return due === null ? null : deferWhileIngesting(sql, due, now, quiet);
 };
 
 /**
- * Removes tombstoned rows from up to `chunkRows` rows of one table, starting a pass if one is due.
- * When a pass has covered every table, the tombstones from before it started go: their rows are
- * gone. Returns whether a pass is still going.
+ * If a sweep is due, removes tombstoned rows from up to `chunkRows` rows of one table, starting a
+ * pass if there's none. Once a pass has covered a table, its tombstones from before the pass
+ * started go: their rows are gone. Returns whether a pass is still going.
  */
 export const sweepTombstones = (
   sql: StoreSql,
   registry: ReadonlyArray<Entity>,
   now: number,
   policy = tombstonePolicy,
+  quiet: SnapshotPolicy = snapshotPolicy,
 ): boolean =>
   sql.transaction(() => {
-    const keyed = registry.filter((entity) => entity.key.length > 0);
-    let pass = readPass(sql);
-    if (pass === null) {
-      const due = nextTombstoneSweepAt(sql, policy);
-      if (due === null || due > now) return false;
-      pass = { entity: 0, after: null, startedAt: now, steppedAt: now };
-    }
-    const entity = keyed[pass.entity];
-    if (entity === undefined) {
-      sql.exec("DELETE FROM tombstones WHERE at < ?", pass.startedAt);
+    const current = readPass(sql);
+    if (nextTombstoneSweepAt(sql, now, policy, quiet) !== now) return current !== null;
+    const keyed = registry
+      .filter((entity) => entity.key.length > 0)
+      .sort((a, b) => (a.name < b.name ? -1 : 1));
+    const first = keyed[0];
+    const pass = current ?? {
+      entity: first?.name ?? "",
+      after: null,
+      startedAt: now,
+      steppedAt: now,
+    };
+    /** The pass is over: tombstones of entities without key fields any more can't be swept. */
+    const end = () => {
+      sql.exec(
+        `DELETE FROM tombstones WHERE at < ?
+          AND entity NOT IN (${keyed.map(() => "?").join(", ")})`,
+        pass.startedAt,
+        ...keyed.map((candidate) => candidate.name),
+      );
       savePass(sql, null);
       return false;
-    }
-    const next = (after: ReadonlyArray<SqlValue> | null): Pass =>
-      after === null
-        ? { entity: pass.entity + 1, after: null, startedAt: pass.startedAt, steppedAt: now }
-        : { ...pass, after, steppedAt: now };
+    };
+    // Its table, or the next one if a deploy removed it; the cursor only counts for its own.
+    const entity = keyed.find((candidate) => candidate.name >= pass.entity);
+    const after = entity?.name === pass.entity ? pass.after : null;
+    if (entity === undefined) return end();
+    const finished = () => {
+      sql.exec("DELETE FROM tombstones WHERE entity = ? AND at < ?", entity.name, pass.startedAt);
+      const next = keyed.find((candidate) => candidate.name > entity.name);
+      if (next === undefined) return end();
+      savePass(sql, { entity: next.name, after: null, startedAt: pass.startedAt, steppedAt: now });
+      return true;
+    };
     const due = sql.exec(
       "SELECT 1 FROM tombstones WHERE entity = ? AND at < ? LIMIT 1",
       entity.name,
       pass.startedAt,
     );
-    if (due.length === 0) {
-      savePass(sql, next(null));
-      return true;
-    }
-    const from = afterKey(entity, pass.after);
+    if (due.length === 0) return finished();
+
+    const from = comparedToKey(entity, ">", after);
     // The chunk's last row, or none if this is the table's last chunk.
     const last = sql.exec(
       `SELECT ${keyList(entity)} FROM "${entity.name}" WHERE ${from.where}
@@ -110,14 +132,9 @@ export const sweepTombstones = (
       ...from.bindings,
       policy.chunkRows - 1,
     )[0];
-    const lastKey = last === undefined ? null : entity.keyColumns.map((column) => last[column]!);
-    const through =
-      lastKey === null
-        ? { where: "TRUE", bindings: [] as ReadonlyArray<SqlValue> }
-        : {
-            where: `(${keyList(entity)}) <= (${entity.keyColumns.map(() => "?").join(", ")})`,
-            bindings: lastKey,
-          };
+    const lastKey =
+      last === undefined ? null : entity.keyColumns.map((column) => last[column] ?? null);
+    const through = comparedToKey(entity, "<=", lastKey);
     sql.exec(
       `DELETE FROM "${entity.name}" WHERE ${from.where} AND ${through.where}
         AND id IN (SELECT id FROM tombstones WHERE entity = ? AND at < ?)`,
@@ -126,6 +143,7 @@ export const sweepTombstones = (
       entity.name,
       pass.startedAt,
     );
-    savePass(sql, next(lastKey));
+    if (lastKey === null) return finished();
+    savePass(sql, { ...pass, entity: entity.name, after: lastKey, steppedAt: now });
     return true;
   });

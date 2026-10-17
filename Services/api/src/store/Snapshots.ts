@@ -1,9 +1,8 @@
 import { Effect } from "effect";
 import { makeId } from "../core/Ids.ts";
 import { readEpoch, readHead } from "./ChangeLog.ts";
-import { type Entity, fromColumnValue } from "./Entities.ts";
+import { comparedToKey, type Entity, fromColumnValue, keyList } from "./Entities.ts";
 import type { SqlRow, SqlValue, StoreSql } from "./StoreSql.ts";
-import { afterKey } from "./Tombstones.ts";
 
 // Snapshots of a store (`docs/SYNC.md`): every record as of a `seq`, in gzip NDJSON parts in R2,
 // so a new device doesn't replay the whole change log. Written a part per alarm, so writes keep
@@ -177,7 +176,12 @@ const changeAt = (sql: StoreSql, seq: number) => {
  * Not before the store has been quiet for `quietPeriod`, but no later than `maxDeferral` after
  * `due`.
  */
-const deferWhileIngesting = (sql: StoreSql, due: number, now: number, policy: SnapshotPolicy) => {
+export const deferWhileIngesting = (
+  sql: StoreSql,
+  due: number,
+  now: number,
+  policy: SnapshotPolicy,
+) => {
   const last = lastActivityAt(sql);
   const quiet = last === null ? due : last + policy.quietPeriod;
   return Math.max(now, due, Math.min(quiet, due + policy.maxDeferral));
@@ -435,15 +439,17 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
     return "idle" as const;
   }
   const columns = entity.fields.map(({ column }) => `"${column}"`);
-  const key = entity.keyColumns.map((column) => `"${column}"`).join(", ");
   const pageAfter = (after: string | null) => {
     if (!keyed) return { where: "id > ?", bindings: [after ?? ""] };
-    const from = afterKey(
+    const from = comparedToKey(
       entity,
+      ">",
       after === null ? null : (JSON.parse(after) as ReadonlyArray<SqlValue>),
     );
+    // One lookup in the tombstones' primary key per row.
     return {
-      where: `${from.where} AND id NOT IN (SELECT id FROM tombstones WHERE entity = ?)`,
+      where: `${from.where} AND NOT EXISTS (SELECT 1 FROM tombstones t
+        WHERE t.entity = ? AND t.id = "${entity.name}".id)`,
       bindings: [...from.bindings, entity.name],
     };
   };
@@ -467,7 +473,7 @@ export const writeSnapshotStep = Effect.fnUntraced(function* (
     const after = pageAfter(afterId);
     const rows = sql.exec(
       `SELECT ${["id", ...columns].join(", ")} FROM "${entity.name}" WHERE ${after.where}
-        ORDER BY ${key} LIMIT ?`,
+        ORDER BY ${keyList(entity)} LIMIT ?`,
       ...after.bindings,
       limit,
     );

@@ -5,7 +5,12 @@ import { applyMutations, readChanges } from "../../src/store/ChangeLog.ts";
 import { InvalidMutation, type Mutation } from "../../src/store/Changes.ts";
 import { migrate, storeMigrations } from "../../src/store/Migrations.ts";
 import { entities } from "../../src/store/Registry.ts";
-import { latestSnapshot, snapshotPolicy, writeSnapshotStep } from "../../src/store/Snapshots.ts";
+import {
+  latestSnapshot,
+  noteIngestion,
+  snapshotPolicy,
+  writeSnapshotStep,
+} from "../../src/store/Snapshots.ts";
 import type { StoreSql } from "../../src/store/StoreSql.ts";
 import {
   nextTombstoneSweepAt,
@@ -122,12 +127,14 @@ describe("samples by type and start", () => {
 
 describe("tombstone sweep", () => {
   const policy = { ...tombstonePolicy, delay: 1000, chunkRows: 2, stepInterval: 10 };
+  /** Not waiting for uploads to stop, except in the test about that. */
+  const quiet = { ...snapshotPolicy, quietPeriod: 0 };
 
   /** Runs sweep steps from `from`, a step interval apart, until the pass ends. */
   const sweep = (sql: StoreSql, from: number, between: (now: number) => void = () => {}) => {
     let now = from;
     for (let step = 0; step < 100; step++) {
-      const going = sweepTombstones(sql, entities, now, policy);
+      const going = sweepTombstones(sql, entities, now, policy, quiet);
       if (!going) return now;
       now += policy.stepInterval;
       between(now);
@@ -139,15 +146,15 @@ describe("tombstone sweep", () => {
     const { sql, apply } = makeStore();
     apply([1, 2, 3, 4, 5, 6, 7].map((n) => sample(n)));
     apply([remove(2), remove(5), remove(6), remove(9)], 100);
-    assert.isNull(nextTombstoneSweepAt(makeStore().sql, policy));
-    assert.strictEqual(nextTombstoneSweepAt(sql, policy), 1100);
-    assert.isFalse(sweepTombstones(sql, entities, 1099, policy));
+    assert.isNull(nextTombstoneSweepAt(makeStore().sql, 0, policy, quiet));
+    assert.strictEqual(nextTombstoneSweepAt(sql, 0, policy, quiet), 1100);
+    assert.isFalse(sweepTombstones(sql, entities, 1099, policy, quiet));
     assert.deepStrictEqual(stored(sql), [1, 2, 3, 4, 5, 6, 7]);
 
     sweep(sql, 1100);
     assert.deepStrictEqual(stored(sql), [1, 3, 4, 7]);
     assert.deepStrictEqual(tombstoned(sql), []);
-    assert.isNull(nextTombstoneSweepAt(sql, policy));
+    assert.isNull(nextTombstoneSweepAt(sql, 2000, policy, quiet));
     // The log already had the deletes; sweeping adds nothing.
     assert.lengthOf(log(sql), 11);
   });
@@ -162,9 +169,30 @@ describe("tombstone sweep", () => {
     });
     assert.deepStrictEqual(stored(sql), [2, 3, 4, 5, 6]);
     assert.deepStrictEqual(tombstoned(sql), [2]);
-    assert.strictEqual(nextTombstoneSweepAt(sql, policy), 2010);
+    assert.strictEqual(nextTombstoneSweepAt(sql, 1100, policy, quiet), 2010);
     sweep(sql, 2010);
     assert.deepStrictEqual(stored(sql), [3, 4, 5, 6]);
+  });
+
+  it("waits while the store is taking in uploads", () => {
+    const { sql, apply } = makeStore();
+    apply([sample(1)]);
+    apply([remove(1)]);
+    const waiting = { ...snapshotPolicy, quietPeriod: 500 };
+    noteIngestion(sql, 900);
+    assert.strictEqual(nextTombstoneSweepAt(sql, 0, policy, waiting), 1400);
+    assert.isFalse(sweepTombstones(sql, entities, 1000, policy, waiting));
+    assert.deepStrictEqual(tombstoned(sql), [1]);
+  });
+
+  it("drops tombstones of an entity that no longer has key fields, rather than coming back", () => {
+    const { sql, apply } = makeStore();
+    apply([sample(1)]);
+    apply([remove(1)]);
+    const unkeyed = entities.filter((entity) => entity.name !== "health_sample");
+    assert.isFalse(sweepTombstones(sql, unkeyed, 1000, policy, quiet));
+    assert.deepStrictEqual(tombstoned(sql), []);
+    assert.isNull(nextTombstoneSweepAt(sql, 1000, policy, quiet));
   });
 });
 

@@ -183,7 +183,7 @@ export const makeUserStore = (
       expiry,
       retireAt,
       nextBlobSweepAt(sql),
-      nextTombstoneSweepAt(sql),
+      nextTombstoneSweepAt(sql, now),
       wipeAt,
     ].filter((time): time is number => time !== null);
     if (times.length === 0) return;

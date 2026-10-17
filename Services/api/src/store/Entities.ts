@@ -96,12 +96,12 @@ export interface Entity {
   ) => Result.Result<Readonly<Record<string, Schema.Json>>, Schema.SchemaError>;
   /**
    * The statements `applyMutations` runs, built once. `select` takes the key fields' values, then
-   * the ID, and `delete` the ID (for an entity without key fields).
+   * the ID. There's a `delete` by ID only without key fields: with them, deletes leave tombstones.
    */
   readonly statements: {
     readonly select: string;
     readonly upsert: string;
-    readonly delete: string;
+    readonly delete?: string;
   };
 }
 
@@ -176,7 +176,6 @@ export const defineEntity = (
   });
   const columns = fields.map(({ column }) => `"${column}"`);
   const keyColumns = [...key.map(columnName), "id"];
-  const quotedKey = keyColumns.map((column) => `"${column}"`);
   const fieldSchema = (type: Column) => {
     const schema = fieldSchemas[type.type];
     return type.nullable ? Schema.NullOr(schema) : schema;
@@ -213,14 +212,34 @@ export const defineEntity = (
     decodeFields: Schema.decodeUnknownResult(fieldsSchema) as Entity["decodeFields"],
     statements: {
       select: `SELECT ${["id", ...columns].join(", ")} FROM "${name}"
-        WHERE ${quotedKey.map((column) => `${column} = ?`).join(" AND ")}`,
+        WHERE ${keyColumns.map((column) => `"${column}" = ?`).join(" AND ")}`,
       upsert: `INSERT INTO "${name}" (${["id", ...columns].join(", ")})
         VALUES (${["?", ...columns.map(() => "?")].join(", ")})
-        ON CONFLICT (${quotedKey.join(", ")}) DO UPDATE SET ${columns.map((column) => `${column} = excluded.${column}`).join(", ")}`,
-      delete: `DELETE FROM "${name}" WHERE id = ? RETURNING id`,
+        ON CONFLICT (${keyColumns.map((column) => `"${column}"`).join(", ")}) DO UPDATE SET ${columns.map((column) => `${column} = excluded.${column}`).join(", ")}`,
+      ...(key.length === 0 ? { delete: `DELETE FROM "${name}" WHERE id = ? RETURNING id` } : {}),
     },
   };
 };
+
+/** An entity's primary key columns, quoted and comma-separated, for SQL. */
+export const keyList = (entity: Entity) =>
+  entity.keyColumns.map((column) => `"${column}"`).join(", ");
+
+/**
+ * Its rows before or after `key` in key order, as a `WHERE` clause and its bindings: all of them
+ * for no key.
+ */
+export const comparedToKey = (
+  entity: Entity,
+  operator: ">" | "<=",
+  key: ReadonlyArray<SqlValue> | null,
+) =>
+  key === null
+    ? { where: "TRUE", bindings: [] as ReadonlyArray<SqlValue> }
+    : {
+        where: `(${keyList(entity)}) ${operator} (${entity.keyColumns.map(() => "?").join(", ")})`,
+        bindings: key,
+      };
 
 /**
  * A device-scoped record's ID as stored: the device's own record (`self`) is keyed by the device,

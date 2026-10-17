@@ -95,7 +95,10 @@ export const applyMutations = (
             tombstones = true;
             append(++head, mutation, null);
           }
-        } else if (sql.exec(entity.statements.delete, mutation.id).length > 0) {
+        } else if (
+          entity.statements.delete !== undefined &&
+          sql.exec(entity.statements.delete, mutation.id).length > 0
+        ) {
           append(++head, mutation, null);
         }
         continue;
