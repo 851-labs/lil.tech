@@ -41,20 +41,28 @@ extension HealthObserver: DependencyKey {
   public static var liveValue: Self {
     let store = HKHealthStore()
     let observed = LockIsolated<Set<String>>([])
+    /// Types whose query failed this launch, so each failure is logged once.
+    let failed = LockIsolated<Set<String>>([])
     return Self { types, onChange in
       let sampleTypes = types.compactMap { type in type.sampleType.map { (type.id, $0) } }
       // Every query first, so each type is watched before any delivery is turned on. Calling
       // again (e.g. after Health access was granted) adds no second query for a type, unless
-      // its query failed.
+      // its query failed because Health hadn't been asked about it.
       for (id, sampleType) in sampleTypes where observed.withValue({ $0.insert(id).inserted }) {
         let query = HKObserverQuery(sampleType: sampleType, predicate: nil) {
           query, completion, error in
           if let error {
-            // E.g. at a fresh install's launch, before Health access was asked for. The query
-            // is over, so the type is watched again by the next call (after access is granted).
-            BackfillLog.write("observing \(id) failed: \(error.localizedDescription)")
-            store.stop(query)
-            observed.withValue { _ = $0.remove(id) }
+            if failed.withValue({ $0.insert(id).inserted }) {
+              BackfillLog.write(
+                "observing \(BackfillLog.name(id)) failed: \(error.localizedDescription)")
+            }
+            // Not asked about yet, e.g. at a fresh install's launch. Stopped and forgotten, so the
+            // next call (after access is granted) watches the type again. Other errors, such as
+            // a locked device's, leave the query to HealthKit, as before.
+            if (error as? HKError)?.code == .errorAuthorizationNotDetermined {
+              store.stop(query)
+              observed.withValue { _ = $0.remove(id) }
+            }
             return completion()
           }
           let done = UncheckedSendable(completion)
