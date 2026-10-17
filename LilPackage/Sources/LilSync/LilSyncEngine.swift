@@ -28,8 +28,9 @@ public enum SyncStatus: Equatable, Sendable {
 ///
 /// Named so it doesn't clash with SQLiteData's CloudKit `SyncEngine`.
 public actor LilSyncEngine {
-  /// Changes per pull.
-  static let pageSize = 1000
+  /// Changes per pull, the most the server sends. The next page downloads while one is written,
+  /// so a big catch-up runs at about the speed of decoding pages (851-2649).
+  static let pageSize = 5000
   /// How long to wait between pulls with nothing new, unless ``syncNow()`` is called.
   static let idleInterval = Duration.seconds(60)
 
@@ -260,6 +261,9 @@ public actor LilSyncEngine {
   }
 
   private func pullPages() async throws {
+    /// The next page, downloading while one is written, and the cursor it follows.
+    var next: (after: Int, page: Task<Components.Schemas.ChangesPage, any Error>)?
+    defer { next?.page.cancel() }
     while true {
       try Task.checkCancellation()
       let state = try await database.read { try SyncState.fetch($0) }
@@ -279,10 +283,22 @@ public actor LilSyncEngine {
         Self.recorded(
           Set(recorded.split(separator: ",").map(String.init)).intersection(entities.keys))
       }
-      let page = try await fetchPage(after: state.cursor)
+      let page: Components.Schemas.ChangesPage
+      if let prefetched = next, prefetched.after == state.cursor {
+        next = nil
+        page = try await prefetched.page.value
+      } else {
+        next?.page.cancel()
+        next = nil
+        page = try await fetchPage(after: state.cursor)
+      }
       if let epoch = state.epoch, epoch != page.epoch { throw SyncError.needsBootstrap }
       if state.cursor > page.head { throw SyncError.needsBootstrap }
       try Self.check(page, after: state.cursor)
+      if page.hasMore {
+        let after = page.next
+        next = (after, Task { try await self.fetchPage(after: after) })
+      }
       try await database.write { [entities] db in
         for change in page.changes {
           guard let entity = entities[change.entity] else { continue }
@@ -356,34 +372,23 @@ public actor LilSyncEngine {
     let hashes = Set(wanted.flatMap { $0.parts.map(\.sha256) })
     // Parts left by an older bootstrap aren't needed any more.
     removeDownloadedParts(keeping: hashes)
-    let totalParts = hashes.count
-    var downloaded = 0
-    var files: [(entity: String, file: URL)] = []
-    for entity in wanted {
-      for original in entity.parts {
-        let file = partsDirectory.appending(path: "\(original.sha256).ndjson.gz")
-        if !isVerified(file, sha256: original.sha256) {
-          // Use the latest manifest's URL for the part, refreshing it once if it expired.
-          func currentURL() -> String {
-            manifest.entities.first { $0.entity == entity.entity }?
-              .parts.first { $0.sha256 == original.sha256 }?.url ?? original.url
-          }
-          let data: Data
-          do {
-            data = try await download(url: currentURL(), sha256: original.sha256)
-          } catch is SnapshotDownloader.Expired {
-            manifest = try await fetchSnapshot(id: manifest.id)
-            data = try await download(url: currentURL(), sha256: original.sha256)
-          }
-          try FileManager.default.createDirectory(
-            at: partsDirectory, withIntermediateDirectories: true)
-          try data.write(to: file, options: .atomic)
+    let parts = wanted.flatMap { entity in entity.parts.map { (entity: entity.entity, part: $0) } }
+    let files = parts.map { (entity: $0.entity, file: partFile($0.part.sha256)) }
+    try FileManager.default.createDirectory(at: partsDirectory, withIntermediateDirectories: true)
+    bootstrapManifest = manifest
+    downloadedParts = 0
+    defer { bootstrapManifest = nil }
+    // A few at a time: one download at a time left the connection mostly idle.
+    try await withThrowingTaskGroup(of: Void.self) { group in
+      for (index, part) in parts.enumerated() {
+        if index >= Self.parallelDownloads { try await group.next() }
+        group.addTask {
+          try await self.downloadPart(part.part, of: part.entity, totalParts: hashes.count)
         }
-        files.append((entity.entity, file))
-        downloaded += 1
-        setStatus(.bootstrapping(downloadedParts: downloaded, totalParts: totalParts))
       }
+      try await group.waitForAll()
     }
+    manifest = bootstrapManifest ?? manifest
 
     try await database.write { [entities] db in
       // Until the load finishes, this client is a new device, which bootstraps again.
@@ -423,6 +428,57 @@ public actor LilSyncEngine {
       .save(db)
     }
     removeDownloadedParts(keeping: [])
+  }
+
+  /// Snapshot parts downloaded at once while bootstrapping.
+  static let parallelDownloads = 4
+
+  /// The snapshot being bootstrapped from, with its part URLs refreshed if they expired.
+  private var bootstrapManifest: Components.Schemas.SnapshotManifest?
+  /// How many times its URLs were refreshed, and the refresh in progress: parts downloading
+  /// together that all find their URLs expired share one refresh.
+  private var manifestRefreshes = 0
+  private var refreshing: Task<Components.Schemas.SnapshotManifest, any Error>?
+  private var downloadedParts = 0
+
+  private func partFile(_ sha256: String) -> URL {
+    partsDirectory.appending(path: "\(sha256).ndjson.gz")
+  }
+
+  /// Downloads a part unless it's on disk already, refreshing the snapshot's URLs once if they
+  /// expired (`bootstrapManifest`).
+  private func downloadPart(
+    _ original: Components.Schemas.SnapshotPart, of entity: String, totalParts: Int
+  ) async throws {
+    let file = partFile(original.sha256)
+    if !isVerified(file, sha256: original.sha256) {
+      // The latest manifest's URL for the part.
+      func currentURL() -> String {
+        bootstrapManifest?.entities.first { $0.entity == entity }?
+          .parts.first { $0.sha256 == original.sha256 }?.url ?? original.url
+      }
+      let data: Data
+      let refreshes = manifestRefreshes
+      do {
+        data = try await download(url: currentURL(), sha256: original.sha256)
+      } catch is SnapshotDownloader.Expired {
+        // Unless another part's refresh already got new URLs.
+        if manifestRefreshes == refreshes, let id = bootstrapManifest?.id {
+          let refresh = refreshing ?? Task { try await self.fetchSnapshot(id: id) }
+          refreshing = refresh
+          defer { refreshing = nil }
+          let fresh = try await refresh.value
+          if manifestRefreshes == refreshes {
+            bootstrapManifest = fresh
+            manifestRefreshes += 1
+          }
+        }
+        data = try await download(url: currentURL(), sha256: original.sha256)
+      }
+      try data.write(to: file, options: .atomic)
+    }
+    downloadedParts += 1
+    setStatus(.bootstrapping(downloadedParts: downloadedParts, totalParts: totalParts))
   }
 
   /// Whether `file` holds a part with this hash, as downloaded.

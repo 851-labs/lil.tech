@@ -1123,6 +1123,64 @@ struct HealthSyncTests {
         == #"{"HKQuantityTypeIdentifierActiveEnergyBurned":{"sum":312.5,"unit":"kcal"}}"#)
   }
 
+  @Test
+  func preparedUpsertsCoverEveryColumnAndUpdateRows() async throws {
+    let database = try HealthDatabase.make()
+    let columns = { (table: String) in
+      try database.read { db in
+        try String.fetchAll(db, sql: "SELECT name FROM pragma_table_info('\(table)') ORDER BY cid")
+      }
+    }
+    #expect(try columns("healthSamples") == HealthDatabase.sampleColumns)
+    #expect(try columns("healthStatistics") == HealthDatabase.statisticColumns)
+
+    let id = "6f1c2a40-0000-4000-8000-0000000000aa"
+    let members = { (value: Int) in
+      """
+      "type": "HKQuantityTypeIdentifierStepCount", "startDate": 1760400000000,
+      "endDate": 1760400600000, "value": \(value), "unit": "count",
+      "sourceName": "Test iPhone", "sourceBundleId": "com.apple.health",
+      "metadata": {"HKWasUserEntered": true}
+      """
+    }
+    let changes = [
+      try upsert(1, "health_sample", id, members(1)),
+      try upsert(2, "health_sample", id, members(2)),
+    ]
+    let api = Client.mock { _, _ in
+      (
+        HTTPResponse(status: .ok, headerFields: [.contentType: "application/json"]),
+        HTTPBody(
+          try JSONEncoder().encode(
+            Components.Schemas.ChangesPage(
+              epoch: 1, changes: changes, next: 2, head: 2, hasMore: false)))
+      )
+    }
+    try await database.write { db in
+      try #sql("INSERT INTO lilSyncState (id, cursor, epoch) VALUES (1, 0, 1)").execute(db)
+    }
+    let engine = withDependencies {
+      $0.defaultDatabase = database
+      $0.api = api
+      $0.continuousClock = ImmediateClock()
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(SplitMix64(seed: "test"))
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      LilSyncEngine(entities: HealthDatabase.syncEntities, syncSchema: HealthDatabase.syncSchema)
+    }
+    try await engine.pull()
+    // The second upsert updated every column of the first.
+    let stored = try await database.read { db in try HealthSample.fetchAll(db) }
+    #expect(
+      stored == [
+        HealthSample(
+          id: id, type: "HKQuantityTypeIdentifierStepCount", startDate: 1_760_400_000_000,
+          endDate: 1_760_400_600_000, value: 2, unit: "count", categoryValue: nil,
+          correlationID: nil, sourceName: "Test iPhone", sourceBundleID: "com.apple.health",
+          sourceRevision: nil, device: nil, metadata: #"{"HKWasUserEntered":true}"#)
+      ])
+  }
+
   /// An upsert whose row is `id` plus the given JSON object members.
   private func upsert(
     _ seq: Int, _ entity: String, _ id: String, _ members: String
