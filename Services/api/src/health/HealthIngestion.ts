@@ -61,9 +61,10 @@ export class HealthBatchQueue extends Context.Service<
 export const healthChunkSize = 5_000;
 /**
  * The most line text per store call, in characters, so a call stays well under the RPC message
- * limit (32 MiB) even if every character takes 4 bytes.
+ * limit (32 MiB) even if every character takes 4 bytes. A batch holds two calls' worth at once
+ * (one applying, the next read), and up to 4 batches apply at once in one isolate (128 MB).
  */
-export const healthChunkBytes = 4 * 1024 * 1024;
+export const healthChunkBytes = 2 * 1024 * 1024;
 /** The most a batch may decompress to. Lines are read as a stream, so this bounds work, not memory. */
 export const maxDecompressedBatchBytes = 64 * 1024 * 1024;
 const maxRejectedLines = 100;

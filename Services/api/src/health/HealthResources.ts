@@ -100,9 +100,9 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
     {
       // One batch file per invocation, so a failure only retries that file.
       batchSize: 1,
-      // A user's store applies one transaction at a time, but a batch spends most of its time
-      // outside it (reading, parsing, bookkeeping), so a few in flight keep it busy. Too many
-      // overload it (`docs/SYNC.md`).
+      // A user's store applies one transaction at a time, but each batch spends a fixed time
+      // outside it (opening and reading the file, the start and finish calls, recording the
+      // account's size), so a few in flight keep it busy. Too many overload it (`docs/SYNC.md`).
       maxConcurrency: 4,
       maxRetries: maxHealthBatchRetries,
       retryDelay: "30 seconds",
