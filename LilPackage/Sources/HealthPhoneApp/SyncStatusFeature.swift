@@ -13,7 +13,8 @@ public struct SyncStatusFeature {
     /// `nil` until the backfill reports.
     public var progress: HealthBackfill.Progress?
     /// Health still has types to ask about (e.g. the person tapped Not Now).
-    public var needsHealthAccess = false
+    /// Whether Health access needs asking for, once known (`nil` while it's being checked).
+    public var needsHealthAccess: Bool?
     /// The policy version consent was given for, if any (`AppFeature`).
     @Shared(.healthConsentPolicyVersion) public var consentedPolicyVersion: String?
     public var isWithdrawingConsent = false
@@ -21,7 +22,7 @@ public struct SyncStatusFeature {
     @Presents public var alert: AlertState<Action.Alert>?
 
     public init(
-      progress: HealthBackfill.Progress? = nil, needsHealthAccess: Bool = false,
+      progress: HealthBackfill.Progress? = nil, needsHealthAccess: Bool? = nil,
       isWithdrawingConsent: Bool = false,
       isDeletingAccount: Bool = false, alert: AlertState<Action.Alert>? = nil
     ) {
@@ -54,10 +55,15 @@ public struct SyncStatusFeature {
     public var status: Status {
       if !hasConsent { return .needsConsent }
       guard let progress else { return .loading }
-      if needsHealthAccess { return .needsHealthAccess }
+      if needsHealthAccess == true { return .needsHealthAccess }
       if let failure = progress.failure, !progress.isRunning {
         if progress.isStorageFull { return .storageFull }
         return progress.isOffline ? .offline : .failed(failure)
+      }
+      // Health can take a while to answer on a fresh install (minutes, in a new simulator).
+      // Until it does, nothing has uploaded yet: not paused, still being set up.
+      if needsHealthAccess == nil, !progress.isRunning, progress.uploadedRecords == 0 {
+        return .loading
       }
       if !progress.isFinished {
         return progress.isRunning
