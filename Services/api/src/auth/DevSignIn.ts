@@ -71,23 +71,37 @@ export const DevSignInRoute = HttpRouter.use((router) =>
             { status: 429 },
           );
         }
-        const user = Option.isSome(existing)
+        let user = Option.isSome(existing)
           ? existing.value
           : yield* users.create({ displayName: request.account ?? request.displayName ?? null });
-        const tokens = yield* Effect.gen(function* () {
-          const device = yield* devices.create({
+        let made = Option.isNone(existing);
+        if (made && request.account !== undefined) {
+          // Two devices that made it at once: the oldest wins, and the other user goes.
+          const oldest = yield* users.findSynthetic(request.account);
+          if (Option.isSome(oldest) && oldest.value.id !== user.id) {
+            yield* users.delete(user.id);
+            user = oldest.value;
+            made = false;
+          }
+        }
+        const device = yield* devices
+          .create({
             userId: user.id,
             app: request.app ?? "dev",
             platform: request.platform ?? "macos",
             name: "Dev sign-in",
-          });
-          return yield* auth.issueSession(user.id, device.id);
-          // Deleting a new user deletes its device and sessions too.
-        }).pipe(
-          Effect.onError(() =>
-            Option.isSome(existing) ? Effect.void : users.delete(user.id).pipe(Effect.ignore),
-          ),
-        );
+          })
+          .pipe(
+            Effect.onError(() => (made ? users.delete(user.id).pipe(Effect.ignore) : Effect.void)),
+          );
+        // Deleting a new user deletes its device too; an existing one keeps only its other devices.
+        const tokens = yield* auth
+          .issueSession(user.id, device.id)
+          .pipe(
+            Effect.onError(() =>
+              (made ? users.delete(user.id) : devices.delete(device.id)).pipe(Effect.ignore),
+            ),
+          );
         return yield* HttpServerResponse.schemaJson(TokenPair)(tokens);
       }).pipe(
         Effect.catchTag("TooManyRequests", tooManyRequests),

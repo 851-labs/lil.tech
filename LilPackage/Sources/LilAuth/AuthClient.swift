@@ -136,10 +136,7 @@ public struct AuthClient: Sendable {
     signOut: @escaping @Sendable () async -> Void,
     deleteAccount: @escaping @Sendable () async throws(AccountDeletionError) -> Void,
     signedInUpdates: @escaping @Sendable () async -> AsyncStream<Bool>,
-    signInToTestAccount:
-      @escaping @Sendable (_ account: String) async throws(SignInError) -> Void = {
-        _ throws(SignInError) in throw .unavailable
-      }
+    signInToTestAccount: @escaping @Sendable (_ account: String) async throws(SignInError) -> Void
   ) {
     self.signInToTestAccount = signInToTestAccount
     self.deleteAccount = deleteAccount
@@ -174,6 +171,7 @@ extension AuthClient: DependencyKey {
       case .unavailable: throw .unavailable
       case .signUpUnavailableInRegion: throw .signUpUnavailableInRegion
       case .unexpected(let statusCode): throw .failed("HTTP \(statusCode)")
+      case .refused(let reason): throw .failed(reason)
       }
     }
     return Self(
@@ -254,8 +252,10 @@ extension AuthClient: DependencyKey {
           case 200:
             return .signedIn(
               try? JSONDecoder().decode(Components.Schemas.TokenPair.self, from: data))
-          case 429, 503: return .unavailable
-          case let status: return .unexpected(status)
+          case let status:
+            // The server's reason, e.g. that the stage has too many users.
+            let reason = try? JSONDecoder().decode([String: String].self, from: data)["message"]
+            return .refused(reason ?? "HTTP \(status)")
           }
         }
       }
@@ -267,7 +267,8 @@ extension AuthClient: DependencyKey {
     signInWithGoogle: { _, _ throws(SignInError) in },
     signOut: {},
     deleteAccount: { () throws(AccountDeletionError) in },
-    signedInUpdates: { AsyncStream { $0.yield(false) } }
+    signedInUpdates: { AsyncStream { $0.yield(false) } },
+    signInToTestAccount: { _ throws(SignInError) in }
   )
 
   public static var testValue: Self {
@@ -300,4 +301,6 @@ private enum SignInOutcome {
   case unavailable
   case signUpUnavailableInRegion
   case unexpected(Int)
+  /// Refused, with the server's reason.
+  case refused(String)
 }

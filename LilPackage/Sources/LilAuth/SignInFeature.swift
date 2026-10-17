@@ -154,16 +154,20 @@ public struct SignInFeature {
         .cancellable(id: CancelID.google, cancelInFlight: true)
 
       case .testAccountButtonTapped:
-        state.clearFailure()
+        // Instead of a Google sign-in still open in the browser.
+        state.googleRequest = nil
         state.status = .signingIn
-        return .run { [auth] send in
-          do throws(SignInError) {
-            try await auth.signInToTestAccount(SignInFeature.testAccount)
-            await send(.signInSucceeded)
-          } catch {
-            await send(.signInFailed(error))
+        return .merge(
+          .cancel(id: CancelID.google),
+          .run { [auth] send in
+            do throws(SignInError) {
+              try await auth.signInToTestAccount(SignInFeature.testAccount)
+              await send(.signInSucceeded)
+            } catch {
+              await send(.signInFailed(error))
+            }
           }
-        }
+        )
 
       case .googleAuthorizationFinished(.success(let callback)):
         guard let request = state.googleRequest else { return .none }
