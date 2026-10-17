@@ -50,6 +50,7 @@ GET /v1/sync/changes?after=<seq>&limit=<n>
 ```
 
 - `after` is the client's cursor (0 for a client with nothing). `limit` defaults to 1000, and the maximum is 5000.
+- The Mac asks for 5,000 at a time, and downloads the next page while it writes one. A catch-up then runs at about the speed of decoding pages: about 7,600 changes a second for health samples in a Release build (851-2649).
 - The response:
 
   ```json
@@ -119,7 +120,7 @@ GET /v1/sync/snapshots/<id>
 - **Format:** each part is gzip-compressed NDJSON, one record per line in the same encoding as a change's `row`. Parts hold at most 25,000 records, so a failed download only retries one part.
 - **Why not a SQLite file:** the client's tables don't mirror the server's (each app keeps only what it renders, in its own layout). A Durable Object also can't hand out its database as a file. NDJSON streams straight into batched inserts.
 - **Loading:**
-  1. Download and check each part (`sha256`).
+  1. Download and check each part (`sha256`), four at a time. Parts whose URLs expire together share one refresh.
   2. Clear the synced tables (or start a fresh local database) and insert every part in batches.
   3. Set `cursor = snapshot.seq` and `epoch = snapshot.epoch`, then resume pulling.
   4. Reapply the pending-mutation queue on top (see [Pushing changes](#pushing-changes)). Bootstrapping never discards unsent local writes.

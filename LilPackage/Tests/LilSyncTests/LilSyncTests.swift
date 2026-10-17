@@ -723,8 +723,12 @@ struct LilSyncBootstrapTests {
 
     try await engine.bootstrap()
     #expect(try storedNotes(database).count == 6)
-    // The first part came from disk the second time.
-    #expect(server.state.downloads == [urls[0], urls[1], urls[1], urls[2]])
+    // The first part came from disk the second time; parts download a few at a time, so in no
+    // particular order.
+    let downloads = server.state.downloads
+    #expect(downloads.filter { $0 == urls[0] }.count == 1)
+    #expect(downloads.filter { $0 == urls[1] }.count == 2)
+    #expect(Set(downloads) == Set(urls))
   }
 
   @Test
@@ -737,9 +741,10 @@ struct LilSyncBootstrapTests {
 
     try await engine(database: database).bootstrap()
     #expect(try storedNotes(database).count == 4)
-    // One refresh serves every remaining part.
-    #expect(
-      server.state.value.downloads == [urls[0], urls[0] + "&fresh", urls[1] + "&fresh"])
+    // Parts downloading together share one refresh, and each part is tried again once.
+    let downloads = server.state.value.downloads
+    #expect(downloads.count == urls.count * 2)
+    #expect(Set(downloads) == Set(urls + urls.map { $0 + "&fresh" }))
     #expect(server.state.value.snapshotRequests == 2)
   }
 

@@ -45,6 +45,8 @@ let package = Package(
     .package(url: "https://github.com/apple/swift-openapi-urlsession", from: "1.3.2"),
     .package(url: "https://github.com/pointfreeco/swift-issue-reporting", from: "2.0.0"),
     .package(url: "https://github.com/apple/swift-http-types", from: "1.0.0"),
+    // Already a dependency of sqlite-data; direct for its prepared statements (HealthDatabase).
+    .package(url: "https://github.com/groue/GRDB.swift", from: "7.11.1"),
   ],
   targets: [
     .target(
@@ -100,6 +102,7 @@ let package = Package(
         "HealthCatalog",
         "LilAPI",
         "LilSync",
+        .product(name: "GRDB", package: "GRDB.swift"),
         .product(name: "SQLiteData", package: "sqlite-data"),
       ]
     ),
