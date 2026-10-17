@@ -249,8 +249,14 @@ public struct AppFeature {
 
       case .task:
         return .run { [auth] send in
+          var isLaunch = true
           for await isSignedIn in await auth.signedInUpdates() {
             await send(.signedInChanged(isSignedIn))
+            // Opened signed out, in a scripted end-to-end run.
+            if isLaunch, !isSignedIn, SignInFeature.signsInToTestAccountAtLaunch() {
+              await send(.signIn(.testAccountButtonTapped))
+            }
+            isLaunch = false
           }
         }
       }

@@ -194,6 +194,22 @@ struct SignInFeatureTests {
   }
 
   @Test
+  func signsInToTheTestAccountAtLaunchOnlyWhenAskedOnAPreview() {
+    let preview = "https://lil-api-pr-1.851.workers.dev"
+    let asked = ["LIL_API_URL": preview, "LIL_SIGN_IN_TO_TEST_ACCOUNT": "1"]
+    #expect(SignInFeature.signsInToTestAccountAtLaunch(environment: asked, allowsOverride: true))
+    // Not asked.
+    #expect(
+      !SignInFeature.signsInToTestAccountAtLaunch(
+        environment: ["LIL_API_URL": preview], allowsOverride: true))
+    // Staging and prod have no test accounts.
+    #expect(
+      !SignInFeature.signsInToTestAccountAtLaunch(
+        environment: ["LIL_SIGN_IN_TO_TEST_ACCOUNT": "1"], allowsOverride: true))
+    #expect(!SignInFeature.signsInToTestAccountAtLaunch(environment: asked, allowsOverride: false))
+  }
+
+  @Test
   func closingGooglesSheetAfterAFailure() async {
     let store = TestStore(initialState: SignInFeature.State(status: .failed("Earlier error"))) {
       SignInFeature()

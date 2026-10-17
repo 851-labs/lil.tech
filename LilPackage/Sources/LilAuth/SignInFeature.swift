@@ -92,6 +92,26 @@ public struct SignInFeature {
   /// The synthetic account test devices sign in to, so an iPhone and a Mac share it.
   public static let testAccount = "e2e"
 
+  /// Whether the app signs in to the test account when it opens signed out, for scripted
+  /// end-to-end runs: with `LIL_SIGN_IN_TO_TEST_ACCOUNT=1` in the environment, where the test
+  /// account is available (a preview deployment), e.g.
+  /// `open -n --env LIL_API_URL=… --env LIL_SIGN_IN_TO_TEST_ACCOUNT=1 "lil health.app"`.
+  public static func signsInToTestAccountAtLaunch() -> Bool {
+    signsInToTestAccountAtLaunch(
+      environment: ProcessInfo.processInfo.environment,
+      allowsOverride: APIEnvironment.allowsOverride)
+  }
+
+  static func signsInToTestAccountAtLaunch(
+    environment: [String: String], allowsOverride: Bool
+  ) -> Bool {
+    guard environment["LIL_SIGN_IN_TO_TEST_ACCOUNT"] == "1",
+      case .preview = APIEnvironment.current(
+        environment: environment, allowsOverride: allowsOverride)
+    else { return false }
+    return true
+  }
+
   @Dependency(\.auth) var auth
   @Dependency(\.googleOAuth) var googleOAuth
   @Dependency(\.withRandomNumberGenerator) var withRandomNumberGenerator
