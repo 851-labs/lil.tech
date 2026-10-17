@@ -147,6 +147,9 @@ public struct SignInView: View {
       return .success(
         AppleCredential(
           identityToken: token,
+          authorizationCode: credential.authorizationCode.flatMap {
+            String(data: $0, encoding: .utf8)
+          },
           givenName: credential.fullName?.givenName,
           familyName: credential.fullName?.familyName))
     case .failure(let error as ASAuthorizationError) where error.code == .canceled:

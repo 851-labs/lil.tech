@@ -17,13 +17,16 @@ struct AuthClientTests {
         Components.Schemas.AppleSignInRequest.self, from: Data(try await string(body).utf8))
       #expect(sent.identityToken == "apple-token")
       #expect(sent.nonce == "raw-nonce")
+      #expect(sent.authorizationCode == "apple-code")
       #expect(sent.fullName?.givenName == "Ada")
       #expect(sent.device.app == "test")
       #expect(sent.device.platform == .macos)
       return tokenPair(1)
     }
     try await auth.signInWithApple(
-      AppleCredential(identityToken: "apple-token", givenName: "Ada"), "raw-nonce")
+      AppleCredential(
+        identityToken: "apple-token", authorizationCode: "apple-code", givenName: "Ada"),
+      "raw-nonce")
     #expect(try store.load() == session(1))
   }
 

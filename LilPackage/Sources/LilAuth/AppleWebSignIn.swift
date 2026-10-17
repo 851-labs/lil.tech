@@ -39,8 +39,8 @@ public struct AppleWebAuthorizationRequest: Equatable, Sendable {
     return components.url!
   }
 
-  /// The identity token, and the name Apple gives with the first sign-in, from Apple's answer as
-  /// the API's return URL passes it on.
+  /// The identity token and authorization code, and the name Apple gives with the first sign-in,
+  /// from Apple's answer as the API's return URL passes it on.
   public func credential(
     from callback: URL
   ) throws(SignInFeature.AppleAuthorizationError) -> AppleCredential {
@@ -70,7 +70,8 @@ public struct AppleWebAuthorizationRequest: Equatable, Sendable {
       }
     }
     return AppleCredential(
-      identityToken: token, givenName: name?.firstName, familyName: name?.lastName)
+      identityToken: token, authorizationCode: value("code").flatMap { $0.isEmpty ? nil : $0 },
+      givenName: name?.firstName, familyName: name?.lastName)
   }
 
   /// A request with fresh random secrets, for the API at `api`.

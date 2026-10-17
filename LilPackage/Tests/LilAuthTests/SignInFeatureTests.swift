@@ -66,14 +66,15 @@ struct SignInFeatureTests {
           return .success(
             URL(
               string:
-                "tech.lil.health://apple-signin/?id_token=apple-token&state=\(request.state)&user=\(user)"
+                "tech.lil.health://apple-signin/?id_token=apple-token&code=c0de&state=\(request.state)&user=\(user)"
             )!)
         }
         $0.auth.signInWithApple = { credential, nonce in
           #expect(
             credential
               == AppleCredential(
-                identityToken: "apple-token", givenName: "Mary Ann", familyName: "van der Berg"))
+                identityToken: "apple-token", authorizationCode: "c0de", givenName: "Mary Ann",
+                familyName: "van der Berg"))
           #expect(nonce == zeroNonce)
         }
       }
