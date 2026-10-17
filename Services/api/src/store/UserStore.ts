@@ -114,7 +114,7 @@ const noSnapshotFiles: SnapshotFiles = {
 
 /**
  * A store's RPC methods over its database. The schema is brought up to date before any method can
- * run: here, when the object starts, and again after `deleteAll`.
+ * run: here, when the object starts, and again when a deleted store is wiped (`wipe`).
  */
 export const makeUserStore = (
   sql: StoreSql,
@@ -156,8 +156,41 @@ export const makeUserStore = (
     );
 
   const isRetired = (device: string) => retiredAmong(sql, new Set([device])).size > 0;
+  /** Whether the store is marked for deleting and not yet wiped (`deleteAll`, `wipe`). */
+  let wiping = readMeta(sql, "wiping", 0) === 1;
   /** Whether a retired device still has records to delete, kept so writes don't have to ask. */
   let retiring = hasRetiringDevices(sql);
+
+  /** When the alarm is set for, once known, so most writes don't have to ask. */
+  let alarmAt: number | null | undefined;
+  /**
+   * Moves the alarm earlier if snapshot work or upkeep is due sooner than it's set for. Never
+   * sets it for `now`: the alarm running at that time would be cleared when it finishes.
+   */
+  const scheduleAlarm = Effect.fnUntraced(function* (
+    now: number,
+    options: { readonly afterAlarm?: boolean; readonly sockets?: boolean } = {},
+  ) {
+    // Socket expiries only change when a client connects and when the alarm runs, so writes
+    // skip listing the sockets: an alarm already set for an expiry is never moved later.
+    const expiry = options.sockets === true ? yield* notices.nextExpiry : null;
+    const retireAt = retiring ? now + retireStepInterval : null;
+    // A store being deleted is wiped as soon as it can be.
+    const wipeAt = wiping ? now : null;
+    const times = [nextAlarmAt(sql, now), expiry, retireAt, nextBlobSweepAt(sql), wipeAt].filter(
+      (time): time is number => time !== null,
+    );
+    if (times.length === 0) return;
+    const due = Math.min(...times);
+    // Right after the alarm ran, it's spent, whatever the runtime still reports.
+    if (options.afterAlarm !== true) {
+      alarmAt ??= yield* Effect.promise(() => sql.getAlarm());
+      if (alarmAt !== null && alarmAt <= due) return;
+    }
+    const at = Math.max(due, now + 1);
+    yield* Effect.promise(() => sql.setAlarm(at));
+    alarmAt = at;
+  });
 
   /**
    * Deletes everything in a store marked for deletion and its snapshot files, from the alarm,
@@ -174,42 +207,16 @@ export const makeUserStore = (
     );
     yield* Effect.promise(() => sql.deleteAll());
     alarmAt = null;
+    // Marked deleted again straight away, in the same synchronous step; until then `deleted`
+    // (in memory) still refuses everything.
     migrate(sql);
     sql.exec("INSERT INTO meta (key, value) VALUES ('deleted', 1)");
     retiring = false;
+    wiping = false;
     const now = yield* Clock.currentTimeMillis;
     yield* Effect.logInfo(`Deleting the store: its database deleted in ${now - filesDeleted} ms`);
     yield* notices.announce(now);
     yield* scheduleAlarm(now, { afterAlarm: true, sockets: true });
-  });
-
-  /** When the alarm is set for, once known, so most writes don't have to ask. */
-  let alarmAt: number | null | undefined;
-  /**
-   * Moves the alarm earlier if snapshot work or upkeep is due sooner than it's set for. Never
-   * sets it for `now`: the alarm running at that time would be cleared when it finishes.
-   */
-  const scheduleAlarm = Effect.fnUntraced(function* (
-    now: number,
-    options: { readonly afterAlarm?: boolean; readonly sockets?: boolean } = {},
-  ) {
-    // Socket expiries only change when a client connects and when the alarm runs, so writes
-    // skip listing the sockets: an alarm already set for an expiry is never moved later.
-    const expiry = options.sockets === true ? yield* notices.nextExpiry : null;
-    const retireAt = retiring ? now + retireStepInterval : null;
-    const times = [nextAlarmAt(sql, now), expiry, retireAt, nextBlobSweepAt(sql)].filter(
-      (time): time is number => time !== null,
-    );
-    if (times.length === 0) return;
-    const due = Math.min(...times);
-    // Right after the alarm ran, it's spent, whatever the runtime still reports.
-    if (options.afterAlarm !== true) {
-      alarmAt ??= yield* Effect.promise(() => sql.getAlarm());
-      if (alarmAt !== null && alarmAt <= due) return;
-    }
-    const at = Math.max(due, now + 1);
-    yield* Effect.promise(() => sql.setAlarm(at));
-    alarmAt = at;
   });
 
   return {
@@ -237,15 +244,20 @@ export const makeUserStore = (
      */
     deleteAll: () =>
       Effect.gen(function* () {
-        if (readMeta(sql, "wiping", 0) === 1 || (deleted && readHead(sql) === 0)) return;
-        sql.transaction(() => {
-          sql.exec(
-            `INSERT INTO meta (key, value) VALUES ('deleted', 1), ('wiping', 1)
-              ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
-          );
-          sql.exec("DELETE FROM snapshot_job");
-        });
-        deleted = true;
+        // Already wiped.
+        if (deleted && !wiping) return;
+        if (!wiping) {
+          sql.transaction(() => {
+            sql.exec(
+              `INSERT INTO meta (key, value) VALUES ('deleted', 1), ('wiping', 1)
+                ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+            );
+            sql.exec("DELETE FROM snapshot_job");
+          });
+          deleted = true;
+          wiping = true;
+        }
+        // Asking again brings a postponed wipe forward.
         const now = yield* Clock.currentTimeMillis;
         yield* Effect.promise(() => sql.setAlarm(now + 1));
         alarmAt = now + 1;
@@ -253,6 +265,10 @@ export const makeUserStore = (
     /** A page of the change log (see `readChanges`). */
     readChanges: (after: number, limit: number) =>
       Effect.suspend(() => {
+        // A deleted store reads as empty, even before it's wiped.
+        if (deleted) {
+          return Effect.succeed({ epoch: 1, changes: [], next: 0, head: 0, hasMore: false });
+        }
         const page = readChanges(sql, after, limit);
         return page instanceof ChangesCompacted ? Effect.fail(page) : Effect.succeed(page);
       }),
@@ -391,7 +407,7 @@ export const makeUserStore = (
       Effect.sync(() =>
         sql.transaction(() => ({
           epoch: readEpoch(sql),
-          snapshot: latestSnapshot(sql),
+          snapshot: deleted ? null : latestSnapshot(sql),
         })),
       ),
     /**
@@ -400,13 +416,13 @@ export const makeUserStore = (
      */
     liveConnected: (socket: LiveSocket) =>
       Effect.gen(function* () {
-        yield* socket.send(headNotice(readHead(sql)));
+        yield* socket.send(headNotice(deleted ? 0 : readHead(sql)));
         yield* scheduleAlarm(yield* Clock.currentTimeMillis, { sockets: true });
       }),
     /** The latest published snapshot of the current epoch, or `null`. */
-    latestSnapshot: () => Effect.sync(() => latestSnapshot(sql)),
+    latestSnapshot: () => Effect.sync(() => (deleted ? null : latestSnapshot(sql))),
     /** A published snapshot of the current epoch by ID, or `null` (see `readSnapshot`). */
-    snapshot: (id: string) => Effect.sync(() => readSnapshot(sql, id)),
+    snapshot: (id: string) => Effect.sync(() => (deleted ? null : readSnapshot(sql, id))),
     /**
      * The store's alarm: one step of snapshot work and any upkeep that's due, then the alarm is
      * set for whatever is next. A failed step is retried a minute later.
@@ -414,7 +430,7 @@ export const makeUserStore = (
     alarm: () =>
       Effect.gen(function* () {
         alarmAt = null;
-        if (readMeta(sql, "wiping", 0) === 1) return yield* wipe();
+        if (wiping) return yield* wipe();
         const now = yield* Clock.currentTimeMillis;
         yield* notices.closeExpired(now);
         yield* writeSnapshotStep(sql, registry, files, now);
@@ -439,7 +455,11 @@ export const makeUserStore = (
       }).pipe(
         Effect.catchCause((cause) =>
           Effect.gen(function* () {
-            yield* Effect.logWarning("Snapshot step failed", cause);
+            if (wiping) {
+              yield* Effect.logError("Deleting the store failed; trying again in a minute", cause);
+            } else {
+              yield* Effect.logWarning("Snapshot step failed", cause);
+            }
             const now = yield* Clock.currentTimeMillis;
             yield* Effect.promise(() => sql.setAlarm(now + 60_000));
             alarmAt = now + 60_000;

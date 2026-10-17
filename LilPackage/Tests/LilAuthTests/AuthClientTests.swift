@@ -147,6 +147,8 @@ struct AuthClientTests {
       throw URLError(.notConnectedToInternet)
     }
     await #expect(throws: AccountDeletionError.offline) { try await offline.deleteAccount() }
+    let (cancelled, _) = makeAuth(stored: session(1)) { _, _ in throw URLError(.cancelled) }
+    await #expect(throws: AccountDeletionError.failed) { try await cancelled.deleteAccount() }
   }
 }
 

@@ -111,6 +111,9 @@ describe("makeUserStore", () => {
         (yield* Effect.flip(store.receiveHealthBatch("00000000-0000-4000-8000-000000000002")))._tag,
         "AccountDeleted",
       );
+      // Nor can it be read, e.g. with an access token that outlived the account.
+      assert.deepInclude(yield* store.readChanges(0, 10), { head: 0, changes: [] });
+      assert.isNull((yield* store.bootstrap()).snapshot);
       yield* store.alarm();
       // Only the mark that the account is gone.
       assert.deepStrictEqual(sql.exec("SELECT * FROM meta"), [{ key: "deleted", value: 1 }]);
