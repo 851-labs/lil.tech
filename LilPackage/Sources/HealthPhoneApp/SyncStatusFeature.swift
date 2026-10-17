@@ -12,8 +12,8 @@ public struct SyncStatusFeature {
   public struct State: Equatable {
     /// `nil` until the backfill reports.
     public var progress: HealthBackfill.Progress?
-    /// Health still has types to ask about (e.g. the person tapped Not Now).
-    /// Whether Health access needs asking for, once known (`nil` while it's being checked).
+    /// Whether Health still has types to ask about (e.g. the person tapped Not Now), once known:
+    /// `nil` while it's being checked.
     public var needsHealthAccess: Bool?
     /// The policy version consent was given for, if any (`AppFeature`).
     @Shared(.healthConsentPolicyVersion) public var consentedPolicyVersion: String?
@@ -62,7 +62,9 @@ public struct SyncStatusFeature {
       }
       // Health can take a while to answer on a fresh install (minutes, in a new simulator).
       // Until it does, nothing has uploaded yet: not paused, still being set up.
-      if needsHealthAccess == nil, !progress.isRunning, progress.uploadedRecords == 0 {
+      if needsHealthAccess == nil, !progress.isFinished, !progress.isRunning,
+        progress.uploadedRecords == 0
+      {
         return .loading
       }
       if !progress.isFinished {
@@ -164,8 +166,9 @@ public struct SyncStatusFeature {
             }
           },
           .run { [healthAuthorization] send in
-            let needsRequest = (try? await healthAuthorization.needsRequest()) ?? false
-            await send(.healthAccessChecked(needsRequest: needsRequest))
+            await send(
+              .healthAccessChecked(needsRequest: await AppFeature.needsRequest(healthAuthorization))
+            )
           }
         )
 
@@ -182,6 +185,8 @@ public struct SyncStatusFeature {
         return .send(.delegate(.retry))
 
       case .reviewHealthAccessButtonTapped:
+        // Asked again: unknown until Health answers, not still needed.
+        state.needsHealthAccess = nil
         return .send(.delegate(.reviewHealthAccess))
 
       case .reviewConsentButtonTapped:

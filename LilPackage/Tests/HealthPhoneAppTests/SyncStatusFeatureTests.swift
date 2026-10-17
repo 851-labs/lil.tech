@@ -72,6 +72,9 @@ struct SyncStatusFeatureTests {
     #expect(
       State(progress: progress([sleep: notYet]), needsHealthAccess: false).status
         == .paused(finishedTypes: 0, totalTypes: 1, records: 0))
+    // Finished with nothing to upload is up to date, answer or not.
+    let empty = HealthBackfill.TypeProgress(isDone: true, uploadedRecords: 0)
+    #expect(State(progress: progress([sleep: empty])).status == .upToDate(lastUpload: lastUpload))
   }
 
   @Test
