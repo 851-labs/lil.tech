@@ -4,9 +4,23 @@ public import SwiftUI
 
 public struct HealthAccessView: View {
   let store: StoreOf<HealthAccessFeature>
+  /// Whether Health's sheet ends by asking how much history to share (iOS 27 and later).
+  let asksAboutHistory: Bool
 
   public init(store: StoreOf<HealthAccessFeature>) {
+    self.init(store: store, asksAboutHistory: Self.healthAsksAboutHistory)
+  }
+
+  init(store: StoreOf<HealthAccessFeature>, asksAboutHistory: Bool) {
     self.store = store
+    self.asksAboutHistory = asksAboutHistory
+  }
+
+  static var healthAsksAboutHistory: Bool {
+    #if os(iOS)
+      if #available(iOS 27, *) { return true }
+    #endif
+    return false
   }
 
   public var body: some View {
@@ -37,14 +51,9 @@ public struct HealthAccessView: View {
     VStack(spacing: 20) {
       Text("Read Your Health Data")
         .font(.title.bold())
-      Text(
-        """
-        lil health copies everything in Apple Health to your lil health account, so you can see \
-        it on your Mac. Health asks about each type next: allow all of them to see everything.
-        """
-      )
-      .multilineTextAlignment(.center)
-      .foregroundStyle(.secondary)
+      explanation
+        .multilineTextAlignment(.center)
+        .foregroundStyle(.secondary)
       Spacer().frame(height: 12)
       Button {
         store.send(.continueButtonTapped)
@@ -63,6 +72,25 @@ public struct HealthAccessView: View {
       .disabled(store.step == .requesting)
       Button("Not Now") { store.send(.notNowButtonTapped) }
         .disabled(store.step == .requesting)
+    }
+  }
+
+  /// What the screen asks for. Since iOS 27, Health's sheet ends by asking how much history to
+  /// share; the last 30 days would leave the Mac with only a month.
+  private var explanation: Text {
+    if asksAboutHistory {
+      Text(
+        """
+        lil health copies everything in Apple Health to your lil health account, so you can see \
+        it on your Mac. Health asks about each type next: allow all of them, then choose All \
+        Recorded Data and Future Data to see your whole history.
+        """)
+    } else {
+      Text(
+        """
+        lil health copies everything in Apple Health to your lil health account, so you can see \
+        it on your Mac. Health asks about each type next: allow all of them to see everything.
+        """)
     }
   }
 
@@ -89,8 +117,8 @@ public struct HealthAccessView: View {
       .disabled(store.isChoosing)
       Text(
         """
-        Health doesn't tell apps what you turned off. If something stays empty, check Settings › \
-        Health › Data Access & Devices › lil health.
+        Health doesn't tell apps what you turned off. If something stays empty, or only recent \
+        history shows, check Settings › Health › Data Access & Devices › lil health.
         """
       )
       .font(.footnote)
@@ -109,6 +137,18 @@ public struct HealthAccessView: View {
 
 #Preview("Explain") {
   HealthAccessView(store: Store(initialState: HealthAccessFeature.State()) { EmptyReducer() })
+}
+
+#Preview("Explain, before iOS 27") {
+  HealthAccessView(
+    store: Store(initialState: HealthAccessFeature.State()) { EmptyReducer() },
+    asksAboutHistory: false)
+}
+
+#Preview("Explain, iOS 27") {
+  HealthAccessView(
+    store: Store(initialState: HealthAccessFeature.State()) { EmptyReducer() },
+    asksAboutHistory: true)
 }
 
 #Preview("Requesting") {
