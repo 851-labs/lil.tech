@@ -14,14 +14,20 @@ export const appleWebCallback = "tech.lil.health://apple-signin";
 /** Where Apple's sign-in page posts from. */
 export const appleWebOrigin = "https://appleid.apple.com";
 
+/**
+ * Where Apple posts the web sign-in's result, on the API's own origin: the app's `redirect_uri`,
+ * which redeeming its code needs again.
+ */
+export const appleWebCallbackPath = "/v1/auth/apple/web";
+
 /** Apple's post is a few KB: anything much bigger isn't from Apple. */
 export const maxAppleWebPostBytes = 16 * 1024;
 
 /**
- * What Apple posts that the app needs: `user` only comes with the first sign-in. Not `code`,
- * which nothing redeems, so it doesn't go further than this.
+ * What Apple posts that the app needs: `user` only comes with the first sign-in, and the app sends
+ * `code` back with the identity token for the server to redeem (`AppleTokens.ts`).
  */
-const forwarded = ["id_token", "state", "user", "error"] as const;
+const forwarded = ["id_token", "code", "state", "user", "error"] as const;
 
 /** A redirect to the app's callback with `fields`. It always ends there, so the sheet closes. */
 const toApp = (fields: Readonly<Record<string, string>>) => {
@@ -38,7 +44,7 @@ const toApp = (fields: Readonly<Record<string, string>>) => {
  */
 export const AppleWebCallbackRoute = HttpRouter.add(
   "POST",
-  "/v1/auth/apple/web",
+  appleWebCallbackPath,
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;
     const origin = request.headers["origin"];

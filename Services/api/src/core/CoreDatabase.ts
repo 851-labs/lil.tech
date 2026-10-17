@@ -1,5 +1,6 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Layer } from "effect";
+import { AppleTokenRevocations } from "./AppleTokenRevocations.ts";
 import { Connections } from "./Connections.ts";
 import { Consents } from "./Consents.ts";
 import { Devices } from "./Devices.ts";
@@ -25,4 +26,5 @@ export const CoreRepositories = Layer.mergeAll(
   Sessions.layer,
   IdentityTokenUses.layer,
   Consents.layer,
+  AppleTokenRevocations.layer,
 );

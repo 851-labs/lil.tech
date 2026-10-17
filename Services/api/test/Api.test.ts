@@ -1,4 +1,4 @@
-import { appleWebServicesId } from "../src/auth/Apple.ts";
+import { appleAppId, appleWebServicesId } from "../src/auth/Apple.ts";
 import { appleWebCallback, appleWebOrigin } from "../src/auth/AppleWebSignIn.ts";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -39,6 +39,14 @@ import { makeApiWorkerProps } from "../src/Worker.ts";
 import { appleIdentityToken, TestAppleKeys } from "./auth/TestApple.ts";
 import { googleIdToken, TestGoogleClients, TestGoogleKeys } from "./auth/TestGoogle.ts";
 import { TestAuth } from "./auth/TestAuth.ts";
+import { AppleTokens } from "../src/auth/AppleTokens.ts";
+import { AppleTokenRevocations } from "../src/core/AppleTokenRevocations.ts";
+import {
+  TestAppleEndpoint,
+  TestAppleTokens,
+  testAppleCode,
+  testAppleRefreshToken,
+} from "./auth/TestAppleTokens.ts";
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./health/TestHealthIngestion.ts";
 import { TestHealthBlobBucket, TestHealthBlobs } from "./health/TestHealthBlobs.ts";
 import {
@@ -80,6 +88,7 @@ const withApi = <A, E>(
 const TestServices = Layer.mergeAll(
   TestAuth,
   TestAppleKeys,
+  TestAppleTokens,
   TestGoogleKeys,
   TestGoogleClients,
   TestUserStores,
@@ -462,6 +471,58 @@ describe("POST /v1/auth/apple", () => {
     ),
   );
 
+  it.live("keeps Apple's refresh token, for the client the sign-in was for", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const signIn = (sub: string, audience: string) =>
+          Effect.gen(function* () {
+            const nonce = crypto.randomUUID();
+            const identityToken = yield* appleIdentityToken({ sub, nonce }, { audience });
+            const authorizationCode = testAppleCode(sub);
+            const response = yield* appleSignIn(handler, {
+              identityToken,
+              nonce,
+              authorizationCode,
+              device,
+            });
+            assert.strictEqual(response.status, 200);
+            const [row] = yield* sql<{ token: string | null; clientId: string | null }>`SELECT
+              apple_refresh_token AS token, apple_client_id AS "clientId" FROM identities
+              WHERE subject = ${sub}`;
+            assert.isString(row?.token);
+            assert.notInclude(row?.token, testAppleRefreshToken(authorizationCode));
+            return row?.clientId;
+          });
+        assert.strictEqual(yield* signIn("000123.http.0010", appleAppId), appleAppId);
+        assert.strictEqual(
+          yield* signIn("000123.http.0011", appleWebServicesId),
+          appleWebServicesId,
+        );
+        // Only the web sign-in's code is redeemed with its redirect URI, the API's callback.
+        const redirects = (yield* TestAppleEndpoint).calls.map((call) => call.form["redirect_uri"]);
+        assert.deepStrictEqual(redirects, [undefined, "https://api.lil.tech/v1/auth/apple/web"]);
+      }),
+    ),
+  );
+
+  it.live("signs in even when Apple refuses the authorization code", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        (yield* TestAppleEndpoint).answerWith(() => ({ status: 500, body: "" }));
+        const nonce = crypto.randomUUID();
+        const identityToken = yield* appleIdentityToken({ sub: "000123.http.0012", nonce });
+        const response = yield* appleSignIn(handler, {
+          identityToken,
+          nonce,
+          authorizationCode: testAppleCode("000123.http.0012"),
+          device,
+        });
+        assert.strictEqual(response.status, 200);
+      }),
+    ),
+  );
+
   it.live("doesn't create accounts from mainland China, but signs existing ones in", () =>
     withApi((handler) =>
       Effect.gen(function* () {
@@ -583,9 +644,9 @@ describe("POST /v1/auth/apple/web", () => {
           `${location.protocol}//${location.host}${location.pathname}`,
           appleWebCallback,
         );
-        // Not Apple's authorization code, which nothing redeems.
         assert.deepStrictEqual(Object.fromEntries(location.searchParams), {
           id_token: "a.b.c",
+          code: "c0de",
           state: "s+1",
           user: '{"name":{"firstName":"Ada","lastName":null}}',
         });
@@ -1289,6 +1350,51 @@ describe("/v1/health/batches", () => {
     ),
   );
 
+  /** Signs in, with Apple's refresh token stored as a sign-in with a code would. */
+  const signInWithAppleToken = Effect.gen(function* () {
+    const session = yield* signIn;
+    const [identity] = yield* (yield* Identities).listForUser(session.user.id);
+    const subject = identity?.subject ?? "";
+    const code = testAppleCode(subject);
+    const encrypted = yield* (yield* AppleTokens).exchange(code, { clientId: appleAppId, subject });
+    yield* (yield* Identities).saveAppleToken(subject, Option.getOrThrow(encrypted), appleAppId);
+    return { ...session, appleRefreshToken: testAppleRefreshToken(code) };
+  });
+  const deleteMe = (handler: Handler, accessToken: string) =>
+    send(
+      handler,
+      new Request("https://api.lil.tech/v1/me", { method: "DELETE", headers: bearer(accessToken) }),
+    );
+
+  it.live("DELETE /v1/me revokes the account's Apple token", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens, appleRefreshToken } = yield* signInWithAppleToken;
+        assert.strictEqual((yield* deleteMe(handler, tokens.accessToken)).status, 204);
+        const revoked = (yield* TestAppleEndpoint).calls.filter(
+          (call) => call.path === "/auth/revoke",
+        );
+        assert.deepStrictEqual(
+          revoked.map((call) => [call.form["token"], call.form["client_id"]]),
+          [[appleRefreshToken, appleAppId]],
+        );
+        assert.lengthOf(yield* (yield* AppleTokenRevocations).listDue(Date.now() + 1000, 10), 0);
+      }),
+    ),
+  );
+
+  it.live("DELETE /v1/me leaves an Apple token it couldn't revoke for later", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* signInWithAppleToken;
+        (yield* TestAppleEndpoint).answerWith(() => ({ status: 503, body: "" }));
+        assert.strictEqual((yield* deleteMe(handler, tokens.accessToken)).status, 204);
+        const [waiting] = yield* (yield* AppleTokenRevocations).listDue(Date.now() + 3_601_000, 10);
+        assert.deepInclude(waiting, { clientId: appleAppId, attempts: 1 });
+      }),
+    ),
+  );
+
   it.live("DELETE /v1/me removes the account and all of its data", () =>
     withApi((handler) =>
       Effect.gen(function* () {
@@ -1873,7 +1979,7 @@ describe("environmentForStage", () => {
 describe("apiWorkerProps", () => {
   const withEnv = (env: Record<string, string>) =>
     Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnvRecord(env)));
-  const apiWorkerProps = makeApiWorkerProps(Effect.succeed(Redacted.make("session-key")));
+  const apiWorkerProps = makeApiWorkerProps((id) => Effect.succeed(Redacted.make(id)));
 
   it.effect("runs without a Stage, as it does inside the deployed Worker", () =>
     Effect.gen(function* () {
@@ -1886,12 +1992,41 @@ describe("apiWorkerProps", () => {
     Effect.gen(function* () {
       const props = yield* apiWorkerProps.pipe(
         Effect.provideService(Alchemy.Stage, "staging"),
-        withEnv({ LIL_ENVIRONMENT: "staging", LIL_VERSION: "45aa829" }),
+        withEnv({
+          LIL_ENVIRONMENT: "staging",
+          LIL_VERSION: "45aa829",
+          LIL_APPLE_SIGN_IN_KEY: "apple-key",
+        }),
       );
       assert.strictEqual((props as { domain?: string }).domain, "api.staging.lil.tech");
       assert.deepStrictEqual((props as { env?: object }).env, {
-        LIL_SESSION_KEY: Redacted.make("session-key"),
+        LIL_SESSION_KEY: Redacted.make("SessionSigningKey"),
+        LIL_TOKEN_KEY: Redacted.make("AppleTokenKey"),
+        LIL_APPLE_SIGN_IN_KEY: Redacted.make("apple-key"),
       });
+    }),
+  );
+
+  it.effect("needs the Sign in with Apple key for staging and prod, but not previews", () =>
+    Effect.gen(function* () {
+      const exit = yield* apiWorkerProps.pipe(
+        Effect.provideService(Alchemy.Stage, "prod"),
+        withEnv({ LIL_ENVIRONMENT: "prod", LIL_VERSION: "45aa829" }),
+        Effect.exit,
+      );
+      assert.isTrue(Exit.isFailure(exit));
+      const preview = yield* apiWorkerProps.pipe(
+        Effect.provideService(Alchemy.Stage, "pr-12"),
+        withEnv({ LIL_ENVIRONMENT: "preview", LIL_VERSION: "45aa829" }),
+      );
+      assert.notProperty((preview as { env?: object }).env, "LIL_APPLE_SIGN_IN_KEY");
+      // CI gets an empty string for a missing secret.
+      const empty = yield* apiWorkerProps.pipe(
+        Effect.provideService(Alchemy.Stage, "prod"),
+        withEnv({ LIL_ENVIRONMENT: "prod", LIL_VERSION: "45aa829", LIL_APPLE_SIGN_IN_KEY: " " }),
+        Effect.exit,
+      );
+      assert.isTrue(Exit.isFailure(empty));
     }),
   );
 
