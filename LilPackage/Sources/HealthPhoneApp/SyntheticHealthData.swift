@@ -79,7 +79,7 @@
         progress = resumed
       } else {
         // Before the earliest sample it added, as Health has it: kept across reinstalls.
-        let end = try await earliestSample(in: store) ?? .now
+        let end = try await earliestSample(of: types, in: store) ?? .now
         progress = Progress(start: end.addingTimeInterval(-Double(days) * 86_400), end: end)
       }
       let calendar = Calendar.current
@@ -127,12 +127,13 @@
       return saved
     }
 
-    /// When the earliest sample this app added starts, if there's one.
-    private nonisolated static func earliestSample(in store: HKHealthStore) async throws -> Date? {
+    /// When the earliest sample of `types` this app added starts, if there's one.
+    private nonisolated static func earliestSample(
+      of types: Set<HKQuantityType>, in store: HKHealthStore
+    ) async throws -> Date? {
       let descriptor = HKSampleQueryDescriptor(
-        predicates: series.map {
-          .quantitySample(
-            type: HKQuantityType($0.0), predicate: HKQuery.predicateForObjects(from: .default()))
+        predicates: types.map {
+          .quantitySample(type: $0, predicate: HKQuery.predicateForObjects(from: .default()))
         },
         sortDescriptors: [SortDescriptor(\.startDate, order: .forward)], limit: 1)
       return try await descriptor.result(for: store).first?.startDate
