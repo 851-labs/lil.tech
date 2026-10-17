@@ -1,6 +1,6 @@
 import * as Alchemy from "alchemy";
 import type * as Cloudflare from "alchemy/Cloudflare";
-import { Array as Arr, Effect, Stream } from "effect";
+import { Array as Arr, Effect, Predicate, Schedule, Stream } from "effect";
 
 /**
  * Runs Alchemy binding calls (R2, queues) in a captured runtime context. Their calls need the
@@ -34,11 +34,34 @@ export const listObjects = (bucket: Pick<Cloudflare.R2.ReadBucketClient, "list">
     return objects;
   });
 
-/** Deletes R2 objects by key, in calls of at most 1,000 keys, R2's limit. */
+/**
+ * Deletes R2 objects by key, each once, in calls of at most `deleteChunkKeys` (R2's limit). R2
+ * throttles big deletes ("Reduce your concurrent request rate for the same object", 10058): it
+ * failed a prod store's wipe of 2,644 snapshot parts. A throttled call is tried again after a
+ * growing, jittered pause; other failures aren't.
+ */
 export const deleteObjects = (
   bucket: Pick<Cloudflare.R2.ReadWriteBucketClient, "delete">,
   keys: ReadonlyArray<string>,
 ) =>
-  Effect.forEach(Arr.chunksOf(keys, 1000), (chunk) => bucket.delete([...chunk]), {
-    discard: true,
-  });
+  Effect.forEach(
+    Arr.chunksOf(Arr.dedupe(keys), deleteChunkKeys),
+    (chunk) =>
+      bucket.delete([...chunk]).pipe(
+        Effect.retry({
+          schedule: Schedule.exponential("500 millis").pipe(Schedule.jittered),
+          times: 5,
+          while: isThrottled,
+        }),
+      ),
+    { discard: true },
+  );
+
+/** The most keys deleted per R2 call, R2's limit. */
+export const deleteChunkKeys = 1000;
+
+/** Whether R2 refused a call for its rate (error 10058). */
+export const isThrottled = (error: unknown) =>
+  [String(error), Predicate.hasProperty(error, "message") ? String(error.message) : ""].some(
+    (text) => text.includes("(10058)"),
+  );
