@@ -194,6 +194,52 @@ struct SignInFeatureTests {
   }
 
   @Test
+  func aScriptedRunSignsInToTheTestAccountOnce() async {
+    var state = SignInFeature.State()
+    state.isTestAccountAvailable = true
+    let store = TestStore(initialState: state) {
+      SignInFeature()
+    } withDependencies: {
+      $0.launchSignIn = .once(true)
+      $0.auth.signInToTestAccount = { account in #expect(account == "e2e") }
+    }
+
+    await store.send(.readyToSignIn) {
+      $0.status = .signingIn
+    }
+    await store.receive(\.signInSucceeded) {
+      $0.status = .signedIn
+    }
+    await store.receive(\.delegate.signedIn)
+  }
+
+  @Test
+  func theLaunchSignInIsClaimedOnce() {
+    let asked = LaunchSignIn.once(true)
+    #expect(asked.claim())
+    // Signed out later in the same launch: it stays signed out.
+    #expect(!asked.claim())
+    #expect(!LaunchSignIn.once(false).claim())
+  }
+
+  @Test
+  func withoutATestAccountTheresNoScriptedSignIn() async {
+    let claimed = LockIsolated(false)
+    let store = TestStore(initialState: SignInFeature.State()) {
+      SignInFeature()
+    } withDependencies: {
+      $0.launchSignIn = LaunchSignIn {
+        claimed.setValue(true)
+        return true
+      }
+    }
+
+    // Staging, in tests: no test account, so the launch's sign-in isn't used up.
+    await store.send(.readyToSignIn)
+    #expect(!claimed.value)
+  }
+
+  @Test
   func closingGooglesSheetAfterAFailure() async {
     let store = TestStore(initialState: SignInFeature.State(status: .failed("Earlier error"))) {
       SignInFeature()

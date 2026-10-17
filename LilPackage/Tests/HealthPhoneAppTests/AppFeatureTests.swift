@@ -56,6 +56,7 @@ struct AppFeatureTests {
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = false
     }
+    await store.receive(\.signIn.readyToSignIn)
     continuation.yield(true)
     // Consent comes first.
     await store.receive(\.signedInChanged) {
@@ -291,6 +292,7 @@ struct AppFeatureTests {
       $0.$checkedForOtherIPhones.withLock { $0 = false }
       $0.$consentedPolicyVersion.withLock { $0 = nil }
     }
+    await store.receive(\.signIn.readyToSignIn)
     await store.send(.signedInChanged(true)) {
       $0.isSignedIn = true
       $0.$checkedForOtherIPhones.withLock { $0 = true }
@@ -329,6 +331,7 @@ struct AppFeatureTests {
       // The next account gives its own consent.
       $0.$consentedPolicyVersion.withLock { $0 = nil }
     }
+    await store.receive(\.signIn.readyToSignIn)
   }
 
   @Test

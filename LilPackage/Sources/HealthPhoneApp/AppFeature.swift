@@ -191,7 +191,11 @@ public struct AppFeature {
           return .merge(
             .cancel(id: CancelID.backfill),
             .cancel(id: CancelID.signedInChecks),
-            .run { [healthBackfill] _ in await healthBackfill.reset() }
+            .run { [healthBackfill] send in
+              await healthBackfill.reset()
+              // Only now, so a scripted run's sign-in doesn't back up into a reset.
+              await send(.signIn(.readyToSignIn))
+            }
           )
         }
         let checkDevices = !state.checkedForOtherIPhones

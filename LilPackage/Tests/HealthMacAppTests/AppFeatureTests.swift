@@ -43,6 +43,7 @@ struct AppFeatureTests {
       $0.selection = .summary
       $0.searchText = ""
     }
+    await store.receive(\.signIn.readyToSignIn)
     await task.cancel()
     // Deleting the local data.
     await store.finish()
@@ -105,6 +106,7 @@ struct AppFeatureTests {
       $0.isSignedIn = false
       $0.syncStatus = .idle
     }
+    await store.receive(\.signIn.readyToSignIn)
     session.finish()
     await task.finish()
     await store.finish()
@@ -362,6 +364,7 @@ struct SummaryFeatureTests {
       $0.isSignedIn = false
       $0.summary.$pins.withLock { $0 = [] }
     }
+    await store.receive(\.signIn.readyToSignIn)
     session.finish()
     await task.finish()
     await store.finish()
