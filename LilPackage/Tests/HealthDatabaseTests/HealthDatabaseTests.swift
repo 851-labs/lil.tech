@@ -308,20 +308,44 @@ struct BrowseQueriesTests {
   }
 
   @Test
-  func emptyBucketsAheadArentTheLatestDay() throws {
+  func emptyBucketsCountAsNoData() throws {
     let steps = "HKQuantityTypeIdentifierStepCount"
     try database.write { db in
       try HealthStatisticsDevice.insert { reported(device, paired: true, daysAgo: 0) }.execute(db)
       try HealthStatistic.insert {
-        statistic(steps, at: utc(9, day: 13), sum: 4_000)
-        // Zero-filled today and tomorrow, as the iPhone sends them.
+        statistic(steps, at: utc(9, day: 12), sum: 4_000)
+        // Zero-filled from the 13th to tomorrow, as the iPhone sends them.
+        statistic(steps, at: utc(9, day: 13), sum: 0)
         statistic(steps, at: utc(9), sum: 0)
         statistic(steps, at: utc(9, day: 15), sum: 0)
       }.execute(db)
     }
-    let summary = try summary(steps)
-    #expect(summary.latestDate == utc(0, day: 13))
+    var summary = try summary(steps)
+    #expect(summary.latestDate == utc(0, day: 12))
     #expect(summary.latestValue == 4_000)
+    // Empty days aren't days with data.
+    #expect(summary.days.map(\.value) == [4_000])
+
+    // Steps that arrived before their sums show, despite the empty buckets.
+    try database.write { db in
+      try HealthSample.insert { sample(steps, at: utc(10), value: 2_000) }.execute(db)
+    }
+    summary = try self.summary(steps)
+    #expect(summary.latestDate == utc(0))
+    #expect(summary.latestValue == 2_000)
+  }
+
+  @Test
+  func aSampleLoggedAheadIsntTheLatestDay() throws {
+    let water = "HKQuantityTypeIdentifierDietaryWater"
+    try database.write { db in
+      try HealthSample.insert {
+        sample(water, at: utc(8), value: 0.5)
+        // Tomorrow's, planned.
+        sample(water, at: utc(8, day: 16), value: 0.25)
+      }.execute(db)
+    }
+    #expect(try summary(water).latestDate == utc(0))
   }
 
   @Test

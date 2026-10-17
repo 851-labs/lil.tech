@@ -94,7 +94,8 @@ extension HealthDatabase {
         .limit(1)
         .fetchOne(db)
     }
-    let latestSample = try latestSample(of: type.id, db)
+    // Not a sample logged ahead, e.g. tomorrow's planned meal.
+    let latestSample = try latestSample(of: type.id, startedBy: now, db)
     let latest = [latestBucket, latestSample?.startDate].compactMap { $0 }.max()
     guard let latest else { return MetricSummary(id: type.id) }
     let latestDay = calendar.startOfDay(for: Date(unixMilliseconds: latest))
