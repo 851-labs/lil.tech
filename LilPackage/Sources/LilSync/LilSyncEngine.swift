@@ -261,9 +261,10 @@ public actor LilSyncEngine {
   }
 
   private func pullPages() async throws {
-    /// The next page, downloading while one is written, and the cursor it follows.
-    var next: (after: Int, page: Task<Components.Schemas.ChangesPage, any Error>)?
-    defer { next?.page.cancel() }
+    /// The next page, downloading while one is written. Each page is written with the cursor
+    /// it ends at, which is where the next one starts.
+    var next: Task<Components.Schemas.ChangesPage, any Error>?
+    defer { next?.cancel() }
     while true {
       try Task.checkCancellation()
       let state = try await database.read { try SyncState.fetch($0) }
@@ -284,20 +285,24 @@ public actor LilSyncEngine {
           Set(recorded.split(separator: ",").map(String.init)).intersection(entities.keys))
       }
       let page: Components.Schemas.ChangesPage
-      if let prefetched = next, prefetched.after == state.cursor {
+      if let prefetched = next {
         next = nil
-        page = try await prefetched.page.value
+        // Cancelling the pull cancels the download too: waiting on a task's value wouldn't.
+        page = try await withTaskCancellationHandler {
+          try await prefetched.value
+        } onCancel: {
+          prefetched.cancel()
+        }
       } else {
-        next?.page.cancel()
-        next = nil
         page = try await fetchPage(after: state.cursor)
       }
       if let epoch = state.epoch, epoch != page.epoch { throw SyncError.needsBootstrap }
       if state.cursor > page.head { throw SyncError.needsBootstrap }
       try Self.check(page, after: state.cursor)
+      try Task.checkCancellation()
       if page.hasMore {
         let after = page.next
-        next = (after, Task { try await self.fetchPage(after: after) })
+        next = Task { try await self.fetchPage(after: after) }
       }
       try await database.write { [entities] db in
         for change in page.changes {
@@ -374,13 +379,16 @@ public actor LilSyncEngine {
     removeDownloadedParts(keeping: hashes)
     let parts = wanted.flatMap { entity in entity.parts.map { (entity: entity.entity, part: $0) } }
     let files = parts.map { (entity: $0.entity, file: partFile($0.part.sha256)) }
+    // Each file once, even if two parts have the same contents.
+    var seen = Set<String>()
+    let downloads = parts.filter { seen.insert($0.part.sha256).inserted }
     try FileManager.default.createDirectory(at: partsDirectory, withIntermediateDirectories: true)
     bootstrapManifest = manifest
     downloadedParts = 0
     defer { bootstrapManifest = nil }
     // A few at a time: one download at a time left the connection mostly idle.
     try await withThrowingTaskGroup(of: Void.self) { group in
-      for (index, part) in parts.enumerated() {
+      for (index, part) in downloads.enumerated() {
         if index >= Self.parallelDownloads { try await group.next() }
         group.addTask {
           try await self.downloadPart(part.part, of: part.entity, totalParts: hashes.count)
@@ -451,7 +459,7 @@ public actor LilSyncEngine {
     _ original: Components.Schemas.SnapshotPart, of entity: String, totalParts: Int
   ) async throws {
     let file = partFile(original.sha256)
-    if !isVerified(file, sha256: original.sha256) {
+    if !(await Self.isVerified(file, sha256: original.sha256)) {
       // The latest manifest's URL for the part.
       func currentURL() -> String {
         bootstrapManifest?.entities.first { $0.entity == entity }?
@@ -466,7 +474,8 @@ public actor LilSyncEngine {
         if manifestRefreshes == refreshes, let id = bootstrapManifest?.id {
           let refresh = refreshing ?? Task { try await self.fetchSnapshot(id: id) }
           refreshing = refresh
-          defer { refreshing = nil }
+          // Only this refresh: another may have started since.
+          defer { if refreshing == refresh { refreshing = nil } }
           let fresh = try await refresh.value
           if manifestRefreshes == refreshes {
             bootstrapManifest = fresh
@@ -475,16 +484,28 @@ public actor LilSyncEngine {
         }
         data = try await download(url: currentURL(), sha256: original.sha256)
       }
-      try data.write(to: file, options: .atomic)
+      try await Self.write(data, to: file)
     }
     downloadedParts += 1
     setStatus(.bootstrapping(downloadedParts: downloadedParts, totalParts: totalParts))
   }
 
-  /// Whether `file` holds a part with this hash, as downloaded.
-  private func isVerified(_ file: URL, sha256: String) -> Bool {
+  /// Whether `file` holds a part with this hash, as downloaded. Off the actor, like the other
+  /// hashing and file work of downloads, so parallel downloads don't take turns on it.
+  @concurrent
+  private nonisolated static func isVerified(_ file: URL, sha256: String) async -> Bool {
     guard let data = try? Data(contentsOf: file) else { return false }
-    return Self.sha256Hex(data) == sha256
+    return sha256Hex(data) == sha256
+  }
+
+  @concurrent
+  private nonisolated static func write(_ data: Data, to file: URL) async throws {
+    try data.write(to: file, options: .atomic)
+  }
+
+  @concurrent
+  private nonisolated static func hashes(_ data: Data, to sha256: String) async -> Bool {
+    sha256Hex(data) == sha256
   }
 
   /// Deletes downloaded parts, except those with the given hashes.
@@ -506,7 +527,7 @@ public actor LilSyncEngine {
   private func download(url: String, sha256: String) async throws -> Data {
     guard let url = URL(string: url) else { throw SyncError.unexpectedPage }
     let data = try await downloader.download(url)
-    guard Self.sha256Hex(data) == sha256 else { throw SyncError.corruptPart }
+    guard await Self.hashes(data, to: sha256) else { throw SyncError.corruptPart }
     return data
   }
 

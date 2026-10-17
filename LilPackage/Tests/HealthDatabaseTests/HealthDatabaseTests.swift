@@ -1135,17 +1135,27 @@ struct HealthSyncTests {
     #expect(try columns("healthStatistics") == HealthDatabase.statisticColumns)
 
     let id = "6f1c2a40-0000-4000-8000-0000000000aa"
+    // A distinct value in every column, so values bound in the wrong order show.
     let members = { (value: Int) in
       """
       "type": "HKQuantityTypeIdentifierStepCount", "startDate": 1760400000000,
-      "endDate": 1760400600000, "value": \(value), "unit": "count",
-      "sourceName": "Test iPhone", "sourceBundleId": "com.apple.health",
-      "metadata": {"HKWasUserEntered": true}
+      "endDate": 1760400600000, "value": \(value), "unit": "count", "categoryValue": 3,
+      "correlationId": "6f1c2a40-0000-4000-8000-0000000000bb", "sourceName": "Test iPhone",
+      "sourceBundleId": "com.apple.health", "sourceRevision": {"version": "26.0"},
+      "device": {"name": "iPhone"}, "metadata": {"HKWasUserEntered": true}
       """
     }
+    let statisticID =
+      "dev_000000000000000000000000ph/HKQuantityTypeIdentifierStepCount@1760400000000"
     let changes = [
       try upsert(1, "health_sample", id, members(1)),
       try upsert(2, "health_sample", id, members(2)),
+      try upsert(
+        3, "health_statistic", statisticID,
+        """
+        "device": "dev_000000000000000000000000ph", "type": "HKQuantityTypeIdentifierStepCount",
+        "bucketStart": 1760400000000, "sum": 41.5, "unit": "count"
+        """),
     ]
     let api = Client.mock { _, _ in
       (
@@ -1153,7 +1163,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 2, head: 2, hasMore: false)))
+              epoch: 1, changes: changes, next: 3, head: 3, hasMore: false)))
       )
     }
     try await database.write { db in
@@ -1170,14 +1180,24 @@ struct HealthSyncTests {
     }
     try await engine.pull()
     // The second upsert updated every column of the first.
-    let stored = try await database.read { db in try HealthSample.fetchAll(db) }
+    let (samples, statistics) = try await database.read { db in
+      (try HealthSample.fetchAll(db), try HealthStatistic.fetchAll(db))
+    }
     #expect(
-      stored == [
+      samples == [
         HealthSample(
           id: id, type: "HKQuantityTypeIdentifierStepCount", startDate: 1_760_400_000_000,
-          endDate: 1_760_400_600_000, value: 2, unit: "count", categoryValue: nil,
-          correlationID: nil, sourceName: "Test iPhone", sourceBundleID: "com.apple.health",
-          sourceRevision: nil, device: nil, metadata: #"{"HKWasUserEntered":true}"#)
+          endDate: 1_760_400_600_000, value: 2, unit: "count", categoryValue: 3,
+          correlationID: "6f1c2a40-0000-4000-8000-0000000000bb", sourceName: "Test iPhone",
+          sourceBundleID: "com.apple.health", sourceRevision: #"{"version":"26.0"}"#,
+          device: #"{"name":"iPhone"}"#, metadata: #"{"HKWasUserEntered":true}"#)
+      ])
+    #expect(
+      statistics == [
+        HealthStatistic(
+          id: statisticID, device: "dev_000000000000000000000000ph",
+          type: "HKQuantityTypeIdentifierStepCount", bucketStart: 1_760_400_000_000, sum: 41.5,
+          unit: "count")
       ])
   }
 

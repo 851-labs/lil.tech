@@ -413,9 +413,21 @@ public enum HealthDatabase {
         let value = try record(row)
         try Record.upsert { value }.execute(db)
       },
-      delete: { id, db in try Record.find(id).delete().execute(db) },
-      clear: { db in try Record.delete().execute(db) }
+      delete: delete(Record.self),
+      clear: clear(Record.self)
     )
+  }
+
+  private static func delete<Record: PrimaryKeyedTable>(
+    _: Record.Type
+  ) -> @Sendable (String, Database) throws -> Void where Record.PrimaryKey == String {
+    { id, db in try Record.find(id).delete().execute(db) }
+  }
+
+  private static func clear<Record: PrimaryKeyedTable>(
+    _: Record.Type
+  ) -> @Sendable (Database) throws -> Void {
+    { db in try Record.delete().execute(db) }
   }
 
   /// `healthSamples`' and `healthStatistics`' columns, in the order their upserts bind them.
@@ -428,8 +440,8 @@ public enum HealthDatabase {
   /// An entity upserted with one prepared statement, reused for every row: building each row's
   /// query cost about 20 times as much as the insert itself (68 µs against 3 µs a sample,
   /// 851-2649). For the tables with millions of rows. `values` gives the row's values in
-  /// `columns`' order; a test checks the columns are the table's and that the result matches
-  /// ``entity(_:_:record:)``.
+  /// `columns`' order; a test checks the columns are the table's, and stores a distinct value in
+  /// each.
   private static func preparedEntity<Row: Decodable & SendableMetatype, Record: PrimaryKeyedTable>(
     _ name: String, _: Row.Type, table _: Record.Type, columns: [String],
     values: @escaping @Sendable (Row) throws -> [(any DatabaseValueConvertible)?]
@@ -446,8 +458,8 @@ public enum HealthDatabase {
       upsert: { row, db in
         try db.cachedStatement(sql: sql).execute(arguments: StatementArguments(try values(row)))
       },
-      delete: { id, db in try Record.find(id).delete().execute(db) },
-      clear: { db in try Record.delete().execute(db) }
+      delete: delete(Record.self),
+      clear: clear(Record.self)
     )
   }
 
