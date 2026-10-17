@@ -1,6 +1,12 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { applyMutations, readChanges, readHead } from "../../src/store/ChangeLog.ts";
+import {
+  applyMutations,
+  readChanges,
+  readHead,
+  upsertGroupSize,
+  writeBytes,
+} from "../../src/store/ChangeLog.ts";
 import type { Mutation } from "../../src/store/Changes.ts";
 import { entities } from "../../src/store/Registry.ts";
 import { Column, columnName, createEntityTable, defineEntity } from "../../src/store/Entities.ts";
@@ -185,6 +191,90 @@ describe("applyMutations", () => {
       assert.deepStrictEqual(ids(sql), ["n1"]);
     }),
   );
+
+  it.effect("applies repeated IDs in one call in order, merging each into the last", () =>
+    Effect.gen(function* () {
+      const { sql, store } = makeStore();
+      yield* store.applyMutations([
+        upsert("n1", fields({ score: 4 })),
+        upsert("n2"),
+        upsert("n1", { title: "Renamed" }),
+        upsert("n1", { title: "Renamed" }),
+        upsert("n1", { score: null }),
+      ]);
+      assert.deepStrictEqual(
+        changes(sql).map((change) => change["row"]),
+        [
+          { id: "n1", ...fields({ score: 4 }) },
+          { id: "n2", ...fields() },
+          { id: "n1", ...fields({ score: 4, title: "Renamed" }) },
+          { id: "n1", ...fields({ title: "Renamed" }) },
+        ],
+      );
+    }),
+  );
+
+  it.effect("reports the first invalid mutation in a group of upserts", () =>
+    Effect.gen(function* () {
+      const { store } = makeStore();
+      // A missing field (found against the stored row) before a field of the wrong type.
+      const error = yield* Effect.flip(
+        store.applyMutations([
+          upsert("n1"),
+          upsert("n2", { title: "No other fields" }),
+          upsert("n3"),
+          upsert("n4", fields({ pinned: "yes" })),
+        ]),
+      );
+      assert.strictEqual(error._tag, "InvalidMutation");
+      if (error._tag === "InvalidMutation") assert.strictEqual(error.index, 1);
+    }),
+  );
+
+  it("applies an ID repeated right after a full group as a merge into the first", () => {
+    const { sql } = makeStore();
+    const entities = new Map([[note.name, note]]);
+    const first = Array.from({ length: upsertGroupSize }, (_, n) =>
+      upsert(`n${String(n).padStart(5, "0")}`),
+    );
+    const result = applyMutations(
+      sql,
+      entities,
+      [...first, upsert("n00000", { title: "Renamed" }), upsert("n00001", { score: 3 })],
+      0,
+    );
+    assert.deepStrictEqual(result, { head: upsertGroupSize + 2, appended: upsertGroupSize + 2 });
+    assert.deepStrictEqual(
+      changes(sql)
+        .slice(-2)
+        .map((change) => change["row"]),
+      [
+        { id: "n00000", ...fields({ title: "Renamed" }) },
+        { id: "n00001", ...fields({ score: 3 }) },
+      ],
+    );
+  });
+
+  it("writes a group with big records in parts", () => {
+    const { sql } = makeStore();
+    const entities = new Map([[note.name, note]]);
+    // About 10 KB each: a group of 100 is several parts of `writeBytes`.
+    const big = ["x".repeat(10_000)];
+    const count = 100;
+    const result = applyMutations(
+      sql,
+      entities,
+      Array.from({ length: count }, (_, n) => upsert(`n${n}`, fields({ tags: big }))),
+      0,
+    );
+    assert.isAbove(count * 10_000, writeBytes * 2);
+    assert.deepStrictEqual(result, { head: count, appended: count });
+    assert.lengthOf(ids(sql), count);
+    assert.deepStrictEqual(
+      changes(sql).map((change) => change["seq"]),
+      Array.from({ length: count }, (_, n) => n + 1),
+    );
+  });
 
   it("rolls back everything when a statement fails partway", () => {
     const { sql } = makeStore();
