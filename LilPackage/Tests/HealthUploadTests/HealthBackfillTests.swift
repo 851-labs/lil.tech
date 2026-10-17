@@ -215,8 +215,8 @@ struct HealthBackfillTests {
 
   @Test
   func aPagesBatchesUploadAFewAtATime() async throws {
-    // More batch files than upload at once: full ones, and one with a record.
-    let files = HealthBackfill.batchConcurrency + 2
+    // One more batch file than upload at once: full ones, and one with a record.
+    let files = HealthBackfill.batchConcurrency + 1
     let health = FakeHealth(
       pages: [temperature.id: 1], perPage: (files - 1) * HealthBackfill.batchRecords + 1)
     let server = FakeServer()

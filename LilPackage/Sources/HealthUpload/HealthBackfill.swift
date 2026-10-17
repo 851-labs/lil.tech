@@ -186,7 +186,8 @@ public actor HealthBackfill {
   /// waits on the server, not the network. Not fewer: each batch costs the server a fixed time to
   /// apply, so smaller ones apply slower (`docs/DECISIONS.md`).
   static let batchRecords = 5_000
-  /// A page's batches uploaded at once.
+  /// A page's batches uploaded at once: a page of samples makes about `pageSize / batchRecords`
+  /// (two), and only pages of records that make several mutations each (e.g. correlations) more.
   static let batchConcurrency = 4
 
   public struct Progress: Equatable, Sendable {
