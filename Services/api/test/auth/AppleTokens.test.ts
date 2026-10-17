@@ -25,7 +25,13 @@ const hour = 60 * 60 * 1000;
 const forAda = { clientId: "tech.lil.health", subject: "000123.apple.0001" };
 
 /** The test clock at the real time: Apple's client secrets are checked against it. */
-const now = TestClock.setTime(Date.now());
+const now = Effect.suspend(() => TestClock.setTime(Date.now()));
+
+/**
+ * The test clock a second past the real time, so tokens just queued are due: the trigger stamps
+ * them with the database's clock, in whole seconds.
+ */
+const queuedAreDue = Effect.suspend(() => TestClock.setTime(Date.now() + 1000));
 
 describe("AppleTokens", () => {
   it.effect("redeems a code for Apple's refresh token, kept encrypted, and revokes it", () =>
@@ -130,6 +136,7 @@ describe("revokeAppleTokens", () => {
       // Queued as the user's deletion cascaded to the identity.
       assert.lengthOf(yield* revocations.find(ids), 1);
       assert.lengthOf(yield* revocations.listDue(Date.now() + 1000, 10), 1);
+      yield* queuedAreDue;
       assert.strictEqual(yield* revokeAppleTokens(), 1);
       assert.deepStrictEqual(yield* revocations.find(ids), []);
       const endpoint = yield* TestAppleEndpoint;
@@ -147,13 +154,13 @@ describe("revokeAppleTokens", () => {
       const endpoint = yield* TestAppleEndpoint;
       endpoint.answerWith(() => ({ status: 503, body: "" }));
 
-      yield* TestClock.adjust(1000);
+      yield* queuedAreDue;
+      const failedAt = Date.now() + 1000;
       assert.strictEqual(yield* revokeAppleTokens(), 0);
-      const failedAt = Date.now();
       const [waiting] = yield* revocations.listDue(failedAt + hour + 1000, 10);
       assert.strictEqual(waiting?.attempts, 1);
       // Not due again until an hour later.
-      assert.lengthOf(yield* revocations.listDue(failedAt + hour - 1000, 10), 0);
+      assert.lengthOf(yield* revocations.listDue(failedAt + hour - 2000, 10), 0);
 
       for (let attempt = 2; attempt <= maxRevocationAttempts; attempt++) {
         yield* TestClock.adjust(24 * hour);
@@ -168,7 +175,7 @@ describe("revokeAppleTokens", () => {
       yield* queued("000123.apple.0001");
       const endpoint = yield* TestAppleEndpoint;
       endpoint.answerWith(() => ({ status: 400, body: '{"error":"invalid_grant"}' }));
-      yield* TestClock.adjust(1000);
+      yield* queuedAreDue;
       assert.strictEqual(yield* revokeAppleTokens(), 1);
       assert.lengthOf(yield* (yield* AppleTokenRevocations).listDue(Date.now() + 1000, 10), 0);
     }).pipe(Effect.provide(TestLayer)),
