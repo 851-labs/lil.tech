@@ -46,8 +46,8 @@ const remove = (n: number): Mutation => ({ entity: "health_sample", op: "delete"
 const makeStore = () => {
   const sql = makeTestStoreSql();
   migrate(sql);
-  const apply = (mutations: ReadonlyArray<Mutation>, at = 0) =>
-    applyMutations(sql, entitiesByName, mutations, at);
+  const apply = (mutations: ReadonlyArray<Mutation>, at = 0, copyRows?: boolean) =>
+    applyMutations(sql, entitiesByName, mutations, at, copyRows);
   return { sql, apply };
 };
 
@@ -69,6 +69,34 @@ const log = (sql: StoreSql) => {
 };
 
 describe("samples by type and start", () => {
+  it("serves samples logged without a copy by key, even with an ID stored under two keys", () => {
+    const { sql, apply } = makeStore();
+    const moved = 1760500000000;
+    apply([sample(1), sample(2, { value: 2.5 })], 0, false);
+    apply([remove(1)], 0, false);
+    // Back under another start: its old row stays, no longer tombstoned.
+    apply([sample(1, { startDate: moved, endDate: moved + 60000 })], 0, false);
+    assert.deepStrictEqual(
+      sql.exec("SELECT start_date FROM health_sample WHERE id = ? ORDER BY start_date", uuid(1)),
+      [{ start_date: 1760400060000 }, { start_date: moved }],
+    );
+    const page = readChanges(sql, entitiesByName, 0, 10);
+    if (!("changes" in page)) return assert.fail("compacted");
+    assert.deepStrictEqual(
+      page.changes.map((change) => [
+        change.op,
+        "row" in change ? change.row["startDate"] : null,
+        "row" in change ? change.row["value"] : null,
+      ]),
+      [
+        ["upsert", 1760400060000, 1],
+        ["upsert", 1760400120000, 2.5],
+        ["delete", null, null],
+        ["upsert", moved, 1],
+      ],
+    );
+  });
+
   it("finds, merges and revives a group's records by their key, in one call", () => {
     const { sql, apply } = makeStore();
     apply([sample(0), sample(1), sample(2)]);
@@ -127,28 +155,6 @@ describe("samples by type and start", () => {
     assert.throws(() => apply([partial]), InvalidMutation, "Missing type");
   });
 
-  it("serves logged samples with their current rows, found by key", () => {
-    const { sql, apply } = makeStore();
-    apply([sample(1, { value: 2.5, metadata: { HKTimeZone: "Europe/Bucharest" } }), sample(2)]);
-    apply([sample(1, { value: 3 })]);
-    const page = readChanges(sql, entitiesByName, 0, 10);
-    if (!("changes" in page)) return assert.fail("compacted");
-    const current = (n: number, overrides: Record<string, unknown> = {}) => ({
-      id: uuid(n),
-      categoryValue: null,
-      correlationId: null,
-      sourceRevision: null,
-      device: null,
-      metadata: null,
-      ...(sample(n, overrides) as { row: Record<string, unknown> }).row,
-    });
-    const one = current(1, { value: 3, metadata: { HKTimeZone: "Europe/Bucharest" } });
-    assert.deepStrictEqual(
-      page.changes.map((change) => ("row" in change ? change.row : change.op)),
-      [one, current(2), one],
-    );
-  });
-
   it("a delete leaves a tombstone and logs the delete once", () => {
     const { sql, apply } = makeStore();
     apply([sample(1), sample(2)]);
@@ -159,8 +165,7 @@ describe("samples by type and start", () => {
     assert.deepStrictEqual(tombstoned(sql), [1]);
     // A record that was never stored can't be told apart, so its delete is logged too.
     assert.strictEqual(apply([remove(9)]).appended, 1);
-    // Sample 1's upsert is served as a delete once it's tombstoned.
-    assert.deepStrictEqual(log(sql), ["delete 1", "upsert 2", "delete 1", "delete 9"]);
+    assert.deepStrictEqual(log(sql), ["upsert 1", "upsert 2", "delete 1", "delete 9"]);
   });
 
   it("an upsert after a delete brings the record back, as a new one", () => {

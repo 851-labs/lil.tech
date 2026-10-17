@@ -128,36 +128,27 @@ describe("health entities", () => {
           row: record[field] as Mutation extends { row: infer R } ? R : never,
         }));
 
-      // The log serves each record's current row (`docs/SYNC.md`), so it's read after each step.
-      const read = (after: number) => {
-        const page = readChanges(sql, entitiesByName, after, 100);
-        return "changes" in page ? page.changes : assert.fail("compacted");
-      };
-      const n = records.length;
       yield* store.applyMutations(upserts("row"));
-      const inserted = read(0);
       yield* store.applyMutations(upserts("update"));
-      const updated = read(n);
       yield* store.applyMutations(
         records.map((record): Mutation => ({ entity: record.entity, op: "delete", id: record.id })),
       );
-      const deleted = read(2 * n);
-      // Once deleted, their earlier upserts read as deletes too.
-      const all = read(0);
-      assert.lengthOf(all, 3 * n);
+
+      const page = readChanges(sql, entitiesByName, 0, 100);
+      if (!("changes" in page)) return assert.fail("compacted");
+      const n = records.length;
+      assert.strictEqual(page.head, n * 3);
       records.forEach((record, index) => {
-        assert.deepStrictEqual(
-          inserted[index]?.row,
-          { id: record.id, ...record.row },
-          record.entity,
+        const [inserted, updated, deleted] = [index, n + index, 2 * n + index].map(
+          (position) => page.changes[position],
         );
+        assert.deepStrictEqual(inserted?.row, { id: record.id, ...record.row }, record.entity);
         assert.deepStrictEqual(
-          updated[index]?.row,
+          updated?.row,
           { id: record.id, ...record.row, ...record.update },
           record.entity,
         );
-        assert.deepInclude(deleted[index], { entity: record.entity, id: record.id, op: "delete" });
-        assert.deepInclude(all[index], { entity: record.entity, id: record.id, op: "delete" });
+        assert.deepInclude(deleted, { entity: record.entity, id: record.id, op: "delete" });
       });
       // A sample's row stays until the alarm sweeps its tombstone (`Tombstones.test.ts`).
       assert.deepStrictEqual(

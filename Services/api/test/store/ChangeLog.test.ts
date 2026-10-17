@@ -33,12 +33,11 @@ const remove = (id: string): Mutation => ({ entity: "test_note", op: "delete", i
 
 const makeStore = makeTestStore;
 
-/** The log as it's served: each upsert with its record's current row (`readChanges`). */
-const changes = (sql: StoreSql): Array<Record<string, unknown>> => {
-  const page = readChanges(sql, noteEntities, 0, 100_000);
-  if (!("changes" in page)) return assert.fail("compacted");
-  return page.changes.map((change) => ({ ...change, row: "row" in change ? change.row : null }));
-};
+const changes = (sql: StoreSql): Array<Record<string, unknown>> =>
+  sql.exec("SELECT seq, entity, id, op, row, at FROM changes ORDER BY seq").map((change) => ({
+    ...change,
+    row: change["row"] === null ? null : (JSON.parse(change["row"] as string) as unknown),
+  }));
 
 const ids = (sql: StoreSql) => sql.exec("SELECT id FROM test_note ORDER BY id").map((r) => r["id"]);
 
@@ -125,21 +124,17 @@ describe("applyMutations", () => {
   it.effect("merges upserts: missing fields keep their values and null clears one", () =>
     Effect.gen(function* () {
       const { sql, store } = makeStore();
-      // Each served right after it's applied: the log serves the record's current row.
-      const rows: Array<unknown> = [];
-      for (const mutation of [
-        upsert("n1", fields({ score: 4 })),
-        upsert("n1", { title: "Renamed" }),
-        upsert("n1", { score: null }),
-      ]) {
-        yield* store.applyMutations([mutation]);
-        rows.push(changes(sql).at(-1)?.["row"]);
-      }
-      assert.deepStrictEqual(rows, [
-        { id: "n1", ...fields({ score: 4 }) },
-        { id: "n1", ...fields({ score: 4, title: "Renamed" }) },
-        { id: "n1", ...fields({ title: "Renamed" }) },
-      ]);
+      yield* store.applyMutations([upsert("n1", fields({ score: 4 }))]);
+      yield* store.applyMutations([upsert("n1", { title: "Renamed" })]);
+      yield* store.applyMutations([upsert("n1", { score: null })]);
+      assert.deepStrictEqual(
+        changes(sql).map((change) => change["row"]),
+        [
+          { id: "n1", ...fields({ score: 4 }) },
+          { id: "n1", ...fields({ score: 4, title: "Renamed" }) },
+          { id: "n1", ...fields({ title: "Renamed" }) },
+        ],
+      );
     }),
   );
 
@@ -208,20 +203,15 @@ describe("applyMutations", () => {
         upsert("n1", { title: "Renamed" }),
         upsert("n1", { score: null }),
       ]);
-      // The repeat changes nothing, so three changes for n1. Each merged into the one before.
       assert.deepStrictEqual(
-        changes(sql).map((change) => [change["id"], change["op"]]),
+        changes(sql).map((change) => change["row"]),
         [
-          ["n1", "upsert"],
-          ["n2", "upsert"],
-          ["n1", "upsert"],
-          ["n1", "upsert"],
+          { id: "n1", ...fields({ score: 4 }) },
+          { id: "n2", ...fields() },
+          { id: "n1", ...fields({ score: 4, title: "Renamed" }) },
+          { id: "n1", ...fields({ title: "Renamed" }) },
         ],
       );
-      assert.deepStrictEqual(changes(sql).at(-1)?.["row"], {
-        id: "n1",
-        ...fields({ title: "Renamed" }),
-      });
     }),
   );
 
@@ -313,19 +303,60 @@ describe("applyMutations", () => {
 });
 
 describe("readChanges", () => {
-  it("serves changes logged with a copy of their row (before migration 17) as they were", () => {
+  it("serves upserts logged without a copy with their records' current rows", () => {
     const { sql } = makeStore();
-    const row = { id: "n1", ...fields({ title: "Logged" }) };
-    sql.exec(
-      "INSERT INTO changes (seq, entity, id, op, row, at) VALUES (1, 'test_note', 'n1', 'upsert', ?, 5)",
-      JSON.stringify(row),
-    );
-    sql.exec("INSERT INTO meta (key, value) VALUES ('head', 1)");
+    const apply = (mutations: ReadonlyArray<Mutation>) =>
+      applyMutations(sql, noteEntities, mutations, 0, false);
+    apply([upsert("n1", fields({ score: 4 })), upsert("n2")]);
+    apply([upsert("n1", { title: "Renamed" })]);
+    apply([remove("n2")]);
+    assert.deepStrictEqual(sql.exec("SELECT row, key FROM changes WHERE op = 'upsert'"), [
+      { row: "", key: null },
+      { row: "", key: null },
+      { row: "", key: null },
+    ]);
+    const renamed = { id: "n1", ...fields({ score: 4, title: "Renamed" }) };
+    assert.deepStrictEqual(readChanges(sql, noteEntities, 0, 10), {
+      epoch: 1,
+      changes: [
+        { seq: 1, entity: "test_note", id: "n1", op: "upsert", row: renamed, at: 0 },
+        // Deleted since: served as a delete, which ends the same way.
+        { seq: 2, entity: "test_note", id: "n2", op: "delete", at: 0 },
+        { seq: 3, entity: "test_note", id: "n1", op: "upsert", row: renamed, at: 0 },
+        { seq: 4, entity: "test_note", id: "n2", op: "delete", at: 0 },
+      ],
+      next: 4,
+      head: 4,
+      hasMore: false,
+    });
+  });
+
+  it("serves changes logged with and without copies together", () => {
+    const { sql } = makeStore();
+    applyMutations(sql, noteEntities, [upsert("n1", fields({ title: "Copied" }))], 0, true);
+    applyMutations(sql, noteEntities, [upsert("n2")], 0, false);
     const page = readChanges(sql, noteEntities, 0, 10);
     if (!("changes" in page)) return assert.fail("compacted");
-    assert.deepStrictEqual(page.changes, [
-      { seq: 1, entity: "test_note", id: "n1", op: "upsert", row, at: 5 },
-    ]);
+    assert.deepStrictEqual(
+      page.changes.map((change) => ("row" in change ? change.row : null)),
+      [
+        { id: "n1", ...fields({ title: "Copied" }) },
+        { id: "n2", ...fields() },
+      ],
+    );
+  });
+
+  it("leaves out upserts of an entity it doesn't know, still moving the cursor", () => {
+    const { sql } = makeStore();
+    applyMutations(sql, noteEntities, [upsert("n1"), upsert("n2")], 0, false);
+    // A reader without the entity, as after a rollback.
+    assert.deepStrictEqual(readChanges(sql, new Map(), 0, 10), {
+      epoch: 1,
+      changes: [],
+      next: 2,
+      head: 2,
+      hasMore: false,
+    });
   });
 
   it("pages through the log", () => {
@@ -335,8 +366,14 @@ describe("readChanges", () => {
     assert.deepStrictEqual(readChanges(sql, noteEntities, 0, 2), {
       epoch: 1,
       changes: [
-        // n1 was deleted since: its upsert is served as a delete, which ends the same way.
-        { seq: 1, entity: "test_note", id: "n1", op: "delete", at: 7 },
+        {
+          seq: 1,
+          entity: "test_note",
+          id: "n1",
+          op: "upsert",
+          row: { id: "n1", ...fields() },
+          at: 7,
+        },
         {
           seq: 2,
           entity: "test_note",
