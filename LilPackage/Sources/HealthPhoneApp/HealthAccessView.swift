@@ -37,14 +37,9 @@ public struct HealthAccessView: View {
     VStack(spacing: 20) {
       Text("Read Your Health Data")
         .font(.title.bold())
-      Text(
-        """
-        lil health copies everything in Apple Health to your lil health account, so you can see \
-        it on your Mac. Health asks about each type next: allow all of them to see everything.
-        """
-      )
-      .multilineTextAlignment(.center)
-      .foregroundStyle(.secondary)
+      Text(Self.explanation)
+        .multilineTextAlignment(.center)
+        .foregroundStyle(.secondary)
       Spacer().frame(height: 12)
       Button {
         store.send(.continueButtonTapped)
@@ -64,6 +59,19 @@ public struct HealthAccessView: View {
       Button("Not Now") { store.send(.notNowButtonTapped) }
         .disabled(store.step == .requesting)
     }
+  }
+
+  /// What the screen asks for. Since iOS 27, Health's sheet ends by asking how much history to
+  /// share; the last 30 days would leave the Mac with only a month.
+  static var explanation: String {
+    let types = """
+      lil health copies everything in Apple Health to your lil health account, so you can see it \
+      on your Mac. Health asks about each type next: allow all of them to see everything.
+      """
+    if #available(iOS 27, *) {
+      return types + " Then choose All Recorded Data, to see your whole history."
+    }
+    return types
   }
 
   private var perObject: some View {
