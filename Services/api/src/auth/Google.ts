@@ -19,8 +19,8 @@ export const googleIssuers = ["https://accounts.google.com", "accounts.google.co
  *
  * - `apps`: the apps' client IDs, which Google puts in the token's `azp` (or `aud`). One iOS-type
  *   client serves the iPhone and the Mac: they share the bundle ID `tech.lil.health`.
- * - `server`: a server client ID, if the apps set one (`GIDConfiguration.serverClientID`), which
- *   Google then puts in `aud`.
+ * - `server`: a server client ID, which Google would put in `aud` if the apps asked for one. They
+ *   don't (they sign in without Google's SDK, `GoogleOAuth.swift`), so it's empty.
  */
 export const googleClientIds = {
   apps: [
