@@ -32,6 +32,12 @@ const sameValues = (a: ReadonlyArray<SqlValue>, b: ReadonlyArray<SqlValue>) =>
   a.length === b.length && a.every((value, index) => value === b[index]);
 
 /**
+ * Upserts applied together at most (`applyMutations`). Their rows go to SQLite as one JSON
+ * parameter, which stays far below its 2 MB limit for a string.
+ */
+export const upsertGroupSize = 500;
+
+/**
  * Applies `mutations` in order and appends one change per record that changed, all in one
  * synchronous transaction (`docs/SYNC.md`). Throws `InvalidMutation` (and writes nothing) if any
  * mutation can't be applied.
@@ -57,109 +63,163 @@ export const applyMutations = (
   at: number,
 ): AppliedMutations =>
   sql.transaction(() => {
-    const append = (seq: number, mutation: Mutation, row: string | null) =>
-      sql.exec(
-        "INSERT INTO changes (seq, entity, id, op, row, at) VALUES (?, ?, ?, ?, ?, ?)",
-        seq,
-        mutation.entity,
-        mutation.id,
-        mutation.op,
-        row,
-        at,
-      );
-
     const start = readHead(sql);
     let head = start;
     // Looked up once, and only for entities with key fields: most transactions have none.
     let tombstones: boolean | undefined;
     const hasTombstones = () =>
       (tombstones ??= sql.exec("SELECT 1 FROM tombstones LIMIT 1").length > 0);
-    for (const [index, mutation] of mutations.entries()) {
+
+    const entityOf = (index: number, mutation: Mutation) => {
       const entity = entities.get(mutation.entity);
       if (entity === undefined) {
         throw new InvalidMutation({ index, message: `Unknown entity ${mutation.entity}` });
       }
+      return entity;
+    };
+
+    const applyDelete = (index: number, entity: Entity, mutation: Mutation) => {
       if (!entity.isValidId(mutation.id)) {
         throw new InvalidMutation({ index, message: `Invalid ${entity.name} ID ${mutation.id}` });
       }
-      if (mutation.op === "delete") {
-        if (entity.key.length > 0) {
-          const added = sql.exec(
-            `INSERT INTO tombstones (entity, id, at) VALUES (?, ?, ?)
-              ON CONFLICT (entity, id) DO NOTHING RETURNING id`,
-            entity.name,
-            mutation.id,
-            at,
-          );
-          if (added.length > 0) {
-            tombstones = true;
-            append(++head, mutation, null);
-          }
-        } else if (
-          entity.statements.delete !== undefined &&
-          sql.exec(entity.statements.delete, mutation.id).length > 0
-        ) {
-          append(++head, mutation, null);
-        }
-        continue;
-      }
-
-      const decoded = entity.decodeFields(mutation.row);
-      if (Result.isFailure(decoded)) {
-        throw new InvalidMutation({ index, message: decoded.failure.message });
-      }
-      const set = decoded.success;
-      const keyValues: Array<SqlValue> = [];
-      for (const field of entity.key) {
-        const value = set[field];
-        if (value === undefined || value === null) {
-          throw new InvalidMutation({ index, message: `Missing ${field}` });
-        }
-        keyValues.push(value as SqlValue);
-      }
-      let stored: SqlRow | undefined = sql.exec(
-        entity.statements.select,
-        ...keyValues,
-        mutation.id,
-      )[0];
-      // A record deleted earlier, whose row may not be removed yet, comes back as a new one.
-      if (
-        entity.key.length > 0 &&
-        hasTombstones() &&
+      const appended =
+        entity.key.length > 0
+          ? sql.exec(
+              `INSERT INTO tombstones (entity, id, at) VALUES (?, ?, ?)
+                ON CONFLICT (entity, id) DO NOTHING RETURNING id`,
+              entity.name,
+              mutation.id,
+              at,
+            ).length > 0
+          : entity.statements.delete !== undefined &&
+            sql.exec(entity.statements.delete, mutation.id).length > 0;
+      if (entity.key.length > 0 && appended) tombstones = true;
+      if (appended) {
         sql.exec(
-          "DELETE FROM tombstones WHERE entity = ? AND id = ? RETURNING id",
+          "INSERT INTO changes (seq, entity, id, op, row, at) VALUES (?, ?, ?, 'delete', NULL, ?)",
+          ++head,
           entity.name,
           mutation.id,
-        ).length > 0
-      ) {
-        stored = undefined;
+          at,
+        );
       }
-      const values = entity.fields.map(({ field, column, type }) =>
-        field in set ? toColumnValue(type, set[field] ?? null) : (stored?.[column] ?? null),
-      );
-      const missing = entity.fields.find(
-        ({ type }, position) => !type.nullable && values[position] === null,
-      );
-      if (missing !== undefined) {
-        throw new InvalidMutation({ index, message: `Missing ${missing.field}` });
-      }
-      const row: Record<string, Schema.Json> = { id: mutation.id };
-      entity.fields.forEach(({ field, type }, position) => {
-        row[field] = fromColumnValue(type, values[position]);
+    };
+
+    /**
+     * Applies a group of upserts to one entity, with no ID twice, so each finds its record as it
+     * was before the group. Each step runs once for the whole group. A mutation that can't be
+     * applied throws when its turn comes, so the first one is reported, as one at a time would.
+     */
+    const applyUpserts = (entity: Entity, group: ReadonlyArray<number>) => {
+      const decoded = group.map((index) => {
+        const mutation = mutations[index] as Mutation & { readonly op: "upsert" };
+        if (!entity.isValidId(mutation.id)) {
+          return { index, error: `Invalid ${entity.name} ID ${mutation.id}` } as const;
+        }
+        const fields = entity.decodeFields(mutation.row);
+        if (Result.isFailure(fields)) return { index, error: fields.failure.message } as const;
+        const set = fields.success;
+        const keyValues: Array<SqlValue> = [];
+        for (const field of entity.key) {
+          const value = set[field];
+          if (value === undefined || value === null) {
+            return { index, error: `Missing ${field}` } as const;
+          }
+          keyValues.push(value as SqlValue);
+        }
+        return { index, id: mutation.id, set, keyValues } as const;
       });
-      const invalid = entity.checkRow?.(mutation.id, row);
-      if (invalid !== undefined) throw new InvalidMutation({ index, message: invalid });
-      if (
-        stored !== undefined &&
-        sameValues(
-          values,
-          entity.fields.map(({ column }) => stored[column] ?? null),
-        )
-      ) {
+      const valid = decoded.flatMap((record) => ("error" in record ? [] : [record]));
+      const stored = new Map<string, SqlRow>();
+      // A record deleted earlier, whose row may not be removed yet, comes back as a new one.
+      const revived = new Set<string>();
+      if (valid.length > 0) {
+        const keys = JSON.stringify(valid.map(({ id, keyValues }) => [...keyValues, id]));
+        for (const row of sql.exec(entity.statements.select, keys)) {
+          stored.set(row["id"] as string, row);
+        }
+        if (entity.key.length > 0 && hasTombstones()) {
+          const revivedRows = sql.exec(
+            `DELETE FROM tombstones WHERE entity = ? AND id IN (SELECT value FROM json_each(?))
+              RETURNING id`,
+            entity.name,
+            JSON.stringify(valid.map(({ id }) => id)),
+          );
+          for (const row of revivedRows) revived.add(row["id"] as string);
+        }
+      }
+      const upserts: Array<ReadonlyArray<SqlValue>> = [];
+      const changes: Array<readonly [number, string, string]> = [];
+      for (const record of decoded) {
+        if ("error" in record) {
+          throw new InvalidMutation({ index: record.index, message: record.error });
+        }
+        const { index, id, set } = record;
+        const before = revived.has(id) ? undefined : stored.get(id);
+        const values = entity.fields.map(({ field, column, type }) =>
+          field in set ? toColumnValue(type, set[field] ?? null) : (before?.[column] ?? null),
+        );
+        const missing = entity.fields.find(
+          ({ type }, position) => !type.nullable && values[position] === null,
+        );
+        if (missing !== undefined) {
+          throw new InvalidMutation({ index, message: `Missing ${missing.field}` });
+        }
+        const row: Record<string, Schema.Json> = { id };
+        entity.fields.forEach(({ field, type }, position) => {
+          row[field] = fromColumnValue(type, values[position]);
+        });
+        const invalid = entity.checkRow?.(id, row);
+        if (invalid !== undefined) throw new InvalidMutation({ index, message: invalid });
+        if (
+          before !== undefined &&
+          sameValues(
+            values,
+            entity.fields.map(({ column }) => before[column] ?? null),
+          )
+        ) {
+          continue;
+        }
+        upserts.push([id, ...values]);
+        changes.push([++head, id, JSON.stringify(row)]);
+      }
+      if (upserts.length === 0) return;
+      sql.exec(entity.statements.upsert, JSON.stringify(upserts));
+      sql.exec(
+        `INSERT INTO changes (seq, entity, id, op, row, at)
+          SELECT value ->> 0, ?, value ->> 1, 'upsert', value ->> 2, ? FROM json_each(?)`,
+        entity.name,
+        at,
+        JSON.stringify(changes),
+      );
+    };
+
+    let index = 0;
+    while (index < mutations.length) {
+      const mutation = mutations[index]!;
+      const entity = entityOf(index, mutation);
+      if (mutation.op === "delete") {
+        applyDelete(index, entity, mutation);
+        index += 1;
         continue;
       }
-      sql.exec(entity.statements.upsert, mutation.id, ...values);
-      append(++head, mutation, JSON.stringify(row));
+      // This upsert and the ones right after it to the same entity, until an ID repeats.
+      const group: Array<number> = [];
+      const ids = new Set<string>();
+      for (let next = index; next < mutations.length && group.length < upsertGroupSize; next += 1) {
+        const candidate = mutations[next]!;
+        if (
+          candidate.op !== "upsert" ||
+          candidate.entity !== mutation.entity ||
+          ids.has(candidate.id)
+        ) {
+          break;
+        }
+        ids.add(candidate.id);
+        group.push(next);
+      }
+      applyUpserts(entity, group);
+      index += group.length;
     }
     if (head !== start) {
       sql.exec(

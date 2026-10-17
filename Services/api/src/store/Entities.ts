@@ -95,8 +95,11 @@ export interface Entity {
     row: unknown,
   ) => Result.Result<Readonly<Record<string, Schema.Json>>, Schema.SchemaError>;
   /**
-   * The statements `applyMutations` runs, built once. `select` takes the key fields' values, then
-   * the ID. There's a `delete` by ID only without key fields: with them, deletes leave tombstones.
+   * The statements `applyMutations` runs, built once. `select` and `upsert` take a group of
+   * records as one JSON array parameter (read with `json_each`, which keeps them under SQLite's
+   * limit of 100 parameters): `select` of `[...key fields' values, id]` arrays, and `upsert` of
+   * `[id, ...columns' values]` arrays. There's a `delete` by ID only without key fields: with
+   * them, deletes leave tombstones.
    */
   readonly statements: {
     readonly select: string;
@@ -212,9 +215,12 @@ export const defineEntity = (
     decodeFields: Schema.decodeUnknownResult(fieldsSchema) as Entity["decodeFields"],
     statements: {
       select: `SELECT ${["id", ...columns].join(", ")} FROM "${name}"
-        WHERE ${keyColumns.map((column) => `"${column}" = ?`).join(" AND ")}`,
+        WHERE (${keyColumns.map((column) => `"${column}"`).join(", ")})
+          IN (SELECT ${keyColumns.map((_, index) => `value ->> ${index}`).join(", ")} FROM json_each(?))`,
+      // `WHERE TRUE` tells SQLite's parser that `ON CONFLICT` isn't part of a join.
       upsert: `INSERT INTO "${name}" (${["id", ...columns].join(", ")})
-        VALUES (${["?", ...columns.map(() => "?")].join(", ")})
+        SELECT ${["id", ...columns].map((_, index) => `value ->> ${index}`).join(", ")}
+          FROM json_each(?) WHERE TRUE
         ON CONFLICT (${keyColumns.map((column) => `"${column}"`).join(", ")}) DO UPDATE SET ${columns.map((column) => `${column} = excluded.${column}`).join(", ")}`,
       ...(key.length === 0 ? { delete: `DELETE FROM "${name}" WHERE id = ? RETURNING id` } : {}),
     },
