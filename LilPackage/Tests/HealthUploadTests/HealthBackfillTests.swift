@@ -214,10 +214,11 @@ struct HealthBackfillTests {
   }
 
   @Test
-  func aPagesBatchesUploadAtOnce() async throws {
-    // Three batch files: two full, and one record.
+  func aPagesBatchesUploadAFewAtATime() async throws {
+    // More batch files than upload at once: full ones, and one with a record.
+    let files = HealthBackfill.batchConcurrency + 2
     let health = FakeHealth(
-      pages: [temperature.id: 1], perPage: 2 * HealthBackfill.batchRecords + 1)
+      pages: [temperature.id: 1], perPage: (files - 1) * HealthBackfill.batchRecords + 1)
     let server = FakeServer()
     let inFlight = LockIsolated(0)
     let mostInFlight = LockIsolated(0)
@@ -230,13 +231,13 @@ struct HealthBackfillTests {
           $0 += 1
           return $0
         }
+        defer { inFlight.withValue { $0 -= 1 } }
         mostInFlight.withValue { $0 = max($0, now) }
         var waited = 0
         while mostInFlight.value < 2, waited < 200 {
           try await Task.sleep(for: .milliseconds(10))
           waited += 1
         }
-        defer { inFlight.withValue { $0 -= 1 } }
         try await server.uploader.upload(id, file)
       }
       $0.healthBackfillStorage = storage
@@ -250,8 +251,9 @@ struct HealthBackfillTests {
 
     try await backfill.run()
     #expect(mostInFlight.value >= 2)
-    #expect(server.accepted.value.count == 3)
-    #expect(server.records.value.count == 2 * HealthBackfill.batchRecords + 1)
+    #expect(mostInFlight.value <= HealthBackfill.batchConcurrency)
+    #expect(server.accepted.value.count == files)
+    #expect(server.records.value.count == (files - 1) * HealthBackfill.batchRecords + 1)
     #expect(try storage.loadState()?.finished.contains(temperature.id) == true)
   }
 

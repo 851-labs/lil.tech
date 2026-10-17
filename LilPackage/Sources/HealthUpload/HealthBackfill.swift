@@ -159,10 +159,11 @@ public actor HealthBackfill {
 
   /// Runs uploads that retry with `retryDelays`, noting whether the server was still failing
   /// after them.
-  private func notingServerFailure(_ uploads: () async throws -> Void) async throws {
+  private func notingServerFailure<T>(_ uploads: () async throws -> T) async throws -> T {
     do {
-      try await uploads()
+      let result = try await uploads()
       serverFailing = false
+      return result
     } catch  where Self.isTransient(error) {
       serverFailing = true
       throw error
@@ -180,11 +181,10 @@ public actor HealthBackfill {
 
   /// Objects per anchored query. Two are in memory at once (one uploading, the next read), so
   /// not bigger.
-  static let pageSize = 20_000
+  static let pageSize = 10_000
   /// Records per batch file, so a page makes several that upload at once: an upload mostly
-  /// waits on the server (1–2 s, whatever its size), not the network. The server applies
-  /// batches in chunks of the same size.
-  static let batchRecords = 5_000
+  /// waits on the server (1–2 s, whatever its size), not the network.
+  static let batchRecords = 2_500
   /// A page's batches uploaded at once.
   static let batchConcurrency = 4
 
@@ -925,28 +925,37 @@ public actor HealthBackfill {
     }
     if missingBlob { return try dropPage() }
     let uploading = ContinuousClock.now
-    // A page's few files, all loaded first: one missing drops the page.
-    var files: [(batch: String, file: Data)] = []
-    for batch in pending.batches {
-      guard let file = try storage.loadFile(batch) else { return try dropPage() }
-      files.append((batch, file))
-    }
     // A few at a time, in any order: the anchor only moves once they're all accepted, and a
     // batch that went up before a failure is known to the server by its ID when it's tried again.
+    // A page's records are each its own object (HealthKit's are immutable), so their order
+    // doesn't matter. Each file is loaded as it goes up; one missing drops the page.
+    var missingBatch = false
     do {
-      try await notingServerFailure { [files] in
-        try await withThrowingTaskGroup(of: Void.self) { group in
-          var queue = files[...]
+      // Read now: the blobs' uploads above may have found the server answering again.
+      let delays = retryDelays
+      missingBatch = try await notingServerFailure {
+        try await withThrowingTaskGroup(of: Bool.self) { group in
+          var queue = pending.batches[...]
           func uploadNext() {
-            guard let (batch, file) = queue.popFirst() else { return }
-            group.addTask { [uploader, clock, delays] in
+            guard let batch = queue.popFirst() else { return }
+            group.addTask { [storage, uploader, clock] in
+              try Task.checkCancellation()
+              guard let file = try storage.loadFile(batch) else { return false }
               try await Self.retryingTransient(delays, clock: clock) {
                 try await uploader.upload(batch, file)
               }
+              return true
             }
           }
           for _ in 0..<Self.batchConcurrency { uploadNext() }
-          while try await group.next() != nil { uploadNext() }
+          while let uploaded = try await group.next() {
+            guard uploaded else {
+              group.cancelAll()
+              return true
+            }
+            uploadNext()
+          }
+          return false
         }
       }
     } catch {
@@ -955,6 +964,7 @@ public actor HealthBackfill {
       )
       throw error
     }
+    if missingBatch { return try dropPage() }
     BackfillLog.write(
       "uploaded \(BackfillLog.name(pending.type)): \(pending.records) records, \(pending.batches.count) batches, \(pending.blobs.count) blobs in \(BackfillLog.since(uploading))"
     )

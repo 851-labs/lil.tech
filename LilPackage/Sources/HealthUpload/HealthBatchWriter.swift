@@ -36,7 +36,8 @@ public struct HealthBatchWriter {
   /// Mutations waiting for the next file.
   public var pendingCount: Int { count }
 
-  /// Adds a mutation. Returns a finished file when this one wouldn't fit in the current file.
+  /// Adds a mutation. Returns a finished file when this one wouldn't fit in the current file, or
+  /// it already holds `maxRecords`.
   public mutating func append(_ mutation: HealthMutation) throws -> Data? {
     let line = try encoder.encode(mutation)
     guard line.count <= Self.maxLineBytes else {
