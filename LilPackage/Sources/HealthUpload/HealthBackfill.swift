@@ -182,10 +182,12 @@ public actor HealthBackfill {
   /// Objects per anchored query. Two are in memory at once (one uploading, the next read), so
   /// not bigger.
   static let pageSize = 10_000
-  /// Records per batch file, so a page makes several that upload at once: an upload mostly
-  /// waits on the server (1–2 s, whatever its size), not the network.
-  static let batchRecords = 2_500
-  /// A page's batches uploaded at once.
+  /// Records per batch file, so a page makes a couple that upload at once: an upload mostly
+  /// waits on the server, not the network. Not fewer: each batch costs the server a fixed time to
+  /// apply, so smaller ones apply slower (`docs/DECISIONS.md`).
+  static let batchRecords = 5_000
+  /// A page's batches uploaded at once: a page of samples makes about `pageSize / batchRecords`
+  /// (two), and only pages of records that make several mutations each (e.g. correlations) more.
   static let batchConcurrency = 4
 
   public struct Progress: Equatable, Sendable {
