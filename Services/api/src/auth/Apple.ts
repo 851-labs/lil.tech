@@ -1,5 +1,6 @@
 import { Clock, Context, Effect, Layer, Schema } from "effect";
 import { IdentityTokenUses } from "../core/IdentityTokenUses.ts";
+import { appleWebServicesId } from "./AppleWebSignIn.ts";
 import type { InvalidIdentityToken, SignInUnavailable } from "./AuthApi.ts";
 import type { VerifiedIdentity } from "./ProviderSignIn.ts";
 import {
@@ -14,10 +15,11 @@ import {
 export const appleIssuer = "https://appleid.apple.com";
 
 /**
- * The bundle IDs our apps sign in with, which Apple puts in the token's audience. iOS and macOS
- * share one App ID, so a person gets the same Apple user ID in both (851-2538).
+ * What Apple puts in the token's audience: the iPhone app's App ID for its native sheet, and the
+ * Services ID for the Mac's web sign-in (`AppleWebSignIn.ts`). The Services ID is grouped under
+ * the App ID, so a person gets the same Apple user ID in both (851-2538).
  */
-export const appleAudiences = ["tech.lil.health"];
+export const appleAudiences = ["tech.lil.health", appleWebServicesId];
 
 /** Apple's token signing keys. */
 export class AppleKeys extends Context.Service<AppleKeys, ProviderKeys>()(

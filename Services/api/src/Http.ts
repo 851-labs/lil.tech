@@ -7,6 +7,7 @@ import { AppleSignIn } from "./auth/Apple.ts";
 import { GoogleSignIn } from "./auth/Google.ts";
 import { Auth } from "./auth/Auth.ts";
 import { ProviderSignIn, type VerifiedIdentity } from "./auth/ProviderSignIn.ts";
+import { AppleWebCallbackRoute } from "./auth/AppleWebSignIn.ts";
 import { DevSignInRoute } from "./auth/DevSignIn.ts";
 import {
   Authorization,
@@ -641,6 +642,7 @@ export const WorkerHttpLayer = Layer.mergeAll(
   HttpApiBuilder.layer(Api),
   OpenApiRoute,
   DevSignInRoute,
+  AppleWebCallbackRoute,
   SnapshotPartRoute,
   HealthBlobDownloadRoute,
   LiveRoute,

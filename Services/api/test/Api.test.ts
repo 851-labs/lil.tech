@@ -1,3 +1,4 @@
+import { appleWebCallback, appleWebServicesId } from "../src/auth/AppleWebSignIn.ts";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
@@ -438,6 +439,28 @@ describe("POST /v1/auth/apple", () => {
     ),
   );
 
+  it.live("signs the Mac's web sign-in (the Services ID) in to the same user", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const users = yield* Users;
+        const signIn = (audience?: string) =>
+          Effect.gen(function* () {
+            const nonce = crypto.randomUUID();
+            const identityToken = yield* appleIdentityToken(
+              { sub: "000123.http.0004", nonce },
+              audience === undefined ? {} : { audience },
+            );
+            return yield* appleSignIn(handler, { identityToken, nonce, device });
+          });
+        assert.strictEqual((yield* signIn()).status, 200);
+        assert.strictEqual((yield* signIn(appleWebServicesId)).status, 200);
+        assert.strictEqual(yield* users.count, 1);
+        // Another app's tokens aren't ours.
+        assert.strictEqual((yield* signIn("com.example.other")).status, 401);
+      }),
+    ),
+  );
+
   it.live("doesn't create accounts from mainland China, but signs existing ones in", () =>
     withApi((handler) =>
       Effect.gen(function* () {
@@ -526,6 +549,56 @@ describe("POST /v1/auth/google", () => {
         assert.deepInclude(me.body, {
           identities: [{ provider: "google", email: "ada@example.com" }],
         });
+      }),
+    ),
+  );
+});
+
+describe("POST /v1/auth/apple/web", () => {
+  it.live("hands Apple's form post to the app's callback", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const response = yield* Effect.promise(() =>
+          handler(
+            new Request("https://api.lil.tech/v1/auth/apple/web", {
+              method: "POST",
+              headers: { "content-type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                id_token: "a.b.c",
+                code: "c0de",
+                state: "s+1",
+                user: '{"name":{"firstName":"Ada","lastName":null}}',
+                other: "dropped",
+              }).toString(),
+            }),
+          ),
+        );
+        assert.strictEqual(response.status, 303);
+        const location = new URL(response.headers.get("location") ?? "");
+        assert.strictEqual(
+          `${location.protocol}//${location.host}${location.pathname}`,
+          appleWebCallback,
+        );
+        assert.deepStrictEqual(Object.fromEntries(location.searchParams), {
+          id_token: "a.b.c",
+          code: "c0de",
+          state: "s+1",
+          user: '{"name":{"firstName":"Ada","lastName":null}}',
+        });
+        // The person cancelled: Apple posts an error, which the app gets too.
+        const cancelled = yield* Effect.promise(() =>
+          handler(
+            new Request("https://api.lil.tech/v1/auth/apple/web", {
+              method: "POST",
+              body: new URLSearchParams({ error: "user_cancelled_authorize", state: "s" }),
+            }),
+          ),
+        );
+        assert.strictEqual(cancelled.status, 303);
+        assert.strictEqual(
+          new URL(cancelled.headers.get("location") ?? "").searchParams.get("error"),
+          "user_cancelled_authorize",
+        );
       }),
     ),
   );
