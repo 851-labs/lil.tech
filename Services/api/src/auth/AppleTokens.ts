@@ -41,11 +41,18 @@ const fetchPost: ApplePost = async (path, form) => {
   return { status: response.status, body: await response.text() };
 };
 
+/** The Sign in with Apple key, imported. */
+type SigningKey = Awaited<ReturnType<typeof importPKCS8>>;
+
 /**
  * The client secret for `clientId`, valid for five minutes: a JWT signed (ES256) with the team's
  * Sign in with Apple key (a PKCS #8 PEM).
  */
-export const appleClientSecret = (signingKey: string, clientId: string, nowSeconds: number) =>
+export const appleClientSecret = (
+  signingKey: string | SigningKey,
+  clientId: string,
+  nowSeconds: number,
+) =>
   Effect.tryPromise({
     try: async () =>
       new SignJWT({})
@@ -55,7 +62,7 @@ export const appleClientSecret = (signingKey: string, clientId: string, nowSecon
         .setExpirationTime(nowSeconds + 300)
         .setAudience(appleAuthOrigin)
         .setSubject(clientId)
-        .sign(await importPKCS8(signingKey, "ES256")),
+        .sign(typeof signingKey === "string" ? await importPKCS8(signingKey, "ES256") : signingKey),
     catch: (error) =>
       new AppleTokenRequestFailed({ message: `Signing Apple's client secret: ${String(error)}` }),
   });
@@ -117,8 +124,12 @@ export class AppleTokens extends Context.Service<
      */
     readonly exchange: (
       code: string,
-      clientId: string,
-      subject: string,
+      options: {
+        readonly clientId: string;
+        readonly subject: string;
+        /** The sign-in's `redirect_uri`, if it had one (the web sign-in). */
+        readonly redirectUri?: string;
+      },
     ) => Effect.Effect<Option.Option<string>>;
     /** Revokes a refresh token that `exchange` returned. */
     readonly revoke: (
@@ -138,19 +149,31 @@ export class AppleTokens extends Context.Service<
   }) {
     const post = options.post ?? fetchPost;
     const tokens = cipher(options.tokenSecret);
+    // Imported once, on first use.
+    const signingKey = Option.map(options.signingKey, (pem) => {
+      let imported: Promise<SigningKey> | undefined;
+      return () => (imported ??= importPKCS8(Redacted.value(pem), "ES256"));
+    });
     const call = (
       path: "/auth/token" | "/auth/revoke",
       clientId: string,
       form: Record<string, string>,
     ) =>
       Effect.gen(function* () {
-        if (Option.isNone(options.signingKey)) {
+        if (Option.isNone(signingKey)) {
           return yield* new AppleTokenRequestFailed({ message: "No Sign in with Apple key" });
         }
+        const key = yield* Effect.tryPromise({
+          try: signingKey.value,
+          catch: (error) =>
+            new AppleTokenRequestFailed({
+              message: `Importing the Sign in with Apple key: ${String(error)}`,
+            }),
+        });
         const secret = yield* appleClientSecret(
-          Redacted.value(options.signingKey.value),
+          key,
           clientId,
-          Math.floor(Date.now() / 1000),
+          Math.floor((yield* Clock.currentTimeMillis) / 1000),
         );
         const response = yield* Effect.tryPromise({
           try: () => post(path, { ...form, client_id: clientId, client_secret: secret }),
@@ -174,13 +197,14 @@ export class AppleTokens extends Context.Service<
       });
 
     return AppleTokens.of({
-      exchange: (code, clientId, subject) =>
+      exchange: (code, { clientId, subject, redirectUri }) =>
         Effect.gen(function* () {
           // Where there's no key (previews), quietly: there's nothing to warn anyone about.
-          if (Option.isNone(options.signingKey)) return Option.none();
+          if (Option.isNone(signingKey)) return Option.none();
           const body = yield* call("/auth/token", clientId, {
             code,
             grant_type: "authorization_code",
+            ...(redirectUri === undefined ? {} : { redirect_uri: redirectUri }),
           });
           const response = yield* Schema.decodeUnknownEffect(TokenResponse)(body).pipe(
             Effect.mapError(
@@ -225,8 +249,11 @@ export const maxRevocationAttempts = 14;
 /** The most revocations one daily run attempts; the next day's run continues. */
 export const revocationBatchSize = 100;
 
-/** How long after a failed attempt to try again: an hour, doubling up to a day. */
-const retryDelay = (attempts: number) => Math.min(2 ** (attempts - 1), 24) * 60 * 60 * 1000;
+/**
+ * How long after a failed attempt to try again: an hour, doubling up to 23 hours, so the next
+ * daily run always finds it due.
+ */
+const retryDelay = (attempts: number) => Math.min(2 ** (attempts - 1), 23) * 60 * 60 * 1000;
 
 /**
  * Revokes the given tokens (or, by default, up to `revocationBatchSize` that are due), forgetting

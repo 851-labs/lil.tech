@@ -31,6 +31,15 @@ import { UserStores } from "./store/UserStores.ts";
 
 /** Custom domains per stage. Other stages (PR previews, personal stages) use workers.dev. */
 
+/**
+ * The Sign in with Apple key, if set. An empty one counts as unset: that's what CI gets for a
+ * missing secret.
+ */
+const readAppleSignInKey = Config.Redacted("LIL_APPLE_SIGN_IN_KEY").pipe(
+  Config.option,
+  Config.map(Option.filter((key) => Redacted.value(key).trim() !== "")),
+);
+
 /** Deployments that must be able to revoke Sign in with Apple tokens (`AppleTokens.ts`). */
 const appleSignInKeyRequired: ReadonlySet<string> = new Set(["staging", "prod"]);
 
@@ -53,7 +62,7 @@ export const makeApiWorkerProps = <Key, E, R>(makeKey: (id: string) => Effect.Ef
         `LIL_ENVIRONMENT is "${environment}" but stage "${stage.value}" expects "${expected}"`,
       );
     }
-    const appleSignInKey = yield* Config.Redacted("LIL_APPLE_SIGN_IN_KEY").pipe(Config.option);
+    const appleSignInKey = yield* readAppleSignInKey;
     if (Option.isNone(appleSignInKey) && appleSignInKeyRequired.has(environment)) {
       return yield* Effect.die(`LIL_APPLE_SIGN_IN_KEY is needed to deploy ${environment}`);
     }
@@ -171,7 +180,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
     const deployment = yield* Deployment.config;
     const key = yield* readSecret("LIL_SESSION_KEY");
     const appleTokens = AppleTokens.make({
-      signingKey: yield* Config.Redacted("LIL_APPLE_SIGN_IN_KEY").pipe(Config.option),
+      signingKey: yield* readAppleSignInKey,
       tokenSecret: yield* readSecret("LIL_TOKEN_KEY"),
     });
     const core = yield* Cloudflare.D1.QueryDatabase(CoreDatabase);
@@ -182,17 +191,19 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
     );
     // Daily, at a quiet hour for most users.
     yield* Cloudflare.Workers.cron("23 4 * * *", () =>
-      Effect.all(
-        [
-          retireSignedOutDevices().pipe(
-            Effect.tap((retired) => Effect.log(`Retired ${retired} signed-out devices`)),
+      Effect.all([
+        // Each on its own, so one's failure doesn't stop the other.
+        retireSignedOutDevices().pipe(
+          Effect.tap((retired) => Effect.log(`Retired ${retired} signed-out devices`)),
+          Effect.catchCause((cause) =>
+            Effect.logError("Retiring signed-out devices failed", cause),
           ),
-          revokeAppleTokens().pipe(
-            Effect.tap((revoked) => Effect.log(`Revoked ${revoked} Apple tokens`)),
-          ),
-        ],
-        { mode: "result" },
-      ).pipe(
+        ),
+        revokeAppleTokens().pipe(
+          Effect.tap((done) => Effect.log(`Finished ${done} Apple token revocations`)),
+          Effect.catchCause((cause) => Effect.logError("Revoking Apple tokens failed", cause)),
+        ),
+      ]).pipe(
         Effect.provide(
           Layer.mergeAll(Devices.layer, AppleTokenRevocations.layer).pipe(
             Layer.provide(SQL.D1Layer(core)),

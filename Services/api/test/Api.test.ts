@@ -499,6 +499,9 @@ describe("POST /v1/auth/apple", () => {
           yield* signIn("000123.http.0011", appleWebServicesId),
           appleWebServicesId,
         );
+        // Only the web sign-in's code is redeemed with its redirect URI, the API's callback.
+        const redirects = (yield* TestAppleEndpoint).calls.map((call) => call.form["redirect_uri"]);
+        assert.deepStrictEqual(redirects, [undefined, "https://api.lil.tech/v1/auth/apple/web"]);
       }),
     ),
   );
@@ -1353,7 +1356,7 @@ describe("/v1/health/batches", () => {
     const [identity] = yield* (yield* Identities).listForUser(session.user.id);
     const subject = identity?.subject ?? "";
     const code = testAppleCode(subject);
-    const encrypted = yield* (yield* AppleTokens).exchange(code, appleAppId, subject);
+    const encrypted = yield* (yield* AppleTokens).exchange(code, { clientId: appleAppId, subject });
     yield* (yield* Identities).saveAppleToken(subject, Option.getOrThrow(encrypted), appleAppId);
     return { ...session, appleRefreshToken: testAppleRefreshToken(code) };
   });
@@ -1375,7 +1378,7 @@ describe("/v1/health/batches", () => {
           revoked.map((call) => [call.form["token"], call.form["client_id"]]),
           [[appleRefreshToken, appleAppId]],
         );
-        assert.lengthOf(yield* (yield* AppleTokenRevocations).listDue(Date.now(), 10), 0);
+        assert.lengthOf(yield* (yield* AppleTokenRevocations).listDue(Date.now() + 1000, 10), 0);
       }),
     ),
   );
@@ -1386,7 +1389,7 @@ describe("/v1/health/batches", () => {
         const { tokens } = yield* signInWithAppleToken;
         (yield* TestAppleEndpoint).answerWith(() => ({ status: 503, body: "" }));
         assert.strictEqual((yield* deleteMe(handler, tokens.accessToken)).status, 204);
-        const [waiting] = yield* (yield* AppleTokenRevocations).listDue(Date.now() + 3_600_000, 10);
+        const [waiting] = yield* (yield* AppleTokenRevocations).listDue(Date.now() + 3_601_000, 10);
         assert.deepInclude(waiting, { clientId: appleAppId, attempts: 1 });
       }),
     ),
@@ -2017,6 +2020,13 @@ describe("apiWorkerProps", () => {
         withEnv({ LIL_ENVIRONMENT: "preview", LIL_VERSION: "45aa829" }),
       );
       assert.notProperty((preview as { env?: object }).env, "LIL_APPLE_SIGN_IN_KEY");
+      // CI gets an empty string for a missing secret.
+      const empty = yield* apiWorkerProps.pipe(
+        Effect.provideService(Alchemy.Stage, "prod"),
+        withEnv({ LIL_ENVIRONMENT: "prod", LIL_VERSION: "45aa829", LIL_APPLE_SIGN_IN_KEY: " " }),
+        Effect.exit,
+      );
+      assert.isTrue(Exit.isFailure(empty));
     }),
   );
 

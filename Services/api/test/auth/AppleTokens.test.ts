@@ -9,6 +9,7 @@ import {
 import { AppleTokenRevocations } from "../../src/core/AppleTokenRevocations.ts";
 import { Identities } from "../../src/core/Identities.ts";
 import { Users } from "../../src/core/Users.ts";
+import { SqlClient } from "effect/sql";
 import { TestCore } from "../core/TestCoreDatabase.ts";
 import {
   TestAppleEndpoint,
@@ -21,14 +22,23 @@ const TestLayer = Layer.mergeAll(TestAppleTokens, TestCore);
 
 const hour = 60 * 60 * 1000;
 
+const forAda = { clientId: "tech.lil.health", subject: "000123.apple.0001" };
+
+/** The test clock at the real time: Apple's client secrets are checked against it. */
+const now = TestClock.setTime(Date.now());
+
 describe("AppleTokens", () => {
   it.effect("redeems a code for Apple's refresh token, kept encrypted, and revokes it", () =>
     Effect.gen(function* () {
+      yield* now;
       const tokens = yield* AppleTokens;
       const endpoint = yield* TestAppleEndpoint;
       const code = testAppleCode("000123.apple.0001");
 
-      const stored = yield* tokens.exchange(code, "tech.lil.health", "000123.apple.0001");
+      const stored = yield* tokens.exchange(code, {
+        clientId: "tech.lil.health",
+        subject: "000123.apple.0001",
+      });
       assert.isTrue(Option.isSome(stored));
       const encrypted = Option.getOrThrow(stored);
       assert.notInclude(encrypted, testAppleRefreshToken(code));
@@ -49,19 +59,27 @@ describe("AppleTokens", () => {
     }).pipe(Effect.provide(TestLayer)),
   );
 
+  it.effect("sends the web sign-in's redirect URI with its code", () =>
+    Effect.gen(function* () {
+      yield* now;
+      const tokens = yield* AppleTokens;
+      const endpoint = yield* TestAppleEndpoint;
+      const redirectUri = "https://api.lil.tech/v1/auth/apple/web";
+      yield* tokens.exchange(testAppleCode("000123.apple.0001"), { ...forAda, redirectUri });
+      assert.strictEqual(endpoint.calls[0]?.form["redirect_uri"], redirectUri);
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
   it.effect("keeps nothing when Apple refuses the code or it's someone else's", () =>
     Effect.gen(function* () {
+      yield* now;
       const tokens = yield* AppleTokens;
       const endpoint = yield* TestAppleEndpoint;
       const someoneElses = testAppleCode("000999.apple.0009");
-      assert.isTrue(
-        Option.isNone(yield* tokens.exchange(someoneElses, "tech.lil.health", "000123.apple.0001")),
-      );
+      assert.isTrue(Option.isNone(yield* tokens.exchange(someoneElses, forAda)));
       endpoint.answerWith(() => ({ status: 400, body: '{"error":"invalid_grant"}' }));
       const code = testAppleCode("000123.apple.0001");
-      assert.isTrue(
-        Option.isNone(yield* tokens.exchange(code, "tech.lil.health", "000123.apple.0001")),
-      );
+      assert.isTrue(Option.isNone(yield* tokens.exchange(code, forAda)));
     }).pipe(Effect.provide(TestLayer)),
   );
 
@@ -74,18 +92,17 @@ describe("AppleTokens", () => {
         post: endpoint.post,
       });
       const code = testAppleCode("000123.apple.0001");
-      assert.isTrue(
-        Option.isNone(yield* tokens.exchange(code, "tech.lil.health", "000123.apple.0001")),
-      );
+      assert.isTrue(Option.isNone(yield* tokens.exchange(code, forAda)));
       assert.lengthOf(endpoint.calls, 0);
     }).pipe(Effect.provide(TestAppleEndpoint.layer)),
   );
 });
 
 describe("revokeAppleTokens", () => {
-  /** A user whose Apple identity has a stored token, queued for revocation as deletion does. */
+  /** A deleted user whose Apple identity had a stored token, so it's queued for revocation. */
   const queued = (subject: string) =>
     Effect.gen(function* () {
+      yield* now;
       const tokens = yield* AppleTokens;
       const user = yield* (yield* Users).create({ displayName: null });
       const identities = yield* Identities;
@@ -96,22 +113,25 @@ describe("revokeAppleTokens", () => {
         email: null,
         emailVerified: false,
       });
-      const encrypted = yield* tokens.exchange(testAppleCode(subject), "tech.lil.health", subject);
+      const encrypted = yield* tokens.exchange(testAppleCode(subject), {
+        clientId: "tech.lil.health",
+        subject,
+      });
       yield* identities.saveAppleToken(subject, Option.getOrThrow(encrypted), "tech.lil.health");
-      const revocations = yield* AppleTokenRevocations;
-      const ids = yield* revocations.addForUser(user.id, 0);
-      // Again, as a retried deletion would: nothing more is queued.
-      assert.deepStrictEqual(yield* revocations.addForUser(user.id, 0), ids);
+      const ids = (yield* identities.listForUser(user.id)).map((identity) => identity.id);
+      yield* (yield* Users).delete(user.id);
       return ids;
     });
 
   it.effect("revokes due tokens and forgets them", () =>
     Effect.gen(function* () {
-      const [id] = yield* queued("000123.apple.0001");
+      const ids = yield* queued("000123.apple.0001");
       const revocations = yield* AppleTokenRevocations;
-      assert.lengthOf(yield* revocations.listDue(0, 10), 1);
+      // Queued as the user's deletion cascaded to the identity.
+      assert.lengthOf(yield* revocations.find(ids), 1);
+      assert.lengthOf(yield* revocations.listDue(Date.now() + 1000, 10), 1);
       assert.strictEqual(yield* revokeAppleTokens(), 1);
-      assert.deepStrictEqual(yield* revocations.find(id === undefined ? [] : [id]), []);
+      assert.deepStrictEqual(yield* revocations.find(ids), []);
       const endpoint = yield* TestAppleEndpoint;
       assert.lengthOf(
         endpoint.calls.filter((call) => call.path === "/auth/revoke"),
@@ -127,17 +147,19 @@ describe("revokeAppleTokens", () => {
       const endpoint = yield* TestAppleEndpoint;
       endpoint.answerWith(() => ({ status: 503, body: "" }));
 
+      yield* TestClock.adjust(1000);
       assert.strictEqual(yield* revokeAppleTokens(), 0);
-      const [waiting] = yield* revocations.listDue(hour, 10);
+      const failedAt = Date.now();
+      const [waiting] = yield* revocations.listDue(failedAt + hour + 1000, 10);
       assert.strictEqual(waiting?.attempts, 1);
       // Not due again until an hour later.
-      assert.lengthOf(yield* revocations.listDue(hour - 1, 10), 0);
+      assert.lengthOf(yield* revocations.listDue(failedAt + hour - 1000, 10), 0);
 
       for (let attempt = 2; attempt <= maxRevocationAttempts; attempt++) {
         yield* TestClock.adjust(24 * hour);
         yield* revokeAppleTokens();
       }
-      assert.lengthOf(yield* revocations.listDue(1000 * 24 * hour, 10), 0);
+      assert.lengthOf(yield* revocations.listDue(failedAt + 1000 * 24 * hour, 10), 0);
     }).pipe(Effect.provide(TestLayer)),
   );
 
@@ -146,8 +168,32 @@ describe("revokeAppleTokens", () => {
       yield* queued("000123.apple.0001");
       const endpoint = yield* TestAppleEndpoint;
       endpoint.answerWith(() => ({ status: 400, body: '{"error":"invalid_grant"}' }));
+      yield* TestClock.adjust(1000);
       assert.strictEqual(yield* revokeAppleTokens(), 1);
-      assert.lengthOf(yield* (yield* AppleTokenRevocations).listDue(0, 10), 0);
+      assert.lengthOf(yield* (yield* AppleTokenRevocations).listDue(Date.now() + 1000, 10), 0);
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("queues a newer token over one already queued for the same identity", () =>
+    Effect.gen(function* () {
+      const ids = yield* queued("000123.apple.0001");
+      const revocations = yield* AppleTokenRevocations;
+      const [id] = ids;
+      if (id === undefined) return assert.fail("Nothing was queued");
+      yield* revocations.postpone(id, 3, Date.now() + hour);
+      // The same identity again, deleted again with a newer token.
+      const sql = yield* SqlClient.SqlClient;
+      const user = yield* (yield* Users).create({ displayName: null });
+      yield* sql`INSERT INTO identities
+        (id, user_id, provider, subject, email, email_verified, created_at,
+          apple_refresh_token, apple_client_id)
+        VALUES (${id}, ${user.id}, 'apple', 'again', NULL, 0, 0, 'newer', 'tech.lil.health.web')`;
+      yield* (yield* Users).delete(user.id);
+      assert.deepInclude((yield* revocations.find(ids))[0], {
+        refreshToken: "newer",
+        clientId: "tech.lil.health.web",
+        attempts: 0,
+      });
     }).pipe(Effect.provide(TestLayer)),
   );
 });

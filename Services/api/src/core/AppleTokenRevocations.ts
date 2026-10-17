@@ -1,6 +1,6 @@
 import { Context, Effect, Layer, Schema } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
-import { IdentityId, type UserId } from "./Ids.ts";
+import { IdentityId } from "./Ids.ts";
 
 /** An Apple refresh token (encrypted) waiting to be revoked, from a deleted account. */
 export class AppleTokenRevocation extends Schema.Class<AppleTokenRevocation>(
@@ -16,18 +16,13 @@ export class AppleTokenRevocation extends Schema.Class<AppleTokenRevocation>(
 
 const decodeRevocation = Schema.decodeUnknownEffect(AppleTokenRevocation);
 
-/** Apple tokens to revoke (`AppleTokens.ts`), kept past their account's deletion until they are. */
+/**
+ * Apple tokens to revoke (`AppleTokens.ts`), kept past their identity's deletion until they are.
+ * Deleting an identity with a token queues it (a trigger, `migrations/core/0006_apple_tokens.sql`).
+ */
 export class AppleTokenRevocations extends Context.Service<
   AppleTokenRevocations,
   {
-    /**
-     * Copies the user's stored Apple tokens here, before the account (and its identities) is
-     * deleted. Doing it again copies nothing new. Returns the identities that had a token.
-     */
-    readonly addForUser: (
-      userId: UserId,
-      now: number,
-    ) => Effect.Effect<ReadonlyArray<IdentityId>, SqlError.SqlError>;
     /** The given revocations that are still waiting. */
     readonly find: (
       ids: ReadonlyArray<IdentityId>,
@@ -57,18 +52,6 @@ export class AppleTokenRevocations extends Context.Service<
         Effect.forEach(rows, (row) => decodeRevocation(row).pipe(Effect.orDie));
 
       return AppleTokenRevocations.of({
-        addForUser: Effect.fn("AppleTokenRevocations.addForUser")(function* (userId, now) {
-          // The identity's ID keys it, so a retried deletion doesn't add it twice.
-          yield* sql`INSERT OR IGNORE INTO apple_token_revocations
-            (id, refresh_token, client_id, attempts, next_attempt_at, created_at)
-            SELECT id, apple_refresh_token, apple_client_id, 0, ${now}, ${now} FROM identities
-            WHERE user_id = ${userId} AND apple_refresh_token IS NOT NULL
-              AND apple_client_id IS NOT NULL`;
-          const rows = yield* sql<{ id: IdentityId }>`SELECT id FROM identities
-            WHERE user_id = ${userId} AND apple_refresh_token IS NOT NULL
-              AND apple_client_id IS NOT NULL`;
-          return rows.map((row) => row.id);
-        }),
         find: Effect.fn("AppleTokenRevocations.find")(function* (ids) {
           if (ids.length === 0) return [];
           return yield* decodeAll(

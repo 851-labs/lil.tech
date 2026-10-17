@@ -3,12 +3,12 @@ import { Clock, Effect, Layer, Option, Redacted, Schedule, Schema } from "effect
 import { Headers, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
-import { AppleSignIn } from "./auth/Apple.ts";
+import { AppleSignIn, appleWebServicesId } from "./auth/Apple.ts";
 import { GoogleSignIn } from "./auth/Google.ts";
 import { Auth } from "./auth/Auth.ts";
 import { ProviderSignIn, type VerifiedIdentity } from "./auth/ProviderSignIn.ts";
 import { AppleTokens, revokeAppleTokens } from "./auth/AppleTokens.ts";
-import { AppleWebCallbackRoute } from "./auth/AppleWebSignIn.ts";
+import { appleWebCallbackPath, AppleWebCallbackRoute } from "./auth/AppleWebSignIn.ts";
 import { DevSignInRoute } from "./auth/DevSignIn.ts";
 import {
   Authorization,
@@ -174,11 +174,16 @@ export const AuthHandlers = HttpApiBuilder.group(
           const tokens = yield* signIn(identity, payload.device);
           // Only once signed in, so the identity exists, and it never fails the sign-in.
           if (payload.authorizationCode !== undefined) {
-            const refreshToken = yield* appleTokens.exchange(
-              payload.authorizationCode,
-              identity.clientId,
-              identity.subject,
-            );
+            // The web sign-in's code also needs its `redirect_uri`: this API's callback.
+            const redirectUri =
+              identity.clientId === appleWebServicesId
+                ? `${yield* origin}${appleWebCallbackPath}`
+                : undefined;
+            const refreshToken = yield* appleTokens.exchange(payload.authorizationCode, {
+              clientId: identity.clientId,
+              subject: identity.subject,
+              ...(redirectUri === undefined ? {} : { redirectUri }),
+            });
             if (Option.isSome(refreshToken)) {
               yield* identities
                 .saveAppleToken(identity.subject, refreshToken.value, identity.clientId)
@@ -314,10 +319,9 @@ export const MeHandlers = HttpApiBuilder.group(
           const revoking = yield* Effect.gen(function* () {
             yield* files.deletePrefix(healthBatchPrefix(userId));
             yield* blobs.deletePrefix(healthBlobPrefix(userId));
-            // Kept apart from the identities first, so they're revoked even if revoking now fails.
-            const identityIds = yield* appleRevocations.addForUser(
-              userId,
-              yield* Clock.currentTimeMillis,
+            // Their tokens are queued for revoking as they're deleted (`AppleTokenRevocations`).
+            const identityIds = (yield* identities.listForUser(userId)).map(
+              (identity) => identity.id,
             );
             // Cascades to identities, devices, sessions (so refresh tokens stop working) and
             // connections.

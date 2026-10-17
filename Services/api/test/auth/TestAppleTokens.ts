@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Option, Redacted } from "effect";
-import { exportPKCS8, generateKeyPair, jwtVerify, UnsecuredJWT } from "jose";
+import { decodeJwt, exportPKCS8, generateKeyPair, jwtVerify, UnsecuredJWT } from "jose";
 import { type ApplePost, appleTeamId, AppleTokens } from "../../src/auth/AppleTokens.ts";
 
 // A stand-in for Apple's token endpoints: a Sign in with Apple key generated for the tests, and a
@@ -53,13 +53,17 @@ export class TestAppleEndpoint extends Context.Service<
       calls,
       post: async (path, form) => {
         const clientId = form["client_id"] ?? "";
-        // Throws (failing the request) unless the secret is ours, for this client, and current.
-        await jwtVerify(form["client_secret"] ?? "", key.publicKey, {
+        // Throws (failing the request) unless the secret is ours, for this client, and lasts at
+        // most 5 minutes. Its time comes from the Effect clock, which tests move.
+        const secret = form["client_secret"] ?? "";
+        const { iat = 0, exp = 0 } = decodeJwt(secret);
+        await jwtVerify(secret, key.publicKey, {
           issuer: appleTeamId,
           audience: "https://appleid.apple.com",
           subject: clientId,
-          maxTokenAge: "5m",
+          currentDate: new Date(iat * 1000),
         });
+        if (exp - iat > 300) throw new Error("The client secret lasts too long");
         calls.push({ path, form });
         return answer({ path, form });
       },
