@@ -18,7 +18,8 @@ const decodeRevocation = Schema.decodeUnknownEffect(AppleTokenRevocation);
 
 /**
  * Apple tokens to revoke (`AppleTokens.ts`), kept past their identity's deletion until they are.
- * Deleting an identity with a token queues it (a trigger, `migrations/core/0006_apple_tokens.sql`).
+ * Deleting an identity with a token queues it, from a trigger
+ * (`migrations/core/0007_apple_token_revocation_trigger.sql`).
  */
 export class AppleTokenRevocations extends Context.Service<
   AppleTokenRevocations,
