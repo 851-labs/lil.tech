@@ -1,3 +1,5 @@
+import { appleWebServicesId } from "../src/auth/Apple.ts";
+import { appleWebCallback, appleWebOrigin } from "../src/auth/AppleWebSignIn.ts";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
@@ -438,6 +440,28 @@ describe("POST /v1/auth/apple", () => {
     ),
   );
 
+  it.live("signs the Mac's web sign-in (the Services ID) in to the same user", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const users = yield* Users;
+        const signIn = (audience?: string) =>
+          Effect.gen(function* () {
+            const nonce = crypto.randomUUID();
+            const identityToken = yield* appleIdentityToken(
+              { sub: "000123.http.0004", nonce },
+              audience === undefined ? {} : { audience },
+            );
+            return yield* appleSignIn(handler, { identityToken, nonce, device });
+          });
+        assert.strictEqual((yield* signIn()).status, 200);
+        assert.strictEqual((yield* signIn(appleWebServicesId)).status, 200);
+        assert.strictEqual(yield* users.count, 1);
+        // Another app's tokens aren't ours.
+        assert.strictEqual((yield* signIn("com.example.other")).status, 401);
+      }),
+    ),
+  );
+
   it.live("doesn't create accounts from mainland China, but signs existing ones in", () =>
     withApi((handler) =>
       Effect.gen(function* () {
@@ -526,6 +550,74 @@ describe("POST /v1/auth/google", () => {
         assert.deepInclude(me.body, {
           identities: [{ provider: "google", email: "ada@example.com" }],
         });
+      }),
+    ),
+  );
+});
+
+describe("POST /v1/auth/apple/web", () => {
+  it.live("hands Apple's form post to the app's callback", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const response = yield* Effect.promise(() =>
+          handler(
+            new Request("https://api.lil.tech/v1/auth/apple/web", {
+              method: "POST",
+              headers: {
+                "content-type": "application/x-www-form-urlencoded",
+                origin: appleWebOrigin,
+              },
+              body: new URLSearchParams({
+                id_token: "a.b.c",
+                code: "c0de",
+                state: "s+1",
+                user: '{"name":{"firstName":"Ada","lastName":null}}',
+                other: "dropped",
+              }).toString(),
+            }),
+          ),
+        );
+        assert.strictEqual(response.status, 303);
+        const location = new URL(response.headers.get("location") ?? "");
+        assert.strictEqual(
+          `${location.protocol}//${location.host}${location.pathname}`,
+          appleWebCallback,
+        );
+        // Not Apple's authorization code, which nothing redeems.
+        assert.deepStrictEqual(Object.fromEntries(location.searchParams), {
+          id_token: "a.b.c",
+          state: "s+1",
+          user: '{"name":{"firstName":"Ada","lastName":null}}',
+        });
+        // The person cancelled: Apple posts an error, which the app gets too.
+        const cancelled = yield* Effect.promise(() =>
+          handler(
+            new Request("https://api.lil.tech/v1/auth/apple/web", {
+              method: "POST",
+              body: new URLSearchParams({ error: "user_cancelled_authorize", state: "s" }),
+            }),
+          ),
+        );
+        assert.strictEqual(cancelled.status, 303);
+        assert.strictEqual(
+          new URL(cancelled.headers.get("location") ?? "").searchParams.get("error"),
+          "user_cancelled_authorize",
+        );
+        // Not from Apple's page, or too big to be: the app gets an error, never a token.
+        const refused = (init: RequestInit) =>
+          Effect.promise(async () => {
+            const response = await handler(
+              new Request("https://api.lil.tech/v1/auth/apple/web", { method: "POST", ...init }),
+            );
+            return new URL(response.headers.get("location") ?? "").searchParams;
+          });
+        const forged = yield* refused({
+          headers: { origin: "https://evil.example" },
+          body: new URLSearchParams({ id_token: "x.y.z", state: "s" }),
+        });
+        assert.deepStrictEqual(Object.fromEntries(forged), { error: "invalid_origin" });
+        const big = yield* refused({ body: "id_token=" + "x".repeat(20_000) });
+        assert.deepStrictEqual(Object.fromEntries(big), { error: "request_too_large" });
       }),
     ),
   );

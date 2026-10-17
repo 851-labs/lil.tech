@@ -13,11 +13,15 @@ import {
 /** Who issues Sign in with Apple identity tokens. */
 export const appleIssuer = "https://appleid.apple.com";
 
+/** The Services ID the Mac's web sign-in uses (`AppleWebSignIn.ts`), under `tech.lil.health`. */
+export const appleWebServicesId = "tech.lil.health.web";
+
 /**
- * The bundle IDs our apps sign in with, which Apple puts in the token's audience. iOS and macOS
- * share one App ID, so a person gets the same Apple user ID in both (851-2538).
+ * What Apple puts in the token's audience: the iPhone app's App ID for its native sheet, and the
+ * Services ID for the Mac's web sign-in (`AppleWebSignIn.ts`). The Services ID is grouped under
+ * the App ID, so a person gets the same Apple user ID in both (851-2538).
  */
-export const appleAudiences = ["tech.lil.health"];
+export const appleAudiences = ["tech.lil.health", appleWebServicesId];
 
 /** Apple's token signing keys. */
 export class AppleKeys extends Context.Service<AppleKeys, ProviderKeys>()(
