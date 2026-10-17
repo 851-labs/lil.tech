@@ -120,7 +120,8 @@ GET /v1/sync/snapshots/<id>
 
 ### Writing snapshots
 
-- An alarm in the store writes a new snapshot when at least 50,000 changes or 7 days have passed since the last one, if anything changed.
+- An alarm in the store writes a new snapshot when enough has changed since the last one, or 7 days have passed, if anything changed. "Enough" is a quarter of the last snapshot's records, and at least 50,000 changes, so a big store isn't rewritten for a small share of changes. A new device pulls those from the log.
+- **Not while ingesting:** a due snapshot waits until the store has taken in nothing for 2 minutes (no changes, and no batches received or applied, including ones that change nothing), and a snapshot in progress pauses the same way. During a bulk upload (millions of items), snapshotting every 50,000 changes rewrote everything stored so far again and again: the store's alarm ran about every 4 s, and every upload and batch apply queued behind it. To keep a store that never goes quiet from going without, the wait is capped at an hour: after the snapshot became due (and not before the previous one finished) for starting one, and after it started for one in progress.
 - The snapshot is tagged with `S`, the store's `head` when it started. It pages through each entity table **by `id`** (`WHERE id > :last ORDER BY id LIMIT :n`), never by offset, and writes the parts to R2.
 - Writes keep flowing while the snapshot is written, so some rows in it may be newer than `S`. That's safe: the client pulls everything after `S` next, and full-row upserts and deletes give the same result when applied again. Keyset paging makes sure no row that existed at `S` is skipped when earlier rows are deleted between pages.
 - The manifest is written last, and only then becomes the latest snapshot.

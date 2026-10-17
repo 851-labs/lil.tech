@@ -727,7 +727,14 @@ describe("GET /v1/sync/changes", () => {
 
 describe("snapshot downloads", () => {
   const note = testNoteMutation;
-  const tinyParts = { ...snapshotPolicy, minChanges: 1, partRecords: 2, pageRows: 2 };
+  // No quiet period: the tests snapshot right after writing.
+  const tinyParts = {
+    ...snapshotPolicy,
+    minChanges: 1,
+    partRecords: 2,
+    pageRows: 2,
+    quietPeriod: 0,
+  };
   const get = (handler: Handler, path: string, token?: string) =>
     send(
       handler,
