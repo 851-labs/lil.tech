@@ -211,11 +211,13 @@ const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessag
   const key = healthBatchKey(message.userId, message.batchId);
 
   // Checked once for the batch: all its device-scoped lines are from the same device.
-  const { batch: begun, deviceRetired: retiredAtStart } = yield* store.beginHealthBatch(
-    message.batchId,
-    message.deviceId,
-  );
-  if (begun.status !== "applying") return undefined;
+  const {
+    batch: begun,
+    deviceRetired: retiredAtStart,
+    busy,
+  } = yield* store.beginHealthBatch(message.batchId, message.deviceId);
+  if (busy) return "busy" as const;
+  if (begun === null || begun.status !== "applying") return undefined;
   let deviceRetired = retiredAtStart;
   const { receivedAt } = begun;
   const startedAt = yield* Clock.currentTimeMillis;
@@ -379,16 +381,22 @@ const knowsUser = (message: HealthBatchMessage) =>
 /**
  * Applies an uploaded batch to the user's store and records the outcome (`applyHealthBatch`). A
  * batch for an account deleted since it was queued, or for a user the core database doesn't know
- * (`knowsUser`), is dropped with its file.
+ * (`knowsUser`), is dropped with its file. Returns `"busy"`, without applying anything, when the
+ * store already applies as many batches as it takes at once (`healthBatchesAtOnce`).
  */
 export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
   message: HealthBatchMessage,
 ) {
   if (!(yield* knowsUser(message))) return yield* dropBatchFile(message);
-  const bytes = yield* applyHealthBatch(message).pipe(
+  const store = (yield* UserStores).forUser(message.userId);
+  const result = yield* applyHealthBatch(message).pipe(
     Effect.catchTag("AccountDeleted", () => dropBatchFile(message).pipe(Effect.as(undefined))),
+    // A batch that failed partway frees its place among those its store applies at once.
+    Effect.onError(() => store.releaseHealthBatch(message.batchId).pipe(Effect.ignore)),
   );
-  if (bytes !== undefined) yield* recordStorage(message.userId, bytes);
+  // The store is busy with other batches: the caller puts it back in the queue (851-2652).
+  if (result === "busy") return "busy" as const;
+  if (result !== undefined) yield* recordStorage(message.userId, result);
 });
 
 /**

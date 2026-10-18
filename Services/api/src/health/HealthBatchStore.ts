@@ -49,6 +49,14 @@ export const receiveHealthBatch = (sql: StoreSql, id: string, at: number): Healt
   return batch;
 };
 
+/**
+ * Keeps a `queued` batch from timing out while it waits: the queue holds it back while its store
+ * is busy with other batches (`beginHealthBatch`), however long a backlog takes.
+ */
+export const touchQueuedHealthBatch = (sql: StoreSql, id: string, at: number): void => {
+  sql.exec("UPDATE health_batches SET updated_at = ? WHERE id = ? AND status = 'queued'", at, id);
+};
+
 export const saveHealthBatch = (sql: StoreSql, batch: HealthBatch, at: number): void => {
   noteIngestion(sql, at);
   sql.exec(

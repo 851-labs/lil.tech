@@ -14,7 +14,7 @@ import {
   maxBatchLineLength,
   maxDecompressedBatchBytes,
 } from "../../src/health/HealthIngestion.ts";
-import { storageHardLimitBytes } from "../../src/store/UserStore.ts";
+import { healthBatchesAtOnce, storageHardLimitBytes } from "../../src/store/UserStore.ts";
 import { Users } from "../../src/core/Users.ts";
 import { UserStores, UserStoreUnavailable } from "../../src/store/UserStores.ts";
 import { TestCore } from "../core/TestCoreDatabase.ts";
@@ -134,6 +134,58 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
           .healthBatch(batchId)
           .pipe(Effect.catchTag("AccountDeleted", () => Effect.succeed(undefined))),
       );
+    }),
+  );
+
+  it.effect("puts a batch back while its store applies as many as it takes at once", () =>
+    Effect.gen(function* () {
+      const store = (yield* UserStores).forUser(userId);
+      // Others hold every place.
+      const others = Array.from({ length: healthBatchesAtOnce }, () => newBatchId());
+      for (const id of others) yield* store.beginHealthBatch(id, deviceId);
+
+      const batchId = newBatchId();
+      yield* store.receiveHealthBatch(batchId);
+      const { files } = yield* TestHealthOutbox;
+      files.set(healthBatchKey(userId, batchId), batchFile([sample(94)]));
+      const result = yield* ingestHealthBatch({ userId, batchId, deviceId });
+      assert.strictEqual(result, "busy");
+      // Nothing applied, the file kept for the next delivery, and the batch still queued.
+      assert.isTrue(files.has(healthBatchKey(userId, batchId)));
+      assert.lengthOf(yield* changesFor(uuid(94)), 0);
+      assert.propertyVal(yield* store.healthBatch(batchId), "status", "queued");
+
+      // Each time it's put back, its queued timeout starts over, so a backlog can't fail it.
+      const stores = yield* TestStores;
+      const updatedAt = () =>
+        stores
+          .sqlFor(userId)
+          ?.exec("SELECT updated_at AS t FROM health_batches WHERE id = ?", batchId)[0]?.["t"];
+      yield* TestClock.adjust("4 minutes");
+      assert.strictEqual(yield* ingestHealthBatch({ userId, batchId, deviceId }), "busy");
+      assert.strictEqual(updatedAt(), yield* Clock.currentTimeMillis);
+
+      // Once a place frees up, it's applied.
+      yield* store.releaseHealthBatch(others[0] ?? "");
+      yield* ingestHealthBatch({ userId, batchId, deviceId });
+      assert.propertyVal(yield* store.healthBatch(batchId), "status", "applied");
+      for (const id of others.slice(1)) yield* store.releaseHealthBatch(id);
+    }),
+  );
+
+  it.effect("frees a batch's place when it fails partway", () =>
+    Effect.gen(function* () {
+      // An unreadable file fails the batch's apply, and must not keep holding its place.
+      for (let attempt = 0; attempt <= healthBatchesAtOnce; attempt++) {
+        const batchId = newBatchId();
+        (yield* TestHealthOutbox).files.set(
+          healthBatchKey(userId, batchId),
+          new TextEncoder().encode("not gzip"),
+        );
+        assert.notStrictEqual(yield* ingestHealthBatch({ userId, batchId, deviceId }), "busy");
+      }
+      const { batch } = yield* ingest([sample(95)]);
+      assert.propertyVal(batch, "status", "applied");
     }),
   );
 

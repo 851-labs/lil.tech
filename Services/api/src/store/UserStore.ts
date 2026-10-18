@@ -4,6 +4,7 @@ import { Clock, Effect } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import {
   readHealthBatch,
+  touchQueuedHealthBatch,
   receiveHealthBatch,
   saveHealthBatch,
 } from "../health/HealthBatchStore.ts";
@@ -164,6 +165,11 @@ export const makeUserStore = (
    * connections are turned away. Kept through the wipe.
    */
   let devicesSignedOut = readMeta(sql, "devices_signed_out", 0) === 1;
+  /**
+   * The batches being applied, until when their place is held (`beginHealthBatch`). In memory: a
+   * store that's evicted forgets them, which only lets more start at once for a moment.
+   */
+  const ingesting = new Map<string, number>();
   /** Whether the store is marked for deleting and not yet wiped (`deleteAll`, `wipe`). */
   let wiping = readMeta(sql, "wiping", 0) === 1;
   /** Whether a retired device still has records to delete, kept so writes don't have to ask. */
@@ -367,15 +373,23 @@ export const makeUserStore = (
         Effect.map((at) => {
           const known = readHealthBatch(sql, id, at);
           if (known?.status === "applied" || known?.status === "failed") {
-            return { batch: known, deviceRetired: false };
+            return { batch: known, deviceRetired: false, busy: false };
           }
+          for (const [batchId, until] of ingesting) if (until <= at) ingesting.delete(batchId);
+          // Busy with as many batches as it takes at once: this one waits in the queue, without
+          // timing out meanwhile (851-2652).
+          if (!ingesting.has(id) && ingesting.size >= healthBatchesAtOnce) {
+            touchQueuedHealthBatch(sql, id, at);
+            return { batch: known, deviceRetired: false, busy: true };
+          }
+          ingesting.set(id, at + healthBatchLeaseMs);
           const batch: HealthBatch = {
             id,
             status: "applying",
             receivedAt: known?.receivedAt ?? at,
           };
           saveHealthBatch(sql, batch, at);
-          return { batch, deviceRetired: device !== undefined && isRetired(device) };
+          return { batch, deviceRetired: device !== undefined && isRetired(device), busy: false };
         }),
       ),
     /** Records a health batch's outcome, and returns the storage the account now takes. */
@@ -383,10 +397,13 @@ export const makeUserStore = (
       ensureNotDeleted.pipe(
         Effect.andThen(Clock.currentTimeMillis),
         Effect.map((at) => {
+          ingesting.delete(batch.id);
           saveHealthBatch(sql, batch, at);
           return storageBytes();
         }),
       ),
+    /** Frees a batch's place among those applying at once, after it failed partway. */
+    releaseHealthBatch: (id: string) => Effect.sync(() => void ingesting.delete(id)),
     /**
      * Applies mutations in one transaction (see `applyMutations`). Past `storageHardLimitBytes`,
      * only deletes are applied: a call with an upsert fails with `StorageFull`.
@@ -534,6 +551,17 @@ export type UserStoreShape = UserStoreMethods & {
  * Every error a store's methods fail with. Only these cross RPC as instances of their classes;
  * any other arrives as a plain object, which the API can't encode (a 500).
  */
+/**
+ * How many health batches a store applies at once (851-2652). It applies one transaction at a
+ * time, but each batch spends a fixed time outside it (reading its file, the start and finish
+ * calls), so a few in flight keep it busy, and more overload it. The queue then applies other
+ * users' batches meanwhile, instead of a global limit making everyone wait.
+ */
+export const healthBatchesAtOnce = 4;
+
+/** How long a batch holds its place if it never finishes or releases it (e.g. the Worker died). */
+export const healthBatchLeaseMs = 5 * 60 * 1000;
+
 export const userStoreErrors = [InvalidMutation, ChangesCompacted, AccountDeleted, StorageFull];
 
 /**
