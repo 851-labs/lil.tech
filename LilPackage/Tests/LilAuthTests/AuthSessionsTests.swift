@@ -3,6 +3,7 @@ import DependenciesTestSupport
 import Foundation
 import HTTPTypes
 import LilAPI
+import LilTestSupport
 import OpenAPIRuntime
 import Security
 import Testing
@@ -167,7 +168,7 @@ struct AuthSessionsTests {
     let sessions = withDependencies {
       $0.sessionStore = failingFirst(2, reads: reads)
       $0.date.now = now
-      $0.continuousClock = TestClock()
+      $0.continuousClock = ManualClock()
     } operation: {
       AuthSessions()
     }
@@ -186,7 +187,7 @@ struct AuthSessionsTests {
   @Test
   func signedInIsntKnownUntilTheStoreCanBeRead() async throws {
     let reads = LockIsolated(0)
-    let clock = TestClock()
+    let clock = ManualClock()
     let sessions = withDependencies {
       $0.sessionStore = failingFirst(1, reads: reads)
       $0.date.now = now
@@ -201,7 +202,8 @@ struct AuthSessionsTests {
     }
     var updates = try #require(stream.value).makeAsyncIterator()
     // Not "signed out": the store is read again a little later.
-    await clock.advance(by: AuthSessions.rereadInterval)
+    try await clock.waitUntilAsleep(dueWithin: AuthSessions.rereadInterval)
+    clock.advance(by: AuthSessions.rereadInterval)
     #expect(await updates.next() == true)
     #expect(reads.value == 2)
   }
