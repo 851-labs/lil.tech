@@ -304,15 +304,13 @@ public enum HealthDatabase {
 
   /// The health entities, for ``LilSyncEngine/init(entities:syncSchema:partsDirectory:)``.
   public static let syncEntities: [SyncEntity] = [
-    preparedEntity(
-      "health_sample", Components.Schemas.HealthSample.self, table: HealthSample.self,
-      columns: sampleColumns
-    ) { row in
-      [
-        row.id, row._type, row.startDate, row.endDate, row.value, row.unit, row.categoryValue,
-        row.correlationId, row.sourceName, row.sourceBundleId, try json(row.sourceRevision),
-        try json(row.device), try json(row.metadata),
-      ]
+    entity("health_sample", Components.Schemas.HealthSample.self) { row in
+      HealthSample(
+        id: row.id, type: row._type, startDate: row.startDate, endDate: row.endDate,
+        value: row.value, unit: row.unit, categoryValue: row.categoryValue,
+        correlationID: row.correlationId, sourceName: row.sourceName,
+        sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
+        device: try json(row.device), metadata: try json(row.metadata))
     },
     entity("health_correlation", Components.Schemas.HealthCorrelation.self) { row in
       HealthCorrelation(
@@ -333,11 +331,10 @@ public enum HealthDatabase {
         appleStandHoursGoal: row.appleStandHoursGoal, activityMoveMode: row.activityMoveMode,
         paused: row.paused)
     },
-    preparedEntity(
-      "health_statistic", Components.Schemas.HealthStatistic.self, table: HealthStatistic.self,
-      columns: statisticColumns
-    ) { row in
-      [row.id, row.device, row._type, row.bucketStart, row.sum, row.unit]
+    entity("health_statistic", Components.Schemas.HealthStatistic.self) { row in
+      HealthStatistic(
+        id: row.id, device: row.device, type: row._type, bucketStart: row.bucketStart,
+        sum: row.sum, unit: row.unit)
     },
     entity("health_workout", Components.Schemas.HealthWorkout.self) { row in
       HealthWorkout(
@@ -403,16 +400,17 @@ public enum HealthDatabase {
     },
   ]
 
-  /// An entity stored in `Record`'s table, each row made from the server's `Row`.
+  /// An entity stored in `Record`'s table, each row made from the server's `Row`. Rows are
+  /// upserted through one cached statement per table (``PreparedUpsert``): building each row's
+  /// query cost about 20 times as much as the insert itself (68 µs against 3 µs a sample,
+  /// 851-2649).
   private static func entity<Row: Decodable & SendableMetatype, Record: PrimaryKeyedTable>(
     _ name: String, _: Row.Type, record: @escaping @Sendable (Row) throws -> Record
   ) -> SyncEntity where Record.PrimaryKey == String, Record.QueryOutput == Record {
-    .decoding(
+    let upsert = PreparedUpsert<Record>()
+    return .decoding(
       name, as: Row.self,
-      upsert: { row, db in
-        let value = try record(row)
-        try Record.upsert { value }.execute(db)
-      },
+      upsert: { row, db in try upsert.execute(try record(row), db) },
       delete: delete(Record.self),
       clear: clear(Record.self)
     )
@@ -428,39 +426,6 @@ public enum HealthDatabase {
     _: Record.Type
   ) -> @Sendable (Database) throws -> Void {
     { db in try Record.delete().execute(db) }
-  }
-
-  /// `healthSamples`' and `healthStatistics`' columns, in the order their upserts bind them.
-  static let sampleColumns = [
-    "id", "type", "startDate", "endDate", "value", "unit", "categoryValue", "correlationID",
-    "sourceName", "sourceBundleID", "sourceRevision", "device", "metadata",
-  ]
-  static let statisticColumns = ["id", "device", "type", "bucketStart", "sum", "unit"]
-
-  /// An entity upserted with one prepared statement, reused for every row: building each row's
-  /// query cost about 20 times as much as the insert itself (68 µs against 3 µs a sample,
-  /// 851-2649). For the tables with millions of rows. `values` gives the row's values in
-  /// `columns`' order; a test checks the columns are the table's, and stores a distinct value in
-  /// each.
-  private static func preparedEntity<Row: Decodable & SendableMetatype, Record: PrimaryKeyedTable>(
-    _ name: String, _: Row.Type, table _: Record.Type, columns: [String],
-    values: @escaping @Sendable (Row) throws -> [(any DatabaseValueConvertible)?]
-  ) -> SyncEntity where Record.PrimaryKey == String {
-    let quoted = columns.map { "\"\($0)\"" }
-    let sql = """
-      INSERT INTO "\(Record.tableName)" (\(quoted.joined(separator: ", ")))
-      VALUES (\(columns.map { _ in "?" }.joined(separator: ", ")))
-      ON CONFLICT ("id") DO UPDATE SET \(
-        quoted.dropFirst().map { "\($0) = excluded.\($0)" }.joined(separator: ", "))
-      """
-    return .decoding(
-      name, as: Row.self,
-      upsert: { row, db in
-        try db.cachedStatement(sql: sql).execute(arguments: StatementArguments(try values(row)))
-      },
-      delete: delete(Record.self),
-      clear: clear(Record.self)
-    )
   }
 
   private static let encoder = {

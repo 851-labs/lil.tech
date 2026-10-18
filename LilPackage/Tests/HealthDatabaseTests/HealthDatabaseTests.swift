@@ -9,6 +9,8 @@ import OpenAPIRuntime
 import SQLiteData
 import Testing
 
+import class GRDB.Row
+
 @testable import HealthDatabase
 
 // Synthetic data only (AGENTS.md).
@@ -1131,8 +1133,31 @@ struct HealthSyncTests {
         try String.fetchAll(db, sql: "SELECT name FROM pragma_table_info('\(table)') ORDER BY cid")
       }
     }
-    #expect(try columns("healthSamples") == HealthDatabase.sampleColumns)
-    #expect(try columns("healthStatistics") == HealthDatabase.statisticColumns)
+    // Every synced table's upsert writes all of its columns.
+    func writable<Record: Table>(_: Record.Type) -> (String, [String]) {
+      (Record.tableName, Record.TableColumns.writableColumns.map(\.name))
+    }
+    let tables = [
+      writable(HealthSample.self), writable(HealthCorrelation.self),
+      writable(HealthCharacteristic.self), writable(HealthActivitySummary.self),
+      writable(HealthStatistic.self), writable(HealthWorkout.self),
+      writable(HealthStateOfMind.self), writable(HealthScoredAssessment.self),
+      writable(HealthAudiogram.self), writable(HealthElectrocardiogram.self),
+      writable(HealthWorkoutRoute.self), writable(HealthHeartbeatSeries.self),
+      writable(HealthStatisticsDevice.self),
+    ]
+    #expect(Set(tables.map(\.0)).count == HealthDatabase.syncEntities.count)
+    for (table, written) in tables {
+      #expect(try Set(columns(table)) == Set(written), "\(table)")
+    }
+    #expect(
+      PreparedUpsert<HealthStatistic>().sql == """
+        INSERT INTO "healthStatistics" ("id", "device", "type", "bucketStart", "sum", "unit")
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT ("id") DO UPDATE SET "device" = excluded."device", \
+        "type" = excluded."type", "bucketStart" = excluded."bucketStart", \
+        "sum" = excluded."sum", "unit" = excluded."unit"
+        """)
 
     let id = "6f1c2a40-0000-4000-8000-0000000000aa"
     // A distinct value in every column, so values bound in the wrong order show.
@@ -1201,6 +1226,124 @@ struct HealthSyncTests {
       ])
   }
 
+  @Test
+  func preparedUpsertsStoreWhatTheyAreGivenInEveryTable() throws {
+    let database = try HealthDatabase.make()
+    let source = (name: "Watch", bundle: "com.apple.health", revision: #"{"v":1}"#)
+    let device = #"{"name":"Watch"}"#
+    let metadata = #"{"k":true}"#
+    // Distinct values in every column, upserted, then upserted again changed, so values bound
+    // to the wrong column or not updated show.
+    func roundTrip<Record: PrimaryKeyedTable & Equatable>(_ make: (Int) -> Record) throws
+    where Record.QueryOutput == Record, Record.PrimaryKey == String {
+      let upsert = PreparedUpsert<Record>()
+      for version in [1, 2] {
+        let record = make(version)
+        try database.write { db in try upsert.execute(record, db) }
+        let stored = try database.read { db in try Record.all.fetchAll(db) }
+        #expect(stored == [record])
+      }
+    }
+    try roundTrip { v in
+      HealthSample(
+        id: "s", type: "t\(v)", startDate: 10 + v, endDate: 20 + v, value: Double(30 + v),
+        unit: "u\(v)", categoryValue: 40 + v, correlationID: "c\(v)", sourceName: "n\(v)",
+        sourceBundleID: "b\(v)", sourceRevision: "r\(v)", device: "d\(v)", metadata: "m\(v)")
+    }
+    try roundTrip { v in
+      HealthCorrelation(
+        id: "c", type: "t\(v)", startDate: 10 + v, endDate: 20 + v, sourceName: "n\(v)",
+        sourceBundleID: "b\(v)", sourceRevision: "r\(v)", device: "d\(v)", metadata: "m\(v)")
+    }
+    try roundTrip { v in HealthCharacteristic(id: "h", value: "\(v)") }
+    try roundTrip { v in
+      HealthActivitySummary(
+        id: "a", activeEnergyBurned: Double(v), activeEnergyBurnedGoal: Double(10 + v),
+        appleMoveTime: Double(20 + v), appleMoveTimeGoal: Double(30 + v),
+        appleExerciseTime: Double(40 + v), appleExerciseTimeGoal: Double(50 + v),
+        appleStandHours: Double(60 + v), appleStandHoursGoal: Double(70 + v),
+        activityMoveMode: "m\(v)", paused: v == 1)
+    }
+    try roundTrip { v in
+      HealthStatistic(
+        id: "st", device: "d\(v)", type: "t\(v)", bucketStart: 10 + v, sum: Double(20 + v),
+        unit: "u\(v)")
+    }
+    try roundTrip { v in
+      HealthWorkout(
+        id: "w", activityType: v, startDate: 10 + v, endDate: 20 + v, duration: Double(30 + v),
+        activities: "a\(v)", events: "e\(v)", statistics: "s\(v)", sourceName: "n\(v)",
+        sourceBundleID: "b\(v)", sourceRevision: "r\(v)", device: "d\(v)", metadata: "m\(v)")
+    }
+    try roundTrip { v in
+      HealthStateOfMind(
+        id: "som", startDate: 10 + v, endDate: 20 + v, kind: v, valence: Double(30 + v),
+        valenceClassification: 40 + v, labels: "l\(v)", associations: "a\(v)",
+        sourceName: source.name, sourceBundleID: source.bundle, sourceRevision: source.revision,
+        device: device, metadata: "m\(v)")
+    }
+    try roundTrip { v in
+      HealthScoredAssessment(
+        id: "sa", type: "t\(v)", startDate: 10 + v, endDate: 20 + v, score: 30 + v, risk: 40 + v,
+        answers: "a\(v)", sourceName: source.name, sourceBundleID: source.bundle,
+        sourceRevision: source.revision, device: device, metadata: "m\(v)")
+    }
+    try roundTrip { v in
+      HealthAudiogram(
+        id: "au", startDate: 10 + v, endDate: 20 + v, points: "p\(v)", sourceName: source.name,
+        sourceBundleID: source.bundle, sourceRevision: source.revision, device: device,
+        metadata: "m\(v)")
+    }
+    try roundTrip { v in
+      HealthElectrocardiogram(
+        id: "e", startDate: 10 + v, endDate: 20 + v, classification: v, symptomsStatus: 30 + v,
+        averageHeartRate: Double(40 + v), samplingFrequency: Double(50 + v),
+        voltageCount: 60 + v, voltages: "v\(v)", sourceName: source.name,
+        sourceBundleID: source.bundle, sourceRevision: source.revision, device: device,
+        metadata: metadata)
+    }
+    try roundTrip { v in
+      HealthWorkoutRoute(
+        id: "wr", startDate: 10 + v, endDate: 20 + v, workout: "w\(v)", locationCount: 30 + v,
+        locations: "l\(v)", sourceName: source.name, sourceBundleID: source.bundle,
+        sourceRevision: source.revision, device: device, metadata: metadata)
+    }
+    try roundTrip { v in
+      HealthHeartbeatSeries(
+        id: "hb", startDate: 10 + v, endDate: 20 + v, beats: "b\(v)", gaps: "g\(v)",
+        sourceName: source.name, sourceBundleID: source.bundle, sourceRevision: source.revision,
+        device: device, metadata: metadata)
+    }
+    try roundTrip { v in
+      HealthStatisticsDevice(id: "sd", device: "d\(v)", pairedWithWatch: v == 1, reportedAt: v)
+    }
+  }
+
+  @Test
+  func preparedUpsertsBindDatesAndEmptyBlobsAsStructuredQueriesDoes() throws {
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try #sql(
+        #"CREATE TABLE "datedThings" ("id" TEXT PRIMARY KEY NOT NULL, "at" TEXT NOT NULL, "bytes" BLOB NOT NULL)"#
+      )
+      .execute(db)
+    }
+    let thing = DatedThing(id: "a", at: Date(timeIntervalSince1970: 1_760_400_000.5), bytes: [])
+    try database.write { db in try PreparedUpsert<DatedThing>().execute(thing, db) }
+    let viaPrepared = try database.read { db in
+      try Row.fetchOne(db, sql: #"SELECT "at", "bytes" FROM "datedThings""#)
+    }
+    try database.write { db in
+      try DatedThing.delete().execute(db)
+      try DatedThing.upsert { thing }.execute(db)
+    }
+    let viaStructuredQueries = try database.read { db in
+      try Row.fetchOne(db, sql: #"SELECT "at", "bytes" FROM "datedThings""#)
+    }
+    #expect(viaPrepared == viaStructuredQueries)
+    #expect(try database.read { db in try DatedThing.all.fetchAll(db) } == [thing])
+  }
+
   /// An upsert whose row is `id` plus the given JSON object members.
   private func upsert(
     _ seq: Int, _ entity: String, _ id: String, _ members: String
@@ -1247,4 +1390,12 @@ struct PreviewHealthDatabaseTests {
     }
     #expect(offGrid.isEmpty)
   }
+}
+
+/// A table with the column kinds `PreparedUpsert` leaves to StructuredQueries.
+@Table("datedThings")
+private struct DatedThing: Equatable {
+  let id: String
+  var at: Date
+  var bytes: [UInt8]
 }
