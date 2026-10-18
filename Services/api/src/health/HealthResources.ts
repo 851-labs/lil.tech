@@ -48,8 +48,8 @@ export const maxHealthBatchRetries = 5;
 export const healthBatchConsumers = 16;
 
 /**
- * Deletes every object in `bucket` whose key starts with `prefix`: a page of keys at a time (R2
- * lists up to 1,000), each deleted in one call.
+ * Deletes every object in `bucket` whose key starts with `prefix`: lists them all, then deletes
+ * them (`deleteObjects`).
  */
 export const deletePrefix = (
   bucket: Pick<Cloudflare.R2.ReadWriteBucketClient, "list" | "delete">,
