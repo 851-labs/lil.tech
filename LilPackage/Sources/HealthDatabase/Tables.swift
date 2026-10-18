@@ -23,12 +23,15 @@ public struct HealthSample: Equatable, Identifiable, Sendable {
   public var sourceRevision: String?
   public var device: String?
   public var metadata: String?
+  /// The ``HealthProvenance`` with its source revision and device, from iPhones that send them
+  /// once (851-2674). Otherwise they're in `sourceRevision` and `device`.
+  public var provenance: String?
 
   public init(
     id: String, type: String, startDate: Int, endDate: Int, value: Double? = nil,
     unit: String? = nil, categoryValue: Int? = nil, correlationID: String? = nil,
     sourceName: String, sourceBundleID: String, sourceRevision: String? = nil,
-    device: String? = nil, metadata: String? = nil
+    device: String? = nil, metadata: String? = nil, provenance: String? = nil
   ) {
     self.id = id
     self.type = type
@@ -43,6 +46,7 @@ public struct HealthSample: Equatable, Identifiable, Sendable {
     self.sourceRevision = sourceRevision
     self.device = device
     self.metadata = metadata
+    self.provenance = provenance
   }
 
   public var start: Date { Date(unixMilliseconds: startDate) }
@@ -61,11 +65,14 @@ public struct HealthCorrelation: Equatable, Identifiable, Sendable {
   public var sourceRevision: String?
   public var device: String?
   public var metadata: String?
+  /// The ``HealthProvenance`` with its source revision and device, from iPhones that send them
+  /// once (851-2674). Otherwise they're in `sourceRevision` and `device`.
+  public var provenance: String?
 
   public init(
     id: String, type: String, startDate: Int, endDate: Int, sourceName: String,
     sourceBundleID: String, sourceRevision: String? = nil, device: String? = nil,
-    metadata: String? = nil
+    metadata: String? = nil, provenance: String? = nil
   ) {
     self.id = id
     self.type = type
@@ -76,6 +83,7 @@ public struct HealthCorrelation: Equatable, Identifiable, Sendable {
     self.sourceRevision = sourceRevision
     self.device = device
     self.metadata = metadata
+    self.provenance = provenance
   }
 }
 
@@ -111,12 +119,15 @@ public struct HealthWorkout: Equatable, Identifiable, Sendable {
   public var sourceRevision: String?
   public var device: String?
   public var metadata: String?
+  /// The ``HealthProvenance`` with its source revision and device, from iPhones that send them
+  /// once (851-2674). Otherwise they're in `sourceRevision` and `device`.
+  public var provenance: String?
 
   public init(
     id: String, activityType: Int, startDate: Int, endDate: Int, duration: Double,
     activities: String, events: String, statistics: String, sourceName: String,
     sourceBundleID: String, sourceRevision: String? = nil, device: String? = nil,
-    metadata: String? = nil
+    metadata: String? = nil, provenance: String? = nil
   ) {
     self.id = id
     self.activityType = activityType
@@ -131,6 +142,7 @@ public struct HealthWorkout: Equatable, Identifiable, Sendable {
     self.sourceRevision = sourceRevision
     self.device = device
     self.metadata = metadata
+    self.provenance = provenance
   }
 }
 
@@ -153,12 +165,15 @@ public struct HealthStateOfMind: Equatable, Identifiable, Sendable {
   public var sourceRevision: String?
   public var device: String?
   public var metadata: String?
+  /// The ``HealthProvenance`` with its source revision and device, from iPhones that send them
+  /// once (851-2674). Otherwise they're in `sourceRevision` and `device`.
+  public var provenance: String?
 
   public init(
     id: String, startDate: Int, endDate: Int, kind: Int, valence: Double,
     valenceClassification: Int, labels: String, associations: String, sourceName: String,
     sourceBundleID: String, sourceRevision: String? = nil, device: String? = nil,
-    metadata: String? = nil
+    metadata: String? = nil, provenance: String? = nil
   ) {
     self.id = id
     self.startDate = startDate
@@ -173,6 +188,7 @@ public struct HealthStateOfMind: Equatable, Identifiable, Sendable {
     self.sourceRevision = sourceRevision
     self.device = device
     self.metadata = metadata
+    self.provenance = provenance
   }
 }
 
@@ -193,11 +209,14 @@ public struct HealthScoredAssessment: Equatable, Identifiable, Sendable {
   public var sourceRevision: String?
   public var device: String?
   public var metadata: String?
+  /// The ``HealthProvenance`` with its source revision and device, from iPhones that send them
+  /// once (851-2674). Otherwise they're in `sourceRevision` and `device`.
+  public var provenance: String?
 
   public init(
     id: String, type: String, startDate: Int, endDate: Int, score: Int, risk: Int,
     answers: String, sourceName: String, sourceBundleID: String, sourceRevision: String? = nil,
-    device: String? = nil, metadata: String? = nil
+    device: String? = nil, metadata: String? = nil, provenance: String? = nil
   ) {
     self.id = id
     self.type = type
@@ -211,6 +230,7 @@ public struct HealthScoredAssessment: Equatable, Identifiable, Sendable {
     self.sourceRevision = sourceRevision
     self.device = device
     self.metadata = metadata
+    self.provenance = provenance
   }
 }
 
@@ -226,11 +246,14 @@ public struct HealthAudiogram: Equatable, Identifiable, Sendable {
   public var sourceRevision: String?
   public var device: String?
   public var metadata: String?
+  /// The ``HealthProvenance`` with its source revision and device, from iPhones that send them
+  /// once (851-2674). Otherwise they're in `sourceRevision` and `device`.
+  public var provenance: String?
 
   public init(
     id: String, startDate: Int, endDate: Int, points: String, sourceName: String,
     sourceBundleID: String, sourceRevision: String? = nil, device: String? = nil,
-    metadata: String? = nil
+    metadata: String? = nil, provenance: String? = nil
   ) {
     self.id = id
     self.startDate = startDate
@@ -241,6 +264,7 @@ public struct HealthAudiogram: Equatable, Identifiable, Sendable {
     self.sourceRevision = sourceRevision
     self.device = device
     self.metadata = metadata
+    self.provenance = provenance
   }
 }
 
@@ -345,12 +369,15 @@ public struct HealthElectrocardiogram: Equatable, Identifiable, Sendable {
   public var sourceRevision: String?
   public var device: String?
   public var metadata: String?
+  /// The ``HealthProvenance`` with its source revision and device, from iPhones that send them
+  /// once (851-2674). Otherwise they're in `sourceRevision` and `device`.
+  public var provenance: String?
 
   public init(
     id: String, startDate: Int, endDate: Int, classification: Int, symptomsStatus: Int,
     averageHeartRate: Double?, samplingFrequency: Double?, voltageCount: Int, voltages: String?,
     sourceName: String, sourceBundleID: String, sourceRevision: String? = nil,
-    device: String? = nil, metadata: String? = nil
+    device: String? = nil, metadata: String? = nil, provenance: String? = nil
   ) {
     self.id = id
     self.startDate = startDate
@@ -366,6 +393,7 @@ public struct HealthElectrocardiogram: Equatable, Identifiable, Sendable {
     self.sourceRevision = sourceRevision
     self.device = device
     self.metadata = metadata
+    self.provenance = provenance
   }
 }
 
@@ -383,11 +411,14 @@ public struct HealthHeartbeatSeries: Equatable, Identifiable, Sendable {
   public var sourceRevision: String?
   public var device: String?
   public var metadata: String?
+  /// The ``HealthProvenance`` with its source revision and device, from iPhones that send them
+  /// once (851-2674). Otherwise they're in `sourceRevision` and `device`.
+  public var provenance: String?
 
   public init(
     id: String, startDate: Int, endDate: Int, beats: String, gaps: String, sourceName: String,
     sourceBundleID: String, sourceRevision: String? = nil, device: String? = nil,
-    metadata: String? = nil
+    metadata: String? = nil, provenance: String? = nil
   ) {
     self.id = id
     self.startDate = startDate
@@ -399,6 +430,7 @@ public struct HealthHeartbeatSeries: Equatable, Identifiable, Sendable {
     self.sourceRevision = sourceRevision
     self.device = device
     self.metadata = metadata
+    self.provenance = provenance
   }
 }
 
@@ -418,12 +450,15 @@ public struct HealthWorkoutRoute: Equatable, Identifiable, Sendable {
   public var sourceRevision: String?
   public var device: String?
   public var metadata: String?
+  /// The ``HealthProvenance`` with its source revision and device, from iPhones that send them
+  /// once (851-2674). Otherwise they're in `sourceRevision` and `device`.
+  public var provenance: String?
 
   public init(
     id: String, startDate: Int, endDate: Int, workout: String?, locationCount: Int,
     locations: String?,
     sourceName: String, sourceBundleID: String, sourceRevision: String? = nil,
-    device: String? = nil, metadata: String? = nil
+    device: String? = nil, metadata: String? = nil, provenance: String? = nil
   ) {
     self.id = id
     self.startDate = startDate
@@ -436,5 +471,22 @@ public struct HealthWorkoutRoute: Equatable, Identifiable, Sendable {
     self.sourceRevision = sourceRevision
     self.device = device
     self.metadata = metadata
+    self.provenance = provenance
+  }
+}
+
+/// A source revision and device that samples share (851-2674), keyed by a hash of the two.
+@Table
+public struct HealthProvenance: Equatable, Identifiable, Sendable {
+  public let id: String
+  /// `HKSourceRevision` as JSON text.
+  public var sourceRevision: String?
+  /// `HKDevice` as JSON text.
+  public var device: String?
+
+  public init(id: String, sourceRevision: String? = nil, device: String? = nil) {
+    self.id = id
+    self.sourceRevision = sourceRevision
+    self.device = device
   }
 }

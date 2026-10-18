@@ -1288,6 +1288,76 @@ extension Components {
                 case version
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthProvenance`.
+        public struct HealthProvenance: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthProvenance/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthProvenance/sourceRevision`.
+            public var sourceRevision: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthProvenance/device`.
+            public var device: OpenAPIRuntime.OpenAPIValueContainer?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthProvenance`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - sourceRevision:
+            ///   - device:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.sourceRevision = sourceRevision
+                self.device = device
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case sourceRevision
+                case device
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.sourceRevision = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .sourceRevision
+                )
+                self.device = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .device
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "sourceRevision",
+                    "device"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encodeIfPresent(
+                    self.sourceRevision,
+                    forKey: .sourceRevision
+                )
+                try container.encodeIfPresent(
+                    self.device,
+                    forKey: .device
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthSample`.
         public struct HealthSample: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthSample/id`.
@@ -1316,6 +1386,8 @@ extension Components {
             public var device: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthSample/metadata`.
             public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthSample/provenance`.
+            public var provenance: Swift.String?
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthSample`.
@@ -1334,6 +1406,7 @@ extension Components {
             ///   - sourceRevision:
             ///   - device:
             ///   - metadata:
+            ///   - provenance:
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 id: Swift.String,
@@ -1349,6 +1422,7 @@ extension Components {
                 sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                provenance: Swift.String? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -1364,6 +1438,7 @@ extension Components {
                 self.sourceRevision = sourceRevision
                 self.device = device
                 self.metadata = metadata
+                self.provenance = provenance
                 self.additionalProperties = additionalProperties
             }
             public enum CodingKeys: String, CodingKey {
@@ -1380,6 +1455,7 @@ extension Components {
                 case sourceRevision
                 case device
                 case metadata
+                case provenance
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -1435,6 +1511,10 @@ extension Components {
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .metadata
                 )
+                self.provenance = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .provenance
+                )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "id",
                     "type",
@@ -1448,7 +1528,8 @@ extension Components {
                     "sourceBundleId",
                     "sourceRevision",
                     "device",
-                    "metadata"
+                    "metadata",
+                    "provenance"
                 ])
             }
             public func encode(to encoder: any Swift.Encoder) throws {
@@ -1505,6 +1586,10 @@ extension Components {
                     self.metadata,
                     forKey: .metadata
                 )
+                try container.encodeIfPresent(
+                    self.provenance,
+                    forKey: .provenance
+                )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
@@ -1528,6 +1613,8 @@ extension Components {
             public var device: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthCorrelation/metadata`.
             public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthCorrelation/provenance`.
+            public var provenance: Swift.String?
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthCorrelation`.
@@ -1542,6 +1629,7 @@ extension Components {
             ///   - sourceRevision:
             ///   - device:
             ///   - metadata:
+            ///   - provenance:
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 id: Swift.String,
@@ -1553,6 +1641,7 @@ extension Components {
                 sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                provenance: Swift.String? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -1564,6 +1653,7 @@ extension Components {
                 self.sourceRevision = sourceRevision
                 self.device = device
                 self.metadata = metadata
+                self.provenance = provenance
                 self.additionalProperties = additionalProperties
             }
             public enum CodingKeys: String, CodingKey {
@@ -1576,6 +1666,7 @@ extension Components {
                 case sourceRevision
                 case device
                 case metadata
+                case provenance
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -1615,6 +1706,10 @@ extension Components {
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .metadata
                 )
+                self.provenance = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .provenance
+                )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "id",
                     "type",
@@ -1624,7 +1719,8 @@ extension Components {
                     "sourceBundleId",
                     "sourceRevision",
                     "device",
-                    "metadata"
+                    "metadata",
+                    "provenance"
                 ])
             }
             public func encode(to encoder: any Swift.Encoder) throws {
@@ -1664,6 +1760,10 @@ extension Components {
                 try container.encodeIfPresent(
                     self.metadata,
                     forKey: .metadata
+                )
+                try container.encodeIfPresent(
+                    self.provenance,
+                    forKey: .provenance
                 )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
@@ -2141,6 +2241,8 @@ extension Components {
             public var device: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthWorkout/metadata`.
             public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthWorkout/provenance`.
+            public var provenance: Swift.String?
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthWorkout`.
@@ -2159,6 +2261,7 @@ extension Components {
             ///   - sourceRevision:
             ///   - device:
             ///   - metadata:
+            ///   - provenance:
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 id: Swift.String,
@@ -2174,6 +2277,7 @@ extension Components {
                 sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                provenance: Swift.String? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -2189,6 +2293,7 @@ extension Components {
                 self.sourceRevision = sourceRevision
                 self.device = device
                 self.metadata = metadata
+                self.provenance = provenance
                 self.additionalProperties = additionalProperties
             }
             public enum CodingKeys: String, CodingKey {
@@ -2205,6 +2310,7 @@ extension Components {
                 case sourceRevision
                 case device
                 case metadata
+                case provenance
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -2260,6 +2366,10 @@ extension Components {
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .metadata
                 )
+                self.provenance = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .provenance
+                )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "id",
                     "activityType",
@@ -2273,7 +2383,8 @@ extension Components {
                     "sourceBundleId",
                     "sourceRevision",
                     "device",
-                    "metadata"
+                    "metadata",
+                    "provenance"
                 ])
             }
             public func encode(to encoder: any Swift.Encoder) throws {
@@ -2330,6 +2441,10 @@ extension Components {
                     self.metadata,
                     forKey: .metadata
                 )
+                try container.encodeIfPresent(
+                    self.provenance,
+                    forKey: .provenance
+                )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
@@ -2361,6 +2476,8 @@ extension Components {
             public var device: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthStateOfMind/metadata`.
             public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMind/provenance`.
+            public var provenance: Swift.String?
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthStateOfMind`.
@@ -2379,6 +2496,7 @@ extension Components {
             ///   - sourceRevision:
             ///   - device:
             ///   - metadata:
+            ///   - provenance:
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 id: Swift.String,
@@ -2394,6 +2512,7 @@ extension Components {
                 sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                provenance: Swift.String? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -2409,6 +2528,7 @@ extension Components {
                 self.sourceRevision = sourceRevision
                 self.device = device
                 self.metadata = metadata
+                self.provenance = provenance
                 self.additionalProperties = additionalProperties
             }
             public enum CodingKeys: String, CodingKey {
@@ -2425,6 +2545,7 @@ extension Components {
                 case sourceRevision
                 case device
                 case metadata
+                case provenance
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -2480,6 +2601,10 @@ extension Components {
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .metadata
                 )
+                self.provenance = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .provenance
+                )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "id",
                     "startDate",
@@ -2493,7 +2618,8 @@ extension Components {
                     "sourceBundleId",
                     "sourceRevision",
                     "device",
-                    "metadata"
+                    "metadata",
+                    "provenance"
                 ])
             }
             public func encode(to encoder: any Swift.Encoder) throws {
@@ -2550,6 +2676,10 @@ extension Components {
                     self.metadata,
                     forKey: .metadata
                 )
+                try container.encodeIfPresent(
+                    self.provenance,
+                    forKey: .provenance
+                )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
@@ -2579,6 +2709,8 @@ extension Components {
             public var device: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthScoredAssessment/metadata`.
             public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthScoredAssessment/provenance`.
+            public var provenance: Swift.String?
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthScoredAssessment`.
@@ -2596,6 +2728,7 @@ extension Components {
             ///   - sourceRevision:
             ///   - device:
             ///   - metadata:
+            ///   - provenance:
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 id: Swift.String,
@@ -2610,6 +2743,7 @@ extension Components {
                 sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                provenance: Swift.String? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -2624,6 +2758,7 @@ extension Components {
                 self.sourceRevision = sourceRevision
                 self.device = device
                 self.metadata = metadata
+                self.provenance = provenance
                 self.additionalProperties = additionalProperties
             }
             public enum CodingKeys: String, CodingKey {
@@ -2639,6 +2774,7 @@ extension Components {
                 case sourceRevision
                 case device
                 case metadata
+                case provenance
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -2690,6 +2826,10 @@ extension Components {
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .metadata
                 )
+                self.provenance = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .provenance
+                )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "id",
                     "type",
@@ -2702,7 +2842,8 @@ extension Components {
                     "sourceBundleId",
                     "sourceRevision",
                     "device",
-                    "metadata"
+                    "metadata",
+                    "provenance"
                 ])
             }
             public func encode(to encoder: any Swift.Encoder) throws {
@@ -2755,6 +2896,10 @@ extension Components {
                     self.metadata,
                     forKey: .metadata
                 )
+                try container.encodeIfPresent(
+                    self.provenance,
+                    forKey: .provenance
+                )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
@@ -2778,6 +2923,8 @@ extension Components {
             public var device: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthAudiogram/metadata`.
             public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogram/provenance`.
+            public var provenance: Swift.String?
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthAudiogram`.
@@ -2792,6 +2939,7 @@ extension Components {
             ///   - sourceRevision:
             ///   - device:
             ///   - metadata:
+            ///   - provenance:
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 id: Swift.String,
@@ -2803,6 +2951,7 @@ extension Components {
                 sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                provenance: Swift.String? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -2814,6 +2963,7 @@ extension Components {
                 self.sourceRevision = sourceRevision
                 self.device = device
                 self.metadata = metadata
+                self.provenance = provenance
                 self.additionalProperties = additionalProperties
             }
             public enum CodingKeys: String, CodingKey {
@@ -2826,6 +2976,7 @@ extension Components {
                 case sourceRevision
                 case device
                 case metadata
+                case provenance
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -2865,6 +3016,10 @@ extension Components {
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .metadata
                 )
+                self.provenance = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .provenance
+                )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "id",
                     "startDate",
@@ -2874,7 +3029,8 @@ extension Components {
                     "sourceBundleId",
                     "sourceRevision",
                     "device",
-                    "metadata"
+                    "metadata",
+                    "provenance"
                 ])
             }
             public func encode(to encoder: any Swift.Encoder) throws {
@@ -2915,6 +3071,10 @@ extension Components {
                     self.metadata,
                     forKey: .metadata
                 )
+                try container.encodeIfPresent(
+                    self.provenance,
+                    forKey: .provenance
+                )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
@@ -2948,6 +3108,8 @@ extension Components {
             public var device: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/metadata`.
             public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogram/provenance`.
+            public var provenance: Swift.String?
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthElectrocardiogram`.
@@ -2967,6 +3129,7 @@ extension Components {
             ///   - sourceRevision:
             ///   - device:
             ///   - metadata:
+            ///   - provenance:
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 id: Swift.String,
@@ -2983,6 +3146,7 @@ extension Components {
                 sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                provenance: Swift.String? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -2999,6 +3163,7 @@ extension Components {
                 self.sourceRevision = sourceRevision
                 self.device = device
                 self.metadata = metadata
+                self.provenance = provenance
                 self.additionalProperties = additionalProperties
             }
             public enum CodingKeys: String, CodingKey {
@@ -3016,6 +3181,7 @@ extension Components {
                 case sourceRevision
                 case device
                 case metadata
+                case provenance
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -3075,6 +3241,10 @@ extension Components {
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .metadata
                 )
+                self.provenance = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .provenance
+                )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "id",
                     "startDate",
@@ -3089,7 +3259,8 @@ extension Components {
                     "sourceBundleId",
                     "sourceRevision",
                     "device",
-                    "metadata"
+                    "metadata",
+                    "provenance"
                 ])
             }
             public func encode(to encoder: any Swift.Encoder) throws {
@@ -3150,6 +3321,10 @@ extension Components {
                     self.metadata,
                     forKey: .metadata
                 )
+                try container.encodeIfPresent(
+                    self.provenance,
+                    forKey: .provenance
+                )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
@@ -3175,6 +3350,8 @@ extension Components {
             public var device: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeries/metadata`.
             public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeries/provenance`.
+            public var provenance: Swift.String?
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthHeartbeatSeries`.
@@ -3190,6 +3367,7 @@ extension Components {
             ///   - sourceRevision:
             ///   - device:
             ///   - metadata:
+            ///   - provenance:
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 id: Swift.String,
@@ -3202,6 +3380,7 @@ extension Components {
                 sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                provenance: Swift.String? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -3214,6 +3393,7 @@ extension Components {
                 self.sourceRevision = sourceRevision
                 self.device = device
                 self.metadata = metadata
+                self.provenance = provenance
                 self.additionalProperties = additionalProperties
             }
             public enum CodingKeys: String, CodingKey {
@@ -3227,6 +3407,7 @@ extension Components {
                 case sourceRevision
                 case device
                 case metadata
+                case provenance
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -3270,6 +3451,10 @@ extension Components {
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .metadata
                 )
+                self.provenance = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .provenance
+                )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "id",
                     "startDate",
@@ -3280,7 +3465,8 @@ extension Components {
                     "sourceBundleId",
                     "sourceRevision",
                     "device",
-                    "metadata"
+                    "metadata",
+                    "provenance"
                 ])
             }
             public func encode(to encoder: any Swift.Encoder) throws {
@@ -3325,6 +3511,10 @@ extension Components {
                     self.metadata,
                     forKey: .metadata
                 )
+                try container.encodeIfPresent(
+                    self.provenance,
+                    forKey: .provenance
+                )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
@@ -3352,6 +3542,8 @@ extension Components {
             public var device: OpenAPIRuntime.OpenAPIValueContainer?
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/metadata`.
             public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoute/provenance`.
+            public var provenance: Swift.String?
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthWorkoutRoute`.
@@ -3368,6 +3560,7 @@ extension Components {
             ///   - sourceRevision:
             ///   - device:
             ///   - metadata:
+            ///   - provenance:
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 id: Swift.String,
@@ -3381,6 +3574,7 @@ extension Components {
                 sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
                 metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                provenance: Swift.String? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -3394,6 +3588,7 @@ extension Components {
                 self.sourceRevision = sourceRevision
                 self.device = device
                 self.metadata = metadata
+                self.provenance = provenance
                 self.additionalProperties = additionalProperties
             }
             public enum CodingKeys: String, CodingKey {
@@ -3408,6 +3603,7 @@ extension Components {
                 case sourceRevision
                 case device
                 case metadata
+                case provenance
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -3455,6 +3651,10 @@ extension Components {
                     OpenAPIRuntime.OpenAPIValueContainer.self,
                     forKey: .metadata
                 )
+                self.provenance = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .provenance
+                )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "id",
                     "startDate",
@@ -3466,7 +3666,8 @@ extension Components {
                     "sourceBundleId",
                     "sourceRevision",
                     "device",
-                    "metadata"
+                    "metadata",
+                    "provenance"
                 ])
             }
             public func encode(to encoder: any Swift.Encoder) throws {
@@ -3514,6 +3715,10 @@ extension Components {
                 try container.encodeIfPresent(
                     self.metadata,
                     forKey: .metadata
+                )
+                try container.encodeIfPresent(
+                    self.provenance,
+                    forKey: .provenance
                 )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }

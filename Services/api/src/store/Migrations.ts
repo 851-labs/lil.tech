@@ -230,6 +230,24 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
     // The batches waiting their turn, in the order they were received (`healthBatchesAhead`).
     sql: "CREATE INDEX health_batches_queued ON health_batches (received_at, id) WHERE status = 'queued';",
   },
+  {
+    version: 19,
+    name: "health_provenance",
+    // `HealthProvenance`, and the `provenance` field of the entities with a source and device
+    // (`src/health/HealthEntities.ts`, 851-2674).
+    sql: `
+      CREATE TABLE "health_provenance" (id TEXT PRIMARY KEY, "source_revision" TEXT, "device" TEXT) STRICT;
+      ALTER TABLE "health_sample" ADD COLUMN "provenance" TEXT;
+      ALTER TABLE "health_correlation" ADD COLUMN "provenance" TEXT;
+      ALTER TABLE "health_workout" ADD COLUMN "provenance" TEXT;
+      ALTER TABLE "health_state_of_mind" ADD COLUMN "provenance" TEXT;
+      ALTER TABLE "health_scored_assessment" ADD COLUMN "provenance" TEXT;
+      ALTER TABLE "health_audiogram" ADD COLUMN "provenance" TEXT;
+      ALTER TABLE "health_electrocardiogram" ADD COLUMN "provenance" TEXT;
+      ALTER TABLE "health_heartbeat_series" ADD COLUMN "provenance" TEXT;
+      ALTER TABLE "health_workout_route" ADD COLUMN "provenance" TEXT;
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */
