@@ -48,9 +48,10 @@ public struct DataExportFeature {
 
   enum CancelID { case export }
 
-  /// How often to ask whether a prepared export is ready, and how many times at most: 15 minutes.
+  /// How often to ask whether a prepared export is ready, and how many times at most: 70 minutes,
+  /// past the hour the server may wait out a bulk upload for.
   static let pollInterval: Duration = .seconds(3)
-  static let maxPolls = 300
+  static let maxPolls = 1_400
 
   @Dependency(\.continuousClock) var clock
   @Dependency(\.dataExports) var dataExports
@@ -64,28 +65,37 @@ public struct DataExportFeature {
       case .exportButtonTapped:
         state.status = .preparing
         return .run { [clock, dataExports] send in
-          var export = try await dataExports.request()
-          var polls = 0
-          while export.url == nil {
-            polls += 1
-            guard polls <= Self.maxPolls else {
-              await send(
-                .failed("Preparing the export is taking longer than usual. Please try again later.")
-              )
+          // A link that stopped working (`expired`) is asked for again, once.
+          for attempt in 1...2 {
+            var export = try await dataExports.request()
+            var polls = 0
+            while export.url == nil {
+              polls += 1
+              guard polls <= Self.maxPolls else {
+                await send(
+                  .failed(
+                    "Preparing the export is taking longer than usual. Please try again later."))
+                return
+              }
+              try await clock.sleep(for: Self.pollInterval)
+              guard let latest = try await dataExports.latest() else {
+                throw DataExportError.failed("The export is gone")
+              }
+              export = latest
+            }
+            guard let url = export.url else { return }
+            await send(.prepared)
+            do {
+              for try await event in dataExports.download(url) {
+                switch event {
+                case .progress(let share): await send(.downloadProgressed(share))
+                case .finished(let file, let name):
+                  await send(.downloaded(file: file, name: name))
+                }
+              }
               return
-            }
-            try await clock.sleep(for: Self.pollInterval)
-            guard let latest = try await dataExports.latest() else {
-              throw DataExportError.failed("The export is gone")
-            }
-            export = latest
-          }
-          guard let url = export.url else { return }
-          await send(.prepared)
-          for try await event in dataExports.download(url) {
-            switch event {
-            case .progress(let share): await send(.downloadProgressed(share))
-            case .finished(let file, let name): await send(.downloaded(file: file, name: name))
+            } catch DataExportError.expired where attempt == 1 {
+              continue
             }
           }
         } catch: { error, send in

@@ -50,6 +50,7 @@ import {
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./health/TestHealthIngestion.ts";
 import { TestHealthBlobBucket, TestHealthBlobs } from "./health/TestHealthBlobs.ts";
 import { healthBlobPrefix } from "../src/health/HealthBlobs.ts";
+import { maxArchiveFiles } from "../src/sync/ExportArchive.ts";
 import { entities } from "../src/store/Registry.ts";
 import {
   TestStores,
@@ -1636,6 +1637,25 @@ describe("data exports", () => {
         url.searchParams.set("token", `${url.searchParams.get("token") ?? ""}x`);
         const response = yield* send(handler, new Request(url));
         assert.strictEqual(response.status, 401);
+      }),
+    ),
+  );
+
+  it.live("says so when the account holds more files than one archive can", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const files = (yield* TestHealthBlobBucket).files;
+        for (let index = 0; index <= maxArchiveFiles; index++) {
+          files.set(
+            `${healthBlobPrefix(user.id)}${index.toString(16).padStart(64, "0")}`,
+            new Uint8Array(1),
+          );
+        }
+        const asked = yield* call(handler, "POST", "/v1/me/exports", tokens.accessToken);
+        const response = yield* send(handler, new Request((asked.body as { url: string }).url));
+        assert.strictEqual(response.status, 507);
+        assert.propertyVal(response.body, "_tag", "DataExportTooLarge");
       }),
     ),
   );

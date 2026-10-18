@@ -540,8 +540,8 @@ export const makeUserStore = (
         Effect.flatMap((now) => {
           const request = requestExport(sql, now);
           const status = { ...request, ...exportSnapshot(sql, request, latestSnapshot(sql)) };
-          // The snapshot it needs is due now.
-          return scheduleAlarm(now).pipe(Effect.as(status));
+          // The snapshot it waits for is due now.
+          return status.ready ? Effect.succeed(status) : scheduleAlarm(now).pipe(Effect.as(status));
         }),
       ),
     /** The latest export asked for, with whether it's ready and its snapshot, or `null`. */

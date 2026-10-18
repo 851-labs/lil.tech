@@ -71,7 +71,12 @@ import { Status } from "./Status.ts";
 import { sessionExpiresHeader } from "./store/LiveNotices.ts";
 import { UserStores, UserStoreUnavailable } from "./store/UserStores.ts";
 import type { Snapshot } from "./store/Snapshots.ts";
-import { type ArchiveEntry, archiveSize, archiveStream } from "./sync/ExportArchive.ts";
+import {
+  type ArchiveEntry,
+  archiveSize,
+  archiveStream,
+  maxArchiveFiles,
+} from "./sync/ExportArchive.ts";
 import { Connections } from "./core/Connections.ts";
 import type { UserId } from "./core/Ids.ts";
 import {
@@ -872,8 +877,18 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
             sha256: part.sha256,
           })),
         });
-        const blobs = yield* (yield* HealthBlobFiles).list(healthBlobPrefix(userId));
+        // Per request: in the Worker they're built from each request's runtime context.
         const blobFiles = yield* HealthBlobFiles;
+        const blobs = yield* blobFiles.list(healthBlobPrefix(userId));
+        if (records.length + blobs.length > maxArchiveFiles) {
+          return HttpServerResponse.jsonUnsafe(
+            {
+              _tag: "DataExportTooLarge",
+              message: "The account holds too many files for one archive",
+            },
+            { status: 507 },
+          );
+        }
         const open =
           (opened: Effect.Effect<Option.Option<{ readonly body: ReadableStream<Uint8Array> }>>) =>
           () =>

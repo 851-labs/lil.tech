@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import LilAuth
+import LilTestSupport
 import Testing
 
 @testable import HealthMacApp
@@ -15,10 +16,11 @@ struct DataExportFeatureTests {
   @Test
   func waitsForTheExportThenDownloadsAndSavesIt() async {
     let polls = LockIsolated(0)
+    let clock = RecordingClock()
     let store = TestStore(initialState: DataExportFeature.State()) {
       DataExportFeature()
     } withDependencies: { [archive, file, saved] in
-      $0.continuousClock = ImmediateClock()
+      $0.continuousClock = clock
       $0.dataExports.request = { () throws(DataExportError) in
         DataExport(requestedAt: Date(timeIntervalSince1970: 0), url: nil)
       }
@@ -59,6 +61,7 @@ struct DataExportFeatureTests {
       $0.status = .saved(saved)
     }
     #expect(polls.value == 2)
+    #expect(clock.sleeps.value == [.seconds(3), .seconds(3)])
   }
 
   @Test
@@ -96,7 +99,7 @@ struct DataExportFeatureTests {
     let store = TestStore(initialState: DataExportFeature.State()) {
       DataExportFeature()
     } withDependencies: {
-      $0.continuousClock = ImmediateClock()
+      $0.continuousClock = RecordingClock()
       $0.dataExports.request = { () throws(DataExportError) in
         DataExport(requestedAt: .now, url: nil)
       }
@@ -116,11 +119,11 @@ struct DataExportFeatureTests {
 
   @Test
   func cancelingStopsTheExport() async {
-    let clock = TestClock()
     let store = TestStore(initialState: DataExportFeature.State()) {
       DataExportFeature()
     } withDependencies: {
-      $0.continuousClock = clock
+      // Its first sleep lasts until it's cancelled.
+      $0.continuousClock = RecordingClock(immediateSleeps: 0)
       $0.dataExports.request = { () throws(DataExportError) in
         DataExport(requestedAt: .now, url: nil)
       }
@@ -132,5 +135,47 @@ struct DataExportFeatureTests {
     await store.send(.cancelButtonTapped) {
       $0.status = .idle
     }
+  }
+
+  @Test
+  func anExpiredLinkIsAskedForAgainOnce() async {
+    let downloads = LockIsolated(0)
+    let store = TestStore(initialState: DataExportFeature.State()) {
+      DataExportFeature()
+    } withDependencies: { [archive, file, saved] in
+      $0.dataExports.request = { () throws(DataExportError) in
+        DataExport(requestedAt: .now, url: archive)
+      }
+      $0.dataExports.download = { _ in
+        let attempt = downloads.withValue {
+          $0 += 1
+          return $0
+        }
+        return AsyncThrowingStream {
+          if attempt == 1 {
+            $0.finish(throwing: DataExportError.expired)
+          } else {
+            $0.yield(.finished(file: file, name: "lil-export.tar"))
+            $0.finish()
+          }
+        }
+      }
+      $0.archiveSaver.save = { _, _ in saved }
+    }
+
+    await store.send(.exportButtonTapped) {
+      $0.status = .preparing
+    }
+    await store.receive(\.prepared) {
+      $0.status = .downloading(0)
+    }
+    await store.receive(\.prepared)
+    await store.receive(\.downloaded) {
+      $0.status = .saving
+    }
+    await store.receive(\.saved) {
+      $0.status = .saved(saved)
+    }
+    #expect(downloads.value == 2)
   }
 }

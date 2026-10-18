@@ -68,9 +68,15 @@ export const archiveStream = (
         if (body === null) throw new Error(`${entry.name} is gone`);
         let written = 0;
         const reader = body.getReader();
-        for (let read = await reader.read(); !read.done; read = await reader.read()) {
-          written += read.value.length;
-          await writer.write(read.value);
+        try {
+          for (let read = await reader.read(); !read.done; read = await reader.read()) {
+            written += read.value.length;
+            await writer.write(read.value);
+          }
+        } catch (error) {
+          // E.g. the client went away: the file's body isn't read any further.
+          await reader.cancel(error).catch(() => {});
+          throw error;
         }
         if (written !== entry.size) {
           throw new Error(`${entry.name} has ${written} bytes, not ${entry.size}`);
@@ -83,5 +89,24 @@ export const archiveStream = (
     await writer.close();
   };
   write().catch((error: unknown) => writer.abort(error).catch(() => {}));
-  return readable;
+  return fixedLength(readable, archiveSize(entries));
 };
+
+/**
+ * Workers' `FixedLengthStream`, which makes the response's `Content-Length` binding: a plain
+ * stream goes out chunked. Tests run outside Workers, without it.
+ */
+const fixedLength = (stream: ReadableStream<Uint8Array>, length: number) => {
+  const { FixedLengthStream } = globalThis as {
+    readonly FixedLengthStream?: new (length: number) => TransformStream<Uint8Array, Uint8Array>;
+  };
+  return FixedLengthStream === undefined
+    ? stream
+    : stream.pipeThrough(new FixedLengthStream(length));
+};
+
+/**
+ * The most files one archive holds. Each is an R2 call, and a Worker request makes at most 10,000
+ * (`docs/DECISIONS.md`); the rest is room for listing the blobs.
+ */
+export const maxArchiveFiles = 9_000;

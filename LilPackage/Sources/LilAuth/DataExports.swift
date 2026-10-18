@@ -35,12 +35,19 @@ public enum DataExportError: Error, Equatable, Sendable {
   case unavailable
   /// The session ended.
   case signedOut
+  /// The download URL stopped working (it expired, or the export was replaced): ask again.
+  case expired
+  /// The account holds more than one archive can.
+  case tooLarge
   case failed(String)
 
   public var message: String {
     switch self {
     case .unavailable: "Exporting isn't possible right now. Please try again later."
     case .signedOut: "Your session ended. Sign in again."
+    case .expired: "The export's link expired. Please try again."
+    case .tooLarge:
+      "Your account holds too much to export in one archive. Please contact hello@851.sh."
     case .failed(let reason): "Exporting didn't work: \(reason)"
     }
   }
@@ -113,7 +120,13 @@ extension DataExportClient: DependencyKey {
               response.statusCode == 200
             else {
               let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-              continuation.finish(throwing: DataExportError.failed("HTTP \(status)"))
+              let error: DataExportError =
+                switch status {
+                case 401, 410: .expired
+                case 507: .tooLarge
+                default: .failed("HTTP \(status)")
+                }
+              continuation.finish(throwing: error)
               return
             }
             // The system deletes `file` when this returns, so it moves somewhere it keeps.
@@ -129,8 +142,15 @@ extension DataExportClient: DependencyKey {
               .finished(file: kept, name: response.suggestedFilename ?? "lil-export.tar"))
             continuation.finish()
           }
+          // A whole percent at a time: a big archive changes it for every chunk received.
+          let percent = LockIsolated(-1)
           let observation = task.progress.observe(\.fractionCompleted) { progress, _ in
-            continuation.yield(.progress(progress.fractionCompleted))
+            let now = Int(progress.fractionCompleted * 100)
+            let changed = percent.withValue { last in
+              defer { last = now }
+              return now != last
+            }
+            if changed { continuation.yield(.progress(Double(now) / 100)) }
           }
           continuation.onTermination = { _ in
             observation.invalidate()
