@@ -24,6 +24,8 @@ struct MetricDetailView: View {
     Group {
       if type.id == HealthDatabase.sleepType {
         SleepDetailView(type: type)
+      } else if type.id == HealthDatabase.menstrualFlowType {
+        CycleTrackingView()
       } else if type.kind == .workout {
         WorkoutsView()
       } else if type.kind == .electrocardiogram {
@@ -43,7 +45,7 @@ struct MetricDetailView: View {
             ?? ($chart.isLoading ? .loading : chart.map { .loaded($0) } ?? .loading),
           overlays: overlays)
       } else {
-        // Their own views come with their tickets (cycle tracking…).
+        // Other kinds without a chart of their own yet.
         ContentUnavailableView(
           type.name, systemImage: type.category?.symbolName ?? "questionmark",
           description: Text("A chart for \(type.name) is coming."))

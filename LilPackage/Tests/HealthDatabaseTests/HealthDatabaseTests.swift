@@ -1762,3 +1762,109 @@ struct HeartQueriesTests {
     #expect(broken.analysis.beats.isEmpty && broken.analysis.beatCount == 3)
   }
 }
+
+@Suite
+struct CycleQueriesTests {
+  private let calendar = {
+    var c = Calendar(identifier: .gregorian)
+    c.timeZone = .gmt
+    return c
+  }()
+
+  /// Noon UTC on day `n` of October 2025.
+  private func day(_ n: Int) -> Date {
+    calendar.date(from: DateComponents(year: 2025, month: 10, day: n, hour: 12))!
+  }
+
+  private func sample(
+    _ id: String, _ type: String, day n: Int, value: Int?, endDay: Int? = nil,
+    metadata: String? = nil
+  ) -> HealthSample {
+    HealthSample(
+      id: id, type: type, startDate: day(n).unixMilliseconds,
+      endDate: day(endDay ?? n).unixMilliseconds, categoryValue: value, sourceName: "Health",
+      sourceBundleID: "com.apple.Health", metadata: metadata)
+  }
+
+  private func database(_ samples: [HealthSample]) throws -> any DatabaseWriter {
+    let database = try HealthDatabase.make()
+    try database.write { db in try HealthSample.insert { samples }.execute(db) }
+    return database
+  }
+
+  @Test
+  func daysGatherWhatWasLogged() throws {
+    let flow = HealthDatabase.menstrualFlowType
+    let database = try database([
+      sample("a", flow, day: 3, value: 3),
+      sample("b", flow, day: 3, value: 4),
+      sample("c", flow, day: 4, value: 5),
+      sample("c2", "HKCategoryTypeIdentifierBloating", day: 4, value: 3),
+      // Logged as not present.
+      sample("c3", "HKCategoryTypeIdentifierHeadache", day: 4, value: 1),
+      sample("d", "HKCategoryTypeIdentifierIntermenstrualBleeding", day: 10, value: 0),
+      sample("e", "HKCategoryTypeIdentifierOvulationTestResult", day: 15, value: 2),
+      sample("f", "HKCategoryTypeIdentifierOvulationTestResult", day: 16, value: 1),
+      sample("g", "HKCategoryTypeIdentifierHeadache", day: 3, value: 2),
+      sample("h", "HKCategoryTypeIdentifierSexualActivity", day: 12, value: 0),
+    ])
+    let october = calendar.dateInterval(of: .month, for: day(1))!
+    let days = try database.read { db in
+      try HealthDatabase.cycleDays(in: october, calendar: calendar, db)
+    }
+    let start = { (n: Int) in self.calendar.startOfDay(for: self.day(n)) }
+    // The heavier of two flows; "no flow" isn't a period day.
+    #expect(days[start(3)] == CycleDay(flow: .heavy, symptoms: ["Headache"]))
+    #expect(days[start(4)] == CycleDay(symptoms: ["Bloating"]))
+    #expect(days[start(10)]?.spotting == true)
+    #expect(days[start(15)]?.ovulationPositive == true)
+    #expect(days[start(16)]?.ovulationPositive != true)
+    #expect(days[start(12)]?.sexualActivity == true)
+  }
+
+  @Test
+  func periodsAreRunsOfFlowDaysWithTheirCycles() throws {
+    let flow = HealthDatabase.menstrualFlowType
+    let database = try database(
+      [1, 2, 3].map { sample("p\($0)", flow, day: $0, value: 3) }
+        + [29, 30].map { sample("q\($0)", flow, day: $0, value: 2) }
+        // "No flow" isn't a period day.
+        + [sample("x", flow, day: 31, value: 5)])
+    let periods = try database.read { db in
+      try HealthDatabase.periods(limit: 10, calendar: calendar, db)
+    }
+    #expect(periods.count == 2)
+    #expect(periods[0].start == calendar.startOfDay(for: day(29)))
+    #expect(periods[0].length(calendar) == 2 && periods[0].cycleLength == nil)
+    #expect(periods[1].length(calendar) == 3 && periods[1].cycleLength == 28)
+  }
+
+  @Test
+  func aCycleStartSplitsBackToBackPeriods() throws {
+    let flow = HealthDatabase.menstrualFlowType
+    for start in [#"{"HKMenstrualCycleStart":true}"#, #"{"HKMenstrualCycleStart":1}"#] {
+      let database = try database([
+        sample("a", flow, day: 1, value: 3), sample("b", flow, day: 2, value: 3),
+        sample("c", flow, day: 3, value: 3, metadata: start),
+      ])
+      let periods = try database.read { db in
+        try HealthDatabase.periods(limit: 10, calendar: calendar, db)
+      }
+      #expect(periods.map { $0.length(calendar) } == [1, 2], "\(start)")
+      #expect(periods.last?.cycleLength == 2)
+    }
+  }
+
+  @Test
+  func factorsAreThoseGoingOnNow() throws {
+    let database = try database([
+      sample("a", "HKCategoryTypeIdentifierContraceptive", day: 1, value: 6, endDay: 30),
+      sample("b", "HKCategoryTypeIdentifierLactation", day: 1, value: 0, endDay: 5),
+      // No end yet.
+      sample("c", "HKCategoryTypeIdentifierPregnancy", day: 2, value: 0),
+    ])
+    let factors = try database.read { db in try HealthDatabase.cycleFactors(at: day(10), db) }
+    #expect(factors.map(\.name) == ["Pregnancy", "Contraceptives"])
+    #expect(factors.last?.detail == "Oral")
+  }
+}
