@@ -44,12 +44,12 @@ public struct SignInView: View {
                   Label("Sign in with Apple", systemImage: "apple.logo")
                     .font(.body.weight(.medium))
                     .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .frame(maxWidth: .infinity, minHeight: SignInButtonMetrics.height)
                     .background(
                       colorScheme == .dark ? Color.white : Color.black,
-                      in: .rect(cornerRadius: 8)
+                      in: .rect(cornerRadius: SignInButtonMetrics.cornerRadius)
                     )
-                    .contentShape(.rect(cornerRadius: 8))
+                    .contentShape(.rect(cornerRadius: SignInButtonMetrics.cornerRadius))
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: 320)
@@ -66,20 +66,14 @@ public struct SignInView: View {
               }
               .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
               .frame(maxWidth: 320)
-              .frame(height: 44)
+              .frame(height: SignInButtonMetrics.height)
+              .clipShape(.rect(cornerRadius: SignInButtonMetrics.cornerRadius))
             #endif
 
             if store.isGoogleAvailable {
-              Button {
-                store.send(.googleButtonTapped)
-              } label: {
-                Text("Sign in with Google")
-                  .frame(maxWidth: .infinity)
-              }
-              .buttonStyle(.bordered)
-              .controlSize(.extraLarge)
-              .frame(maxWidth: 320)
-              .disabled(store.googleRequest != nil)
+              GoogleSignInButton { store.send(.googleButtonTapped) }
+                .frame(maxWidth: 320)
+                .disabled(store.googleRequest != nil)
             }
 
             if store.isTestAccountAvailable {
@@ -158,10 +152,19 @@ public struct SignInView: View {
   }
 }
 
-#Preview("Signed out") {
+@MainActor
+private func signedOut() -> SignInView {
   SignInView(
     store: Store(initialState: SignInFeature.State()) { SignInFeature() },
     appName: "lil health", privacyPolicy: URL(string: "https://lil.tech/privacy"))
+}
+
+#Preview("Signed out, light") {
+  signedOut().background(Color.white).environment(\.colorScheme, .light)
+}
+
+#Preview("Signed out, dark") {
+  signedOut().background(Color.black).environment(\.colorScheme, .dark)
 }
 
 #Preview("Pointed at a preview deployment") {

@@ -36,6 +36,7 @@
   - Any pointfreeco package can be added whenever it's useful, without a separate decision.
   - Core set: Dependencies, SQLiteData + StructuredQueries, Sharing, SwiftNavigation, Tagged (typed IDs), IssueReporting, CustomDump, Swift Testing, SnapshotTesting.
 - **Look and feel:** stock Apple. System controls, fonts, colors, SF Symbols and Liquid Glass. No custom design system.
+  - The exception is sign-in buttons, which follow their brands: Apple's in its colors, and Google's as its branding guidelines draw it, with its G, Google Sans (bundled in `LilAuth`, a Latin subset under the SIL Open Font License) and its colors (851-2601).
   - Exception: lil health is a close visual clone of iPad Health (cards, category colors and icons), because that's its reference.
 - **UI:** SwiftUI for the app shell and all navigation (split view, sheets, settings, toolbar, windows).
   - AppKit only for leaf views where performance or control matters, e.g. the message list (`NSTableView`/`NSCollectionView`) and the composer (`NSTextView`).

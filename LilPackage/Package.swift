@@ -227,7 +227,9 @@ let package = Package(
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
-      ]
+      ],
+      // Google's G and font, for its sign-in button.
+      resources: [.process("Resources")]
     ),
     .testTarget(
       name: "LilAuthTests",
