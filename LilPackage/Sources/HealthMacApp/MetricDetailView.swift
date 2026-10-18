@@ -26,13 +26,15 @@ struct MetricDetailView: View {
         WorkoutsView()
       } else if type.kind == .electrocardiogram {
         ElectrocardiogramsView()
+      } else if type.kind == .audiogram {
+        AudiogramsView()
       } else if type.kind == .quantity {
         MetricDetailContent(
           type: type, range: $range, offset: $offset,
           state: $chart.loadError.map { .failed($0.localizedDescription) }
             ?? ($chart.isLoading ? .loading : chart.map { .loaded($0) } ?? .loading))
       } else {
-        // Their own views come with their tickets (hearing, cycle tracking…).
+        // Their own views come with their tickets (cycle tracking…).
         ContentUnavailableView(
           type.name, systemImage: type.category?.symbolName ?? "questionmark",
           description: Text("A chart for \(type.name) is coming."))
@@ -212,22 +214,20 @@ struct MetricDetailContent: View {
         "Couldn't Load \(type.name)", systemImage: "exclamationmark.triangle",
         description: Text(reason))
     case .loaded(let chart):
-      Chart(chart.points, id: \.start) { point in
-        if type.aggregation?.isCumulative == true {
-          BarMark(
-            x: .value("Date", point.start, unit: range.barUnit),
-            y: .value("Value", point.value)
-          )
-          .foregroundStyle(color.opacity(isHovered(point, in: chart) ? 1 : 0.8))
-        } else {
-          BarMark(
-            x: .value("Date", point.start, unit: range.barUnit),
-            yStart: .value("Minimum", point.minimum),
-            yEnd: .value("Maximum", point.maximum),
-            width: .ratio(0.35)
-          )
-          .clipShape(Capsule())
-          .foregroundStyle(color.opacity(isHovered(point, in: chart) ? 1 : 0.8))
+      Chart {
+        ForEach(chart.points, id: \.start) { point in
+          bar(point, in: chart)
+        }
+        // Sound above this over time can affect hearing.
+        if HealthDatabase.soundLevelTypes.contains(type.id) {
+          RuleMark(y: .value("Loud", HealthDatabase.loudSoundLevel))
+            .foregroundStyle(.orange)
+            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            .annotation(position: .top, alignment: .leading) {
+              Text("Loud: \(Int(HealthDatabase.loudSoundLevel)) dB")
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
         }
       }
       .chartXScale(domain: domain(chart))
@@ -242,6 +242,27 @@ struct MetricDetailContent: View {
             .foregroundStyle(.secondary)
         }
       }
+    }
+  }
+
+  /// A period's bar: its total for a cumulative type, otherwise its range.
+  @ChartContentBuilder
+  private func bar(_ point: ChartPoint, in chart: MetricChart) -> some ChartContent {
+    if type.aggregation?.isCumulative == true {
+      BarMark(
+        x: .value("Date", point.start, unit: range.barUnit),
+        y: .value("Value", point.value)
+      )
+      .foregroundStyle(color.opacity(isHovered(point, in: chart) ? 1 : 0.8))
+    } else {
+      BarMark(
+        x: .value("Date", point.start, unit: range.barUnit),
+        yStart: .value("Minimum", point.minimum),
+        yEnd: .value("Maximum", point.maximum),
+        width: .ratio(0.35)
+      )
+      .clipShape(Capsule())
+      .foregroundStyle(color.opacity(isHovered(point, in: chart) ? 1 : 0.8))
     }
   }
 
