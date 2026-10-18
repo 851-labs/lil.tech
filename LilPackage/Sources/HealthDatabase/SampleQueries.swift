@@ -79,7 +79,8 @@ public struct SampleSourceRevision: Codable, Equatable, Sendable {
 }
 
 extension HealthSample {
-  /// The device it was recorded on, if HealthKit said.
+  /// The device it was recorded on, if HealthKit said. For a sample read with its provenance
+  /// filled in (`samplePage` does), since newer iPhones send it there (851-2674).
   public var decodedDevice: SampleDevice? {
     device.flatMap { try? JSONDecoder().decode(SampleDevice.self, from: Data($0.utf8)) }
   }

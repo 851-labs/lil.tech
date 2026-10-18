@@ -550,6 +550,40 @@ struct HealthBatchWriterTests {
   }
 
   @Test
+  func anUpsertWithoutASourceRevisionOrDeviceKeepsTheStoredOnes() throws {
+    var writer = HealthBatchWriter()
+    let partial = HealthMutation.upsert(
+      "health_sample", id: "6f1c2a40-0000-4000-8000-000000000001", row: ["value": 2])
+    _ = try writer.append(partial)
+    let file = try #require(try writer.finish())
+    let lines = String(decoding: try Gzip.decompress(file), as: UTF8.self).split(separator: "\n")
+    #expect(lines.count == 1)
+    let line = try #require(lines.first)
+    let row = try #require(
+      (try JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["row"]
+        as? [String: Any])
+    #expect(Set(row.keys) == ["value"])
+  }
+
+  @Test
+  func aRecordWhoseDeviceIsTooLongIsNamed() throws {
+    var writer = HealthBatchWriter()
+    let sample = HealthMutation.upsert(
+      "health_sample", id: "6f1c2a40-0000-4000-8000-000000000001",
+      row: [
+        "device": .object([
+          "name": .string(String(repeating: "x", count: HealthBatchWriter.maxLineBytes))
+        ])
+      ])
+    #expect(
+      throws: HealthBatchWriter.LineTooLong(
+        entity: "health_sample", id: "6f1c2a40-0000-4000-8000-000000000001")
+    ) {
+      try writer.append(sample)
+    }
+  }
+
+  @Test
   func linesOverTheServersLimitAreRejected() throws {
     var writer = HealthBatchWriter()
     #expect(throws: HealthBatchWriter.LineTooLong.self) {

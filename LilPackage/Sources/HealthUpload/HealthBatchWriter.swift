@@ -10,11 +10,12 @@ import GzipFiles
 /// A record's source revision and device, which nearly all of a user's samples share, go once per
 /// file as a `health_provenance` record, and the record refers to it by `provenance` (851-2674).
 public struct HealthBatchWriter {
-  /// The entities whose records have a source revision and device.
+  /// The entities whose records have a source revision and device (`HealthEncoder.provenance(of:)`).
   static let provenanceEntities: Set<String> = [
-    "health_sample", "health_correlation", "health_workout", "health_state_of_mind",
-    "health_scored_assessment", "health_audiogram", "health_electrocardiogram",
-    "health_heartbeat_series", "health_workout_route",
+    HealthEncoder.sampleEntity, HealthEncoder.correlationEntity, HealthEncoder.workoutEntity,
+    HealthEncoder.stateOfMindEntity, HealthEncoder.scoredAssessmentEntity,
+    HealthEncoder.audiogramEntity, HealthEncoder.electrocardiogramEntity,
+    HealthEncoder.heartbeatSeriesEntity, HealthEncoder.workoutRouteEntity,
   ]
 
   public static let maxFileBytes = 15 * 1024 * 1024
@@ -33,11 +34,20 @@ public struct HealthBatchWriter {
   private var count = 0
   /// The `health_provenance` records in the current file.
   private var provenances: Set<String> = []
-  private let encoder: JSONEncoder = {
+  /// The last source revision and device separated, with its record's ID and line: consecutive
+  /// records nearly always share them.
+  private var lastProvenance: (pair: [String: JSONValue], provenance: Provenance)?
+  private static let encoder: JSONEncoder = {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     return encoder
   }()
+
+  /// A `health_provenance` record: its ID and its line.
+  struct Provenance {
+    let id: String
+    let line: Data
+  }
 
   public init(maxFileBytes: Int = Self.maxFileBytes, maxRecords: Int = .max) {
     self.maxFileBytes = maxFileBytes
@@ -53,75 +63,73 @@ public struct HealthBatchWriter {
   /// it already holds `maxRecords`. A `health_provenance` record it refers to doesn't count
   /// towards `maxRecords`.
   public mutating func append(_ mutation: HealthMutation) throws -> Data? {
-    let (mutation, provenance) = try Self.separatingProvenance(mutation)
-    let line = try encoded(mutation)
-    var provenanceLine = try provenance.map(encoded)
-    if count >= maxRecords
-      || (count > 0 && lines.count + 2 + (provenanceLine?.count ?? 0) + line.count > maxFileBytes)
-    {
-      return try finish(adding: line, provenance: provenance, provenanceLine)
+    let (separated, provenance) = try separatingProvenance(mutation)
+    let line = try Self.encoded(separated, as: mutation)
+    // The provenance record goes in only if the file doesn't have it yet.
+    var provenanceLine = provenance.flatMap { provenances.contains($0.id) ? nil : $0.line }
+    var finished: Data?
+    let size = lines.count + (provenanceLine.map { $0.count + 1 } ?? 0) + 1 + line.count
+    if count >= maxRecords || (count > 0 && size > maxFileBytes) {
+      finished = try finish()
+      provenanceLine = provenance?.line
     }
-    if let id = provenance?.id, provenances.contains(id) { provenanceLine = nil }
-    write(provenanceLine, provenance, line)
-    return nil
-  }
-
-  private mutating func finish(
-    adding line: Data, provenance: HealthMutation?, _ provenanceLine: Data?
-  ) throws -> Data? {
-    let finished = try finish()
-    write(provenanceLine, provenance, line)
+    if let provenance, let provenanceLine {
+      write(provenanceLine)
+      provenances.insert(provenance.id)
+    }
+    write(line)
+    count += 1
     return finished
   }
 
-  private mutating func write(_ provenanceLine: Data?, _ provenance: HealthMutation?, _ line: Data)
-  {
-    if let provenanceLine, let provenance {
-      if !lines.isEmpty { lines.append(0x0a) }
-      lines.append(provenanceLine)
-      provenances.insert(provenance.id)
-    }
+  private mutating func write(_ line: Data) {
     if !lines.isEmpty { lines.append(0x0a) }
     lines.append(line)
-    count += 1
   }
 
-  private func encoded(_ mutation: HealthMutation) throws -> Data {
+  /// `mutation` as a line, too long if it's over the server's limit. `original` is the mutation
+  /// it came from, named in the error.
+  private static func encoded(_ mutation: HealthMutation, as original: HealthMutation) throws
+    -> Data
+  {
     let line = try encoder.encode(mutation)
-    guard line.count <= Self.maxLineBytes else {
-      throw LineTooLong(entity: mutation.entity, id: mutation.id)
+    guard line.count <= maxLineBytes else {
+      throw LineTooLong(entity: original.entity, id: original.id)
     }
     return line
   }
 
   /// An upsert with its source revision and device replaced by a reference to the
   /// `health_provenance` record holding them, and that record. Its ID is a hash of the two, so
-  /// the same pair is always the same record.
-  static func separatingProvenance(
+  /// the same pair is always the same record. A record that sets neither is left as it is,
+  /// since an upsert keeps the fields it doesn't set.
+  private mutating func separatingProvenance(
     _ mutation: HealthMutation
-  ) throws -> (HealthMutation, provenance: HealthMutation?) {
-    guard mutation.op == .upsert, provenanceEntities.contains(mutation.entity),
-      var row = mutation.row
+  ) throws -> (HealthMutation, Provenance?) {
+    guard mutation.op == .upsert, Self.provenanceEntities.contains(mutation.entity),
+      var row = mutation.row, row["sourceRevision"] != nil || row["device"] != nil
     else { return (mutation, nil) }
     let pair: [String: JSONValue] = [
       "sourceRevision": row["sourceRevision"] ?? .null, "device": row["device"] ?? .null,
     ]
-    let digest = SHA256.hash(data: try provenanceEncoder.encode(pair))
-    let id = digest.prefix(16).map { String(format: "%02x", $0) }.joined()
+    let provenance: Provenance
+    if let last = lastProvenance, last.pair == pair {
+      provenance = last.provenance
+    } else {
+      let digest = SHA256.hash(data: try Self.encoder.encode(pair))
+      let id = digest.prefix(16).map { String(format: "%02x", $0) }.joined()
+      let record = HealthMutation.upsert("health_provenance", id: id, row: pair)
+      provenance = Provenance(id: id, line: try Self.encoded(record, as: mutation))
+      lastProvenance = (pair, provenance)
+    }
     // Null rather than missing, since an upsert keeps the fields it doesn't set.
     row["sourceRevision"] = .null
     row["device"] = .null
-    row["provenance"] = .string(id)
+    row["provenance"] = .string(provenance.id)
     var separated = mutation
     separated.row = row
-    return (separated, .upsert("health_provenance", id: id, row: pair))
+    return (separated, provenance)
   }
-
-  private static let provenanceEncoder: JSONEncoder = {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    return encoder
-  }()
 
   /// The current file, gzip-compressed, or `nil` if it's empty. Starts a new file. If
   /// compressing fails, the mutations stay for the next try.
