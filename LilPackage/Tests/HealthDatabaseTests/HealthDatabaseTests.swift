@@ -1542,3 +1542,105 @@ struct ECGQueriesTests {
     #expect(recordings.map(\.hadSymptoms) == [true, nil])
   }
 }
+
+@Suite
+struct HearingQueriesTests {
+  private func audiogram(_ id: String, start: Int, points: String) -> HealthAudiogram {
+    HealthAudiogram(
+      id: id, startDate: start, endDate: start + 600_000, points: points, sourceName: "Test",
+      sourceBundleID: "com.example.hearing")
+  }
+
+  @Test
+  func eachEarsUnmaskedAirTestCounts() {
+    let points = audiogram(
+      "a", start: 0,
+      points: """
+        [{"frequency":500,"tests":[
+          {"side":0,"type":1,"masked":false,"sensitivity":5,"clampingLower":null,"clampingUpper":null},
+          {"side":0,"type":0,"masked":true,"sensitivity":15,"clampingLower":null,"clampingUpper":null},
+          {"side":0,"type":0,"masked":false,"sensitivity":10,"clampingLower":null,"clampingUpper":null},
+          {"side":1,"type":0,"masked":false,"sensitivity":20,"clampingLower":null,"clampingUpper":null}]},
+         {"frequency":1000,"tests":[
+          {"side":1,"type":0,"masked":false,"sensitivity":30,"clampingLower":null,"clampingUpper":null}]}]
+        """
+    ).decodedPoints
+    #expect(
+      points == [
+        AudiogramPoint(frequency: 500, left: 10, right: 20),
+        AudiogramPoint(frequency: 1_000, left: nil, right: 30),
+      ])
+    #expect(audiogram("b", start: 0, points: "not json").decodedPoints.isEmpty)
+  }
+
+  @Test
+  func anUnreadablePointLeavesTheOthers() {
+    let points = audiogram(
+      "a", start: 0,
+      points: """
+        [{"frequency":500,"tests":[{"side":0,"sensitivity":10}]},
+         {"frequency":"oops","tests":[]},
+         {"frequency":1000,"tests":[{"side":"left","sensitivity":5},{"side":1,"sensitivity":20}]},
+         {"frequency":2000,"tests":[{"side":1,"type":1,"masked":false,"sensitivity":5},
+           {"side":1,"type":0,"masked":true,"sensitivity":40,"clampingLower":40,"clampingUpper":null}]}]
+        """
+    ).decodedPoints
+    #expect(
+      points == [
+        AudiogramPoint(frequency: 500, left: 10, right: nil),
+        AudiogramPoint(frequency: 1_000, left: nil, right: 20),
+        // The masked air test over the other kind, and a bound, not a threshold.
+        AudiogramPoint(frequency: 2_000, left: nil, right: 40, clamped: [.right]),
+      ])
+  }
+
+  @Test
+  func theHearingLevelIsTheSpeechRangesAverage() {
+    let points = [
+      AudiogramPoint(frequency: 250, left: 0, right: nil),
+      AudiogramPoint(frequency: 500, left: 10, right: nil),
+      AudiogramPoint(frequency: 1_000, left: 20, right: nil),
+      AudiogramPoint(frequency: 2_000, left: 30, right: nil),
+      AudiogramPoint(frequency: 4_000, left: 40, right: nil),
+      AudiogramPoint(frequency: 8_000, left: 90, right: nil),
+    ]
+    #expect(points.averageHearingLevel(.left) == 25)
+    // Whole decibels, so the number shown and its group agree.
+    let edge = [25.0, 25, 25, 26].enumerated().map { index, level in
+      AudiogramPoint(frequency: [500, 1_000, 2_000, 4_000][index], left: level, right: nil)
+    }
+    #expect(edge.averageHearingLevel(.left) == 25)
+    #expect(HearingLevel(decibels: edge.averageHearingLevel(.left)!) == .normal)
+    #expect(points.averageHearingLevel(.right) == nil)
+    // Without speech frequencies, every frequency tested counts.
+    let high = [
+      AudiogramPoint(frequency: 6_000, left: 40, right: nil),
+      AudiogramPoint(frequency: 8_000, left: 60, right: nil),
+    ]
+    #expect(high.averageHearingLevel(.left) == 50)
+  }
+
+  @Test
+  func hearingLevelsAreGroupedAsInHealth() {
+    #expect(HearingLevel(decibels: 25) == .normal)
+    #expect(HearingLevel(decibels: 25.5) == .mild)
+    #expect(HearingLevel(decibels: 60) == .moderate)
+    #expect(HearingLevel(decibels: 61) == .severe)
+    #expect(HearingLevel(decibels: 95) == .profound)
+  }
+
+  @Test
+  func audiogramsComeNewestFirst() throws {
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthAudiogram.insert {
+        audiogram("a", start: 1_000, points: "[]")
+        audiogram("b", start: 3_000, points: "[]")
+        audiogram("c", start: 2_000, points: "[]")
+      }
+      .execute(db)
+    }
+    let audiograms = try database.read { db in try HealthDatabase.audiograms(limit: 10, db) }
+    #expect(audiograms.map(\.id) == ["b", "c", "a"])
+  }
+}
