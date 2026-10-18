@@ -1131,8 +1131,31 @@ struct HealthSyncTests {
         try String.fetchAll(db, sql: "SELECT name FROM pragma_table_info('\(table)') ORDER BY cid")
       }
     }
-    #expect(try columns("healthSamples") == HealthDatabase.sampleColumns)
-    #expect(try columns("healthStatistics") == HealthDatabase.statisticColumns)
+    // Every synced table's upsert writes all of its columns.
+    func writable<Record: Table>(_: Record.Type) -> (String, [String]) {
+      (Record.tableName, Record.TableColumns.writableColumns.map(\.name))
+    }
+    let tables = [
+      writable(HealthSample.self), writable(HealthCorrelation.self),
+      writable(HealthCharacteristic.self), writable(HealthActivitySummary.self),
+      writable(HealthStatistic.self), writable(HealthWorkout.self),
+      writable(HealthStateOfMind.self), writable(HealthScoredAssessment.self),
+      writable(HealthAudiogram.self), writable(HealthElectrocardiogram.self),
+      writable(HealthWorkoutRoute.self), writable(HealthHeartbeatSeries.self),
+      writable(HealthStatisticsDevice.self),
+    ]
+    #expect(tables.count == HealthDatabase.syncEntities.count)
+    for (table, written) in tables {
+      #expect(try Set(columns(table)) == Set(written), "\(table)")
+    }
+    #expect(
+      PreparedUpsert<HealthStatistic>().sql == """
+        INSERT INTO "healthStatistics" ("id", "device", "type", "bucketStart", "sum", "unit")
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT ("id") DO UPDATE SET "device" = excluded."device", \
+        "type" = excluded."type", "bucketStart" = excluded."bucketStart", \
+        "sum" = excluded."sum", "unit" = excluded."unit"
+        """)
 
     let id = "6f1c2a40-0000-4000-8000-0000000000aa"
     // A distinct value in every column, so values bound in the wrong order show.
