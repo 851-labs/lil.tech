@@ -43,7 +43,10 @@ extension HealthDatabase {
         if sample.categoryValue == 2 || sample.categoryValue == 4 { entry.ovulationPositive = true }
       case sexualActivityType: entry.sexualActivity = true
       default:
-        if let name = HealthCatalog.type(id: sample.type)?.name, !entry.symptoms.contains(name) {
+        // 1 is "not present" (or "no change" for appetite): logged as absent.
+        if sample.categoryValue != 1, let name = HealthCatalog.type(id: sample.type)?.name,
+          !entry.symptoms.contains(name)
+        {
           entry.symptoms.append(name)
         }
       }
@@ -52,24 +55,21 @@ extension HealthDatabase {
     return days
   }
 
-  /// Periods, newest first: runs of days with flow, a new one after a day without (or where the
-  /// sample says a cycle started). Each knows how long its cycle was, up to the next period.
+  /// Periods, newest first, at most `limit`: runs of days with flow, a new one after a day
+  /// without (or where a sample says a cycle started). Each knows how long its cycle was, up to
+  /// the next period. Reads every day with flow, a few a month.
   public static func periods(limit: Int, calendar: Calendar, _ db: Database) throws -> [Period] {
+    let none = MenstrualFlow.none.rawValue
     let samples =
       try HealthSample
-      .where { $0.type.eq(menstrualFlowType) }
-      .order { $0.startDate.desc() }
-      .limit(limit * 10)
+      .where { $0.type.eq(menstrualFlowType) && $0.categoryValue.isNot(Int?.some(none)) }
+      .order(by: \.startDate)
       .fetchAll(db)
-      .reversed()
     var periods: [Period] = []
     var lastDay: Date?
     for sample in samples {
-      guard let flow = MenstrualFlow(rawValue: sample.categoryValue ?? 1), flow != .none
-      else { continue }
       let day = calendar.startOfDay(for: Date(unixMilliseconds: sample.startDate))
-      let started = sample.metadata?.contains(#""HKMenstrualCycleStart":true"#) == true
-      if let lastDay, let current = periods.last, !started,
+      if let lastDay, let current = periods.last, !sample.startsCycle,
         let gap = calendar.dateComponents([.day], from: lastDay, to: day).day, gap <= 1
       {
         periods[periods.count - 1].end = max(current.end, day)
@@ -86,12 +86,16 @@ extension HealthDatabase {
     return Array(periods.reversed().prefix(limit))
   }
 
-  /// Pregnancy, lactation and contraceptives logged as going on at `now`.
+  /// Pregnancy, lactation and contraceptives logged as going on at `now`: ending after it, or
+  /// with no end yet (ending as they start).
   public static func cycleFactors(at now: Date, _ db: Database) throws -> [CycleFactor] {
     let moment = now.unixMilliseconds
     return
       try HealthSample
-      .where { $0.type.in(factorTypes) && $0.startDate <= moment && $0.endDate > moment }
+      .where {
+        $0.type.in(factorTypes) && $0.startDate <= moment
+          && ($0.endDate > moment || $0.endDate.eq($0.startDate))
+      }
       .order { $0.startDate.desc() }
       .fetchAll(db)
       .map { sample in
@@ -196,5 +200,17 @@ public struct CycleFactor: Equatable, Sendable {
     case 7: "Patch"
     default: nil
     }
+  }
+}
+
+extension HealthSample {
+  /// Whether its metadata marks the start of a cycle (`HKMetadataKeyMenstrualCycleStart`), as
+  /// true or 1.
+  var startsCycle: Bool {
+    guard let metadata,
+      let object = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any],
+      let value = object["HKMenstrualCycleStart"]
+    else { return false }
+    return (value as? Bool) == true || (value as? NSNumber)?.intValue == 1
   }
 }

@@ -9,21 +9,37 @@ import SwiftUI
 struct CycleTrackingView: View {
   @State private var monthOffset = 0
   @State private var selected: Date?
-  @Fetch private var snapshot: CycleSnapshot? = nil
+  /// Moves at midnight, so the months do even if nothing syncs.
+  @State private var today = Date.now
+  @Fetch private var days: CycleMonth? = nil
+  /// Not tied to the month shown, so they load once.
+  @Fetch private var history: CycleHistory? = nil
+
+  init() {
+    _history = Fetch(wrappedValue: nil, CycleHistoryRequest(), scheduler: MainQueueScheduler())
+  }
 
   var body: some View {
-    let month = CycleSnapshotRequest.month(offset: monthOffset, now: .now, calendar: .current)
+    let month = ChartRange.month.interval(offset: monthOffset, now: today, calendar: .current)
     CycleTrackingContent(
       month: month, selected: $selected,
-      state: $snapshot.loadError.map { .failed($0.localizedDescription) }
+      state: ($days.loadError ?? $history.loadError).map { .failed($0.localizedDescription) }
         // The month being loaded, not the one before it.
-        ?? (snapshot.flatMap { $0.month == month ? .loaded($0) : nil } ?? .loading),
+        ?? {
+          guard let days, days.month == month, let history else { return .loading }
+          return .loaded(
+            CycleSnapshot(
+              month: month, days: days.days, periods: history.periods,
+              factors: history.factors))
+        }(),
       previous: { monthOffset -= 1 }, next: { monthOffset += 1 },
       isLatest: monthOffset >= 0
     )
-    .task(id: monthOffset) {
-      _ = try? await $snapshot.load(
-        CycleSnapshotRequest(month: month, now: .now), scheduler: MainQueueScheduler())
+    .task(id: [String(monthOffset), today.formatted(.iso8601)]) {
+      _ = try? await $days.load(CycleMonthRequest(month: month), scheduler: MainQueueScheduler())
+    }
+    .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+      today = .now
     }
   }
 }
@@ -39,21 +55,29 @@ struct CycleSnapshot: Equatable, Sendable {
   var isEmpty: Bool { days.isEmpty && periods.isEmpty && factors.isEmpty }
 }
 
-struct CycleSnapshotRequest: FetchKeyRequest {
+struct CycleMonth: Equatable, Sendable {
+  var month: DateInterval
+  var days: [Date: CycleDay]
+}
+
+struct CycleMonthRequest: FetchKeyRequest {
   let month: DateInterval
-  let now: Date
 
-  /// The month `offset` months from `now`'s.
-  static func month(offset: Int, now: Date, calendar: Calendar) -> DateInterval {
-    let base = calendar.date(byAdding: .month, value: offset, to: now) ?? now
-    return calendar.dateInterval(of: .month, for: base) ?? DateInterval(start: base, duration: 0)
+  func fetch(_ db: Database) throws -> CycleMonth? {
+    CycleMonth(month: month, days: try HealthDatabase.cycleDays(in: month, calendar: .current, db))
   }
+}
 
-  func fetch(_ db: Database) throws -> CycleSnapshot? {
-    CycleSnapshot(
-      month: month, days: try HealthDatabase.cycleDays(in: month, calendar: .current, db),
+struct CycleHistory: Equatable, Sendable {
+  var periods: [Period]
+  var factors: [CycleFactor]
+}
+
+struct CycleHistoryRequest: FetchKeyRequest {
+  func fetch(_ db: Database) throws -> CycleHistory? {
+    CycleHistory(
       periods: try HealthDatabase.periods(limit: 12, calendar: .current, db),
-      factors: try HealthDatabase.cycleFactors(at: now, db))
+      factors: try HealthDatabase.cycleFactors(at: .now, db))
   }
 }
 
@@ -83,19 +107,25 @@ struct CycleTrackingContent: View {
         ContentUnavailableView(
           "Couldn't Load Cycle Tracking", systemImage: "exclamationmark.triangle",
           description: Text(reason))
-      case .loaded(let snapshot) where snapshot.isEmpty:
-        ContentUnavailableView(
-          "No Cycle Data", systemImage: "drop",
-          description: Text("Periods and symptoms you log in Cycle Tracking will appear here."))
       case .loaded(let snapshot):
         ScrollView {
           VStack(alignment: .leading, spacing: 20) {
+            // The calendar stays, so other months can be reached.
             calendarCard(snapshot)
-            dayDetail(snapshot)
-            if !snapshot.factors.isEmpty {
-              factors(snapshot.factors)
+            if snapshot.isEmpty {
+              ContentUnavailableView(
+                "No Cycle Data", systemImage: "drop",
+                description: Text(
+                  "Periods and symptoms you log in Cycle Tracking will appear here.")
+              )
+              .frame(maxWidth: .infinity)
+            } else {
+              dayDetail(snapshot)
+              if !snapshot.factors.isEmpty {
+                factors(snapshot.factors)
+              }
+              history(snapshot.periods)
             }
-            history(snapshot.periods)
           }
           .padding(20)
           .frame(maxWidth: 760)
@@ -190,10 +220,13 @@ struct CycleTrackingContent: View {
 
   /// The selected day, or today if it's in the month, or the month's first.
   private var shownDay: Date {
-    if let selected, month.contains(selected) { return selected }
+    if let selected, isInMonth(selected) { return selected }
     let today = calendar.startOfDay(for: .now)
-    return month.contains(today) ? today : month.start
+    return isInMonth(today) ? today : month.start
   }
+
+  /// In the month: `DateInterval.contains` also counts its end, the next month's first instant.
+  private func isInMonth(_ date: Date) -> Bool { date >= month.start && date < month.end }
 
   private func dayDetail(_ snapshot: CycleSnapshot) -> some View {
     let entry = snapshot.days[shownDay]

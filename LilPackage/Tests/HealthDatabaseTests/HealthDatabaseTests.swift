@@ -1799,10 +1799,13 @@ struct CycleQueriesTests {
       sample("a", flow, day: 3, value: 3),
       sample("b", flow, day: 3, value: 4),
       sample("c", flow, day: 4, value: 5),
+      sample("c2", "HKCategoryTypeIdentifierBloating", day: 4, value: 3),
+      // Logged as not present.
+      sample("c3", "HKCategoryTypeIdentifierHeadache", day: 4, value: 1),
       sample("d", "HKCategoryTypeIdentifierIntermenstrualBleeding", day: 10, value: 0),
       sample("e", "HKCategoryTypeIdentifierOvulationTestResult", day: 15, value: 2),
       sample("f", "HKCategoryTypeIdentifierOvulationTestResult", day: 16, value: 1),
-      sample("g", "HKCategoryTypeIdentifierHeadache", day: 3, value: 0),
+      sample("g", "HKCategoryTypeIdentifierHeadache", day: 3, value: 2),
       sample("h", "HKCategoryTypeIdentifierSexualActivity", day: 12, value: 0),
     ])
     let october = calendar.dateInterval(of: .month, for: day(1))!
@@ -1812,7 +1815,7 @@ struct CycleQueriesTests {
     let start = { (n: Int) in self.calendar.startOfDay(for: self.day(n)) }
     // The heavier of two flows; "no flow" isn't a period day.
     #expect(days[start(3)] == CycleDay(flow: .heavy, symptoms: ["Headache"]))
-    #expect(days[start(4)] == nil || days[start(4)]?.flow == nil)
+    #expect(days[start(4)] == CycleDay(symptoms: ["Bloating"]))
     #expect(days[start(10)]?.spotting == true)
     #expect(days[start(15)]?.ovulationPositive == true)
     #expect(days[start(16)]?.ovulationPositive != true)
@@ -1825,7 +1828,7 @@ struct CycleQueriesTests {
     let database = try database(
       [1, 2, 3].map { sample("p\($0)", flow, day: $0, value: 3) }
         + [29, 30].map { sample("q\($0)", flow, day: $0, value: 2) }
-        // A day without flow, then another period that day after.
+        // "No flow" isn't a period day.
         + [sample("x", flow, day: 31, value: 5)])
     let periods = try database.read { db in
       try HealthDatabase.periods(limit: 10, calendar: calendar, db)
@@ -1837,13 +1840,31 @@ struct CycleQueriesTests {
   }
 
   @Test
+  func aCycleStartSplitsBackToBackPeriods() throws {
+    let flow = HealthDatabase.menstrualFlowType
+    for start in [#"{"HKMenstrualCycleStart":true}"#, #"{"HKMenstrualCycleStart":1}"#] {
+      let database = try database([
+        sample("a", flow, day: 1, value: 3), sample("b", flow, day: 2, value: 3),
+        sample("c", flow, day: 3, value: 3, metadata: start),
+      ])
+      let periods = try database.read { db in
+        try HealthDatabase.periods(limit: 10, calendar: calendar, db)
+      }
+      #expect(periods.map { $0.length(calendar) } == [1, 2], "\(start)")
+      #expect(periods.last?.cycleLength == 2)
+    }
+  }
+
+  @Test
   func factorsAreThoseGoingOnNow() throws {
     let database = try database([
       sample("a", "HKCategoryTypeIdentifierContraceptive", day: 1, value: 6, endDay: 30),
       sample("b", "HKCategoryTypeIdentifierLactation", day: 1, value: 0, endDay: 5),
+      // No end yet.
+      sample("c", "HKCategoryTypeIdentifierPregnancy", day: 2, value: 0),
     ])
     let factors = try database.read { db in try HealthDatabase.cycleFactors(at: day(10), db) }
-    #expect(factors.map(\.name) == ["Contraceptives"])
-    #expect(factors.first?.detail == "Oral")
+    #expect(factors.map(\.name) == ["Pregnancy", "Contraceptives"])
+    #expect(factors.last?.detail == "Oral")
   }
 }
