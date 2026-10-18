@@ -1,11 +1,11 @@
 import { Context, Effect, Layer, Option, type Schema } from "effect";
 import type { SqlError } from "effect/sql";
 import { Devices, type DevicePlatform } from "../core/Devices.ts";
-import { Identities, type IdentityProvider } from "../core/Identities.ts";
+import { Identities, type Identity, type IdentityProvider } from "../core/Identities.ts";
 import type { UserId } from "../core/Ids.ts";
 import { Users } from "../core/Users.ts";
 import { Auth } from "./Auth.ts";
-import { SignUpUnavailableInRegion, type TokenPair } from "./AuthApi.ts";
+import { IdentityInUse, SignUpUnavailableInRegion, type TokenPair } from "./AuthApi.ts";
 
 /** Who a provider says signed in, from a verified ID token. */
 export interface VerifiedIdentity {
@@ -48,6 +48,14 @@ export class ProviderSignIn extends Context.Service<
       TokenPair,
       SqlError.SqlError | Schema.SchemaError | SignUpUnavailableInRegion
     >;
+    /**
+     * Links the identity to the user `userId`, so it signs in to their account too, and returns
+     * it. Already theirs, it's returned as it is; another user's, it fails with `IdentityInUse`.
+     */
+    readonly link: (
+      userId: UserId,
+      identity: VerifiedIdentity,
+    ) => Effect.Effect<Identity, SqlError.SqlError | Schema.SchemaError | IdentityInUse>;
   }
 >()("lil/api/auth/ProviderSignIn") {
   static readonly layer = Layer.effect(
@@ -97,11 +105,43 @@ export class ProviderSignIn extends Context.Service<
         return yield* created.failure;
       });
 
+      const ownedBy = (userId: UserId, existing: Identity) =>
+        existing.userId === userId
+          ? Effect.succeed(existing)
+          : Effect.fail(
+              new IdentityInUse({
+                message: "That account already signs in to another lil account",
+              }),
+            );
+
       return ProviderSignIn.of({
         signIn: Effect.fn("ProviderSignIn.signIn")(function* (identity, device, country) {
           const userId: UserId = yield* findOrCreateUser(identity, country);
           const { id: deviceId } = yield* devices.create({ userId, ...device });
           return yield* auth.issueSession(userId, deviceId);
+        }),
+        link: Effect.fn("ProviderSignIn.link")(function* (userId, identity) {
+          const existing = yield* identities.find(identity.provider, identity.subject);
+          if (Option.isSome(existing)) return yield* ownedBy(userId, existing.value);
+          const created = yield* identities
+            .create({
+              userId,
+              provider: identity.provider,
+              subject: identity.subject,
+              email: identity.email,
+              emailVerified: identity.emailVerified,
+            })
+            .pipe(Effect.result);
+          if (created._tag === "Failure") {
+            // Most likely a concurrent link or first sign-in won the uniqueness race.
+            const winner = yield* identities.find(identity.provider, identity.subject);
+            if (Option.isSome(winner)) return yield* ownedBy(userId, winner.value);
+            return yield* created.failure;
+          }
+          if (identity.displayName !== null) {
+            yield* users.setDisplayNameIfMissing(userId, identity.displayName);
+          }
+          return created.success;
         }),
       });
     }),

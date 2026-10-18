@@ -4,7 +4,7 @@ import { DevicePlatform } from "../core/Devices.ts";
 import { IdentityProvider } from "../core/Identities.ts";
 import { AddressRateLimit, TooManyRequests } from "../RateLimits.ts";
 import { UserStoreUnavailable } from "../store/UserStores.ts";
-import { DeviceId, SessionId, UserId } from "../core/Ids.ts";
+import { DeviceId, IdentityId, SessionId, UserId } from "../core/Ids.ts";
 
 // The auth part of the API definition. Like `Api.ts`, it holds no server code.
 
@@ -165,6 +165,11 @@ export class AuthApi extends HttpApiGroup.make("auth")
   ) {}
 
 export class MeIdentity extends Schema.Class<MeIdentity>("lil/api/auth/MeIdentity")({
+  /**
+   * What `DELETE /v1/me/identities/{id}` takes. Always sent, but optional in the spec: servers
+   * before 851-2554 (e.g. after a rollback) leave it out, and clients must still decode `/v1/me`.
+   */
+  id: Schema.optionalKey(IdentityId),
   provider: IdentityProvider,
   email: Schema.NullOr(Schema.String),
 }) {}
@@ -216,6 +221,47 @@ export class ConsentOutdated extends Schema.TaggedError<ConsentOutdated>()(
   { httpApiStatus: 409 },
 ) {}
 
+export class LinkAppleRequest extends Schema.Class<LinkAppleRequest>(
+  "lil/api/auth/LinkAppleRequest",
+)({
+  /** As in `AppleSignInRequest`. */
+  identityToken: Schema.String.check(Schema.isMaxLength(8192)),
+  nonce: Schema.String.check(Schema.isMaxLength(256)),
+  authorizationCode: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(1024))),
+}) {}
+
+export class LinkGoogleRequest extends Schema.Class<LinkGoogleRequest>(
+  "lil/api/auth/LinkGoogleRequest",
+)({
+  /** As in `GoogleSignInRequest`. */
+  idToken: Schema.String.check(Schema.isMaxLength(8192)),
+  nonce: Schema.String.check(Schema.isMaxLength(256)),
+}) {}
+
+/**
+ * The provider account already signs in to another user. Accounts are never merged: the person
+ * signs in with it to use that account, or deletes that account first.
+ */
+export class IdentityInUse extends Schema.TaggedError<IdentityInUse>()(
+  "IdentityInUse",
+  { message: Schema.String },
+  { httpApiStatus: 409 },
+) {}
+
+/** The identity is the user's only way to sign in, so it stays. */
+export class LastIdentity extends Schema.TaggedError<LastIdentity>()(
+  "LastIdentity",
+  { message: Schema.String },
+  { httpApiStatus: 409 },
+) {}
+
+/** The user has no identity with that ID (it may have been removed already). */
+export class IdentityNotFound extends Schema.TaggedError<IdentityNotFound>()(
+  "IdentityNotFound",
+  { message: Schema.String },
+  { httpApiStatus: 404 },
+) {}
+
 export class MeApi extends HttpApiGroup.make("me", { topLevel: true })
   .add(HttpApiEndpoint.get("me", "/v1/me", { success: Me }))
   .add(HttpApiEndpoint.get("healthConsent", "/v1/me/consents/health", { success: HealthConsent }))
@@ -232,6 +278,32 @@ export class MeApi extends HttpApiGroup.make("me", { topLevel: true })
     // Withdraws consent: Health uploads are refused from then on. Data already uploaded stays
     // until the account is deleted, which the app offers next.
     HttpApiEndpoint.delete("withdrawHealthConsent", "/v1/me/consents/health"),
+  )
+  .add(
+    // Links another Sign in with Apple account to the signed-in user, so it signs in to this
+    // account too. Linking one the user already has changes nothing. Verifying a provider token
+    // counts against the address's sign-in limit, as signing in does.
+    HttpApiEndpoint.post("linkApple", "/v1/me/identities/apple", {
+      payload: LinkAppleRequest,
+      success: MeIdentity,
+      error: [InvalidIdentityToken, SignInUnavailable, IdentityInUse],
+    }).middleware(AddressRateLimit),
+  )
+  .add(
+    // Links a Google account to the signed-in user, as `linkApple` does.
+    HttpApiEndpoint.post("linkGoogle", "/v1/me/identities/google", {
+      payload: LinkGoogleRequest,
+      success: MeIdentity,
+      error: [InvalidIdentityToken, SignInUnavailable, IdentityInUse],
+    }).middleware(AddressRateLimit),
+  )
+  .add(
+    // Unlinks one of the user's identities, unless it's their last. Devices signed in with it
+    // stay signed in. An Apple identity's token is revoked.
+    HttpApiEndpoint.delete("unlinkIdentity", "/v1/me/identities/:id", {
+      params: { id: IdentityId },
+      error: [LastIdentity, IdentityNotFound],
+    }),
   )
   .add(
     // Deletes the account and all of its data: the user's store and its snapshots, uploaded

@@ -974,6 +974,227 @@ extension Components {
                 case at
             }
         }
+        /// - Remark: Generated from `#/components/schemas/IdentityNotFound`.
+        public struct IdentityNotFound: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/IdentityNotFound/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case identityNotFound = "IdentityNotFound"
+            }
+            /// - Remark: Generated from `#/components/schemas/IdentityNotFound/_tag`.
+            public var _tag: Components.Schemas.IdentityNotFound._TagPayload
+            /// - Remark: Generated from `#/components/schemas/IdentityNotFound/message`.
+            public var message: Swift.String
+            /// Creates a new `IdentityNotFound`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.IdentityNotFound._TagPayload,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/LastIdentity`.
+        public struct LastIdentity: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/LastIdentity/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case lastIdentity = "LastIdentity"
+            }
+            /// - Remark: Generated from `#/components/schemas/LastIdentity/_tag`.
+            public var _tag: Components.Schemas.LastIdentity._TagPayload
+            /// - Remark: Generated from `#/components/schemas/LastIdentity/message`.
+            public var message: Swift.String
+            /// Creates a new `LastIdentity`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.LastIdentity._TagPayload,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/IdentityInUse`.
+        public struct IdentityInUse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/IdentityInUse/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case identityInUse = "IdentityInUse"
+            }
+            /// - Remark: Generated from `#/components/schemas/IdentityInUse/_tag`.
+            public var _tag: Components.Schemas.IdentityInUse._TagPayload
+            /// - Remark: Generated from `#/components/schemas/IdentityInUse/message`.
+            public var message: Swift.String
+            /// Creates a new `IdentityInUse`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.IdentityInUse._TagPayload,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SignInUnavailable`.
+        public struct SignInUnavailable: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SignInUnavailable/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case signInUnavailable = "SignInUnavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/SignInUnavailable/_tag`.
+            public var _tag: Components.Schemas.SignInUnavailable._TagPayload
+            /// - Remark: Generated from `#/components/schemas/SignInUnavailable/message`.
+            public var message: Swift.String
+            /// Creates a new `SignInUnavailable`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.SignInUnavailable._TagPayload,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken`.
+        public struct InvalidIdentityToken: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case invalidIdentityToken = "InvalidIdentityToken"
+            }
+            /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken/_tag`.
+            public var _tag: Components.Schemas.InvalidIdentityToken._TagPayload
+            /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken/message`.
+            public var message: Swift.String
+            /// Creates a new `InvalidIdentityToken`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.InvalidIdentityToken._TagPayload,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/MeIdentity`.
+        public struct MeIdentity: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/MeIdentity/id`.
+            public var id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/MeIdentity/provider`.
+            @frozen public enum ProviderPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case apple = "apple"
+                case google = "google"
+            }
+            /// - Remark: Generated from `#/components/schemas/MeIdentity/provider`.
+            public var provider: Components.Schemas.MeIdentity.ProviderPayload
+            /// - Remark: Generated from `#/components/schemas/MeIdentity/email`.
+            public var email: Swift.String?
+            /// Creates a new `MeIdentity`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - provider:
+            ///   - email:
+            public init(
+                id: Swift.String? = nil,
+                provider: Components.Schemas.MeIdentity.ProviderPayload,
+                email: Swift.String? = nil
+            ) {
+                self.id = id
+                self.provider = provider
+                self.email = email
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case provider
+                case email
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/LinkGoogleRequest`.
+        public struct LinkGoogleRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/LinkGoogleRequest/idToken`.
+            public var idToken: Swift.String
+            /// - Remark: Generated from `#/components/schemas/LinkGoogleRequest/nonce`.
+            public var nonce: Swift.String
+            /// Creates a new `LinkGoogleRequest`.
+            ///
+            /// - Parameters:
+            ///   - idToken:
+            ///   - nonce:
+            public init(
+                idToken: Swift.String,
+                nonce: Swift.String
+            ) {
+                self.idToken = idToken
+                self.nonce = nonce
+            }
+            public enum CodingKeys: String, CodingKey {
+                case idToken
+                case nonce
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/LinkAppleRequest`.
+        public struct LinkAppleRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/LinkAppleRequest/identityToken`.
+            public var identityToken: Swift.String
+            /// - Remark: Generated from `#/components/schemas/LinkAppleRequest/nonce`.
+            public var nonce: Swift.String
+            /// - Remark: Generated from `#/components/schemas/LinkAppleRequest/authorizationCode`.
+            public var authorizationCode: Swift.String?
+            /// Creates a new `LinkAppleRequest`.
+            ///
+            /// - Parameters:
+            ///   - identityToken:
+            ///   - nonce:
+            ///   - authorizationCode:
+            public init(
+                identityToken: Swift.String,
+                nonce: Swift.String,
+                authorizationCode: Swift.String? = nil
+            ) {
+                self.identityToken = identityToken
+                self.nonce = nonce
+                self.authorizationCode = authorizationCode
+            }
+            public enum CodingKeys: String, CodingKey {
+                case identityToken
+                case nonce
+                case authorizationCode
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/ConsentOutdated`.
         public struct ConsentOutdated: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/ConsentOutdated/_tag`.
@@ -1135,34 +1356,6 @@ extension Components {
                 case current
             }
         }
-        /// - Remark: Generated from `#/components/schemas/MeIdentity`.
-        public struct MeIdentity: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/MeIdentity/provider`.
-            @frozen public enum ProviderPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case apple = "apple"
-                case google = "google"
-            }
-            /// - Remark: Generated from `#/components/schemas/MeIdentity/provider`.
-            public var provider: Components.Schemas.MeIdentity.ProviderPayload
-            /// - Remark: Generated from `#/components/schemas/MeIdentity/email`.
-            public var email: Swift.String?
-            /// Creates a new `MeIdentity`.
-            ///
-            /// - Parameters:
-            ///   - provider:
-            ///   - email:
-            public init(
-                provider: Components.Schemas.MeIdentity.ProviderPayload,
-                email: Swift.String? = nil
-            ) {
-                self.provider = provider
-                self.email = email
-            }
-            public enum CodingKeys: String, CodingKey {
-                case provider
-                case email
-            }
-        }
         /// - Remark: Generated from `#/components/schemas/SignUpUnavailableInRegion`.
         public struct SignUpUnavailableInRegion: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/SignUpUnavailableInRegion/_tag`.
@@ -1180,60 +1373,6 @@ extension Components {
             ///   - message:
             public init(
                 _tag: Components.Schemas.SignUpUnavailableInRegion._TagPayload,
-                message: Swift.String
-            ) {
-                self._tag = _tag
-                self.message = message
-            }
-            public enum CodingKeys: String, CodingKey {
-                case _tag
-                case message
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/SignInUnavailable`.
-        public struct SignInUnavailable: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/SignInUnavailable/_tag`.
-            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case signInUnavailable = "SignInUnavailable"
-            }
-            /// - Remark: Generated from `#/components/schemas/SignInUnavailable/_tag`.
-            public var _tag: Components.Schemas.SignInUnavailable._TagPayload
-            /// - Remark: Generated from `#/components/schemas/SignInUnavailable/message`.
-            public var message: Swift.String
-            /// Creates a new `SignInUnavailable`.
-            ///
-            /// - Parameters:
-            ///   - _tag:
-            ///   - message:
-            public init(
-                _tag: Components.Schemas.SignInUnavailable._TagPayload,
-                message: Swift.String
-            ) {
-                self._tag = _tag
-                self.message = message
-            }
-            public enum CodingKeys: String, CodingKey {
-                case _tag
-                case message
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken`.
-        public struct InvalidIdentityToken: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken/_tag`.
-            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case invalidIdentityToken = "InvalidIdentityToken"
-            }
-            /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken/_tag`.
-            public var _tag: Components.Schemas.InvalidIdentityToken._TagPayload
-            /// - Remark: Generated from `#/components/schemas/InvalidIdentityToken/message`.
-            public var message: Swift.String
-            /// Creates a new `InvalidIdentityToken`.
-            ///
-            /// - Parameters:
-            ///   - _tag:
-            ///   - message:
-            public init(
-                _tag: Components.Schemas.InvalidIdentityToken._TagPayload,
                 message: Swift.String
             ) {
                 self._tag = _tag

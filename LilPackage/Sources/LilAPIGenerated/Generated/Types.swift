@@ -35,6 +35,15 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /v1/me/consents/health`.
     /// - Remark: Generated from `#/paths//v1/me/consents/health/delete(withdrawHealthConsent)`.
     func withdrawHealthConsent(_ input: Operations.WithdrawHealthConsent.Input) async throws -> Operations.WithdrawHealthConsent.Output
+    /// - Remark: HTTP `POST /v1/me/identities/apple`.
+    /// - Remark: Generated from `#/paths//v1/me/identities/apple/post(linkApple)`.
+    func linkApple(_ input: Operations.LinkApple.Input) async throws -> Operations.LinkApple.Output
+    /// - Remark: HTTP `POST /v1/me/identities/google`.
+    /// - Remark: Generated from `#/paths//v1/me/identities/google/post(linkGoogle)`.
+    func linkGoogle(_ input: Operations.LinkGoogle.Input) async throws -> Operations.LinkGoogle.Output
+    /// - Remark: HTTP `DELETE /v1/me/identities/{id}`.
+    /// - Remark: Generated from `#/paths//v1/me/identities/{id}/delete(unlinkIdentity)`.
+    func unlinkIdentity(_ input: Operations.UnlinkIdentity.Input) async throws -> Operations.UnlinkIdentity.Output
     /// - Remark: HTTP `GET /v1/sync/changes`.
     /// - Remark: Generated from `#/paths//v1/sync/changes/get(syncChanges)`.
     func syncChanges(_ input: Operations.SyncChanges.Input) async throws -> Operations.SyncChanges.Output
@@ -136,6 +145,39 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//v1/me/consents/health/delete(withdrawHealthConsent)`.
     public func withdrawHealthConsent(headers: Operations.WithdrawHealthConsent.Input.Headers = .init()) async throws -> Operations.WithdrawHealthConsent.Output {
         try await withdrawHealthConsent(Operations.WithdrawHealthConsent.Input(headers: headers))
+    }
+    /// - Remark: HTTP `POST /v1/me/identities/apple`.
+    /// - Remark: Generated from `#/paths//v1/me/identities/apple/post(linkApple)`.
+    public func linkApple(
+        headers: Operations.LinkApple.Input.Headers = .init(),
+        body: Operations.LinkApple.Input.Body
+    ) async throws -> Operations.LinkApple.Output {
+        try await linkApple(Operations.LinkApple.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `POST /v1/me/identities/google`.
+    /// - Remark: Generated from `#/paths//v1/me/identities/google/post(linkGoogle)`.
+    public func linkGoogle(
+        headers: Operations.LinkGoogle.Input.Headers = .init(),
+        body: Operations.LinkGoogle.Input.Body
+    ) async throws -> Operations.LinkGoogle.Output {
+        try await linkGoogle(Operations.LinkGoogle.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `DELETE /v1/me/identities/{id}`.
+    /// - Remark: Generated from `#/paths//v1/me/identities/{id}/delete(unlinkIdentity)`.
+    public func unlinkIdentity(
+        path: Operations.UnlinkIdentity.Input.Path,
+        headers: Operations.UnlinkIdentity.Input.Headers = .init()
+    ) async throws -> Operations.UnlinkIdentity.Output {
+        try await unlinkIdentity(Operations.UnlinkIdentity.Input(
+            path: path,
+            headers: headers
+        ))
     }
     /// - Remark: HTTP `GET /v1/sync/changes`.
     /// - Remark: Generated from `#/paths//v1/sync/changes/get(syncChanges)`.

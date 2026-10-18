@@ -1,5 +1,6 @@
 import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
-import { and, eq } from "drizzle-orm";
+import { and, eq, exists, ne } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import type { SqlError } from "effect/sql";
 import { CoreDb, first, query } from "./CoreDb.ts";
 import { IdentityId, newIdentityId, UserId } from "./Ids.ts";
@@ -40,6 +41,14 @@ export class Identities extends Context.Service<
       userId: UserId,
     ) => Effect.Effect<ReadonlyArray<Identity>, SqlError.SqlError>;
     readonly delete: (id: IdentityId) => Effect.Effect<void, SqlError.SqlError>;
+    /**
+     * Deletes the user's identity `id`, unless it's their last, in one statement, so two
+     * concurrent unlinks can't remove both of a user's last two.
+     */
+    readonly deleteUnlessLast: (
+      userId: UserId,
+      id: IdentityId,
+    ) => Effect.Effect<"deleted" | "last" | "notFound", SqlError.SqlError>;
     /**
      * Keeps Apple's refresh token (encrypted, see `AppleTokens`) for the Apple account `subject`,
      * and the client ID it was issued to, so deleting the account can revoke it.
@@ -107,6 +116,34 @@ export class Identities extends Context.Service<
         }),
         delete: Effect.fn("Identities.delete")(function* (id) {
           yield* query(db.delete(identities).where(eq(identities.id, id)));
+        }),
+        deleteUnlessLast: Effect.fn("Identities.deleteUnlessLast")(function* (userId, id) {
+          const other = alias(identities, "other");
+          const deleted = yield* query(
+            db
+              .delete(identities)
+              .where(
+                and(
+                  eq(identities.id, id),
+                  eq(identities.userId, userId),
+                  exists(
+                    db
+                      .select({ id: other.id })
+                      .from(other)
+                      .where(and(eq(other.userId, userId), ne(other.id, id))),
+                  ),
+                ),
+              )
+              .returning({ id: identities.id }),
+          );
+          if (deleted.length > 0) return "deleted";
+          const remaining = yield* query(
+            db
+              .select({ id: identities.id })
+              .from(identities)
+              .where(and(eq(identities.id, id), eq(identities.userId, userId))),
+          );
+          return remaining.length > 0 ? "last" : "notFound";
         }),
         saveAppleToken: Effect.fn("Identities.saveAppleToken")(
           function* (subject, refreshToken, clientId) {

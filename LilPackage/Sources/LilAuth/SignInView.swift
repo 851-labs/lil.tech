@@ -128,7 +128,8 @@ public struct SignInView: View {
     return message
   }
 
-  private static func credential(
+  /// Apple's answer to the native sheet, as the features take it.
+  static func credential(
     from result: Result<ASAuthorization, any Error>
   ) -> Result<AppleCredential, SignInFeature.AppleAuthorizationError> {
     switch result {

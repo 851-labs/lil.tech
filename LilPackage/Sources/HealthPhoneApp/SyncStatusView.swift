@@ -1,6 +1,7 @@
 public import ComposableArchitecture
 import HealthCatalog
 import HealthUpload
+import LilAuth
 public import SwiftUI
 
 public struct SyncStatusView: View {
@@ -24,6 +25,7 @@ public struct SyncStatusView: View {
             }
           }
         }
+        SignInMethodsSection(store: store.scope(\.signInMethods, action: \.signInMethods))
         Section {
           Button("Health Access in Settings") { store.send(.openSettingsButtonTapped) }
           Link("Privacy Policy", destination: privacyPolicy)
