@@ -53,14 +53,7 @@ public struct SignInFeature {
       self.googleRequest = googleRequest
       self.isGoogleAvailable = googleOAuth.clientID != nil
       let environment = APIEnvironment.current()
-      #if os(macOS)
-        switch environment {
-        case .prod, .staging: self.appleWebAPI = environment.baseURL
-        case .preview: self.appleWebAPI = nil
-        }
-      #else
-        self.appleWebAPI = nil
-      #endif
+      self.appleWebAPI = AppleWebAuthorizationRequest.api(for: environment)
       if case .preview = environment {
         self.isTestAccountAvailable = true
       } else {

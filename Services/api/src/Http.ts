@@ -3,7 +3,7 @@ import { Clock, Effect, Layer, Option, Redacted, Schedule, Schema } from "effect
 import { Headers, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
-import { AppleSignIn, appleWebServicesId } from "./auth/Apple.ts";
+import { type AppleIdentity, AppleSignIn, appleWebServicesId } from "./auth/Apple.ts";
 import { GoogleSignIn } from "./auth/Google.ts";
 import { Auth } from "./auth/Auth.ts";
 import { ProviderSignIn, type VerifiedIdentity } from "./auth/ProviderSignIn.ts";
@@ -16,6 +16,8 @@ import {
   CurrentSession,
   HealthConsent,
   type DeviceInfo,
+  IdentityNotFound,
+  LastIdentity,
   Me,
   MeDevice,
   MeIdentity,
@@ -31,7 +33,7 @@ import {
 import { AppleTokenRevocations } from "./core/AppleTokenRevocations.ts";
 import { retireDevice } from "./core/DeviceCleanup.ts";
 import { Devices } from "./core/Devices.ts";
-import { Identities } from "./core/Identities.ts";
+import { Identities, type Identity } from "./core/Identities.ts";
 import {
   ConsentRequired,
   HealthBatchNotFound,
@@ -140,6 +142,40 @@ const requestCountry = (request: HttpServerRequest.HttpServerRequest): string | 
   return typeof cf?.country === "string" ? cf.country : null;
 };
 
+/**
+ * Redeems Apple's authorization code (if the app sent one) for the refresh token that deleting
+ * the account revokes, and keeps it with the identity, which must exist by now. Never fails the
+ * request: without it, the account just can't have its token revoked.
+ */
+const keepAppleToken = (
+  appleTokens: AppleTokens["Service"],
+  identities: Identities["Service"],
+  identity: AppleIdentity,
+  authorizationCode: string | undefined,
+) =>
+  Effect.gen(function* () {
+    if (authorizationCode === undefined) return;
+    // The web sign-in's code also needs its `redirect_uri`: this API's callback.
+    const redirectUri =
+      identity.clientId === appleWebServicesId
+        ? `${yield* origin}${appleWebCallbackPath}`
+        : undefined;
+    const refreshToken = yield* appleTokens.exchange(authorizationCode, {
+      clientId: identity.clientId,
+      subject: identity.subject,
+      ...(redirectUri === undefined ? {} : { redirectUri }),
+    });
+    if (Option.isSome(refreshToken)) {
+      yield* identities
+        .saveAppleToken(identity.subject, refreshToken.value, identity.clientId)
+        .pipe(
+          Effect.catchCause((cause) =>
+            Effect.logWarning("Saving Apple's refresh token failed", cause),
+          ),
+        );
+    }
+  });
+
 export const AuthHandlers = HttpApiBuilder.group(
   Api,
   "auth",
@@ -172,28 +208,8 @@ export const AuthHandlers = HttpApiBuilder.group(
             payload.fullName,
           );
           const tokens = yield* signIn(identity, payload.device);
-          // Only once signed in, so the identity exists, and it never fails the sign-in.
-          if (payload.authorizationCode !== undefined) {
-            // The web sign-in's code also needs its `redirect_uri`: this API's callback.
-            const redirectUri =
-              identity.clientId === appleWebServicesId
-                ? `${yield* origin}${appleWebCallbackPath}`
-                : undefined;
-            const refreshToken = yield* appleTokens.exchange(payload.authorizationCode, {
-              clientId: identity.clientId,
-              subject: identity.subject,
-              ...(redirectUri === undefined ? {} : { redirectUri }),
-            });
-            if (Option.isSome(refreshToken)) {
-              yield* identities
-                .saveAppleToken(identity.subject, refreshToken.value, identity.clientId)
-                .pipe(
-                  Effect.catchCause((cause) =>
-                    Effect.logWarning("Saving Apple's refresh token failed", cause),
-                  ),
-                );
-            }
-          }
+          // Only once signed in, so the identity exists.
+          yield* keepAppleToken(appleTokens, identities, identity, payload.authorizationCode);
           return tokens;
         }),
       )
@@ -225,6 +241,9 @@ export const AuthHandlers = HttpApiBuilder.group(
 /** An access token that outlived its account (deleted within the last 15 minutes). */
 const userGone = new Unauthorized({ message: "The user no longer exists" });
 
+const meIdentity = (identity: Identity) =>
+  new MeIdentity({ id: identity.id, provider: identity.provider, email: identity.email });
+
 const healthConsent = (given: Option.Option<GivenConsent>) =>
   new HealthConsent({
     required: healthConsentPolicyVersion,
@@ -243,6 +262,17 @@ export const MeHandlers = HttpApiBuilder.group(
     const consents = yield* Consents;
     const appleTokens = yield* AppleTokens;
     const appleRevocations = yield* AppleTokenRevocations;
+    const apple = yield* AppleSignIn;
+    const google = yield* GoogleSignIn;
+    const providerSignIn = yield* ProviderSignIn;
+    /** Links the verified identity to the signed-in user. */
+    const link = (identity: VerifiedIdentity) =>
+      Effect.gen(function* () {
+        const { userId } = yield* CurrentSession;
+        // The access token outlived its user: there's no one to link it to.
+        if (Option.isNone(yield* users.findById(userId))) return yield* userGone;
+        return yield* providerSignIn.link(userId, identity);
+      }).pipe(Effect.catchTags({ SqlError: Effect.die, SchemaError: Effect.die }));
     return handlers
       .handle("me", () =>
         Effect.gen(function* () {
@@ -262,9 +292,7 @@ export const MeHandlers = HttpApiBuilder.group(
           return new Me({
             id: user.value.id,
             displayName: user.value.displayName,
-            identities: userIdentities.map(
-              (identity) => new MeIdentity({ provider: identity.provider, email: identity.email }),
-            ),
+            identities: userIdentities.map(meIdentity),
             devices: userDevices.map(
               (device) =>
                 new MeDevice({
@@ -303,6 +331,42 @@ export const MeHandlers = HttpApiBuilder.group(
         Effect.gen(function* () {
           const { userId } = yield* CurrentSession;
           yield* consents.withdraw(userId, "health").pipe(Effect.orDie);
+        }),
+      )
+      .handle("linkApple", ({ payload }) =>
+        Effect.gen(function* () {
+          const identity = yield* apple.verify(payload.identityToken, payload.nonce, undefined);
+          const linked = yield* link(identity);
+          yield* keepAppleToken(appleTokens, identities, identity, payload.authorizationCode);
+          return meIdentity(linked);
+        }),
+      )
+      .handle("linkGoogle", ({ payload }) =>
+        Effect.gen(function* () {
+          const identity = yield* google.verify(payload.idToken, payload.nonce);
+          return meIdentity(yield* link(identity));
+        }),
+      )
+      .handle("unlinkIdentity", ({ params }) =>
+        Effect.gen(function* () {
+          const { userId } = yield* CurrentSession;
+          const result = yield* identities.deleteUnlessLast(userId, params.id).pipe(Effect.orDie);
+          if (result === "last") {
+            return yield* new LastIdentity({
+              message: "Your only sign-in method can't be removed",
+            });
+          }
+          if (result === "notFound") {
+            return yield* new IdentityNotFound({ message: "No such sign-in method" });
+          }
+          // An Apple identity's token was queued for revoking as it was deleted. Revoked now if
+          // Apple answers, and otherwise by the daily cleanup.
+          yield* appleRevocations.find([params.id]).pipe(
+            Effect.flatMap(revokeAppleTokens),
+            Effect.provideService(AppleTokens, appleTokens),
+            Effect.provideService(AppleTokenRevocations, appleRevocations),
+            Effect.catchCause((cause) => Effect.logWarning("Revoking Apple tokens failed", cause)),
+          );
         }),
       )
       .handle("deleteMe", () =>

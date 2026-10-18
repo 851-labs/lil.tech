@@ -21,6 +21,8 @@ public struct AppFeature {
     /// Shown in the sidebar's footer.
     public var syncStatus: SyncStatus
     public var summary: SummaryFeature.State
+    /// The account's sign-in methods, in a sheet from the account menu.
+    @Presents public var signInMethods: SignInMethodsFeature.State?
     /// Pins from before they synced, moved up when sync starts (`movePinsUp`).
     @Shared(.summaryPins) var localPins: [String]
 
@@ -56,6 +58,8 @@ public struct AppFeature {
     case retrySyncButtonTapped
     case signedInChanged(Bool)
     case signIn(SignInFeature.Action)
+    case signInMethods(PresentationAction<SignInMethodsFeature.Action>)
+    case signInMethodsButtonTapped
     case signOutButtonTapped
     case summary(SummaryFeature.Action)
     case syncStatusChanged(SyncStatus)
@@ -115,6 +119,7 @@ public struct AppFeature {
         state.selection = .summary
         state.searchText = ""
         state.syncStatus = .idle
+        state.signInMethods = nil
         // Pins are the account's choice, like its data, and leave with it.
         state.summary = SummaryFeature.State()
         state.$localPins.withLock { $0 = [] }
@@ -142,6 +147,13 @@ public struct AppFeature {
         // The session's updates say when it's done.
         return .run { [auth] _ in await auth.signOut() }
 
+      case .signInMethods:
+        return .none
+
+      case .signInMethodsButtonTapped:
+        state.signInMethods = SignInMethodsFeature.State()
+        return .none
+
       case .summary:
         return .none
 
@@ -165,6 +177,9 @@ public struct AppFeature {
           }
         }
       }
+    }
+    .ifLet(\.$signInMethods, action: \.signInMethods) {
+      SignInMethodsFeature()
     }
   }
 

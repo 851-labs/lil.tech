@@ -1,5 +1,6 @@
 public import Dependencies
 public import Foundation
+public import LilAPI
 
 /// One Sign in with Apple through Apple's web page, for the Mac: a Developer ID–distributed app
 /// can't use the native sheet (`docs/DECISIONS.md`). Apple posts the result to the API's return
@@ -72,6 +73,19 @@ public struct AppleWebAuthorizationRequest: Equatable, Sendable {
     return AppleCredential(
       identityToken: token, authorizationCode: AppleCredential.authorizationCode(value("code")),
       givenName: name?.firstName, familyName: name?.lastName)
+  }
+
+  /// The API Apple's web sign-in returns through, on the Mac, which can't use the native sheet.
+  /// `nil` on the iPhone, which does, and for a preview deployment, which Apple can't return to.
+  public static func api(for environment: APIEnvironment) -> URL? {
+    #if os(macOS)
+      switch environment {
+      case .prod, .staging: environment.baseURL
+      case .preview: nil
+      }
+    #else
+      nil
+    #endif
   }
 
   /// A request with fresh random secrets, for the API at `api`.

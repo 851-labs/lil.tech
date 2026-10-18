@@ -131,6 +131,19 @@ const signIn = Effect.gen(function* () {
   return { user, tokens };
 });
 
+interface MeIdentityBody {
+  readonly id: string;
+  readonly provider: string;
+  readonly email: string | null;
+}
+
+/** The provider and email of each identity in a `GET /v1/me` body. */
+const identitiesOf = (body: unknown) =>
+  (body as { identities: ReadonlyArray<MeIdentityBody> }).identities.map(({ provider, email }) => ({
+    provider,
+    email,
+  }));
+
 const refresh = (handler: Handler, refreshToken: string) =>
   send(
     handler,
@@ -189,12 +202,15 @@ describe("WorkerHttpLayer", () => {
           new Request("https://api.lil.tech/v1/me", { headers: bearer(tokens.accessToken) }),
         );
         const [device] = yield* (yield* Devices).listForUser(user.id);
+        const [identity] = yield* (yield* Identities).listForUser(user.id);
         assert.deepStrictEqual(response, {
           status: 200,
           body: {
             id: user.id,
             displayName: "Ada",
-            identities: [{ provider: "apple", email: "ada@privaterelay.appleid.com" }],
+            identities: [
+              { id: identity?.id, provider: "apple", email: "ada@privaterelay.appleid.com" },
+            ],
             devices: [
               {
                 id: device?.id,
@@ -441,10 +457,10 @@ describe("POST /v1/auth/apple", () => {
           handler,
           new Request("https://api.lil.tech/v1/me", { headers: bearer(accessToken) }),
         );
-        assert.deepInclude(me.body, {
-          displayName: "Ada",
-          identities: [{ provider: "apple", email: "x7y2@privaterelay.appleid.com" }],
-        });
+        assert.propertyVal(me.body, "displayName", "Ada");
+        assert.deepStrictEqual(identitiesOf(me.body), [
+          { provider: "apple", email: "x7y2@privaterelay.appleid.com" },
+        ]);
       }),
     ),
   );
@@ -608,9 +624,206 @@ describe("POST /v1/auth/google", () => {
           handler,
           new Request("https://api.lil.tech/v1/me", { headers: bearer(accessToken) }),
         );
-        assert.deepInclude(me.body, {
-          identities: [{ provider: "google", email: "ada@example.com" }],
+        assert.deepStrictEqual(identitiesOf(me.body), [
+          { provider: "google", email: "ada@example.com" },
+        ]);
+      }),
+    ),
+  );
+});
+
+describe("/v1/me/identities", () => {
+  const post = (handler: Handler, path: string, accessToken: string, body: unknown) =>
+    send(
+      handler,
+      new Request(`https://api.lil.tech/v1/me/identities/${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...bearer(accessToken) },
+        body: JSON.stringify(body),
+      }),
+    );
+  const linkGoogle = (handler: Handler, accessToken: string, sub: string) =>
+    Effect.gen(function* () {
+      const nonce = crypto.randomUUID();
+      const idToken = yield* googleIdToken({ sub, nonce });
+      return yield* post(handler, "google", accessToken, { idToken, nonce });
+    });
+  const linkApple = (handler: Handler, accessToken: string, sub: string, code?: string) =>
+    Effect.gen(function* () {
+      const nonce = crypto.randomUUID();
+      const identityToken = yield* appleIdentityToken({ sub, nonce });
+      return yield* post(handler, "apple", accessToken, {
+        identityToken,
+        nonce,
+        ...(code === undefined ? {} : { authorizationCode: code }),
+      });
+    });
+  const unlink = (handler: Handler, accessToken: string, id: string) =>
+    send(
+      handler,
+      new Request(`https://api.lil.tech/v1/me/identities/${id}`, {
+        method: "DELETE",
+        headers: bearer(accessToken),
+      }),
+    );
+  const me = (handler: Handler, accessToken: string) =>
+    send(handler, new Request("https://api.lil.tech/v1/me", { headers: bearer(accessToken) }));
+  const googleSignIn = (handler: Handler, sub: string) =>
+    Effect.gen(function* () {
+      const nonce = crypto.randomUUID();
+      const idToken = yield* googleIdToken({ sub, nonce });
+      return yield* send(
+        handler,
+        new Request("https://api.lil.tech/v1/auth/google", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            idToken,
+            nonce,
+            device: { app: "health-mac", platform: "macos" },
+          }),
+        }),
+      );
+    });
+
+  it.live("links Google to an Apple account, which it then signs in to", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const linked = yield* linkGoogle(handler, tokens.accessToken, "100000000000000000101");
+        assert.strictEqual(linked.status, 200);
+        assert.deepInclude(linked.body, { provider: "google", email: "ada@example.com" });
+        const { body } = yield* me(handler, tokens.accessToken);
+        assert.deepStrictEqual(identitiesOf(body), [
+          { provider: "apple", email: "ada@privaterelay.appleid.com" },
+          { provider: "google", email: "ada@example.com" },
+        ]);
+        const signedIn = yield* googleSignIn(handler, "100000000000000000101");
+        const { accessToken } = signedIn.body as { accessToken: string };
+        assert.strictEqual((yield* (yield* AccessTokens).verify(accessToken)).userId, user.id);
+      }),
+    ),
+  );
+
+  it.live("linking an identity again changes nothing, and another user's is refused", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const ada = yield* signIn;
+        const first = yield* linkGoogle(handler, ada.tokens.accessToken, "100000000000000000102");
+        const again = yield* linkGoogle(handler, ada.tokens.accessToken, "100000000000000000102");
+        assert.strictEqual(again.status, 200);
+        assert.deepStrictEqual(again.body, first.body);
+
+        const grace = yield* signIn;
+        const taken = yield* linkGoogle(handler, grace.tokens.accessToken, "100000000000000000102");
+        assert.strictEqual(taken.status, 409);
+        assert.propertyVal(taken.body, "_tag", "IdentityInUse");
+        assert.lengthOf(yield* (yield* Identities).listForUser(grace.user.id), 1);
+        // Signing in with it still reaches the first account; accounts aren't merged.
+        assert.lengthOf(yield* (yield* Identities).listForUser(ada.user.id), 2);
+      }),
+    ),
+  );
+
+  it.live("refuses tokens that don't verify", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* signIn;
+        const nonce = crypto.randomUUID();
+        const idToken = yield* googleIdToken({ sub: "100000000000000000103", nonce });
+        const wrongNonce = yield* post(handler, "google", tokens.accessToken, {
+          idToken,
+          nonce: "another",
         });
+        assert.strictEqual(wrongNonce.status, 401);
+        assert.propertyVal(wrongNonce.body, "_tag", "InvalidIdentityToken");
+      }),
+    ),
+  );
+
+  it.live("unlinks a sign-in method, but never the last one", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const [apple] = yield* (yield* Identities).listForUser(user.id);
+        const last = yield* unlink(handler, tokens.accessToken, apple?.id ?? "");
+        assert.strictEqual(last.status, 409);
+        assert.propertyVal(last.body, "_tag", "LastIdentity");
+
+        yield* linkGoogle(handler, tokens.accessToken, "100000000000000000104");
+        assert.strictEqual(
+          (yield* unlink(handler, tokens.accessToken, apple?.id ?? "")).status,
+          204,
+        );
+        assert.deepStrictEqual(identitiesOf((yield* me(handler, tokens.accessToken)).body), [
+          { provider: "google", email: "ada@example.com" },
+        ]);
+        // Gone, so it's not found the second time.
+        const again = yield* unlink(handler, tokens.accessToken, apple?.id ?? "");
+        assert.strictEqual(again.status, 404);
+      }),
+    ),
+  );
+
+  it.live("can't unlink another user's sign-in method", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const ada = yield* signIn;
+        const grace = yield* signIn;
+        yield* linkGoogle(handler, grace.tokens.accessToken, "100000000000000000105");
+        const [graceApple] = yield* (yield* Identities).listForUser(grace.user.id);
+        const response = yield* unlink(handler, ada.tokens.accessToken, graceApple?.id ?? "");
+        assert.strictEqual(response.status, 404);
+        assert.lengthOf(yield* (yield* Identities).listForUser(grace.user.id), 2);
+      }),
+    ),
+  );
+
+  it.live("concurrent unlinks of a user's last two sign-in methods leave one", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        yield* linkGoogle(handler, tokens.accessToken, "100000000000000000106");
+        const ids = (yield* (yield* Identities).listForUser(user.id)).map((i) => i.id);
+        const statuses = yield* Effect.forEach(
+          ids,
+          (id) => unlink(handler, tokens.accessToken, id).pipe(Effect.map((r) => r.status)),
+          { concurrency: "unbounded" },
+        );
+        assert.sameMembers(statuses, [204, 409]);
+        assert.lengthOf(yield* (yield* Identities).listForUser(user.id), 1);
+      }),
+    ),
+  );
+
+  it.live("linking Apple keeps its refresh token, which unlinking revokes", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* signIn;
+        const sub = "000123.link.0001";
+        const code = testAppleCode(sub);
+        const linked = yield* linkApple(handler, tokens.accessToken, sub, code);
+        assert.strictEqual(linked.status, 200);
+        const { id } = linked.body as MeIdentityBody;
+        assert.strictEqual((yield* unlink(handler, tokens.accessToken, id)).status, 204);
+        const revoked = (yield* TestAppleEndpoint).calls.filter(
+          (call) => call.path === "/auth/revoke",
+        );
+        assert.deepStrictEqual(
+          revoked.map((call) => call.form["token"]),
+          [testAppleRefreshToken(code)],
+        );
+      }),
+    ),
+  );
+
+  it.live("refuses to link with an access token whose user was deleted", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        yield* (yield* Users).delete(user.id);
+        const response = yield* linkGoogle(handler, tokens.accessToken, "100000000000000000107");
+        assert.strictEqual(response.status, 401);
       }),
     ),
   );

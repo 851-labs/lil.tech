@@ -3,7 +3,7 @@ public import Foundation
 public import HealthCatalog
 import HealthKitAccess
 public import HealthUpload
-import LilAuth
+public import LilAuth
 
 /// The iPhone's main screen: what's uploaded and what isn't.
 @Reducer
@@ -20,6 +20,7 @@ public struct SyncStatusFeature {
     public var isWithdrawingConsent = false
     public var isDeletingAccount = false
     @Presents public var alert: AlertState<Action.Alert>?
+    public var signInMethods = SignInMethodsFeature.State()
 
     public init(
       progress: HealthBackfill.Progress? = nil, needsHealthAccess: Bool? = nil,
@@ -125,6 +126,7 @@ public struct SyncStatusFeature {
     case accountDeletionFailed(String)
     case alert(PresentationAction<Alert>)
     case delegate(Delegate)
+    case signInMethods(SignInMethodsFeature.Action)
 
     public enum Alert: Equatable {
       case confirmDeletion
@@ -156,6 +158,9 @@ public struct SyncStatusFeature {
   public init() {}
 
   public var body: some ReducerOf<Self> {
+    Scope(\.signInMethods, action: \.signInMethods) {
+      SignInMethodsFeature()
+    }
     Reduce { state, action in
       switch action {
       case .task:
@@ -260,7 +265,7 @@ public struct SyncStatusFeature {
       case .alert:
         return .none
 
-      case .delegate:
+      case .delegate, .signInMethods:
         return .none
       }
     }

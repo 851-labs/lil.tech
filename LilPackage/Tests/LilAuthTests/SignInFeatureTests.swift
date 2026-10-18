@@ -438,16 +438,16 @@ struct SignInFeatureTests {
   }
 }
 
-private let zeroNonce = String(repeating: "0", count: 64)
-private let zeroState = String(repeating: "0", count: 32)
+let zeroNonce = String(repeating: "0", count: 64)
+let zeroState = String(repeating: "0", count: 32)
 
-private let zeroGoogleRequest = GoogleAuthorizationRequest(
+let zeroGoogleRequest = GoogleAuthorizationRequest(
   clientID: "123-abc.apps.googleusercontent.com",
   codeVerifier: String(repeating: "A", count: 43),
   nonce: zeroNonce,
   state: zeroState
 )
 
-private func googleCallback(state: String) -> URL {
+func googleCallback(state: String) -> URL {
   URL(string: "com.googleusercontent.apps.123-abc:/oauth2redirect?state=\(state)&code=4%2Fabc")!
 }
