@@ -1,8 +1,8 @@
 import { assert, describe, it } from "@effect/vitest";
 import type * as Cloudflare from "alchemy/Cloudflare";
-import { Effect, Fiber } from "effect";
+import { Effect, Exit, Fiber } from "effect";
 import { TestClock } from "effect/testing";
-import { deleteChunkKeys, deleteObjects } from "../src/Runtime.ts";
+import { deleteCallsAtOnce, deleteChunkKeys, deleteObjects } from "../src/Runtime.ts";
 
 type Bucket = Pick<Cloudflare.R2.ReadWriteBucketClient, "delete">;
 /** The fake buckets need no runtime context, which the real one's calls do. */
@@ -24,20 +24,53 @@ const failing = (failures: number, failure: Error) => {
 };
 
 describe("deleteObjects", () => {
-  it.effect("deletes each key once, in calls of at most deleteChunkKeys", () =>
+  it.effect("deletes each key once, in calls of at most deleteChunkKeys, a few at once", () =>
     Effect.gen(function* () {
       const calls: Array<ReadonlyArray<string>> = [];
+      let open = 0;
+      let mostOpen = 0;
+      // Each call takes a second, so the ones running at once overlap.
       const bucket = {
         delete: (keys: string | Array<string>) =>
-          Effect.sync(() => void calls.push(typeof keys === "string" ? [keys] : keys)),
+          Effect.sync(() => {
+            calls.push(typeof keys === "string" ? [keys] : keys);
+            mostOpen = Math.max(mostOpen, ++open);
+          }).pipe(
+            Effect.andThen(Effect.sleep("1 second")),
+            Effect.ensuring(Effect.sync(() => void open--)),
+          ),
       } as unknown as Bucket;
-      const keys = Array.from({ length: deleteChunkKeys + 50 }, (_, index) => `part-${index}`);
-      yield* run(bucket, [...keys, ...keys.slice(0, 10)]);
-      assert.deepStrictEqual(
-        calls.map((call) => call.length),
-        [deleteChunkKeys, 50],
+      const keys = Array.from(
+        { length: deleteChunkKeys * (deleteCallsAtOnce + 2) + 50 },
+        (_, index) => `part-${index}`,
       );
-      assert.deepStrictEqual(calls.flat(), keys);
+      const fiber = yield* Effect.forkChild(run(bucket, [...keys, ...keys.slice(0, 10)]));
+      yield* TestClock.adjust("1 minute");
+      yield* Fiber.join(fiber);
+      assert.deepStrictEqual(
+        calls.map((call) => call.length).toSorted((a, b) => b - a),
+        [...Array.from({ length: deleteCallsAtOnce + 2 }, () => deleteChunkKeys), 50],
+      );
+      assert.deepStrictEqual(calls.flat().toSorted(), keys.toSorted());
+      assert.strictEqual(mostOpen, deleteCallsAtOnce);
+    }),
+  );
+
+  it.effect("makes every call when one fails, then fails", () =>
+    Effect.gen(function* () {
+      const calls: Array<ReadonlyArray<string>> = [];
+      const broken = new Error("delete: Internal error (10001)");
+      const bucket = {
+        delete: (keys: Array<string>) =>
+          Effect.suspend(() => {
+            calls.push(keys);
+            return calls.length === 1 ? Effect.fail(broken) : Effect.void;
+          }),
+      } as unknown as Bucket;
+      const keys = Array.from({ length: deleteChunkKeys * 3 }, (_, index) => `part-${index}`);
+      const exit = yield* Effect.exit(run(bucket, keys));
+      assert.deepStrictEqual(exit, Exit.fail(broken));
+      assert.deepStrictEqual(calls.flat().toSorted(), keys.toSorted());
     }),
   );
 

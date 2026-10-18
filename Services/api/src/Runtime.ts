@@ -1,6 +1,6 @@
 import * as Alchemy from "alchemy";
 import type * as Cloudflare from "alchemy/Cloudflare";
-import { Array as Arr, Effect, Predicate, Schedule, Stream } from "effect";
+import { Array as Arr, Effect, Exit, Predicate, Schedule, Stream } from "effect";
 
 /**
  * Runs Alchemy binding calls (R2, queues) in a captured runtime context. Their calls need the
@@ -35,10 +35,13 @@ export const listObjects = (bucket: Pick<Cloudflare.R2.ReadBucketClient, "list">
   });
 
 /**
- * Deletes R2 objects by key, each once, in calls of at most `deleteChunkKeys` (R2's limit). R2
- * throttles big deletes ("Reduce your concurrent request rate for the same object", 10058): it
- * failed a prod store's wipe of 2,644 snapshot parts. A throttled call is tried again after a
- * growing, jittered pause; other failures aren't.
+ * Deletes R2 objects by key, each once, in calls of `deleteChunkKeys`, `deleteCallsAtOnce` at a
+ * time: a call takes as long as its slowest keys, and R2 has slow spells, so big calls were slow
+ * (851-2655, `docs/DECISIONS.md`). R2 also throttles deletes ("Reduce your concurrent request rate
+ * for the same object", 10058): it failed a prod store's wipe of 2,644 snapshot parts. A throttled
+ * call is tried again after a growing, jittered pause; other failures aren't. Every call is made
+ * even if one fails, so a failed delete leaves only that call's keys for next time, and then the
+ * first failure is returned.
  */
 export const deleteObjects = (
   bucket: Pick<Cloudflare.R2.ReadWriteBucketClient, "delete">,
@@ -53,12 +56,19 @@ export const deleteObjects = (
           times: 5,
           while: isThrottled,
         }),
+        Effect.exit,
       ),
-    { discard: true },
-  );
+    { concurrency: deleteCallsAtOnce },
+  ).pipe(Effect.flatMap((exits) => exits.find(Exit.isFailure) ?? Effect.void));
 
-/** The most keys deleted per R2 call, R2's limit. */
-export const deleteChunkKeys = 1000;
+/** The most keys deleted per R2 call (R2 takes up to 1,000). */
+export const deleteChunkKeys = 100;
+
+/**
+ * How many delete calls run at once: a Worker invocation keeps at most 6 connections waiting for
+ * a response, R2 calls included, and more weren't faster.
+ */
+export const deleteCallsAtOnce = 6;
 
 /** Whether R2 refused a call for its rate (error 10058). */
 export const isThrottled = (error: unknown) =>
