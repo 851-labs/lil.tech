@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<key>GIDClientID</key>
+	<string>43230766631-5mdd1j3o2dlugafcl2jj2ci39i4a8ski.apps.googleusercontent.com</string>
+</dict>
 </plist>

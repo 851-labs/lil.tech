@@ -1,7 +1,8 @@
-import { assert, describe, layer } from "@effect/vitest";
+import { readFileSync } from "node:fs";
+import { assert, describe, it, layer } from "@effect/vitest";
 import { Effect, Layer, Option } from "effect";
 import { TestClock } from "effect/testing";
-import { GoogleClients, GoogleSignIn } from "../../src/auth/Google.ts";
+import { GoogleClients, googleClientIds, GoogleSignIn } from "../../src/auth/Google.ts";
 import { ProviderSignIn } from "../../src/auth/ProviderSignIn.ts";
 import { AccessTokens } from "../../src/auth/Tokens.ts";
 import { Identities } from "../../src/core/Identities.ts";
@@ -167,7 +168,7 @@ layer(TestGoogleSignIn)("Sign in with Google", (it) => {
   );
 });
 
-describe("Sign in with Google before client IDs are registered", () => {
+describe("Sign in with Google without client IDs", () => {
   layer(
     GoogleSignIn.layer.pipe(
       Layer.provide(Layer.succeed(GoogleClients, { apps: [], server: [] })),
@@ -182,5 +183,18 @@ describe("Sign in with Google before client IDs are registered", () => {
         assert.strictEqual(error._tag, "SignInUnavailable");
       }),
     );
+  });
+});
+
+describe("googleClientIds", () => {
+  // The apps read their client ID from Info.plist (`GIDClientID`). A copy that differs from the
+  // server's would make Google sign-in fail for that app.
+  it.each(["LilHealth", "LilHealthiOS"])("lists the client ID in %s's Info.plist", (app) => {
+    const plist = readFileSync(
+      new URL(`../../../../Apps/${app}/Info.plist`, import.meta.url),
+      "utf8",
+    );
+    const clientId = /<key>GIDClientID<\/key>\s*<string>([^<]+)<\/string>/.exec(plist)?.[1];
+    assert.include(googleClientIds.apps, clientId);
   });
 });

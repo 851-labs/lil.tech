@@ -14,15 +14,18 @@ import {
 export const googleIssuers = ["https://accounts.google.com", "accounts.google.com"];
 
 /**
- * Our Google OAuth clients (851-2538). Empty until they're registered; until then Google sign-in
- * answers 503.
+ * Our Google OAuth clients (851-2538), in the Google Cloud project `lil-tech-851` (org 851.sh).
+ * Without any, Google sign-in answers 503.
  *
- * - `apps`: the iOS and macOS client IDs, which Google puts in the token's `azp` (or `aud`).
- * - `server`: a server client ID, if the apps set one (`GIDConfiguration.serverClientID`), which
- *   Google then puts in `aud`.
+ * - `apps`: the apps' client IDs, which Google puts in the token's `azp` (or `aud`). One iOS-type
+ *   client serves the iPhone and the Mac: they share the bundle ID `tech.lil.health`.
+ * - `server`: a server client ID, which Google would put in `aud` if the apps asked for one. They
+ *   don't (they sign in without Google's SDK, `GoogleOAuth.swift`), so it's empty.
  */
 export const googleClientIds = {
-  apps: [] as ReadonlyArray<string>,
+  apps: [
+    "43230766631-5mdd1j3o2dlugafcl2jj2ci39i4a8ski.apps.googleusercontent.com",
+  ] as ReadonlyArray<string>,
   server: [] as ReadonlyArray<string>,
 };
 

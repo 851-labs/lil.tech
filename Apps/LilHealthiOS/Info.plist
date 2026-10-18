@@ -7,6 +7,8 @@
 		<string>tech.lil.health.sync</string>
 		<string>tech.lil.health.upload</string>
 	</array>
+	<key>GIDClientID</key>
+	<string>43230766631-5mdd1j3o2dlugafcl2jj2ci39i4a8ski.apps.googleusercontent.com</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
