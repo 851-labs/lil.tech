@@ -18,13 +18,36 @@ const provenance = {
   sourceName: Column.text,
   /** `HKSource.bundleIdentifier`. */
   sourceBundleId: Column.text,
-  /** `HKSourceRevision`: `version`, `productType`, `operatingSystemVersion`. */
+  /**
+   * `HKSourceRevision`: `version`, `productType`, `operatingSystemVersion`. Only from iPhones
+   * that don't send `provenance`.
+   */
   sourceRevision: Column.nullable(Column.json),
-  /** `HKDevice`'s properties, when HealthKit has them. */
+  /** `HKDevice`'s properties, when HealthKit has them. Only from iPhones that don't send `provenance`. */
   device: Column.nullable(Column.json),
   /** The sample's metadata, with HealthKit's keys (e.g. `HKTimeZone`). */
   metadata: Column.nullable(Column.json),
+  /**
+   * The `health_provenance` record with the record's `sourceRevision` and `device` (851-2674).
+   * They repeat across nearly all of a user's samples, so they're stored once.
+   */
+  provenance: Column.nullable(Column.text),
 };
+
+/**
+ * A sample's source revision and device, which most of a user's samples share (851-2674). The ID
+ * is a hash of the two, so the same pair is one record, made by the iPhone.
+ */
+export const HealthProvenance = defineEntity("health_provenance", {
+  clientWritable: false,
+  id: /^[0-9a-f]{32}$/,
+  fields: {
+    /** `HKSourceRevision`: `version`, `productType`, `operatingSystemVersion`. */
+    sourceRevision: Column.nullable(Column.json),
+    /** `HKDevice`'s properties, when HealthKit has them. */
+    device: Column.nullable(Column.json),
+  },
+});
 
 /**
  * Quantity and category samples. Stored by type and start date (HealthKit never changes a
@@ -422,6 +445,7 @@ export const HealthStatisticsDevice = defineEntity("health_statistics_device", {
 });
 
 export const healthEntities = [
+  HealthProvenance,
   HealthSample,
   HealthCorrelation,
   HealthCharacteristic,

@@ -192,6 +192,25 @@ public enum HealthDatabase {
       )
       .execute(db)
     }
+    migrator.registerMigration("Add health provenance") { db in
+      try #sql(
+        """
+        CREATE TABLE "healthProvenances" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "sourceRevision" TEXT,
+          "device" TEXT
+        ) STRICT
+        """
+      )
+      .execute(db)
+      for table in [
+        "healthSamples", "healthCorrelations", "healthWorkouts", "healthStateOfMinds",
+        "healthScoredAssessments", "healthAudiograms", "healthElectrocardiograms",
+        "healthHeartbeatSeries", "healthWorkoutRoutes",
+      ] {
+        try db.execute(sql: #"ALTER TABLE "\#(table)" ADD COLUMN "provenance" TEXT"#)
+      }
+    }
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
@@ -300,24 +319,28 @@ public enum HealthDatabase {
   /// The sync schema number to pass to `SyncClient.live(entities:syncSchema:)`. Bump it in a
   /// release that starts storing a new field of an entity it already has, so Macs synced by an
   /// earlier release bootstrap again and get it (`docs/SYNC.md`). New entities need no bump.
-  public static let syncSchema = 1
+  public static let syncSchema = 2
 
   /// The health entities, for ``LilSyncEngine/init(entities:syncSchema:partsDirectory:)``.
   public static let syncEntities: [SyncEntity] = [
+    entity("health_provenance", Components.Schemas.HealthProvenance.self) { row in
+      HealthProvenance(
+        id: row.id, sourceRevision: try json(row.sourceRevision), device: try json(row.device))
+    },
     entity("health_sample", Components.Schemas.HealthSample.self) { row in
       HealthSample(
         id: row.id, type: row._type, startDate: row.startDate, endDate: row.endDate,
         value: row.value, unit: row.unit, categoryValue: row.categoryValue,
         correlationID: row.correlationId, sourceName: row.sourceName,
         sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
-        device: try json(row.device), metadata: try json(row.metadata))
+        device: try json(row.device), metadata: try json(row.metadata), provenance: row.provenance)
     },
     entity("health_correlation", Components.Schemas.HealthCorrelation.self) { row in
       HealthCorrelation(
         id: row.id, type: row._type, startDate: row.startDate, endDate: row.endDate,
         sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
         sourceRevision: try json(row.sourceRevision), device: try json(row.device),
-        metadata: try json(row.metadata))
+        metadata: try json(row.metadata), provenance: row.provenance)
     },
     entity("health_characteristic", Components.Schemas.HealthCharacteristic.self) { row in
       HealthCharacteristic(id: row.id, value: try json(row.value) ?? "null")
@@ -343,7 +366,7 @@ public enum HealthDatabase {
         events: try json(row.events) ?? "[]", statistics: try json(row.statistics) ?? "{}",
         sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
         sourceRevision: try json(row.sourceRevision), device: try json(row.device),
-        metadata: try json(row.metadata))
+        metadata: try json(row.metadata), provenance: row.provenance)
     },
     entity("health_state_of_mind", Components.Schemas.HealthStateOfMind.self) { row in
       HealthStateOfMind(
@@ -352,7 +375,7 @@ public enum HealthDatabase {
         labels: try json(row.labels) ?? "[]", associations: try json(row.associations) ?? "[]",
         sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
         sourceRevision: try json(row.sourceRevision), device: try json(row.device),
-        metadata: try json(row.metadata))
+        metadata: try json(row.metadata), provenance: row.provenance)
     },
     entity("health_scored_assessment", Components.Schemas.HealthScoredAssessment.self) { row in
       HealthScoredAssessment(
@@ -360,14 +383,14 @@ public enum HealthDatabase {
         score: row.score, risk: row.risk, answers: try json(row.answers) ?? "[]",
         sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
         sourceRevision: try json(row.sourceRevision), device: try json(row.device),
-        metadata: try json(row.metadata))
+        metadata: try json(row.metadata), provenance: row.provenance)
     },
     entity("health_audiogram", Components.Schemas.HealthAudiogram.self) { row in
       HealthAudiogram(
         id: row.id, startDate: row.startDate, endDate: row.endDate,
         points: try json(row.points) ?? "[]", sourceName: row.sourceName,
         sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
-        device: try json(row.device), metadata: try json(row.metadata))
+        device: try json(row.device), metadata: try json(row.metadata), provenance: row.provenance)
     },
     entity("health_electrocardiogram", Components.Schemas.HealthElectrocardiogram.self) { row in
       HealthElectrocardiogram(
@@ -376,14 +399,14 @@ public enum HealthDatabase {
         averageHeartRate: row.averageHeartRate, samplingFrequency: row.samplingFrequency,
         voltageCount: row.voltageCount, voltages: row.voltages, sourceName: row.sourceName,
         sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
-        device: try json(row.device), metadata: try json(row.metadata))
+        device: try json(row.device), metadata: try json(row.metadata), provenance: row.provenance)
     },
     entity("health_workout_route", Components.Schemas.HealthWorkoutRoute.self) { row in
       HealthWorkoutRoute(
         id: row.id, startDate: row.startDate, endDate: row.endDate, workout: row.workout,
         locationCount: row.locationCount, locations: row.locations, sourceName: row.sourceName,
         sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
-        device: try json(row.device), metadata: try json(row.metadata))
+        device: try json(row.device), metadata: try json(row.metadata), provenance: row.provenance)
     },
     entity("health_heartbeat_series", Components.Schemas.HealthHeartbeatSeries.self) { row in
       HealthHeartbeatSeries(
@@ -391,7 +414,7 @@ public enum HealthDatabase {
         beats: try json(row.beats) ?? "[]", gaps: try json(row.gaps) ?? "[]",
         sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
         sourceRevision: try json(row.sourceRevision), device: try json(row.device),
-        metadata: try json(row.metadata))
+        metadata: try json(row.metadata), provenance: row.provenance)
     },
     entity("health_statistics_device", Components.Schemas.HealthStatisticsDevice.self) { row in
       HealthStatisticsDevice(

@@ -13,6 +13,7 @@ const provenance = {
   sourceRevision: { version: "11.0", productType: "Watch7,1", operatingSystemVersion: "11.0.0" },
   device: { name: "Apple Watch", manufacturer: "Apple Inc.", model: "Watch" },
   metadata: { HKTimeZone: "Europe/Bucharest" },
+  provenance: null,
 };
 
 const steps = {
@@ -54,6 +55,24 @@ const records: ReadonlyArray<{
       startDate: steps.startDate,
       categoryValue: 4,
     },
+  },
+  {
+    entity: "health_provenance",
+    id: "0123456789abcdef0123456789abcdef",
+    row: { sourceRevision: provenance.sourceRevision, device: provenance.device },
+    update: { device: null },
+  },
+  {
+    // From an iPhone that sends its source revision and device once (851-2674).
+    entity: "health_sample",
+    id: "6f1c2a40-0000-4000-8000-00000000000a",
+    row: {
+      ...steps,
+      sourceRevision: null,
+      device: null,
+      provenance: "0123456789abcdef0123456789abcdef",
+    },
+    update: { type: steps.type, startDate: steps.startDate, value: 416 },
   },
   {
     entity: "health_correlation",

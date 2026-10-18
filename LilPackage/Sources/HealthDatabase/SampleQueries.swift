@@ -137,6 +137,7 @@ extension HealthDatabase {
       .order { ($0.startDate.desc(), $0.id.desc()) }
       .limit(limit)
       .fetchAll(db)
+      .withProvenance(db)
   }
 
   /// The apps and devices a type's samples came from, most samples first. Read-only: which
@@ -155,11 +156,13 @@ extension HealthDatabase {
     var devices: [String: SampleDeviceSummary] = [:]
     let rows =
       try HealthSample
-      .where { $0.type.eq(type) && $0.device.isNot(nil) }
-      .group(by: \.device)
-      .select { ($0.device, $0.id.count()) }
+      .where { $0.type.eq(type) && ($0.device.isNot(nil) || $0.provenance.isNot(nil)) }
+      .group { ($0.device, $0.provenance) }
+      .select { ($0.device, $0.provenance, $0.id.count()) }
       .fetchAll(db)
-    for (json, count) in rows {
+    let provenances = try provenances(rows.compactMap { $0.1 }, db)
+    for (inline, provenance, count) in rows {
+      let json = inline ?? provenance.flatMap { provenances[$0]?.device }
       guard let json,
         let device = try? JSONDecoder().decode(SampleDevice.self, from: Data(json.utf8))
       else { continue }
@@ -170,4 +173,31 @@ extension HealthDatabase {
       apps: apps, devices: devices.values.sorted { ($0.count, $1.id) > ($1.count, $0.id) })
   }
 
+  /// The provenance records with these IDs, by ID.
+  static func provenances(
+    _ ids: some Sequence<String>, _ db: Database
+  ) throws -> [String: HealthProvenance] {
+    let ids = Array(Set(ids))
+    guard !ids.isEmpty else { return [:] }
+    return Dictionary(
+      uniqueKeysWithValues: try HealthProvenance.where { $0.id.in(ids) }.fetchAll(db).map {
+        ($0.id, $0)
+      })
+  }
+}
+
+extension [HealthSample] {
+  /// The samples with the source revision and device of their provenance records filled in
+  /// (851-2674), so they read as if uploaded with them.
+  func withProvenance(_ db: Database) throws -> Self {
+    let provenances = try HealthDatabase.provenances(compactMap(\.provenance), db)
+    guard !provenances.isEmpty else { return self }
+    return map { sample in
+      guard let provenance = sample.provenance.flatMap({ provenances[$0] }) else { return sample }
+      var sample = sample
+      sample.sourceRevision = sample.sourceRevision ?? provenance.sourceRevision
+      sample.device = sample.device ?? provenance.device
+      return sample
+    }
+  }
 }

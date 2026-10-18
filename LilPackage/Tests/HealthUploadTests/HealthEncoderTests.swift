@@ -503,6 +503,53 @@ struct HealthBatchWriterTests {
   }
 
   @Test
+  func sendsEachFilesSourceRevisionsAndDevicesOnce() throws {
+    // Synthetic data only (AGENTS.md).
+    let sample = { (n: Int, watch: Bool) -> HealthMutation in
+      .upsert(
+        "health_sample", id: "6f1c2a40-0000-4000-8000-00000000000\(n)",
+        row: [
+          "type": "HKQuantityTypeIdentifierStepCount", "value": .number(Double(n)),
+          "sourceRevision": .object(["version": .string(watch ? "11.0" : "26.0")]),
+          "device": watch ? .object(["name": "Apple Watch"]) : .null,
+        ])
+    }
+    var writer = HealthBatchWriter(maxRecords: 3)
+    var files: [Data] = []
+    for (n, watch) in [(1, true), (2, false), (3, true), (4, true)] {
+      if let file = try writer.append(sample(n, watch)) { files.append(file) }
+    }
+    if let file = try writer.finish() { files.append(file) }
+    let lines = try files.map { file in
+      try String(decoding: Gzip.decompress(file), as: UTF8.self).split(separator: "\n").map {
+        try JSONSerialization.jsonObject(with: Data($0.utf8)) as! [String: Any]
+      }
+    }
+    // Three samples a file, each file with the provenance records its samples refer to, first.
+    #expect(
+      lines.map { $0.map { $0["entity"] as! String } } == [
+        [
+          "health_provenance", "health_sample", "health_provenance", "health_sample",
+          "health_sample",
+        ],
+        ["health_provenance", "health_sample"],
+      ])
+    let watch = try #require(lines[0][0]["id"] as? String)
+    let phone = try #require(lines[0][2]["id"] as? String)
+    #expect(watch.count == 32 && watch != phone)
+    #expect(lines[1][0]["id"] as? String == watch)
+    let watchRow = try #require(lines[0][0]["row"] as? [String: Any])
+    #expect(watchRow["device"] as? [String: String] == ["name": "Apple Watch"])
+    #expect(watchRow["sourceRevision"] as? [String: String] == ["version": "11.0"])
+    let phoneRow = try #require(lines[0][2]["row"] as? [String: Any])
+    #expect(phoneRow["device"] is NSNull)
+    let sampleRow = try #require(lines[0][1]["row"] as? [String: Any])
+    #expect(sampleRow["provenance"] as? String == watch)
+    #expect(sampleRow["device"] is NSNull && sampleRow["sourceRevision"] is NSNull)
+    #expect(sampleRow["value"] as? Double == 1)
+  }
+
+  @Test
   func linesOverTheServersLimitAreRejected() throws {
     var writer = HealthBatchWriter()
     #expect(throws: HealthBatchWriter.LineTooLong.self) {

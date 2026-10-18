@@ -618,6 +618,41 @@ struct SampleQueriesTests {
   }
 
   @Test
+  func samplesFromNewerIPhonesGetTheirDeviceFromTheirProvenance() throws {
+    // Synthetic data only (AGENTS.md).
+    let watch = HealthProvenance(
+      id: "0123456789abcdef0123456789abcdef", sourceRevision: #"{"version":"11.0"}"#,
+      device: #"{"name":"Apple Watch","model":"Watch"}"#)
+    var a = sample(weight, at: utc(1), value: 70)
+    a.provenance = watch.id
+    var b = sample(weight, at: utc(2), value: 71)
+    b.provenance = watch.id
+    // One uploaded with its device inline, by an older iPhone.
+    var c = sample(weight, at: utc(3), value: 72)
+    c.device = #"{"name":"Apple Watch","model":"Watch","softwareVersion":"26.1"}"#
+    // One whose provenance hasn't synced yet.
+    var d = sample(weight, at: utc(4), value: 73)
+    d.provenance = "fedcba9876543210fedcba9876543210"
+    try database.write { db in
+      try HealthProvenance.insert { watch }.execute(db)
+      try HealthSample.insert {
+        a
+        b
+        c
+        d
+      }.execute(db)
+    }
+    let page = try database.read { db in
+      try HealthDatabase.samplePage(of: weight, after: nil, limit: 10, db)
+    }
+    #expect(page.map(\.decodedDevice?.name) == [nil, "Apple Watch", "Apple Watch", "Apple Watch"])
+    #expect(page.map(\.decodedSourceRevision?.version) == [nil, nil, "11.0", "11.0"])
+    let sources = try database.read { db in try HealthDatabase.sampleSources(of: weight, db) }
+    #expect(sources.devices.map(\.device.name) == ["Apple Watch"])
+    #expect(sources.devices.map(\.count) == [3])
+  }
+
+  @Test
   func aSamplesDeviceRevisionAndMetadataDecode() {
     var heartRate = sample("HKQuantityTypeIdentifierHeartRate", at: utc(1), value: 60)
     heartRate.device = #"{"name":"Apple Watch","manufacturer":"Apple Inc."}"#
@@ -970,7 +1005,13 @@ struct HealthSyncTests {
   func appliesEveryHealthEntity() async throws {
     let database = try HealthDatabase.make()
     try await database.write { db in
-      try #sql("INSERT INTO lilSyncState (id, cursor, epoch) VALUES (1, 0, 1)").execute(db)
+      try #sql(
+        """
+        INSERT INTO lilSyncState (id, cursor, epoch, syncSchema)
+        VALUES (1, 0, 1, \(HealthDatabase.syncSchema))
+        """
+      )
+      .execute(db)
     }
     let sampleID = "6f1c2a40-0000-4000-8000-000000000001"
     let changes: [Components.Schemas.Change] = try [
@@ -981,7 +1022,8 @@ struct HealthSyncTests {
         "endDate": 1760400600000, "value": 412, "unit": "count",
         "sourceName": "Test Watch", "sourceBundleId": "com.example.watch",
         "metadata": {"HKWasUserEntered": false, "HKTimeZone": "Europe/Bucharest"},
-        "device": null, "fieldFromTheFuture": "ignored"
+        "device": null, "provenance": "0123456789abcdef0123456789abcdef",
+        "fieldFromTheFuture": "ignored"
         """),
       upsert(
         2, "health_statistic", "\(device)/HKQuantityTypeIdentifierStepCount@1760400000000",
@@ -1058,6 +1100,11 @@ struct HealthSyncTests {
         "locations": "\(String(repeating: "b", count: 64))",
         "sourceName": "Test Watch", "sourceBundleId": "com.example"
         """),
+      upsert(
+        15, "health_provenance", "0123456789abcdef0123456789abcdef",
+        """
+        "sourceRevision": {"version": "11.0"}, "device": {"name": "Apple Watch"}
+        """),
     ]
     let api = Client.mock { request, _ in
       #expect(request.path?.hasPrefix("/v1/sync/changes") == true)
@@ -1066,7 +1113,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 14, head: 14, hasMore: false)))
+              epoch: 1, changes: changes, next: 15, head: 15, hasMore: false)))
       )
     }
     let engine = withDependencies {
@@ -1091,6 +1138,14 @@ struct HealthSyncTests {
       }
     let sample = try #require(stored)
     #expect(sample.value == 412)
+    #expect(sample.provenance == "0123456789abcdef0123456789abcdef")
+    let provenances = try await database.read { db in try HealthProvenance.fetchAll(db) }
+    #expect(
+      provenances == [
+        HealthProvenance(
+          id: "0123456789abcdef0123456789abcdef", sourceRevision: #"{"version":"11.0"}"#,
+          device: #"{"name":"Apple Watch"}"#)
+      ])
     #expect(sample.metadata == #"{"HKTimeZone":"Europe/Bucharest","HKWasUserEntered":false}"#)
     #expect(sample.device == nil)
     #expect(statistics == 1)
@@ -1138,7 +1193,8 @@ struct HealthSyncTests {
       (Record.tableName, Record.TableColumns.writableColumns.map(\.name))
     }
     let tables = [
-      writable(HealthSample.self), writable(HealthCorrelation.self),
+      writable(HealthProvenance.self), writable(HealthSample.self),
+      writable(HealthCorrelation.self),
       writable(HealthCharacteristic.self), writable(HealthActivitySummary.self),
       writable(HealthStatistic.self), writable(HealthWorkout.self),
       writable(HealthStateOfMind.self), writable(HealthScoredAssessment.self),
@@ -1192,7 +1248,13 @@ struct HealthSyncTests {
       )
     }
     try await database.write { db in
-      try #sql("INSERT INTO lilSyncState (id, cursor, epoch) VALUES (1, 0, 1)").execute(db)
+      try #sql(
+        """
+        INSERT INTO lilSyncState (id, cursor, epoch, syncSchema)
+        VALUES (1, 0, 1, \(HealthDatabase.syncSchema))
+        """
+      )
+      .execute(db)
     }
     let engine = withDependencies {
       $0.defaultDatabase = database
@@ -1244,11 +1306,13 @@ struct HealthSyncTests {
         #expect(stored == [record])
       }
     }
+    try roundTrip { v in HealthProvenance(id: "p", sourceRevision: "r\(v)", device: "d\(v)") }
     try roundTrip { v in
       HealthSample(
         id: "s", type: "t\(v)", startDate: 10 + v, endDate: 20 + v, value: Double(30 + v),
         unit: "u\(v)", categoryValue: 40 + v, correlationID: "c\(v)", sourceName: "n\(v)",
-        sourceBundleID: "b\(v)", sourceRevision: "r\(v)", device: "d\(v)", metadata: "m\(v)")
+        sourceBundleID: "b\(v)", sourceRevision: "r\(v)", device: "d\(v)", metadata: "m\(v)",
+        provenance: "p\(v)")
     }
     try roundTrip { v in
       HealthCorrelation(
