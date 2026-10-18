@@ -99,15 +99,15 @@ private func detail(_ series: HealthHeartbeatSeries) -> some View {
   }
   // Made-up daily averages for the same week.
   let resting = MetricOverlay(
-    name: "Resting",
+    name: "Resting", color: .blue,
     points: chart.points.enumerated().map { index, point in
       ChartPoint(start: point.start, value: 56 + Double(index % 3))
-    })
+    }, range: .week, offset: -1)
   let walking = MetricOverlay(
-    name: "Walking Average",
+    name: "Walking Average", color: .orange,
     points: chart.points.enumerated().map { index, point in
       ChartPoint(start: point.start, value: 96 + Double((index * 5) % 9))
-    })
+    }, range: .week, offset: -1)
   return NavigationStack {
     MetricDetailContent(
       type: type, range: .constant(.week), offset: .constant(-1), state: .loaded(chart),

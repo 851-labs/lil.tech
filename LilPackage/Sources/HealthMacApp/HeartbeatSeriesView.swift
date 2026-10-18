@@ -65,7 +65,8 @@ struct HeartbeatSeriesContent: View {
             Section(section.start.formatted(date: .complete, time: .omitted)) {
               ForEach(section.records) { series in
                 NavigationLink {
-                  HeartbeatSeriesDetailView(series: series)
+                  // Built when opened: it works out the series' beats.
+                  Lazy { HeartbeatSeriesDetailView(series: series) }
                 } label: {
                   HeartbeatSeriesRow(series: series)
                 }
@@ -105,7 +106,7 @@ struct HeartbeatSeriesRow: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(HeartFormat.average(analysis))
           .font(.headline)
-        Text("\(analysis.beatCount) beats")
+        Text("\(analysis.beatCount.formatted()) beats")
           .foregroundStyle(.secondary)
       }
       Spacer()
@@ -145,10 +146,10 @@ struct HeartbeatSeriesDetailView: View {
             description: Text("This measurement has too few beats to show."))
         } else {
           Chart {
-            ForEach(Array(analysis.beats.enumerated()), id: \.offset) { index, beat in
+            ForEach(analysis.beats, id: \.time) { beat in
               LineMark(
                 x: .value("Seconds", beat.time), y: .value("BPM", beat.beatsPerMinute),
-                series: .value("Run", HeartFormat.run(analysis.beats, upTo: index))
+                series: .value("Run", beat.run)
               )
               .foregroundStyle(.red)
               PointMark(x: .value("Seconds", beat.time), y: .value("BPM", beat.beatsPerMinute))
@@ -164,7 +165,7 @@ struct HeartbeatSeriesDetailView: View {
 
         GroupBox {
           VStack(alignment: .leading, spacing: 8) {
-            LabeledContent("Beats", value: "\(analysis.beatCount)")
+            LabeledContent("Beats", value: analysis.beatCount.formatted())
             LabeledContent(
               "Duration",
               value: "\(analysis.duration.formatted(.number.precision(.fractionLength(0)))) s")
@@ -184,16 +185,27 @@ struct HeartbeatSeriesDetailView: View {
 enum HeartFormat {
   static func average(_ analysis: HeartbeatAnalysis) -> String {
     guard let bpm = analysis.averageBeatsPerMinute else { return "No Average" }
-    return "\(Int(bpm.rounded())) BPM Average"
+    let (number, unit) = MetricFormat.value(
+      bpm, unit: "count/min", typeID: HealthDatabase.heartRateType)
+    return "\(number) \(unit) Average"
   }
 
   static func milliseconds(_ value: Double?) -> String {
     guard let value else { return "–" }
-    return "\(Int(value.rounded())) ms"
+    let (number, unit) = MetricFormat.value(
+      value, unit: "ms", typeID: "HKQuantityTypeIdentifierHeartRateVariabilitySDNN")
+    return "\(number) \(unit)"
+  }
+}
+
+/// A view built only when it's shown, e.g. a navigation destination that loads or works out
+/// something, so a list of links doesn't do it for every row.
+struct Lazy<Content: View>: View {
+  let build: () -> Content
+
+  init(_ build: @escaping () -> Content) {
+    self.build = build
   }
 
-  /// Which unbroken run the beat at `index` is in: gaps start a new line.
-  static func run(_ beats: [HeartbeatAnalysis.Beat], upTo index: Int) -> Int {
-    beats[...index].count(where: \.afterGap)
-  }
+  var body: some View { build() }
 }

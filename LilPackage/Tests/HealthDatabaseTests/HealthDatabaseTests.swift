@@ -1716,7 +1716,7 @@ struct HeartQueriesTests {
     // Intervals of 1.0, 0.8, 1.2 s, then a gap, then 0.5 s.
     let analysis = HeartbeatAnalysis(beats: [0, 1, 1.8, 3, 10, 10.5], gaps: [4])
     #expect(analysis.beats.map(\.beatsPerMinute) == [60, 75, 50, 120])
-    #expect(analysis.beats.map(\.afterGap) == [false, false, false, true])
+    #expect(analysis.beats.map(\.run) == [0, 0, 0, 1])
     #expect(analysis.beatCount == 6)
     #expect(analysis.duration == 10.5)
     // Mean interval 0.875 s.
@@ -1756,5 +1756,9 @@ struct HeartQueriesTests {
     let found = try database.read { db in try HealthDatabase.heartbeatSeries(limit: 10, db) }
     #expect(found.map(\.id) == ["b", "a"])
     #expect(found.first?.analysis.averageBeatsPerMinute == 75)
+    // Gaps that can't be read leave no intervals, not false ones across them.
+    var broken = series("c", 0)
+    broken.gaps = "oops"
+    #expect(broken.analysis.beats.isEmpty && broken.analysis.beatCount == 3)
   }
 }

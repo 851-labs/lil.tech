@@ -64,9 +64,10 @@ struct MetricDetailView: View {
     _ = try? await $overlays.load(
       MetricOverlaysRequest(
         lines: [
-          (HealthDatabase.restingHeartRateType, "Resting"),
-          (HealthDatabase.walkingHeartRateType, "Walking Average"),
-        ].map { MetricOverlaysRequest.Line(typeID: $0.0, name: $0.1) },
+          .init(typeID: HealthDatabase.restingHeartRateType, name: "Resting", color: .blue),
+          .init(
+            typeID: HealthDatabase.walkingHeartRateType, name: "Walking Average", color: .orange),
+        ],
         range: range, offset: offset),
       scheduler: MainQueueScheduler())
   }
@@ -89,6 +90,7 @@ struct MetricOverlaysRequest: FetchKeyRequest {
   struct Line: Hashable {
     let typeID: String
     let name: String
+    let color: Color
   }
 
   let lines: [Line]
@@ -100,15 +102,20 @@ struct MetricOverlaysRequest: FetchKeyRequest {
       guard let type = HealthCatalog.type(id: line.typeID) else { return nil }
       let chart = try HealthDatabase.metricChart(
         of: type, range: range, offset: offset, now: .now, calendar: .current, db)
-      return MetricOverlay(name: line.name, points: chart.points)
+      return MetricOverlay(
+        name: line.name, color: line.color, points: chart.points, range: range, offset: offset)
     }
   }
 }
 
-/// A line over a chart: another type's value for each of its periods.
+/// A line over a chart: another type's value for each of its periods, for the range and period
+/// it was loaded for.
 struct MetricOverlay: Equatable, Sendable {
   let name: String
+  let color: Color
   let points: [ChartPoint]
+  let range: ChartRange
+  let offset: Int
 }
 
 /// What the detail shows, however it got it.
@@ -129,6 +136,14 @@ struct MetricDetailContent: View {
 
   private var color: Color { type.category?.color ?? .accentColor }
 
+  /// The lines to draw: those loaded for the period shown, with values, over a chart with data.
+  private var shownOverlays: [MetricOverlay] {
+    guard case .loaded(let chart) = state, !chart.points.isEmpty else { return [] }
+    return overlays.filter {
+      $0.range == range && $0.offset == offset && !$0.points.isEmpty
+    }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -145,13 +160,13 @@ struct MetricDetailContent: View {
           header
           chartArea
             .frame(height: 280)
-          if !overlays.isEmpty {
+          if !shownOverlays.isEmpty {
             HStack(spacing: 16) {
-              ForEach(overlays, id: \.name) { overlay in
+              ForEach(shownOverlays, id: \.name) { overlay in
                 Label {
                   Text(overlay.name)
                 } icon: {
-                  Circle().fill(MetricOverlay.color(overlay.name)).frame(width: 8, height: 8)
+                  Circle().fill(overlay.color).frame(width: 8, height: 8)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -175,7 +190,8 @@ struct MetricDetailContent: View {
         VStack(spacing: 0) {
           if HealthDatabase.heartRateVariabilityTypes.contains(type.id) {
             NavigationLink {
-              HeartbeatSeriesView()
+              // Built when opened: it fetches the series.
+              Lazy { HeartbeatSeriesView() }
             } label: {
               linkRow("Beat-to-Beat Measurements")
             }
@@ -291,20 +307,20 @@ struct MetricDetailContent: View {
         ForEach(chart.points, id: \.start) { point in
           bar(point, in: chart)
         }
-        ForEach(overlays, id: \.name) { overlay in
+        ForEach(shownOverlays, id: \.name) { overlay in
           ForEach(overlay.points, id: \.start) { point in
             LineMark(
               x: .value("Date", point.start, unit: range.barUnit),
               y: .value(overlay.name, point.value),
               series: .value("Line", overlay.name)
             )
-            .foregroundStyle(MetricOverlay.color(overlay.name))
+            .foregroundStyle(overlay.color)
             .lineStyle(StrokeStyle(lineWidth: 2))
             PointMark(
               x: .value("Date", point.start, unit: range.barUnit),
               y: .value(overlay.name, point.value)
             )
-            .foregroundStyle(MetricOverlay.color(overlay.name))
+            .foregroundStyle(overlay.color)
             .symbolSize(24)
           }
         }
@@ -321,6 +337,7 @@ struct MetricDetailContent: View {
         }
       }
       .chartXScale(domain: domain(chart))
+      .chartPlotStyle { $0.clipped() }
       .chartXSelection(value: $hovered)
       .chartYAxis {
         AxisMarks(position: .trailing)
@@ -437,9 +454,4 @@ enum ChartFormat {
     case .year: return start.formatted(style.month(.wide).year())
     }
   }
-}
-
-extension MetricOverlay {
-  /// Heart rate's lines: resting in blue, walking average in orange.
-  static func color(_ name: String) -> Color { name == "Resting" ? .blue : .orange }
 }

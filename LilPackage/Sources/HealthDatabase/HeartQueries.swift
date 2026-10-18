@@ -28,8 +28,9 @@ public struct HeartbeatAnalysis: Equatable, Sendable {
   public struct Beat: Equatable, Sendable {
     public var time: Double
     public var beatsPerMinute: Double
-    /// The first interval after a gap, so a chart doesn't join it to the one before.
-    public var afterGap: Bool
+    /// Which unbroken run of beats it's in, counting gaps from 0, so a chart doesn't join
+    /// intervals across a gap.
+    public var run: Int
   }
 
   public var beats: [Beat]
@@ -47,18 +48,17 @@ public struct HeartbeatAnalysis: Equatable, Sendable {
     var beats: [Beat] = []
     var successive: [Double] = []
     var previous: Double?
-    var afterGap = false
+    var run = 0
     for index in times.indices.dropFirst() {
       if gaps.contains(index) {
         previous = nil
-        afterGap = true
+        run += 1
         continue
       }
       let interval = times[index] - times[index - 1]
       guard interval > 0 else { continue }
       intervals.append(interval)
-      beats.append(Beat(time: times[index], beatsPerMinute: 60 / interval, afterGap: afterGap))
-      afterGap = false
+      beats.append(Beat(time: times[index], beatsPerMinute: 60 / interval, run: run))
       if let previous { successive.append(interval - previous) }
       previous = interval
     }
@@ -85,11 +85,14 @@ public struct HeartbeatAnalysis: Equatable, Sendable {
 }
 
 extension HealthHeartbeatSeries {
-  /// Its beats' times (seconds since its start) and the beats that came after a gap.
+  /// Its beats' times (seconds since its start) and the beats that came after a gap. Gaps that
+  /// can't be read leave no intervals rather than false ones across them: just the beat count.
   public var analysis: HeartbeatAnalysis {
     let decoder = JSONDecoder()
     let times = (try? decoder.decode([Double].self, from: Data(beats.utf8))) ?? []
-    let gaps = (try? decoder.decode([Int].self, from: Data(self.gaps.utf8))) ?? []
+    guard let gaps = try? decoder.decode([Int].self, from: Data(self.gaps.utf8)) else {
+      return HeartbeatAnalysis(beats: times, gaps: Set(times.indices))
+    }
     return HeartbeatAnalysis(beats: times, gaps: Set(gaps))
   }
 }
