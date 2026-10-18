@@ -129,18 +129,32 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-services
       # Destroying a stage that was never deployed is a no-op.
-      - run: pnpm exec alchemy destroy --stage "$STAGE" --yes
+      - name: Destroy the preview stage
+        id: destroy
+        run: pnpm exec alchemy destroy --stage "$STAGE" --yes
         working-directory: Services/api
       # A failed teardown would otherwise only be a red run on a closed PR, and leave resources
-      # (and costs) behind.
+      # (and costs) behind. One comment, updated on each failed attempt.
       - name: Comment if the teardown failed
-        if: failure()
+        if: failure() && steps.destroy.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh pr comment "$PR" --body "**Preview teardown failed** for \`$STAGE\`, so some of its resources are still in Cloudflare. See $RUN_URL, fix the cause, then rerun the failed job."
+          marker="<!-- preview-teardown-failed -->"
+          body="$marker
+          **Preview teardown failed** for \`$STAGE\`, so some of its resources are still in Cloudflare: $RUN_URL
+
+          Fix the cause, then rerun the failed job. For \`BucketNotEmpty\`, empty the bucket first: destroy reads the props saved when the stage was last deployed, so a stage deployed before \`forceDestroy\` keeps refusing."
+          id=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
+            --jq "[.[] | select(.body | startswith(\"$marker\"))][0].id // empty")
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$GH_REPO/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh pr comment "$PR" --body "$body"
+          fi
 
   deploy:
     needs: changes

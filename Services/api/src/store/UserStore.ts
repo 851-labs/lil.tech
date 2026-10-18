@@ -7,7 +7,7 @@ import {
   receiveHealthBatch,
   saveHealthBatch,
 } from "../health/HealthBatchStore.ts";
-import { disposableInPreviews } from "../Deployment.ts";
+import { DisposableBucket } from "../Deployment.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
 import { deleteObjects, listObjects, provideRuntime } from "../Runtime.ts";
 import { applyMutations, readChanges, readEpoch, readHead, readMeta } from "./ChangeLog.ts";
@@ -513,12 +513,12 @@ export class UserStore extends Cloudflare.DurableObject<UserStore, UserStoreShap
 }) {}
 
 /** Snapshot parts (`src/store/Snapshots.ts`). */
-export const SnapshotBucket = Cloudflare.R2.Bucket("SyncSnapshots", disposableInPreviews({}));
+export const SnapshotBucket = DisposableBucket("SyncSnapshots");
 /**
  * Health blobs (`src/health/HealthBlobs.ts`), under `health-blobs/<user>/<sha256>`. Immutable;
  * the store sweeps the ones no record refers to any more (`src/store/BlobSweep.ts`).
  */
-export const HealthBlobBucket = Cloudflare.R2.Bucket("HealthBlobs", disposableInPreviews({}));
+export const HealthBlobBucket = DisposableBucket("HealthBlobs");
 
 export const UserStoreLive = UserStore.make(
   Effect.gen(function* () {

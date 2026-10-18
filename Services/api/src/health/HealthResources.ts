@@ -2,7 +2,7 @@ import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Effect, type Layer, Option, Stream } from "effect";
 import type { Users } from "../core/Users.ts";
-import { disposableInPreviews } from "../Deployment.ts";
+import { DisposableBucket } from "../Deployment.ts";
 import {
   failHealthBatch,
   BatchFilesUnavailable,
@@ -20,17 +20,14 @@ import { UserStores } from "../store/UserStores.ts";
  * Uploaded batch files, kept until they're applied. Any left behind (a failed batch, an upload
  * whose queueing failed) expire after 7 days.
  */
-export const HealthBatchBucket = Cloudflare.R2.Bucket(
-  "HealthBatchFiles",
-  disposableInPreviews({
-    lifecycleRules: [
-      {
-        id: "expire-batch-files",
-        deleteObjectsTransition: { condition: { type: "Age" as const, maxAge: 7 * 24 * 60 * 60 } },
-      },
-    ],
-  }),
-);
+export const HealthBatchBucket = DisposableBucket("HealthBatchFiles", {
+  lifecycleRules: [
+    {
+      id: "expire-batch-files",
+      deleteObjectsTransition: { condition: { type: "Age", maxAge: 7 * 24 * 60 * 60 } },
+    },
+  ],
+});
 export const HealthBatchQueueResource = Cloudflare.Queues.Queue("HealthBatchQueue");
 
 /** Where a batch's message goes after its last failed attempt, to be looked at by hand. */

@@ -10,7 +10,7 @@ import { HttpRouter } from "effect/http";
 import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
-import { Deployment, disposableInPreviews, environmentForStage } from "../src/Deployment.ts";
+import { Deployment, disposableBucketProps, environmentForStage } from "../src/Deployment.ts";
 import { Auth } from "../src/auth/Auth.ts";
 import { ingestHealthBatch } from "../src/health/HealthIngestion.ts";
 import { maxDevUsers } from "../src/auth/DevSignIn.ts";
@@ -2042,25 +2042,26 @@ describe("apiWorkerProps", () => {
   );
 });
 
-describe("disposableInPreviews", () => {
-  const props = disposableInPreviews({ lifecycleRules: [] });
+describe("DisposableBucket", () => {
+  // The props Alchemy resolves for a bucket in `stage` (none: inside the running Worker).
+  const propsIn = (stage?: string) => {
+    const props = disposableBucketProps({ lifecycleRules: [] });
+    return stage === undefined ? props : props.pipe(Effect.provideService(Alchemy.Stage, stage));
+  };
 
-  it.effect("lets previews and personal stages delete non-empty buckets", () =>
+  it.effect("lets previews, personal stages and alchemy dev delete non-empty buckets", () =>
     Effect.gen(function* () {
-      for (const stage of ["pr-12", "live_tuftlord"]) {
-        const resolved = yield* props.pipe(Effect.provideService(Alchemy.Stage, stage));
-        assert.deepStrictEqual(resolved, { lifecycleRules: [], forceDestroy: true }, stage);
+      for (const stage of ["pr-12", "live_tuftlord", "dev_tuftlord"]) {
+        assert.propertyVal(yield* propsIn(stage), "forceDestroy", true, stage);
       }
     }),
   );
 
   it.effect("keeps R2's refusal in staging, prod and the running Worker", () =>
     Effect.gen(function* () {
-      for (const stage of ["staging", "prod"]) {
-        const resolved = yield* props.pipe(Effect.provideService(Alchemy.Stage, stage));
-        assert.deepStrictEqual(resolved, { lifecycleRules: [] }, stage);
+      for (const stage of ["staging", "prod", undefined]) {
+        assert.notProperty(yield* propsIn(stage), "forceDestroy", String(stage));
       }
-      assert.deepStrictEqual(yield* props, { lifecycleRules: [] });
     }),
   );
 });

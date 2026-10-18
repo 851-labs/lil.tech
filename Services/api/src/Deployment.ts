@@ -1,4 +1,5 @@
 import * as Alchemy from "alchemy";
+import * as Cloudflare from "alchemy/Cloudflare";
 import { Config, Context, Effect, Option } from "effect";
 import { Environment } from "./Status.ts";
 
@@ -37,17 +38,18 @@ export const environmentForStage = (stage: string): Environment => {
 };
 
 /**
- * R2 bucket props that let `alchemy destroy` delete a preview's buckets even when they hold
- * objects (`forceDestroy`). R2 refuses to delete a non-empty bucket, which left previews' buckets
- * behind when their PRs closed. Staging and prod keep that refusal as a safety net. Alchemy also
- * evaluates props inside the running Worker, where there's no `Stage`.
+ * An R2 bucket that previews, personal stages and `alchemy dev` can delete even when it holds
+ * objects (`forceDestroy`). R2 refuses to delete a non-empty bucket, which left preview buckets
+ * behind when their PRs closed. Staging and prod keep that refusal as a safety net. Use it for
+ * every bucket. Alchemy also evaluates props inside the running Worker, where there's no `Stage`.
  */
-export const disposableInPreviews = <Props extends object>(props: Props) =>
+export const DisposableBucket = (id: string, props: Cloudflare.R2.BucketProps = {}) =>
+  Cloudflare.R2.Bucket(id, disposableBucketProps(props));
+
+/** `DisposableBucket`'s props: `forceDestroy` everywhere but staging and prod. */
+export const disposableBucketProps = (props: Cloudflare.R2.BucketProps) =>
   Effect.gen(function* () {
     const stage = yield* Effect.serviceOption(Alchemy.Stage);
-    const preview = Option.isSome(stage) && environmentForStage(stage.value) === "preview";
-    const resolved: Props & { readonly forceDestroy?: boolean } = preview
-      ? { ...props, forceDestroy: true }
-      : props;
-    return resolved;
+    const shared = Option.isNone(stage) || stage.value === "prod" || stage.value === "staging";
+    return shared ? props : { ...props, forceDestroy: true };
   });
