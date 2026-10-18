@@ -18,14 +18,14 @@ On the Mac that builds releases:
    xcrun notarytool store-credentials lil-notary --key AuthKey_XXXXXXXXXX.p8 --key-id XXXXXXXXXX --issuer <issuer-uuid>
    ```
 
-3. **Sparkle signing keys.** Each app has its own, in the login keychain under the account `lil-<app>`, and backed up in 1Password as "lil <app> – Sparkle EdDSA update key". The app's public key is `SUPublicEDKey` in its `Info.plist`. lil messages uses `lil-messages`. lil health's key, `lil-health`, is ready for its Mac release (851-2632) but isn't in its `Info.plist` yet. Back up a new key before releasing with it. On a new Mac, restore a key from 1Password, outside the repo:
+3. **Sparkle signing keys.** Each app has its own, in the login keychain under the account `lil-<app>`, and backed up in 1Password as "lil <app> – Sparkle EdDSA update key". The app's public key is `SUPublicEDKey` in its `Info.plist`. lil messages uses `lil-messages`. lil health's key, `lil-health`, is ready for its Mac release (851-2632) but isn't in `LilHealth-Info.plist` yet. Back up a new key before releasing with it. On a new Mac, restore a key from 1Password, outside the repo:
 
    ```
    app=messages  # or health
    dir=$(mktemp -d) && trap 'rm -rf "$dir"' EXIT
    op item get "lil $app – Sparkle EdDSA update key" --fields "private key" --reveal | tr -d '\n' > "$dir/key"
    generate_keys --account "lil-$app" -f "$dir/key"
-   generate_keys --account "lil-$app" -p   # must match SUPublicEDKey in the app's Info.plist
+   generate_keys --account "lil-$app" -p   # must match SUPublicEDKey in the app's Info.plist (lil health: LilHealth-Info.plist)
    ```
 
    If a key is lost, a Developer ID-signed app can still move to a new one: Sparkle accepts an update that changes the EdDSA key or the Developer ID certificate, but never both in the same release. So don't rotate the certificate and the key together.
@@ -91,11 +91,11 @@ xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS -configuration Releas
   CURRENT_PROJECT_VERSION=$(git rev-list --count HEAD) archive
 
 xcodebuild -exportArchive -archivePath build/LilHealthiOS.xcarchive \
-  -exportOptionsPlist Apps/LilHealthiOS/ExportOptions.plist -allowProvisioningUpdates \
+  -exportOptionsPlist Apps/LilHealth/LilHealthiOS-ExportOptions.plist -allowProvisioningUpdates \
   -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_XXXXXXXXXX.p8 \
   -authenticationKeyID XXXXXXXXXX -authenticationKeyIssuerID <issuer-uuid>
 ```
 
-- The archive's build number is the commit count, as with the Mac apps. `ExportOptions.plist` keeps Xcode from renumbering it.
-- `ExportOptions.plist` exports for App Store Connect and uploads in the same step.
+- The archive's build number is the commit count, as with the Mac apps. `LilHealthiOS-ExportOptions.plist` keeps Xcode from renumbering it.
+- `LilHealthiOS-ExportOptions.plist` also exports for App Store Connect and uploads in the same step.
 - After App Store Connect processes the build, add it to a TestFlight group. Builds for external testers also need Beta App Review.

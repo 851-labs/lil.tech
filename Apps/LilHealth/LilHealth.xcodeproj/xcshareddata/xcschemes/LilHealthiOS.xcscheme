@@ -17,7 +17,7 @@
                BlueprintIdentifier = "1B0000000000000000000006"
                BuildableName = "lil health.app"
                BlueprintName = "LilHealthiOS"
-               ReferencedContainer = "container:LilHealthiOS.xcodeproj">
+               ReferencedContainer = "container:LilHealth.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -57,7 +57,7 @@
             BlueprintIdentifier = "1B0000000000000000000006"
             BuildableName = "lil health.app"
             BlueprintName = "LilHealthiOS"
-            ReferencedContainer = "container:LilHealthiOS.xcodeproj">
+            ReferencedContainer = "container:LilHealth.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -74,7 +74,7 @@
             BlueprintIdentifier = "1B0000000000000000000006"
             BuildableName = "lil health.app"
             BlueprintName = "LilHealthiOS"
-            ReferencedContainer = "container:LilHealthiOS.xcodeproj">
+            ReferencedContainer = "container:LilHealth.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
