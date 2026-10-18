@@ -7,7 +7,7 @@
 - **Open source:** Apache 2.0. Real user data (e.g. `chat.db`, Health data) is never committed. Test fixtures are synthetic.
 - **Layout:**
   - `Lil.xcworkspace`
-  - Thin app projects under `Apps/`
+  - Thin app projects under `Apps/`: one project per app, with a target per platform (851-2684). `Apps/LilHealth/LilHealth.xcodeproj` has `LilHealth` (macOS) and `LilHealthiOS`, sharing project-level settings (version, team, bundle ID, Swift flags). Each target keeps its own entry point, signing, entitlements, `<Target>-Info.plist` and assets. Not one multiplatform target: the entry points and signing differ too much.
   - One SPM package with many small modules
   - TypeScript in one pnpm workspace at the repo root (851-2683): servers in `Services/` (the API), web projects in `Web/` (the website now, web apps later). The site moved out of `Services/`, where it only sat because the API's stack deploys it. Not a lowercase `apps/`, which would collide with `Apps/` on macOS's case-insensitive disks.
   - Code moves into a shared module once a second app needs it, not before (e.g. a ⌘K command palette)

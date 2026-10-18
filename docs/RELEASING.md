@@ -91,11 +91,11 @@ xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS -configuration Releas
   CURRENT_PROJECT_VERSION=$(git rev-list --count HEAD) archive
 
 xcodebuild -exportArchive -archivePath build/LilHealthiOS.xcarchive \
-  -exportOptionsPlist Apps/LilHealthiOS/ExportOptions.plist -allowProvisioningUpdates \
+  -exportOptionsPlist Apps/LilHealth/LilHealthiOS-ExportOptions.plist -allowProvisioningUpdates \
   -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_XXXXXXXXXX.p8 \
   -authenticationKeyID XXXXXXXXXX -authenticationKeyIssuerID <issuer-uuid>
 ```
 
-- The archive's build number is the commit count, as with the Mac apps. `ExportOptions.plist` keeps Xcode from renumbering it.
-- `ExportOptions.plist` exports for App Store Connect and uploads in the same step.
+- The archive's build number is the commit count, as with the Mac apps. `LilHealthiOS-ExportOptions.plist` keeps Xcode from renumbering it.
+- It exports for App Store Connect and uploads in the same step.
 - After App Store Connect processes the build, add it to a TestFlight group. Builds for external testers also need Beta App Review.

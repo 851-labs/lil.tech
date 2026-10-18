@@ -191,7 +191,7 @@ describe("googleClientIds", () => {
   // server's would make Google sign-in fail for that app.
   it.each(["LilHealth", "LilHealthiOS"])("lists the client ID in %s's Info.plist", (app) => {
     const plist = readFileSync(
-      new URL(`../../../../Apps/${app}/Info.plist`, import.meta.url),
+      new URL(`../../../../Apps/LilHealth/${app}-Info.plist`, import.meta.url),
       "utf8",
     );
     const clientId = /<key>GIDClientID<\/key>\s*<string>([^<]+)<\/string>/.exec(plist)?.[1];

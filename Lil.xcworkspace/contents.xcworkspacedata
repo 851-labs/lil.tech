@@ -5,9 +5,6 @@
       location = "group:Apps/LilHealth/LilHealth.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:Apps/LilHealthiOS/LilHealthiOS.xcodeproj">
-   </FileRef>
-   <FileRef
       location = "group:Apps/LilMessages/LilMessages.xcodeproj">
    </FileRef>
    <FileRef
