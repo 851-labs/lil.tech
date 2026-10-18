@@ -1,6 +1,8 @@
 import * as D1Drizzle from "drizzle-orm/effect-d1";
 import type { EffectDrizzleQueryError, QueryEffectHKTBase } from "drizzle-orm/effect-core";
 import type { SQLiteEffectDatabase } from "drizzle-orm/sqlite-core/effect";
+import { sql } from "drizzle-orm";
+import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { Cause, Context, Effect, Layer, Option, Predicate } from "effect";
 import { SqlError } from "effect/sql";
 
@@ -49,3 +51,6 @@ export const first =
     rows[0] === undefined
       ? Effect.succeed(Option.none())
       : decode(rows[0]).pipe(Effect.orDie, Effect.map(Option.some));
+
+/** In `onConflictDoUpdate`'s `set`: the value the conflicting insert would have written. */
+export const excluded = (column: SQLiteColumn) => sql`excluded.${sql.identifier(column.name)}`;

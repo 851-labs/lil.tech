@@ -24,13 +24,13 @@ export const CoreDatabase = Cloudflare.D1.Database("Core2", {
 });
 
 /**
- * The core database from a D1 binding (`Cloudflare.D1.QueryDatabase(CoreDatabase)`): `CoreDb`
- * (Drizzle) for the repositories, and `SqlClient` for those not on Drizzle yet.
+ * The core database from a D1 binding (`Cloudflare.D1.QueryDatabase(CoreDatabase)`): `CoreDb`,
+ * Drizzle over `@effect/sql-d1`'s client.
  */
 export const coreDatabase = <E, R>(d1: SQL.D1DatabaseSource<E, R>) =>
-  CoreDb.d1.pipe(Layer.provideMerge(SQL.D1Layer(d1)));
+  CoreDb.d1.pipe(Layer.provide(SQL.D1Layer(d1)));
 
-/** The core repositories. Needs `CoreDb` and a `SqlClient` for the core database. */
+/** The core repositories. Needs `CoreDb`. */
 export const CoreRepositories = Layer.mergeAll(
   Users.layer,
   Identities.layer,

@@ -1,6 +1,9 @@
 import { Context, Effect, Layer, Option, Schema } from "effect";
-import { SqlClient, type SqlError } from "effect/sql";
+import { and, eq, inArray, isNull, lte } from "drizzle-orm";
+import type { SqlError } from "effect/sql";
+import { CoreDb, first, query } from "./CoreDb.ts";
 import { DeviceId, SessionId, UserId } from "./Ids.ts";
+import { sessions } from "./Schema.ts";
 
 /** One refresh token. Rotating a token revokes its row and adds a new one in the same family. */
 export class Session extends Schema.Class<Session>("lil/api/core/Session")({
@@ -13,8 +16,6 @@ export class Session extends Schema.Class<Session>("lil/api/core/Session")({
   expiresAt: Schema.Number,
   revokedAt: Schema.NullOr(Schema.Number),
 }) {}
-
-const decodeSession = (row: unknown) => Schema.decodeUnknownEffect(Session)(row).pipe(Effect.orDie);
 
 export class Sessions extends Context.Service<
   Sessions,
@@ -51,37 +52,78 @@ export class Sessions extends Context.Service<
   static readonly layer = Layer.effect(
     Sessions,
     Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
+      const db = yield* CoreDb;
       return Sessions.of({
         create: Effect.fn("Sessions.create")(function* (session, refreshTokenHash) {
-          yield* sql`INSERT INTO sessions
-            (id, user_id, device_id, family_id, refresh_token_hash, created_at, expires_at, revoked_at)
-            VALUES (${session.id}, ${session.userId}, ${session.deviceId}, ${session.familyId},
-              ${refreshTokenHash}, ${session.createdAt}, ${session.expiresAt}, ${session.revokedAt})`;
+          yield* query(
+            db.insert(sessions).values({
+              id: session.id,
+              userId: session.userId,
+              deviceId: session.deviceId,
+              familyId: session.familyId,
+              refreshTokenHash,
+              createdAt: session.createdAt,
+              expiresAt: session.expiresAt,
+              revokedAt: session.revokedAt,
+            }),
+          );
         }),
         findByRefreshTokenHash: Effect.fn("Sessions.findByRefreshTokenHash")(function* (hash) {
-          const rows = yield* sql`SELECT id, user_id AS "userId", device_id AS "deviceId",
-            family_id AS "familyId", created_at AS "createdAt", expires_at AS "expiresAt",
-            revoked_at AS "revokedAt" FROM sessions WHERE refresh_token_hash = ${hash}`;
-          const row = rows[0];
-          if (row === undefined) return Option.none();
-          return Option.some(yield* decodeSession(row));
+          const rows = yield* query(
+            db
+              .select({
+                id: sessions.id,
+                userId: sessions.userId,
+                deviceId: sessions.deviceId,
+                familyId: sessions.familyId,
+                createdAt: sessions.createdAt,
+                expiresAt: sessions.expiresAt,
+                revokedAt: sessions.revokedAt,
+              })
+              .from(sessions)
+              .where(eq(sessions.refreshTokenHash, hash)),
+          );
+          return yield* first(Schema.decodeUnknownEffect(Session))(rows);
         }),
         revokeIfActive: Effect.fn("Sessions.revokeIfActive")(function* (id, now) {
-          const rows = yield* sql`UPDATE sessions SET revoked_at = ${now}
-            WHERE id = ${id} AND revoked_at IS NULL RETURNING id`;
+          const rows = yield* query(
+            db
+              .update(sessions)
+              .set({ revokedAt: now })
+              .where(and(eq(sessions.id, id), isNull(sessions.revokedAt)))
+              .returning({ id: sessions.id }),
+          );
           return rows.length === 1;
         }),
         revokeFamily: Effect.fn("Sessions.revokeFamily")(function* (familyId, now) {
-          yield* sql`UPDATE sessions SET revoked_at = ${now}
-            WHERE family_id = ${familyId} AND revoked_at IS NULL`;
+          yield* query(
+            db
+              .update(sessions)
+              .set({ revokedAt: now })
+              .where(and(eq(sessions.familyId, familyId), isNull(sessions.revokedAt))),
+          );
         }),
         deleteFamilyOf: Effect.fn("Sessions.deleteFamilyOf")(function* (id) {
-          yield* sql`DELETE FROM sessions
-            WHERE family_id = (SELECT family_id FROM sessions WHERE id = ${id})`;
+          yield* query(
+            db
+              .delete(sessions)
+              .where(
+                inArray(
+                  sessions.familyId,
+                  db
+                    .select({ familyId: sessions.familyId })
+                    .from(sessions)
+                    .where(eq(sessions.id, id)),
+                ),
+              ),
+          );
         }),
         deleteExpired: Effect.fn("Sessions.deleteExpired")(function* (familyId, now) {
-          yield* sql`DELETE FROM sessions WHERE family_id = ${familyId} AND expires_at <= ${now}`;
+          yield* query(
+            db
+              .delete(sessions)
+              .where(and(eq(sessions.familyId, familyId), lte(sessions.expiresAt, now))),
+          );
         }),
       });
     }),

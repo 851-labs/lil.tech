@@ -1,6 +1,9 @@
 import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
-import { SqlClient, type SqlError } from "effect/sql";
+import { and, eq, exists, gt, isNull, lt, notExists, type SQLWrapper } from "drizzle-orm";
+import type { SqlError } from "effect/sql";
+import { CoreDb, first, query } from "./CoreDb.ts";
 import { DeviceId, newDeviceId, UserId } from "./Ids.ts";
+import { devices, sessions } from "./Schema.ts";
 
 export const DevicePlatform = Schema.Literals(["ios", "macos"]);
 export type DevicePlatform = typeof DevicePlatform.Type;
@@ -76,10 +79,23 @@ export class Devices extends Context.Service<
   static readonly layer = Layer.effect(
     Devices,
     Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      const select = sql`SELECT id, user_id AS "userId", app, platform, name,
-        push_token AS "pushToken", created_at AS "createdAt", last_seen_at AS "lastSeenAt"
-        FROM devices`;
+      const db = yield* CoreDb;
+      /** A live session on the device: not revoked, not expired at `now`. */
+      const liveSession = (deviceId: SQLWrapper | DeviceId, now: number) =>
+        db
+          .select({ id: sessions.id })
+          .from(sessions)
+          .where(
+            and(
+              eq(sessions.deviceId, deviceId),
+              isNull(sessions.revokedAt),
+              gt(sessions.expiresAt, now),
+            ),
+          );
+      /** Any session on the device, live or not. */
+      const anySession = (deviceId: DeviceId) =>
+        db.select({ id: sessions.id }).from(sessions).where(eq(sessions.deviceId, deviceId));
+      const decodeAll = (rows: ReadonlyArray<unknown>) => Effect.forEach(rows, decodeDevice);
 
       return Devices.of({
         create: Effect.fn("Devices.create")(function* (input) {
@@ -92,65 +108,98 @@ export class Devices extends Context.Service<
             createdAt: now,
             lastSeenAt: now,
           });
-          yield* sql`INSERT INTO devices
-            (id, user_id, app, platform, name, push_token, created_at, last_seen_at)
-            VALUES (${device.id}, ${device.userId}, ${device.app}, ${device.platform}, ${device.name},
-              NULL, ${device.createdAt}, ${device.lastSeenAt})`;
+          yield* query(
+            db.insert(devices).values({
+              id: device.id,
+              userId: device.userId,
+              app: device.app,
+              platform: device.platform,
+              name: device.name,
+              pushToken: null,
+              createdAt: device.createdAt,
+              lastSeenAt: device.lastSeenAt,
+            }),
+          );
           return device;
         }),
         findById: Effect.fn("Devices.findById")(function* (id) {
-          const rows = yield* sql`${select} WHERE id = ${id}`;
-          const row = rows[0];
-          if (row === undefined) return Option.none();
-          return Option.some(yield* decodeDevice(row));
+          const rows = yield* query(db.select().from(devices).where(eq(devices.id, id)));
+          return yield* first(decodeDevice)(rows);
         }),
         listForUser: Effect.fn("Devices.listForUser")(function* (userId) {
-          const rows = yield* sql`${select} WHERE user_id = ${userId} ORDER BY created_at, id`;
-          return yield* Effect.forEach(rows, decodeDevice);
+          return yield* decodeAll(
+            yield* query(
+              db
+                .select()
+                .from(devices)
+                .where(eq(devices.userId, userId))
+                .orderBy(devices.createdAt, devices.id),
+            ),
+          );
         }),
         listSignedInForUser: Effect.fn("Devices.listSignedInForUser")(function* (userId, now) {
-          const rows = yield* sql`${select} WHERE user_id = ${userId} AND EXISTS (
-              SELECT 1 FROM sessions
-              WHERE sessions.device_id = devices.id AND sessions.revoked_at IS NULL
-                AND sessions.expires_at > ${now})
-            ORDER BY created_at, id`;
-          return yield* Effect.forEach(rows, decodeDevice);
+          return yield* decodeAll(
+            yield* query(
+              db
+                .select()
+                .from(devices)
+                .where(and(eq(devices.userId, userId), exists(liveSession(devices.id, now))))
+                .orderBy(devices.createdAt, devices.id),
+            ),
+          );
         }),
         listSignedOut: Effect.fn("Devices.listSignedOut")(function* (now, idleSince, limit) {
-          const rows = yield* sql`${select} WHERE last_seen_at < ${idleSince} AND NOT EXISTS (
-              SELECT 1 FROM sessions
-              WHERE sessions.device_id = devices.id AND sessions.revoked_at IS NULL
-                AND sessions.expires_at > ${now})
-            ORDER BY last_seen_at, id LIMIT ${limit}`;
-          return yield* Effect.forEach(rows, decodeDevice);
+          return yield* decodeAll(
+            yield* query(
+              db
+                .select()
+                .from(devices)
+                .where(
+                  and(lt(devices.lastSeenAt, idleSince), notExists(liveSession(devices.id, now))),
+                )
+                .orderBy(devices.lastSeenAt, devices.id)
+                .limit(limit),
+            ),
+          );
         }),
         deleteIfNoLiveSession: Effect.fn("Devices.deleteIfNoLiveSession")(function* (id, now) {
-          const rows = yield* sql`DELETE FROM devices WHERE id = ${id} AND NOT EXISTS (
-              SELECT 1 FROM sessions
-              WHERE sessions.device_id = ${id} AND sessions.revoked_at IS NULL
-                AND sessions.expires_at > ${now})
-            RETURNING id`;
+          const rows = yield* query(
+            db
+              .delete(devices)
+              .where(and(eq(devices.id, id), notExists(liveSession(id, now))))
+              .returning({ id: devices.id }),
+          );
           return rows.length > 0;
         }),
         hasSessions: Effect.fn("Devices.hasSessions")(function* (id) {
-          const rows = yield* sql`SELECT 1 FROM sessions WHERE device_id = ${id} LIMIT 1`;
+          const rows = yield* query(anySession(id).limit(1));
           return rows.length > 0;
         }),
         deleteIfSignedOut: Effect.fn("Devices.deleteIfSignedOut")(function* (id) {
-          const rows = yield* sql`DELETE FROM devices WHERE id = ${id}
-            AND NOT EXISTS (SELECT 1 FROM sessions WHERE device_id = ${id})
-            RETURNING id`;
+          const rows = yield* query(
+            db
+              .delete(devices)
+              .where(
+                and(
+                  eq(devices.id, id),
+                  notExists(
+                    db.select({ id: sessions.id }).from(sessions).where(eq(sessions.deviceId, id)),
+                  ),
+                ),
+              )
+              .returning({ id: devices.id }),
+          );
           return rows.length > 0;
         }),
         touch: Effect.fn("Devices.touch")(function* (id) {
           const now = yield* Clock.currentTimeMillis;
-          yield* sql`UPDATE devices SET last_seen_at = ${now} WHERE id = ${id}`;
+          yield* query(db.update(devices).set({ lastSeenAt: now }).where(eq(devices.id, id)));
         }),
         setPushToken: Effect.fn("Devices.setPushToken")(function* (id, token) {
-          yield* sql`UPDATE devices SET push_token = ${token} WHERE id = ${id}`;
+          yield* query(db.update(devices).set({ pushToken: token }).where(eq(devices.id, id)));
         }),
         delete: Effect.fn("Devices.delete")(function* (id) {
-          yield* sql`DELETE FROM devices WHERE id = ${id}`;
+          yield* query(db.delete(devices).where(eq(devices.id, id)));
         }),
       });
     }),
