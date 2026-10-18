@@ -224,6 +224,12 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
     // `changes` still wants one). Code from before 851-2673 can't read those (`docs/SYNC.md`).
     sql: "ALTER TABLE changes ADD COLUMN key TEXT;",
   },
+  {
+    version: 18,
+    name: "health_batches_queued",
+    // The batches waiting their turn, in the order they were received (`healthBatchesAhead`).
+    sql: "CREATE INDEX health_batches_queued ON health_batches (received_at, id) WHERE status = 'queued';",
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

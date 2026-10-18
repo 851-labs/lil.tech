@@ -50,12 +50,43 @@ export const receiveHealthBatch = (sql: StoreSql, id: string, at: number): Healt
 };
 
 /**
- * Keeps a `queued` batch from timing out while it waits: the queue holds it back while its store
- * is busy with other batches (`beginHealthBatch`), however long a backlog takes.
+ * How long a `queued` batch counts as waiting its turn (`healthBatchesAhead`) after it was
+ * received or last turned away. One whose message was lost stops holding others back after this.
+ */
+export const healthBatchWaitingMs = 60 * 1000;
+
+/**
+ * Keeps a `queued` batch waiting its turn, and from timing out meanwhile: the queue holds it back
+ * while its store is busy with other batches (`beginHealthBatch`), however long a backlog takes.
  */
 export const touchQueuedHealthBatch = (sql: StoreSql, id: string, at: number): void => {
   sql.exec("UPDATE health_batches SET updated_at = ? WHERE id = ? AND status = 'queued'", at, id);
 };
+
+/**
+ * How many batches received before batch `id` are waiting their turn, up to `limit`: `queued`,
+ * and received or turned away in the last `healthBatchWaitingMs`.
+ */
+export const healthBatchesAhead = (
+  sql: StoreSql,
+  id: string,
+  receivedAt: number,
+  at: number,
+  limit: number,
+): number =>
+  Number(
+    sql.exec(
+      `SELECT count(*) AS ahead FROM (
+        SELECT 1 FROM health_batches
+        WHERE status = 'queued' AND (received_at, id) < (?, ?) AND updated_at >= ?
+        LIMIT ?
+      )`,
+      receivedAt,
+      id,
+      at - healthBatchWaitingMs,
+      limit,
+    )[0]?.["ahead"] ?? 0,
+  );
 
 export const saveHealthBatch = (sql: StoreSql, batch: HealthBatch, at: number): void => {
   noteIngestion(sql, at);

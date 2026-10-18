@@ -40,18 +40,12 @@ export const HealthBatchDeadLetters = Cloudflare.Queues.Queue("HealthBatchDeadLe
 export const maxHealthBatchRetries = 5;
 
 /**
- * How many batches the queue applies at once, across users. Each store applies at most
- * `healthBatchesAtOnce` of its own, so this is several users' worth.
+ * How many messages the queue handles at once, across users. Each store applies at most
+ * `healthBatchesAtOnce` of its own, and turns the rest away quickly, so this is a few users'
+ * batches plus those being turned away. Not more, because the consumers can share an isolate,
+ * and each applying holds up to two chunks (`healthChunkBytes`) and their mutations.
  */
-export const healthBatchConsumers = 24;
-
-/**
- * How long a batch whose store is busy waits in the queue before it's delivered again. The
- * binding passes `delaySeconds` to the platform, though Alchemy's `SendOptions` type leaves it out.
- */
-const busyStoreDelay = { delaySeconds: 2 } as unknown as Parameters<
-  Cloudflare.Queues.WriteQueueClient["send"]
->[1];
+export const healthBatchConsumers = 16;
 
 /**
  * Deletes every object in `bucket` whose key starts with `prefix`: a page of keys at a time (R2
@@ -106,7 +100,15 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
   });
   const queueService = Effect.map(Alchemy.RuntimeContext, (runtime) =>
     HealthBatchQueue.of({
-      send: (message) => provideRuntime(runtime)(queue.send(message)).pipe(Effect.orDie),
+      send: (message, { delaySeconds } = {}) =>
+        provideRuntime(runtime)(
+          delaySeconds === undefined
+            ? queue.send(message)
+            : // Alchemy's `SendOptions` leave out `delaySeconds`; the binding's own `send` takes it.
+              Effect.flatMap(queue.raw, (raw) =>
+                Effect.tryPromise(() => raw.send(message, { delaySeconds })),
+              ).pipe(Effect.asVoid, Effect.orDie),
+        ).pipe(Effect.orDie),
     }),
   );
 
@@ -128,24 +130,19 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
         ingestHealthBatch(message.body).pipe(
           Effect.matchCauseEffect({
             onSuccess: (result) =>
-              result === "busy"
-                ? // Back in the queue as a new message, delayed, so waiting holds no consumer and
-                  // doesn't use up its retries.
-                  Effect.serviceOption(Alchemy.RuntimeContext).pipe(
-                    Effect.flatMap(
-                      Option.match({
-                        onNone: () => Effect.die(new Error("No runtime context")),
-                        onSome: (runtime) =>
-                          provideRuntime(runtime)(queue.send(message.body, busyStoreDelay)),
-                      }),
-                    ),
+              result === undefined
+                ? Effect.sync(() => message.ack())
+                : // Not its turn: back in the queue as a new message, delayed, so waiting holds no
+                  // consumer and doesn't use up its retries.
+                  Effect.flatMap(queueService, (queue) =>
+                    queue.send(message.body, { delaySeconds: result.waitSeconds }),
+                  ).pipe(
                     Effect.matchCause({
                       onSuccess: () => message.ack(),
                       // Not sent: retried as usual instead.
                       onFailure: () => message.retry(),
                     }),
-                  )
-                : Effect.sync(() => message.ack()),
+                  ),
             onFailure: (cause) =>
               Effect.gen(function* () {
                 yield* Effect.logWarning("Health batch failed", cause);
