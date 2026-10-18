@@ -77,6 +77,39 @@ describe("live notices", () => {
     }),
   );
 
+  it.effect("sign devices out once the deleted account's sessions are gone", () =>
+    Effect.gen(function* () {
+      const live = makeSockets();
+      const { store } = makeStore(live.sockets);
+      yield* store.liveConnected(live.connect("phone", 15 * 60 * 1000));
+      yield* store.deleteAll();
+      // Its sessions still work while the rest is deleted: a refresh would succeed, so the
+      // socket stays open, and one that connects meanwhile waits too, without notices.
+      yield* store.liveConnected(live.connect("ipad", 15 * 60 * 1000));
+      assert.strictEqual(live.closed.size, 0);
+      assert.deepStrictEqual(live.sent.get("ipad"), []);
+
+      yield* store.signOutDevices();
+      // 4001: the client refreshes, which fails for a deleted account and signs it out.
+      assert.deepStrictEqual(Object.fromEntries(live.closed), { phone: 4001, ipad: 4001 });
+      // From then on, and after the wipe, a token that still verifies is turned away at once.
+      yield* store.alarm();
+      yield* store.liveConnected(live.connect("mac", 15 * 60 * 1000));
+      assert.strictEqual(live.closed.get("mac"), 4001);
+      assert.deepStrictEqual(live.sent.get("mac"), []);
+    }),
+  );
+
+  it.effect("don't sign devices out of an account that isn't deleted", () =>
+    Effect.gen(function* () {
+      const live = makeSockets();
+      const { store } = makeStore(live.sockets);
+      yield* store.liveConnected(live.connect("phone", 15 * 60 * 1000));
+      yield* store.signOutDevices();
+      assert.strictEqual(live.closed.size, 0);
+    }),
+  );
+
   it.effect("coalesce a burst into one notice per window, ending with the latest head", () =>
     Effect.gen(function* () {
       const live = makeSockets();
@@ -130,18 +163,6 @@ describe("live notices", () => {
       live.connect("phone", 15 * 60 * 1000);
       assert.deepStrictEqual(yield* write(store, "a"), { head: 1, appended: 1 });
       assert.deepStrictEqual(live.sent.get("phone"), [{ type: "head", seq: 1 }]);
-    }),
-  );
-
-  it.effect("tell clients the store started over when it's deleted", () =>
-    Effect.gen(function* () {
-      const live = makeSockets();
-      const { store } = makeStore(live.sockets);
-      live.connect("phone", 15 * 60 * 1000);
-      yield* write(store, "a");
-      yield* store.deleteAll();
-      yield* store.alarm();
-      assert.deepStrictEqual(live.sent.get("phone")?.at(-1), { type: "head", seq: 0 });
     }),
   );
 

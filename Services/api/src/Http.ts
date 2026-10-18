@@ -336,6 +336,14 @@ export const MeHandlers = HttpApiBuilder.group(
                 }),
             ),
           );
+          // Its sessions are gone now, so its other devices can be told to sign out (851-2666).
+          // They'd find out at their next request anyway, so this never fails the request.
+          yield* stores
+            .forUser(userId)
+            .signOutDevices()
+            .pipe(
+              Effect.catchCause((cause) => Effect.logWarning("Signing devices out failed", cause)),
+            );
           // Revoked now if Apple answers, and otherwise by the daily cleanup. The account is
           // already gone, so this never fails the request.
           yield* appleRevocations.find(revoking).pipe(

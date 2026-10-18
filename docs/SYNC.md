@@ -162,7 +162,9 @@ GET /v1/sync/live   (WebSocket)
   - Notices are coalesced to at most one every 250 ms. The **latest** `head` is always sent at the end of the window, so the last write in a burst is never left unannounced.
 - When `seq` is greater than its cursor, the client runs the pull loop. Notices carry no data; pulling is the only way data arrives.
 - Keep-alive pings are answered automatically by the runtime, without waking the object.
-- The server closes the socket with code `4001` when the access token expires. The client refreshes its token and reconnects with backoff.
+- The server closes the socket with code `4001` when the access token is no longer good: it expired, or the account was deleted (851-2666). The client throws that token away, refreshes and reconnects with backoff.
+  - **Deletion:** `DELETE /v1/me` tells the store to close its sockets once the account and its sessions are gone (`signOutDevices`), so the refresh fails and the client signs out and removes its local copy within seconds. While the deletion is still running, a refresh would succeed, so sockets stay open, and one that connects then waits without notices. Afterwards, new connections are closed with `4001` at once, since their tokens still verify for up to 15 minutes.
+  - **Why `4001`:** apps from before 851-2666 reuse their token on `4001`, so they sign out once it expires (at most 15 minutes), as before. A new code would have made them retry forever.
 
 ## Pushing changes
 

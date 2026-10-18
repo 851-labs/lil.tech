@@ -1,5 +1,6 @@
 public import Dependencies
 import IssueReporting
+public import LilAPI
 
 extension DependencyValues {
   /// The app's sync engine. Apps set it once at launch with
@@ -14,9 +15,9 @@ extension DependencyValues {
 public struct SyncClient: Sendable {
   /// Runs sync until cancelled. See ``LilSyncEngine/run()``.
   public var run: @Sendable () async -> Void
-  /// Keeps a live notice connection open until cancelled. See ``LilSyncEngine/listen(accessToken:)``.
-  public var listen:
-    @Sendable (_ accessToken: @escaping @Sendable () async throws -> String) async -> Void
+  /// Keeps a live notice connection open until cancelled. See
+  /// ``LilSyncEngine/listen(authentication:)``.
+  public var listen: @Sendable (_ authentication: APIAuthentication) async -> Void
   /// Pulls now instead of at the next interval.
   public var syncNow: @Sendable () async -> Void
   /// The current status, then every change to it.
@@ -26,9 +27,7 @@ public struct SyncClient: Sendable {
 
   public init(
     run: @escaping @Sendable () async -> Void,
-    listen:
-      @escaping @Sendable (_ accessToken: @escaping @Sendable () async throws -> String) async ->
-      Void,
+    listen: @escaping @Sendable (_ authentication: APIAuthentication) async -> Void,
     syncNow: @escaping @Sendable () async -> Void,
     status: @escaping @Sendable () async -> AsyncStream<SyncStatus>,
     removeLocalData: @escaping @Sendable () async throws -> Void
@@ -55,7 +54,7 @@ public struct SyncClient: Sendable {
     }
     return Self(
       run: { await resolve().run() },
-      listen: { accessToken in await resolve().listen(accessToken: accessToken) },
+      listen: { authentication in await resolve().listen(authentication: authentication) },
       syncNow: { await resolve().syncNow() },
       status: { await resolve().statusUpdates() },
       removeLocalData: { try await resolve().removeLocalData() }

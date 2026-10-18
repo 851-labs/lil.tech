@@ -37,7 +37,12 @@ export const noLiveSockets: LiveSockets = {
   later: () => {},
 };
 
-/** The close code for a socket whose access token expired; the client refreshes and reconnects. */
+/**
+ * The close code for a socket whose access token is no longer good: it expired, or the account was
+ * deleted. Apps drop the token, refresh and reconnect; for a deleted account the refresh fails,
+ * which signs them out. Apps from before 851-2666 reuse their token instead, so they sign out once
+ * it expires (at most 15 minutes), as before; a new code would have made them retry forever.
+ */
 export const tokenExpiredCloseCode = 4001;
 
 export const headNotice = (seq: number) => JSON.stringify({ type: "head", seq });
@@ -55,17 +60,24 @@ export const makeLiveNotices = (sockets: LiveSockets, head: () => number) => {
   let lastSentHead: number | undefined;
   let flushScheduled = false;
 
-  const send = (now: number, toAll = false) =>
+  const send = (now: number) =>
     Effect.gen(function* () {
       const seq = head();
       lastSentAt = Math.max(lastSentAt, now);
-      if (!toAll && seq === lastSentHead) return;
+      if (seq === lastSentHead) return;
       lastSentHead = seq;
       const notice = headNotice(seq);
       for (const socket of yield* sockets.list) {
         if (socket.expiresAt > now) yield* forSocket(socket.send(notice));
       }
     }).pipe(Effect.catchCause((cause) => Effect.logWarning("Live notice failed", cause)));
+
+  const closeWhere = (close: (socket: LiveSocket) => boolean, code: number, reason: string) =>
+    Effect.gen(function* () {
+      for (const socket of yield* sockets.list) {
+        if (close(socket)) yield* forSocket(socket.close(code, reason));
+      }
+    });
 
   return {
     /** Tells connected clients about new changes, now or at the end of the current window. */
@@ -87,17 +99,15 @@ export const makeLiveNotices = (sockets: LiveSockets, head: () => number) => {
         }
         return Effect.void;
       }),
-    /** Tells every client the current `head` right away, e.g. after the store was wiped. */
-    announce: (now: number) => send(now, true),
+    /** Closes every socket, e.g. once the account is deleted, so clients sign out at once. */
+    closeAll: (reason: string) => closeWhere(() => true, tokenExpiredCloseCode, reason),
     /** Closes sockets whose access token has expired. */
     closeExpired: (now: number) =>
-      Effect.gen(function* () {
-        for (const socket of yield* sockets.list) {
-          if (socket.expiresAt <= now) {
-            yield* forSocket(socket.close(tokenExpiredCloseCode, "The access token expired"));
-          }
-        }
-      }),
+      closeWhere(
+        (socket) => socket.expiresAt <= now,
+        tokenExpiredCloseCode,
+        "The access token expired",
+      ),
     /** When the next open socket's token expires, or `null`. */
     nextExpiry: Effect.map(sockets.list, (list) =>
       list.length === 0 ? null : Math.min(...list.map((socket) => socket.expiresAt)),

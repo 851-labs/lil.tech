@@ -13,7 +13,8 @@ extension DependencyValues {
 
 /// A WebSocket to `GET /v1/sync/live` (`docs/SYNC.md`): the server's text messages until it
 /// closes. The stream ends by throwing ``TokenExpired`` when the server closes it because the
-/// access token expired (code 4001), and another error for anything else.
+/// access token is no longer good (code 4001: it expired, or the account was deleted), and another
+/// error for anything else.
 public struct LiveConnection: Sendable {
   public var connect:
     @Sendable (_ accessToken: String) async throws -> AsyncThrowingStream<String, any Error>

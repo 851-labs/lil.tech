@@ -3,7 +3,7 @@ import Dependencies
 public import Foundation
 import GzipFiles
 import IssueReporting
-import LilAPI
+public import LilAPI
 import SQLiteData
 
 /// What the UI shows about sync.
@@ -162,10 +162,14 @@ public actor LilSyncEngine {
   /// a notice of a `head` past the local cursor runs a pull (``syncNow()``). The app runs it
   /// alongside ``run()`` while it's active.
   ///
-  /// Each connection gets its token from `accessToken`, which refreshes it if needed. A working
-  /// connection the server closed because its token expired reconnects right away with a fresh
-  /// one; anything else reconnects with exponential backoff and jitter, from 1 second to 5 minutes.
-  public func listen(accessToken: @escaping @Sendable () async throws -> String) async {
+  /// Each connection gets its token from `authentication` (refreshed if needed; `nil` means signed
+  /// out, which is retried like any failure). When the server closes a connection because its
+  /// token is no longer good (code 4001: it expired, or the account was deleted), the token goes to
+  /// `authentication.rejected`, so the next one is refreshed instead of reused; a deleted account's
+  /// refresh fails, which signs the app out. A working connection closed that way reconnects right
+  /// away; anything else reconnects with exponential backoff and jitter, from 1 second to 5
+  /// minutes.
+  public func listen(authentication: APIAuthentication) async {
     var failures = 0
     while !Task.isCancelled {
       var error: any Error = LiveConnection.Closed(code: 1000)
@@ -173,8 +177,11 @@ public actor LilSyncEngine {
       let stableTimer = Task { [clock] in
         (try? await clock.sleep(for: Self.stableConnection)) != nil
       }
+      var token: String?
       do {
-        let messages = try await liveConnection.connect(try await accessToken())
+        guard let current = try await authentication.accessToken() else { throw SignedOut() }
+        token = current
+        let messages = try await liveConnection.connect(current)
         for try await message in messages { await receive(message) }
       } catch let caught {
         error = caught
@@ -182,12 +189,16 @@ public actor LilSyncEngine {
       stableTimer.cancel()
       let stable = await stableTimer.value
       if Task.isCancelled { return }
+      if error is LiveConnection.TokenExpired, let token { await authentication.rejected(token) }
       if stable { failures = 0 }
       if stable, error is LiveConnection.TokenExpired { continue }
       failures += 1
       try? await clock.sleep(for: backoff(afterFailures: failures))
     }
   }
+
+  /// There's no session to connect with.
+  struct SignedOut: Error {}
 
   /// Handles one live message: `{ "type": "head", "seq": n }`. Others are ignored, so the server
   /// can add kinds. Failing to read the cursor is reported, but doesn't drop the connection.
