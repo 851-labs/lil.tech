@@ -40,9 +40,11 @@ private let moderate = audiogram(
 private let oneEar = audiogram(3, left: nil, right: [15, 15, 20, 20, 25, 35, 40, 50], daysAgo: 420)
 
 @MainActor
-private func list(_ state: AudiogramsContent.State) -> some View {
+private func list(_ state: AudiogramsContent.State, limit: Int = RecentAudiograms.limit)
+  -> some View
+{
   NavigationStack {
-    AudiogramsContent(state: state)
+    AudiogramsContent(state: state, limit: limit)
   }
   .frame(width: 620, height: 480)
 }
@@ -57,6 +59,10 @@ private func detail(_ audiogram: HealthAudiogram) -> some View {
 
 #Preview("Audiograms") {
   list(.loaded([typical, moderate, oneEar]))
+}
+
+#Preview("Audiograms, at the limit") {
+  list(.loaded([typical, moderate, oneEar]), limit: 3)
 }
 
 #Preview("No audiograms") {
@@ -81,6 +87,21 @@ private func detail(_ audiogram: HealthAudiogram) -> some View {
 
 #Preview("One ear tested") {
   detail(oneEar)
+}
+
+#Preview("No response at 8 kHz, extended frequencies") {
+  // The right ear's 8 kHz result is a bound, and 12.5 kHz is past the usual range.
+  let points = #"""
+    [{"frequency":1000,"tests":[{"side":0,"type":0,"masked":false,"sensitivity":15,"clampingLower":null,"clampingUpper":null},{"side":1,"type":0,"masked":false,"sensitivity":20,"clampingLower":null,"clampingUpper":null}]},
+     {"frequency":4000,"tests":[{"side":0,"type":0,"masked":false,"sensitivity":35,"clampingLower":null,"clampingUpper":null},{"side":1,"type":0,"masked":false,"sensitivity":55,"clampingLower":null,"clampingUpper":null}]},
+     {"frequency":8000,"tests":[{"side":0,"type":0,"masked":false,"sensitivity":60,"clampingLower":null,"clampingUpper":null},{"side":1,"type":0,"masked":false,"sensitivity":90,"clampingLower":90,"clampingUpper":null}]},
+     {"frequency":12500,"tests":[{"side":0,"type":0,"masked":false,"sensitivity":75,"clampingLower":null,"clampingUpper":null}]}]
+    """#
+  return detail(
+    HealthAudiogram(
+      id: "6f1c2a40-0000-4000-8000-000000000008", startDate: 1_760_100_000_000,
+      endDate: 1_760_100_600_000, points: points, sourceName: "Hearing Test App",
+      sourceBundleID: "com.example.hearing"))
 }
 
 #Preview("No frequencies tested") {

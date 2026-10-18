@@ -1574,6 +1574,27 @@ struct HearingQueriesTests {
   }
 
   @Test
+  func anUnreadablePointLeavesTheOthers() {
+    let points = audiogram(
+      "a", start: 0,
+      points: """
+        [{"frequency":500,"tests":[{"side":0,"sensitivity":10}]},
+         {"frequency":"oops","tests":[]},
+         {"frequency":1000,"tests":[{"side":"left","sensitivity":5},{"side":1,"sensitivity":20}]},
+         {"frequency":2000,"tests":[{"side":1,"type":1,"masked":false,"sensitivity":5},
+           {"side":1,"type":0,"masked":true,"sensitivity":40,"clampingLower":40,"clampingUpper":null}]}]
+        """
+    ).decodedPoints
+    #expect(
+      points == [
+        AudiogramPoint(frequency: 500, left: 10, right: nil),
+        AudiogramPoint(frequency: 1_000, left: nil, right: 20),
+        // The masked air test over the other kind, and a bound, not a threshold.
+        AudiogramPoint(frequency: 2_000, left: nil, right: 40, clamped: [.right]),
+      ])
+  }
+
+  @Test
   func theHearingLevelIsTheSpeechRangesAverage() {
     let points = [
       AudiogramPoint(frequency: 250, left: 0, right: nil),
@@ -1584,6 +1605,12 @@ struct HearingQueriesTests {
       AudiogramPoint(frequency: 8_000, left: 90, right: nil),
     ]
     #expect(points.averageHearingLevel(.left) == 25)
+    // Whole decibels, so the number shown and its group agree.
+    let edge = [25.0, 25, 25, 26].enumerated().map { index, level in
+      AudiogramPoint(frequency: [500, 1_000, 2_000, 4_000][index], left: level, right: nil)
+    }
+    #expect(edge.averageHearingLevel(.left) == 25)
+    #expect(HearingLevel(decibels: edge.averageHearingLevel(.left)!) == .normal)
     #expect(points.averageHearingLevel(.right) == nil)
     // Without speech frequencies, every frequency tested counts.
     let high = [

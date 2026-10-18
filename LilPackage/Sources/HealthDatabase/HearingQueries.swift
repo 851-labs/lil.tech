@@ -34,11 +34,15 @@ public struct AudiogramPoint: Equatable, Sendable {
   public var frequency: Double
   public var left: Double?
   public var right: Double?
+  /// Ears whose result is a bound, not a threshold: no response up to the device's loudest, so
+  /// the threshold is at or past it (`clampingUpper` missing, `clampingLower` set).
+  public var clamped: Set<Ear>
 
-  public init(frequency: Double, left: Double?, right: Double?) {
+  public init(frequency: Double, left: Double?, right: Double?, clamped: Set<Ear> = []) {
     self.frequency = frequency
     self.left = left
     self.right = right
+    self.clamped = clamped
   }
 
   public func sensitivity(_ ear: Ear) -> Double? { ear == .left ? left : right }
@@ -82,42 +86,58 @@ public enum HearingLevel: Equatable, Sendable, CaseIterable {
 }
 
 extension HealthAudiogram {
-  /// Its points, by frequency. For an ear tested more than one way at a frequency, the unmasked
-  /// air-conduction test counts, as hearing tests report it. Unreadable points are left out.
+  /// Its points, by frequency. For an ear tested more than one way at a frequency, an
+  /// air-conduction test counts, unmasked first, as hearing tests report it. Points and tests
+  /// that can't be read are left out, each on its own.
   public var decodedPoints: [AudiogramPoint] {
+    struct Lossy<Value: Decodable>: Decodable {
+      let value: Value?
+      init(from decoder: any Decoder) throws { value = try? Value(from: decoder) }
+    }
     struct Point: Decodable {
       struct Test: Decodable {
         let side: Int
         let type: Int?
         let masked: Bool?
         let sensitivity: Double
+        let clampingLower: Double?
+        let clampingUpper: Double?
       }
       let frequency: Double
-      let tests: [Test]
+      let tests: [Lossy<Test>]
     }
-    guard let points = try? JSONDecoder().decode([Point].self, from: Data(self.points.utf8))
+    guard
+      let points = try? JSONDecoder().decode([Lossy<Point>].self, from: Data(self.points.utf8))
     else { return [] }
-    return points.map { point in
-      func sensitivity(_ ear: Ear) -> Double? {
-        let tests = point.tests.filter { $0.side == ear.rawValue }
-        let preferred =
-          tests.first { ($0.type ?? 0) == 0 && $0.masked != true } ?? tests.first
-        return preferred?.sensitivity
+    return points.compactMap(\.value).map { point in
+      let tests = point.tests.compactMap(\.value)
+      func test(_ ear: Ear) -> Point.Test? {
+        let ears = tests.filter { $0.side == ear.rawValue }
+        let air = ears.filter { ($0.type ?? 0) == 0 }
+        return air.first { $0.masked != true } ?? air.first ?? ears.first
+      }
+      let (left, right) = (test(.left), test(.right))
+      var clamped: Set<Ear> = []
+      for (ear, test) in [(Ear.left, left), (.right, right)]
+      where test?.clampingLower != nil && test?.clampingUpper == nil {
+        clamped.insert(ear)
       }
       return AudiogramPoint(
-        frequency: point.frequency, left: sensitivity(.left), right: sensitivity(.right))
+        frequency: point.frequency, left: left?.sensitivity, right: right?.sensitivity,
+        clamped: clamped)
     }
   }
 }
 
 extension [AudiogramPoint] {
-  /// An ear's hearing level: its average at 500, 1000, 2000 and 4000 Hz (the speech range),
-  /// or over every frequency tested if it has none of those. `nil` if that ear wasn't tested.
+  /// An ear's hearing level, in whole dBHL as shown and classified: its average at 500, 1000,
+  /// 2000 and 4000 Hz (the speech range), or over every frequency tested if it has none of
+  /// those. `nil` if that ear wasn't tested.
   public func averageHearingLevel(_ ear: Ear) -> Double? {
     let speech: Set<Double> = [500, 1_000, 2_000, 4_000]
     let inSpeech = compactMap { speech.contains($0.frequency) ? $0.sensitivity(ear) : nil }
     let values = inSpeech.isEmpty ? compactMap { $0.sensitivity(ear) } : inSpeech
     guard !values.isEmpty else { return nil }
-    return values.reduce(0, +) / Double(values.count)
+    return (values.reduce(0, +) / Double(values.count)).rounded()
   }
 }

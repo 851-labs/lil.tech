@@ -219,7 +219,7 @@ struct MetricDetailContent: View {
           bar(point, in: chart)
         }
         // Sound above this over time can affect hearing.
-        if HealthDatabase.soundLevelTypes.contains(type.id) {
+        if HealthDatabase.soundLevelTypes.contains(type.id), !chart.points.isEmpty {
           RuleMark(y: .value("Loud", HealthDatabase.loudSoundLevel))
             .foregroundStyle(.orange)
             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))

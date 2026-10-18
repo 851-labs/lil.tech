@@ -37,6 +37,8 @@ struct AudiogramsContent: View {
   }
 
   let state: State
+  /// How many the list holds at most (`RecentAudiograms.limit`), to say when it's full.
+  var limit = RecentAudiograms.limit
   var calendar = Calendar.current
 
   var body: some View {
@@ -69,6 +71,11 @@ struct AudiogramsContent: View {
               }
             }
           }
+          if audiograms.count >= limit {
+            Text("Showing the \(limit.formatted()) most recent audiograms.")
+              .font(.footnote)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }
@@ -82,6 +89,8 @@ struct AudiogramRow: View {
 
   var body: some View {
     let points = audiogram.decodedPoints
+    let levels = Dictionary(
+      uniqueKeysWithValues: Ear.allCases.map { ($0, points.averageHearingLevel($0)) })
     HStack(spacing: 12) {
       Image(systemName: "ear")
         .font(.title3)
@@ -90,7 +99,7 @@ struct AudiogramRow: View {
         .background(.blue.opacity(0.15), in: Circle())
       VStack(alignment: .leading, spacing: 2) {
         ForEach(Ear.allCases, id: \.self) { ear in
-          Text("\(ear == .left ? "Left" : "Right"): \(AudiogramFormat.average(points, ear))")
+          Text("\(ear.shortName): \(AudiogramFormat.level(levels[ear] ?? nil))")
             .font(ear == .left ? .headline : .subheadline)
             .foregroundStyle(ear == .left ? .primary : .secondary)
         }
@@ -109,9 +118,15 @@ struct AudiogramRow: View {
 /// and each ear's average with what it means.
 struct AudiogramDetailView: View {
   let audiogram: HealthAudiogram
+  /// Decoded once, not on every render.
+  private let points: [AudiogramPoint]
+
+  init(audiogram: HealthAudiogram) {
+    self.audiogram = audiogram
+    points = audiogram.decodedPoints
+  }
 
   var body: some View {
-    let points = audiogram.decodedPoints
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         Text(Date(unixMilliseconds: audiogram.startDate).formatted(date: .complete, time: .omitted))
@@ -119,13 +134,14 @@ struct AudiogramDetailView: View {
 
         HStack(alignment: .top, spacing: 32) {
           ForEach(Ear.allCases, id: \.self) { ear in
+            let level = points.averageHearingLevel(ear)
             VStack(alignment: .leading, spacing: 4) {
-              Label(ear.name, systemImage: ear == .left ? "xmark" : "circle")
+              Label(ear.name, systemImage: ear.symbol)
                 .font(.headline)
-                .foregroundStyle(AudiogramFormat.color(ear))
-              Text(AudiogramFormat.average(points, ear))
+                .foregroundStyle(ear.color)
+              Text(AudiogramFormat.level(level))
                 .font(.system(.title, design: .rounded).weight(.semibold))
-              if let level = points.averageHearingLevel(ear) {
+              if let level {
                 Text(HearingLevel(decibels: level).name)
                   .foregroundStyle(.secondary)
               }
@@ -157,6 +173,18 @@ struct AudiogramDetailView: View {
 struct AudiogramChart: View {
   let points: [AudiogramPoint]
 
+  /// Audiograms' usual frequencies, widened to fit any tested past them.
+  private var frequencies: ClosedRange<Double> {
+    let tested = points.map(\.frequency)
+    return min(110, (tested.min() ?? 110) * 0.9)...max(9_500, (tested.max() ?? 9_500) * 1.1)
+  }
+
+  /// -10 to 120 dBHL, widened to fit any result past them.
+  private var levels: ClosedRange<Double> {
+    let results = points.flatMap { [$0.left, $0.right] }.compactMap { $0 }
+    return min(-10, (results.min() ?? -10) - 5)...max(120, (results.max() ?? 120) + 5)
+  }
+
   var body: some View {
     Chart {
       ForEach(HearingLevel.allCases, id: \.self) { level in
@@ -173,20 +201,21 @@ struct AudiogramChart: View {
             y: .value("Hearing Level", point.sensitivity(ear) ?? 0),
             series: .value("Ear", ear.name)
           )
-          .foregroundStyle(AudiogramFormat.color(ear))
+          .foregroundStyle(ear.color)
           PointMark(
             x: .value("Frequency", point.frequency),
             y: .value("Hearing Level", point.sensitivity(ear) ?? 0)
           )
           .symbol {
-            Image(systemName: ear == .left ? "xmark" : "circle")
+            // A bound rather than a threshold: no response up to there.
+            Image(systemName: point.clamped.contains(ear) ? "arrow.down" : ear.symbol)
               .font(.caption.weight(.bold))
-              .foregroundStyle(AudiogramFormat.color(ear))
+              .foregroundStyle(ear.color)
           }
         }
       }
     }
-    .chartXScale(domain: 110...9_500, type: .log)
+    .chartXScale(domain: frequencies, type: .log)
     .chartXAxis {
       AxisMarks(values: [125, 250, 500, 1_000, 2_000, 4_000, 8_000]) { value in
         AxisGridLine()
@@ -197,17 +226,18 @@ struct AudiogramChart: View {
         }
       }
     }
-    .chartYScale(domain: [120, -10])
+    .chartYScale(domain: [levels.upperBound, levels.lowerBound])
     .chartYAxis {
       AxisMarks(position: .leading, values: [0, 20, 40, 60, 80, 100, 120]) { value in
         AxisGridLine()
         AxisValueLabel {
-          if let decibels = value.as(Int.self) { Text("\(decibels)") }
+          if let decibels = value.as(Double.self) { Text("\(Int(decibels))") }
         }
       }
     }
     .chartYAxisLabel("dBHL", position: .leading)
     .chartXAxisLabel("Hz", position: .bottom, alignment: .trailing)
+    .chartPlotStyle { $0.clipped() }
     .accessibilityLabel("Audiogram")
   }
 }
@@ -217,12 +247,18 @@ extension HearingLevel {
   fileprivate var rank: Int { HearingLevel.allCases.firstIndex(of: self) ?? 0 }
 }
 
+extension Ear {
+  /// "Left" or "Right", for the list.
+  var shortName: String { self == .left ? "Left" : "Right" }
+  /// Audiograms' marks: crosses for the left ear, circles for the right.
+  var symbol: String { self == .left ? "xmark" : "circle" }
+  var color: Color { self == .left ? .blue : .red }
+}
+
 /// How audiogram figures read.
 enum AudiogramFormat {
-  static func color(_ ear: Ear) -> Color { ear == .left ? .blue : .red }
-
-  static func average(_ points: [AudiogramPoint], _ ear: Ear) -> String {
-    guard let level = points.averageHearingLevel(ear) else { return "Not Tested" }
-    return "\(Int(level.rounded())) dBHL"
+  static func level(_ level: Double?) -> String {
+    guard let level else { return "Not Tested" }
+    return "\(Int(level)) dBHL"
   }
 }
