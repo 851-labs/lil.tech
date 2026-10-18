@@ -55,6 +55,7 @@
 - **Packaging:** a signed, notarized DMG, used both for first downloads and as the Sparkle update.
 - **Updates:** Sparkle, with EdDSA-signed updates. Each app has its own key, in Alexandru's login keychain (account `lil-<app>`) and backed up in 1Password. The public key is in the app's Info.plist (for lil health, the Mac target's `LilHealth-Info.plist`). lil messages' first key was lost without a backup and replaced in October 2026 (851-2685). Installed copies still update, through Sparkle's key rotation for Developer ID-signed apps, as long as the Developer ID certificate doesn't change in the same release.
 - **Releases:** GitHub Releases host the DMGs. Each app's appcast is committed to the repo (`appcasts/<app>.xml`) and served from `raw.githubusercontent.com`, because GitHub's "latest release" URL is repo-wide.
+- **lil health for Mac** (851-2632) ships the same way as lil messages: `scripts/release health <version>`, tags `health/v<version>`, and `appcasts/health.xml`, which starts with no releases. Its icon is the iPhone's artwork shaped for macOS: Apple's 824-point body on a 1,024 canvas, with continuous corners and a soft shadow.
 
 ### iOS apps
 

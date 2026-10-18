@@ -1,3 +1,4 @@
+import AppUpdates
 import ComposableArchitecture
 import HealthMacApp
 import LilAuth
@@ -8,6 +9,8 @@ struct LilHealthApp: App {
   static let store = Store(initialState: AppFeature.State()) {
     AppFeature()
   }
+
+  @State private var updater = AppUpdater()
 
   init() {
     prepareDependencies {
@@ -28,6 +31,7 @@ struct LilHealthApp: App {
       AppView(store: Self.store)
     }
     .commands {
+      CheckForUpdatesCommands(updater: updater)
       CommandGroup(after: .appSettings) {
         SignOutCommand(store: Self.store)
       }

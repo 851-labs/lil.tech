@@ -4,5 +4,11 @@
 <dict>
 	<key>GIDClientID</key>
 	<string>43230766631-5mdd1j3o2dlugafcl2jj2ci39i4a8ski.apps.googleusercontent.com</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/851-labs/lil.tech/main/appcasts/health.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>Q//ZgtXJmemkRmACrTr1aXosjF/tJNHjyMPnZ81S2aE=</string>
 </dict>
 </plist>

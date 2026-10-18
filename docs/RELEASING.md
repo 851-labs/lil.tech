@@ -18,7 +18,7 @@ On the Mac that builds releases:
    xcrun notarytool store-credentials lil-notary --key AuthKey_XXXXXXXXXX.p8 --key-id XXXXXXXXXX --issuer <issuer-uuid>
    ```
 
-3. **Sparkle signing keys.** Each app has its own, in the login keychain under the account `lil-<app>`, and backed up in 1Password as "lil <app> – Sparkle EdDSA update key". The app's public key is `SUPublicEDKey` in its `Info.plist`. lil messages uses `lil-messages`. lil health's key, `lil-health`, is ready for its Mac release (851-2632) but isn't in `LilHealth-Info.plist` yet. Back up a new key before releasing with it. On a new Mac, restore a key from 1Password, outside the repo:
+3. **Sparkle signing keys.** Each app has its own, in the login keychain under the account `lil-<app>`, and backed up in 1Password as "lil <app> – Sparkle EdDSA update key". The app's public key is `SUPublicEDKey` in its `Info.plist`. lil messages uses `lil-messages`, and lil health's Mac app `lil-health` (in `LilHealth-Info.plist`). Back up a new key before releasing with it. On a new Mac, restore a key from 1Password, outside the repo:
 
    ```
    app=messages  # or health
@@ -36,6 +36,7 @@ On the Mac that builds releases:
 
 ```
 scripts/release messages 0.1.0
+scripts/release health 0.1.0   # lil health for Mac
 ```
 
 This:

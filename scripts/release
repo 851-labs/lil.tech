@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds a signed, notarized DMG for one of the lil apps.
 # Usage: scripts/release <app> <version> [--skip-notarize]
-#   app      Which app to release (currently: messages).
+#   app      Which app to release: messages or health (the Mac app).
 #   version  Marketing version, e.g. 0.1.0.
 #
 # The build number (CFBundleVersion) is the number of commits on HEAD, so it always increases,
@@ -26,6 +26,11 @@ case "$app" in
     product="lil messages"
     dmg_name=lil-messages
     ;;
+  health)
+    scheme=LilHealth
+    product="lil health"
+    dmg_name=lil-health
+    ;;
   *)
     echo "unknown app: $app" >&2
     exit 64
@@ -43,6 +48,8 @@ dmg="$out/$dmg_name-$version.dmg"
 rm -rf "$out"
 mkdir -p "$out"
 
+# In its own derived data: a release builds from scratch, so nothing stale from Xcode's builds
+# (such as a package graph it has cached) can break or end up in it.
 echo "==> Archiving $product $version ($build_number)"
 xcodebuild archive \
   -workspace Lil.xcworkspace \
@@ -50,6 +57,7 @@ xcodebuild archive \
   -configuration Release \
   -destination 'generic/platform=macOS' \
   -archivePath "$archive" \
+  -derivedDataPath "$out/DerivedData" \
   -skipMacroValidation \
   MARKETING_VERSION="$version" \
   CURRENT_PROJECT_VERSION="$build_number" \
@@ -97,4 +105,5 @@ else
   echo "==> Skipping notarization"
 fi
 
+rm -rf "$out/DerivedData"
 echo "==> $dmg"
