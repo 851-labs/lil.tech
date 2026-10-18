@@ -1075,7 +1075,8 @@ struct HealthBackfillTests {
     }
   }
 
-  @Test
+  // A hang would block the pre-commit hook: fail instead.
+  @Test(.timeLimit(.minutes(1)))
   func aRateLimitPausesSyncsOfChangesUntilItsOver() async throws {
     let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
     let storage = HealthBackfillStorage.inMemory()

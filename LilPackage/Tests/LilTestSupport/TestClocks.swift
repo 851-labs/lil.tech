@@ -1,11 +1,15 @@
 public import Dependencies
 public import Foundation
-public import Testing
+
+#if canImport(Testing)
+  public import Testing
+#endif
 
 /// An immediate clock that records how long each sleep was for, and runs `onSleep` during it. The
-/// first `immediateSleeps` sleeps return at once; later ones suspend until cancelled. Not
-/// `ImmediateClock` itself: its sleeps wait on background-priority tasks, which tests that spin
-/// waiting for a state can starve when they run alongside.
+/// first `immediateSleeps` sleeps return at once; later ones are recorded, then suspend until
+/// cancelled (without `onSleep`). A sleep by a task already cancelled throws without being
+/// recorded. Not `ImmediateClock` itself: its sleeps wait on background-priority tasks, which
+/// tests that spin waiting for a state can starve when they run alongside.
 public final class RecordingClock: Clock, Sendable {
   public typealias Instant = ImmediateClock<Duration>.Instant
 
@@ -32,7 +36,8 @@ public final class RecordingClock: Clock, Sendable {
       return $0.count
     }
     if count > immediateSleeps {
-      try await Task.sleep(for: .seconds(3600))
+      // Until cancelled, which ends the sleep with `CancellationError`.
+      while true { try await Task.sleep(for: .seconds(86_400)) }
     }
     await onSleep(duration)
     try Task.checkCancellation()
@@ -58,7 +63,7 @@ public final class ManualClock: Clock, Sendable {
     var now = Instant()
     var sleepers: [Sleeper] = []
     /// Sleeps cancelled while not waiting: before they started (then they end at once), or after
-    /// they ended (harmless).
+    /// they ended (harmless, and kept for the clock's life).
     var cancelled: Set<UUID> = []
   }
 
@@ -95,33 +100,49 @@ public final class ManualClock: Clock, Sendable {
 
   /// Whether a sleep that ends within `duration` from now is in progress.
   public func isAsleep(dueWithin duration: Duration) -> Bool {
+    isAsleep { $0 <= $1.advanced(by: duration) }
+  }
+
+  /// Whether a sleep that ends exactly `duration` from now is in progress.
+  public func isAsleep(endingIn duration: Duration) -> Bool {
+    isAsleep { $0 == $1.advanced(by: duration) }
+  }
+
+  /// Whether a sleep whose deadline passes `matches` (given the deadline and now) is in progress.
+  private func isAsleep(_ matches: (Instant, Instant) -> Bool) -> Bool {
     let state = state.value
-    return state.sleepers.contains { $0.deadline <= state.now.advanced(by: duration) }
+    return state.sleepers.contains { matches($0.deadline, state.now) }
   }
 
   public struct NeverAsleep: Error {}
 
-  /// Waits until a sleep that ends within `duration` from now is in progress. Throws if none
-  /// starts, so the test stops there rather than going on in the wrong state.
-  public func waitUntilAsleep(
-    dueWithin duration: Duration, sourceLocation: SourceLocation = #_sourceLocation
-  ) async throws {
-    try await eventually({ isAsleep(dueWithin: duration) }, sourceLocation: sourceLocation)
-    guard isAsleep(dueWithin: duration) else { throw NeverAsleep() }
-  }
-
-  /// Waits until a sleep that ends exactly `duration` from now is in progress, e.g. one that
-  /// replaced an earlier sleep still due sooner. Throws if none starts.
-  public func waitUntilAsleep(
-    endingIn duration: Duration, sourceLocation: SourceLocation = #_sourceLocation
-  ) async throws {
-    let isAsleep = {
-      let state = self.state.value
-      return state.sleepers.contains { $0.deadline == state.now.advanced(by: duration) }
+  #if canImport(Testing)
+    /// Waits until a sleep that ends within `duration` from now is in progress. Throws if none
+    /// starts, so the test stops there rather than going on in the wrong state.
+    public func waitUntilAsleep(
+      dueWithin duration: Duration, sourceLocation: SourceLocation = #_sourceLocation
+    ) async throws {
+      try await waitUntil({ isAsleep(dueWithin: duration) }, sourceLocation)
     }
-    try await eventually(isAsleep, sourceLocation: sourceLocation)
-    guard isAsleep() else { throw NeverAsleep() }
-  }
+
+    /// Waits until a sleep that ends exactly `duration` from now is in progress, e.g. one that
+    /// replaced an earlier sleep still due sooner. Throws if none starts.
+    public func waitUntilAsleep(
+      endingIn duration: Duration, sourceLocation: SourceLocation = #_sourceLocation
+    ) async throws {
+      try await waitUntil({ isAsleep(endingIn: duration) }, sourceLocation)
+    }
+
+    private func waitUntil(
+      _ isAsleep: () -> Bool, _ sourceLocation: SourceLocation
+    ) async throws {
+      do {
+        try await eventually(isAsleep, sourceLocation: sourceLocation)
+      } catch is ConditionNeverMet {
+        throw NeverAsleep()
+      }
+    }
+  #endif
 
   /// Moves time on by `duration`, ending the sleeps that are due.
   public func advance(by duration: Duration) {
@@ -136,20 +157,28 @@ public final class ManualClock: Clock, Sendable {
   }
 }
 
-/// Waits for `condition`, which other tasks make true, yielding in between. Bounded by time
-/// rather than a number of yields, so a busy machine (e.g. the pre-commit hook building the apps
-/// alongside) doesn't make it give up early.
-public func eventually(
-  _ condition: () throws -> Bool,
-  sourceLocation: SourceLocation = #_sourceLocation
-) async throws {
-  let deadline = ContinuousClock.now.advanced(by: .seconds(30))
-  while ContinuousClock.now < deadline {
+/// What `eventually` throws when its condition never became true.
+public struct ConditionNeverMet: Error {}
+
+#if canImport(Testing)
+  /// Waits for `condition`, which other tasks make true, yielding in between. Bounded by time
+  /// rather than a number of yields, so a busy machine (e.g. the pre-commit hook building the apps
+  /// alongside) doesn't make it give up early. If it never becomes true, records an issue and
+  /// throws, so the test stops there.
+  public func eventually(
+    _ condition: () throws -> Bool,
+    sourceLocation: SourceLocation = #_sourceLocation
+  ) async throws {
+    let deadline = ContinuousClock.now.advanced(by: .seconds(30))
+    while ContinuousClock.now < deadline {
+      if try condition() { return }
+      await Task.yield()
+      if try condition() { return }
+      // A pause rather than spinning, which would take the CPU from the tasks being waited on.
+      try await Task.sleep(for: .milliseconds(1))
+    }
     if try condition() { return }
-    await Task.yield()
-    if try condition() { return }
-    // A pause rather than spinning, which would take the CPU from the tasks being waited on.
-    try await Task.sleep(for: .milliseconds(1))
+    Issue.record("Condition never became true", sourceLocation: sourceLocation)
+    throw ConditionNeverMet()
   }
-  Issue.record("Condition never became true", sourceLocation: sourceLocation)
-}
+#endif

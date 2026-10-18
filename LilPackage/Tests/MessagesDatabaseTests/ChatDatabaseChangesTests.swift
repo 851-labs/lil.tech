@@ -21,9 +21,10 @@ struct ChatDatabaseChangesTests {
     input.yield()
     try await clock.waitUntilAsleep(endingIn: .milliseconds(250))
     clock.advance(by: .milliseconds(100))
-    // A second event starts the wait over.
+    // A second event starts the wait over: the first sleep is cancelled before the next starts.
     input.yield()
     try await clock.waitUntilAsleep(endingIn: .milliseconds(250))
+    #expect(!clock.isAsleep(dueWithin: .milliseconds(249)))
     clock.advance(by: .milliseconds(200))
     #expect(count.value == 0)
 
