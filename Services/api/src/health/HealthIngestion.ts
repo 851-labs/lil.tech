@@ -63,8 +63,8 @@ export class HealthBatchQueue extends Context.Service<
 /**
  * The most mutations applied per store call. Each call is one transaction in the store, and
  * each costs a round trip, so big batches are applied in few of them (`docs/SYNC.md`). But
- * nothing else runs in the store during one, so uploads' status calls wait behind it, half as
- * long as with 5,000 for the same throughput (851-2667).
+ * nothing else runs in the store during one, so uploads' calls to the store wait behind it,
+ * which bigger calls made slower without making ingestion measurably faster (851-2667).
  */
 export const healthChunkSize = 2_500;
 /**
