@@ -187,9 +187,10 @@ describe("Sign in with Google without client IDs", () => {
 });
 
 describe("googleClientIds", () => {
-  // The apps read their client ID from Info.plist (`GIDClientID`). A copy that differs from the
-  // server's would make Google sign-in fail for that app.
-  it.each(["LilHealth", "LilHealthiOS"])("lists the client ID in %s's Info.plist", (app) => {
+  // The apps read their client ID from their Info.plist (`GIDClientID`), named after the target
+  // (`Apps/LilHealth/<Target>-Info.plist`). A copy that differs from the server's would make Google
+  // sign-in fail for that app.
+  it.each(["LilHealth", "LilHealthiOS"])("lists the client ID in %s-Info.plist", (app) => {
     const plist = readFileSync(
       new URL(`../../../../Apps/LilHealth/${app}-Info.plist`, import.meta.url),
       "utf8",

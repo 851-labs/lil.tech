@@ -239,6 +239,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				COPY_PHASE_STRIP = NO;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = WH4QW9ND3J;
@@ -332,7 +333,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = LilHealthiOS.entitlements;
-				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = "LilHealthiOS-Info.plist";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "lil health copies your Health data to your lil health account, so you can see it on your Mac.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "lil health only reads your Health data. It never adds to or changes it.";

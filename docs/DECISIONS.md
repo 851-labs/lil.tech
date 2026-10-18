@@ -52,7 +52,7 @@
 - **Signing:** Release builds are signed with Developer ID, with the hardened runtime and a secure timestamp.
 - **Notarization:** `notarytool` with an App Store Connect API key, saved in the keychain profile `lil-notary`.
 - **Packaging:** a signed, notarized DMG, used both for first downloads and as the Sparkle update.
-- **Updates:** Sparkle, with EdDSA-signed updates. Each app has its own key, in Alexandru's login keychain (account `lil-<app>`) and backed up in 1Password. The public key is in the app's Info.plist. lil messages' first key was lost without a backup and replaced in October 2026 (851-2685). Installed copies still update, through Sparkle's key rotation for Developer ID-signed apps, as long as the Developer ID certificate doesn't change in the same release.
+- **Updates:** Sparkle, with EdDSA-signed updates. Each app has its own key, in Alexandru's login keychain (account `lil-<app>`) and backed up in 1Password. The public key is in the app's Info.plist (for lil health, the Mac target's `LilHealth-Info.plist`). lil messages' first key was lost without a backup and replaced in October 2026 (851-2685). Installed copies still update, through Sparkle's key rotation for Developer ID-signed apps, as long as the Developer ID certificate doesn't change in the same release.
 - **Releases:** GitHub Releases host the DMGs. Each app's appcast is committed to the repo (`appcasts/<app>.xml`) and served from `raw.githubusercontent.com`, because GitHub's "latest release" URL is repo-wide.
 
 ### iOS apps
@@ -155,7 +155,7 @@
     - Expiry is tracked on the device's clock: the server's times, shifted by how far the device's clock was from the server's when the access token was issued (its `iat`). That way, a clock that's off doesn't make every token look expired.
     - Signing out forgets the session first, then tells the server with the access token it had.
     - The sign-in screen uses the stock Sign in with Apple button, with a Google button under it.
-    - **Google without its SDK:** the apps open Google's sign-in page in `ASWebAuthenticationSession`, using the authorization code flow with PKCE. They redirect to the reversed client ID and redeem the code at Google's token endpoint for the ID token. iOS-type clients have no secret. Each app's client ID is `GIDClientID` in its Info.plist. Until it's set, the Google button is hidden.
+    - **Google without its SDK:** the apps open Google's sign-in page in `ASWebAuthenticationSession`, using the authorization code flow with PKCE. They redirect to the reversed client ID and redeem the code at Google's token endpoint for the ID token. iOS-type clients have no secret. Each app's client ID is `GIDClientID` in its Info.plist (`Apps/LilHealth/<Target>-Info.plist`). Until it's set, the Google button is hidden.
 - **Identities and connections are separate:**
   - An identity is a way to sign in. Signing in with Google requests identity scopes only.
   - A connection is a data source the user grants access to, with its own scopes, credentials and sync state: Apple Health now, Gmail, IMAP and calendars later.

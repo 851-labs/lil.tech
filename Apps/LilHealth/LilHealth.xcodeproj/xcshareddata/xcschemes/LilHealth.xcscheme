@@ -32,9 +32,9 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "MessagesAppTests"
-               BuildableName = "MessagesAppTests"
-               BlueprintName = "MessagesAppTests"
+               BlueprintIdentifier = "HealthMacAppTests"
+               BuildableName = "HealthMacAppTests"
+               BlueprintName = "HealthMacAppTests"
                ReferencedContainer = "container:../../LilPackage">
             </BuildableReference>
          </TestableReference>

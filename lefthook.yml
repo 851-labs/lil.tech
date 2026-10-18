@@ -27,6 +27,8 @@ pre-commit:
         - "vite.config.ts"
         - "tsconfig.json"
         - "tsconfig.base.json"
+        # The apps' Info.plists, which a test checks against the server's Google client IDs.
+        - "Apps/LilHealth/*-Info.plist"
         # The generated client's stamp covers the generator's pin and config.
         - "Tools/**"
         - "scripts/format"
