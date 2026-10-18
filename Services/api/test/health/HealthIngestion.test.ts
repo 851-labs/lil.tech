@@ -1,7 +1,7 @@
 import { gzipSync } from "node:zlib";
 import { assert, describe, layer } from "@effect/vitest";
 import { Clock, Effect, Layer } from "effect";
-import { SqlClient } from "effect/sql";
+import { SqlClient, SqlError } from "effect/sql";
 import { TestClock } from "effect/testing";
 import type { DeviceId, UserId } from "../../src/core/Ids.ts";
 import {
@@ -117,6 +117,26 @@ const KnownUser = Layer.effectDiscard(
 ).pipe(Layer.orDie, Layer.provideMerge(TestCore));
 
 layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHealthBatch", (it) => {
+  it.effect("drops a batch for an account deleted since it was queued", () =>
+    Effect.gen(function* () {
+      // A user the core database still knows (deleted between the lookup and the apply), whose
+      // store is already gone.
+      const user = yield* (yield* Users).create({ displayName: null });
+      yield* (yield* UserStores).forUser(user.id).deleteAll();
+      const batchId = "00000000-0000-4000-8000-0000000000ed";
+      const files = (yield* TestHealthOutbox).files;
+      files.set(healthBatchKey(user.id, batchId), batchFile([sample(91)]));
+      yield* ingestHealthBatch({ userId: user.id, batchId });
+      assert.isFalse(files.has(healthBatchKey(user.id, batchId)));
+      assert.isUndefined(
+        yield* (yield* UserStores)
+          .forUser(user.id)
+          .healthBatch(batchId)
+          .pipe(Effect.catchTag("AccountDeleted", () => Effect.succeed(undefined))),
+      );
+    }),
+  );
+
   it.effect("drops a batch for a user the core database doesn't know", () =>
     Effect.gen(function* () {
       const stranger = "usr_000000000000000000000000zz" as UserId;
@@ -127,6 +147,35 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
       assert.isFalse(files.has(healthBatchKey(stranger, batchId)));
       // No store was made for them.
       assert.isUndefined((yield* TestStores).sqlFor(stranger));
+    }),
+  );
+
+  it.effect("failHealthBatch drops a batch for a user the core database doesn't know", () =>
+    Effect.gen(function* () {
+      const stranger = "usr_000000000000000000000000zy" as UserId;
+      const batchId = "00000000-0000-4000-8000-0000000000ef";
+      const files = (yield* TestHealthOutbox).files;
+      files.set(healthBatchKey(stranger, batchId), batchFile([sample(92)]));
+      yield* failHealthBatch({ userId: stranger, batchId }, "Applying the batch kept failing");
+      assert.isFalse(files.has(healthBatchKey(stranger, batchId)));
+      assert.isUndefined((yield* TestStores).sqlFor(stranger));
+    }),
+  );
+
+  it.effect("applies a batch when the core database can't be asked about its user", () =>
+    Effect.gen(function* () {
+      const users = yield* Users;
+      const unavailable = Users.of({
+        ...users,
+        findById: () =>
+          Effect.fail(
+            new SqlError.SqlError({
+              reason: new SqlError.ConnectionError({ cause: new Error("D1 is down") }),
+            }),
+          ),
+      });
+      const { batch } = yield* ingest([sample(93)]).pipe(Effect.provideService(Users, unavailable));
+      assert.deepInclude(batch, { status: "applied", applied: 1 });
     }),
   );
 
@@ -813,7 +862,7 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
   );
 });
 
-layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))(
+layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))(
   "health batch timeouts",
   (it) => {
     it.effect("a batch that stops moving is reported failed, and never applied later", () =>

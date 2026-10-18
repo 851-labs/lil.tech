@@ -20,6 +20,10 @@ export const users = sqliteTable("users", {
 
 // Ways to sign in (Sign in with Apple, Sign in with Google). Separate from connections: signing in
 // with Google proves who you are; connecting Gmail grants access to data.
+//
+// The baseline migration adds a trigger to this table by hand (queueing Apple tokens for revoking
+// when an identity is deleted). A change here that makes drizzle-kit rebuild the table drops the
+// trigger, so the generated migration must create it again; a test checks it's there.
 export const identities = sqliteTable(
   "identities",
   {
