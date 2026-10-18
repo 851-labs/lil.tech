@@ -73,7 +73,6 @@ public struct SignInView: View {
             if store.isGoogleAvailable {
               GoogleSignInButton { store.send(.googleButtonTapped) }
                 .frame(maxWidth: 320)
-                .opacity(store.googleRequest == nil ? 1 : 0.5)
                 .disabled(store.googleRequest != nil)
             }
 
@@ -153,28 +152,19 @@ public struct SignInView: View {
   }
 }
 
-#Preview("Signed out") {
+@MainActor
+private func signedOut() -> SignInView {
   SignInView(
     store: Store(initialState: SignInFeature.State()) { SignInFeature() },
     appName: "lil health", privacyPolicy: URL(string: "https://lil.tech/privacy"))
 }
 
 #Preview("Signed out, light") {
-  SignInView(
-    store: Store(initialState: SignInFeature.State()) { SignInFeature() },
-    appName: "lil health", privacyPolicy: URL(string: "https://lil.tech/privacy")
-  )
-  .background(Color.white)
-  .environment(\.colorScheme, .light)
+  signedOut().background(Color.white).environment(\.colorScheme, .light)
 }
 
 #Preview("Signed out, dark") {
-  SignInView(
-    store: Store(initialState: SignInFeature.State()) { SignInFeature() },
-    appName: "lil health", privacyPolicy: URL(string: "https://lil.tech/privacy")
-  )
-  .background(Color.black)
-  .environment(\.colorScheme, .dark)
+  signedOut().background(Color.black).environment(\.colorScheme, .dark)
 }
 
 #Preview("Pointed at a preview deployment") {
