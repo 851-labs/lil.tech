@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Schema } from "effect";
-import { eq, inArray, lte } from "drizzle-orm";
+import { eq, lte, sql } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
 import { CoreDb, query } from "./CoreDb.ts";
 import { IdentityId } from "./Ids.ts";
@@ -67,7 +67,10 @@ export class AppleTokenRevocations extends Context.Service<
               db
                 .select(columns)
                 .from(appleTokenRevocations)
-                .where(inArray(appleTokenRevocations.id, [...ids])),
+                // One bound parameter however many IDs, below D1's limit of 100 per statement.
+                .where(
+                  sql`${appleTokenRevocations.id} IN (SELECT value FROM json_each(${JSON.stringify(ids)}))`,
+                ),
             ),
           );
         }),

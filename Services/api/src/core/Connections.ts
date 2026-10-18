@@ -1,7 +1,7 @@
 import { Clock, Context, Effect, Layer, Schema } from "effect";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
-import { CoreDb, query } from "./CoreDb.ts";
+import { CoreDb, excluded, query } from "./CoreDb.ts";
 import { ConnectionId, newConnectionId, UserId } from "./Ids.ts";
 import { connections } from "./Schema.ts";
 
@@ -69,20 +69,6 @@ export class Connections extends Context.Service<
     Connections,
     Effect.gen(function* () {
       const db = yield* CoreDb;
-      const columns = {
-        id: connections.id,
-        userId: connections.userId,
-        kind: connections.kind,
-        accountRef: connections.accountRef,
-        displayName: connections.displayName,
-        scopes: connections.scopes,
-        credentials: connections.credentials,
-        status: connections.status,
-        createdAt: connections.createdAt,
-        updatedAt: connections.updatedAt,
-      };
-      const excluded = (column: { readonly name: string }) => sql.raw(`excluded.${column.name}`);
-
       return Connections.of({
         connect: Effect.fn("Connections.connect")(function* (input) {
           const now = yield* Clock.currentTimeMillis;
@@ -119,7 +105,7 @@ export class Connections extends Context.Service<
                   updatedAt: excluded(connections.updatedAt),
                 },
               })
-              .returning(columns),
+              .returning(),
           );
           const row = rows[0];
           if (row === undefined) {
@@ -130,7 +116,7 @@ export class Connections extends Context.Service<
         listForUser: Effect.fn("Connections.listForUser")(function* (userId) {
           const rows = yield* query(
             db
-              .select(columns)
+              .select()
               .from(connections)
               .where(eq(connections.userId, userId))
               .orderBy(connections.createdAt, connections.id),

@@ -80,16 +80,6 @@ export class Devices extends Context.Service<
     Devices,
     Effect.gen(function* () {
       const db = yield* CoreDb;
-      const columns = {
-        id: devices.id,
-        userId: devices.userId,
-        app: devices.app,
-        platform: devices.platform,
-        name: devices.name,
-        pushToken: devices.pushToken,
-        createdAt: devices.createdAt,
-        lastSeenAt: devices.lastSeenAt,
-      };
       /** A live session on the device: not revoked, not expired at `now`. */
       const liveSession = (deviceId: SQLWrapper | DeviceId, now: number) =>
         db
@@ -102,6 +92,9 @@ export class Devices extends Context.Service<
               gt(sessions.expiresAt, now),
             ),
           );
+      /** Any session on the device, live or not. */
+      const anySession = (deviceId: DeviceId) =>
+        db.select({ id: sessions.id }).from(sessions).where(eq(sessions.deviceId, deviceId));
       const decodeAll = (rows: ReadonlyArray<unknown>) => Effect.forEach(rows, decodeDevice);
 
       return Devices.of({
@@ -130,14 +123,14 @@ export class Devices extends Context.Service<
           return device;
         }),
         findById: Effect.fn("Devices.findById")(function* (id) {
-          const rows = yield* query(db.select(columns).from(devices).where(eq(devices.id, id)));
-          return yield* first(Schema.decodeUnknownEffect(Device))(rows);
+          const rows = yield* query(db.select().from(devices).where(eq(devices.id, id)));
+          return yield* first(decodeDevice)(rows);
         }),
         listForUser: Effect.fn("Devices.listForUser")(function* (userId) {
           return yield* decodeAll(
             yield* query(
               db
-                .select(columns)
+                .select()
                 .from(devices)
                 .where(eq(devices.userId, userId))
                 .orderBy(devices.createdAt, devices.id),
@@ -148,7 +141,7 @@ export class Devices extends Context.Service<
           return yield* decodeAll(
             yield* query(
               db
-                .select(columns)
+                .select()
                 .from(devices)
                 .where(and(eq(devices.userId, userId), exists(liveSession(devices.id, now))))
                 .orderBy(devices.createdAt, devices.id),
@@ -159,7 +152,7 @@ export class Devices extends Context.Service<
           return yield* decodeAll(
             yield* query(
               db
-                .select(columns)
+                .select()
                 .from(devices)
                 .where(
                   and(lt(devices.lastSeenAt, idleSince), notExists(liveSession(devices.id, now))),
@@ -179,9 +172,7 @@ export class Devices extends Context.Service<
           return rows.length > 0;
         }),
         hasSessions: Effect.fn("Devices.hasSessions")(function* (id) {
-          const rows = yield* query(
-            db.select({ id: sessions.id }).from(sessions).where(eq(sessions.deviceId, id)).limit(1),
-          );
+          const rows = yield* query(anySession(id).limit(1));
           return rows.length > 0;
         }),
         deleteIfSignedOut: Effect.fn("Devices.deleteIfSignedOut")(function* (id) {

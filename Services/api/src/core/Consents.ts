@@ -1,5 +1,5 @@
 import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
 import { CoreDb, query } from "./CoreDb.ts";
 import type { UserId } from "./Ids.ts";
@@ -72,16 +72,13 @@ export class Consents extends Context.Service<
         current,
         grant: Effect.fn("Consents.grant")(function* (userId, type, policyVersion) {
           const grantedAt = yield* Clock.currentTimeMillis;
-          // One statement, so requests that race (an app retrying) record it once.
+          // The `consents_active` index keeps it to one active consent, so requests that race (an
+          // app retrying) record it once.
           yield* query(
-            db.run(sql`INSERT INTO ${consents}
-              (${sql.identifier(consents.userId.name)}, ${sql.identifier(consents.type.name)},
-                ${sql.identifier(consents.policyVersion.name)}, ${sql.identifier(consents.grantedAt.name)})
-              SELECT ${userId}, ${type}, ${policyVersion}, ${grantedAt}
-              WHERE NOT EXISTS (
-                SELECT 1 FROM ${consents} WHERE ${consents.userId} = ${userId}
-                  AND ${consents.type} = ${type} AND ${consents.policyVersion} = ${policyVersion}
-                  AND ${consents.withdrawnAt} IS NULL)`),
+            db
+              .insert(consents)
+              .values({ userId, type, policyVersion, grantedAt })
+              .onConflictDoNothing(),
           );
           const given = yield* current(userId, type);
           return Option.getOrElse(given, () => ({ policyVersion, grantedAt }));

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `consents_active` ON `consents` (`user_id`,`type`,`policy_version`) WHERE "consents"."withdrawn_at" IS NULL;

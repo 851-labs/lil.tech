@@ -1,5 +1,13 @@
 import { sql } from "drizzle-orm";
-import { foreignKey, index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import {
+  foreignKey,
+  index,
+  integer,
+  sqliteTable,
+  text,
+  unique,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 // The shared "core" database: data that spans users and apps. Each user's own data (health, and
 // later mail and calendar) lives in their per-user store, not here. Times are Unix milliseconds.
@@ -155,7 +163,13 @@ export const consents = sqliteTable(
     grantedAt: integer("granted_at").notNull(),
     withdrawnAt: integer("withdrawn_at"),
   },
-  (table) => [index("consents_user_type").on(table.userId, table.type, table.grantedAt)],
+  (table) => [
+    index("consents_user_type").on(table.userId, table.type, table.grantedAt),
+    // One active consent per user, type and policy version, however requests race.
+    uniqueIndex("consents_active")
+      .on(table.userId, table.type, table.policyVersion)
+      .where(sql`${table.withdrawnAt} IS NULL`),
+  ],
 );
 
 // Tokens of deleted Sign in with Apple identities, waiting to be revoked: right after the
