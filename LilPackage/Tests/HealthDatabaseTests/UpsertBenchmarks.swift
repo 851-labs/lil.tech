@@ -26,24 +26,10 @@ struct UpsertBenchmarks {
     }
     let workouts = (0..<rows).map(workout)
     let upsert = PreparedUpsert<HealthWorkout>()
-    let clock = ContinuousClock()
-    for round in 1...3 {
-      let built = try HealthDatabase.make()
-      let builtTime = try clock.measure {
-        try built.write { db in
-          for workout in workouts { try HealthWorkout.upsert { workout }.execute(db) }
-        }
-      }
-      let prepared = try HealthDatabase.make()
-      let preparedTime = try clock.measure {
-        try prepared.write { db in
-          for workout in workouts { try upsert.execute(workout, db) }
-        }
-      }
-      print(
-        "Round \(round): built queries \(microseconds(builtTime, rows)) µs a workout,"
-          + " prepared \(microseconds(preparedTime, rows)) µs")
-    }
+    try compare(
+      "built queries", "prepared", rows: rows, unit: "workout",
+      { db in for workout in workouts { try HealthWorkout.upsert { workout }.execute(db) } },
+      { db in for workout in workouts { try upsert.execute(workout, db) } })
   }
 
   @Test
@@ -66,26 +52,39 @@ struct UpsertBenchmarks {
         sample.sourceRevision, sample.device, sample.metadata,
       ]
     }
-    let clock = ContinuousClock()
-    for round in 1...3 {
-      let database = try HealthDatabase.make()
-      let byHandTime = try clock.measure {
-        try database.write { db in
-          for sample in samples {
-            try db.cachedStatement(sql: upsert.sql).execute(arguments: byHand(sample))
-          }
+    try compare(
+      "values by hand", "from the columns", rows: rows, unit: "sample",
+      { db in
+        for sample in samples {
+          try db.cachedStatement(sql: upsert.sql).execute(arguments: byHand(sample))
         }
-      }
-      let prepared = try HealthDatabase.make()
-      let preparedTime = try clock.measure {
-        try prepared.write { db in
-          for sample in samples { try upsert.execute(sample, db) }
-        }
-      }
-      print(
-        "Round \(round): values by hand \(microseconds(byHandTime, rows)) µs a sample,"
-          + " from the columns \(microseconds(preparedTime, rows)) µs")
-    }
+      },
+      { db in for sample in samples { try upsert.execute(sample, db) } })
+  }
+}
+
+/// Times `first` and `second`, each writing into a new database, over four rounds. Which goes
+/// first alternates, so warming up favors neither.
+private func compare(
+  _ firstName: String, _ secondName: String, rows: Int, unit: String,
+  _ first: (Database) throws -> Void, _ second: (Database) throws -> Void
+) throws {
+  let clock = ContinuousClock()
+  let time = { (body: (Database) throws -> Void) in
+    let database = try HealthDatabase.make()
+    return try clock.measure { try database.write(body) }
+  }
+  for round in 1...4 {
+    let (firstTime, secondTime) =
+      round.isMultiple(of: 2)
+      ? try {
+        let b = try time(second)
+        return (try time(first), b)
+      }()
+      : (try time(first), try time(second))
+    print(
+      "Round \(round): \(firstName) \(microseconds(firstTime, rows)) µs a \(unit),"
+        + " \(secondName) \(microseconds(secondTime, rows)) µs")
   }
 }
 

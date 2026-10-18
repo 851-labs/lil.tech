@@ -406,7 +406,7 @@ public enum HealthDatabase {
   /// 851-2649).
   private static func entity<Row: Decodable & SendableMetatype, Record: PrimaryKeyedTable>(
     _ name: String, _: Row.Type, record: @escaping @Sendable (Row) throws -> Record
-  ) -> SyncEntity where Record.PrimaryKey == String {
+  ) -> SyncEntity where Record.PrimaryKey == String, Record.QueryOutput == Record {
     let upsert = PreparedUpsert<Record>()
     return .decoding(
       name, as: Row.self,

@@ -4,8 +4,9 @@ import SQLiteData
 
 /// A table's upsert as one SQL statement, built once from the table's columns, with each
 /// record's values bound in their order. GRDB caches the statement per connection, so every row
-/// after the first skips both building a query and preparing it.
-struct PreparedUpsert<Record: PrimaryKeyedTable>: Sendable {
+/// after the first skips both building a query and preparing it. A record with a value
+/// StructuredQueries binds specially (a date, an empty blob) is upserted its usual way instead.
+struct PreparedUpsert<Record: PrimaryKeyedTable>: Sendable where Record.QueryOutput == Record {
   let sql: String
   /// Each column's value in a record, as StructuredQueries binds it, in the statement's order.
   private let bindings: [@Sendable (Record) -> QueryBinding]
@@ -37,38 +38,40 @@ struct PreparedUpsert<Record: PrimaryKeyedTable>: Sendable {
   }
 
   func execute(_ record: Record, _ db: Database) throws {
-    try db.cachedStatement(sql: sql).execute(arguments: try arguments(record))
+    guard let arguments = try arguments(record) else {
+      return try Record.upsert { record }.execute(db)
+    }
+    let statement = try db.cachedStatement(sql: sql)
+    // The arguments are the statement's columns, one each, so GRDB needn't count them.
+    statement.setUncheckedArguments(arguments)
+    try statement.execute()
   }
 
-  /// `record`'s values in its table's column order.
-  func arguments(_ record: Record) throws -> StatementArguments {
+  /// `record`'s values in its table's column order, or `nil` if one needs StructuredQueries'
+  /// own binding.
+  func arguments(_ record: Record) throws -> StatementArguments? {
     var values: [DatabaseValue] = []
     values.reserveCapacity(bindings.count)
     for binding in bindings {
-      values.append(try Self.databaseValue(binding(record)))
+      guard let value = try Self.databaseValue(binding(record)) else { return nil }
+      values.append(value)
     }
     return StatementArguments(values)
   }
 
-  private static func databaseValue(_ binding: QueryBinding) throws -> DatabaseValue {
+  private static func databaseValue(_ binding: QueryBinding) throws -> DatabaseValue? {
     switch binding {
-    case .blob(let bytes): return Data(bytes).databaseValue
-    case .bool(let bool): return (bool ? 1 : 0).databaseValue
-    case .double(let double): return double.databaseValue
-    case .int(let int): return int.databaseValue
-    case .null: return .null
-    case .text(let text): return text.databaseValue
-    case .uint(let uint):
-      guard let int = Int64(exactly: uint) else { throw UnsupportedValue(binding: binding) }
-      return int.databaseValue
-    case .uuid(let uuid): return uuid.uuidString.lowercased().databaseValue
+    case .blob(let bytes): bytes.isEmpty ? nil : Data(bytes).databaseValue
+    case .bool(let bool): (bool ? 1 : 0).databaseValue
+    case .double(let double): double.databaseValue
+    case .int(let int): int.databaseValue
+    case .null: .null
+    case .text(let text): text.databaseValue
+    case .uint(let uint): Int64(exactly: uint)?.databaseValue
+    case .uuid(let uuid): uuid.uuidString.lowercased().databaseValue
     case .invalid(let error): throw error
-    // No health table has a date column (times are Unix milliseconds).
-    case .date: throw UnsupportedValue(binding: binding)
+    // ISO-8601 text in StructuredQueries' own format.
+    case .date: nil
     }
-  }
-
-  struct UnsupportedValue: Error {
-    let binding: QueryBinding
   }
 }
