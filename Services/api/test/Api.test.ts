@@ -10,7 +10,7 @@ import { HttpRouter } from "effect/http";
 import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
-import { Deployment, environmentForStage } from "../src/Deployment.ts";
+import { Deployment, disposableBucketProps, environmentForStage } from "../src/Deployment.ts";
 import { Auth } from "../src/auth/Auth.ts";
 import { ingestHealthBatch } from "../src/health/HealthIngestion.ts";
 import { maxDevUsers } from "../src/auth/DevSignIn.ts";
@@ -2038,6 +2038,30 @@ describe("apiWorkerProps", () => {
         Effect.exit,
       );
       assert.isTrue(Exit.isFailure(exit));
+    }),
+  );
+});
+
+describe("DisposableBucket", () => {
+  // The props Alchemy resolves for a bucket in `stage` (none: inside the running Worker).
+  const propsIn = (stage?: string) => {
+    const props = disposableBucketProps({ lifecycleRules: [] });
+    return stage === undefined ? props : props.pipe(Effect.provideService(Alchemy.Stage, stage));
+  };
+
+  it.effect("lets previews, personal stages and alchemy dev delete non-empty buckets", () =>
+    Effect.gen(function* () {
+      for (const stage of ["pr-12", "live_tuftlord", "dev_tuftlord"]) {
+        assert.propertyVal(yield* propsIn(stage), "forceDestroy", true, stage);
+      }
+    }),
+  );
+
+  it.effect("keeps R2's refusal in staging, prod and the running Worker", () =>
+    Effect.gen(function* () {
+      for (const stage of ["staging", "prod", undefined]) {
+        assert.notProperty(yield* propsIn(stage), "forceDestroy", String(stage));
+      }
     }),
   );
 });
