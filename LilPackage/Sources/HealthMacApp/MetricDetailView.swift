@@ -13,6 +13,8 @@ struct MetricDetailView: View {
   @State private var offset = 0
   /// Loaded by the view's task, for quantity types only.
   @Fetch private var chart: MetricChart? = nil
+  /// Lines drawn over the chart, for the same period: heart rate's resting and walking averages.
+  @Fetch private var overlays: [MetricOverlay] = []
 
   init(type: HealthDataType) {
     self.type = type
@@ -28,6 +30,8 @@ struct MetricDetailView: View {
         ElectrocardiogramsView()
       } else if type.kind == .audiogram {
         AudiogramsView()
+      } else if type.kind == .heartbeatSeries {
+        HeartbeatSeriesView()
       } else if type.kind == .stateOfMind {
         StateOfMindView()
       } else if type.kind == .scoredAssessment, let kind = AssessmentKind(rawValue: type.id) {
@@ -36,7 +40,8 @@ struct MetricDetailView: View {
         MetricDetailContent(
           type: type, range: $range, offset: $offset,
           state: $chart.loadError.map { .failed($0.localizedDescription) }
-            ?? ($chart.isLoading ? .loading : chart.map { .loaded($0) } ?? .loading))
+            ?? ($chart.isLoading ? .loading : chart.map { .loaded($0) } ?? .loading),
+          overlays: overlays)
       } else {
         // Their own views come with their tickets (cycle tracking…).
         ContentUnavailableView(
@@ -46,10 +51,24 @@ struct MetricDetailView: View {
     }
     .task(id: [range.rawValue, String(offset)]) {
       guard type.kind == .quantity else { return }
+      async let overlaid: Void = loadOverlays()
       _ = try? await $chart.load(
         MetricChartRequest(typeID: type.id, range: range, offset: offset),
         scheduler: MainQueueScheduler())
+      await overlaid
     }
+  }
+
+  private func loadOverlays() async {
+    guard type.id == HealthDatabase.heartRateType else { return }
+    _ = try? await $overlays.load(
+      MetricOverlaysRequest(
+        lines: [
+          (HealthDatabase.restingHeartRateType, "Resting"),
+          (HealthDatabase.walkingHeartRateType, "Walking Average"),
+        ].map { MetricOverlaysRequest.Line(typeID: $0.0, name: $0.1) },
+        range: range, offset: offset),
+      scheduler: MainQueueScheduler())
   }
 }
 
@@ -65,6 +84,33 @@ struct MetricChartRequest: FetchKeyRequest {
   }
 }
 
+/// Other types' values for the same period, as lines over a chart.
+struct MetricOverlaysRequest: FetchKeyRequest {
+  struct Line: Hashable {
+    let typeID: String
+    let name: String
+  }
+
+  let lines: [Line]
+  let range: ChartRange
+  let offset: Int
+
+  func fetch(_ db: Database) throws -> [MetricOverlay] {
+    try lines.compactMap { line in
+      guard let type = HealthCatalog.type(id: line.typeID) else { return nil }
+      let chart = try HealthDatabase.metricChart(
+        of: type, range: range, offset: offset, now: .now, calendar: .current, db)
+      return MetricOverlay(name: line.name, points: chart.points)
+    }
+  }
+}
+
+/// A line over a chart: another type's value for each of its periods.
+struct MetricOverlay: Equatable, Sendable {
+  let name: String
+  let points: [ChartPoint]
+}
+
 /// What the detail shows, however it got it.
 struct MetricDetailContent: View {
   enum State {
@@ -77,6 +123,7 @@ struct MetricDetailContent: View {
   @Binding var range: ChartRange
   @Binding var offset: Int
   let state: State
+  var overlays: [MetricOverlay] = []
   var calendar = Calendar.current
   @SwiftUI.State private var hovered: Date?
 
@@ -98,6 +145,19 @@ struct MetricDetailContent: View {
           header
           chartArea
             .frame(height: 280)
+          if !overlays.isEmpty {
+            HStack(spacing: 16) {
+              ForEach(overlays, id: \.name) { overlay in
+                Label {
+                  Text(overlay.name)
+                } icon: {
+                  Circle().fill(MetricOverlay.color(overlay.name)).frame(width: 8, height: 8)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              }
+            }
+          }
         }
         .padding(16)
         .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
@@ -113,6 +173,15 @@ struct MetricDetailContent: View {
           .foregroundStyle(.secondary)
         }
         VStack(spacing: 0) {
+          if HealthDatabase.heartRateVariabilityTypes.contains(type.id) {
+            NavigationLink {
+              HeartbeatSeriesView()
+            } label: {
+              linkRow("Beat-to-Beat Measurements")
+            }
+            .buttonStyle(.plain)
+            Divider().padding(.leading, 14)
+          }
           NavigationLink {
             AllDataView(type: type)
           } label: {
@@ -221,6 +290,23 @@ struct MetricDetailContent: View {
       Chart {
         ForEach(chart.points, id: \.start) { point in
           bar(point, in: chart)
+        }
+        ForEach(overlays, id: \.name) { overlay in
+          ForEach(overlay.points, id: \.start) { point in
+            LineMark(
+              x: .value("Date", point.start, unit: range.barUnit),
+              y: .value(overlay.name, point.value),
+              series: .value("Line", overlay.name)
+            )
+            .foregroundStyle(MetricOverlay.color(overlay.name))
+            .lineStyle(StrokeStyle(lineWidth: 2))
+            PointMark(
+              x: .value("Date", point.start, unit: range.barUnit),
+              y: .value(overlay.name, point.value)
+            )
+            .foregroundStyle(MetricOverlay.color(overlay.name))
+            .symbolSize(24)
+          }
         }
         // Sound above this over time can affect hearing.
         if HealthDatabase.soundLevelTypes.contains(type.id), !chart.points.isEmpty {
@@ -351,4 +437,9 @@ enum ChartFormat {
     case .year: return start.formatted(style.month(.wide).year())
     }
   }
+}
+
+extension MetricOverlay {
+  /// Heart rate's lines: resting in blue, walking average in orange.
+  static func color(_ name: String) -> Color { name == "Resting" ? .blue : .orange }
 }
