@@ -18,13 +18,17 @@ On the Mac that builds releases:
    xcrun notarytool store-credentials lil-notary --key AuthKey_XXXXXXXXXX.p8 --key-id XXXXXXXXXX --issuer <issuer-uuid>
    ```
 
-3. **Sparkle signing keys.** Each app has its own, in the login keychain under the account `lil-<app>` (`lil-messages`, `lil-health`). Its public key is `SUPublicEDKey` in the app's `Info.plist`. The private key is backed up in 1Password as "lil <app> – Sparkle EdDSA update key". A key that's lost can't be replaced without breaking updates for everyone who installed the app, so back up a new key before releasing with it. On a new Mac, restore it from 1Password:
+3. **Sparkle signing keys.** Each app has its own, in the login keychain under the account `lil-<app>`, and backed up in 1Password as "lil <app> – Sparkle EdDSA update key". The app's public key is `SUPublicEDKey` in its `Info.plist`. lil messages uses `lil-messages`. lil health's key, `lil-health`, is ready for its Mac release (851-2632) but isn't in its `Info.plist` yet. Back up a new key before releasing with it. On a new Mac, restore a key from 1Password, outside the repo:
 
    ```
-   op item get "lil messages – Sparkle EdDSA update key" --fields "private key" --reveal | tr -d '\n' > key.txt
-   generate_keys --account lil-messages -f key.txt && rm key.txt
-   generate_keys --account lil-messages -p   # should print the app's SUPublicEDKey
+   app=messages  # or health
+   dir=$(mktemp -d) && trap 'rm -rf "$dir"' EXIT
+   op item get "lil $app – Sparkle EdDSA update key" --fields "private key" --reveal | tr -d '\n' > "$dir/key"
+   generate_keys --account "lil-$app" -f "$dir/key"
+   generate_keys --account "lil-$app" -p   # must match SUPublicEDKey in the app's Info.plist
    ```
+
+   If a key is lost, a Developer ID-signed app can still move to a new one: Sparkle accepts an update that changes the EdDSA key or the Developer ID certificate, but never both in the same release. So don't rotate the certificate and the key together.
 
    Sparkle's tools (`generate_keys`, `sign_update`, `generate_appcast`) come from the Sparkle release archive on GitHub.
 
