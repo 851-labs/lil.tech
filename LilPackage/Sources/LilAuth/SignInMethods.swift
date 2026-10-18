@@ -27,13 +27,15 @@ public struct SignInMethod: Equatable, Identifiable, Sendable {
     self.email = email
   }
 
-  init(_ identity: Components.Schemas.MeIdentity) {
+  /// `nil` for an identity without an ID, from a server before 851-2554.
+  init?(_ identity: Components.Schemas.MeIdentity) {
+    guard let id = identity.id else { return nil }
     let provider: Provider =
       switch identity.provider {
       case .apple: .apple
       case .google: .google
       }
-    self.init(id: identity.id, provider: provider, email: identity.email)
+    self.init(id: id, provider: provider, email: identity.email)
   }
 }
 
@@ -45,6 +47,8 @@ public enum SignInMethodError: Error, Equatable, Sendable {
   case lastMethod
   /// The server didn't accept the provider's token. Trying again usually works.
   case rejected
+  /// The session ended (e.g. the account was deleted on another device).
+  case signedOut
   /// It isn't possible right now; try again later.
   case unavailable
   case failed(String)
@@ -55,6 +59,7 @@ public enum SignInMethodError: Error, Equatable, Sendable {
       "That \(provider.name) account already signs in to another lil account. Sign in with it to use that account, or delete that account first."
     case .lastMethod: "Your only sign-in method can't be removed."
     case .rejected: "Linking didn't work. Please try again."
+    case .signedOut: "Your session ended. Sign in again."
     case .unavailable: "It isn't possible right now. Please try again later."
     case .failed(let reason): "Something went wrong: \(reason)"
     }
@@ -113,9 +118,13 @@ extension SignInMethodsClient: DependencyKey {
       _ provider: SignInMethod.Provider, _ outcome: LinkOutcome
     ) throws(SignInMethodError) -> SignInMethod {
       switch outcome {
-      case .linked(let identity?): return SignInMethod(identity)
-      case .linked(nil): throw .failed("Unexpected response")
+      case .linked(let identity):
+        guard let method = identity.flatMap(SignInMethod.init) else {
+          throw .failed("Unexpected response")
+        }
+        return method
       case .rejected: throw .rejected
+      case .signedOut: throw .signedOut
       case .inUse: throw .inUse(provider)
       case .unavailable: throw .unavailable
       case .unexpected(let statusCode): throw .failed("HTTP \(statusCode)")
@@ -126,8 +135,8 @@ extension SignInMethodsClient: DependencyKey {
         switch try await call({ try await api.me() }) {
         case .ok(let ok):
           guard let me = try? ok.body.json else { throw .failed("Unexpected response") }
-          return me.identities.map(SignInMethod.init)
-        case .unauthorized: throw .failed("You're signed out")
+          return me.identities.compactMap(SignInMethod.init)
+        case .unauthorized: throw .signedOut
         case .tooManyRequests: throw .unavailable
         case .undocumented(let statusCode, _): throw .failed("HTTP \(statusCode)")
         }
@@ -139,7 +148,9 @@ extension SignInMethodsClient: DependencyKey {
         let outcome: LinkOutcome =
           switch try await call({ try await api.linkApple(body: .json(request)) }) {
           case .ok(let ok): .linked(try? ok.body.json)
-          case .unauthorized: .rejected
+          // The token didn't verify, or the session ended (the middleware's `Unauthorized`).
+          case .unauthorized(let response):
+            (try? response.body.json)?.value1 != nil ? .rejected : .signedOut
           case .conflict: .inUse
           case .serviceUnavailable, .tooManyRequests: .unavailable
           case .undocumented(let statusCode, _): .unexpected(statusCode)
@@ -151,7 +162,8 @@ extension SignInMethodsClient: DependencyKey {
         let outcome: LinkOutcome =
           switch try await call({ try await api.linkGoogle(body: .json(request)) }) {
           case .ok(let ok): .linked(try? ok.body.json)
-          case .unauthorized: .rejected
+          case .unauthorized(let response):
+            (try? response.body.json)?.value1 != nil ? .rejected : .signedOut
           case .conflict: .inUse
           case .serviceUnavailable, .tooManyRequests: .unavailable
           case .undocumented(let statusCode, _): .unexpected(statusCode)
@@ -163,7 +175,7 @@ extension SignInMethodsClient: DependencyKey {
         // Already gone counts as done: the list is loaded again either way.
         case .noContent, .notFound: return
         case .conflict: throw .lastMethod
-        case .unauthorized: throw .failed("You're signed out")
+        case .unauthorized: throw .signedOut
         case .tooManyRequests: throw .unavailable
         case .undocumented(let statusCode, _):
           throw statusCode >= 500 ? .unavailable : .failed("HTTP \(statusCode)")
@@ -211,6 +223,7 @@ extension SignInMethodsClient: DependencyKey {
 private enum LinkOutcome {
   case linked(Components.Schemas.MeIdentity?)
   case rejected
+  case signedOut
   case inUse
   case unavailable
   case unexpected(Int)

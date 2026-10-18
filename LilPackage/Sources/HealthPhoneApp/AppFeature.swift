@@ -191,6 +191,8 @@ public struct AppFeature {
           return .merge(
             .cancel(id: CancelID.backfill),
             .cancel(id: CancelID.signedInChecks),
+            // Its answers are the last account's.
+            SignInMethodsFeature.cancel(),
             .run { [healthBackfill] send in
               await healthBackfill.reset()
               // Only now, so a scripted run's sign-in doesn't back up into a reset.

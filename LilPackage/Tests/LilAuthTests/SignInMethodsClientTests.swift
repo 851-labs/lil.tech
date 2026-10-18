@@ -91,4 +91,36 @@ struct SignInMethodsClientTests {
     let methods = client { _, _ in (.notFound, #"{"_tag":"IdentityNotFound","message":"gone"}"#) }
     try await methods.unlink("idt_1")
   }
+
+  @Test
+  func aTokenThatDoesntVerifyIsRejected_andAnEndedSessionSignsOut() async {
+    let rejected = client { _, _ in
+      (.unauthorized, #"{"_tag":"InvalidIdentityToken","message":"bad"}"#)
+    }
+    await #expect(throws: SignInMethodError.rejected) {
+      try await rejected.linkGoogle("google-id-token", "nonce")
+    }
+    let signedOut = client { _, _ in
+      (.unauthorized, #"{"_tag":"Unauthorized","message":"The user no longer exists"}"#)
+    }
+    await #expect(throws: SignInMethodError.signedOut) {
+      try await signedOut.linkGoogle("google-id-token", "nonce")
+    }
+  }
+
+  @Test
+  func identitiesWithoutAnIDAreLeftOut() async throws {
+    // A server from before 851-2554, e.g. after a rollback.
+    let methods = client { _, _ in
+      (
+        .ok,
+        """
+        {"id":"usr_1","displayName":null,"devices":[],"identities":[
+          {"provider":"apple","email":null}
+        ]}
+        """
+      )
+    }
+    #expect(try await methods.list() == [])
+  }
 }

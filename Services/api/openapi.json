@@ -2221,7 +2221,6 @@
           }
         },
         "required": [
-          "id",
           "provider",
           "email"
         ]

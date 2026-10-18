@@ -1112,7 +1112,7 @@ extension Components {
         /// - Remark: Generated from `#/components/schemas/MeIdentity`.
         public struct MeIdentity: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/MeIdentity/id`.
-            public var id: Swift.String
+            public var id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/MeIdentity/provider`.
             @frozen public enum ProviderPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case apple = "apple"
@@ -1129,7 +1129,7 @@ extension Components {
             ///   - provider:
             ///   - email:
             public init(
-                id: Swift.String,
+                id: Swift.String? = nil,
                 provider: Components.Schemas.MeIdentity.ProviderPayload,
                 email: Swift.String? = nil
             ) {

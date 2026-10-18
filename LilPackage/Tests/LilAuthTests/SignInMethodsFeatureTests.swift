@@ -187,4 +187,33 @@ struct SignInMethodsFeatureTests {
     await store.send(.task)
     await store.receive(\.methodsLoaded.failure)
   }
+
+  @Test
+  func tryingAgainAfterAFailedLoad() async {
+    let store = TestStore(initialState: SignInMethodsFeature.State(methods: .failed("offline"))) {
+      SignInMethodsFeature()
+    } withDependencies: {
+      $0.signInMethods.list = { () throws(SignInMethodError) in [apple] }
+    }
+
+    await store.send(.retryButtonTapped) {
+      $0.methods = .loading
+    }
+    await store.receive(\.methodsLoaded.success) {
+      $0.methods = .loaded([apple])
+    }
+  }
+
+  @Test
+  func anAnswerWithoutItsRequestEndsTheLink() async {
+    let store = TestStore(
+      initialState: SignInMethodsFeature.State(methods: .loaded([apple]), linking: .google)
+    ) {
+      SignInMethodsFeature()
+    }
+
+    await store.send(.googleAuthorizationFinished(.success(googleCallback(state: zeroState)))) {
+      $0.linking = nil
+    }
+  }
 }

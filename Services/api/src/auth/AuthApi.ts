@@ -165,8 +165,11 @@ export class AuthApi extends HttpApiGroup.make("auth")
   ) {}
 
 export class MeIdentity extends Schema.Class<MeIdentity>("lil/api/auth/MeIdentity")({
-  /** What `DELETE /v1/me/identities/{id}` takes. Missing from servers before 851-2554. */
-  id: IdentityId,
+  /**
+   * What `DELETE /v1/me/identities/{id}` takes. Always sent, but optional in the spec: servers
+   * before 851-2554 (e.g. after a rollback) leave it out, and clients must still decode `/v1/me`.
+   */
+  id: Schema.optionalKey(IdentityId),
   provider: IdentityProvider,
   email: Schema.NullOr(Schema.String),
 }) {}
@@ -278,12 +281,13 @@ export class MeApi extends HttpApiGroup.make("me", { topLevel: true })
   )
   .add(
     // Links another Sign in with Apple account to the signed-in user, so it signs in to this
-    // account too. Linking one the user already has changes nothing.
+    // account too. Linking one the user already has changes nothing. Verifying a provider token
+    // counts against the address's sign-in limit, as signing in does.
     HttpApiEndpoint.post("linkApple", "/v1/me/identities/apple", {
       payload: LinkAppleRequest,
       success: MeIdentity,
       error: [InvalidIdentityToken, SignInUnavailable, IdentityInUse],
-    }),
+    }).middleware(AddressRateLimit),
   )
   .add(
     // Links a Google account to the signed-in user, as `linkApple` does.
@@ -291,7 +295,7 @@ export class MeApi extends HttpApiGroup.make("me", { topLevel: true })
       payload: LinkGoogleRequest,
       success: MeIdentity,
       error: [InvalidIdentityToken, SignInUnavailable, IdentityInUse],
-    }),
+    }).middleware(AddressRateLimit),
   )
   .add(
     // Unlinks one of the user's identities, unless it's their last. Devices signed in with it

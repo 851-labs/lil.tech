@@ -75,6 +75,7 @@ public struct SignInMethodsFeature {
 
   public enum Action {
     case task
+    case retryButtonTapped
     case methodsLoaded(Result<[SignInMethod], SignInMethodError>)
     /// The iPhone's Apple button was tapped, just before Apple's sheet appears.
     case linkAppleButtonTapped
@@ -94,7 +95,14 @@ public struct SignInMethodsFeature {
     }
   }
 
-  enum CancelID { case google, appleWeb }
+  enum CancelID { case google, appleWeb, requests }
+
+  /// Stops everything under way, e.g. when the account signs out while the section stays.
+  public static func cancel<Action>() -> Effect<Action> {
+    .merge(
+      .cancel(id: CancelID.google), .cancel(id: CancelID.appleWeb),
+      .cancel(id: CancelID.requests))
+  }
 
   @Dependency(\.appleWebSignIn) var appleWebSignIn
   @Dependency(\.googleOAuth) var googleOAuth
@@ -107,6 +115,10 @@ public struct SignInMethodsFeature {
     Reduce { state, action in
       switch action {
       case .task:
+        return load()
+
+      case .retryButtonTapped:
+        state.methods = .loading
         return load()
 
       case .methodsLoaded(.success(let methods)):
@@ -143,7 +155,11 @@ public struct SignInMethodsFeature {
         .cancellable(id: CancelID.appleWeb, cancelInFlight: true)
 
       case .appleWebAuthorizationFinished(let result):
-        guard let request = state.appleWebRequest else { return .none }
+        guard let request = state.appleWebRequest else {
+          state.linking = nil
+          state.nonce = nil
+          return .none
+        }
         state.appleWebRequest = nil
         return finishApple(
           result.flatMap { callback in
@@ -167,7 +183,10 @@ public struct SignInMethodsFeature {
         .cancellable(id: CancelID.google, cancelInFlight: true)
 
       case .googleAuthorizationFinished(let result):
-        guard let request = state.googleRequest else { return .none }
+        guard let request = state.googleRequest else {
+          state.linking = nil
+          return .none
+        }
         state.googleRequest = nil
         let code: String
         do throws(GoogleAuthorizationError) {
@@ -192,6 +211,7 @@ public struct SignInMethodsFeature {
                 return try await signInMethods.linkGoogle(idToken, request.nonce)
               }))
         }
+        .cancellable(id: CancelID.requests)
 
       case .linkFinished(.success(let method)):
         state.linking = nil
@@ -236,6 +256,7 @@ public struct SignInMethodsFeature {
                 return id
               }))
         }
+        .cancellable(id: CancelID.requests)
 
       case .unlinkFinished(.success(let id)):
         state.unlinking = nil
@@ -262,6 +283,7 @@ public struct SignInMethodsFeature {
         .methodsLoaded(
           await catching { () async throws(SignInMethodError) in try await signInMethods.list() }))
     }
+    .cancellable(id: CancelID.requests)
   }
 
   /// Links the Apple account from Apple's answer, from the native sheet (the iPhone) or Apple's
@@ -285,6 +307,7 @@ public struct SignInMethodsFeature {
               try await signInMethods.linkApple(credential, nonce)
             }))
       }
+      .cancellable(id: CancelID.requests)
     case .failure(.canceled):
       state.linking = nil
       return .none

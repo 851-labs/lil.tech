@@ -19,8 +19,12 @@ public struct SignInMethodsSection: View {
           .controlSize(.small)
           .frame(maxWidth: .infinity)
       case .failed(let message):
-        Text(message)
-          .foregroundStyle(.secondary)
+        HStack {
+          Text(message)
+            .foregroundStyle(.secondary)
+          Spacer()
+          Button("Try Again") { store.send(.retryButtonTapped) }
+        }
       case .loaded(let methods):
         ForEach(methods) { method in
           SignInMethodRow(
@@ -35,7 +39,10 @@ public struct SignInMethodsSection: View {
         }
       }
     } header: {
+      // On the header, which is one view: a `Section`'s modifiers go to each of its rows.
       Text("Sign-In Methods")
+        .task { await store.send(.task).finish() }
+        .alert($store.scope(\.alert, action: \.alert))
     } footer: {
       if let failure = store.failure {
         Text(failure)
@@ -46,8 +53,6 @@ public struct SignInMethodsSection: View {
         )
       }
     }
-    .task { await store.send(.task).finish() }
-    .alert($store.scope(\.alert, action: \.alert))
   }
 
   @ViewBuilder private func linkButton(_ provider: SignInMethod.Provider) -> some View {
