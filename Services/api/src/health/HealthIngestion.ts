@@ -357,12 +357,34 @@ const dropBatchFile = Effect.fnUntraced(function* (message: HealthBatchMessage) 
 });
 
 /**
+ * Whether the core database knows the batch's user. A batch for one it doesn't (one queued before
+ * the databases were wiped, 851-2686) must not reach a store: touching it would create a store
+ * for nobody. If D1 can't answer, the user counts as known, so a D1 outage doesn't hold up
+ * ingestion; a known user's batch is the normal case.
+ */
+const knowsUser = (message: HealthBatchMessage) =>
+  Effect.gen(function* () {
+    const user = yield* (yield* Users).findById(message.userId);
+    if (Option.isSome(user)) return true;
+    yield* Effect.logWarning(
+      `Dropping batch ${message.batchId} for unknown user ${message.userId}`,
+    );
+    return false;
+  }).pipe(
+    Effect.catchTag("SqlError", (error) =>
+      Effect.logWarning("Looking up a batch's user failed", error).pipe(Effect.as(true)),
+    ),
+  );
+
+/**
  * Applies an uploaded batch to the user's store and records the outcome (`applyHealthBatch`). A
- * batch for an account deleted since it was queued is dropped with its file.
+ * batch for an account deleted since it was queued, or for a user the core database doesn't know
+ * (`knowsUser`), is dropped with its file.
  */
 export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
   message: HealthBatchMessage,
 ) {
+  if (!(yield* knowsUser(message))) return yield* dropBatchFile(message);
   const bytes = yield* applyHealthBatch(message).pipe(
     Effect.catchTag("AccountDeleted", () => dropBatchFile(message).pipe(Effect.as(undefined))),
   );
@@ -387,6 +409,7 @@ export const failHealthBatch = Effect.fn("failHealthBatch")(function* (
   message: HealthBatchMessage,
   failure: string,
 ) {
+  if (!(yield* knowsUser(message))) return yield* dropBatchFile(message);
   yield* recordFailure(message, failure).pipe(
     // A deleted account keeps nothing, not even the batch's status.
     Effect.catchTag("AccountDeleted", () => dropBatchFile(message)),

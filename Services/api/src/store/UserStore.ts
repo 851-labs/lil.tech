@@ -507,8 +507,12 @@ export const userStoreErrors = [InvalidMutation, ChangesCompacted, AccountDelete
  * It uses workerd's storage directly (`state.raw`), not Alchemy's wrapper, because writes must run
  * in a synchronous `transactionSync`. So it can't use Alchemy's alarm callbacks, which keep their
  * own bookkeeping in that wrapper.
+ *
+ * Its ID was "UserStore" until 851-2686 wiped every store: under a new ID, Alchemy deletes the old
+ * class, and Cloudflare deletes every store of it along with its data. (Renaming the class under
+ * the same ID would keep the data.)
  */
-export class UserStore extends Cloudflare.DurableObject<UserStore, UserStoreShape>()("UserStore", {
+export class UserStore extends Cloudflare.DurableObject<UserStore, UserStoreShape>()("UserStore2", {
   errors: userStoreErrors,
 }) {}
 

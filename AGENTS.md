@@ -51,6 +51,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - `Services/api/openapi.json` is the API's OpenAPI spec, generated from the HttpApi definition by `Services/api/scripts/openapi.ts` and served at `/v1/openapi.json`. Generated clients (the Swift `LilAPI` module) are built from the committed file.
 - The Swift client is generated from that file into `LilPackage/Sources/LilAPIGenerated/Generated` by `scripts/generate-api-client`, which runs Apple's swift-openapi-generator pinned in `Tools/Package.swift`. Don't edit generated files.
 - `scripts/format` regenerates both the spec and the client, in that order, and `scripts/format --lint` fails if either is stale. Commit them with any API change.
+- **Core D1 schema:** `Services/api/src/core/Schema.ts` (Drizzle). `scripts/format` generates a migration into `Services/api/migrations/core` when it changes, and `scripts/format --lint` fails if one is missing. Commit generated migrations with the schema change, and don't edit applied ones. SQL Drizzle can't express (triggers) goes at the end of a generated `migration.sql`, after a `--> statement-breakpoint` line.
 - **Compatibility:** installed apps keep running old clients.
   - Adding response fields is safe, because the spec allows additional properties.
   - Adding a case to a response enum, or removing or renaming anything, breaks them. Add a new field or a new endpoint instead.

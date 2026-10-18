@@ -28,6 +28,21 @@ describe("IDs", () => {
   );
 });
 
+describe("core migrations", () => {
+  // drizzle-kit doesn't know about the hand-written trigger: a later migration that rebuilds
+  // `identities` (SQLite's copy-and-rename) would drop it silently. This catches that.
+  it.effect("keep the trigger that queues Apple tokens for revoking", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const triggers = yield* sql<{ name: string; tbl_name: string }>`SELECT name, tbl_name
+        FROM sqlite_master WHERE type = 'trigger'`;
+      assert.deepStrictEqual(triggers, [
+        { name: "identities_queue_apple_token_revocation", tbl_name: "identities" },
+      ]);
+    }).pipe(Effect.provide(TestCore)),
+  );
+});
+
 describe("users' storage", () => {
   const largestUsers = readFileSync(
     new URL("../../scripts/largest-users.sql", import.meta.url),

@@ -11,10 +11,13 @@
     "deploy:staging": "LIL_ENVIRONMENT=staging LIL_VERSION=$(git describe --always --dirty --exclude '*') alchemy deploy --stage staging",
     "deploy:prod": "LIL_ENVIRONMENT=prod LIL_VERSION=$(git describe --always --dirty --exclude '*') alchemy deploy --stage prod",
     "openapi": "node scripts/openapi.ts",
-    "openapi:check": "node scripts/openapi.ts --check"
+    "openapi:check": "node scripts/openapi.ts --check",
+    "migrations": "node scripts/migrations.ts",
+    "migrations:check": "node scripts/migrations.ts --check"
   },
   "dependencies": {
     "@effect/sql-d1": "catalog:",
+    "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "jose": "catalog:"
   },
@@ -24,6 +27,7 @@
     "@effect/vitest": "catalog:",
     "@types/node": "catalog:",
     "alchemy": "catalog:",
+    "drizzle-kit": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
   }
