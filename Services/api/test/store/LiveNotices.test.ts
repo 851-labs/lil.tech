@@ -77,20 +77,36 @@ describe("live notices", () => {
     }),
   );
 
-  it.effect("close every socket when the account is deleted, and turn new ones away", () =>
+  it.effect("sign devices out once the deleted account's sessions are gone", () =>
     Effect.gen(function* () {
       const live = makeSockets();
       const { store } = makeStore(live.sockets);
       yield* store.liveConnected(live.connect("phone", 15 * 60 * 1000));
-      yield* store.liveConnected(live.connect("mac", 15 * 60 * 1000));
       yield* store.deleteAll();
-      // 4001: the client refreshes, which fails for a deleted account and signs it out.
-      assert.deepStrictEqual(Object.fromEntries(live.closed), { phone: 4001, mac: 4001 });
-
-      // A token that still verifies doesn't get a connection either, nor a greeting.
+      // Its sessions still work while the rest is deleted: a refresh would succeed, so the
+      // socket stays open, and one that connects meanwhile waits too, without notices.
       yield* store.liveConnected(live.connect("ipad", 15 * 60 * 1000));
-      assert.strictEqual(live.closed.get("ipad"), 4001);
+      assert.strictEqual(live.closed.size, 0);
       assert.deepStrictEqual(live.sent.get("ipad"), []);
+
+      yield* store.signOutDevices();
+      // 4001: the client refreshes, which fails for a deleted account and signs it out.
+      assert.deepStrictEqual(Object.fromEntries(live.closed), { phone: 4001, ipad: 4001 });
+      // From then on, and after the wipe, a token that still verifies is turned away at once.
+      yield* store.alarm();
+      yield* store.liveConnected(live.connect("mac", 15 * 60 * 1000));
+      assert.strictEqual(live.closed.get("mac"), 4001);
+      assert.deepStrictEqual(live.sent.get("mac"), []);
+    }),
+  );
+
+  it.effect("don't sign devices out of an account that isn't deleted", () =>
+    Effect.gen(function* () {
+      const live = makeSockets();
+      const { store } = makeStore(live.sockets);
+      yield* store.liveConnected(live.connect("phone", 15 * 60 * 1000));
+      yield* store.signOutDevices();
+      assert.strictEqual(live.closed.size, 0);
     }),
   );
 

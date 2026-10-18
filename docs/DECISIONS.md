@@ -163,7 +163,7 @@
 - **Deletion and export:** users can delete their account and export their data from inside the apps.
   - **`DELETE /v1/me`** marks the user's store deleted, then deletes their uploaded batch files and blobs, then the user row. Deleting the user cascades to identities, devices, sessions and connections. Every step is idempotent, so a failed deletion can be retried.
     - The store wipes itself and its snapshots from its alarm, logging each step and retrying a failed one a minute later. Wiping a multi-gigabyte store within the request outlasted the iPhone's 60-second timeout (851-2653), and the app then said it was offline. It now reports only real network loss as offline.
-  - **Other devices sign out at once** (851-2666): deleting the store closes its live connections with `4001`, so a signed-in Mac refreshes, fails and signs out within seconds. Devices without a live connection (an iPhone) learn at their next request.
+  - **Other devices sign out at once** (851-2666): once the account and its sessions are deleted, the store closes its live connections with `4001`, so a signed-in Mac refreshes, fails and signs out within seconds (`docs/SYNC.md`). Devices without a live connection (an iPhone) learn at their next request. Apps from before 851-2666 sign out when their token expires, as before.
   - **Stale tokens:** the wiped store stays marked deleted and refuses writes. User IDs are never reused, so an access token that outlives the account (up to 15 minutes) can't write data back, and batches still queued are dropped.
   - **On the iPhone:** Delete Account, with confirmation, then signs out and clears what's local. Health's own data stays.
   - **Revoking Sign in with Apple** (851-2612), as Apple requires of apps with account deletion:

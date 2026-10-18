@@ -1,5 +1,6 @@
 public import Dependencies
 import IssueReporting
+public import LilAPI
 
 extension DependencyValues {
   /// The app's sync engine. Apps set it once at launch with
@@ -15,12 +16,8 @@ public struct SyncClient: Sendable {
   /// Runs sync until cancelled. See ``LilSyncEngine/run()``.
   public var run: @Sendable () async -> Void
   /// Keeps a live notice connection open until cancelled. See
-  /// ``LilSyncEngine/listen(accessToken:rejected:)``.
-  public var listen:
-    @Sendable (
-      _ accessToken: @escaping @Sendable () async throws -> String,
-      _ rejected: @escaping @Sendable (_ token: String) async -> Void
-    ) async -> Void
+  /// ``LilSyncEngine/listen(authentication:)``.
+  public var listen: @Sendable (_ authentication: APIAuthentication) async -> Void
   /// Pulls now instead of at the next interval.
   public var syncNow: @Sendable () async -> Void
   /// The current status, then every change to it.
@@ -30,11 +27,7 @@ public struct SyncClient: Sendable {
 
   public init(
     run: @escaping @Sendable () async -> Void,
-    listen:
-      @escaping @Sendable (
-        _ accessToken: @escaping @Sendable () async throws -> String,
-        _ rejected: @escaping @Sendable (_ token: String) async -> Void
-      ) async -> Void,
+    listen: @escaping @Sendable (_ authentication: APIAuthentication) async -> Void,
     syncNow: @escaping @Sendable () async -> Void,
     status: @escaping @Sendable () async -> AsyncStream<SyncStatus>,
     removeLocalData: @escaping @Sendable () async throws -> Void
@@ -61,9 +54,7 @@ public struct SyncClient: Sendable {
     }
     return Self(
       run: { await resolve().run() },
-      listen: { accessToken, rejected in
-        await resolve().listen(accessToken: accessToken, rejected: rejected)
-      },
+      listen: { authentication in await resolve().listen(authentication: authentication) },
       syncNow: { await resolve().syncNow() },
       status: { await resolve().statusUpdates() },
       removeLocalData: { try await resolve().removeLocalData() }
@@ -74,7 +65,7 @@ public struct SyncClient: Sendable {
   public static func constant(_ status: SyncStatus) -> Self {
     Self(
       run: {},
-      listen: { _, _ in },
+      listen: { _ in },
       syncNow: {},
       status: { AsyncStream { $0.yield(status) } },
       removeLocalData: {}
@@ -88,7 +79,7 @@ extension SyncClient: DependencyKey {
       run: {
         reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:syncSchema:) at launch.")
       },
-      listen: { _, _ in
+      listen: { _ in
         reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:syncSchema:) at launch.")
       },
       syncNow: {},
@@ -102,7 +93,7 @@ extension SyncClient: DependencyKey {
   public static var testValue: Self {
     Self(
       run: { reportIssue("Unimplemented: @Dependency(\\.sync).run") },
-      listen: { _, _ in reportIssue("Unimplemented: @Dependency(\\.sync).listen") },
+      listen: { _ in reportIssue("Unimplemented: @Dependency(\\.sync).listen") },
       syncNow: { reportIssue("Unimplemented: @Dependency(\\.sync).syncNow") },
       status: {
         reportIssue("Unimplemented: @Dependency(\\.sync).status")

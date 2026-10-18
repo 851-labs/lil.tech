@@ -1078,7 +1078,10 @@ struct LilSyncLiveTests {
   func aNoticeOfNewChangesPullsRightAway() async throws {
     let engine = engine()
     let running = Task { await engine.run() }
-    let listening = Task { await engine.listen { "token-1" } }
+    let listening = Task {
+      await engine.listen(
+        authentication: APIAuthentication(accessToken: { "token-1" }, rejected: { _ in }))
+    }
     try await eventually { live.connections.value.count == 1 }
     try await eventually { server.state.requests.count == 1 }
 
@@ -1122,8 +1125,10 @@ struct LilSyncLiveTests {
     let rejected = LockIsolated<[String]>([])
     let listening = Task {
       await engine.listen(
-        accessToken: { "token-1" },
-        rejected: { token in rejected.withValue { $0.append(token) } }
+        authentication: APIAuthentication(
+          accessToken: { "token-1" },
+          rejected: { token in rejected.withValue { $0.append(token) } }
+        )
       )
     }
     try await eventually { live.connections.value.count == 1 }
@@ -1147,10 +1152,15 @@ struct LilSyncLiveTests {
     let engine = engine()
     let issued = LockIsolated(0)
     let listening = Task {
-      await engine.listen {
-        issued.withValue { $0 += 1 }
-        return "token-\(issued.value)"
-      }
+      await engine.listen(
+        authentication: APIAuthentication(
+          accessToken: {
+            issued.withValue { $0 += 1 }
+            return "token-\(issued.value)"
+          },
+          rejected: { _ in }
+        )
+      )
     }
     try await eventually { live.connections.value.count == 1 }
     // Lasts long enough to count as working.
@@ -1176,7 +1186,10 @@ struct LilSyncLiveTests {
   @Test
   func reconnectsWithGrowingBackoffEvenIfEachConnectionWasGreeted() async throws {
     let engine = engine()
-    let listening = Task { await engine.listen { "token" } }
+    let listening = Task {
+      await engine.listen(
+        authentication: APIAuthentication(accessToken: { "token" }, rejected: { _ in }))
+    }
     try await eventually { live.connections.value.count == 1 }
     live.latest()?.yield(#"{"type":"head","seq":0}"#)
     live.latest()?.finish(throwing: URLError(.networkConnectionLost))
@@ -1206,7 +1219,10 @@ struct LilSyncLiveTests {
   @Test
   func stopsWhenCancelled() async throws {
     let engine = engine()
-    let listening = Task { await engine.listen { "token" } }
+    let listening = Task {
+      await engine.listen(
+        authentication: APIAuthentication(accessToken: { "token" }, rejected: { _ in }))
+    }
     try await eventually { live.connections.value.count == 1 }
     listening.cancel()
     live.latest()?.finish()

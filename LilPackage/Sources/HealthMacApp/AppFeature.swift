@@ -65,9 +65,6 @@ public struct AppFeature {
     case sync
   }
 
-  /// The session ended between handing a live connection a token and asking for it.
-  struct SignedOut: Error {}
-
   @Dependency(\.auth) var auth
   @Dependency(\.authSessions) var authSessions
   @Dependency(\.blobCache) var blobCache
@@ -164,13 +161,7 @@ public struct AppFeature {
     .merge(
       pull(),
       .run { [sync, authSessions] _ in
-        await sync.listen(
-          {
-            guard let token = try await authSessions.accessToken() else { throw SignedOut() }
-            return token
-          },
-          { token in await authSessions.rejected(token) }
-        )
+        await sync.listen(authSessions.apiAuthentication)
       }
       .cancellable(id: CancelID.sync),
       .run { [sync] send in

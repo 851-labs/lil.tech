@@ -159,6 +159,11 @@ export const makeUserStore = (
     );
 
   const isRetired = (device: string) => retiredAmong(sql, new Set([device])).size > 0;
+  /**
+   * Whether the deleted account's sessions are gone (`signOutDevices`): from then on, live
+   * connections are turned away. Kept through the wipe.
+   */
+  let devicesSignedOut = readMeta(sql, "devices_signed_out", 0) === 1;
   /** Whether the store is marked for deleting and not yet wiped (`deleteAll`, `wipe`). */
   let wiping = readMeta(sql, "wiping", 0) === 1;
   /** Whether a retired device still has records to delete, kept so writes don't have to ask. */
@@ -202,8 +207,8 @@ export const makeUserStore = (
 
   /**
    * Deletes everything in a store marked for deletion and its snapshot files, from the alarm,
-   * logging each step. Its live sockets were already closed by `deleteAll`, and new ones are
-   * turned away.
+   * logging each step. Its live sockets are closed by `signOutDevices`, once the account's
+   * sessions are gone.
    */
   const wipe = Effect.fnUntraced(function* () {
     const started = yield* Clock.currentTimeMillis;
@@ -219,6 +224,8 @@ export const makeUserStore = (
     // (in memory) still refuses everything.
     migrate(sql);
     sql.exec("INSERT INTO meta (key, value) VALUES ('deleted', 1)");
+    if (devicesSignedOut)
+      sql.exec("INSERT INTO meta (key, value) VALUES ('devices_signed_out', 1)");
     retiring = false;
     wiping = false;
     const now = yield* Clock.currentTimeMillis;
@@ -244,6 +251,24 @@ export const makeUserStore = (
     /** The store's schema version, which can be newer than this code's after a rollback. */
     schemaVersion: () => Effect.sync(() => schemaVersion(sql)),
     /**
+     * Signs the deleted account's devices out at once (851-2666), once its sessions are gone:
+     * closes their live connections with 4001, so they refresh, which fails, and turns new ones
+     * away from then on. Only after `deleteAll` and the account's deletion: while sessions remain,
+     * a refresh would succeed and the client would just keep reconnecting. Idempotent.
+     */
+    signOutDevices: () =>
+      Effect.gen(function* () {
+        if (!deleted) return;
+        if (!devicesSignedOut) {
+          sql.exec(
+            `INSERT INTO meta (key, value) VALUES ('devices_signed_out', 1)
+              ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+          );
+          devicesSignedOut = true;
+        }
+        yield* notices.closeAll("The account was deleted");
+      }),
+    /**
      * Deletes the store, for account deletion. It's marked deleted at once, so writes fail with
      * `AccountDeleted` from then on (user IDs are never reused), and a snapshot being written
      * stops. The alarm then deletes everything in it and its snapshot files (`wipe`), however
@@ -264,8 +289,6 @@ export const makeUserStore = (
           deleted = true;
           wiping = true;
         }
-        // Its devices learn at once, not when their next request fails (851-2666).
-        yield* notices.closeAll("The account was deleted");
         // Asking again brings a postponed wipe forward.
         const now = yield* Clock.currentTimeMillis;
         yield* Effect.promise(() => sql.setAlarm(now + 1));
@@ -425,9 +448,17 @@ export const makeUserStore = (
      */
     liveConnected: (socket: LiveSocket) =>
       Effect.gen(function* () {
-        // A deleted account's token still verifies for up to 15 minutes: turn it away, so the
-        // client refreshes, which fails and signs it out.
-        if (deleted) return yield* socket.close(tokenExpiredCloseCode, "The account was deleted");
+        if (deleted) {
+          // A deleted account's token still verifies for up to 15 minutes. Once its sessions are
+          // gone, turn it away, so the client refreshes, which fails and signs it out. Until then
+          // it waits, without notices, for `signOutDevices` to close it.
+          if (devicesSignedOut) {
+            yield* socket
+              .close(tokenExpiredCloseCode, "The account was deleted")
+              .pipe(Effect.catchCause((cause) => Effect.logWarning("Live socket failed", cause)));
+          }
+          return;
+        }
         yield* socket.send(headNotice(readHead(sql)));
         yield* scheduleAlarm(yield* Clock.currentTimeMillis, { sockets: true });
       }),

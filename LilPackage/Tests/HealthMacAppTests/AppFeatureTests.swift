@@ -68,7 +68,7 @@ struct AppFeatureTests {
           try? await Task.sleep(for: .seconds(3600))
           events.withValue { $0.append("run ended") }
         },
-        listen: { _, _ in
+        listen: { _ in
           events.withValue { $0.append("listen") }
           try? await Task.sleep(for: .seconds(3600))
           events.withValue { $0.append("listen ended") }
