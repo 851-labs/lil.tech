@@ -1117,6 +1117,32 @@ struct LilSyncLiveTests {
   }
 
   @Test
+  func aTokenTheServerNoLongerAcceptsIsRejectedSoTheNextOneIsRefreshed() async throws {
+    let engine = engine()
+    let rejected = LockIsolated<[String]>([])
+    let listening = Task {
+      await engine.listen(
+        accessToken: { "token-1" },
+        rejected: { token in rejected.withValue { $0.append(token) } }
+      )
+    }
+    try await eventually { live.connections.value.count == 1 }
+    // E.g. the account was deleted: the server closes with 4001 at once.
+    live.latest()?.finish(throwing: LiveConnection.TokenExpired())
+    try await eventually { rejected.value == ["token-1"] }
+    // Anything else isn't the token's fault.
+    try await clock.waitUntilAsleep(dueWithin: .seconds(1))
+    clock.advance(by: .seconds(1))
+    try await eventually { live.connections.value.count == 2 }
+    live.latest()?.finish(throwing: LiveConnection.Closed(code: 1011))
+    try await clock.waitUntilAsleep(dueWithin: .seconds(4))
+    #expect(rejected.value == ["token-1"])
+
+    listening.cancel()
+    await listening.value
+  }
+
+  @Test
   func reconnectsRightAwayWithAFreshTokenWhenAWorkingConnectionsTokenExpires() async throws {
     let engine = engine()
     let issued = LockIsolated(0)

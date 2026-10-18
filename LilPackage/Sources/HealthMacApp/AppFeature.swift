@@ -164,10 +164,13 @@ public struct AppFeature {
     .merge(
       pull(),
       .run { [sync, authSessions] _ in
-        await sync.listen {
-          guard let token = try await authSessions.accessToken() else { throw SignedOut() }
-          return token
-        }
+        await sync.listen(
+          {
+            guard let token = try await authSessions.accessToken() else { throw SignedOut() }
+            return token
+          },
+          { token in await authSessions.rejected(token) }
+        )
       }
       .cancellable(id: CancelID.sync),
       .run { [sync] send in

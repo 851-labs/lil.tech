@@ -37,7 +37,11 @@ export const noLiveSockets: LiveSockets = {
   later: () => {},
 };
 
-/** The close code for a socket whose access token expired; the client refreshes and reconnects. */
+/**
+ * The close code for a socket whose access token is no longer good: it expired, or the account was
+ * deleted. The client refreshes its session and reconnects; for a deleted account the refresh
+ * fails, which signs it out. Every app version treats 4001 this way, so it's reused for deletion.
+ */
 export const tokenExpiredCloseCode = 4001;
 
 export const headNotice = (seq: number) => JSON.stringify({ type: "head", seq });
@@ -55,11 +59,11 @@ export const makeLiveNotices = (sockets: LiveSockets, head: () => number) => {
   let lastSentHead: number | undefined;
   let flushScheduled = false;
 
-  const send = (now: number, toAll = false) =>
+  const send = (now: number) =>
     Effect.gen(function* () {
       const seq = head();
       lastSentAt = Math.max(lastSentAt, now);
-      if (!toAll && seq === lastSentHead) return;
+      if (seq === lastSentHead) return;
       lastSentHead = seq;
       const notice = headNotice(seq);
       for (const socket of yield* sockets.list) {
@@ -87,8 +91,13 @@ export const makeLiveNotices = (sockets: LiveSockets, head: () => number) => {
         }
         return Effect.void;
       }),
-    /** Tells every client the current `head` right away, e.g. after the store was wiped. */
-    announce: (now: number) => send(now, true),
+    /** Closes every socket, e.g. once the account is deleted, so clients sign out at once. */
+    closeAll: (reason: string) =>
+      Effect.gen(function* () {
+        for (const socket of yield* sockets.list) {
+          yield* forSocket(socket.close(tokenExpiredCloseCode, reason));
+        }
+      }),
     /** Closes sockets whose access token has expired. */
     closeExpired: (now: number) =>
       Effect.gen(function* () {

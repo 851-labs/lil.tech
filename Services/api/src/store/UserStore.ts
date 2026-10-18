@@ -26,6 +26,7 @@ import {
   type LiveSockets,
   makeLiveNotices,
   noLiveSockets,
+  tokenExpiredCloseCode,
   sessionExpiresHeader,
 } from "./LiveNotices.ts";
 import { migrate, schemaVersion } from "./Migrations.ts";
@@ -201,8 +202,8 @@ export const makeUserStore = (
 
   /**
    * Deletes everything in a store marked for deletion and its snapshot files, from the alarm,
-   * logging each step. Connected clients then see `head` go back to 0 and start over; their
-   * sockets still close when their tokens expire.
+   * logging each step. Its live sockets were already closed by `deleteAll`, and new ones are
+   * turned away.
    */
   const wipe = Effect.fnUntraced(function* () {
     const started = yield* Clock.currentTimeMillis;
@@ -222,7 +223,6 @@ export const makeUserStore = (
     wiping = false;
     const now = yield* Clock.currentTimeMillis;
     yield* Effect.logInfo(`Deleting the store: its database deleted in ${now - filesDeleted} ms`);
-    yield* notices.announce(now);
     yield* scheduleAlarm(now, { afterAlarm: true, sockets: true });
   });
 
@@ -264,6 +264,8 @@ export const makeUserStore = (
           deleted = true;
           wiping = true;
         }
+        // Its devices learn at once, not when their next request fails (851-2666).
+        yield* notices.closeAll("The account was deleted");
         // Asking again brings a postponed wipe forward.
         const now = yield* Clock.currentTimeMillis;
         yield* Effect.promise(() => sql.setAlarm(now + 1));
@@ -423,7 +425,10 @@ export const makeUserStore = (
      */
     liveConnected: (socket: LiveSocket) =>
       Effect.gen(function* () {
-        yield* socket.send(headNotice(deleted ? 0 : readHead(sql)));
+        // A deleted account's token still verifies for up to 15 minutes: turn it away, so the
+        // client refreshes, which fails and signs it out.
+        if (deleted) return yield* socket.close(tokenExpiredCloseCode, "The account was deleted");
+        yield* socket.send(headNotice(readHead(sql)));
         yield* scheduleAlarm(yield* Clock.currentTimeMillis, { sockets: true });
       }),
     /** The latest published snapshot of the current epoch, or `null`. */

@@ -77,6 +77,23 @@ describe("live notices", () => {
     }),
   );
 
+  it.effect("close every socket when the account is deleted, and turn new ones away", () =>
+    Effect.gen(function* () {
+      const live = makeSockets();
+      const { store } = makeStore(live.sockets);
+      yield* store.liveConnected(live.connect("phone", 15 * 60 * 1000));
+      yield* store.liveConnected(live.connect("mac", 15 * 60 * 1000));
+      yield* store.deleteAll();
+      // 4001: the client refreshes, which fails for a deleted account and signs it out.
+      assert.deepStrictEqual(Object.fromEntries(live.closed), { phone: 4001, mac: 4001 });
+
+      // A token that still verifies doesn't get a connection either, nor a greeting.
+      yield* store.liveConnected(live.connect("ipad", 15 * 60 * 1000));
+      assert.strictEqual(live.closed.get("ipad"), 4001);
+      assert.deepStrictEqual(live.sent.get("ipad"), []);
+    }),
+  );
+
   it.effect("coalesce a burst into one notice per window, ending with the latest head", () =>
     Effect.gen(function* () {
       const live = makeSockets();
@@ -130,18 +147,6 @@ describe("live notices", () => {
       live.connect("phone", 15 * 60 * 1000);
       assert.deepStrictEqual(yield* write(store, "a"), { head: 1, appended: 1 });
       assert.deepStrictEqual(live.sent.get("phone"), [{ type: "head", seq: 1 }]);
-    }),
-  );
-
-  it.effect("tell clients the store started over when it's deleted", () =>
-    Effect.gen(function* () {
-      const live = makeSockets();
-      const { store } = makeStore(live.sockets);
-      live.connect("phone", 15 * 60 * 1000);
-      yield* write(store, "a");
-      yield* store.deleteAll();
-      yield* store.alarm();
-      assert.deepStrictEqual(live.sent.get("phone")?.at(-1), { type: "head", seq: 0 });
     }),
   );
 

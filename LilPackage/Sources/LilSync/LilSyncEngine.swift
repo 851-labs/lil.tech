@@ -162,10 +162,16 @@ public actor LilSyncEngine {
   /// a notice of a `head` past the local cursor runs a pull (``syncNow()``). The app runs it
   /// alongside ``run()`` while it's active.
   ///
-  /// Each connection gets its token from `accessToken`, which refreshes it if needed. A working
-  /// connection the server closed because its token expired reconnects right away with a fresh
-  /// one; anything else reconnects with exponential backoff and jitter, from 1 second to 5 minutes.
-  public func listen(accessToken: @escaping @Sendable () async throws -> String) async {
+  /// Each connection gets its token from `accessToken`, which refreshes it if needed. When the
+  /// server closes a connection because its token is no longer good (code 4001: it expired, or
+  /// the account was deleted), the token is passed to `rejected`, so the next `accessToken()`
+  /// refreshes instead of reusing it; a deleted account's refresh fails, which signs the app out.
+  /// A working connection closed that way reconnects right away; anything else reconnects with
+  /// exponential backoff and jitter, from 1 second to 5 minutes.
+  public func listen(
+    accessToken: @escaping @Sendable () async throws -> String,
+    rejected: @escaping @Sendable (_ token: String) async -> Void = { _ in }
+  ) async {
     var failures = 0
     while !Task.isCancelled {
       var error: any Error = LiveConnection.Closed(code: 1000)
@@ -173,12 +179,16 @@ public actor LilSyncEngine {
       let stableTimer = Task { [clock] in
         (try? await clock.sleep(for: Self.stableConnection)) != nil
       }
+      var token: String?
       do {
-        let messages = try await liveConnection.connect(try await accessToken())
+        let current = try await accessToken()
+        token = current
+        let messages = try await liveConnection.connect(current)
         for try await message in messages { await receive(message) }
       } catch let caught {
         error = caught
       }
+      if error is LiveConnection.TokenExpired, let token { await rejected(token) }
       stableTimer.cancel()
       let stable = await stableTimer.value
       if Task.isCancelled { return }
