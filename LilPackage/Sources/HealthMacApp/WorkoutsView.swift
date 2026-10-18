@@ -56,9 +56,11 @@ struct WorkoutsContent: View {
           description: Text("Workouts from your Apple Watch and fitness apps will appear here."))
       case .loaded(let workouts):
         List {
-          ForEach(months(workouts), id: \.month) { section in
+          ForEach(
+            monthSections(workouts, calendar: calendar, startDate: \.startDate), id: \.month
+          ) { section in
             Section(section.month.formatted(.dateTime.month(.wide).year())) {
-              ForEach(section.workouts) { workout in
+              ForEach(section.records) { workout in
                 NavigationLink {
                   WorkoutDetailView(workout: workout)
                 } label: {
@@ -77,21 +79,23 @@ struct WorkoutsContent: View {
     }
     .navigationTitle("Workouts")
   }
+}
 
-  /// The workouts (newest first) by month.
-  private func months(_ workouts: [HealthWorkout]) -> [(month: Date, workouts: [HealthWorkout])] {
-    var months: [(month: Date, workouts: [HealthWorkout])] = []
-    for workout in workouts {
-      let start = Date(unixMilliseconds: workout.startDate)
-      let month = calendar.dateInterval(of: .month, for: start)?.start ?? start
-      if months.last?.month == month {
-        months[months.count - 1].workouts.append(workout)
-      } else {
-        months.append((month, [workout]))
-      }
+/// Records (newest first) by the month they started in, as Health lists workouts and ECGs.
+func monthSections<Record>(
+  _ records: [Record], calendar: Calendar, startDate: (Record) -> Int
+) -> [(month: Date, records: [Record])] {
+  var months: [(month: Date, records: [Record])] = []
+  for record in records {
+    let start = Date(unixMilliseconds: startDate(record))
+    let month = calendar.dateInterval(of: .month, for: start)?.start ?? start
+    if months.last?.month == month {
+      months[months.count - 1].records.append(record)
+    } else {
+      months.append((month, [record]))
     }
-    return months
   }
+  return months
 }
 
 /// A workout in the list: its activity, the figure that matters most for it, and when.

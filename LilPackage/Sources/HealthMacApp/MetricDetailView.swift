@@ -24,7 +24,7 @@ struct MetricDetailView: View {
         SleepDetailView(type: type)
       } else if type.kind == .workout {
         WorkoutsView()
-      } else if type.id == HealthDatabase.electrocardiogramType {
+      } else if type.kind == .electrocardiogram {
         ElectrocardiogramsView()
       } else if type.kind == .quantity {
         MetricDetailContent(

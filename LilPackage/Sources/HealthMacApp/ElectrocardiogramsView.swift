@@ -39,6 +39,8 @@ struct ElectrocardiogramsContent: View {
   }
 
   let state: State
+  /// How many the list holds at most (`RecentElectrocardiograms.limit`), to say when it's full.
+  var limit = RecentElectrocardiograms.limit
   var calendar = Calendar.current
 
   var body: some View {
@@ -57,9 +59,11 @@ struct ElectrocardiogramsContent: View {
           description: Text("ECGs you take with the ECG app on Apple Watch will appear here."))
       case .loaded(let recordings):
         List {
-          ForEach(months(recordings), id: \.month) { section in
+          ForEach(
+            monthSections(recordings, calendar: calendar, startDate: \.startDate), id: \.month
+          ) { section in
             Section(section.month.formatted(.dateTime.month(.wide).year())) {
-              ForEach(section.recordings) { recording in
+              ForEach(section.records) { recording in
                 NavigationLink {
                   ElectrocardiogramDetailView(recording: recording)
                 } label: {
@@ -68,8 +72,8 @@ struct ElectrocardiogramsContent: View {
               }
             }
           }
-          if recordings.count >= RecentElectrocardiograms.limit {
-            Text("Showing the \(RecentElectrocardiograms.limit.formatted()) most recent ECGs.")
+          if recordings.count >= limit {
+            Text("Showing the \(limit.formatted()) most recent ECGs.")
               .font(.footnote)
               .foregroundStyle(.secondary)
           }
@@ -77,22 +81,6 @@ struct ElectrocardiogramsContent: View {
       }
     }
     .navigationTitle("ECG")
-  }
-
-  private func months(_ recordings: [HealthElectrocardiogram])
-    -> [(month: Date, recordings: [HealthElectrocardiogram])]
-  {
-    var months: [(month: Date, recordings: [HealthElectrocardiogram])] = []
-    for recording in recordings {
-      let start = Date(unixMilliseconds: recording.startDate)
-      let month = calendar.dateInterval(of: .month, for: start)?.start ?? start
-      if months.last?.month == month {
-        months[months.count - 1].recordings.append(recording)
-      } else {
-        months.append((month, [recording]))
-      }
-    }
-    return months
   }
 }
 
@@ -133,14 +121,16 @@ struct ElectrocardiogramDetailView: View {
 
   var body: some View {
     ElectrocardiogramDetailContent(recording: recording, trace: trace)
-      .task(id: recording.id) {
+      // Again if sync brings the recording's voltages, or new ones.
+      .task(id: [recording.id, recording.voltages ?? ""]) {
         guard let sha256 = recording.voltages else {
           trace = .none
           return
         }
         do {
-          trace = .loaded(
-            HealthDatabase.electrocardiogramMicrovolts(try await blobCache.data(for: sha256)))
+          let microvolts = HealthDatabase.electrocardiogramMicrovolts(
+            try await blobCache.data(for: sha256))
+          trace = microvolts.isEmpty ? .none : .loaded(microvolts)
         } catch {
           trace = .failed(error.localizedDescription)
         }
@@ -201,7 +191,7 @@ struct ElectrocardiogramDetailContent: View {
     switch trace {
     case .loading:
       ProgressView()
-        .frame(maxWidth: .infinity, minHeight: ECGStrip.height * 3)
+        .frame(maxWidth: .infinity, minHeight: 270)
     case .none:
       ContentUnavailableView(
         "No Recording", systemImage: "waveform.path.ecg",
@@ -211,51 +201,65 @@ struct ElectrocardiogramDetailContent: View {
         "Couldn't Load the Recording", systemImage: "exclamationmark.triangle",
         description: Text(reason))
     case .loaded(let microvolts):
-      let frequency = recording.samplingFrequency ?? 512
+      let frequency = recording.measurementsPerSecond
+      let range = ECGStrip.range(microvolts)
       VStack(alignment: .leading, spacing: 8) {
         ForEach(
           Array(
-            HealthDatabase.electrocardiogramStrips(microvolts, samplingFrequency: frequency)
-              .enumerated()), id: \.offset
+            HealthDatabase.electrocardiogramStrips(
+              microvolts, samplingFrequency: frequency, seconds: ECGStrip.seconds
+            )
+            .enumerated()), id: \.offset
         ) { _, strip in
-          ECGStrip(microvolts: strip, samplingFrequency: frequency)
+          ECGStrip(microvolts: strip, samplingFrequency: frequency, millivolts: range)
         }
         Text("25 mm/s, 10 mm/mV, Lead I")
           .font(.footnote)
           .foregroundStyle(.secondary)
       }
+      .frame(maxWidth: ECGStrip.maxWidth)
     }
   }
 }
 
 /// Ten seconds of trace on ECG paper at the standard speed and gain: 25 mm a second, 10 mm a
-/// millivolt, with 1 mm and 5 mm grid lines. NaN measurements leave a gap.
+/// millivolt, with 1 mm and 5 mm grid lines. The paper is as wide as there's room for, up to 3
+/// points a millimeter, keeping that ratio. NaN measurements leave a gap.
 struct ECGStrip: View {
   let microvolts: ArraySlice<Float>
   let samplingFrequency: Double
+  /// The millivolts the paper shows, bottom to top (`range(_:)`).
+  let millivolts: ClosedRange<Double>
 
-  /// Points per paper millimeter.
-  static let pointsPerMillimeter: CGFloat = 3
-  /// How much of the paper a strip shows: 10 s across, 3 mV (-1.25 to +1.75) up.
   static let seconds: Double = 10
-  static let millivolts = (low: -1.25, high: 1.75)
-  static let width = CGFloat(seconds * 25) * pointsPerMillimeter
-  static let height = CGFloat((millivolts.high - millivolts.low) * 10) * pointsPerMillimeter
+  /// Paper millimeters across a strip: 10 s at 25 mm/s.
+  static let millimetersAcross = seconds * 25
+  static let maxWidth = CGFloat(millimetersAcross * 3)
+
+  /// The paper's range for a trace: at least -1.25 to +1.75 mV, as Health shows, and more in
+  /// half-millivolt steps to fit taller waves.
+  nonisolated static func range(_ microvolts: [Float]) -> ClosedRange<Double> {
+    let finite = microvolts.lazy.filter(\.isFinite).map { Double($0) / 1000 }
+    let low = min(-1.25, ((finite.min() ?? 0) * 2).rounded(.down) / 2)
+    let high = max(1.75, ((finite.max() ?? 0) * 2).rounded(.up) / 2)
+    return low...high
+  }
 
   var body: some View {
+    let millimetersUp = (millivolts.upperBound - millivolts.lowerBound) * 10
     Canvas { context, size in
-      let millimeter = Self.pointsPerMillimeter
+      let millimeter = size.width / CGFloat(Self.millimetersAcross)
       // The grid: thin lines every millimeter, stronger ones every 5.
       for (step, opacity) in [(1, 0.15), (5, 0.35)] {
         var grid = Path()
         var x: CGFloat = 0
-        while x <= size.width {
+        while x <= size.width + 0.5 {
           grid.move(to: CGPoint(x: x, y: 0))
           grid.addLine(to: CGPoint(x: x, y: size.height))
           x += CGFloat(step) * millimeter
         }
         var y: CGFloat = 0
-        while y <= size.height {
+        while y <= size.height + 0.5 {
           grid.move(to: CGPoint(x: 0, y: y))
           grid.addLine(to: CGPoint(x: size.width, y: y))
           y += CGFloat(step) * millimeter
@@ -264,7 +268,7 @@ struct ECGStrip: View {
       }
       // The trace: 25 mm a second across, 10 mm a millivolt up from the baseline.
       let pointsPerSample = 25 * millimeter / samplingFrequency
-      let baseline = CGFloat(Self.millivolts.high * 10) * millimeter
+      let baseline = CGFloat(millivolts.upperBound * 10) * millimeter
       var trace = Path()
       var drawing = false
       for (index, microvolt) in microvolts.enumerated() {
@@ -281,7 +285,9 @@ struct ECGStrip: View {
       context.stroke(
         trace, with: .color(.red), style: StrokeStyle(lineWidth: 1.2, lineJoin: .round))
     }
-    .frame(width: Self.width, height: Self.height)
+    .aspectRatio(CGFloat(Self.millimetersAcross / millimetersUp), contentMode: .fit)
+    .frame(maxWidth: Self.maxWidth)
+    .clipped()
     .background(Color.red.opacity(0.03))
     .accessibilityLabel("ECG trace")
   }

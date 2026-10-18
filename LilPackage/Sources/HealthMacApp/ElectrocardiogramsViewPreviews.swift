@@ -28,9 +28,11 @@ private let recordings = [
 ]
 
 @MainActor
-private func list(_ state: ElectrocardiogramsContent.State) -> some View {
+private func list(
+  _ state: ElectrocardiogramsContent.State, limit: Int = RecentElectrocardiograms.limit
+) -> some View {
   NavigationStack {
-    ElectrocardiogramsContent(state: state)
+    ElectrocardiogramsContent(state: state, limit: limit)
   }
   .frame(width: 620, height: 560)
 }
@@ -47,6 +49,11 @@ private func detail(
 
 #Preview("ECGs") {
   list(.loaded(recordings))
+}
+
+#Preview("ECGs, at the limit") {
+  // As if these were the most it holds: it says the list is cut short.
+  list(.loaded(recordings), limit: recordings.count)
 }
 
 #Preview("No ECGs") {
@@ -76,6 +83,14 @@ private func detail(
     (4_000..<5_500).contains(index) || (11_000..<11_600).contains(index) ? Float.nan : value
   }
   return detail(recordings[3], .loaded(trace))
+}
+
+#Preview("Tall waves, narrow window") {
+  let tall = HealthDatabase.syntheticElectrocardiogram().map { $0 * 2.4 }
+  return NavigationStack {
+    ElectrocardiogramDetailContent(recording: recordings[0], trace: .loaded(tall))
+  }
+  .frame(width: 520, height: 640)
 }
 
 #Preview("Recording loading") {

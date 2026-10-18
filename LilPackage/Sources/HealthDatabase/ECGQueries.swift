@@ -2,9 +2,6 @@ public import Foundation
 public import SQLiteData
 
 extension HealthDatabase {
-  /// The ECG data type, which has its own views.
-  public static let electrocardiogramType = "HKDataTypeIdentifierElectrocardiogram"
-
   /// ECG recordings, newest first, at most `limit`.
   public static func electrocardiograms(limit: Int, _ db: Database) throws
     -> [HealthElectrocardiogram]
@@ -30,7 +27,7 @@ extension HealthDatabase {
   /// A recording cut into strips of `seconds` each, as Health lays out its 30 seconds: three of
   /// 10. The last strip may be shorter.
   public static func electrocardiogramStrips(
-    _ microvolts: [Float], samplingFrequency: Double, seconds: Double = 10
+    _ microvolts: [Float], samplingFrequency: Double, seconds: Double
   ) -> [ArraySlice<Float>] {
     let perStrip = max(1, Int((samplingFrequency * seconds).rounded()))
     return stride(from: 0, to: microvolts.count, by: perStrip).map {
@@ -101,6 +98,15 @@ public enum ECGClassification: Equatable, Sendable {
 }
 
 extension HealthElectrocardiogram {
+  /// Measurements per second: as recorded, or worked out from the count and the recording's
+  /// length if that's missing or not positive, or Apple Watch's 512 Hz.
+  public var measurementsPerSecond: Double {
+    if let samplingFrequency, samplingFrequency > 0 { return samplingFrequency }
+    let seconds = Double(endDate - startDate) / 1000
+    if voltageCount > 0, seconds > 0 { return Double(voltageCount) / seconds }
+    return 512
+  }
+
   public var decodedClassification: ECGClassification {
     ECGClassification(rawValue: classification)
   }

@@ -1485,15 +1485,29 @@ struct ECGQueriesTests {
 
   @Test
   func thirtySecondsAreThreeStripsOfTen() {
-    let trace = HealthDatabase.syntheticElectrocardiogram(seconds: 30, samplingFrequency: 512)
-    let strips = HealthDatabase.electrocardiogramStrips(trace, samplingFrequency: 512)
+    let trace = (0..<15_360).map { Float($0) }
+    let strips = HealthDatabase.electrocardiogramStrips(
+      trace, samplingFrequency: 512, seconds: 10)
     #expect(strips.map(\.count) == [5_120, 5_120, 5_120])
+    #expect(strips.map { $0.first } == [0, 5_120, 10_240])
     // A shorter recording ends with a shorter strip.
     let short = HealthDatabase.electrocardiogramStrips(
-      Array(trace.prefix(6_000)), samplingFrequency: 512)
+      Array(trace.prefix(6_000)), samplingFrequency: 512, seconds: 10)
     #expect(short.map(\.count) == [5_120, 880])
-    // The synthetic R waves peak near 1 mV.
-    #expect((900...1_100).contains(trace.max() ?? 0))
+  }
+
+  @Test
+  func theSampleRateComesFromTheCountWhenMissing() {
+    var ecg = HealthElectrocardiogram(
+      id: "a", startDate: 0, endDate: 30_000, classification: 1, symptomsStatus: 1,
+      averageHeartRate: 70, samplingFrequency: 0, voltageCount: 15_000, voltages: nil,
+      sourceName: "Watch", sourceBundleID: "com.apple.NanoHeartRhythm")
+    #expect(ecg.measurementsPerSecond == 500)
+    ecg.samplingFrequency = 512
+    #expect(ecg.measurementsPerSecond == 512)
+    ecg.samplingFrequency = nil
+    ecg.voltageCount = 0
+    #expect(ecg.measurementsPerSecond == 512)
   }
 
   @Test
