@@ -26,7 +26,8 @@ DerivedData/
 # Release builds
 build/
 
-# TypeScript (Services/)
+# TypeScript (the pnpm workspace at the root: Services/, Web/)
+/node_modules/
 /Services/**/node_modules/
 /Services/**/dist/
 /Services/**/.alchemy/
@@ -35,6 +36,14 @@ build/
 /Services/**/.env
 /Services/**/.env.*
 !/Services/**/.env.example
+/Web/**/node_modules/
+/Web/**/dist/
+/Web/**/.alchemy/
+/Web/**/.wrangler/
+/Web/**/*.tsbuildinfo
+/Web/**/.env
+/Web/**/.env.*
+!/Web/**/.env.example
 
 # Claude Code local state (project skills in .claude/skills are committed)
 .claude/settings.local.json

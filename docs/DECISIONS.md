@@ -9,7 +9,7 @@
   - `Lil.xcworkspace`
   - Thin app projects under `Apps/`
   - One SPM package with many small modules
-  - Server code in a TypeScript workspace under `Services/`
+  - TypeScript in one pnpm workspace at the repo root (851-2683): servers in `Services/` (the API), web projects in `Web/` (the website now, web apps later). The site moved out of `Services/`, where it only sat because the API's stack deploys it. Not a lowercase `apps/`, which would collide with `Apps/` on macOS's case-insensitive disks.
   - Code moves into a shared module once a second app needs it, not before (e.g. a ⌘K command palette)
 - **Bundle IDs:** `tech.lil.messages`, `tech.lil.mail`, and so on. An app that ships on several platforms uses one App ID for all of them (e.g. `tech.lil.health` on iOS and macOS).
 - **Formatting:** swift-format with 2-space indents for Swift, and Vite+'s formatter and linter (Oxfmt, Oxlint) for TypeScript, enforced by the pre-commit hook.

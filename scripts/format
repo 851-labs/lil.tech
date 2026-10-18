@@ -1,13 +1,13 @@
 #!/bin/sh
-# Formats every Swift file with swift-format, and the TypeScript in Services/
+# Formats every Swift file with swift-format, and the TypeScript workspace (Services/, Web/)
 # with Vite+ (Oxfmt), and regenerates the API's OpenAPI spec and Swift client.
 # Usage: scripts/format [--lint] [--swift | --services]
 #   --lint   Check without changing files: swift-format lint, plus `vp check`
-#            (format, lint and type check) for Services/, plus a check that
+#            (format, lint and type check) for the workspace, plus a check that
 #            Services/api/openapi.json and the generated Swift client are up to
 #            date. Runs every check and exits non-zero if any fails.
 #   --swift     Only the Swift part.
-#   --services  Only the Services/ part, with the spec and client.
+#   --services  Only the TypeScript workspace, with the spec and client.
 set -u
 
 lint=false
@@ -51,23 +51,29 @@ if $swift_only; then
 fi
 
 if ! command -v vp >/dev/null 2>&1; then
-  echo "error: vp (Vite+) is required for Services/. Install it with 'brew install vite-plus'." >&2
+  echo "error: vp (Vite+) is required for the TypeScript workspace. Install it with 'brew install vite-plus'." >&2
   exit 1
 fi
 
-# Keeps Services/node_modules in sync with the lockfile; fast when nothing changed.
-if ! (cd Services && vp install --frozen-lockfile --silent); then
+# The workspace moved from Services/ to the root (851-2683). A clone from before keeps a stale
+# Services/node_modules that Node would still search from Services/api, so it goes.
+if [ -d Services/node_modules ]; then
+  rm -rf Services/node_modules
+fi
+
+# Keeps node_modules in sync with the lockfile; fast when nothing changed.
+if ! vp install --frozen-lockfile --silent; then
   exit 1
 fi
 
 # The committed OpenAPI spec is generated from the API definition, and the Swift client from the
 # spec, in that order.
 if $lint; then
-  (cd Services && vp check) || status=1
+  vp check || status=1
   (cd Services/api && node scripts/openapi.ts --check) || status=1
   scripts/generate-api-client --check-stamp || status=1
 else
-  (cd Services && vp fmt) || status=1
+  vp fmt || status=1
   (cd Services/api && node scripts/openapi.ts) || status=1
   scripts/generate-api-client || status=1
 fi

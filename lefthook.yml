@@ -19,6 +19,14 @@ pre-commit:
       run: scripts/check --hook --services
       glob:
         - "Services/**"
+        - "Web/**"
+        - "package.json"
+        - "pnpm-workspace.yaml"
+        - "pnpm-lock.yaml"
+        - ".node-version"
+        - "vite.config.ts"
+        - "tsconfig.json"
+        - "tsconfig.base.json"
         # The generated client's stamp covers the generator's pin and config.
         - "Tools/**"
         - "scripts/format"

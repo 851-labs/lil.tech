@@ -11,9 +11,9 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   2. Branch off `main` using the ticket's Linear branch name.
   3. Open one PR per ticket, with the ticket ID in the title.
   4. Move the ticket to In Review.
-- Run `scripts/format` before committing. `scripts/format --lint` must pass. It covers the Swift code and the TypeScript in `Services/`.
+- Run `scripts/format` before committing. `scripts/format --lint` must pass. It covers the Swift code and the TypeScript workspace (`Services/`, `Web/`).
 - **Checks run before every commit**, in a [lefthook](https://lefthook.dev) pre-commit hook (`lefthook.yml`), not on GitHub. Set it up once per clone: `brew install lefthook`, then `lefthook install`.
-  - The hook runs `scripts/check` for the parts a commit touches, with warnings as errors (`CI=1`). `--swift`: Swift lint, the package's tests and the app builds. `--services`: `scripts/format --lint --services` (format, lint, type checks and a fresh OpenAPI spec), the generated client regenerated and compared (`scripts/generate-api-client --check`), and every Services package's tests.
+  - The hook runs `scripts/check` for the parts a commit touches, with warnings as errors (`CI=1`). `--swift`: Swift lint, the package's tests and the app builds. `--services`: `scripts/format --lint --services` (format, lint, type checks and a fresh OpenAPI spec), the generated client regenerated and compared (`scripts/generate-api-client --check`), and every workspace package's tests (`vp run -r test` at the root).
   - Its builds go to `.build-check/`, apart from Xcode's and everyday `swift test`'s, so the first run after cloning is slow and later ones take about a minute.
   - The checks see the working tree, so the hook refuses to run while the paths it checks have unstaged or untracked changes. Stage them, or set them aside with `git stash --keep-index -u`.
   - A failing check blocks the commit. Fix it rather than skipping the hook (`LEFTHOOK=0 git commit …` is for emergencies only).
@@ -34,17 +34,17 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 - **Xcode MCP.** `.mcp.json` registers Xcode's MCP server (`xcrun mcpbridge`), which provides tools like `RenderPreview`. Approve it when Claude Code first asks. It talks to the running Xcode, so keep Xcode open with `Lil.xcworkspace`, and allow external agents in Xcode › Settings › Intelligence. `xcrun` uses whichever Xcode `xcode-select` points at.
 - **Preview snapshots.** Xcode's `RenderPreview` (MCP) snapshots a preview's first frame, before `.task` runs. Give previews their data in the initial state, using `makePreviewChatDatabase()` from `MessagesDatabase`, so snapshots show real content. That demo dataset is for previews only; tests seed their own data. For a state that a view's `.task` would immediately replace (empty, checking access), build the store with `EmptyReducer()`.
 
-## Services (TypeScript)
+## TypeScript (Services/ and Web/)
 
-- `Services/` is a pnpm workspace managed by [Vite+](https://viteplus.dev/guide/). Install the `vp` CLI (`brew install vite-plus`), then run `cd Services && vp install`.
-- Node is pinned in `Services/.node-version`, and pnpm in `Services/package.json`.
-- Dependency versions live only in the catalog in `Services/pnpm-workspace.yaml`. Packages refer to them as `catalog:`. Add dependencies with `vp add <pkg>@catalog:` after adding them to the catalog, and never install `@latest` (even where the `effect-ts` skill's setup steps say to).
+- The repo root is a pnpm workspace managed by [Vite+](https://viteplus.dev/guide/), with servers in `Services/` (the API, `Services/api`) and web projects in `Web/` (the website, `Web/site`). Install the `vp` CLI (`brew install vite-plus`), then run `vp install` at the root.
+- Node is pinned in `.node-version`, and pnpm in `package.json`, both at the root.
+- Dependency versions live only in the catalog in `pnpm-workspace.yaml`. Packages refer to them as `catalog:`. Add dependencies with `vp add <pkg>@catalog:` after adding them to the catalog, and never install `@latest` (even where the `effect-ts` skill's setup steps say to).
 - Check and test:
   - `vp check`: format, lint and type check.
   - `vp run -r test`: every package's tests.
   - In a package, e.g. `Services/api`: `vp test`.
-- Lint and format settings live only in the root `Services/vite.config.ts`. Vite+ doesn't apply per-package lint or format configs.
-- Vite+'s own docs ship in `Services/node_modules/vite-plus/docs`.
+- Lint and format settings live only in the root `vite.config.ts`. Vite+ doesn't apply per-package lint or format configs. The formatter ignores everything outside the workspace (Swift, Apple config files, docs).
+- Vite+'s own docs ship in `node_modules/vite-plus/docs`.
 
 ### API contract
 
@@ -59,11 +59,11 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 
 ### Deploying the API
 
-- The API is an Alchemy stack in `Services/api/alchemy.run.ts`. The same stack deploys the website, `Services/site/public` (static files, such as the privacy policy), to `lil.tech` in prod, `staging.lil.tech` in staging, and workers.dev elsewhere. Its state lives in Cloudflare (an `alchemy-state-store` Worker in account 851), so every machine and CI share it.
+- The API is an Alchemy stack in `Services/api/alchemy.run.ts`. The same stack deploys the website, `Web/site/public` (static files, such as the privacy policy), to `lil.tech` in prod, `staging.lil.tech` in staging, and workers.dev elsewhere. Its state lives in Cloudflare (an `alchemy-state-store` Worker in account 851), so every machine and CI share it.
 - Run Alchemy from `Services/api` (`npx alchemy …`), where it's installed. From anywhere else, `npx` fetches a separate copy that can't find its peer dependencies.
 - **Credentials:** once per machine, from `Services/api`, run `ALCHEMY_TUI=1 DO_NOT_TRACK=1 npx alchemy profile edit --add Cloudflare`. Choose OAuth, then **Basic Scopes**, then sign in with a Cloudflare user that's a member of account **851**, and pick that account. Credentials are saved in `~/.alchemy/profiles.json`. Alchemy hides its interactive prompts when it detects a coding agent, and `ALCHEMY_TUI=1` shows them again. Check credentials with `npx alchemy profile show`. The bare `npx alchemy profile` dashboard crashes in this beta, because `react` isn't installed.
 - **Telemetry:** Alchemy reports usage to `otel.alchemy.run` unless `DO_NOT_TRACK=1` is set. Set it in your shell.
-- **CI** (`.github/workflows/services.yml`) deploys changes to `Services/`. Its checks run in the pre-commit hook instead.
+- **CI** (`.github/workflows/services.yml`) deploys changes to the TypeScript workspace (`Services/`, `Web/`, the root config). Its checks run in the pre-commit hook instead.
   - Pull requests are deployed to a preview stage, `pr-<number>`, on workers.dev. A PR comment links the preview.
   - Closing a PR destroys its preview, including R2 buckets that still hold objects. Every bucket is a `DisposableBucket` (`src/Deployment.ts`), which sets `forceDestroy` everywhere but staging and prod. If the teardown fails, the job comments on the PR. Fix the cause and rerun the failed job. Destroy uses the props saved at the stage's last deploy, so a stage deployed before a props change needs its bucket emptied by hand.
   - To try a preview as a signed-in user, `POST /v1/auth/dev` (optionally with `{"displayName": "…"}`) creates a synthetic user and returns tokens. With `{"account": "…"}` it signs in to the synthetic user of that name, made the first time, so several devices share it. The route only exists in the `preview` environment (PR previews, and personal stages from `vp run deploy`, named `live_<user>`) and the `local` one (`alchemy dev`, `dev_<user>`). Each stage allows at most 1,000 users.
@@ -90,9 +90,9 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 
 This repository uses the Effect TypeScript library. The `effect-ts` skill (`.claude/skills/effect-ts`) sets this up.
 
-Before writing any Effect code, first read `Services/node_modules/effect/AGENTS.md` **completely**, and follow the links in the file when required.
+Before writing any Effect code, first read `node_modules/effect/AGENTS.md` **completely**, and follow the links in the file when required.
 
-If you need to learn more about particular Effect APIs and concepts that the guide doesn't cover, search through the source code in `Services/node_modules/effect/src`.
+If you need to learn more about particular Effect APIs and concepts that the guide doesn't cover, search through the source code in `node_modules/effect/src`.
 
 ## Previews
 
