@@ -181,7 +181,8 @@ POST /v1/sync/mutations
 }
 ```
 
-- `mutationId` is a UUID the client generates. The store remembers it for 7 days and answers a repeat with the original result, so retries are safe.
+- `mutationId` is a UUID the client generates. The store remembers it for 7 days and answers a repeat with the original result, so retries are safe. Applying a push twice would change nothing anyway, since an upsert of the same values or a delete of what's gone appends nothing, so the ID is recorded after the mutations apply.
+- At most 500 mutations a push. One for an entity apps may not write, or with an invalid row, fails the whole push with 400 `MutationRejected` (its `index` and why).
 - Every mutation in a request is applied in one transaction, or none are. The response is `{ "seq": <n> }`, the `seq` of the last change it produced (or `head` if nothing changed).
 - **Client upserts merge:** fields missing from `row` keep their stored values, and `null` clears a field. An older app that doesn't know a field can't erase it. The change appended to the log still carries the full merged row.
 - Each entity declares whether clients may write it. Most synced data, such as health samples, can only be written by the server; app state such as pins and settings can be written by clients.
@@ -189,7 +190,8 @@ POST /v1/sync/mutations
   - The client writes to its local tables and adds the mutation to a pending queue, together with the record's previous local state.
   - Pulled changes overwrite local rows, and pending mutations are reapplied on top until the client's cursor reaches the `seq` returned for them.
   - The queue lives outside the synced tables, so it survives a bootstrap.
-  - If the server rejects a mutation permanently (see [Errors](#errors)), the client drops it from the queue and restores the record's previous state.
+  - If the server rejects a push permanently (400 `MutationRejected`, or 507 `StorageFull`), the client drops it from the queue and bootstraps again, so its tables match the server.
+  - In LilSync: `LilSyncEngine.push(_:)` writes the local tables and queues the push (`lilPendingMutations`), and every pull sends the queue first. Signing out drops it, with the rest of the account's data.
 - **Health ingestion** is a specialized push for large volumes, which the iPhone can send from a background `URLSession`. The resulting changes are ordinary log entries.
   - **Upload:** `PUT /v1/health/batches/<id>` with a client-generated lowercase UUID. The body is a gzip-compressed NDJSON file (`application/gzip`, at most 16 MB), one mutation per line in the push format. Only health entities are allowed, and rows are full records.
   - **Queueing:** the API stores the file in R2, queues it, and answers `202` with the batch's status. Uploading the same ID again only returns its status, so retries are safe.

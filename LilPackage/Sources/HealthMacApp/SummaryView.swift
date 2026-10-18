@@ -23,8 +23,10 @@ struct SummaryView: View {
     let pins = store.orderedPins
     SummaryContent(
       pins: pins,
-      state: $summaries.loadError.map { .failed($0.localizedDescription) }
-        ?? ($summaries.isLoading && summaries.isEmpty ? .loading : .loaded(ordered(pins))),
+      state: store.isLoadingPins
+        ? .loading
+        : $summaries.loadError.map { .failed($0.localizedDescription) }
+          ?? ($summaries.isLoading && summaries.isEmpty ? .loading : .loaded(ordered(pins))),
       highlights: $highlights.loadError.map { .failed($0.localizedDescription) }
         ?? ($highlights.isLoading && highlights.isEmpty ? .loading : .loaded(highlights)),
       edit: { store.send(.editButtonTapped) },
@@ -38,6 +40,7 @@ struct SummaryView: View {
     .sheet(isPresented: $store.isEditing) {
       PinEditor(store: store)
     }
+    .task { await store.send(.task).finish() }
     // "Today" and the last 7 days move at midnight, even if nothing syncs.
     .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
       Task { @MainActor in

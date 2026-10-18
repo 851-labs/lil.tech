@@ -490,3 +490,17 @@ public struct HealthProvenance: Equatable, Identifiable, Sendable {
     self.device = device
   }
 }
+
+/// A data type pinned to Summary (851-2641), keyed by its type ID. Synced, so every Mac shows the
+/// same pins; the Mac writes them through ``SyncClient/push``.
+@Table
+public struct HealthPin: Equatable, Identifiable, Sendable {
+  public let id: String
+  /// Pins are shown by position, lowest first.
+  public var position: Double
+
+  public init(id: String, position: Double) {
+    self.id = id
+    self.position = position
+  }
+}

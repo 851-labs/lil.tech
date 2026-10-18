@@ -68,15 +68,15 @@ private func previewSummaries(_ ids: [String]) -> [MetricSummary] {
 }
 
 #Preview("Edit") {
-  let state = SummaryFeature.State(isEditing: true)
-  state.$pins.withLock { $0 = Array(pinned.prefix(3)) }
-  return PinEditor(store: Store(initialState: state) { SummaryFeature() })
+  PinEditor(
+    store: Store(initialState: SummaryFeature.State(pins: Array(pinned.prefix(3)), isEditing: true))
+    {
+      SummaryFeature()
+    })
 }
 
 #Preview("Edit, searching") {
-  var state = SummaryFeature.State(isEditing: true)
-  // Previews share pins' storage: set its own.
-  state.$pins.withLock { $0 = Array(pinned.prefix(3)) }
+  var state = SummaryFeature.State(pins: Array(pinned.prefix(3)), isEditing: true)
   state.search = "heart"
   return PinEditor(store: Store(initialState: state) { SummaryFeature() })
 }

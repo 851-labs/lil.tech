@@ -226,6 +226,60 @@ public actor LilSyncEngine {
     endWait()
   }
 
+  /// Writes `mutations` to the local tables at once, and queues them for the server, which gets
+  /// them before the next pull, started now (`docs/SYNC.md`). Only for entities apps may write,
+  /// such as pins. Until the server has them and the cursor passes them, pulled changes don't
+  /// undo them. A push the server refuses for good is dropped, and the local data is replaced
+  /// from a snapshot, so it matches the server again.
+  public func push(_ mutations: [SyncMutation]) async throws {
+    guard !mutations.isEmpty else { return }
+    let pending = PendingMutation(
+      id: UUID().uuidString.lowercased(),
+      mutations: String(decoding: try JSONEncoder().encode(mutations), as: UTF8.self))
+    try await database.write { [entities] db in
+      try PendingMutation.apply(mutations, entities: entities, db)
+      try PendingMutation.insert { pending }.execute(db)
+    }
+    syncNow()
+  }
+
+  /// Sends queued mutations the server doesn't have yet, oldest first, and records the `seq` of
+  /// each. Throws ``SyncError/needsBootstrap`` after dropping one the server refused for good.
+  private func pushPending() async throws {
+    let unsent = try await database.read { db in
+      try PendingMutation.oldestFirst.where { $0.seq.is(nil) }.fetchAll(db)
+    }
+    for pending in unsent {
+      try Task.checkCancellation()
+      let seq: Int
+      switch try await api.syncPushMutations(body: .json(try pending.body())) {
+      case .ok(let ok):
+        seq = try ok.body.json.seq
+      case .badRequest, .code507:
+        // Refused for good (an invalid row, or the account is full): the local write goes.
+        reportIssue("The server refused pushed mutations \(pending.id); starting over")
+        try await database.write { db in
+          try PendingMutation.find(pending.id).delete().execute(db)
+        }
+        throw SyncError.needsBootstrap
+      case .unauthorized:
+        throw SyncError.unauthorized
+      case .serviceUnavailable:
+        throw SyncError.unavailable
+      case .tooManyRequests(let response):
+        throw SyncError.rateLimited(
+          retryAfterSeconds: Components.Schemas.TooManyRequests.retryAfterSeconds {
+            try response.body.json
+          })
+      case .undocumented(let statusCode, _):
+        throw SyncError.unexpectedStatus(statusCode)
+      }
+      try await database.write { db in
+        try PendingMutation.find(pending.id).update { $0.seq = #bind(seq) }.execute(db)
+      }
+    }
+  }
+
   /// The pull or bootstrap in progress. The actor runs other work while they wait, so they take
   /// turns: a pull that read the cursor before a bootstrap committed mustn't write after it.
   private var operation: Task<Void, Never>?
@@ -258,6 +312,8 @@ public actor LilSyncEngine {
     try await database.write { [entities] db in
       for entity in entities.values { try entity.clear(db) }
       try SyncState.find(SyncState.singletonID).delete().execute(db)
+      // Unsent writes belong to the account signing out.
+      try PendingMutation.delete().execute(db)
     }
     try await database.vacuum()
     _ = try await database.writeWithoutTransaction { try $0.checkpoint(.truncate) }
@@ -268,7 +324,10 @@ public actor LilSyncEngine {
   /// Pulls pages until caught up. Throws ``SyncError/needsBootstrap`` when the local data must be
   /// replaced from a snapshot, and other errors for failures worth retrying.
   public func pull() async throws {
-    try await exclusively { try await self.pullPages() }
+    try await exclusively {
+      try await self.pushPending()
+      try await self.pullPages()
+    }
   }
 
   private func pullPages() async throws {
@@ -341,6 +400,7 @@ public actor LilSyncEngine {
           syncSchema: syncSchema, entities: stored
         )
         .save(db)
+        try PendingMutation.reapply(after: page.next, entities: entities, db)
       }
       guard page.hasMore else {
         setStatus(.upToDate(at: date.now))
@@ -379,6 +439,7 @@ public actor LilSyncEngine {
           entities: recordedEntities
         )
         .save(db)
+        try PendingMutation.reapply(after: 0, entities: entities, db)
       }
       removeDownloadedParts(keeping: [])
       return
@@ -439,12 +500,13 @@ public actor LilSyncEngine {
         }
       }
     }
-    try await database.write { [manifest] db in
+    try await database.write { [manifest, entities] db in
       try SyncState(
         id: SyncState.singletonID, cursor: manifest.seq, epoch: manifest.epoch,
         syncSchema: syncSchema, entities: recordedEntities
       )
       .save(db)
+      try PendingMutation.reapply(after: manifest.seq, entities: entities, db)
     }
     removeDownloadedParts(keeping: [])
   }

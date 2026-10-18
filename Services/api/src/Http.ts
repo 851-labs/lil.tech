@@ -76,7 +76,7 @@ import {
   SnapshotParts,
   toManifest,
 } from "./sync/SnapshotParts.ts";
-import { SnapshotGone, SnapshotNotReady } from "./sync/SyncApi.ts";
+import { MutationRejected, SnapshotGone, SnapshotNotReady } from "./sync/SyncApi.ts";
 // The committed spec (see scripts/openapi.ts), so the served contract is exactly the committed one.
 import openApiSpec from "../openapi.json" with { type: "json" };
 
@@ -393,6 +393,16 @@ export const SyncHandlers = HttpApiBuilder.group(
           if (epoch > 1) return yield* new SnapshotNotReady({ retryAfterSeconds: 60 });
           return { epoch };
         }),
+      )
+      .handle("pushMutations", ({ payload }) =>
+        sessionStore.pipe(
+          Effect.flatMap((store) => store.pushMutations(payload.mutationId, payload.mutations)),
+          Effect.catchTags({
+            InvalidMutation: (error) =>
+              Effect.fail(new MutationRejected({ index: error.index, message: error.message })),
+            AccountDeleted: () => Effect.fail(userGone),
+          }),
+        ),
       )
       .handle("snapshotById", ({ params }) =>
         Effect.gen(function* () {

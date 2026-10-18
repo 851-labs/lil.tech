@@ -1,8 +1,10 @@
 public import ComposableArchitecture
 import Foundation
 public import HealthCatalog
+import HealthDatabase
 public import LilAuth
 public import LilSync
+import SQLiteData
 
 /// lil health on the Mac: sign in, then iPad Health's layout, a sidebar of Summary and the
 /// Health categories beside what's selected. While signed in, it syncs the account's health data
@@ -19,6 +21,8 @@ public struct AppFeature {
     /// Shown in the sidebar's footer.
     public var syncStatus: SyncStatus
     public var summary: SummaryFeature.State
+    /// Pins from before they synced, moved up after the first sync (`movePinsUp`).
+    @Shared(.summaryPins) var localPins: [String]
 
     public init(
       isSignedIn: Bool? = nil, selection: SidebarItem? = .summary, searchText: String = "",
@@ -68,6 +72,7 @@ public struct AppFeature {
   @Dependency(\.auth) var auth
   @Dependency(\.authSessions) var authSessions
   @Dependency(\.blobCache) var blobCache
+  @Dependency(\.defaultDatabase) var database
   @Dependency(\.sync) var sync
 
   public init() {}
@@ -109,9 +114,9 @@ public struct AppFeature {
         state.selection = .summary
         state.searchText = ""
         state.syncStatus = .idle
-        // Pins are the account's choice, like its data.
+        // Pins are the account's choice, like its data, and leave with it.
         state.summary = SummaryFeature.State()
-        state.summary.$pins.withLock { $0 = [] }
+        state.$localPins.withLock { $0 = [] }
         // The account's health data leaves the Mac with it. Also when the app opens signed out,
         // in case it quit before it was done. Removing waits for a pull being cancelled to stop
         // (`LilSyncEngine.removeLocalData()`).
@@ -140,6 +145,7 @@ public struct AppFeature {
 
       case .syncStatusChanged(let status):
         state.syncStatus = status
+        if case .upToDate = status, !state.localPins.isEmpty { return movePinsUp(&state) }
         return .none
 
       case .signIn:
@@ -152,6 +158,23 @@ public struct AppFeature {
             await send(.signedInChanged(isSignedIn))
           }
         }
+      }
+    }
+  }
+
+  /// Moves this Mac's pins from before they synced up to the account (851-2641), once it's
+  /// synced and so knows whether it has pins. One that has keeps its own, so a second Mac doesn't
+  /// add its old ones. Either way, the local pins are done with.
+  private func movePinsUp(_ state: inout State) -> Effect<Action> {
+    let local = state.localPins
+    state.$localPins.withLock { $0 = [] }
+    return .run { [database, sync] _ in
+      do {
+        let synced = try await database.read { try HealthDatabase.summaryPins($0) }
+        guard synced.isEmpty else { return }
+        try await sync.push(HealthDatabase.pinMutations(from: [], to: local))
+      } catch {
+        reportIssue(error)
       }
     }
   }

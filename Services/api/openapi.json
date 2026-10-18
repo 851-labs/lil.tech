@@ -663,6 +663,92 @@
         }
       }
     },
+    "/v1/sync/mutations": {
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "operationId": "syncPushMutations",
+        "parameters": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "lil/api/sync/PushedMutations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushedMutations"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MutationRejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MutationRejected"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UserStoreUnavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserStoreUnavailable"
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "StorageFull",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageFull"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushMutations"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/v1/sync/snapshots/{id}": {
       "get": {
         "tags": [
@@ -1554,6 +1640,114 @@
           "records",
           "bytes",
           "sha256"
+        ]
+      },
+      "MutationRejected": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "MutationRejected"
+            ]
+          },
+          "index": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "index",
+          "message"
+        ]
+      },
+      "PushedMutations": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "seq"
+        ]
+      },
+      "PushMutations": {
+        "type": "object",
+        "properties": {
+          "mutationId": {
+            "type": "string"
+          },
+          "mutations": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "entity": {
+                      "type": "string"
+                    },
+                    "op": {
+                      "type": "string",
+                      "enum": [
+                        "upsert"
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "row": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "entity",
+                    "op",
+                    "id",
+                    "row"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "entity": {
+                      "type": "string"
+                    },
+                    "op": {
+                      "type": "string",
+                      "enum": [
+                        "delete"
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "entity",
+                    "op",
+                    "id"
+                  ]
+                }
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 500
+          }
+        },
+        "required": [
+          "mutationId",
+          "mutations"
         ]
       },
       "SnapshotNotReady": {
@@ -2725,6 +2919,22 @@
           "locationCount",
           "sourceName",
           "sourceBundleId"
+        ],
+        "additionalProperties": true
+      },
+      "HealthPin": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "position"
         ],
         "additionalProperties": true
       }

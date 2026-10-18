@@ -1119,6 +1119,136 @@ describe("snapshot downloads", () => {
   );
 });
 
+describe("POST /v1/sync/mutations", () => {
+  const push = (handler: Handler, token: string, body: unknown) =>
+    send(
+      handler,
+      new Request("https://api.lil.tech/v1/sync/mutations", {
+        method: "POST",
+        headers: { ...bearer(token), "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    );
+  const pin = (id: string, position: number) => ({
+    entity: "health_pin",
+    op: "upsert",
+    id,
+    row: { position },
+  });
+  const steps = "HKQuantityTypeIdentifierStepCount";
+  const weight = "HKQuantityTypeIdentifierBodyMass";
+  const mutationId = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+  it.live("applies an app's writes to the change log, once per mutation ID", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const first = yield* push(handler, tokens.accessToken, {
+          mutationId: mutationId(1),
+          mutations: [pin(steps, 1), pin(weight, 2)],
+        });
+        assert.deepStrictEqual(first, { status: 200, body: { seq: 2 } });
+
+        // A retry gets the same answer and appends nothing, even after other writes.
+        const store = (yield* UserStores).forUser(user.id);
+        yield* push(handler, tokens.accessToken, {
+          mutationId: mutationId(2),
+          mutations: [{ entity: "health_pin", op: "delete", id: weight }],
+        });
+        const retry = yield* push(handler, tokens.accessToken, {
+          mutationId: mutationId(1),
+          mutations: [pin(steps, 1), pin(weight, 2)],
+        });
+        assert.deepStrictEqual(retry, { status: 200, body: { seq: 2 } });
+        const page = yield* store.readChanges(0, 100);
+        assert.deepStrictEqual(
+          page.changes.map((change) => [change.seq, change.id, change.op, change.row]),
+          // The weight pin's upsert reads as a delete, since its record is gone.
+          [
+            [1, steps, "upsert", { id: steps, position: 1 }],
+            [2, weight, "delete", undefined],
+            [3, weight, "delete", undefined],
+          ],
+        );
+
+        // Upserts merge, and one that changes nothing appends nothing.
+        const same = yield* push(handler, tokens.accessToken, {
+          mutationId: mutationId(3),
+          mutations: [pin(steps, 1)],
+        });
+        assert.deepStrictEqual(same.body, { seq: 3 });
+      }),
+    ),
+  );
+
+  it.live("refuses entities apps can't write, and invalid rows, applying nothing", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const sample = yield* push(handler, tokens.accessToken, {
+          mutationId: mutationId(4),
+          mutations: [
+            pin(steps, 1),
+            { entity: "health_characteristic", op: "upsert", id: "x", row: { value: 1 } },
+          ],
+        });
+        assert.strictEqual(sample.status, 400);
+        assert.deepInclude(sample.body, {
+          _tag: "MutationRejected",
+          index: 1,
+          message: "Apps can't write health_characteristic",
+        });
+        const unknown = yield* push(handler, tokens.accessToken, {
+          mutationId: mutationId(5),
+          mutations: [{ entity: "nope", op: "delete", id: "x" }],
+        });
+        assert.strictEqual(unknown.status, 400);
+        const invalid = yield* push(handler, tokens.accessToken, {
+          mutationId: mutationId(6),
+          mutations: [pin(steps, 1), { ...pin("not a type", 2) }],
+        });
+        assert.strictEqual(invalid.status, 400);
+        assert.deepInclude(invalid.body, { _tag: "MutationRejected", index: 1 });
+        const noPosition = yield* push(handler, tokens.accessToken, {
+          mutationId: mutationId(7),
+          mutations: [{ entity: "health_pin", op: "upsert", id: steps, row: {} }],
+        });
+        assert.strictEqual(noPosition.status, 400);
+        const store = (yield* UserStores).forUser(user.id);
+        assert.deepStrictEqual((yield* store.readChanges(0, 100)).changes, []);
+
+        // A malformed request never reaches the store.
+        const badId = yield* push(handler, tokens.accessToken, {
+          mutationId: "not-a-uuid",
+          mutations: [pin(steps, 1)],
+        });
+        assert.strictEqual(badId.status, 400);
+        const empty = yield* push(handler, tokens.accessToken, {
+          mutationId: mutationId(8),
+          mutations: [],
+        });
+        assert.strictEqual(empty.status, 400);
+      }),
+    ),
+  );
+
+  it.live("needs a session", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const response = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/sync/mutations", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ mutationId: mutationId(9), mutations: [pin(steps, 1)] }),
+          }),
+        );
+        assert.strictEqual(response.status, 401);
+      }),
+    ),
+  );
+});
+
 describe("GET /v1/sync/live", () => {
   const connect = (handler: Handler, headers: Record<string, string>) =>
     send(handler, new Request("https://api.lil.tech/v1/sync/live", { headers }));

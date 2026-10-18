@@ -39,6 +39,7 @@ extension LilSyncEngine {
       try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "syncSchema" INTEGER"#).execute(db)
       try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "entities" TEXT"#).execute(db)
     }
+    registerPendingMutations(in: &migrator)
   }
 }
 

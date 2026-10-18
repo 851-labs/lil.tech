@@ -6,6 +6,7 @@ import HealthCatalog
 import HealthDatabase
 import LilAuth
 import LilSync
+import SQLiteData
 import SwiftUI
 import Testing
 
@@ -74,6 +75,7 @@ struct AppFeatureTests {
           events.withValue { $0.append("listen ended") }
         },
         syncNow: {},
+        push: { _ in },
         status: { statuses },
         removeLocalData: { events.withValue { $0.append("removed") } })
       $0.blobCache = BlobCache(
@@ -285,29 +287,63 @@ struct SummaryFeatureTests {
   private let weight = "HKQuantityTypeIdentifierBodyMass"
 
   @Test
-  func pinsUnpinsAndReorders() async {
-    let store = TestStore(initialState: SummaryFeature.State()) { SummaryFeature() }
-    await store.send(.editButtonTapped) { $0.isEditing = true }
-    await store.send(.pinButtonTapped(steps)) { $0.$pins.withLock { $0 = [self.steps] } }
-    await store.send(.pinButtonTapped(heartRate)) {
-      $0.$pins.withLock { $0 = [self.steps, self.heartRate] }
+  func pinsUnpinsAndReordersThroughSync() async {
+    let pushed = LockIsolated<[[SyncMutation]]>([])
+    let store = TestStore(initialState: SummaryFeature.State(pins: [])) {
+      SummaryFeature()
+    } withDependencies: {
+      $0.sync.push = { mutations in pushed.withValue { $0.append(mutations) } }
     }
-    // Pinning twice doesn't duplicate it.
+    await store.send(.editButtonTapped) { $0.isEditing = true }
+    await store.send(.pinButtonTapped(steps)) { $0.pins = [self.steps] }
+    await store.send(.pinButtonTapped(heartRate)) { $0.pins = [self.steps, self.heartRate] }
+    // Pinning twice doesn't duplicate it, or write anything.
     await store.send(.pinButtonTapped(steps))
     await store.send(.pinButtonTapped(weight)) {
-      $0.$pins.withLock { $0 = [self.steps, self.heartRate, self.weight] }
+      $0.pins = [self.steps, self.heartRate, self.weight]
     }
-    await store.send(.pinsMoved([2], 0)) {
-      $0.$pins.withLock { $0 = [self.weight, self.steps, self.heartRate] }
-    }
-    await store.send(.unpinButtonTapped(steps)) {
-      $0.$pins.withLock { $0 = [self.weight, self.heartRate] }
-    }
+    await store.send(.pinsMoved([2], 0)) { $0.pins = [self.weight, self.steps, self.heartRate] }
+    await store.send(.unpinButtonTapped(steps)) { $0.pins = [self.weight, self.heartRate] }
     await store.send(\.binding.search, "heart") { $0.search = "heart" }
     await store.send(.doneButtonTapped) {
       $0.isEditing = false
       $0.search = ""
     }
+    await store.finish()
+    #expect(
+      pushed.value.last
+        == HealthDatabase.pinMutations(
+          from: [weight, steps, heartRate], to: [weight, heartRate]))
+    #expect(pushed.value.count == 5)
+  }
+
+  @Test
+  func readsThePinsFromTheSyncedTable() async throws {
+    let database = try HealthDatabase.make()
+    try await database.write { db in
+      try HealthPin.insert {
+        HealthPin(id: self.heartRate, position: 1)
+        HealthPin(id: self.steps, position: 0)
+      }
+      .execute(db)
+    }
+    let store = TestStore(initialState: SummaryFeature.State()) {
+      SummaryFeature()
+    } withDependencies: {
+      $0.defaultDatabase = database
+    }
+    #expect(store.state.isLoadingPins)
+    let task = await store.send(.task)
+    await store.receive(\.pinsLoaded) {
+      $0.pins = [self.steps, self.heartRate]
+      $0.isLoadingPins = false
+    }
+    // Another Mac's change arrives with sync.
+    try await database.write { db in
+      try HealthPin.find(self.steps).delete().execute(db)
+    }
+    await store.receive(\.pinsLoaded) { $0.pins = [self.heartRate] }
+    await task.cancel()
   }
 
   @Test
@@ -325,20 +361,19 @@ struct SummaryFeatureTests {
 
   @Test
   func duplicatedPinsShowOnceAndMoveAsShown() async {
-    let state = SummaryFeature.State()
-    // E.g. a file edited by hand.
-    state.$pins.withLock { $0 = [steps, heartRate, steps, weight] }
+    let state = SummaryFeature.State(pins: [steps, heartRate, steps, weight])
     #expect(state.orderedPins == [steps, heartRate, weight])
-    let store = TestStore(initialState: state) { SummaryFeature() }
-    await store.send(.pinsMoved([2], 0)) {
-      $0.$pins.withLock { $0 = [self.weight, self.steps, self.heartRate] }
+    let store = TestStore(initialState: state) {
+      SummaryFeature()
+    } withDependencies: {
+      $0.sync.push = { _ in }
     }
+    await store.send(.pinsMoved([2], 0)) { $0.pins = [self.weight, self.steps, self.heartRate] }
   }
 
   @Test
   func theEditorOffersWhatIsntPinnedMatchingTheSearch() {
-    var state = SummaryFeature.State()
-    state.$pins.withLock { $0 = [heartRate] }
+    var state = SummaryFeature.State(pins: [heartRate])
     state.search = "heart rate"
     let names = state.unpinned.map(\.name)
     #expect(names.contains("Resting Heart Rate"))
@@ -355,19 +390,72 @@ struct SummaryFeatureTests {
       $0.auth.signedInUpdates = { updates }
       $0.sync = .constant(.idle)
     }
-    await store.send(.summary(.pinButtonTapped(steps))) {
-      $0.summary.$pins.withLock { $0 = [self.steps] }
-    }
+    await store.send(.summary(.pinButtonTapped(steps))) { $0.summary.pins = [self.steps] }
     let task = await store.send(.task)
     session.yield(false)
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = false
-      $0.summary.$pins.withLock { $0 = [] }
+      $0.summary = SummaryFeature.State()
     }
     await store.receive(\.signIn.readyToSignIn)
     session.finish()
     await task.finish()
     await store.finish()
+  }
+}
+
+// Fresh app storage for each test: local pins live there.
+@Suite(.dependencies)
+@MainActor
+struct PinMigrationTests {
+  private let steps = "HKQuantityTypeIdentifierStepCount"
+  private let heartRate = "HKQuantityTypeIdentifierHeartRate"
+
+  private func store(
+    database: any DatabaseWriter, pushed: LockIsolated<[[SyncMutation]]>
+  ) -> TestStoreOf<AppFeature> {
+    TestStore(initialState: AppFeature.State(isSignedIn: true)) {
+      AppFeature()
+    } withDependencies: {
+      $0.defaultDatabase = database
+      $0.sync = .constant(.idle)
+      $0.sync.push = { mutations in pushed.withValue { $0.append(mutations) } }
+    }
+  }
+
+  @Test
+  func thisMacsPinsMoveUpAfterTheFirstSync() async throws {
+    @Shared(.summaryPins) var local = [steps, heartRate]
+    let pushed = LockIsolated<[[SyncMutation]]>([])
+    let store = store(database: try HealthDatabase.make(), pushed: pushed)
+    let now = Date(timeIntervalSince1970: 1_760_400_000)
+    await store.send(.syncStatusChanged(.upToDate(at: now))) {
+      $0.syncStatus = .upToDate(at: now)
+      $0.$localPins.withLock { $0 = [] }
+    }
+    await store.finish()
+    #expect(pushed.value == [HealthDatabase.pinMutations(from: [], to: [steps, heartRate])])
+    // Done with: a later sync doesn't push them again.
+    await store.send(.syncStatusChanged(.upToDate(at: now)))
+    #expect(pushed.value.count == 1)
+  }
+
+  @Test
+  func anAccountWithPinsKeepsThem() async throws {
+    @Shared(.summaryPins) var local = [steps]
+    let database = try HealthDatabase.make()
+    try await database.write { db in
+      try HealthPin.insert { HealthPin(id: self.heartRate, position: 0) }.execute(db)
+    }
+    let pushed = LockIsolated<[[SyncMutation]]>([])
+    let store = store(database: database, pushed: pushed)
+    let now = Date(timeIntervalSince1970: 1_760_400_000)
+    await store.send(.syncStatusChanged(.upToDate(at: now))) {
+      $0.syncStatus = .upToDate(at: now)
+      $0.$localPins.withLock { $0 = [] }
+    }
+    await store.finish()
+    #expect(pushed.value.isEmpty)
   }
 }
 
