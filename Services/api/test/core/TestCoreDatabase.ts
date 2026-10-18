@@ -9,11 +9,15 @@ import { CoreRepositories } from "../../src/core/CoreDatabase.ts";
 
 const migrationsDir = new URL("../../migrations/core/", import.meta.url);
 
-/** Migration files in the order Alchemy applies them on deploy: by numeric prefix. */
-const migrations = readdirSync(migrationsDir)
-  .filter((name) => name.endsWith(".sql"))
-  .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))
-  .map((name) => readFileSync(new URL(name, migrationsDir), "utf8"));
+/**
+ * Migrations in the order Alchemy applies them on deploy: drizzle-kit's folders
+ * (`<timestamp>_<name>/migration.sql`), by name.
+ */
+const migrations = readdirSync(migrationsDir, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name)
+  .sort()
+  .map((name) => readFileSync(new URL(`${name}/migration.sql`, migrationsDir), "utf8"));
 
 /**
  * A fresh SQLite database file with the core migrations applied, standing in for D1 (which is

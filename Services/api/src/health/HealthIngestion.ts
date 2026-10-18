@@ -358,11 +358,20 @@ const dropBatchFile = Effect.fnUntraced(function* (message: HealthBatchMessage) 
 
 /**
  * Applies an uploaded batch to the user's store and records the outcome (`applyHealthBatch`). A
- * batch for an account deleted since it was queued is dropped with its file.
+ * batch for an account deleted since it was queued is dropped with its file, and so is one for a
+ * user the core database doesn't know: applying it would create a store for nobody (a batch
+ * queued before the databases were wiped, 851-2686).
  */
 export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
   message: HealthBatchMessage,
 ) {
+  const user = yield* (yield* Users).findById(message.userId).pipe(Effect.orDie);
+  if (Option.isNone(user)) {
+    yield* Effect.logWarning(
+      `Dropping batch ${message.batchId} for unknown user ${message.userId}`,
+    );
+    return yield* dropBatchFile(message);
+  }
   const bytes = yield* applyHealthBatch(message).pipe(
     Effect.catchTag("AccountDeleted", () => dropBatchFile(message).pipe(Effect.as(undefined))),
   );

@@ -108,7 +108,28 @@ const changesFor = (id: string) =>
     return sql?.exec("SELECT seq, op FROM changes WHERE id = ? ORDER BY seq", id) ?? [];
   });
 
-layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))("ingestHealthBatch", (it) => {
+/** `userId` in the core database: ingestion drops batches for users it doesn't know. */
+const KnownUser = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* sql`INSERT INTO users (id, display_name, created_at) VALUES (${userId}, NULL, 0)`;
+  }),
+).pipe(Layer.orDie, Layer.provideMerge(TestCore));
+
+layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHealthBatch", (it) => {
+  it.effect("drops a batch for a user the core database doesn't know", () =>
+    Effect.gen(function* () {
+      const stranger = "usr_000000000000000000000000zz" as UserId;
+      const batchId = "00000000-0000-4000-8000-0000000000ee";
+      const files = (yield* TestHealthOutbox).files;
+      files.set(healthBatchKey(stranger, batchId), batchFile([sample(90)]));
+      yield* ingestHealthBatch({ userId: stranger, batchId });
+      assert.isFalse(files.has(healthBatchKey(stranger, batchId)));
+      // No store was made for them.
+      assert.isUndefined((yield* TestStores).sqlFor(stranger));
+    }),
+  );
+
   it.effect("applies a batch, records its outcome, and deletes the file", () =>
     Effect.gen(function* () {
       const { batchId, batch } = yield* ingest([sample(1), sample(2), ""]);
@@ -822,7 +843,7 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, TestCore))(
 );
 
 describe("ingestHealthBatch when the store is unavailable", () => {
-  layer(Layer.mergeAll(TestHealthIngestion, TestCore))((it) => {
+  layer(Layer.mergeAll(TestHealthIngestion, KnownUser))((it) => {
     it.effect("fails, so the queue retries the batch", () =>
       Effect.gen(function* () {
         const unavailable = UserStores.fromNamespace({

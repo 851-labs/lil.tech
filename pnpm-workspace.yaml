@@ -12,6 +12,9 @@ catalog:
   "@effect/vitest": 4.0.4
   "@types/node": ^24
   alchemy: 2.0.0-beta.83
+  # The exact build alchemy@2.0.0-beta.83 is built against (its Drizzle bindings).
+  drizzle-kit: 1.0.0-rc.5-ab785fc
+  drizzle-orm: 1.0.0-rc.5-ab785fc
   effect: 4.0.4
   jose: 6.2.12
   typescript: ^7.0.2
@@ -30,3 +33,6 @@ peerDependencyRules:
 allowBuilds:
   # Downloads the local Workers runtime used by `alchemy dev`.
   workerd: true
+  # drizzle-kit's bundler. Its binary comes as an optional dependency, so its install script
+  # (which only checks for the binary) isn't needed.
+  esbuild: false

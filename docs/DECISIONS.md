@@ -77,6 +77,17 @@
 - **API contract:** Effect HttpApi publishes OpenAPI, with routes versioned under `/v1`. The spec is committed, and the Swift client is generated from it with `swift-openapi-generator`.
 - **Storage:**
   - D1 holds data shared across users: users, identities, sessions, devices and connections.
+  - **Drizzle for the core D1 database** (851-2686), ahead of lil mail and lil calendar adding core tables. `drizzle-orm` and `drizzle-kit` are pinned to `1.0.0-rc.5-ab785fc`, the exact build Alchemy beta.83 is built against.
+    - The schema is `src/core/Schema.ts`. drizzle-kit generates migrations from it into `migrations/core`, in its own folder format (`<timestamp>_<name>/migration.sql` plus a snapshot), which Alchemy's D1 resource applies on deploy.
+    - Migrations are generated in the repo, never at deploy: `scripts/format` runs drizzle-kit, and `scripts/format --lint` fails if the schema changed without a migration (`scripts/migrations.ts`). Alchemy's `Drizzle.Schema` resource, which generates during deploy, isn't used.
+    - What Drizzle can't express (the Apple token revocation trigger) is SQL appended by hand to a generated migration, after a `--> statement-breakpoint` (the only place Alchemy splits statements).
+    - Alchemy picks one migration format per folder. Mixing our old numbered `.sql` files with Drizzle's folders would have hidden the old ones, which Alchemy then treats as rewritten history.
+    - The per-user store stays on raw SQL: its bulk upserts are hand-tuned, and its migrations must stay additive, which drizzle-kit's table rebuilds don't respect.
+  - **The October 2026 wipe** (851-2686): with no users, we started over instead of carrying the old migration history.
+    - The core database's resource ID changed (`Core` → `Core2`), so Alchemy created a fresh database from the Drizzle baseline and deleted the old one.
+    - The store's Durable Object ID changed (`UserStore` → `UserStore2`), so Alchemy deleted the old class and Cloudflare deleted every store of it. Under the same ID, a renamed class would have kept its data.
+    - R2 buckets stayed. Objects of users the new database doesn't know, and snapshot parts uploaded before the cutover, were deleted by a one-off script.
+    - Health batches still queued at cutover are dropped: ingestion skips users the core database doesn't know, so it can't create a store for nobody.
   - IDs are a type prefix plus a 26-character time-sortable code (e.g. `usr_01jb…`), with branded Effect Schema types. Times are Unix milliseconds.
   - Each user's own data (health now, mail and calendar later) lives in that user's SQLite-backed Durable Object.
   - A store migrates its own schema the first time it's used after a deploy, from migrations listed in code (`src/store/Migrations.ts`). Migrations are additive only, because a rolled-back Worker can meet a store that newer code already migrated. The migrator is ours, not Alchemy's `SqlMigrations`, so it runs in tests on `node:sqlite`.
