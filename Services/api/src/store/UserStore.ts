@@ -585,7 +585,7 @@ const maxHealthBatchesAhead = 80;
 /**
  * How many seconds a batch with `ahead` others waiting before it is held back. One that may take
  * the next free place asks again a second later. Others ask again about when they'll be among
- * those, a store applying a 5,000-line batch about every 0.8 s with 4 at once, so a backlog costs a
+ * those, a store applying a 5,000-record batch about every 0.8 s with 4 at once, so a backlog costs a
  * few store calls a second rather than one per batch each time. It stays under
  * `healthBatchWaitingMs`, so a batch held back keeps its place.
  */
