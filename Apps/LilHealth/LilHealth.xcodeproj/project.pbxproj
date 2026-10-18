@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		1A000000000000000000000A /* HealthMacApp in Frameworks */ = {isa = PBXBuildFile; productRef = 1A000000000000000000000B /* HealthMacApp */; };
+		1A0000000000000000000012 /* AppUpdates in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0000000000000000000013 /* AppUpdates */; };
 		1B000000000000000000000A /* HealthPhoneApp in Frameworks */ = {isa = PBXBuildFile; productRef = 1B000000000000000000000B /* HealthPhoneApp */; };
 /* End PBXBuildFile section */
 
@@ -35,6 +36,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1A000000000000000000000A /* HealthMacApp in Frameworks */,
+				1A0000000000000000000012 /* AppUpdates in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -88,6 +90,7 @@
 			name = LilHealth;
 			packageProductDependencies = (
 				1A000000000000000000000B /* HealthMacApp */,
+				1A0000000000000000000013 /* AppUpdates */,
 			);
 			productName = LilHealth;
 			productReference = 1A0000000000000000000004 /* lil health.app */;
@@ -287,8 +290,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = LilHealth.entitlements;
-				CODE_SIGN_IDENTITY = "Developer ID Application";
-				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -389,6 +390,10 @@
 		1A000000000000000000000B /* HealthMacApp */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HealthMacApp;
+		};
+		1A0000000000000000000013 /* AppUpdates */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AppUpdates;
 		};
 		1B000000000000000000000B /* HealthPhoneApp */ = {
 			isa = XCSwiftPackageProductDependency;
