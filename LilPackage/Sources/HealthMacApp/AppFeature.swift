@@ -21,8 +21,8 @@ public struct AppFeature {
     /// Shown in the sidebar's footer.
     public var syncStatus: SyncStatus
     public var summary: SummaryFeature.State
-    /// The account's sign-in methods, in a sheet from the account menu.
-    @Presents public var signInMethods: SignInMethodsFeature.State?
+    /// Account settings, in a sheet from the account menu.
+    @Presents public var account: AccountFeature.State?
     /// Pins from before they synced, moved up when sync starts (`movePinsUp`).
     @Shared(.summaryPins) var localPins: [String]
 
@@ -58,8 +58,8 @@ public struct AppFeature {
     case retrySyncButtonTapped
     case signedInChanged(Bool)
     case signIn(SignInFeature.Action)
-    case signInMethods(PresentationAction<SignInMethodsFeature.Action>)
-    case signInMethodsButtonTapped
+    case account(PresentationAction<AccountFeature.Action>)
+    case accountButtonTapped
     case signOutButtonTapped
     case summary(SummaryFeature.Action)
     case syncStatusChanged(SyncStatus)
@@ -119,7 +119,7 @@ public struct AppFeature {
         state.selection = .summary
         state.searchText = ""
         state.syncStatus = .idle
-        state.signInMethods = nil
+        state.account = nil
         // Pins are the account's choice, like its data, and leave with it.
         state.summary = SummaryFeature.State()
         state.$localPins.withLock { $0 = [] }
@@ -147,11 +147,11 @@ public struct AppFeature {
         // The session's updates say when it's done.
         return .run { [auth] _ in await auth.signOut() }
 
-      case .signInMethods:
+      case .account:
         return .none
 
-      case .signInMethodsButtonTapped:
-        state.signInMethods = SignInMethodsFeature.State()
+      case .accountButtonTapped:
+        state.account = AccountFeature.State()
         return .none
 
       case .summary:
@@ -178,8 +178,8 @@ public struct AppFeature {
         }
       }
     }
-    .ifLet(\.$signInMethods, action: \.signInMethods) {
-      SignInMethodsFeature()
+    .ifLet(\.$account, action: \.account) {
+      AccountFeature()
     }
   }
 

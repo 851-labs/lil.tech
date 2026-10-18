@@ -22,12 +22,16 @@ export const objectBody = (object: {
 /** Every R2 object whose key starts with `prefix`: a page of keys at a time (R2 lists up to 1,000). */
 export const listObjects = (bucket: Pick<Cloudflare.R2.ReadBucketClient, "list">, prefix: string) =>
   Effect.gen(function* () {
-    const objects: Array<{ readonly key: string; readonly uploaded: number }> = [];
+    const objects: Array<{
+      readonly key: string;
+      readonly size: number;
+      readonly uploaded: number;
+    }> = [];
     let cursor: string | undefined;
     do {
       const page = yield* bucket.list({ prefix, ...(cursor === undefined ? {} : { cursor }) });
       for (const object of page.objects) {
-        objects.push({ key: object.key, uploaded: object.uploaded.getTime() });
+        objects.push({ key: object.key, size: object.size, uploaded: object.uploaded.getTime() });
       }
       cursor = page.truncated ? page.cursor : undefined;
     } while (cursor !== undefined);

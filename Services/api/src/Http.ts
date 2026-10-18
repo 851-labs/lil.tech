@@ -14,6 +14,8 @@ import {
   Authorization,
   ConsentOutdated,
   CurrentSession,
+  DataExport,
+  DataExportNotFound,
   HealthConsent,
   type DeviceInfo,
   IdentityNotFound,
@@ -68,6 +70,10 @@ import {
 import { Status } from "./Status.ts";
 import { sessionExpiresHeader } from "./store/LiveNotices.ts";
 import { UserStores, UserStoreUnavailable } from "./store/UserStores.ts";
+import type { Snapshot } from "./store/Snapshots.ts";
+import { type ArchiveEntry, archiveSize, archiveStream } from "./sync/ExportArchive.ts";
+import { Connections } from "./core/Connections.ts";
+import type { UserId } from "./core/Ids.ts";
 import {
   InvalidPartUrl,
   type OpenedPart,
@@ -241,6 +247,16 @@ export const AuthHandlers = HttpApiBuilder.group(
 /** An access token that outlived its account (deleted within the last 15 minutes). */
 const userGone = new Unauthorized({ message: "The user no longer exists" });
 
+/** Where export download URLs point (`ExportDownloadRoute`). */
+export const exportDownloadPath = "/v1/exports/download";
+
+/**
+ * What an export download URL grants: the user's export asked for at `requestedAt`, from
+ * `snapshotId` (`-` for a store that had nothing).
+ */
+const exportKey = (userId: UserId, requestedAt: number, snapshotId: string | null) =>
+  `exports/${userId}/${requestedAt}/${snapshotId ?? "-"}`;
+
 const meIdentity = (identity: Identity) =>
   new MeIdentity({ id: identity.id, provider: identity.provider, email: identity.email });
 
@@ -265,6 +281,35 @@ export const MeHandlers = HttpApiBuilder.group(
     const apple = yield* AppleSignIn;
     const google = yield* GoogleSignIn;
     const providerSignIn = yield* ProviderSignIn;
+    const partUrls = yield* PartUrls;
+    /** An export as the app gets it: once ready, with a fresh download URL. */
+    const dataExport = (
+      userId: UserId,
+      status: {
+        readonly requestedAt: number;
+        readonly ready: boolean;
+        readonly snapshot: Snapshot | null;
+      },
+    ) =>
+      Effect.gen(function* () {
+        if (!status.ready) {
+          return new DataExport({
+            requestedAt: status.requestedAt,
+            ready: false,
+            url: null,
+            urlExpiresAt: null,
+          });
+        }
+        const token = yield* partUrls.sign(
+          exportKey(userId, status.requestedAt, status.snapshot?.id ?? null),
+        );
+        return new DataExport({
+          requestedAt: status.requestedAt,
+          ready: true,
+          url: `${yield* origin}${exportDownloadPath}?token=${token}`,
+          urlExpiresAt: (yield* Clock.currentTimeMillis) + partUrlLifetimeMs - 1000,
+        });
+      });
     /** Links the verified identity to the signed-in user. */
     const link = (identity: VerifiedIdentity) =>
       Effect.gen(function* () {
@@ -368,6 +413,22 @@ export const MeHandlers = HttpApiBuilder.group(
             Effect.catchCause((cause) => Effect.logWarning("Revoking Apple tokens failed", cause)),
           );
         }),
+      )
+      .handle("requestExport", () =>
+        Effect.gen(function* () {
+          const { userId } = yield* CurrentSession;
+          return yield* dataExport(userId, yield* stores.forUser(userId).requestExport());
+        }).pipe(Effect.catchTag("AccountDeleted", () => Effect.fail(userGone))),
+      )
+      .handle("latestExport", () =>
+        Effect.gen(function* () {
+          const { userId } = yield* CurrentSession;
+          const status = yield* stores.forUser(userId).exportStatus();
+          if (status === null) {
+            return yield* new DataExportNotFound({ message: "No export was asked for" });
+          }
+          return yield* dataExport(userId, status);
+        }).pipe(Effect.catchTag("AccountDeleted", () => Effect.fail(userGone))),
       )
       .handle("deleteMe", () =>
         Effect.gen(function* () {
@@ -704,6 +765,160 @@ export const HealthBlobDownloadRoute = signedDownloadRoute({
   open: (key, range) => HealthBlobFiles.use((files) => files.open(key, range)),
 });
 
+/** What an export archive says about itself. */
+const exportReadme = `This is everything your lil account holds, as of the date in this folder's name.
+
+account.json      Your account: profile, sign-in methods, devices, consents and connections.
+records/          Your synced records, by kind: gzip-compressed files of JSON, one record a line.
+records/manifest.json  The record files and how many records each holds.
+blobs/            Large health data (e.g. ECG voltages, workout routes), named by their SHA-256,
+                  which records refer to.
+`;
+
+/**
+ * \`GET /v1/exports/download?token=…\`: a data export's archive, from the URL \`POST /v1/me/exports\`
+ * gave. Streams a tar of the account data, the export's snapshot parts and the user's blobs
+ * (\`src/sync/ExportArchive.ts\`). Left out of the OpenAPI spec, like the other signed downloads.
+ */
+export const ExportDownloadRoute = HttpRouter.use((router) =>
+  Effect.gen(function* () {
+    const partUrls = yield* PartUrls;
+    const stores = yield* UserStores;
+    const users = yield* Users;
+    const identities = yield* Identities;
+    const devices = yield* Devices;
+    const consents = yield* Consents;
+    const connections = yield* Connections;
+    yield* router.add(
+      "GET",
+      exportDownloadPath,
+      Effect.gen(function* () {
+        const { token } = yield* HttpServerRequest.schemaSearchParams(
+          Schema.Struct({ token: Schema.String }),
+        ).pipe(Effect.mapError((error) => new InvalidPartUrl({ message: error.message })));
+        const key = yield* partUrls.verify(token, "exports/");
+        const [, user = "", requestedAt = "", snapshotId = "-"] = key.split("/");
+        const userId = user as UserId;
+        const gone = HttpServerResponse.jsonUnsafe(
+          { _tag: "DataExportGone", message: "Ask for the export again" },
+          { status: 410 },
+        );
+        const found = yield* users.findById(userId);
+        if (Option.isNone(found)) return gone;
+        // A replaced snapshot stays a week (`snapshotPolicy.replacedRetention`), far longer than
+        // the URL works.
+        const snapshot =
+          snapshotId === "-" ? null : yield* stores.forUser(userId).snapshot(snapshotId);
+        if (snapshotId !== "-" && snapshot === null) return gone;
+        const [userIdentities, userDevices, healthConsent, userConnections] = yield* Effect.all(
+          [
+            identities.listForUser(userId),
+            devices.listForUser(userId),
+            consents.current(userId, "health"),
+            connections.listForUser(userId),
+          ],
+          { concurrency: "unbounded" },
+        );
+        const now = yield* Clock.currentTimeMillis;
+        const json = (value: unknown) => new TextEncoder().encode(JSON.stringify(value, null, 2));
+        const account = json({
+          exportedAt: new Date(now).toISOString(),
+          user: found.value,
+          identities: userIdentities.map(({ provider, email, emailVerified, createdAt }) => ({
+            provider,
+            email,
+            emailVerified,
+            createdAt,
+          })),
+          devices: userDevices.map(({ app, platform, name, createdAt, lastSeenAt }) => ({
+            app,
+            platform,
+            name,
+            createdAt,
+            lastSeenAt,
+          })),
+          consents: { health: Option.getOrNull(healthConsent) },
+          // Without credentials, which are only good to the server.
+          connections: userConnections.map(
+            ({ kind, accountRef, displayName, scopes, status, createdAt, updatedAt }) => ({
+              kind,
+              accountRef,
+              displayName,
+              scopes,
+              status,
+              createdAt,
+              updatedAt,
+            }),
+          ),
+        });
+        const folder = `lil-export-${new Date(Number(requestedAt)).toISOString().slice(0, 10)}`;
+        const parts = yield* SnapshotParts;
+        const records = (snapshot?.entities ?? []).flatMap(({ entity, parts: files }) =>
+          files.map((part, index) => ({
+            entity,
+            part,
+            name: `records/${entity}/${String(index + 1).padStart(5, "0")}.ndjson.gz`,
+          })),
+        );
+        const manifest = json({
+          snapshot:
+            snapshot === null
+              ? null
+              : { seq: snapshot.seq, createdAt: new Date(snapshot.createdAt).toISOString() },
+          files: records.map(({ entity, part, name }) => ({
+            entity,
+            file: name,
+            records: part.records,
+            sha256: part.sha256,
+          })),
+        });
+        const blobs = yield* (yield* HealthBlobFiles).list(healthBlobPrefix(userId));
+        const blobFiles = yield* HealthBlobFiles;
+        const open =
+          (opened: Effect.Effect<Option.Option<{ readonly body: ReadableStream<Uint8Array> }>>) =>
+          () =>
+            Effect.runPromise(
+              opened.pipe(Effect.map((file) => Option.getOrNull(file)?.body ?? null)),
+            );
+        const readme = new TextEncoder().encode(exportReadme);
+        const entries: Array<ArchiveEntry> = [
+          { name: `${folder}/README.txt`, size: readme.length, content: readme },
+          { name: `${folder}/account.json`, size: account.length, content: account },
+          { name: `${folder}/records/manifest.json`, size: manifest.length, content: manifest },
+          ...records.map(({ part, name }) => ({
+            name: `${folder}/${name}`,
+            size: part.bytes,
+            content: open(parts.open(part.key, undefined)),
+          })),
+          ...blobs.map((blob) => ({
+            name: `${folder}/blobs/${blob.key.slice(healthBlobPrefix(userId).length)}`,
+            size: blob.size,
+            content: open(blobFiles.open(blob.key, undefined)),
+          })),
+        ];
+        return HttpServerResponse.raw(archiveStream(entries, Math.floor(now / 1000)), {
+          headers: {
+            "content-type": "application/x-tar",
+            "content-length": String(archiveSize(entries)),
+            "content-disposition": `attachment; filename="${folder}.tar"`,
+            "cache-control": "private, no-store",
+          },
+        });
+      }).pipe(
+        Effect.catchTag("InvalidPartUrl", () =>
+          Effect.succeed(
+            HttpServerResponse.jsonUnsafe(
+              { _tag: "InvalidPartUrl", message: "The URL is invalid or expired" },
+              { status: 401 },
+            ),
+          ),
+        ),
+        Effect.orDie,
+      ),
+    );
+  }),
+);
+
 /**
  * `GET /v1/sync/live`: a WebSocket of live sync notices, handed to the user's store
  * (`docs/SYNC.md`). Authenticated with the access token in the `Authorization` header like other
@@ -774,6 +989,7 @@ export const WorkerHttpLayer = Layer.mergeAll(
   AppleWebCallbackRoute,
   SnapshotPartRoute,
   HealthBlobDownloadRoute,
+  ExportDownloadRoute,
   LiveRoute,
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),

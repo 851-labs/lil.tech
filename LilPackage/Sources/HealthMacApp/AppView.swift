@@ -32,8 +32,8 @@ public struct AppView: View {
       }
     }
     .frame(minWidth: 720, minHeight: 480)
-    .sheet(item: $store.scope(\.signInMethods, action: \.signInMethods)) { store in
-      SignInMethodsSheet(store: store)
+    .sheet(item: $store.scope(\.account, action: \.account)) { store in
+      AccountSheet(store: store)
     }
     .task { await store.send(.task).finish() }
   }
@@ -84,7 +84,7 @@ struct SidebarView: View {
         Divider()
         SyncFooterView(
           status: store.syncStatus, retry: { store.send(.retrySyncButtonTapped) },
-          showSignInMethods: { store.send(.signInMethodsButtonTapped) },
+          showAccount: { store.send(.accountButtonTapped) },
           signOut: { store.send(.signOutButtonTapped) })
       }
     }

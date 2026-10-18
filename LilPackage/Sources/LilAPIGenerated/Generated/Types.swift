@@ -44,6 +44,12 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /v1/me/identities/{id}`.
     /// - Remark: Generated from `#/paths//v1/me/identities/{id}/delete(unlinkIdentity)`.
     func unlinkIdentity(_ input: Operations.UnlinkIdentity.Input) async throws -> Operations.UnlinkIdentity.Output
+    /// - Remark: HTTP `POST /v1/me/exports`.
+    /// - Remark: Generated from `#/paths//v1/me/exports/post(requestExport)`.
+    func requestExport(_ input: Operations.RequestExport.Input) async throws -> Operations.RequestExport.Output
+    /// - Remark: HTTP `GET /v1/me/exports/latest`.
+    /// - Remark: Generated from `#/paths//v1/me/exports/latest/get(latestExport)`.
+    func latestExport(_ input: Operations.LatestExport.Input) async throws -> Operations.LatestExport.Output
     /// - Remark: HTTP `GET /v1/sync/changes`.
     /// - Remark: Generated from `#/paths//v1/sync/changes/get(syncChanges)`.
     func syncChanges(_ input: Operations.SyncChanges.Input) async throws -> Operations.SyncChanges.Output
@@ -178,6 +184,16 @@ extension APIProtocol {
             path: path,
             headers: headers
         ))
+    }
+    /// - Remark: HTTP `POST /v1/me/exports`.
+    /// - Remark: Generated from `#/paths//v1/me/exports/post(requestExport)`.
+    public func requestExport(headers: Operations.RequestExport.Input.Headers = .init()) async throws -> Operations.RequestExport.Output {
+        try await requestExport(Operations.RequestExport.Input(headers: headers))
+    }
+    /// - Remark: HTTP `GET /v1/me/exports/latest`.
+    /// - Remark: Generated from `#/paths//v1/me/exports/latest/get(latestExport)`.
+    public func latestExport(headers: Operations.LatestExport.Input.Headers = .init()) async throws -> Operations.LatestExport.Output {
+        try await latestExport(Operations.LatestExport.Input(headers: headers))
     }
     /// - Remark: HTTP `GET /v1/sync/changes`.
     /// - Remark: Generated from `#/paths//v1/sync/changes/get(syncChanges)`.

@@ -59,6 +59,13 @@ export class HealthBlobFiles extends Context.Service<
       key: string,
       range: PartRange | undefined,
     ) => Effect.Effect<Option.Option<OpenedPart>>;
+    /** Every blob whose key starts with `prefix`, e.g. a user's, with its size. */
+    readonly list: (
+      prefix: string,
+    ) => Effect.Effect<
+      ReadonlyArray<{ readonly key: string; readonly size: number }>,
+      BatchFilesUnavailable
+    >;
     /** Deletes every blob whose key starts with `prefix`, e.g. a deleted user's. */
     readonly deletePrefix: (prefix: string) => Effect.Effect<void, BatchFilesUnavailable>;
   }

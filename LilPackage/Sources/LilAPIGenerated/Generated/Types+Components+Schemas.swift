@@ -974,6 +974,68 @@ extension Components {
                 case at
             }
         }
+        /// - Remark: Generated from `#/components/schemas/DataExportNotFound`.
+        public struct DataExportNotFound: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/DataExportNotFound/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case dataExportNotFound = "DataExportNotFound"
+            }
+            /// - Remark: Generated from `#/components/schemas/DataExportNotFound/_tag`.
+            public var _tag: Components.Schemas.DataExportNotFound._TagPayload
+            /// - Remark: Generated from `#/components/schemas/DataExportNotFound/message`.
+            public var message: Swift.String
+            /// Creates a new `DataExportNotFound`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.DataExportNotFound._TagPayload,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/DataExport`.
+        public struct DataExport: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/DataExport/requestedAt`.
+            public var requestedAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/DataExport/ready`.
+            public var ready: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/DataExport/url`.
+            public var url: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/DataExport/urlExpiresAt`.
+            public var urlExpiresAt: Swift.Int?
+            /// Creates a new `DataExport`.
+            ///
+            /// - Parameters:
+            ///   - requestedAt:
+            ///   - ready:
+            ///   - url:
+            ///   - urlExpiresAt:
+            public init(
+                requestedAt: Swift.Int,
+                ready: Swift.Bool,
+                url: Swift.String? = nil,
+                urlExpiresAt: Swift.Int? = nil
+            ) {
+                self.requestedAt = requestedAt
+                self.ready = ready
+                self.url = url
+                self.urlExpiresAt = urlExpiresAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case requestedAt
+                case ready
+                case url
+                case urlExpiresAt
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/IdentityNotFound`.
         public struct IdentityNotFound: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/IdentityNotFound/_tag`.
