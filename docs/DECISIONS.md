@@ -52,7 +52,7 @@
 - **Signing:** Release builds are signed with Developer ID, with the hardened runtime and a secure timestamp.
 - **Notarization:** `notarytool` with an App Store Connect API key, saved in the keychain profile `lil-notary`.
 - **Packaging:** a signed, notarized DMG, used both for first downloads and as the Sparkle update.
-- **Updates:** Sparkle, with EdDSA-signed updates. The private key lives only in Alexandru's login keychain (backed up); the public key is in the app's Info.plist.
+- **Updates:** Sparkle, with EdDSA-signed updates. Each app has its own key, in Alexandru's login keychain (account `lil-<app>`) and backed up in 1Password. The public key is in the app's Info.plist. lil messages' first key was lost without a backup and replaced in October 2026 (851-2685). Installed copies still update, through Sparkle's key rotation for Developer ID-signed apps, as long as the Developer ID certificate doesn't change in the same release.
 - **Releases:** GitHub Releases host the DMGs. Each app's appcast is committed to the repo (`appcasts/<app>.xml`) and served from `raw.githubusercontent.com`, because GitHub's "latest release" URL is repo-wide.
 
 ### iOS apps
