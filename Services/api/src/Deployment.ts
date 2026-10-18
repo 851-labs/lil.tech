@@ -1,4 +1,5 @@
-import { Config, Context, Effect } from "effect";
+import * as Alchemy from "alchemy";
+import { Config, Context, Effect, Option } from "effect";
 import { Environment } from "./Status.ts";
 
 /** Which deployment is serving requests. */
@@ -34,3 +35,19 @@ export const environmentForStage = (stage: string): Environment => {
   if (stage === "prod" || stage === "staging") return stage;
   return stage.startsWith("dev_") ? "local" : "preview";
 };
+
+/**
+ * R2 bucket props that let `alchemy destroy` delete a preview's buckets even when they hold
+ * objects (`forceDestroy`). R2 refuses to delete a non-empty bucket, which left previews' buckets
+ * behind when their PRs closed. Staging and prod keep that refusal as a safety net. Alchemy also
+ * evaluates props inside the running Worker, where there's no `Stage`.
+ */
+export const disposableInPreviews = <Props extends object>(props: Props) =>
+  Effect.gen(function* () {
+    const stage = yield* Effect.serviceOption(Alchemy.Stage);
+    const preview = Option.isSome(stage) && environmentForStage(stage.value) === "preview";
+    const resolved: Props & { readonly forceDestroy?: boolean } = preview
+      ? { ...props, forceDestroy: true }
+      : props;
+    return resolved;
+  });

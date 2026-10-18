@@ -10,7 +10,7 @@ import { HttpRouter } from "effect/http";
 import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
-import { Deployment, environmentForStage } from "../src/Deployment.ts";
+import { Deployment, disposableInPreviews, environmentForStage } from "../src/Deployment.ts";
 import { Auth } from "../src/auth/Auth.ts";
 import { ingestHealthBatch } from "../src/health/HealthIngestion.ts";
 import { maxDevUsers } from "../src/auth/DevSignIn.ts";
@@ -2038,6 +2038,29 @@ describe("apiWorkerProps", () => {
         Effect.exit,
       );
       assert.isTrue(Exit.isFailure(exit));
+    }),
+  );
+});
+
+describe("disposableInPreviews", () => {
+  const props = disposableInPreviews({ lifecycleRules: [] });
+
+  it.effect("lets previews and personal stages delete non-empty buckets", () =>
+    Effect.gen(function* () {
+      for (const stage of ["pr-12", "live_tuftlord"]) {
+        const resolved = yield* props.pipe(Effect.provideService(Alchemy.Stage, stage));
+        assert.deepStrictEqual(resolved, { lifecycleRules: [], forceDestroy: true }, stage);
+      }
+    }),
+  );
+
+  it.effect("keeps R2's refusal in staging, prod and the running Worker", () =>
+    Effect.gen(function* () {
+      for (const stage of ["staging", "prod"]) {
+        const resolved = yield* props.pipe(Effect.provideService(Alchemy.Stage, stage));
+        assert.deepStrictEqual(resolved, { lifecycleRules: [] }, stage);
+      }
+      assert.deepStrictEqual(yield* props, { lifecycleRules: [] });
     }),
   );
 });

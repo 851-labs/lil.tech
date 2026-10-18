@@ -111,6 +111,9 @@ jobs:
           fi
 
   destroy-preview:
+    permissions:
+      contents: read
+      pull-requests: write
     if: >-
       github.event_name == 'pull_request' &&
       github.event.action == 'closed' &&
@@ -128,6 +131,16 @@ jobs:
       # Destroying a stage that was never deployed is a no-op.
       - run: pnpm exec alchemy destroy --stage "$STAGE" --yes
         working-directory: Services/api
+      # A failed teardown would otherwise only be a red run on a closed PR, and leave resources
+      # (and costs) behind.
+      - name: Comment if the teardown failed
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh pr comment "$PR" --body "**Preview teardown failed** for \`$STAGE\`, so some of its resources are still in Cloudflare. See $RUN_URL, fix the cause, then rerun the failed job."
 
   deploy:
     needs: changes
