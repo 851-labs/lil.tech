@@ -10,7 +10,11 @@ struct LilHealthApp: App {
     AppFeature()
   }
 
-  @State private var updater = AppUpdater()
+  #if !DEBUG
+    // Debug builds (from Xcode, or scripted against a preview) don't update themselves to the
+    // released app.
+    @State private var updater = AppUpdater()
+  #endif
 
   init() {
     prepareDependencies {
@@ -31,7 +35,9 @@ struct LilHealthApp: App {
       AppView(store: Self.store)
     }
     .commands {
-      CheckForUpdatesCommands(updater: updater)
+      #if !DEBUG
+        CheckForUpdatesCommands(updater: updater)
+      #endif
       CommandGroup(after: .appSettings) {
         SignOutCommand(store: Self.store)
       }

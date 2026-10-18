@@ -51,6 +51,8 @@ The DMG is written to `build/releases/<app>/<version>/`.
 
 Pass `--skip-notarize` to test everything except notarization.
 
+Don't hand out a build before it's published: its build number is the commit count, and Sparkle only offers an installed copy releases with a higher one. Debug builds have no updater.
+
 ## Publishing a release
 
 1. **Build.** Build the notarized DMG with `scripts/release <app> <version>` from a clean `main`. Note the build number it prints; it's the commit count.

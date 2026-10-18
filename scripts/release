@@ -25,11 +25,16 @@ case "$app" in
     scheme=LilMessages
     product="lil messages"
     dmg_name=lil-messages
+    # Signed with the Developer ID certificate alone: it claims no entitlements.
+    provisioned=false
     ;;
   health)
     scheme=LilHealth
     product="lil health"
     dmg_name=lil-health
+    # Its keychain access group (the data protection Keychain holds the session) needs a
+    # Developer ID provisioning profile, which Xcode makes and renews.
+    provisioned=true
     ;;
   *)
     echo "unknown app: $app" >&2
@@ -38,6 +43,12 @@ case "$app" in
 esac
 
 cd "$(dirname "$0")/.."
+signing_style=manual
+provisioning=()
+if $provisioned; then
+  signing_style=automatic
+  provisioning=(-allowProvisioningUpdates)
+fi
 team=WH4QW9ND3J
 build_number=$(git rev-list --count HEAD)
 out="build/releases/$app/$version"
@@ -47,9 +58,11 @@ dmg="$out/$dmg_name-$version.dmg"
 
 rm -rf "$out"
 mkdir -p "$out"
+trap 'rm -rf "$out/DerivedData"' EXIT
 
 # In its own derived data: a release builds from scratch, so nothing stale from Xcode's builds
-# (such as a package graph it has cached) can break or end up in it.
+# (such as a package graph it has cached) can break or end up in it. Package checkouts are kept
+# between releases, apart from Xcode's.
 echo "==> Archiving $product $version ($build_number)"
 xcodebuild archive \
   -workspace Lil.xcworkspace \
@@ -58,7 +71,9 @@ xcodebuild archive \
   -destination 'generic/platform=macOS' \
   -archivePath "$archive" \
   -derivedDataPath "$out/DerivedData" \
+  -clonedSourcePackagesDirPath build/releases/SourcePackages \
   -skipMacroValidation \
+  ${provisioning[@]+"${provisioning[@]}"} \
   MARKETING_VERSION="$version" \
   CURRENT_PROJECT_VERSION="$build_number" \
   -quiet
@@ -72,7 +87,7 @@ cat > "$out/ExportOptions.plist" <<PLIST
   <key>method</key>
   <string>developer-id</string>
   <key>signingStyle</key>
-  <string>manual</string>
+  <string>$signing_style</string>
   <key>signingCertificate</key>
   <string>Developer ID Application</string>
   <key>teamID</key>
@@ -84,6 +99,7 @@ xcodebuild -exportArchive \
   -archivePath "$archive" \
   -exportPath "$export_dir" \
   -exportOptionsPlist "$out/ExportOptions.plist" \
+  ${provisioning[@]+"${provisioning[@]}"} \
   -quiet
 
 echo "==> Building DMG"
@@ -105,5 +121,4 @@ else
   echo "==> Skipping notarization"
 fi
 
-rm -rf "$out/DerivedData"
 echo "==> $dmg"
