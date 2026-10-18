@@ -110,6 +110,7 @@ let package = Package(
       name: "HealthDatabaseTests",
       dependencies: [
         "HealthDatabase",
+        "LilTestSupport",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ]
     ),
@@ -186,6 +187,7 @@ let package = Package(
         "GzipFiles",
         "HealthUpload",
         "LilAPI",
+        "LilTestSupport",
       ]
     ),
     .target(
@@ -230,6 +232,7 @@ let package = Package(
       name: "LilAuthTests",
       dependencies: [
         "LilAuth",
+        "LilTestSupport",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         .product(name: "HTTPTypes", package: "swift-http-types"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
@@ -246,11 +249,20 @@ let package = Package(
         .product(name: "SQLiteData", package: "sqlite-data"),
       ]
     ),
+    // Clocks and waiting for test targets (`ManualClock`, `RecordingClock`, `eventually`).
+    .target(
+      name: "LilTestSupport",
+      dependencies: [
+        .product(name: "Dependencies", package: "swift-dependencies")
+      ],
+      path: "Tests/LilTestSupport"
+    ),
     .testTarget(
       name: "LilSyncTests",
       dependencies: [
         "GzipFiles",
         "LilSync",
+        "LilTestSupport",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         .product(name: "HTTPTypes", package: "swift-http-types"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
@@ -287,6 +299,7 @@ let package = Package(
       name: "MessagesDatabaseTests",
       dependencies: [
         "MessagesDatabase",
+        "LilTestSupport",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ]
     ),

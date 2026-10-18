@@ -2,6 +2,7 @@ import Dependencies
 import Foundation
 import GzipFiles
 import HealthKit
+import LilTestSupport
 import Testing
 
 @testable import HealthUpload
@@ -1079,7 +1080,8 @@ struct HealthBackfillTests {
     let health = FakeHealth(pages: [temperature.id: 1, sleep.id: 1])
     let storage = HealthBackfillStorage.inMemory()
     let (limited, attempts) = (LockIsolated(false), LockIsolated(0))
-    let clock = TestClock()
+    // Never advanced: syncing changes waits for the limit by the date, not by sleeping.
+    let clock = ManualClock()
     let date = LockIsolated(Date(timeIntervalSince1970: 1_760_400_000))
     let server = FakeServer()
     let backfill = rateLimitedBackfill(
@@ -1477,32 +1479,5 @@ struct HealthBackfillTests {
     #expect(!HealthBackfill.isOffline(HealthBatchUploader.Rejected(statusCode: 503)))
     // A slow server isn't the phone being offline.
     #expect(!HealthBackfill.isOffline(URLError(.timedOut)))
-  }
-}
-
-/// An immediate clock that records how long each sleep was for, and runs `onSleep` during it.
-/// Not `ImmediateClock` itself: its sleeps wait on background-priority tasks, which tests that
-/// spin waiting for a state can starve when they run alongside.
-private final class RecordingClock: Clock, Sendable {
-  typealias Instant = ImmediateClock<Duration>.Instant
-
-  private let onSleep: @Sendable (Duration) async -> Void
-  private let current = LockIsolated(Instant())
-  let sleeps = LockIsolated<[Duration]>([])
-
-  init(onSleep: @escaping @Sendable (Duration) async -> Void = { _ in }) {
-    self.onSleep = onSleep
-  }
-
-  var now: Instant { current.value }
-  var minimumResolution: Duration { .zero }
-
-  func sleep(until deadline: Instant, tolerance: Duration?) async throws {
-    let duration = now.duration(to: deadline)
-    sleeps.withValue { $0.append(duration) }
-    await onSleep(duration)
-    try Task.checkCancellation()
-    current.withValue { $0 = max($0, deadline) }
-    await Task.yield()
   }
 }
