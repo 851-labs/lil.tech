@@ -1,6 +1,9 @@
 import { Clock, Context, Effect, Layer, Schema } from "effect";
-import { SqlClient, type SqlError } from "effect/sql";
+import { eq, sql } from "drizzle-orm";
+import type { SqlError } from "effect/sql";
+import { CoreDb, query } from "./CoreDb.ts";
 import { ConnectionId, newConnectionId, UserId } from "./Ids.ts";
+import { connections } from "./Schema.ts";
 
 /** Kinds of data source. Apple Health now; mail and calendar accounts later. */
 export const ConnectionKind = Schema.Literals([
@@ -34,11 +37,8 @@ export class Connection extends Schema.Class<Connection>("lil/api/core/Connectio
   updatedAt: Schema.Number,
 }) {}
 
-const decodeConnection = (row: Record<string, unknown>) =>
-  Schema.decodeUnknownEffect(Connection)({
-    ...row,
-    scopes: JSON.parse(String(row["scopes"])),
-  }).pipe(Effect.orDie);
+const decodeConnection = (row: unknown) =>
+  Schema.decodeUnknownEffect(Connection)(row).pipe(Effect.orDie);
 
 export class Connections extends Context.Service<
   Connections,
@@ -68,11 +68,20 @@ export class Connections extends Context.Service<
   static readonly layer = Layer.effect(
     Connections,
     Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      const columns = sql.literal(`id, user_id AS "userId", kind, account_ref AS "accountRef",
-        display_name AS "displayName", scopes, credentials, status,
-        created_at AS "createdAt", updated_at AS "updatedAt"`);
-      const select = sql`SELECT ${columns} FROM connections`;
+      const db = yield* CoreDb;
+      const columns = {
+        id: connections.id,
+        userId: connections.userId,
+        kind: connections.kind,
+        accountRef: connections.accountRef,
+        displayName: connections.displayName,
+        scopes: connections.scopes,
+        credentials: connections.credentials,
+        status: connections.status,
+        createdAt: connections.createdAt,
+        updatedAt: connections.updatedAt,
+      };
+      const excluded = (column: { readonly name: string }) => sql.raw(`excluded.${column.name}`);
 
       return Connections.of({
         connect: Effect.fn("Connections.connect")(function* (input) {
@@ -85,19 +94,33 @@ export class Connections extends Context.Service<
             createdAt: now,
             updatedAt: now,
           });
-          const rows = yield* sql`INSERT INTO connections
-            (id, user_id, kind, account_ref, display_name, scopes, credentials, status, created_at,
-              updated_at)
-            VALUES (${candidate.id}, ${candidate.userId}, ${candidate.kind}, ${candidate.accountRef},
-              ${candidate.displayName}, ${JSON.stringify(candidate.scopes)}, ${candidate.credentials},
-              'active', ${now}, ${now})
-            ON CONFLICT (user_id, kind, account_ref) DO UPDATE SET
-              display_name = excluded.display_name,
-              scopes = excluded.scopes,
-              credentials = excluded.credentials,
-              status = 'active',
-              updated_at = excluded.updated_at
-            RETURNING ${columns}`;
+          const rows = yield* query(
+            db
+              .insert(connections)
+              .values({
+                id: candidate.id,
+                userId: candidate.userId,
+                kind: candidate.kind,
+                accountRef: candidate.accountRef,
+                displayName: candidate.displayName,
+                scopes: candidate.scopes,
+                credentials: candidate.credentials,
+                status: "active",
+                createdAt: now,
+                updatedAt: now,
+              })
+              .onConflictDoUpdate({
+                target: [connections.userId, connections.kind, connections.accountRef],
+                set: {
+                  displayName: excluded(connections.displayName),
+                  scopes: excluded(connections.scopes),
+                  credentials: excluded(connections.credentials),
+                  status: "active",
+                  updatedAt: excluded(connections.updatedAt),
+                },
+              })
+              .returning(columns),
+          );
           const row = rows[0];
           if (row === undefined) {
             return yield* Effect.die(new Error("Upserting a connection returned no row"));
@@ -105,15 +128,23 @@ export class Connections extends Context.Service<
           return yield* decodeConnection(row);
         }),
         listForUser: Effect.fn("Connections.listForUser")(function* (userId) {
-          const rows = yield* sql`${select} WHERE user_id = ${userId} ORDER BY created_at, id`;
+          const rows = yield* query(
+            db
+              .select(columns)
+              .from(connections)
+              .where(eq(connections.userId, userId))
+              .orderBy(connections.createdAt, connections.id),
+          );
           return yield* Effect.forEach(rows, decodeConnection);
         }),
         setStatus: Effect.fn("Connections.setStatus")(function* (id, status) {
           const now = yield* Clock.currentTimeMillis;
-          yield* sql`UPDATE connections SET status = ${status}, updated_at = ${now} WHERE id = ${id}`;
+          yield* query(
+            db.update(connections).set({ status, updatedAt: now }).where(eq(connections.id, id)),
+          );
         }),
         delete: Effect.fn("Connections.delete")(function* (id) {
-          yield* sql`DELETE FROM connections WHERE id = ${id}`;
+          yield* query(db.delete(connections).where(eq(connections.id, id)));
         }),
       });
     }),

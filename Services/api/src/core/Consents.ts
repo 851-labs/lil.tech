@@ -1,6 +1,9 @@
 import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
-import { SqlClient, type SqlError } from "effect/sql";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import type { SqlError } from "effect/sql";
+import { CoreDb, query } from "./CoreDb.ts";
 import type { UserId } from "./Ids.ts";
+import { consents } from "./Schema.ts";
 
 /** What a user can consent to. Health: processing their Health data (GDPR Article 9). */
 export const ConsentType = Schema.Literals(["health"]);
@@ -47,12 +50,22 @@ export class Consents extends Context.Service<
   static readonly layer = Layer.effect(
     Consents,
     Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
+      const db = yield* CoreDb;
       const current = Effect.fn("Consents.current")(function* (userId: UserId, type: ConsentType) {
-        const rows = yield* sql<{ policyVersion: string; grantedAt: number }>`
-          SELECT policy_version AS "policyVersion", granted_at AS "grantedAt" FROM consents
-          WHERE user_id = ${userId} AND type = ${type} AND withdrawn_at IS NULL
-          ORDER BY granted_at DESC, id DESC LIMIT 1`;
+        const rows = yield* query(
+          db
+            .select({ policyVersion: consents.policyVersion, grantedAt: consents.grantedAt })
+            .from(consents)
+            .where(
+              and(
+                eq(consents.userId, userId),
+                eq(consents.type, type),
+                isNull(consents.withdrawnAt),
+              ),
+            )
+            .orderBy(desc(consents.grantedAt), desc(consents.id))
+            .limit(1),
+        );
         return Option.fromNullishOr(rows[0]);
       });
       return Consents.of({
@@ -60,18 +73,33 @@ export class Consents extends Context.Service<
         grant: Effect.fn("Consents.grant")(function* (userId, type, policyVersion) {
           const grantedAt = yield* Clock.currentTimeMillis;
           // One statement, so requests that race (an app retrying) record it once.
-          yield* sql`INSERT INTO consents (user_id, type, policy_version, granted_at)
-            SELECT ${userId}, ${type}, ${policyVersion}, ${grantedAt}
-            WHERE NOT EXISTS (
-              SELECT 1 FROM consents WHERE user_id = ${userId} AND type = ${type}
-                AND policy_version = ${policyVersion} AND withdrawn_at IS NULL)`;
+          yield* query(
+            db.run(sql`INSERT INTO ${consents}
+              (${sql.identifier(consents.userId.name)}, ${sql.identifier(consents.type.name)},
+                ${sql.identifier(consents.policyVersion.name)}, ${sql.identifier(consents.grantedAt.name)})
+              SELECT ${userId}, ${type}, ${policyVersion}, ${grantedAt}
+              WHERE NOT EXISTS (
+                SELECT 1 FROM ${consents} WHERE ${consents.userId} = ${userId}
+                  AND ${consents.type} = ${type} AND ${consents.policyVersion} = ${policyVersion}
+                  AND ${consents.withdrawnAt} IS NULL)`),
+          );
           const given = yield* current(userId, type);
           return Option.getOrElse(given, () => ({ policyVersion, grantedAt }));
         }),
         withdraw: Effect.fn("Consents.withdraw")(function* (userId, type) {
           const now = yield* Clock.currentTimeMillis;
-          yield* sql`UPDATE consents SET withdrawn_at = ${now}
-            WHERE user_id = ${userId} AND type = ${type} AND withdrawn_at IS NULL`;
+          yield* query(
+            db
+              .update(consents)
+              .set({ withdrawnAt: now })
+              .where(
+                and(
+                  eq(consents.userId, userId),
+                  eq(consents.type, type),
+                  isNull(consents.withdrawnAt),
+                ),
+              ),
+          );
         }),
       });
     }),

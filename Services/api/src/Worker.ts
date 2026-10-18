@@ -182,7 +182,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       signingKey: yield* readAppleSignInKey,
       tokenSecret: yield* readSecret("LIL_TOKEN_KEY"),
     });
-    // One for every part of the Worker: Drizzle (`CoreDb`) and `SqlClient` over the D1 binding.
+    // One for every part of the Worker: Drizzle (`CoreDb`) over the D1 binding.
     const core = coreDatabase(yield* Cloudflare.D1.QueryDatabase(CoreDatabase));
     const userStores = UserStores.fromNamespace(yield* UserStore);
     const health = yield* HealthIngestionWorker(userStores, Users.layer.pipe(Layer.provide(core)));

@@ -1,6 +1,9 @@
 import { Context, Effect, Layer, Schema } from "effect";
-import { SqlClient, type SqlError } from "effect/sql";
+import { eq, inArray, lte } from "drizzle-orm";
+import type { SqlError } from "effect/sql";
+import { CoreDb, query } from "./CoreDb.ts";
 import { IdentityId } from "./Ids.ts";
+import { appleTokenRevocations } from "./Schema.ts";
 
 /** An Apple refresh token (encrypted) waiting to be revoked, from a deleted account. */
 export class AppleTokenRevocation extends Schema.Class<AppleTokenRevocation>(
@@ -18,8 +21,8 @@ const decodeRevocation = Schema.decodeUnknownEffect(AppleTokenRevocation);
 
 /**
  * Apple tokens to revoke (`AppleTokens.ts`), kept past their identity's deletion until they are.
- * Deleting an identity with a token queues it, from a trigger
- * (`migrations/core/0007_apple_token_revocation_trigger.sql`).
+ * Deleting an identity with a token queues it, from a trigger added by hand to the core
+ * baseline migration (`migrations/core/*_baseline/migration.sql`).
  */
 export class AppleTokenRevocations extends Context.Service<
   AppleTokenRevocations,
@@ -46,9 +49,13 @@ export class AppleTokenRevocations extends Context.Service<
   static readonly layer = Layer.effect(
     AppleTokenRevocations,
     Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      const select = sql`SELECT id, refresh_token AS "refreshToken", client_id AS "clientId",
-        attempts FROM apple_token_revocations`;
+      const db = yield* CoreDb;
+      const columns = {
+        id: appleTokenRevocations.id,
+        refreshToken: appleTokenRevocations.refreshToken,
+        clientId: appleTokenRevocations.clientId,
+        attempts: appleTokenRevocations.attempts,
+      };
       const decodeAll = (rows: ReadonlyArray<unknown>) =>
         Effect.forEach(rows, (row) => decodeRevocation(row).pipe(Effect.orDie));
 
@@ -56,22 +63,37 @@ export class AppleTokenRevocations extends Context.Service<
         find: Effect.fn("AppleTokenRevocations.find")(function* (ids) {
           if (ids.length === 0) return [];
           return yield* decodeAll(
-            yield* sql`${select} WHERE id IN (SELECT value FROM json_each(${JSON.stringify(ids)}))`,
+            yield* query(
+              db
+                .select(columns)
+                .from(appleTokenRevocations)
+                .where(inArray(appleTokenRevocations.id, [...ids])),
+            ),
           );
         }),
         listDue: Effect.fn("AppleTokenRevocations.listDue")(function* (now, limit) {
           return yield* decodeAll(
-            yield* sql`${select} WHERE next_attempt_at <= ${now}
-              ORDER BY next_attempt_at, id LIMIT ${limit}`,
+            yield* query(
+              db
+                .select(columns)
+                .from(appleTokenRevocations)
+                .where(lte(appleTokenRevocations.nextAttemptAt, now))
+                .orderBy(appleTokenRevocations.nextAttemptAt, appleTokenRevocations.id)
+                .limit(limit),
+            ),
           );
         }),
         remove: Effect.fn("AppleTokenRevocations.remove")(function* (id) {
-          yield* sql`DELETE FROM apple_token_revocations WHERE id = ${id}`;
+          yield* query(db.delete(appleTokenRevocations).where(eq(appleTokenRevocations.id, id)));
         }),
         postpone: Effect.fn("AppleTokenRevocations.postpone")(
           function* (id, attempts, nextAttemptAt) {
-            yield* sql`UPDATE apple_token_revocations
-              SET attempts = ${attempts}, next_attempt_at = ${nextAttemptAt} WHERE id = ${id}`;
+            yield* query(
+              db
+                .update(appleTokenRevocations)
+                .set({ attempts, nextAttemptAt })
+                .where(eq(appleTokenRevocations.id, id)),
+            );
           },
         ),
       });

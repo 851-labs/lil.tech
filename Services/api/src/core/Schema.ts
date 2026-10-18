@@ -114,7 +114,11 @@ export const connections = sqliteTable(
     kind: text().notNull(), // apple_health, google, microsoft, imap, caldav
     accountRef: text("account_ref").notNull(), // the account at the provider
     displayName: text("display_name"),
-    scopes: text().notNull().default("[]"), // JSON array of granted scopes
+    // JSON array of granted scopes.
+    scopes: text({ mode: "json" })
+      .$type<ReadonlyArray<string>>()
+      .notNull()
+      .default(sql`'[]'`),
     credentials: text(), // encrypted; null when the source needs none (Apple Health)
     status: text().notNull().default("active"), // active, needs_reauth, revoked
     createdAt: integer("created_at").notNull(),
