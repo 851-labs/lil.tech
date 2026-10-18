@@ -1,7 +1,7 @@
 import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
 import { and, eq } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
-import { CoreDb, query } from "./CoreDb.ts";
+import { CoreDb, first, query } from "./CoreDb.ts";
 import { IdentityId, newIdentityId, UserId } from "./Ids.ts";
 import { identities } from "./Schema.ts";
 
@@ -20,10 +20,7 @@ export class Identity extends Schema.Class<Identity>("lil/api/core/Identity")({
   createdAt: Schema.Number,
 }) {}
 
-const decodeIdentity = (row: Record<string, unknown>) =>
-  Schema.decodeUnknownEffect(Identity)({ ...row, emailVerified: row["emailVerified"] === 1 }).pipe(
-    Effect.orDie,
-  );
+const decodeIdentity = Schema.decodeUnknownEffect(Identity);
 
 export class Identities extends Context.Service<
   Identities,
@@ -83,21 +80,20 @@ export class Identities extends Context.Service<
               provider: identity.provider,
               subject: identity.subject,
               email: identity.email,
-              emailVerified: identity.emailVerified ? 1 : 0,
+              emailVerified: identity.emailVerified,
               createdAt: identity.createdAt,
             }),
           );
           return identity;
         }),
         find: Effect.fn("Identities.find")(function* (provider, subject) {
-          const [row] = yield* query(
+          const rows = yield* query(
             db
               .select(columns)
               .from(identities)
               .where(and(eq(identities.provider, provider), eq(identities.subject, subject))),
           );
-          if (row === undefined) return Option.none();
-          return Option.some(yield* decodeIdentity(row));
+          return yield* first(decodeIdentity)(rows);
         }),
         listForUser: Effect.fn("Identities.listForUser")(function* (userId) {
           const rows = yield* query(
@@ -107,7 +103,7 @@ export class Identities extends Context.Service<
               .where(eq(identities.userId, userId))
               .orderBy(identities.createdAt, identities.id),
           );
-          return yield* Effect.forEach(rows, decodeIdentity);
+          return yield* Effect.forEach(rows, (row) => decodeIdentity(row).pipe(Effect.orDie));
         }),
         delete: Effect.fn("Identities.delete")(function* (id) {
           yield* query(db.delete(identities).where(eq(identities.id, id)));

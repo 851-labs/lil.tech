@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { foreignKey, index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 
 // The shared "core" database: data that spans users and apps. Each user's own data (health, and
@@ -34,7 +35,9 @@ export const identities = sqliteTable(
     provider: text().notNull(), // apple, google
     subject: text().notNull(), // the provider's stable user ID
     email: text(),
-    emailVerified: integer("email_verified").notNull().default(0),
+    emailVerified: integer("email_verified", { mode: "boolean" })
+      .notNull()
+      .default(sql`0`),
     createdAt: integer("created_at").notNull(),
     // Apple's refresh token, encrypted (`src/auth/AppleTokens.ts`), so deleting the account can
     // revoke it, as Apple requires (851-2612), and the client ID it was issued to.

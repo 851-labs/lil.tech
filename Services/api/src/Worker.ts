@@ -182,12 +182,10 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       signingKey: yield* readAppleSignInKey,
       tokenSecret: yield* readSecret("LIL_TOKEN_KEY"),
     });
-    const core = yield* Cloudflare.D1.QueryDatabase(CoreDatabase);
+    // One for every part of the Worker: Drizzle (`CoreDb`) and `SqlClient` over the D1 binding.
+    const core = coreDatabase(yield* Cloudflare.D1.QueryDatabase(CoreDatabase));
     const userStores = UserStores.fromNamespace(yield* UserStore);
-    const health = yield* HealthIngestionWorker(
-      userStores,
-      Users.layer.pipe(Layer.provide(coreDatabase(core))),
-    );
+    const health = yield* HealthIngestionWorker(userStores, Users.layer.pipe(Layer.provide(core)));
     // Daily, at a quiet hour for most users.
     yield* Cloudflare.Workers.cron("23 4 * * *", () =>
       Effect.all([
@@ -204,9 +202,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
         ),
       ]).pipe(
         Effect.provide(
-          Layer.mergeAll(Devices.layer, AppleTokenRevocations.layer).pipe(
-            Layer.provide(coreDatabase(core)),
-          ),
+          Layer.mergeAll(Devices.layer, AppleTokenRevocations.layer).pipe(Layer.provide(core)),
         ),
         Effect.provideService(UserStores, userStores),
         Effect.provideService(AppleTokens, appleTokens),
@@ -243,7 +239,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
         Layer.provide([AppleKeys.layer, GoogleKeys.layer, GoogleClients.layer]),
         Layer.provide(Layer.succeed(UserStores, userStores)),
         Layer.provide(Layer.succeed(RateLimits, limits)),
-        Layer.provide(CoreRepositories.pipe(Layer.provideMerge(coreDatabase(core)))),
+        Layer.provide(CoreRepositories.pipe(Layer.provideMerge(core))),
       ),
     );
     return {

@@ -30,7 +30,7 @@ export class IdentityTokenUses extends Context.Service<
             db
               .insert(identityTokenUses)
               .values({ tokenHash, expiresAt })
-              .onConflictDoNothing()
+              .onConflictDoNothing({ target: identityTokenUses.tokenHash })
               .returning({ tokenHash: identityTokenUses.tokenHash }),
           );
           return rows.length === 1;

@@ -27,7 +27,7 @@ export const CoreDatabase = Cloudflare.D1.Database("Core2", {
  * The core database from a D1 binding (`Cloudflare.D1.QueryDatabase(CoreDatabase)`): `CoreDb`
  * (Drizzle) for the repositories, and `SqlClient` for those not on Drizzle yet.
  */
-export const coreDatabase = (d1: Parameters<typeof SQL.D1Layer>[0]) =>
+export const coreDatabase = <E, R>(d1: SQL.D1DatabaseSource<E, R>) =>
   CoreDb.d1.pipe(Layer.provideMerge(SQL.D1Layer(d1)));
 
 /** The core repositories. Needs `CoreDb` and a `SqlClient` for the core database. */

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { assert, describe, it, layer } from "@effect/vitest";
 import { Effect, Exit, Option, Schema } from "effect";
 import { TestClock } from "effect/testing";
-import { SqlClient } from "effect/sql";
+import { SqlClient, type SqlError } from "effect/sql";
 import { Connections } from "../../src/core/Connections.ts";
 import { Devices } from "../../src/core/Devices.ts";
 import { Identities } from "../../src/core/Identities.ts";
@@ -39,6 +39,44 @@ describe("core migrations", () => {
       assert.deepStrictEqual(triggers, [
         { name: "identities_queue_apple_token_revocation", tbl_name: "identities" },
       ]);
+    }).pipe(Effect.provide(TestCore)),
+  );
+});
+
+describe("core repositories on Drizzle", () => {
+  it.effect("fail with the driver's SqlError, keeping its reason", () =>
+    Effect.gen(function* () {
+      const user = yield* (yield* Users).create({ displayName: null });
+      const identity = {
+        userId: user.id,
+        provider: "apple" as const,
+        subject: "000123.dup.0001",
+        email: null,
+        emailVerified: true,
+      };
+      yield* (yield* Identities).create(identity);
+      const error = yield* Effect.flip((yield* Identities).create(identity));
+      assert.strictEqual(error._tag, "SqlError");
+      assert.strictEqual((error as SqlError.SqlError).reason._tag, "UniqueViolation");
+    }).pipe(Effect.provide(TestCore)),
+  );
+
+  it.effect("read and write email_verified as a boolean", () =>
+    Effect.gen(function* () {
+      const user = yield* (yield* Users).create({ displayName: null });
+      const identities = yield* Identities;
+      yield* identities.create({
+        userId: user.id,
+        provider: "google",
+        subject: "g-1",
+        email: "a@example.com",
+        emailVerified: true,
+      });
+      const found = yield* identities.find("google", "g-1");
+      assert.isTrue(Option.getOrThrow(found).emailVerified);
+      const sql = yield* SqlClient.SqlClient;
+      const [row] = yield* sql<{ v: number }>`SELECT email_verified AS v FROM identities`;
+      assert.strictEqual(row?.v, 1);
     }).pipe(Effect.provide(TestCore)),
   );
 });

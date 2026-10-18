@@ -1,7 +1,7 @@
 import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
 import { and, eq, isNull, lte, notExists, or } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
-import { CoreDb, query } from "./CoreDb.ts";
+import { CoreDb, first, query } from "./CoreDb.ts";
 import { newUserId, UserId } from "./Ids.ts";
 import { identities, users } from "./Schema.ts";
 
@@ -56,10 +56,7 @@ export class Users extends Context.Service<
         displayName: users.displayName,
         createdAt: users.createdAt,
       };
-      const one = (rows: ReadonlyArray<unknown>) =>
-        rows[0] === undefined
-          ? Effect.succeed(Option.none<User>())
-          : decodeUser(rows[0]).pipe(Effect.orDie, Effect.map(Option.some));
+      const one = first(decodeUser);
 
       return Users.of({
         create: Effect.fn("Users.create")(function* ({ displayName }) {
