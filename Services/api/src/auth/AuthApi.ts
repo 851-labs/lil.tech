@@ -262,6 +262,31 @@ export class IdentityNotFound extends Schema.TaggedError<IdentityNotFound>()(
   { httpApiStatus: 404 },
 ) {}
 
+/**
+ * A data export: everything the account holds, as one archive (`docs/DECISIONS.md`). Asking
+ * again within a day gets the same export.
+ */
+export class DataExport extends Schema.Class<DataExport>("lil/api/auth/DataExport")({
+  /** When it was asked for, in Unix milliseconds. */
+  requestedAt: Schema.Int,
+  /** Whether it can be downloaded: a fresh snapshot is written first, in seconds to minutes. */
+  ready: Schema.Boolean,
+  /**
+   * Once ready, downloads the archive (a tar) without an `Authorization` header. Short-lived:
+   * ask for the export again for a new one.
+   */
+  url: Schema.NullOr(Schema.String),
+  /** Unix milliseconds, after which `url` stops working. */
+  urlExpiresAt: Schema.NullOr(Schema.Int),
+}) {}
+
+/** The account hasn't asked for an export. */
+export class DataExportNotFound extends Schema.TaggedError<DataExportNotFound>()(
+  "DataExportNotFound",
+  { message: Schema.String },
+  { httpApiStatus: 404 },
+) {}
+
 export class MeApi extends HttpApiGroup.make("me", { topLevel: true })
   .add(HttpApiEndpoint.get("me", "/v1/me", { success: Me }))
   .add(HttpApiEndpoint.get("healthConsent", "/v1/me/consents/health", { success: HealthConsent }))
@@ -303,6 +328,20 @@ export class MeApi extends HttpApiGroup.make("me", { topLevel: true })
     HttpApiEndpoint.delete("unlinkIdentity", "/v1/me/identities/:id", {
       params: { id: IdentityId },
       error: [LastIdentity, IdentityNotFound],
+    }),
+  )
+  .add(
+    // Asks for a data export, or gets the one asked for within the last day: one a day at most.
+    // Poll `latestExport` until it's ready.
+    HttpApiEndpoint.post("requestExport", "/v1/me/exports", {
+      success: DataExport,
+      error: UserStoreUnavailable,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("latestExport", "/v1/me/exports/latest", {
+      success: DataExport,
+      error: [DataExportNotFound, UserStoreUnavailable],
     }),
   )
   .add(

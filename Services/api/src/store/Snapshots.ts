@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { makeId } from "../core/Ids.ts";
 import { readEpoch, readHead } from "./ChangeLog.ts";
+import { exportSnapshotDueAt } from "./Exports.ts";
 import { comparedToKey, type Entity, fromColumnValue, keyList } from "./Entities.ts";
 import type { SqlRow, SqlValue, StoreSql } from "./StoreSql.ts";
 
@@ -204,8 +205,10 @@ export const nextSnapshotAt = (sql: StoreSql, now: number, policy = snapshotPoli
   // Due when enough had changed (when the change that made it enough arrived), or at `maxAge`,
   // but not before the latest finished: a long snapshot mustn't make the next one start at once.
   const enoughAt = head - covered >= enough ? (changeAt(sql, covered + enough) ?? since) : null;
+  // An export waiting for a snapshot makes one due at once (`Exports.ts`).
+  const exportAt = exportSnapshotDueAt(sql, covered);
   const due = Math.max(
-    Math.min(enoughAt ?? Infinity, since + policy.maxAge),
+    Math.min(enoughAt ?? Infinity, since + policy.maxAge, exportAt ?? Infinity),
     latest?.finishedAt ?? 0,
   );
   return deferWhileIngesting(sql, due, now, policy);

@@ -5,7 +5,7 @@ import SwiftUI
 struct SyncFooterView: View {
   let status: SyncStatus
   let retry: () -> Void
-  let showSignInMethods: () -> Void
+  let showAccount: () -> Void
   let signOut: () -> Void
 
   var body: some View {
@@ -35,7 +35,7 @@ struct SyncFooterView: View {
         EmptyView()
       }
       Menu {
-        Button("Sign-In Methods…", action: showSignInMethods)
+        Button("Account Settings…", action: showAccount)
         Divider()
         Button("Sign Out", action: signOut)
       } label: {
@@ -95,7 +95,7 @@ struct SyncFooterView: View {
 
 @MainActor
 private func footer(_ status: SyncStatus) -> some View {
-  SyncFooterView(status: status, retry: {}, showSignInMethods: {}, signOut: {})
+  SyncFooterView(status: status, retry: {}, showAccount: {}, signOut: {})
     .frame(width: 260)
     .background(.background)
 }

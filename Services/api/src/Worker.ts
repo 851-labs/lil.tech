@@ -12,7 +12,11 @@ import { retireSignedOutDevices } from "./core/DeviceCleanup.ts";
 import { Devices } from "./core/Devices.ts";
 import { Users } from "./core/Users.ts";
 import { Deployment, environmentForStage, stageDomains } from "./Deployment.ts";
-import { HealthBatchFiles, HealthBatchQueue } from "./health/HealthIngestion.ts";
+import {
+  BatchFilesUnavailable,
+  HealthBatchFiles,
+  HealthBatchQueue,
+} from "./health/HealthIngestion.ts";
 import { HealthBlobFiles } from "./health/HealthBlobs.ts";
 import { deletePrefix, HealthIngestionWorker } from "./health/HealthResources.ts";
 import { WorkerHttpLayer } from "./Http.ts";
@@ -23,7 +27,7 @@ import {
   RateLimits,
   rateLimits,
 } from "./RateLimits.ts";
-import { objectBody, provideRuntime } from "./Runtime.ts";
+import { listObjects, objectBody, provideRuntime } from "./Runtime.ts";
 import { HealthBlobBucket, SnapshotBucket, UserStore, UserStoreLive } from "./store/UserStore.ts";
 import { type OpenedPart, type PartRange, SnapshotParts } from "./sync/SnapshotParts.ts";
 import { UserStores } from "./store/UserStores.ts";
@@ -228,6 +232,11 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
           ).pipe(Effect.asVoid, Effect.orDie),
         delete: (key) => inRuntime(blobs.delete(key)).pipe(Effect.orDie),
         open: openObject(blobs)(runtime),
+        list: (prefix) =>
+          listObjects(blobs, prefix).pipe(
+            inRuntime,
+            Effect.mapError((error) => new BatchFilesUnavailable({ message: String(error) })),
+          ),
         deletePrefix: (prefix) => deletePrefix(blobs, prefix).pipe(inRuntime),
       });
     });

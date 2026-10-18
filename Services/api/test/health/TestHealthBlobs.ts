@@ -20,6 +20,12 @@ export const TestHealthBlobs = Layer.unwrap(
           put: (key, bytes) => Effect.sync(() => void files.set(key, bytes)),
           delete: (key) => Effect.sync(() => void files.delete(key)),
           open: openStored(files),
+          list: (prefix) =>
+            Effect.sync(() =>
+              [...files]
+                .filter(([key]) => key.startsWith(prefix))
+                .map(([key, bytes]) => ({ key, size: bytes.length })),
+            ),
           deletePrefix: (prefix) =>
             Effect.sync(() => {
               // Deleting the entry being visited is safe while iterating a Map.

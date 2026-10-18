@@ -49,6 +49,9 @@ import {
 } from "./auth/TestAppleTokens.ts";
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./health/TestHealthIngestion.ts";
 import { TestHealthBlobBucket, TestHealthBlobs } from "./health/TestHealthBlobs.ts";
+import { healthBlobPrefix } from "../src/health/HealthBlobs.ts";
+import { maxArchiveFiles } from "../src/sync/ExportArchive.ts";
+import { entities } from "../src/store/Registry.ts";
 import {
   TestStores,
   TestUserStores,
@@ -1465,6 +1468,217 @@ describe("POST /v1/sync/mutations", () => {
           }),
         );
         assert.strictEqual(response.status, 401);
+      }),
+    ),
+  );
+});
+
+describe("data exports", () => {
+  const exportPolicy = { ...snapshotPolicy, partRecords: 2, pageRows: 2, quietPeriod: 0 };
+  const call = (handler: Handler, method: string, path: string, accessToken: string) =>
+    send(
+      handler,
+      new Request(`https://api.lil.tech${path}`, { method, headers: bearer(accessToken) }),
+    );
+  /** The archive at `url`, as its entries' names and bytes. */
+  const download = (handler: Handler, url: string) =>
+    Effect.promise(async () => {
+      const response = await handler(new Request(url));
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      return { response, bytes, files: untar(bytes) };
+    });
+  /** Reads a tar's regular files, checking each header's checksum. */
+  const untar = (bytes: Uint8Array) => {
+    const files = new Map<string, Uint8Array>();
+    const text = (start: number, length: number) =>
+      new TextDecoder().decode(bytes.subarray(start, start + length)).replace(/\0.*$/s, "");
+    for (let offset = 0; offset + 512 <= bytes.length;) {
+      if (bytes.subarray(offset, offset + 512).every((byte) => byte === 0)) break;
+      const header = bytes.slice(offset, offset + 512);
+      const checksum = parseInt(text(offset + 148, 8), 8);
+      header.fill(32, 148, 156);
+      assert.strictEqual(
+        header.reduce((sum, byte) => sum + byte, 0),
+        checksum,
+      );
+      const size = parseInt(text(offset + 124, 12), 8);
+      files.set(text(offset, 100), bytes.slice(offset + 512, offset + 512 + size));
+      offset += 512 + Math.ceil(size / 512) * 512;
+    }
+    return files;
+  };
+  /** A row in every entity's table, written directly: exports read tables, not the log. */
+  const seedEveryEntity = (userId: UserId) =>
+    Effect.gen(function* () {
+      // Opens the store, so its tables exist.
+      yield* (yield* UserStores).forUser(userId).applyMutations([testNoteMutation("note-1")]);
+      const sql = (yield* TestStores).sqlFor(userId);
+      if (sql === undefined) return yield* Effect.die("no store");
+      const values = { text: "x", integer: 1, real: 1.5, boolean: 1, json: "{}" } as const;
+      for (const entity of entities) {
+        const columns = ["id", ...entity.fields.map((field) => field.column)];
+        sql.exec(
+          `INSERT INTO "${entity.name}" (${columns.map((column) => `"${column}"`).join(", ")})
+            VALUES (${columns.map(() => "?").join(", ")})`,
+          `${entity.name}-1`,
+          ...entity.fields.map((field) => values[field.type.type]),
+        );
+      }
+      return sql;
+    });
+
+  it.live("exports the account, every entity's records and the blobs", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const sql = yield* seedEveryEntity(user.id);
+        const blob = new TextEncoder().encode("synthetic ECG voltages");
+        const sha = "ab".repeat(32);
+        (yield* TestHealthBlobBucket).files.set(`${healthBlobPrefix(user.id)}${sha}`, blob);
+
+        const asked = yield* call(handler, "POST", "/v1/me/exports", tokens.accessToken);
+        assert.strictEqual(asked.status, 200);
+        assert.deepInclude(asked.body, { ready: false, url: null });
+        yield* writeTestSnapshot(sql, (yield* TestStores).snapshotFiles, exportPolicy);
+        const latest = yield* call(handler, "GET", "/v1/me/exports/latest", tokens.accessToken);
+        const { ready, url, requestedAt } = latest.body as {
+          ready: boolean;
+          url: string;
+          requestedAt: number;
+        };
+        assert.isTrue(ready);
+        assert.strictEqual(requestedAt, (asked.body as { requestedAt: number }).requestedAt);
+
+        const { response, bytes, files } = yield* download(handler, url);
+        assert.strictEqual(response.status, 200);
+        assert.strictEqual(response.headers.get("content-type"), "application/x-tar");
+        assert.strictEqual(Number(response.headers.get("content-length")), bytes.length);
+        const folder = `lil-export-${new Date(requestedAt).toISOString().slice(0, 10)}`;
+        const names = [...files.keys()];
+        assert.includeMembers(names, [
+          `${folder}/README.txt`,
+          `${folder}/account.json`,
+          `${folder}/records/manifest.json`,
+          `${folder}/blobs/${sha}`,
+        ]);
+        assert.deepStrictEqual(files.get(`${folder}/blobs/${sha}`), blob);
+
+        const account = JSON.parse(
+          new TextDecoder().decode(files.get(`${folder}/account.json`)),
+        ) as Record<string, unknown>;
+        assert.deepInclude(account, {
+          user: { id: user.id, displayName: "Ada", createdAt: user.createdAt },
+        });
+        assert.deepStrictEqual(account["identities"], [
+          {
+            provider: "apple",
+            email: "ada@privaterelay.appleid.com",
+            emailVerified: true,
+            createdAt: (yield* (yield* Identities).listForUser(user.id))[0]?.createdAt,
+          },
+        ]);
+
+        // Every entity's record, in its own files.
+        const exported = new Map<string, Array<Record<string, unknown>>>();
+        for (const [name, file] of files) {
+          const match = /\/records\/([^/]+)\/\d+\.ndjson\.gz$/.exec(name);
+          if (match === null) continue;
+          const rows = gunzipSync(file)
+            .toString("utf8")
+            .split("\n")
+            .filter((line) => line !== "")
+            .map((line) => JSON.parse(line) as Record<string, unknown>);
+          exported.set(match[1] ?? "", [...(exported.get(match[1] ?? "") ?? []), ...rows]);
+        }
+        assert.sameMembers(
+          [...exported.keys()],
+          [...entities.map((entity) => entity.name), "test_note"],
+        );
+        for (const entity of entities) {
+          assert.deepInclude(exported.get(entity.name)?.[0], { id: `${entity.name}-1` });
+        }
+      }),
+    ),
+  );
+
+  it.live("asking again the same day gets the same export", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* signIn;
+        const first = yield* call(handler, "POST", "/v1/me/exports", tokens.accessToken);
+        const again = yield* call(handler, "POST", "/v1/me/exports", tokens.accessToken);
+        assert.strictEqual(
+          (again.body as { requestedAt: number }).requestedAt,
+          (first.body as { requestedAt: number }).requestedAt,
+        );
+        // Nothing stored yet: ready at once.
+        assert.deepInclude(again.body, { ready: true });
+      }),
+    ),
+  );
+
+  it.live("has no latest export until one is asked for", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* signIn;
+        const response = yield* call(handler, "GET", "/v1/me/exports/latest", tokens.accessToken);
+        assert.strictEqual(response.status, 404);
+        assert.propertyVal(response.body, "_tag", "DataExportNotFound");
+      }),
+    ),
+  );
+
+  it.live("refuses a download URL that isn't genuine", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* signIn;
+        const asked = yield* call(handler, "POST", "/v1/me/exports", tokens.accessToken);
+        const url = new URL((asked.body as { url: string }).url);
+        url.searchParams.set("token", `${url.searchParams.get("token") ?? ""}x`);
+        const response = yield* send(handler, new Request(url));
+        assert.strictEqual(response.status, 401);
+      }),
+    ),
+  );
+
+  it.live("says so when the account holds more files than one archive can", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const files = (yield* TestHealthBlobBucket).files;
+        for (let index = 0; index <= maxArchiveFiles; index++) {
+          files.set(
+            `${healthBlobPrefix(user.id)}${index.toString(16).padStart(64, "0")}`,
+            new Uint8Array(1),
+          );
+        }
+        const asked = yield* call(handler, "POST", "/v1/me/exports", tokens.accessToken);
+        const response = yield* send(handler, new Request((asked.body as { url: string }).url));
+        assert.strictEqual(response.status, 507);
+        assert.propertyVal(response.body, "_tag", "DataExportTooLarge");
+      }),
+    ),
+  );
+
+  it.live("a blob that's gone fails the download, rather than ending it early", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const files = (yield* TestHealthBlobBucket).files;
+        const key = `${healthBlobPrefix(user.id)}${"cd".repeat(32)}`;
+        files.set(key, new Uint8Array(10));
+        const asked = yield* call(handler, "POST", "/v1/me/exports", tokens.accessToken);
+        const response = yield* Effect.promise(() =>
+          handler(new Request((asked.body as { url: string }).url)),
+        );
+        files.delete(key);
+        const read = yield* Effect.promise(() =>
+          response.arrayBuffer().then(
+            () => "finished",
+            () => "failed",
+          ),
+        );
+        assert.strictEqual(read, "failed");
       }),
     ),
   );

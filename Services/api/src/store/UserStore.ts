@@ -1,3 +1,4 @@
+import { exportSnapshot, readExportRequest, requestExport } from "./Exports.ts";
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Clock, Effect } from "effect";
@@ -529,6 +530,30 @@ export const makeUserStore = (
       }),
     /** The latest published snapshot of the current epoch, or `null`. */
     latestSnapshot: () => Effect.sync(() => (deleted ? null : latestSnapshot(sql))),
+    /**
+     * Asks for a data export (`Exports.ts`), or gets the one asked for within `exportInterval`,
+     * with whether it's ready and the snapshot it's built from.
+     */
+    requestExport: () =>
+      ensureNotDeleted.pipe(
+        Effect.andThen(Clock.currentTimeMillis),
+        Effect.flatMap((now) => {
+          const request = requestExport(sql, now);
+          const status = { ...request, ...exportSnapshot(sql, request, latestSnapshot(sql)) };
+          // The snapshot it waits for is due now.
+          return status.ready ? Effect.succeed(status) : scheduleAlarm(now).pipe(Effect.as(status));
+        }),
+      ),
+    /** The latest export asked for, with whether it's ready and its snapshot, or `null`. */
+    exportStatus: () =>
+      ensureNotDeleted.pipe(
+        Effect.map(() => {
+          const request = readExportRequest(sql);
+          return request === null
+            ? null
+            : { ...request, ...exportSnapshot(sql, request, latestSnapshot(sql)) };
+        }),
+      ),
     /** A published snapshot of the current epoch by ID, or `null` (see `readSnapshot`). */
     snapshot: (id: string) => Effect.sync(() => (deleted ? null : readSnapshot(sql, id))),
     /**
