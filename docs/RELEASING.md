@@ -18,10 +18,12 @@ On the Mac that builds releases:
    xcrun notarytool store-credentials lil-notary --key AuthKey_XXXXXXXXXX.p8 --key-id XXXXXXXXXX --issuer <issuer-uuid>
    ```
 
-3. **Sparkle signing key.** It lives in the login keychain under the account `lil.tech`. Its public key is `SUPublicEDKey` in each app's `Info.plist`. Keep a backup of the private key:
+3. **Sparkle signing keys.** Each app has its own, in the login keychain under the account `lil-<app>` (`lil-messages`, `lil-health`). Its public key is `SUPublicEDKey` in the app's `Info.plist`. The private key is backed up in 1Password as "lil <app> – Sparkle EdDSA update key". A key that's lost can't be replaced without breaking updates for everyone who installed the app, so back up a new key before releasing with it. On a new Mac, restore it from 1Password:
 
    ```
-   generate_keys --account lil.tech -x lil-tech-sparkle-private-key.txt
+   op item get "lil messages – Sparkle EdDSA update key" --fields "private key" --reveal | tr -d '\n' > key.txt
+   generate_keys --account lil-messages -f key.txt && rm key.txt
+   generate_keys --account lil-messages -p   # should print the app's SUPublicEDKey
    ```
 
    Sparkle's tools (`generate_keys`, `sign_update`, `generate_appcast`) come from the Sparkle release archive on GitHub.
@@ -47,7 +49,7 @@ Pass `--skip-notarize` to test everything except notarization.
 ## Publishing a release
 
 1. **Build.** Build the notarized DMG with `scripts/release <app> <version>` from a clean `main`. Note the build number it prints; it's the commit count.
-2. **Sign for Sparkle.** Run `sign_update --account lil.tech build/releases/<app>/<version>/<file>.dmg`. It prints the `sparkle:edSignature` and `length` attributes for the appcast.
+2. **Sign for Sparkle.** Run `sign_update --account lil-<app> build/releases/<app>/<version>/<file>.dmg`. It prints the `sparkle:edSignature` and `length` attributes for the appcast.
 3. **Create the GitHub Release.**
 
    ```
