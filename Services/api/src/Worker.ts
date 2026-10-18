@@ -1,6 +1,5 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import * as SQL from "alchemy/SQL/D1";
 import { Config, Effect, Layer, Option, Redacted, Stream } from "effect";
 import { HttpRouter } from "effect/http";
 import { AppleKeys } from "./auth/Apple.ts";
@@ -8,7 +7,7 @@ import { AppleTokens, revokeAppleTokens } from "./auth/AppleTokens.ts";
 import { GoogleClients, GoogleKeys } from "./auth/Google.ts";
 import { SessionKey } from "./auth/Tokens.ts";
 import { AppleTokenRevocations } from "./core/AppleTokenRevocations.ts";
-import { CoreDatabase, CoreRepositories } from "./core/CoreDatabase.ts";
+import { CoreDatabase, CoreRepositories, coreDatabase } from "./core/CoreDatabase.ts";
 import { retireSignedOutDevices } from "./core/DeviceCleanup.ts";
 import { Devices } from "./core/Devices.ts";
 import { Users } from "./core/Users.ts";
@@ -187,7 +186,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
     const userStores = UserStores.fromNamespace(yield* UserStore);
     const health = yield* HealthIngestionWorker(
       userStores,
-      Users.layer.pipe(Layer.provide(SQL.D1Layer(core))),
+      Users.layer.pipe(Layer.provide(coreDatabase(core))),
     );
     // Daily, at a quiet hour for most users.
     yield* Cloudflare.Workers.cron("23 4 * * *", () =>
@@ -206,7 +205,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       ]).pipe(
         Effect.provide(
           Layer.mergeAll(Devices.layer, AppleTokenRevocations.layer).pipe(
-            Layer.provide(SQL.D1Layer(core)),
+            Layer.provide(coreDatabase(core)),
           ),
         ),
         Effect.provideService(UserStores, userStores),
@@ -244,7 +243,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
         Layer.provide([AppleKeys.layer, GoogleKeys.layer, GoogleClients.layer]),
         Layer.provide(Layer.succeed(UserStores, userStores)),
         Layer.provide(Layer.succeed(RateLimits, limits)),
-        Layer.provide(CoreRepositories.pipe(Layer.provideMerge(SQL.D1Layer(core)))),
+        Layer.provide(CoreRepositories.pipe(Layer.provideMerge(coreDatabase(core)))),
       ),
     );
     return {

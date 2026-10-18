@@ -1,6 +1,9 @@
 import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
-import { SqlClient, type SqlError } from "effect/sql";
+import { and, eq, isNull, lte, notExists, or } from "drizzle-orm";
+import type { SqlError } from "effect/sql";
+import { CoreDb, query } from "./CoreDb.ts";
 import { newUserId, UserId } from "./Ids.ts";
+import { identities, users } from "./Schema.ts";
 
 export class User extends Schema.Class<User>("lil/api/core/User")({
   id: UserId,
@@ -47,8 +50,16 @@ export class Users extends Context.Service<
   static readonly layer = Layer.effect(
     Users,
     Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      const select = sql`SELECT id, display_name AS "displayName", created_at AS "createdAt" FROM users`;
+      const db = yield* CoreDb;
+      const columns = {
+        id: users.id,
+        displayName: users.displayName,
+        createdAt: users.createdAt,
+      };
+      const one = (rows: ReadonlyArray<unknown>) =>
+        rows[0] === undefined
+          ? Effect.succeed(Option.none<User>())
+          : decodeUser(rows[0]).pipe(Effect.orDie, Effect.map(Option.some));
 
       return Users.of({
         create: Effect.fn("Users.create")(function* ({ displayName }) {
@@ -57,42 +68,60 @@ export class Users extends Context.Service<
             displayName,
             createdAt: yield* Clock.currentTimeMillis,
           });
-          yield* sql`INSERT INTO users (id, display_name, created_at)
-            VALUES (${user.id}, ${user.displayName}, ${user.createdAt})`;
+          yield* query(db.insert(users).values(user));
           return user;
         }),
         findById: Effect.fn("Users.findById")(function* (id) {
-          const rows = yield* sql`${select} WHERE id = ${id}`;
-          const row = rows[0];
-          if (row === undefined) return Option.none();
-          return Option.some(yield* decodeUser(row).pipe(Effect.orDie));
+          return yield* one(yield* query(db.select(columns).from(users).where(eq(users.id, id))));
         }),
         findSynthetic: Effect.fn("Users.findSynthetic")(function* (displayName) {
-          const rows = yield* sql`${select} WHERE display_name = ${displayName}
-            AND NOT EXISTS (SELECT 1 FROM identities WHERE identities.user_id = users.id)
-            ORDER BY created_at LIMIT 1`;
-          const row = rows[0];
-          if (row === undefined) return Option.none();
-          return Option.some(yield* decodeUser(row).pipe(Effect.orDie));
+          const rows = yield* query(
+            db
+              .select(columns)
+              .from(users)
+              .where(
+                and(
+                  eq(users.displayName, displayName),
+                  notExists(
+                    db
+                      .select({ id: identities.id })
+                      .from(identities)
+                      .where(eq(identities.userId, users.id)),
+                  ),
+                ),
+              )
+              .orderBy(users.createdAt)
+              .limit(1),
+          );
+          return yield* one(rows);
         }),
         delete: Effect.fn("Users.delete")(function* (id) {
-          yield* sql`DELETE FROM users WHERE id = ${id}`;
+          yield* query(db.delete(users).where(eq(users.id, id)));
         }),
         setDisplayNameIfMissing: Effect.fn("Users.setDisplayNameIfMissing")(
           function* (id, displayName) {
-            yield* sql`UPDATE users SET display_name = ${displayName}
-            WHERE id = ${id} AND display_name IS NULL`;
+            yield* query(
+              db
+                .update(users)
+                .set({ displayName })
+                .where(and(eq(users.id, id), isNull(users.displayName))),
+            );
           },
         ),
-        count: Effect.gen(function* () {
-          const rows = yield* sql`SELECT count(*) AS n FROM users`;
-          return Number(rows[0]?.["n"] ?? 0);
-        }).pipe(Effect.withSpan("Users.count")),
+        count: query(db.$count(users)).pipe(Effect.withSpan("Users.count")),
         recordStorage: Effect.fn("Users.recordStorage")(function* (id, bytes, measuredAt) {
           // Batches are applied concurrently, so their measurements can arrive out of order.
-          yield* sql`UPDATE users SET storage_bytes = ${bytes}, storage_measured_at = ${measuredAt}
-            WHERE id = ${id}
-              AND (storage_measured_at IS NULL OR storage_measured_at <= ${measuredAt})`;
+          yield* query(
+            db
+              .update(users)
+              .set({ storageBytes: bytes, storageMeasuredAt: measuredAt })
+              .where(
+                and(
+                  eq(users.id, id),
+                  or(isNull(users.storageMeasuredAt), lte(users.storageMeasuredAt, measuredAt)),
+                ),
+              ),
+          );
         }),
       });
     }),

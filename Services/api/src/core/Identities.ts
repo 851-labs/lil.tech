@@ -1,6 +1,9 @@
 import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
-import { SqlClient, type SqlError } from "effect/sql";
+import { and, eq } from "drizzle-orm";
+import type { SqlError } from "effect/sql";
+import { CoreDb, query } from "./CoreDb.ts";
 import { IdentityId, newIdentityId, UserId } from "./Ids.ts";
+import { identities } from "./Schema.ts";
 
 export const IdentityProvider = Schema.Literals(["apple", "google"]);
 export type IdentityProvider = typeof IdentityProvider.Type;
@@ -54,9 +57,16 @@ export class Identities extends Context.Service<
   static readonly layer = Layer.effect(
     Identities,
     Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      const select = sql`SELECT id, user_id AS "userId", provider, subject, email,
-        email_verified AS "emailVerified", created_at AS "createdAt" FROM identities`;
+      const db = yield* CoreDb;
+      const columns = {
+        id: identities.id,
+        userId: identities.userId,
+        provider: identities.provider,
+        subject: identities.subject,
+        email: identities.email,
+        emailVerified: identities.emailVerified,
+        createdAt: identities.createdAt,
+      };
 
       return Identities.of({
         create: Effect.fn("Identities.create")(function* (input) {
@@ -66,30 +76,50 @@ export class Identities extends Context.Service<
             id: yield* newIdentityId,
             createdAt: yield* Clock.currentTimeMillis,
           });
-          yield* sql`INSERT INTO identities
-            (id, user_id, provider, subject, email, email_verified, created_at)
-            VALUES (${identity.id}, ${identity.userId}, ${identity.provider}, ${identity.subject},
-              ${identity.email}, ${identity.emailVerified ? 1 : 0}, ${identity.createdAt})`;
+          yield* query(
+            db.insert(identities).values({
+              id: identity.id,
+              userId: identity.userId,
+              provider: identity.provider,
+              subject: identity.subject,
+              email: identity.email,
+              emailVerified: identity.emailVerified ? 1 : 0,
+              createdAt: identity.createdAt,
+            }),
+          );
           return identity;
         }),
         find: Effect.fn("Identities.find")(function* (provider, subject) {
-          const rows = yield* sql`${select} WHERE provider = ${provider} AND subject = ${subject}`;
-          const row = rows[0];
+          const [row] = yield* query(
+            db
+              .select(columns)
+              .from(identities)
+              .where(and(eq(identities.provider, provider), eq(identities.subject, subject))),
+          );
           if (row === undefined) return Option.none();
           return Option.some(yield* decodeIdentity(row));
         }),
         listForUser: Effect.fn("Identities.listForUser")(function* (userId) {
-          const rows = yield* sql`${select} WHERE user_id = ${userId} ORDER BY created_at, id`;
+          const rows = yield* query(
+            db
+              .select(columns)
+              .from(identities)
+              .where(eq(identities.userId, userId))
+              .orderBy(identities.createdAt, identities.id),
+          );
           return yield* Effect.forEach(rows, decodeIdentity);
         }),
         delete: Effect.fn("Identities.delete")(function* (id) {
-          yield* sql`DELETE FROM identities WHERE id = ${id}`;
+          yield* query(db.delete(identities).where(eq(identities.id, id)));
         }),
         saveAppleToken: Effect.fn("Identities.saveAppleToken")(
           function* (subject, refreshToken, clientId) {
-            yield* sql`UPDATE identities
-              SET apple_refresh_token = ${refreshToken}, apple_client_id = ${clientId}
-              WHERE provider = 'apple' AND subject = ${subject}`;
+            yield* query(
+              db
+                .update(identities)
+                .set({ appleRefreshToken: refreshToken, appleClientId: clientId })
+                .where(and(eq(identities.provider, "apple"), eq(identities.subject, subject))),
+            );
           },
         ),
       });

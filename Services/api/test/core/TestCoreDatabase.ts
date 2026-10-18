@@ -5,7 +5,9 @@ import { DatabaseSync } from "node:sqlite";
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
+import * as NodeDrizzle from "drizzle-orm/effect-sqlite-node";
 import { CoreRepositories } from "../../src/core/CoreDatabase.ts";
+import { CoreDb } from "../../src/core/CoreDb.ts";
 
 const migrationsDir = new URL("../../migrations/core/", import.meta.url);
 
@@ -41,7 +43,11 @@ export const TestCoreDatabase = Layer.unwrap(
         const sql = yield* SqlClient.SqlClient;
         yield* sql`PRAGMA foreign_keys = ON`;
       }),
-    ).pipe(Layer.provideMerge(SqliteClient.layer({ filename })));
+    ).pipe(
+      // `CoreDb` over the same file, as the Worker's is over D1.
+      Layer.provideMerge(Layer.effect(CoreDb, NodeDrizzle.makeWithDefaults())),
+      Layer.provideMerge(SqliteClient.layer({ filename })),
+    );
   }),
 );
 

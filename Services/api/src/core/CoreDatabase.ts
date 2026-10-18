@@ -1,8 +1,10 @@
 import * as Cloudflare from "alchemy/Cloudflare";
+import * as SQL from "alchemy/SQL/D1";
 import { Layer } from "effect";
 import { AppleTokenRevocations } from "./AppleTokenRevocations.ts";
 import { Connections } from "./Connections.ts";
 import { Consents } from "./Consents.ts";
+import { CoreDb } from "./CoreDb.ts";
 import { Devices } from "./Devices.ts";
 import { Identities } from "./Identities.ts";
 import { IdentityTokenUses } from "./IdentityTokenUses.ts";
@@ -21,7 +23,14 @@ export const CoreDatabase = Cloudflare.D1.Database("Core2", {
   migrations: "./migrations/core",
 });
 
-/** The core repositories. Needs a `SqlClient` for the core database. */
+/**
+ * The core database from a D1 binding (`Cloudflare.D1.QueryDatabase(CoreDatabase)`): `CoreDb`
+ * (Drizzle) for the repositories, and `SqlClient` for those not on Drizzle yet.
+ */
+export const coreDatabase = (d1: Parameters<typeof SQL.D1Layer>[0]) =>
+  CoreDb.d1.pipe(Layer.provideMerge(SQL.D1Layer(d1)));
+
+/** The core repositories. Needs `CoreDb` and a `SqlClient` for the core database. */
 export const CoreRepositories = Layer.mergeAll(
   Users.layer,
   Identities.layer,
