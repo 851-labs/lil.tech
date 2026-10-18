@@ -1708,3 +1708,57 @@ struct MentalWellbeingQueriesTests {
     #expect(found.1 == ["y", "x"])
   }
 }
+
+@Suite
+struct HeartQueriesTests {
+  @Test
+  func beatsBecomeHeartRatesAndVariability() {
+    // Intervals of 1.0, 0.8, 1.2 s, then a gap, then 0.5 s.
+    let analysis = HeartbeatAnalysis(beats: [0, 1, 1.8, 3, 10, 10.5], gaps: [4])
+    #expect(analysis.beats.map(\.beatsPerMinute) == [60, 75, 50, 120])
+    #expect(analysis.beats.map(\.run) == [0, 0, 0, 1])
+    #expect(analysis.beatCount == 6)
+    #expect(analysis.duration == 10.5)
+    // Mean interval 0.875 s.
+    #expect(abs((analysis.averageBeatsPerMinute ?? 0) - 60 / 0.875) < 0.0001)
+    // Successive differences only within a run: -0.2 and +0.4 s.
+    #expect(abs((analysis.rmssd ?? 0) - (0.1).squareRoot() * 1000) < 0.0001)
+    let mean = 0.875
+    let variance =
+      [1.0, 0.8, 1.2, 0.5].map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / 3
+    #expect(abs((analysis.sdnn ?? 0) - variance.squareRoot() * 1000) < 0.0001)
+  }
+
+  @Test
+  func tooFewBeatsHaveNoFigures() {
+    let one = HeartbeatAnalysis(beats: [0], gaps: [])
+    #expect(one.beats.isEmpty && one.averageBeatsPerMinute == nil && one.sdnn == nil)
+    #expect(one.rmssd == nil)
+    let two = HeartbeatAnalysis(beats: [0, 1], gaps: [])
+    #expect(two.averageBeatsPerMinute == 60 && two.sdnn == nil && two.rmssd == nil)
+  }
+
+  @Test
+  func seriesDecodeAndComeNewestFirst() throws {
+    let series = { (id: String, start: Int) in
+      HealthHeartbeatSeries(
+        id: id, startDate: start, endDate: start + 60_000, beats: "[0,0.8,1.6]", gaps: "[]",
+        sourceName: "Watch", sourceBundleID: "com.apple.health")
+    }
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthHeartbeatSeries.insert {
+        series("a", 1_000)
+        series("b", 2_000)
+      }
+      .execute(db)
+    }
+    let found = try database.read { db in try HealthDatabase.heartbeatSeries(limit: 10, db) }
+    #expect(found.map(\.id) == ["b", "a"])
+    #expect(found.first?.analysis.averageBeatsPerMinute == 75)
+    // Gaps that can't be read leave no intervals, not false ones across them.
+    var broken = series("c", 0)
+    broken.gaps = "oops"
+    #expect(broken.analysis.beats.isEmpty && broken.analysis.beatCount == 3)
+  }
+}
