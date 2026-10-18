@@ -1194,7 +1194,7 @@ struct HealthSyncTests {
       (Record.tableName, Record.TableColumns.writableColumns.map(\.name))
     }
     let tables = [
-      writable(HealthProvenance.self), writable(HealthSample.self),
+      writable(HealthPin.self), writable(HealthProvenance.self), writable(HealthSample.self),
       writable(HealthCorrelation.self),
       writable(HealthCharacteristic.self), writable(HealthActivitySummary.self),
       writable(HealthStatistic.self), writable(HealthWorkout.self),
@@ -1307,6 +1307,7 @@ struct HealthSyncTests {
         #expect(stored == [record])
       }
     }
+    try roundTrip { v in HealthPin(id: "pin", position: Double(v)) }
     try roundTrip { v in HealthProvenance(id: "p", sourceRevision: "r\(v)", device: "d\(v)") }
     try roundTrip { v in
       HealthSample(

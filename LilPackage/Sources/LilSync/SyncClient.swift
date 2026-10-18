@@ -20,6 +20,8 @@ public struct SyncClient: Sendable {
   public var listen: @Sendable (_ authentication: APIAuthentication) async -> Void
   /// Pulls now instead of at the next interval.
   public var syncNow: @Sendable () async -> Void
+  /// Writes mutations locally and queues them for the server. See ``LilSyncEngine/push(_:)``.
+  public var push: @Sendable (_ mutations: [SyncMutation]) async throws -> Void
   /// The current status, then every change to it.
   public var status: @Sendable () async -> AsyncStream<SyncStatus>
   /// Deletes the local copy, e.g. when signing out. See ``LilSyncEngine/removeLocalData()``.
@@ -29,12 +31,14 @@ public struct SyncClient: Sendable {
     run: @escaping @Sendable () async -> Void,
     listen: @escaping @Sendable (_ authentication: APIAuthentication) async -> Void,
     syncNow: @escaping @Sendable () async -> Void,
+    push: @escaping @Sendable (_ mutations: [SyncMutation]) async throws -> Void,
     status: @escaping @Sendable () async -> AsyncStream<SyncStatus>,
     removeLocalData: @escaping @Sendable () async throws -> Void
   ) {
     self.run = run
     self.listen = listen
     self.syncNow = syncNow
+    self.push = push
     self.status = status
     self.removeLocalData = removeLocalData
   }
@@ -56,6 +60,7 @@ public struct SyncClient: Sendable {
       run: { await resolve().run() },
       listen: { authentication in await resolve().listen(authentication: authentication) },
       syncNow: { await resolve().syncNow() },
+      push: { try await resolve().push($0) },
       status: { await resolve().statusUpdates() },
       removeLocalData: { try await resolve().removeLocalData() }
     )
@@ -67,6 +72,7 @@ public struct SyncClient: Sendable {
       run: {},
       listen: { _ in },
       syncNow: {},
+      push: { _ in },
       status: { AsyncStream { $0.yield(status) } },
       removeLocalData: {}
     )
@@ -83,6 +89,9 @@ extension SyncClient: DependencyKey {
         reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:syncSchema:) at launch.")
       },
       syncNow: {},
+      push: { _ in
+        reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:syncSchema:) at launch.")
+      },
       status: { AsyncStream { $0.yield(.idle) } },
       removeLocalData: {
         reportIssue("Set @Dependency(\\.sync) to SyncClient.live(entities:syncSchema:) at launch.")
@@ -95,6 +104,7 @@ extension SyncClient: DependencyKey {
       run: { reportIssue("Unimplemented: @Dependency(\\.sync).run") },
       listen: { _ in reportIssue("Unimplemented: @Dependency(\\.sync).listen") },
       syncNow: { reportIssue("Unimplemented: @Dependency(\\.sync).syncNow") },
+      push: { _ in reportIssue("Unimplemented: @Dependency(\\.sync).push") },
       status: {
         reportIssue("Unimplemented: @Dependency(\\.sync).status")
         return AsyncStream { $0.finish() }

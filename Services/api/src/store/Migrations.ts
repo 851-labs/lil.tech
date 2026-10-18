@@ -248,6 +248,17 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       ALTER TABLE "health_workout_route" ADD COLUMN "provenance" TEXT;
     `,
   },
+  {
+    version: 20,
+    name: "health_pin",
+    // `HealthPin` (`src/health/HealthPins.ts`), and the mutation IDs `POST /v1/sync/mutations`
+    // answers again for 7 days (`pushMutations`, 851-2641).
+    sql: `
+      CREATE TABLE "health_pin" (id TEXT PRIMARY KEY, "position" REAL NOT NULL) STRICT;
+      CREATE TABLE pushed_mutations (id TEXT PRIMARY KEY, seq INTEGER NOT NULL, at INTEGER NOT NULL) STRICT;
+      CREATE INDEX pushed_mutations_at ON pushed_mutations (at);
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

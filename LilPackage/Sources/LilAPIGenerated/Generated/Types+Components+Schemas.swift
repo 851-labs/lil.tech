@@ -615,6 +615,196 @@ extension Components {
                 case sha256
             }
         }
+        /// - Remark: Generated from `#/components/schemas/MutationRejected`.
+        public struct MutationRejected: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/MutationRejected/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case mutationRejected = "MutationRejected"
+            }
+            /// - Remark: Generated from `#/components/schemas/MutationRejected/_tag`.
+            public var _tag: Components.Schemas.MutationRejected._TagPayload
+            /// - Remark: Generated from `#/components/schemas/MutationRejected/index`.
+            public var index: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/MutationRejected/message`.
+            public var message: Swift.String
+            /// Creates a new `MutationRejected`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - index:
+            ///   - message:
+            public init(
+                _tag: Components.Schemas.MutationRejected._TagPayload,
+                index: Swift.Int,
+                message: Swift.String
+            ) {
+                self._tag = _tag
+                self.index = index
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case index
+                case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/PushedMutations`.
+        public struct PushedMutations: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PushedMutations/seq`.
+            public var seq: Swift.Int
+            /// Creates a new `PushedMutations`.
+            ///
+            /// - Parameters:
+            ///   - seq:
+            public init(seq: Swift.Int) {
+                self.seq = seq
+            }
+            public enum CodingKeys: String, CodingKey {
+                case seq
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/PushMutations`.
+        public struct PushMutations: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PushMutations/mutationId`.
+            public var mutationId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload`.
+            public struct MutationsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value1`.
+                public struct Value1Payload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value1/entity`.
+                    public var entity: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value1/op`.
+                    @frozen public enum OpPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case upsert = "upsert"
+                    }
+                    /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value1/op`.
+                    public var op: Components.Schemas.PushMutations.MutationsPayloadPayload.Value1Payload.OpPayload
+                    /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value1/id`.
+                    public var id: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value1/row`.
+                    public var row: OpenAPIRuntime.OpenAPIObjectContainer
+                    /// Creates a new `Value1Payload`.
+                    ///
+                    /// - Parameters:
+                    ///   - entity:
+                    ///   - op:
+                    ///   - id:
+                    ///   - row:
+                    public init(
+                        entity: Swift.String,
+                        op: Components.Schemas.PushMutations.MutationsPayloadPayload.Value1Payload.OpPayload,
+                        id: Swift.String,
+                        row: OpenAPIRuntime.OpenAPIObjectContainer
+                    ) {
+                        self.entity = entity
+                        self.op = op
+                        self.id = id
+                        self.row = row
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case entity
+                        case op
+                        case id
+                        case row
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value1`.
+                public var value1: Components.Schemas.PushMutations.MutationsPayloadPayload.Value1Payload?
+                /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value2`.
+                public struct Value2Payload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value2/entity`.
+                    public var entity: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value2/op`.
+                    @frozen public enum OpPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case delete = "delete"
+                    }
+                    /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value2/op`.
+                    public var op: Components.Schemas.PushMutations.MutationsPayloadPayload.Value2Payload.OpPayload
+                    /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value2/id`.
+                    public var id: Swift.String
+                    /// Creates a new `Value2Payload`.
+                    ///
+                    /// - Parameters:
+                    ///   - entity:
+                    ///   - op:
+                    ///   - id:
+                    public init(
+                        entity: Swift.String,
+                        op: Components.Schemas.PushMutations.MutationsPayloadPayload.Value2Payload.OpPayload,
+                        id: Swift.String
+                    ) {
+                        self.entity = entity
+                        self.op = op
+                        self.id = id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case entity
+                        case op
+                        case id
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/PushMutations/MutationsPayload/value2`.
+                public var value2: Components.Schemas.PushMutations.MutationsPayloadPayload.Value2Payload?
+                /// Creates a new `MutationsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - value1:
+                ///   - value2:
+                public init(
+                    value1: Components.Schemas.PushMutations.MutationsPayloadPayload.Value1Payload? = nil,
+                    value2: Components.Schemas.PushMutations.MutationsPayloadPayload.Value2Payload? = nil
+                ) {
+                    self.value1 = value1
+                    self.value2 = value2
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    var errors: [any Swift.Error] = []
+                    do {
+                        self.value1 = try .init(from: decoder)
+                    } catch {
+                        errors.append(error)
+                    }
+                    do {
+                        self.value2 = try .init(from: decoder)
+                    } catch {
+                        errors.append(error)
+                    }
+                    try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                        [
+                            self.value1,
+                            self.value2
+                        ],
+                        type: Self.self,
+                        codingPath: decoder.codingPath,
+                        errors: errors
+                    )
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    try self.value1?.encode(to: encoder)
+                    try self.value2?.encode(to: encoder)
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/PushMutations/mutations`.
+            public typealias MutationsPayload = [Components.Schemas.PushMutations.MutationsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/PushMutations/mutations`.
+            public var mutations: Components.Schemas.PushMutations.MutationsPayload
+            /// Creates a new `PushMutations`.
+            ///
+            /// - Parameters:
+            ///   - mutationId:
+            ///   - mutations:
+            public init(
+                mutationId: Swift.String,
+                mutations: Components.Schemas.PushMutations.MutationsPayload
+            ) {
+                self.mutationId = mutationId
+                self.mutations = mutations
+            }
+            public enum CodingKeys: String, CodingKey {
+                case mutationId
+                case mutations
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/SnapshotNotReady`.
         public struct SnapshotNotReady: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/SnapshotNotReady/_tag`.
@@ -3719,6 +3909,61 @@ extension Components {
                 try container.encodeIfPresent(
                     self.provenance,
                     forKey: .provenance
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthPin`.
+        public struct HealthPin: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthPin/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthPin/position`.
+            public var position: Swift.Double
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthPin`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - position:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                position: Swift.Double,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.position = position
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case position
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.position = try container.decode(
+                    Swift.Double.self,
+                    forKey: .position
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "position"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.position,
+                    forKey: .position
                 )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }

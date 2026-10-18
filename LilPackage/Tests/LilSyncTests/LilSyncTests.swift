@@ -87,6 +87,13 @@ private final class FakeServer: Sendable {
     var interrupted: Set<String> = []
     var downloads: [String] = []
     var snapshotRequests = 0
+    /// Pushed mutation IDs, in order, and each one's `seq` (`POST /v1/sync/mutations`).
+    var pushes: [String] = []
+    var pushed: [String: Int] = [:]
+    /// Pushes are refused as invalid.
+    var refusingPushes = false
+    /// Pushes fail as unavailable.
+    var failingPushes = false
   }
   let state = LockIsolated(State())
 
@@ -141,8 +148,50 @@ private final class FakeServer: Sendable {
   }
 
   var client: Client {
-    .mock { [self] request, _ in
+    .mock { [self] request, body in
       let path = request.path ?? ""
+      if path == "/v1/sync/mutations" {
+        let push = try JSONDecoder().decode(
+          Components.Schemas.PushMutations.self,
+          from: try await Data(collecting: try #require(body), upTo: 1 << 20))
+        return try state.withValue { state in
+          state.pushes.append(push.mutationId)
+          if state.failingPushes {
+            return try json(
+              .serviceUnavailable,
+              Components.Schemas.UserStoreUnavailable(
+                _tag: .userStoreUnavailable, message: "Unavailable"))
+          }
+          if state.refusingPushes {
+            return try json(
+              .badRequest,
+              Components.Schemas.MutationRejected(
+                _tag: .mutationRejected, index: 0, message: "Invalid"))
+          }
+          if let seq = state.pushed[push.mutationId] {
+            return try json(.ok, Components.Schemas.PushedMutations(seq: seq))
+          }
+          for mutation in push.mutations {
+            let seq = state.changes.count + 1
+            if let upsert = mutation.value1 {
+              var row = upsert.row.value
+              row["id"] = upsert.id
+              state.changes.append(
+                .init(
+                  seq: seq, entity: upsert.entity, id: upsert.id, op: "upsert",
+                  row: try OpenAPIObjectContainer(unvalidatedValue: row), at: 1_760_400_000_000))
+            } else if let delete = mutation.value2 {
+              state.changes.append(
+                .init(
+                  seq: seq, entity: delete.entity, id: delete.id, op: "delete",
+                  at: 1_760_400_000_000))
+            }
+          }
+          let seq = state.changes.count
+          state.pushed[push.mutationId] = seq
+          return try json(.ok, Components.Schemas.PushedMutations(seq: seq))
+        }
+      }
       if path.hasPrefix("/v1/sync/snapshot") {
         return try state.withValue { state in
           state.snapshotRequests += 1
@@ -1101,5 +1150,121 @@ struct LilSyncLiveTests {
     live.latest()?.finish()
     await listening.value
     #expect(live.connections.value.count == 1)
+  }
+}
+
+@Suite
+struct LilSyncPushTests {
+  fileprivate let server = FakeServer()
+  let database: any DatabaseWriter
+
+  init() throws {
+    database = try makeDatabase()
+  }
+
+  private func engine() -> LilSyncEngine {
+    withDependencies {
+      $0.defaultDatabase = database
+      $0.api = server.client
+      $0.snapshotDownloader = server.downloader
+      $0.continuousClock = RecordingClock()
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+      $0.date.now = syncedAt
+    } operation: {
+      LilSyncEngine(
+        entities: [notes], syncSchema: 1,
+        partsDirectory: URL.temporaryDirectory.appending(path: "lilsync-\(UUID().uuidString)"))
+    }
+  }
+
+  private func mine(_ id: String = "p", _ title: String = "Mine") -> SyncMutation {
+    .upsert("note", id: id, row: try! OpenAPIObjectContainer(unvalidatedValue: ["title": title]))
+  }
+
+  private func storedNotes() throws -> [Note] {
+    try database.read { db in try Note.order(by: \.id).fetchAll(db) }
+  }
+
+  private func pending() throws -> [PendingMutation] {
+    try database.read { db in try PendingMutation.fetchAll(db) }
+  }
+
+  @Test
+  func aPushIsWrittenAtOnceAndSentBeforeTheNextPull() async throws {
+    let engine = engine()
+    try await engine.push([mine()])
+    #expect(try storedNotes() == [Note(id: "p", title: "Mine")])
+    #expect(try pending().map(\.seq) == [nil])
+
+    try await engine.pull()
+    #expect(server.state.value.pushes.count == 1)
+    #expect(try storedNotes() == [Note(id: "p", title: "Mine")])
+    // The cursor passed the push's change, so it's done.
+    #expect(try pending().isEmpty)
+  }
+
+  @Test
+  func pulledChangesDontUndoAPushUntilTheCursorPassesIt() async throws {
+    server.append(upsert("p", "Theirs"))
+    server.append(upsert("q", "Other"))
+    server.append(upsert("r", "Other"))
+    let engine = engine()
+    try await engine.push([mine()])
+    // The push becomes change 4; the pull stops after the first page (changes 1 and 2).
+    server.state.withValue { $0.failing = [2] }
+    await #expect(throws: (any Error).self) { try await engine.pull() }
+    #expect(try storedNotes().first { $0.id == "p" }?.title == "Mine")
+    #expect(try pending().map(\.seq) == [4])
+
+    server.state.withValue { $0.failing = [] }
+    try await engine.pull()
+    #expect(try storedNotes().first { $0.id == "p" }?.title == "Mine")
+    #expect(try pending().isEmpty)
+    // Sent once: the second pull didn't push it again.
+    #expect(server.state.value.pushes.count == 1)
+  }
+
+  @Test
+  func aPushTheServerRefusesIsDroppedAndTheDataStartsOver() async throws {
+    server.state.withValue { $0.refusingPushes = true }
+    let engine = engine()
+    await withKnownIssue {
+      try await engine.push([mine()])
+      await #expect(throws: SyncError.needsBootstrap) { try await engine.pull() }
+    }
+    #expect(try pending().isEmpty)
+    try await engine.bootstrap()
+    #expect(try storedNotes().isEmpty)
+  }
+
+  @Test
+  func aPushThatKeepsFailingDoesntStopPulls() async throws {
+    server.append(upsert("a", "Note a"))
+    server.state.withValue { $0.failingPushes = true }
+    let engine = engine()
+    try await engine.push([mine()])
+    await #expect(throws: SyncError.unavailable) { try await engine.pull() }
+    // Pulled anyway, with the unsent write still over it, and still queued.
+    #expect(try storedNotes() == [Note(id: "a", title: "Note a"), Note(id: "p", title: "Mine")])
+    #expect(try pending().map(\.seq) == [nil])
+  }
+
+  @Test
+  func unsentWritesSurviveABootstrap() async throws {
+    try server.publishSnapshot(seq: 0, notes: [Note(id: "a", title: "Note a")])
+    let engine = engine()
+    try await engine.push([mine()])
+    try await engine.bootstrap()
+    #expect(try storedNotes() == [Note(id: "a", title: "Note a"), Note(id: "p", title: "Mine")])
+    #expect(try pending().count == 1)
+  }
+
+  @Test
+  func signingOutDropsUnsentWrites() async throws {
+    let engine = engine()
+    try await engine.push([mine()])
+    try await engine.removeLocalData()
+    #expect(try pending().isEmpty)
+    #expect(try storedNotes().isEmpty)
   }
 }

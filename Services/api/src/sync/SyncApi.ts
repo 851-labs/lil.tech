@@ -2,7 +2,7 @@ import { Effect, Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import { Authorization } from "../auth/AuthApi.ts";
 import { documentQuery } from "../OpenApiAnnotations.ts";
-import { ChangesCompacted, ChangesPage } from "../store/Changes.ts";
+import { ChangesCompacted, ChangesPage, Mutation, StorageFull } from "../store/Changes.ts";
 import { UserStoreUnavailable } from "../store/UserStores.ts";
 
 // The sync part of the API definition (`docs/SYNC.md`). Like `Api.ts`, it holds no server code.
@@ -70,6 +70,43 @@ export class SnapshotGone extends Schema.TaggedError<SnapshotGone>()(
   { httpApiStatus: 410 },
 ) {}
 
+/** The most mutations in one push. */
+export const maxPushedMutations = 500;
+
+export const PushMutations = Schema.Struct({
+  /**
+   * A UUID the client makes for this push. Pushing the same ID again within 7 days returns the
+   * first push's result without applying anything, so retries are safe.
+   */
+  mutationId: Schema.String.check(
+    Schema.isPattern(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+  ),
+  /** Applied in order, in one transaction: all of them or none. */
+  mutations: Schema.Array(Mutation).check(
+    Schema.isMinLength(1),
+    Schema.isMaxLength(maxPushedMutations),
+  ),
+}).annotate({ identifier: "lil/api/sync/PushMutations" });
+
+export const PushedMutations = Schema.Struct({
+  /** The `seq` of the last change the push made, or `head` if it changed nothing. */
+  seq: Schema.Int,
+}).annotate({ identifier: "lil/api/sync/PushedMutations" });
+
+/**
+ * A mutation can never be applied: its entity isn't one apps may write, or its row is invalid.
+ * Nothing in the push was applied, and retrying won't help.
+ */
+export class MutationRejected extends Schema.TaggedError<MutationRejected>()(
+  "MutationRejected",
+  {
+    /** The mutation's position in the push. */
+    index: Schema.Int,
+    message: Schema.String,
+  },
+  { httpApiStatus: 400 },
+) {}
+
 export class SyncApi extends HttpApiGroup.make("sync")
   .add(
     HttpApiEndpoint.get("changes", "/v1/sync/changes", {
@@ -83,6 +120,14 @@ export class SyncApi extends HttpApiGroup.make("sync")
     HttpApiEndpoint.get("snapshot", "/v1/sync/snapshot", {
       success: LatestSnapshot,
       error: [SnapshotNotReady, UserStoreUnavailable],
+    }),
+  )
+  .add(
+    // Writes from apps, to entities they may write such as `health_pin` (`docs/SYNC.md`).
+    HttpApiEndpoint.post("pushMutations", "/v1/sync/mutations", {
+      payload: PushMutations,
+      success: PushedMutations,
+      error: [MutationRejected, StorageFull, UserStoreUnavailable],
     }),
   )
   .add(

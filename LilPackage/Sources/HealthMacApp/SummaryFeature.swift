@@ -1,32 +1,42 @@
 public import ComposableArchitecture
 public import Foundation
 public import HealthCatalog
+import HealthDatabase
+import LilSync
+import SQLiteData
 import SwiftUI
 
 extension SharedKey where Self == AppStorageKey<[String]>.Default {
-  /// The data types pinned to Summary, in order. Local to this Mac for now (851-2641), and
-  /// cleared when the account signs out. In user defaults, which save at once: file storage
-  /// waits a second between writes, and a change made just before quitting would be lost.
+  /// The data types pinned to Summary on this Mac before pins synced (851-2641). They're moved
+  /// up to the account after its first sync, unless it has pins already, then cleared.
   static var summaryPins: Self {
     Self[.appStorage("summaryPins"), default: []]
   }
 }
 
-/// Summary's pinned metrics: pinning, unpinning and reordering them.
+/// Summary's pinned metrics: pinning, unpinning and reordering them. Pins are synced
+/// (`HealthPin`): they're read from the local table and written through ``SyncClient/push``,
+/// shown at once.
 @Reducer
 public struct SummaryFeature {
   @ObservableState
   public struct State: Equatable {
-    @Shared(.summaryPins) public var pins: [String]
+    /// The pinned data types, in order, as last read or written.
+    public var pins: [String]
+    /// Whether the pins haven't been read yet, so an empty Summary would be wrong.
+    public var isLoadingPins: Bool
     public var isEditing = false
     /// The editor's search for metrics to pin.
     public var search = ""
 
-    public init(isEditing: Bool = false) {
+    /// Pins given, e.g. in previews, are shown at once; otherwise they're read (``Action/task``).
+    public init(pins: [String]? = nil, isEditing: Bool = false) {
+      self.pins = pins ?? []
+      self.isLoadingPins = pins == nil
       self.isEditing = isEditing
     }
 
-    /// The pins in order, each once, whatever the file holds.
+    /// The pins in order, each once.
     public var orderedPins: [String] {
       pins.reduce(into: []) { unique, id in
         if !unique.contains(id) { unique.append(id) }
@@ -61,11 +71,43 @@ public struct SummaryFeature {
     case doneButtonTapped
     case editButtonTapped
     case pinButtonTapped(String)
+    case pinsLoaded([String])
     case pinsMoved(IndexSet, Int)
+    case task
     case unpinButtonTapped(String)
   }
 
+  @Dependency(\.continuousClock) var clock
+  @Dependency(\.defaultDatabase) var database
+  @Dependency(\.sync) var sync
+
+  enum CancelID: Hashable, Sendable {
+    /// The pins' next write. Signing out cancels it, so it can't land after the account's data
+    /// is gone.
+    case write
+  }
+
+  /// How long pins wait to be written after a change, so a burst of edits (e.g. dragging one
+  /// pin then another) is one write, made in order.
+  static let writeDelay = Duration.milliseconds(300)
+
   public init() {}
+
+  /// Shows `pins` at once (the caller sets them), and writes them shortly: locally, then to the
+  /// server with the next sync. Each write makes the table match `pins`, so the last one wins
+  /// whatever came before.
+  private func write(_ pins: [String]) -> Effect<Action> {
+    .run { [clock, database, sync] _ in
+      try await clock.sleep(for: Self.writeDelay)
+      let stored = try await database.read { try HealthDatabase.summaryPins($0) }
+      try await sync.push(HealthDatabase.pinMutations(from: stored, to: pins))
+    } catch: { error, _ in
+      // A newer write, or signing out, cancelled it.
+      guard !(error is CancellationError) else { return }
+      reportIssue(error)
+    }
+    .cancellable(id: CancelID.write, cancelInFlight: true)
+  }
 
   public var body: some ReducerOf<Self> {
     BindingReducer()
@@ -89,23 +131,38 @@ public struct SummaryFeature {
         return .none
 
       case .pinButtonTapped(let id):
-        state.$pins.withLock { pins in
-          if !pins.contains(id) { pins.append(id) }
-        }
+        let old = state.orderedPins
+        guard !old.contains(id) else { return .none }
+        state.pins = old + [id]
+        return write(state.pins)
+
+      case .pinsLoaded(let pins):
+        state.pins = pins
+        state.isLoadingPins = false
         return .none
 
       case .pinsMoved(let source, let destination):
         // Offsets into what the editor shows: each pin once.
-        let ordered = state.orderedPins
-        state.$pins.withLock { pins in
-          pins = ordered
-          pins.move(fromOffsets: source, toOffset: destination)
+        let old = state.orderedPins
+        var pins = old
+        pins.move(fromOffsets: source, toOffset: destination)
+        state.pins = pins
+        return write(pins)
+
+      case .task:
+        // Changes from another Mac arrive with sync, as do this one's writes.
+        return .run { [database] send in
+          for try await pins in HealthDatabase.summaryPinUpdates(in: database) {
+            await send(.pinsLoaded(pins))
+          }
+        } catch: { error, _ in
+          reportIssue(error)
         }
-        return .none
 
       case .unpinButtonTapped(let id):
-        state.$pins.withLock { $0.removeAll { $0 == id } }
-        return .none
+        let old = state.orderedPins
+        state.pins = old.filter { $0 != id }
+        return write(state.pins)
       }
     }
   }

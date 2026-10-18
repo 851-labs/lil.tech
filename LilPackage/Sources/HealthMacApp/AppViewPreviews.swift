@@ -8,8 +8,11 @@ import SwiftUI
 
 @MainActor
 private func appView(_ state: AppFeature.State) -> some View {
+  var state = state
+  // No pins, read: `EmptyReducer` never runs Summary's task to read them.
+  state.summary = SummaryFeature.State(pins: [])
   // `EmptyReducer`: the view's task would replace the state with the real session's.
-  AppView(store: Store(initialState: state) { EmptyReducer() })
+  return AppView(store: Store(initialState: state) { EmptyReducer() })
     .frame(width: 960, height: 640)
 }
 

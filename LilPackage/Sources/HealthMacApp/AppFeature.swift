@@ -1,8 +1,10 @@
 public import ComposableArchitecture
 import Foundation
 public import HealthCatalog
+import HealthDatabase
 public import LilAuth
 public import LilSync
+import SQLiteData
 
 /// lil health on the Mac: sign in, then iPad Health's layout, a sidebar of Summary and the
 /// Health categories beside what's selected. While signed in, it syncs the account's health data
@@ -19,6 +21,8 @@ public struct AppFeature {
     /// Shown in the sidebar's footer.
     public var syncStatus: SyncStatus
     public var summary: SummaryFeature.State
+    /// Pins from before they synced, moved up when sync starts (`movePinsUp`).
+    @Shared(.summaryPins) var localPins: [String]
 
     public init(
       isSignedIn: Bool? = nil, selection: SidebarItem? = .summary, searchText: String = "",
@@ -55,6 +59,7 @@ public struct AppFeature {
     case signOutButtonTapped
     case summary(SummaryFeature.Action)
     case syncStatusChanged(SyncStatus)
+    case localPinsMovedUp([String])
     case task
   }
 
@@ -68,6 +73,7 @@ public struct AppFeature {
   @Dependency(\.auth) var auth
   @Dependency(\.authSessions) var authSessions
   @Dependency(\.blobCache) var blobCache
+  @Dependency(\.defaultDatabase) var database
   @Dependency(\.sync) var sync
 
   public init() {}
@@ -102,22 +108,23 @@ public struct AppFeature {
         let wasSignedIn = state.isSignedIn
         state.isSignedIn = isSignedIn
         if isSignedIn {
-          return wasSignedIn == true ? .none : startSync()
+          return wasSignedIn == true ? .none : startSync(localPins: state.localPins)
         }
         // The next account starts afresh.
         state.signIn = SignInFeature.State()
         state.selection = .summary
         state.searchText = ""
         state.syncStatus = .idle
-        // Pins are the account's choice, like its data.
+        // Pins are the account's choice, like its data, and leave with it.
         state.summary = SummaryFeature.State()
-        state.summary.$pins.withLock { $0 = [] }
+        state.$localPins.withLock { $0 = [] }
         // The account's health data leaves the Mac with it. Also when the app opens signed out,
         // in case it quit before it was done. Removing waits for a pull being cancelled to stop
         // (`LilSyncEngine.removeLocalData()`).
         return .merge(
           .cancel(id: CancelID.pull),
           .cancel(id: CancelID.sync),
+          .cancel(id: SummaryFeature.CancelID.write),
           .run { [sync, blobCache] send in
             // First, so it's done even if the database can't be.
             await blobCache.removeAll()
@@ -142,6 +149,11 @@ public struct AppFeature {
         state.syncStatus = status
         return .none
 
+      case .localPinsMovedUp(let moved):
+        // Only those moved: any pinned meanwhile on a Mac without sync stay for next time.
+        state.$localPins.withLock { local in local.removeAll { moved.contains($0) } }
+        return .none
+
       case .signIn:
         // The session's updates say when signing in worked.
         return .none
@@ -156,9 +168,26 @@ public struct AppFeature {
     }
   }
 
+  /// Moves this Mac's pins from before they synced up to the account (851-2641): through sync's
+  /// queue, so they show at once, survive the bootstrap that adding pins brings, and reach the
+  /// server with the first sync. Any the account has already stay first. Cleared once written.
+  private func movePinsUp(_ local: [String]) -> Effect<Action> {
+    .run { [database, sync] send in
+      let synced = try await database.read { try HealthDatabase.summaryPins($0) }
+      let pins = synced + local.filter { !synced.contains($0) }
+      try await sync.push(HealthDatabase.pinMutations(from: synced, to: pins))
+      await send(.localPinsMovedUp(local))
+    } catch: { error, _ in
+      guard !(error is CancellationError) else { return }
+      reportIssue(error)
+    }
+    .cancellable(id: SummaryFeature.CancelID.write)
+  }
+
   /// Pulls, follows live notices of new changes, and reports the status, until signed out.
-  private func startSync() -> Effect<Action> {
+  private func startSync(localPins: [String]) -> Effect<Action> {
     .merge(
+      localPins.isEmpty ? .none : movePinsUp(localPins),
       pull(),
       .run { [sync, authSessions] _ in
         await sync.listen(authSessions.apiAuthentication)

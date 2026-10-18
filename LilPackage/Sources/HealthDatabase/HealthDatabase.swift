@@ -211,6 +211,17 @@ public enum HealthDatabase {
         try db.execute(sql: #"ALTER TABLE "\#(table)" ADD COLUMN "provenance" TEXT"#)
       }
     }
+    migrator.registerMigration("Create health pins") { db in
+      try #sql(
+        """
+        CREATE TABLE "healthPins" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "position" REAL NOT NULL
+        ) STRICT
+        """
+      )
+      .execute(db)
+    }
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
@@ -323,6 +334,9 @@ public enum HealthDatabase {
 
   /// The health entities, for ``LilSyncEngine/init(entities:syncSchema:partsDirectory:)``.
   public static let syncEntities: [SyncEntity] = [
+    entity("health_pin", Components.Schemas.HealthPin.self) { row in
+      HealthPin(id: row.id, position: row.position)
+    },
     entity("health_provenance", Components.Schemas.HealthProvenance.self) { row in
       HealthProvenance(
         id: row.id, sourceRevision: try json(row.sourceRevision), device: try json(row.device))

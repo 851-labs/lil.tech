@@ -154,6 +154,51 @@ export const makeUserStore = (
       ? Effect.fail(new StorageFull({ quotaBytes: storageQuotaBytes }))
       : Effect.void,
   );
+  /**
+   * Applies mutations in one transaction (see `applyMutations`). Past `storageHardLimitBytes`,
+   * only deletes are applied: a call with an upsert fails with `StorageFull`.
+   */
+  const apply = (mutations: ReadonlyArray<Mutation>) =>
+    Effect.gen(function* () {
+      yield* ensureNotDeleted;
+      if (mutations.some((mutation) => mutation.op === "upsert")) {
+        yield* ensureRoom(storageHardLimitBytes);
+      }
+      // A retired device's records are deleted, and mustn't come back. Ingestion drops them
+      // first (`beginHealthBatch`), so this is a backstop.
+      const deviceOf = (mutation: Mutation) =>
+        mutation.op === "upsert" &&
+        entitiesByName.get(mutation.entity)?.deviceScoped !== undefined &&
+        typeof mutation.row["device"] === "string"
+          ? mutation.row["device"]
+          : undefined;
+      const retired = retiredAmong(
+        sql,
+        new Set(mutations.map(deviceOf).filter((device) => device !== undefined)),
+      );
+      const index = mutations.findIndex((mutation) => {
+        const device = deviceOf(mutation);
+        return device !== undefined && retired.has(device);
+      });
+      if (index !== -1) {
+        return yield* new InvalidMutation({ index, message: deviceSignedOut });
+      }
+      const at = yield* Clock.currentTimeMillis;
+      const applied = yield* Effect.suspend(() => {
+        try {
+          return Effect.succeed(applyMutations(sql, entitiesByName, mutations, at));
+        } catch (error) {
+          if (error instanceof InvalidMutation) return Effect.fail(error);
+          throw error;
+        }
+      });
+      if (applied.appended > 0) {
+        yield* notices.notify(at);
+        yield* scheduleAlarm(at);
+      }
+      return applied;
+    });
+
   const healthBatch = (id: string) =>
     ensureNotDeleted.pipe(
       Effect.andThen(Clock.currentTimeMillis),
@@ -416,49 +461,40 @@ export const makeUserStore = (
       ),
     /** Frees a batch's place among those applying at once, after it failed partway. */
     releaseHealthBatch: (id: string) => Effect.sync(() => void ingesting.delete(id)),
+    /** Applies mutations in one transaction (see `apply`). */
+    applyMutations: (mutations: ReadonlyArray<Mutation>) => apply(mutations),
     /**
-     * Applies mutations in one transaction (see `applyMutations`). Past `storageHardLimitBytes`,
-     * only deletes are applied: a call with an upsert fails with `StorageFull`.
+     * Applies mutations an app pushed (`POST /v1/sync/mutations`), only to entities apps may
+     * write, and returns the `seq` of the last change, or `head` if nothing changed. A
+     * `mutationId` seen in the last 7 days gets its first result again without applying
+     * anything. Applying again would change nothing anyway (upserts of the same values and
+     * deletes of what's gone append nothing), so it's recorded after the mutations apply.
      */
-    applyMutations: (mutations: ReadonlyArray<Mutation>) =>
+    pushMutations: (mutationId: string, mutations: ReadonlyArray<Mutation>) =>
       Effect.gen(function* () {
         yield* ensureNotDeleted;
-        if (mutations.some((mutation) => mutation.op === "upsert")) {
-          yield* ensureRoom(storageHardLimitBytes);
-        }
-        // A retired device's records are deleted, and mustn't come back. Ingestion drops them
-        // first (`beginHealthBatch`), so this is a backstop.
-        const deviceOf = (mutation: Mutation) =>
-          mutation.op === "upsert" &&
-          entitiesByName.get(mutation.entity)?.deviceScoped !== undefined &&
-          typeof mutation.row["device"] === "string"
-            ? mutation.row["device"]
-            : undefined;
-        const retired = retiredAmong(
-          sql,
-          new Set(mutations.map(deviceOf).filter((device) => device !== undefined)),
+        const known = sql.exec("SELECT seq FROM pushed_mutations WHERE id = ?", mutationId)[0];
+        if (known !== undefined) return { seq: known["seq"] as number };
+        const index = mutations.findIndex(
+          (mutation) => entitiesByName.get(mutation.entity)?.clientWritable !== true,
         );
-        const index = mutations.findIndex((mutation) => {
-          const device = deviceOf(mutation);
-          return device !== undefined && retired.has(device);
-        });
-        if (index !== -1) {
-          return yield* new InvalidMutation({ index, message: deviceSignedOut });
+        const refused = mutations[index];
+        if (refused !== undefined) {
+          return yield* new InvalidMutation({
+            index,
+            message: `Apps can't write ${refused.entity}`,
+          });
         }
+        const { head } = yield* apply(mutations);
         const at = yield* Clock.currentTimeMillis;
-        const applied = yield* Effect.suspend(() => {
-          try {
-            return Effect.succeed(applyMutations(sql, entitiesByName, mutations, at));
-          } catch (error) {
-            if (error instanceof InvalidMutation) return Effect.fail(error);
-            throw error;
-          }
-        });
-        if (applied.appended > 0) {
-          yield* notices.notify(at);
-          yield* scheduleAlarm(at);
-        }
-        return applied;
+        sql.exec(
+          "INSERT INTO pushed_mutations (id, seq, at) VALUES (?, ?, ?) ON CONFLICT (id) DO NOTHING",
+          mutationId,
+          head,
+          at,
+        );
+        sql.exec("DELETE FROM pushed_mutations WHERE at < ?", at - pushedMutationRetentionMs);
+        return { seq: head };
       }),
     /**
      * What a new device bootstraps from, read together so they agree: the store's epoch, whether
@@ -558,6 +594,9 @@ export type UserStoreShape = UserStoreMethods & {
     reason: string,
   ) => Effect.Effect<void>;
 };
+
+/** How long `pushMutations` remembers a mutation ID. */
+const pushedMutationRetentionMs = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * How many health batches a store applies at once (851-2652). It applies one transaction at a

@@ -41,6 +41,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /v1/sync/snapshot`.
     /// - Remark: Generated from `#/paths//v1/sync/snapshot/get(syncSnapshot)`.
     func syncSnapshot(_ input: Operations.SyncSnapshot.Input) async throws -> Operations.SyncSnapshot.Output
+    /// - Remark: HTTP `POST /v1/sync/mutations`.
+    /// - Remark: Generated from `#/paths//v1/sync/mutations/post(syncPushMutations)`.
+    func syncPushMutations(_ input: Operations.SyncPushMutations.Input) async throws -> Operations.SyncPushMutations.Output
     /// - Remark: HTTP `GET /v1/sync/snapshots/{id}`.
     /// - Remark: Generated from `#/paths//v1/sync/snapshots/{id}/get(syncSnapshotById)`.
     func syncSnapshotById(_ input: Operations.SyncSnapshotById.Input) async throws -> Operations.SyncSnapshotById.Output
@@ -149,6 +152,17 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//v1/sync/snapshot/get(syncSnapshot)`.
     public func syncSnapshot(headers: Operations.SyncSnapshot.Input.Headers = .init()) async throws -> Operations.SyncSnapshot.Output {
         try await syncSnapshot(Operations.SyncSnapshot.Input(headers: headers))
+    }
+    /// - Remark: HTTP `POST /v1/sync/mutations`.
+    /// - Remark: Generated from `#/paths//v1/sync/mutations/post(syncPushMutations)`.
+    public func syncPushMutations(
+        headers: Operations.SyncPushMutations.Input.Headers = .init(),
+        body: Operations.SyncPushMutations.Input.Body
+    ) async throws -> Operations.SyncPushMutations.Output {
+        try await syncPushMutations(Operations.SyncPushMutations.Input(
+            headers: headers,
+            body: body
+        ))
     }
     /// - Remark: HTTP `GET /v1/sync/snapshots/{id}`.
     /// - Remark: Generated from `#/paths//v1/sync/snapshots/{id}/get(syncSnapshotById)`.
