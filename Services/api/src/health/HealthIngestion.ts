@@ -4,7 +4,7 @@ import { Mutation } from "../store/Changes.ts";
 import { stampDevice } from "../store/Entities.ts";
 import { deviceSignedOut } from "../store/RetiredDevices.ts";
 import { Users } from "../core/Users.ts";
-import { UserStores } from "../store/UserStores.ts";
+import { type UserStoreClient, UserStores } from "../store/UserStores.ts";
 import type { HealthBatch, RejectedLine } from "./HealthBatches.ts";
 import { healthEntities } from "./HealthEntities.ts";
 
@@ -51,7 +51,13 @@ export class BatchFilesUnavailable extends Schema.TaggedError<BatchFilesUnavaila
 /** The queue of uploaded batches (a Cloudflare Queue in the Worker). */
 export class HealthBatchQueue extends Context.Service<
   HealthBatchQueue,
-  { readonly send: (message: HealthBatchMessage) => Effect.Effect<void> }
+  {
+    /** Queues `message`, delivered after `delaySeconds` if given. */
+    readonly send: (
+      message: HealthBatchMessage,
+      options?: { readonly delaySeconds?: number },
+    ) => Effect.Effect<void>;
+  }
 >()("lil/api/health/HealthBatchQueue") {}
 
 /**
@@ -205,17 +211,21 @@ const forEachLine = Effect.fnUntraced(function* <E, R>(
  * being applied, and chunks are applied in order. Returns the storage the account takes
  * afterwards, unless the batch was finished already.
  */
-const applyHealthBatch = Effect.fnUntraced(function* (message: HealthBatchMessage) {
+const applyHealthBatch = Effect.fnUntraced(function* (
+  message: HealthBatchMessage,
+  store: UserStoreClient,
+) {
   const files = yield* HealthBatchFiles;
-  const store = (yield* UserStores).forUser(message.userId);
   const key = healthBatchKey(message.userId, message.batchId);
 
   // Checked once for the batch: all its device-scoped lines are from the same device.
-  const { batch: begun, deviceRetired: retiredAtStart } = yield* store.beginHealthBatch(
-    message.batchId,
-    message.deviceId,
-  );
-  if (begun.status !== "applying") return undefined;
+  const {
+    batch: begun,
+    deviceRetired: retiredAtStart,
+    waitSeconds,
+  } = yield* store.beginHealthBatch(message.batchId, message.deviceId);
+  if (waitSeconds > 0) return { waitSeconds };
+  if (begun === null || begun.status !== "applying") return undefined;
   let deviceRetired = retiredAtStart;
   const { receivedAt } = begun;
   const startedAt = yield* Clock.currentTimeMillis;
@@ -379,16 +389,27 @@ const knowsUser = (message: HealthBatchMessage) =>
 /**
  * Applies an uploaded batch to the user's store and records the outcome (`applyHealthBatch`). A
  * batch for an account deleted since it was queued, or for a user the core database doesn't know
- * (`knowsUser`), is dropped with its file.
+ * (`knowsUser`), is dropped with its file. When it's not the batch's turn yet (its store applies
+ * as many as it takes at once, `healthBatchesAtOnce`), nothing is applied, and it returns how
+ * many seconds the batch should wait in the queue.
  */
 export const ingestHealthBatch = Effect.fn("ingestHealthBatch")(function* (
   message: HealthBatchMessage,
 ) {
-  if (!(yield* knowsUser(message))) return yield* dropBatchFile(message);
-  const bytes = yield* applyHealthBatch(message).pipe(
+  if (!(yield* knowsUser(message))) {
+    yield* dropBatchFile(message);
+    return undefined;
+  }
+  const store = (yield* UserStores).forUser(message.userId);
+  const result = yield* applyHealthBatch(message, store).pipe(
     Effect.catchTag("AccountDeleted", () => dropBatchFile(message).pipe(Effect.as(undefined))),
+    // A batch that failed partway frees its place among those its store applies at once.
+    Effect.onError(() => store.releaseHealthBatch(message.batchId).pipe(Effect.ignore)),
   );
-  if (bytes !== undefined) yield* recordStorage(message.userId, bytes);
+  // Not its turn: the caller puts it back in the queue (851-2652).
+  if (typeof result === "object") return result;
+  if (result !== undefined) yield* recordStorage(message.userId, result);
+  return undefined;
 });
 
 /**

@@ -40,6 +40,14 @@ export const HealthBatchDeadLetters = Cloudflare.Queues.Queue("HealthBatchDeadLe
 export const maxHealthBatchRetries = 5;
 
 /**
+ * How many messages the queue handles at once, across users. Each store applies at most
+ * `healthBatchesAtOnce` of its own, and turns the rest away quickly, so this is a few users'
+ * batches plus those being turned away. Not more, because the consumers can share an isolate,
+ * and each applying holds up to two chunks (`healthChunkBytes`) and their mutations.
+ */
+export const healthBatchConsumers = 16;
+
+/**
  * Deletes every object in `bucket` whose key starts with `prefix`: a page of keys at a time (R2
  * lists up to 1,000), each deleted in one call.
  */
@@ -92,7 +100,15 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
   });
   const queueService = Effect.map(Alchemy.RuntimeContext, (runtime) =>
     HealthBatchQueue.of({
-      send: (message) => provideRuntime(runtime)(queue.send(message)).pipe(Effect.orDie),
+      send: (message, { delaySeconds } = {}) =>
+        provideRuntime(runtime)(
+          delaySeconds === undefined
+            ? queue.send(message)
+            : // Alchemy's `SendOptions` leave out `delaySeconds`; the binding's own `send` takes it.
+              Effect.flatMap(queue.raw, (raw) =>
+                Effect.tryPromise(() => raw.send(message, { delaySeconds })),
+              ).pipe(Effect.asVoid, Effect.orDie),
+        ).pipe(Effect.orDie),
     }),
   );
 
@@ -101,10 +117,9 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
     {
       // One batch file per invocation, so a failure only retries that file.
       batchSize: 1,
-      // A user's store applies one transaction at a time, but each batch spends a fixed time
-      // outside it (opening and reading the file, the start and finish calls, recording the
-      // account's size), so a few in flight keep it busy. Too many overload it (`docs/SYNC.md`).
-      maxConcurrency: 4,
+      // Batches from many users at once. Each store limits how many of its own it applies at
+      // once (`healthBatchesAtOnce`), and puts the rest back (851-2652).
+      maxConcurrency: healthBatchConsumers,
       maxRetries: maxHealthBatchRetries,
       retryDelay: "30 seconds",
       // The queue's name, resolved at deploy time.
@@ -114,7 +129,20 @@ export const HealthIngestionWorker = Effect.fnUntraced(function* (
       Stream.runForEach(stream, (message) =>
         ingestHealthBatch(message.body).pipe(
           Effect.matchCauseEffect({
-            onSuccess: () => Effect.sync(() => message.ack()),
+            onSuccess: (result) =>
+              result === undefined
+                ? Effect.sync(() => message.ack())
+                : // Not its turn: back in the queue as a new message, delayed, so waiting holds no
+                  // consumer and doesn't use up its retries.
+                  Effect.flatMap(queueService, (queue) =>
+                    queue.send(message.body, { delaySeconds: result.waitSeconds }),
+                  ).pipe(
+                    Effect.matchCause({
+                      onSuccess: () => message.ack(),
+                      // Not sent: retried as usual instead.
+                      onFailure: () => message.retry(),
+                    }),
+                  ),
             onFailure: (cause) =>
               Effect.gen(function* () {
                 yield* Effect.logWarning("Health batch failed", cause);

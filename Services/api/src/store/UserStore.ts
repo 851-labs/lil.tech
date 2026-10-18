@@ -3,9 +3,11 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import { Clock, Effect } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import {
+  healthBatchesAhead,
   readHealthBatch,
   receiveHealthBatch,
   saveHealthBatch,
+  touchQueuedHealthBatch,
 } from "../health/HealthBatchStore.ts";
 import { DisposableBucket } from "../Deployment.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
@@ -164,6 +166,11 @@ export const makeUserStore = (
    * connections are turned away. Kept through the wipe.
    */
   let devicesSignedOut = readMeta(sql, "devices_signed_out", 0) === 1;
+  /**
+   * The batches being applied, until when their place is held (`beginHealthBatch`). In memory: a
+   * store that's evicted forgets them, which only lets more start at once for a moment.
+   */
+  const ingesting = new Map<string, number>();
   /** Whether the store is marked for deleting and not yet wiped (`deleteAll`, `wipe`). */
   let wiping = readMeta(sql, "wiping", 0) === 1;
   /** Whether a retired device still has records to delete, kept so writes don't have to ask. */
@@ -359,7 +366,9 @@ export const makeUserStore = (
     /**
      * Before a queued health batch is applied, in one call: a batch that's already `applied` or
      * `failed` is returned as it is, to be skipped. Otherwise it's marked `applying` and returned,
-     * with whether `device` (the uploading device, if known) was retired.
+     * with whether `device` (the uploading device, if known) was retired. Or, when it's not the
+     * batch's turn (`healthBatchesAtOnce`), it stays `queued`, with how many seconds it should
+     * wait before it asks again (`waitSeconds`, otherwise 0).
      */
     beginHealthBatch: (id: string, device?: string) =>
       ensureNotDeleted.pipe(
@@ -367,15 +376,32 @@ export const makeUserStore = (
         Effect.map((at) => {
           const known = readHealthBatch(sql, id, at);
           if (known?.status === "applied" || known?.status === "failed") {
-            return { batch: known, deviceRetired: false };
+            return { batch: known, deviceRetired: false, waitSeconds: 0 };
           }
+          for (const [batchId, until] of ingesting) if (until <= at) ingesting.delete(batchId);
+          // One that began before (a retry after it failed partway, or a duplicate delivery)
+          // carries on: it had its turn.
+          if (known?.status === "queued" && !ingesting.has(id)) {
+            const ahead = healthBatchesAhead(sql, id, known.receivedAt, at, maxHealthBatchesAhead);
+            // Batches start in about the order they were received, so a later one can't undo an
+            // earlier one: only the oldest few waiting may take a free place (851-2652).
+            if (ingesting.size >= healthBatchesAtOnce || ahead >= healthBatchesNext) {
+              touchQueuedHealthBatch(sql, id, at);
+              return { batch: known, deviceRetired: false, waitSeconds: healthBatchWait(ahead) };
+            }
+          }
+          ingesting.set(id, at + healthBatchLeaseMs);
           const batch: HealthBatch = {
             id,
             status: "applying",
             receivedAt: known?.receivedAt ?? at,
           };
           saveHealthBatch(sql, batch, at);
-          return { batch, deviceRetired: device !== undefined && isRetired(device) };
+          return {
+            batch,
+            deviceRetired: device !== undefined && isRetired(device),
+            waitSeconds: 0,
+          };
         }),
       ),
     /** Records a health batch's outcome, and returns the storage the account now takes. */
@@ -383,10 +409,13 @@ export const makeUserStore = (
       ensureNotDeleted.pipe(
         Effect.andThen(Clock.currentTimeMillis),
         Effect.map((at) => {
+          ingesting.delete(batch.id);
           saveHealthBatch(sql, batch, at);
           return storageBytes();
         }),
       ),
+    /** Frees a batch's place among those applying at once, after it failed partway. */
+    releaseHealthBatch: (id: string) => Effect.sync(() => void ingesting.delete(id)),
     /**
      * Applies mutations in one transaction (see `applyMutations`). Past `storageHardLimitBytes`,
      * only deletes are applied: a call with an upsert fails with `StorageFull`.
@@ -529,6 +558,39 @@ export type UserStoreShape = UserStoreMethods & {
     reason: string,
   ) => Effect.Effect<void>;
 };
+
+/**
+ * How many health batches a store applies at once (851-2652). It applies one transaction at a
+ * time, but each batch spends a fixed time outside it (reading its file, the start and finish
+ * calls), so a few in flight keep it busy, and more overload it. The queue then applies other
+ * users' batches meanwhile, instead of a global limit making everyone wait.
+ */
+export const healthBatchesAtOnce = 4;
+
+/**
+ * How long a batch holds its place if it never finishes or releases it (e.g. the Worker died, or
+ * the release failed). Batches take seconds; one that takes longer only lets another start early.
+ */
+export const healthBatchLeaseMs = 2 * 60 * 1000;
+
+/**
+ * How many of the oldest waiting batches may take a free place. More than one per place, so a place
+ * is taken soon after it's freed, but few, so batches start in about the order they were received.
+ */
+const healthBatchesNext = 2 * healthBatchesAtOnce;
+
+/** The most waiting batches `beginHealthBatch` counts ahead of one, which caps its wait. */
+const maxHealthBatchesAhead = 80;
+
+/**
+ * How many seconds a batch with `ahead` others waiting before it is held back. One that may take
+ * the next free place asks again a second later. Others ask again about when they'll be among
+ * those, a store applying a 5,000-line batch about every 0.8 s with 4 at once, so a backlog costs a
+ * few store calls a second rather than one per batch each time. It stays under
+ * `healthBatchWaitingMs`, so a batch held back keeps its place.
+ */
+const healthBatchWait = (ahead: number) =>
+  ahead < healthBatchesNext ? 1 : Math.min(20, Math.ceil(ahead / 4));
 
 /**
  * Every error a store's methods fail with. Only these cross RPC as instances of their classes;
