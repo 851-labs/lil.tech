@@ -42,13 +42,15 @@ step() {
   "$@" || status=1
 }
 
-if $swift; then
-  paths="LilPackage Apps Tools Lil.xcworkspace .swift-format scripts"
-else
-  paths="Services Web package.json pnpm-workspace.yaml pnpm-lock.yaml .node-version vite.config.ts tsconfig.json tsconfig.base.json Tools LilPackage/Sources/LilAPIGenerated scripts"
-fi
+swift_paths="LilPackage Apps Tools Lil.xcworkspace .swift-format scripts"
+# The TypeScript workspace, with its root config, plus what the generated client depends on.
+services_paths="Services Web package.json pnpm-workspace.yaml pnpm-lock.yaml .node-version vite.config.ts tsconfig.json tsconfig.base.json Tools LilPackage/Sources/LilAPIGenerated scripts"
 if $swift && $services; then
-  paths="LilPackage Apps Tools Lil.xcworkspace .swift-format Services Web package.json pnpm-workspace.yaml pnpm-lock.yaml .node-version vite.config.ts tsconfig.json tsconfig.base.json scripts"
+  paths="$swift_paths $services_paths"
+elif $swift; then
+  paths="$swift_paths"
+else
+  paths="$services_paths"
 fi
 if $hook; then
   # shellcheck disable=SC2086

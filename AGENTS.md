@@ -13,7 +13,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   4. Move the ticket to In Review.
 - Run `scripts/format` before committing. `scripts/format --lint` must pass. It covers the Swift code and the TypeScript workspace (`Services/`, `Web/`).
 - **Checks run before every commit**, in a [lefthook](https://lefthook.dev) pre-commit hook (`lefthook.yml`), not on GitHub. Set it up once per clone: `brew install lefthook`, then `lefthook install`.
-  - The hook runs `scripts/check` for the parts a commit touches, with warnings as errors (`CI=1`). `--swift`: Swift lint, the package's tests and the app builds. `--services`: `scripts/format --lint --services` (format, lint, type checks and a fresh OpenAPI spec), the generated client regenerated and compared (`scripts/generate-api-client --check`), and every Services package's tests.
+  - The hook runs `scripts/check` for the parts a commit touches, with warnings as errors (`CI=1`). `--swift`: Swift lint, the package's tests and the app builds. `--services`: `scripts/format --lint --services` (format, lint, type checks and a fresh OpenAPI spec), the generated client regenerated and compared (`scripts/generate-api-client --check`), and every workspace package's tests (`vp run -r test` at the root).
   - Its builds go to `.build-check/`, apart from Xcode's and everyday `swift test`'s, so the first run after cloning is slow and later ones take about a minute.
   - The checks see the working tree, so the hook refuses to run while the paths it checks have unstaged or untracked changes. Stage them, or set them aside with `git stash --keep-index -u`.
   - A failing check blocks the commit. Fix it rather than skipping the hook (`LEFTHOOK=0 git commit …` is for emergencies only).

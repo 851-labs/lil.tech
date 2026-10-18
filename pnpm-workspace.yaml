@@ -1,5 +1,7 @@
 packages:
-  - Services/api
+  # Servers and web projects (`docs/DECISIONS.md`); a folder with a package.json joins.
+  - Services/*
+  - Web/*
 
 catalogMode: prefer
 

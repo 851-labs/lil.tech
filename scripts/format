@@ -55,6 +55,12 @@ if ! command -v vp >/dev/null 2>&1; then
   exit 1
 fi
 
+# The workspace moved from Services/ to the root (851-2683). A clone from before keeps a stale
+# Services/node_modules that Node would still search from Services/api, so it goes.
+if [ -d Services/node_modules ]; then
+  rm -rf Services/node_modules
+fi
+
 # Keeps node_modules in sync with the lockfile; fast when nothing changed.
 if ! vp install --frozen-lockfile --silent; then
   exit 1
