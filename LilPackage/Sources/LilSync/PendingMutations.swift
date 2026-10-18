@@ -54,7 +54,13 @@ extension PendingMutation {
   static func reapply(after cursor: Int, entities: [String: SyncEntity], _ db: Database) throws {
     try PendingMutation.where { $0.seq.lte(Int?.some(cursor)) }.delete().execute(db)
     for pending in try PendingMutation.oldestFirst.fetchAll(db) {
-      try apply(try pending.decoded(), entities: entities, db)
+      do {
+        try apply(try pending.decoded(), entities: entities, db)
+      } catch let error as DecodingError {
+        // E.g. written by another version of the app: it mustn't block every pull.
+        reportIssue("Dropped pending mutations \(pending.id) this app can't read: \(error)")
+        try PendingMutation.find(pending.id).delete().execute(db)
+      }
     }
   }
 

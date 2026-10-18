@@ -7,7 +7,7 @@ import { Column, defineEntity } from "../store/Entities.ts";
  */
 export const HealthPin = defineEntity("health_pin", {
   clientWritable: true,
-  id: /^HK[A-Za-z]{1,120}$/,
+  id: /^HK[A-Za-z0-9]{1,120}$/,
   fields: {
     /** Where it's shown: pins are sorted by position, lowest first. */
     position: Column.real,

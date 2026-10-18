@@ -142,6 +142,7 @@ let package = Package(
       name: "HealthMacAppTests",
       dependencies: [
         "HealthCatalog",
+        "LilTestSupport",
         "HealthDatabase",
         "HealthMacApp",
         "LilAuth",

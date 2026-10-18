@@ -77,20 +77,36 @@ public struct SummaryFeature {
     case unpinButtonTapped(String)
   }
 
+  @Dependency(\.continuousClock) var clock
   @Dependency(\.defaultDatabase) var database
   @Dependency(\.sync) var sync
 
+  enum CancelID: Hashable, Sendable {
+    /// The pins' next write. Signing out cancels it, so it can't land after the account's data
+    /// is gone.
+    case write
+  }
+
+  /// How long pins wait to be written after a change, so a burst of edits (e.g. dragging one
+  /// pin then another) is one write, made in order.
+  static let writeDelay = Duration.milliseconds(300)
+
   public init() {}
 
-  /// Shows `pins` at once, and writes them: locally now, to the server with the next sync.
-  private func write(_ pins: [String], over old: [String]) -> Effect<Action> {
-    .run { [sync] _ in
-      do {
-        try await sync.push(HealthDatabase.pinMutations(from: old, to: pins))
-      } catch {
-        reportIssue(error)
-      }
+  /// Shows `pins` at once (the caller sets them), and writes them shortly: locally, then to the
+  /// server with the next sync. Each write makes the table match `pins`, so the last one wins
+  /// whatever came before.
+  private func write(_ pins: [String]) -> Effect<Action> {
+    .run { [clock, database, sync] _ in
+      try await clock.sleep(for: Self.writeDelay)
+      let stored = try await database.read { try HealthDatabase.summaryPins($0) }
+      try await sync.push(HealthDatabase.pinMutations(from: stored, to: pins))
+    } catch: { error, _ in
+      // A newer write, or signing out, cancelled it.
+      guard !(error is CancellationError) else { return }
+      reportIssue(error)
     }
+    .cancellable(id: CancelID.write, cancelInFlight: true)
   }
 
   public var body: some ReducerOf<Self> {
@@ -118,7 +134,7 @@ public struct SummaryFeature {
         let old = state.orderedPins
         guard !old.contains(id) else { return .none }
         state.pins = old + [id]
-        return write(state.pins, over: old)
+        return write(state.pins)
 
       case .pinsLoaded(let pins):
         state.pins = pins
@@ -131,7 +147,7 @@ public struct SummaryFeature {
         var pins = old
         pins.move(fromOffsets: source, toOffset: destination)
         state.pins = pins
-        return write(pins, over: old)
+        return write(pins)
 
       case .task:
         // Changes from another Mac arrive with sync, as do this one's writes.
@@ -146,7 +162,7 @@ public struct SummaryFeature {
       case .unpinButtonTapped(let id):
         let old = state.orderedPins
         state.pins = old.filter { $0 != id }
-        return write(state.pins, over: old)
+        return write(state.pins)
       }
     }
   }

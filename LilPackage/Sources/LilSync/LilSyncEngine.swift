@@ -226,19 +226,22 @@ public actor LilSyncEngine {
     endWait()
   }
 
-  /// Writes `mutations` to the local tables at once, and queues them for the server, which gets
-  /// them before the next pull, started now (`docs/SYNC.md`). Only for entities apps may write,
-  /// such as pins. Until the server has them and the cursor passes them, pulled changes don't
-  /// undo them. A push the server refuses for good is dropped, and the local data is replaced
-  /// from a snapshot, so it matches the server again.
+  /// Writes `mutations` to the local tables, and queues them for the server, which gets them
+  /// before the next pull, started now (`docs/SYNC.md`). Only for entities apps may write, such
+  /// as pins. Until the server has them and the cursor passes them, pulled changes don't undo
+  /// them. Waits for a pull or bootstrap in progress, so it lands after it, and before signing
+  /// out deletes the local data. A push the server refuses as invalid is dropped, and the local
+  /// data is replaced from a snapshot, so it matches the server again.
   public func push(_ mutations: [SyncMutation]) async throws {
     guard !mutations.isEmpty else { return }
     let pending = PendingMutation(
       id: UUID().uuidString.lowercased(),
       mutations: String(decoding: try JSONEncoder().encode(mutations), as: UTF8.self))
-    try await database.write { [entities] db in
-      try PendingMutation.apply(mutations, entities: entities, db)
-      try PendingMutation.insert { pending }.execute(db)
+    try await exclusively { [database, entities] in
+      try await database.write { db in
+        try PendingMutation.apply(mutations, entities: entities, db)
+        try PendingMutation.insert { pending }.execute(db)
+      }
     }
     syncNow()
   }
@@ -255,13 +258,16 @@ public actor LilSyncEngine {
       switch try await api.syncPushMutations(body: .json(try pending.body())) {
       case .ok(let ok):
         seq = try ok.body.json.seq
-      case .badRequest, .code507:
-        // Refused for good (an invalid row, or the account is full): the local write goes.
+      case .badRequest:
+        // Refused for good (e.g. an invalid row): the local write goes.
         reportIssue("The server refused pushed mutations \(pending.id); starting over")
         try await database.write { db in
           try PendingMutation.find(pending.id).delete().execute(db)
         }
         throw SyncError.needsBootstrap
+      case .code507:
+        // The account is full: kept, for when it has room again.
+        throw SyncError.unexpectedStatus(507)
       case .unauthorized:
         throw SyncError.unauthorized
       case .serviceUnavailable:
@@ -325,8 +331,18 @@ public actor LilSyncEngine {
   /// replaced from a snapshot, and other errors for failures worth retrying.
   public func pull() async throws {
     try await exclusively {
-      try await self.pushPending()
+      // A push that keeps failing doesn't stop pulls: its writes stay over what's pulled, and
+      // its failure is thrown afterwards, so it's retried with backoff.
+      var pushFailure: (any Error)?
+      do {
+        try await self.pushPending()
+      } catch let error as SyncError where error == .needsBootstrap || error == .unauthorized {
+        throw error
+      } catch  where !Task.isCancelled {
+        pushFailure = error
+      }
       try await self.pullPages()
+      if let pushFailure { throw pushFailure }
     }
   }
 

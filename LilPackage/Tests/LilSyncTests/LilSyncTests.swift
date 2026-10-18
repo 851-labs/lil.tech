@@ -92,6 +92,8 @@ private final class FakeServer: Sendable {
     var pushed: [String: Int] = [:]
     /// Pushes are refused as invalid.
     var refusingPushes = false
+    /// Pushes fail as unavailable.
+    var failingPushes = false
   }
   let state = LockIsolated(State())
 
@@ -154,6 +156,12 @@ private final class FakeServer: Sendable {
           from: try await Data(collecting: try #require(body), upTo: 1 << 20))
         return try state.withValue { state in
           state.pushes.append(push.mutationId)
+          if state.failingPushes {
+            return try json(
+              .serviceUnavailable,
+              Components.Schemas.UserStoreUnavailable(
+                _tag: .userStoreUnavailable, message: "Unavailable"))
+          }
           if state.refusingPushes {
             return try json(
               .badRequest,
@@ -1227,6 +1235,18 @@ struct LilSyncPushTests {
     #expect(try pending().isEmpty)
     try await engine.bootstrap()
     #expect(try storedNotes().isEmpty)
+  }
+
+  @Test
+  func aPushThatKeepsFailingDoesntStopPulls() async throws {
+    server.append(upsert("a", "Note a"))
+    server.state.withValue { $0.failingPushes = true }
+    let engine = engine()
+    try await engine.push([mine()])
+    await #expect(throws: SyncError.unavailable) { try await engine.pull() }
+    // Pulled anyway, with the unsent write still over it, and still queued.
+    #expect(try storedNotes() == [Note(id: "a", title: "Note a"), Note(id: "p", title: "Mine")])
+    #expect(try pending().map(\.seq) == [nil])
   }
 
   @Test

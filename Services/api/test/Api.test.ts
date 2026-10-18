@@ -1148,6 +1148,12 @@ describe("POST /v1/sync/mutations", () => {
           mutations: [pin(steps, 1), pin(weight, 2)],
         });
         assert.deepStrictEqual(first, { status: 200, body: { seq: 2 } });
+        // Type IDs with digits, e.g. Cardio Fitness, are pins too.
+        const vo2Max = yield* push(handler, tokens.accessToken, {
+          mutationId: mutationId(10),
+          mutations: [pin("HKQuantityTypeIdentifierVO2Max", 3)],
+        });
+        assert.strictEqual(vo2Max.status, 200);
 
         // A retry gets the same answer and appends nothing, even after other writes.
         const store = (yield* UserStores).forUser(user.id);
@@ -1162,21 +1168,23 @@ describe("POST /v1/sync/mutations", () => {
         assert.deepStrictEqual(retry, { status: 200, body: { seq: 2 } });
         const page = yield* store.readChanges(0, 100);
         assert.deepStrictEqual(
-          page.changes.map((change) => [change.seq, change.id, change.op, change.row]),
+          page.changes.map((change) => [change.seq, change.id, change.op]),
           // The weight pin's upsert reads as a delete, since its record is gone.
           [
-            [1, steps, "upsert", { id: steps, position: 1 }],
-            [2, weight, "delete", undefined],
-            [3, weight, "delete", undefined],
+            [1, steps, "upsert"],
+            [2, weight, "delete"],
+            [3, "HKQuantityTypeIdentifierVO2Max", "upsert"],
+            [4, weight, "delete"],
           ],
         );
+        assert.deepStrictEqual(page.changes[0]?.row, { id: steps, position: 1 });
 
         // Upserts merge, and one that changes nothing appends nothing.
         const same = yield* push(handler, tokens.accessToken, {
           mutationId: mutationId(3),
           mutations: [pin(steps, 1)],
         });
-        assert.deepStrictEqual(same.body, { seq: 3 });
+        assert.deepStrictEqual(same.body, { seq: 4 });
       }),
     ),
   );
