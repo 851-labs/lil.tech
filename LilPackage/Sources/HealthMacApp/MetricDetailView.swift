@@ -28,6 +28,10 @@ struct MetricDetailView: View {
         ElectrocardiogramsView()
       } else if type.kind == .audiogram {
         AudiogramsView()
+      } else if type.kind == .stateOfMind {
+        StateOfMindView()
+      } else if type.kind == .scoredAssessment, let kind = AssessmentKind(rawValue: type.id) {
+        ScoredAssessmentsView(kind: kind, name: type.name)
       } else if type.kind == .quantity {
         MetricDetailContent(
           type: type, range: $range, offset: $offset,

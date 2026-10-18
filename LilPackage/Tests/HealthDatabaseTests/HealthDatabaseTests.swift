@@ -1644,3 +1644,67 @@ struct HearingQueriesTests {
     #expect(audiograms.map(\.id) == ["b", "c", "a"])
   }
 }
+
+@Suite
+struct MentalWellbeingQueriesTests {
+  private func log(_ id: String, start: Int, labels: String, associations: String)
+    -> HealthStateOfMind
+  {
+    HealthStateOfMind(
+      id: id, startDate: start, endDate: start, kind: 2, valence: 0.4, valenceClassification: 5,
+      labels: labels, associations: associations, sourceName: "Health",
+      sourceBundleID: "com.apple.Health")
+  }
+
+  private func assessment(_ id: String, _ type: String, start: Int) -> HealthScoredAssessment {
+    HealthScoredAssessment(
+      id: id, type: type, startDate: start, endDate: start, score: 6, risk: 2, answers: "[]",
+      sourceName: "Health", sourceBundleID: "com.apple.Health")
+  }
+
+  @Test
+  func labelsAndAssociationsAreNamedByRawValue() {
+    let entry = log("a", start: 0, labels: "[1,17,38,99]", associations: "[1,17,18,0]")
+    // HealthKit numbers them from 1; values from a newer iOS are skipped.
+    #expect(entry.labelNames == ["Amazed", "Happy", "Satisfied"])
+    #expect(entry.associationNames == ["Community", "Work", "Weather"])
+    #expect(entry.kindName == "Daily Mood")
+    #expect(entry.decodedValenceClassification == .slightlyPleasant)
+    #expect(log("b", start: 0, labels: "oops", associations: "[]").labelNames.isEmpty)
+  }
+
+  @Test
+  func risksAreNamedPerQuestionnaire() {
+    #expect(AssessmentKind.gad7.riskName(4) == "Severe")
+    #expect(AssessmentKind.phq9.riskName(4) == "Moderately Severe")
+    #expect(AssessmentKind.phq9.riskName(9) == "Unknown")
+    #expect(AssessmentKind.gad7.maximumScore == 21 && AssessmentKind.phq9.maximumScore == 27)
+  }
+
+  @Test
+  func eachQuestionnairesAssessmentsComeNewestFirst() throws {
+    let database = try HealthDatabase.make()
+    let (gad7, phq9) = (AssessmentKind.gad7.rawValue, AssessmentKind.phq9.rawValue)
+    try database.write { db in
+      try HealthScoredAssessment.insert {
+        assessment("a", gad7, start: 1_000)
+        assessment("b", phq9, start: 2_000)
+        assessment("c", gad7, start: 3_000)
+      }
+      .execute(db)
+      try HealthStateOfMind.insert {
+        log("x", start: 1_000, labels: "[]", associations: "[]")
+        log("y", start: 2_000, labels: "[]", associations: "[]")
+      }
+      .execute(db)
+    }
+    let found = try database.read { db in
+      (
+        try HealthDatabase.scoredAssessments(of: gad7, limit: 10, db).map(\.id),
+        try HealthDatabase.stateOfMindLogs(limit: 10, db).map(\.id)
+      )
+    }
+    #expect(found.0 == ["c", "a"])
+    #expect(found.1 == ["y", "x"])
+  }
+}
