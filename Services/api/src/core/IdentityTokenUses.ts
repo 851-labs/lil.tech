@@ -1,7 +1,10 @@
 import { Context, Effect, Layer } from "effect";
-import { SqlClient, type SqlError } from "effect/sql";
+import { lt } from "drizzle-orm";
+import type { SqlError } from "effect/sql";
+import { CoreDb, query } from "./CoreDb.ts";
+import { identityTokenUses } from "./Schema.ts";
 
-/** Provider ID tokens already exchanged for a session (core migration 0002). */
+/** Provider ID tokens already exchanged for a session (`identity_token_uses`). */
 export class IdentityTokenUses extends Context.Service<
   IdentityTokenUses,
   {
@@ -19,13 +22,17 @@ export class IdentityTokenUses extends Context.Service<
   static readonly layer = Layer.effect(
     IdentityTokenUses,
     Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
+      const db = yield* CoreDb;
       return IdentityTokenUses.of({
         claim: Effect.fn("IdentityTokenUses.claim")(function* ({ tokenHash, expiresAt, now }) {
-          yield* sql`DELETE FROM identity_token_uses WHERE expires_at < ${now}`;
-          const rows = yield* sql`INSERT INTO identity_token_uses (token_hash, expires_at)
-            VALUES (${tokenHash}, ${expiresAt}) ON CONFLICT (token_hash) DO NOTHING
-            RETURNING token_hash`;
+          yield* query(db.delete(identityTokenUses).where(lt(identityTokenUses.expiresAt, now)));
+          const rows = yield* query(
+            db
+              .insert(identityTokenUses)
+              .values({ tokenHash, expiresAt })
+              .onConflictDoNothing({ target: identityTokenUses.tokenHash })
+              .returning({ tokenHash: identityTokenUses.tokenHash }),
+          );
           return rows.length === 1;
         }),
       });
