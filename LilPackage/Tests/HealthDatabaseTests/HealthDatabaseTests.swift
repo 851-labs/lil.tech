@@ -1465,3 +1465,66 @@ private struct DatedThing: Equatable {
   var at: Date
   var bytes: [UInt8]
 }
+
+@Suite
+struct ECGQueriesTests {
+  @Test
+  func voltagesDecodeAsLittleEndianFloats() {
+    let microvolts: [Float] = [0, 1_000.5, -220, .nan, 42]
+    var blob = Data()
+    for value in microvolts {
+      withUnsafeBytes(of: value.bitPattern.littleEndian) { blob.append(contentsOf: $0) }
+    }
+    // A stray byte past the last whole float is ignored.
+    blob.append(0xFF)
+    let decoded = HealthDatabase.electrocardiogramMicrovolts(blob)
+    #expect(decoded.count == 5)
+    #expect(decoded[1] == 1_000.5 && decoded[2] == -220 && decoded[4] == 42)
+    #expect(decoded[3].isNaN)
+  }
+
+  @Test
+  func thirtySecondsAreThreeStripsOfTen() {
+    let trace = HealthDatabase.syntheticElectrocardiogram(seconds: 30, samplingFrequency: 512)
+    let strips = HealthDatabase.electrocardiogramStrips(trace, samplingFrequency: 512)
+    #expect(strips.map(\.count) == [5_120, 5_120, 5_120])
+    // A shorter recording ends with a shorter strip.
+    let short = HealthDatabase.electrocardiogramStrips(
+      Array(trace.prefix(6_000)), samplingFrequency: 512)
+    #expect(short.map(\.count) == [5_120, 880])
+    // The synthetic R waves peak near 1 mV.
+    #expect((900...1_100).contains(trace.max() ?? 0))
+  }
+
+  @Test
+  func classificationsAreNamedAsInHealth() {
+    #expect(ECGClassification(rawValue: 1).name == "Sinus Rhythm")
+    #expect(ECGClassification(rawValue: 2) == .atrialFibrillation)
+    #expect(ECGClassification(rawValue: 2).isAlert)
+    #expect(ECGClassification(rawValue: 5).name == "Poor Recording")
+    #expect(ECGClassification(rawValue: 100) == .unrecognized)
+    #expect(ECGClassification(rawValue: 0) == .notSet)
+  }
+
+  @Test
+  func recordingsComeNewestFirst() throws {
+    let database = try HealthDatabase.make()
+    let ecg = { (id: String, start: Int, symptoms: Int) in
+      HealthElectrocardiogram(
+        id: id, startDate: start, endDate: start + 30_000, classification: 1,
+        symptomsStatus: symptoms, averageHeartRate: 70, samplingFrequency: 512, voltageCount: 0,
+        voltages: nil, sourceName: "Watch", sourceBundleID: "com.apple.NanoHeartRhythm")
+    }
+    try database.write { db in
+      try HealthElectrocardiogram.insert {
+        ecg("a", 1_000, 1)
+        ecg("b", 3_000, 2)
+        ecg("c", 2_000, 0)
+      }
+      .execute(db)
+    }
+    let recordings = try database.read { db in try HealthDatabase.electrocardiograms(limit: 2, db) }
+    #expect(recordings.map(\.id) == ["b", "c"])
+    #expect(recordings.map(\.hadSymptoms) == [true, nil])
+  }
+}

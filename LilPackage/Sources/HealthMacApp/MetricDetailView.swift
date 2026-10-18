@@ -24,13 +24,15 @@ struct MetricDetailView: View {
         SleepDetailView(type: type)
       } else if type.kind == .workout {
         WorkoutsView()
+      } else if type.id == HealthDatabase.electrocardiogramType {
+        ElectrocardiogramsView()
       } else if type.kind == .quantity {
         MetricDetailContent(
           type: type, range: $range, offset: $offset,
           state: $chart.loadError.map { .failed($0.localizedDescription) }
             ?? ($chart.isLoading ? .loading : chart.map { .loaded($0) } ?? .loading))
       } else {
-        // Their own views come with their tickets (ECG, hearing, cycle tracking…).
+        // Their own views come with their tickets (hearing, cycle tracking…).
         ContentUnavailableView(
           type.name, systemImage: type.category?.symbolName ?? "questionmark",
           description: Text("A chart for \(type.name) is coming."))
