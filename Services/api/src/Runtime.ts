@@ -35,10 +35,12 @@ export const listObjects = (bucket: Pick<Cloudflare.R2.ReadBucketClient, "list">
   });
 
 /**
- * Deletes R2 objects by key, each once, in calls of at most `deleteChunkKeys` (R2's limit). R2
- * throttles big deletes ("Reduce your concurrent request rate for the same object", 10058): it
- * failed a prod store's wipe of 2,644 snapshot parts. A throttled call is tried again after a
- * growing, jittered pause; other failures aren't.
+ * Deletes R2 objects by key, each once, in calls of `deleteChunkKeys`, `deleteCallsAtOnce` at a
+ * time (851-2655). A call takes as long as its slowest keys, and R2 has slow spells, so big calls
+ * were slow: on a stage, 1,000-key calls one at a time deleted 2,000 aged objects in 6.3–8.1 s,
+ * and 100-key calls six at once in 1.7–1.9 s. R2 also throttles deletes ("Reduce your concurrent
+ * request rate for the same object", 10058): it failed a prod store's wipe of 2,644 snapshot
+ * parts. A throttled call is tried again after a growing, jittered pause; other failures aren't.
  */
 export const deleteObjects = (
   bucket: Pick<Cloudflare.R2.ReadWriteBucketClient, "delete">,
@@ -54,11 +56,14 @@ export const deleteObjects = (
           while: isThrottled,
         }),
       ),
-    { discard: true },
+    { concurrency: deleteCallsAtOnce, discard: true },
   );
 
-/** The most keys deleted per R2 call, R2's limit. */
-export const deleteChunkKeys = 1000;
+/** The most keys deleted per R2 call (R2 takes up to 1,000). */
+export const deleteChunkKeys = 100;
+
+/** How many delete calls run at once: a Worker keeps at most 6 connections open at a time. */
+export const deleteCallsAtOnce = 6;
 
 /** Whether R2 refused a call for its rate (error 10058). */
 export const isThrottled = (error: unknown) =>
