@@ -12,12 +12,12 @@ export default Alchemy.Stack(
   Effect.gen(function* () {
     const core = yield* CoreDatabase;
     const worker = yield* ApiWorker;
-    // The website (`Services/site`): static pages, such as the privacy policy, served by
+    // The website (`Web/site`): static pages, such as the privacy policy, served by
     // Cloudflare's asset layer with no Worker code.
     const domain = stageDomains[yield* Alchemy.Stage]?.site;
     const site = yield* Cloudflare.Worker("Site", {
       assets: {
-        directory: fileURLToPath(new URL("../site/public", import.meta.url)),
+        directory: fileURLToPath(new URL("../../Web/site/public", import.meta.url)),
         htmlHandling: "drop-trailing-slash",
         notFoundHandling: "404-page",
       },
