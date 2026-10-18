@@ -85,17 +85,26 @@ struct WorkoutsContent: View {
 func monthSections<Record>(
   _ records: [Record], calendar: Calendar, startDate: (Record) -> Int
 ) -> [(month: Date, records: [Record])] {
-  var months: [(month: Date, records: [Record])] = []
+  sections(records, by: .month, calendar: calendar, startDate: startDate)
+    .map { (month: $0.start, records: $0.records) }
+}
+
+/// Records (newest first) by the `component` (day, month…) they started in.
+func sections<Record>(
+  _ records: [Record], by component: Calendar.Component, calendar: Calendar,
+  startDate: (Record) -> Int
+) -> [(start: Date, records: [Record])] {
+  var sections: [(start: Date, records: [Record])] = []
   for record in records {
     let start = Date(unixMilliseconds: startDate(record))
-    let month = calendar.dateInterval(of: .month, for: start)?.start ?? start
-    if months.last?.month == month {
-      months[months.count - 1].records.append(record)
+    let section = calendar.dateInterval(of: component, for: start)?.start ?? start
+    if sections.last?.start == section {
+      sections[sections.count - 1].records.append(record)
     } else {
-      months.append((month, [record]))
+      sections.append((section, [record]))
     }
   }
-  return months
+  return sections
 }
 
 /// A workout in the list: its activity, the figure that matters most for it, and when.

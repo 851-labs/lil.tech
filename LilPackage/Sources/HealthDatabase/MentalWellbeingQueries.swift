@@ -66,8 +66,10 @@ public enum StateOfMindVocabulary {
 }
 
 extension HealthStateOfMind {
-  /// "Momentary Emotion" or "Daily Mood" (`HKStateOfMind.Kind`).
-  public var kindName: String { kind == 2 ? "Daily Mood" : "Momentary Emotion" }
+  /// Whether it's a daily mood (`HKStateOfMind.Kind` 2) rather than a momentary emotion (1).
+  public var isDailyMood: Bool { kind == 2 }
+
+  public var kindName: String { isDailyMood ? "Daily Mood" : "Momentary Emotion" }
 
   public var decodedValenceClassification: ValenceClassification? {
     ValenceClassification(rawValue: valenceClassification)

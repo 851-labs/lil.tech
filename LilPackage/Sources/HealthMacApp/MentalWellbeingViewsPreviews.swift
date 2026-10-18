@@ -54,9 +54,11 @@ private let phq9 = [
 ]
 
 @MainActor
-private func stateOfMind(_ state: StateOfMindContent.State) -> some View {
+private func stateOfMind(
+  _ state: StateOfMindContent.State, limit: Int = RecentStateOfMindLogs.limit
+) -> some View {
   NavigationStack {
-    StateOfMindContent(state: state, now: now)
+    StateOfMindContent(state: state, now: now, limit: limit)
   }
   .frame(width: 680, height: 760)
 }
@@ -80,6 +82,10 @@ private func assessments(_ kind: AssessmentKind, _ state: ScoredAssessmentsConte
 #Preview("State of Mind, none recently") {
   // Logs, but none in the last four weeks.
   stateOfMind(.loaded([log(10, hoursAgo: 24 * 60, valence: 0.2, labels: [7])]))
+}
+
+#Preview("State of Mind, at the limit") {
+  stateOfMind(.loaded(Array(logs.prefix(3))), limit: 3)
 }
 
 #Preview("No State of Mind logs") {

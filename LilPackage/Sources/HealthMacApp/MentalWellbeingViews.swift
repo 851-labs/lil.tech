@@ -10,6 +10,8 @@ import SwiftUI
 /// changes it.
 struct StateOfMindView: View {
   @Fetch private var logs: [HealthStateOfMind]
+  /// Moves at midnight, so the four weeks do even if nothing syncs.
+  @State private var now = Date.now
 
   init() {
     _logs = Fetch(wrappedValue: [], RecentStateOfMindLogs(), scheduler: MainQueueScheduler())
@@ -19,7 +21,11 @@ struct StateOfMindView: View {
     StateOfMindContent(
       state: $logs.loadError.map { .failed($0.localizedDescription) }
         ?? ($logs.isLoading && logs.isEmpty ? .loading : .loaded(logs)),
-      now: .now)
+      now: now
+    )
+    .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+      now = .now
+    }
   }
 }
 
@@ -41,6 +47,8 @@ struct StateOfMindContent: View {
 
   let state: State
   let now: Date
+  /// How many the list holds at most (`RecentStateOfMindLogs.limit`), to say when it's full.
+  var limit = RecentStateOfMindLogs.limit
   var calendar = Calendar.current
 
   var body: some View {
@@ -66,12 +74,19 @@ struct StateOfMindContent: View {
               .frame(height: 220)
               .padding(.vertical, 8)
           }
-          ForEach(days(logs), id: \.day) { section in
-            Section(section.day.formatted(date: .complete, time: .omitted)) {
-              ForEach(section.logs) { log in
+          ForEach(
+            sections(logs, by: .day, calendar: calendar, startDate: \.startDate), id: \.start
+          ) { section in
+            Section(section.start.formatted(date: .complete, time: .omitted)) {
+              ForEach(section.records) { log in
                 StateOfMindRow(log: log)
               }
             }
+          }
+          if logs.count >= limit {
+            Text("Showing the \(limit.formatted()) most recent logs.")
+              .font(.footnote)
+              .foregroundStyle(.secondary)
           }
         }
       }
@@ -82,19 +97,6 @@ struct StateOfMindContent: View {
   private var lastFourWeeks: DateInterval {
     let end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
     return DateInterval(start: calendar.date(byAdding: .day, value: -28, to: end) ?? end, end: end)
-  }
-
-  private func days(_ logs: [HealthStateOfMind]) -> [(day: Date, logs: [HealthStateOfMind])] {
-    var days: [(day: Date, logs: [HealthStateOfMind])] = []
-    for log in logs {
-      let day = calendar.startOfDay(for: Date(unixMilliseconds: log.startDate))
-      if days.last?.day == day {
-        days[days.count - 1].logs.append(log)
-      } else {
-        days.append((day, [log]))
-      }
-    }
-    return days
   }
 }
 
@@ -110,10 +112,14 @@ struct ValenceChart: View {
         x: .value("Date", Date(unixMilliseconds: log.startDate)),
         y: .value("Valence", log.valence)
       )
-      .foregroundStyle(MoodFormat.color(log.valence))
-      .symbol(log.kind == 2 ? .square : .circle)
+      .foregroundStyle(MoodFormat.color(log))
+      .symbol(by: .value("Kind", log.kindName))
       .symbolSize(70)
     }
+    .chartSymbolScale([
+      "Momentary Emotion": BasicChartSymbolShape.circle, "Daily Mood": BasicChartSymbolShape.square,
+    ])
+    .chartLegend(position: .bottom, alignment: .leading)
     .chartXScale(domain: interval.start...interval.end)
     .chartYScale(domain: -1...1)
     .chartYAxis {
@@ -139,11 +145,20 @@ struct ValenceChart: View {
 /// A log: what kind, how it felt, its feelings and what they were about, and when.
 struct StateOfMindRow: View {
   let log: HealthStateOfMind
+  /// Decoded once, not on every render.
+  private let labels: [String]
+  private let associations: [String]
+
+  init(log: HealthStateOfMind) {
+    self.log = log
+    labels = log.labelNames
+    associations = log.associationNames
+  }
 
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
       Circle()
-        .fill(MoodFormat.color(log.valence))
+        .fill(MoodFormat.color(log))
         .frame(width: 14, height: 14)
         .padding(.top, 3)
       VStack(alignment: .leading, spacing: 2) {
@@ -152,11 +167,11 @@ struct StateOfMindRow: View {
         Text(log.kindName)
           .font(.subheadline)
           .foregroundStyle(.secondary)
-        if !log.labelNames.isEmpty {
-          Text(log.labelNames.joined(separator: ", "))
+        if !labels.isEmpty {
+          Text(labels.joined(separator: ", "))
         }
-        if !log.associationNames.isEmpty {
-          Text(log.associationNames.joined(separator: ", "))
+        if !associations.isEmpty {
+          Text(associations.joined(separator: ", "))
             .foregroundStyle(.secondary)
         }
       }
@@ -169,17 +184,20 @@ struct StateOfMindRow: View {
 }
 
 enum MoodFormat {
-  /// From indigo (very unpleasant) through teal (neutral) to orange (very pleasant), as Health
-  /// colors moods from cool to warm.
-  static func color(_ valence: Double) -> Color {
-    valence < -0.33
-      ? .indigo
-      : valence < 0
-        ? .blue
-        : valence <= 0.33
-          ? .teal
-          : valence < 0.66
-            ? .yellow : .orange
+  /// HealthKit's classification as a color, from indigo (very unpleasant) through teal (neutral)
+  /// to orange (very pleasant), as Health colors moods from cool to warm. One per
+  /// classification, so a dot always matches its label.
+  static func color(_ log: HealthStateOfMind) -> Color {
+    switch log.decodedValenceClassification {
+    case .veryUnpleasant: .indigo
+    case .unpleasant: .purple
+    case .slightlyUnpleasant: .blue
+    case .neutral: .teal
+    case .slightlyPleasant: .green
+    case .pleasant: .yellow
+    case .veryPleasant: .orange
+    case nil: .gray
+    }
   }
 }
 
@@ -227,6 +245,8 @@ struct ScoredAssessmentsContent: View {
   let kind: AssessmentKind
   let name: String
   let state: State
+  /// How many the list holds at most (`RecentAssessments.limit`), to say when it's full.
+  var limit = RecentAssessments.limit
 
   var body: some View {
     Group {
@@ -266,6 +286,11 @@ struct ScoredAssessmentsContent: View {
                 .foregroundStyle(.secondary)
               }
               .padding(.vertical, 4)
+            }
+            if assessments.count >= limit {
+              Text("Showing the \(limit.formatted()) most recent assessments.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
           }
         }
