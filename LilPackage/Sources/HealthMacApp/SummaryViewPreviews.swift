@@ -63,7 +63,7 @@ private func previewSummaries(_ ids: [String]) -> [MetricSummary] {
 
 #Preview("Failed") {
   summary(
-    pins: pinned, .failed("The database couldn't be read."),
+    pins: pinned, .failed("The database couldn't be opened."),
     highlights: .failed("The database couldn't be read."))
 }
 
