@@ -107,10 +107,11 @@ export const graphProblems = (graph: Graph, previews: Previews): ReadonlyArray<s
         problems.push(`An edge goes ${edge.from} → ${edge.to}, but "${end}" isn't a screen.`);
     }
   }
-  // A file split into screens by `states` has every preview on one of them, so a new preview there
+  // A file split into several screens by `states` has every preview on one of them, so a new preview there
   // can't go missing from the flowchart.
   for (const [file, screens] of Map.groupBy(graph.screens, (screen) => screen.screen)) {
-    if (screens.some((screen) => screen.states === undefined)) continue;
+    // One screen's `states` can be a selection; several split the file.
+    if (screens.length < 2 || screens.some((screen) => screen.states === undefined)) continue;
     const shown = new Set(screens.flatMap((screen) => screen.states ?? []));
     const missing = (previews.get(file) ?? []).filter((state) => !shown.has(state));
     if (missing.length > 0) {

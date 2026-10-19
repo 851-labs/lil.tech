@@ -47,30 +47,24 @@ describe("graph files", () => {
   });
 
   it("catches a split file's previews that aren't on any screen", () => {
+    const pinned = {
+      id: "pinned",
+      screen: "HealthMacApp/SummaryViewPreviews.swift",
+      states: ["Pinned"],
+    };
     const split: Graph = {
       app: "health-mac",
       screens: [
-        { id: "pinned", screen: "HealthMacApp/SummaryViewPreviews.swift", states: ["Pinned"] },
-        { id: "metric", screen: "HealthMacApp/MetricDetailViewPreviews.swift" },
+        pinned,
+        { id: "editor", screen: "HealthMacApp/SummaryViewPreviews.swift", title: "E", states: [] },
       ],
       edges: [],
     };
     expect(graphProblems(split, previews)).toEqual([
       `HealthMacApp/SummaryViewPreviews.swift's "Loading" isn't on any screen.`,
     ]);
-    const covered = {
-      ...split,
-      screens: [
-        ...split.screens,
-        {
-          id: "loading",
-          screen: "HealthMacApp/SummaryViewPreviews.swift",
-          title: "L",
-          states: ["Loading"],
-        },
-      ],
-    };
-    expect(graphProblems(covered, previews)).toEqual([]);
+    // On one screen, `states` is just a selection.
+    expect(graphProblems({ ...split, screens: [pinned] }, previews)).toEqual([]);
   });
 
   it("catches references to screens, states and nodes that don't exist", () => {
@@ -87,7 +81,6 @@ describe("graph files", () => {
       'Two screens are "summary".',
       '"summary": HealthMacApp/Gone.swift has no previews.',
       'An edge goes summary → metric, but "metric" isn\'t a screen.',
-      `HealthMacApp/SummaryViewPreviews.swift's "Pinned", "Loading" aren't on any screen.`,
     ]);
   });
 

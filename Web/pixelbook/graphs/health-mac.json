@@ -206,6 +206,11 @@
     },
     {
       "from": "app",
+      "to": "sign-in",
+      "label": "Signed out"
+    },
+    {
+      "from": "app",
       "to": "summary",
       "label": "Summary, in the sidebar"
     },
@@ -227,7 +232,12 @@
     {
       "from": "sync-footer",
       "to": "account",
-      "label": "Account \u203a Account Settings\u2026"
+      "label": "Account › Account Settings…"
+    },
+    {
+      "from": "sync-footer",
+      "to": "sign-in",
+      "label": "Account › Sign Out"
     },
     {
       "from": "account",
@@ -256,43 +266,48 @@
     },
     {
       "from": "category",
-      "to": "sleep",
-      "label": "Choose Sleep"
-    },
-    {
-      "from": "category",
-      "to": "cycle-tracking",
-      "label": "Choose Menstrual Flow"
-    },
-    {
-      "from": "category",
-      "to": "workouts",
-      "label": "Choose Workouts"
-    },
-    {
-      "from": "category",
-      "to": "ecgs",
-      "label": "Choose ECG"
-    },
-    {
-      "from": "category",
-      "to": "audiograms",
-      "label": "Choose Audiograms"
-    },
-    {
-      "from": "category",
       "to": "sound-levels",
       "label": "Choose Environmental Sound Levels"
     },
     {
-      "from": "category",
-      "to": "state-of-mind",
-      "label": "Choose State of Mind"
+      "from": "metric",
+      "to": "sleep",
+      "label": "For Sleep"
     },
     {
-      "from": "category",
+      "from": "metric",
+      "to": "cycle-tracking",
+      "label": "For Period"
+    },
+    {
+      "from": "metric",
+      "to": "workouts",
+      "label": "For Workouts"
+    },
+    {
+      "from": "metric",
+      "to": "ecgs",
+      "label": "For ECG"
+    },
+    {
+      "from": "metric",
+      "to": "audiograms",
+      "label": "For Audiograms"
+    },
+    {
+      "from": "metric",
+      "to": "beat-to-beat",
+      "label": "For Heartbeat Series, or Beat-to-Beat Measurements (HRV)"
+    },
+    {
+      "from": "metric",
+      "to": "state-of-mind",
+      "label": "For State of Mind"
+    },
+    {
+      "from": "metric",
       "to": "assessments",
-      "label": "Choose GAD-7 or PHQ-9"
+      "label": "For GAD-7 or PHQ-9"
     },
     {
       "from": "metric",
@@ -305,9 +320,34 @@
       "label": "Data Sources"
     },
     {
-      "from": "metric",
-      "to": "beat-to-beat",
-      "label": "Beat-to-Beat Measurements (heart rate variability)"
+      "from": "heart-rate",
+      "to": "all-data",
+      "label": "Show All Data"
+    },
+    {
+      "from": "heart-rate",
+      "to": "sources",
+      "label": "Data Sources"
+    },
+    {
+      "from": "sound-levels",
+      "to": "all-data",
+      "label": "Show All Data"
+    },
+    {
+      "from": "sound-levels",
+      "to": "sources",
+      "label": "Data Sources"
+    },
+    {
+      "from": "sleep",
+      "to": "all-data",
+      "label": "Show All Data"
+    },
+    {
+      "from": "sleep",
+      "to": "sources",
+      "label": "Data Sources"
     },
     {
       "from": "all-data",

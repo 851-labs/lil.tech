@@ -45,8 +45,18 @@
     },
     {
       "from": "app",
+      "to": "consent",
+      "label": "Signed in, no consent yet"
+    },
+    {
+      "from": "app",
+      "to": "access",
+      "label": "Consent given, Health access not asked"
+    },
+    {
+      "from": "app",
       "to": "sync",
-      "label": "Signed in, consent and access given"
+      "label": "Signed in and set up"
     },
     {
       "from": "sign-in",
@@ -54,14 +64,24 @@
       "label": "Sign in"
     },
     {
+      "from": "sign-in",
+      "to": "access",
+      "label": "Sign in, consent given before"
+    },
+    {
       "from": "consent",
       "to": "access",
       "label": "Agree"
     },
     {
+      "from": "consent",
+      "to": "sync",
+      "label": "Not Now"
+    },
+    {
       "from": "access",
       "to": "sync",
-      "label": "Continue, then allow in Health"
+      "label": "Continue, then allow in Health; or Not Now"
     },
     {
       "from": "sync",
@@ -81,7 +101,7 @@
     {
       "from": "sync",
       "to": "sign-in",
-      "label": "Sign Out"
+      "label": "Sign Out, or Delete Account"
     }
   ]
 }
