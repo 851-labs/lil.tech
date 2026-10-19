@@ -6,6 +6,7 @@
 # Usage: scripts/pixelbook render [out-dir]
 #          scripts/pixelbook check
 #          scripts/pixelbook publish [--ref <name>] [--dry-run] [--hook | --pointers-only]
+#          scripts/pixelbook key [commit]
 #   render   Renders into out-dir, as <app>/<light|dark>/ (default build/pixelbook/<commit>). It's
 #            replaced, so it must be new, empty, or under build/.
 #   check    Renders twice and fails if any image's pixels differ, or if a preview reported an
@@ -17,8 +18,10 @@
 #            --hook <remote url>: in the pre-push hook (lefthook.yml), publishing the pushed branch
 #            when it's HEAD and the push is to this repo. It skips with a note when it can't,
 #            unless a preview reports an issue, which blocks the push.
-#            --pointers-only: never renders; only points the commit and ref at its snapshots if
-#            they're published. CI does this for main, whose squash merges no one pushes.
+#            --pointers-only [--commit <sha>]: never renders; only points the commit (HEAD, or
+#            another) and the ref at its snapshots if they're published. CI does this for main,
+#            whose squash merges no one pushes, and for each PR's base.
+#   key      Prints the key a commit's snapshots are published under (HEAD by default).
 # PIXELBOOK_STRICT=1 makes render exit 2 when a preview reports an issue, instead of warning.
 # PIXELBOOK_SIMULATOR picks the iPhone simulator (default "iPhone 18 Pro"); images take its size.
 # PIXELBOOK_PREVIEWS renders only some previews, for trying a change: comma-separated regular
@@ -32,8 +35,9 @@
 set -euo pipefail
 
 command=${1:-}
-if [ "$command" != "render" ] && [ "$command" != "check" ] && [ "$command" != "publish" ]; then
-  echo "usage: scripts/pixelbook render [out-dir] | check | publish [--ref <name>] [--dry-run] [--hook | --pointers-only]" >&2
+if [ "$command" != "render" ] && [ "$command" != "check" ] && [ "$command" != "publish" ] &&
+  [ "$command" != "key" ]; then
+  echo "usage: scripts/pixelbook render [out-dir] | check | publish [options] | key [commit]" >&2
   exit 64
 fi
 caller=$PWD
@@ -62,6 +66,24 @@ if pins != ours["pins"]:
 PY
 }
 
+# What snapshots are made from: the package's sources and pins (not its tests), the snapshot
+# project, this script and the uploader, which writes the manifests.
+inputs=(LilPackage/Sources LilPackage/Package.swift LilPackage/Package.resolved
+  Tools/PixelbookSnapshots scripts/pixelbook Services/api/scripts/pixelbook.ts)
+# key <commit>: the key a commit's snapshots are published under. An input the commit doesn't
+# have counts as missing, so the key differs from any published one.
+key_of() {
+  local input
+  for input in "${inputs[@]}"; do
+    git rev-parse -q --verify "$1:$input" 2>/dev/null || echo "missing $input"
+  done | shasum -a 256 | cut -c1-16
+}
+
+if [ "$command" = "key" ]; then
+  key_of "$(git rev-parse "${2:-HEAD}^{commit}")"
+  exit 0
+fi
+
 if [ "$command" = "publish" ]; then
   shift
   ref=$(git symbolic-ref --short -q HEAD || true)
@@ -69,12 +91,15 @@ if [ "$command" = "publish" ]; then
   hook=false
   pointers_only=false
   remote_url=""
+  target=HEAD
   while [ $# -gt 0 ]; do
     case $1 in
       --ref) ref=${2:?--ref needs a name}; shift 2 ;;
       --dry-run) options+=(--dry-run); shift ;;
       --hook) hook=true; remote_url=${2:-}; shift $(( $# > 1 ? 2 : 1 )) ;;
       --pointers-only) pointers_only=true; shift ;;
+      # Another commit's pointer, not the checked-out branch's.
+      --commit) target=${2:?--commit needs a commit}; ref=""; shift 2 ;;
       *) echo "Unknown option $1" >&2; exit 64 ;;
     esac
   done
@@ -84,7 +109,11 @@ if [ "$command" = "publish" ]; then
     echo "Pixelbook: $1, so snapshots weren't published. Run scripts/pixelbook publish later." >&2
     exit 0
   }
-  commit=$(git rev-parse HEAD)
+  if [ "$target" != HEAD ] && ! $pointers_only; then
+    echo "--commit only goes with --pointers-only: rendering needs the commit checked out." >&2
+    exit 64
+  fi
+  commit=$(git rev-parse "$target^{commit}")
   if $hook; then
     # Only pushes to this repo: the bucket's branch names are its branches.
     case $remote_url in
@@ -104,10 +133,6 @@ if [ "$command" = "publish" ]; then
     # What's pushed is the branch, even when it rewinds it.
     options+=(--force-ref)
   fi
-  # What snapshots are made from: the package's sources and pins (not its tests), the snapshot
-  # project, this script and the uploader, which writes the manifests.
-  inputs=(LilPackage/Sources LilPackage/Package.swift LilPackage/Package.resolved
-    Tools/PixelbookSnapshots scripts/pixelbook Services/api/scripts/pixelbook.ts)
   changes() { git status --porcelain -- "${inputs[@]}" | cut -c4- | tr '\n' ' '; }
   # Rendering syncs the snapshot project's pins, so that's done first: changed pins must be
   # committed too. The hook only checks, since a push shouldn't change files.
@@ -116,13 +141,15 @@ if [ "$command" = "publish" ]; then
   elif ! $pointers_only; then
     sync_pins
   fi
-  changed=$(changes)
+  # Another commit's trees are what they are; HEAD's must be committed.
+  changed=""
+  [ "$target" = HEAD ] && changed=$(changes)
   if [ -n "$changed" ]; then
     $hook && skip "there are uncommitted changes to ${changed% }"
     echo "Commit or stash your changes to ${inputs[*]} first: snapshots are keyed by commit." >&2
     exit 1
   fi
-  key=$(for input in "${inputs[@]}"; do git rev-parse "HEAD:$input"; done | shasum -a 256 | cut -c1-16)
+  key=$(key_of "$commit")
   [ -n "$ref" ] && options+=(--ref "$ref")
   upload() { (cd Services/api && node scripts/pixelbook.ts --key "$key" --commit "$commit" "$@"); }
   status=0

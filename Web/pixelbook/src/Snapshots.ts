@@ -53,13 +53,21 @@ export interface Book {
 /** Which snapshots to show: a branch's latest (e.g. `main`), or a commit's, by its full SHA. */
 export type Source = { readonly ref: string } | { readonly commit: string };
 
+/** A full commit SHA, or else a branch. */
+export const sourceOf = (value: string): Source =>
+  /^[0-9a-f]{40}$/.test(value) ? { commit: value } : { ref: value };
+
+// No parameter properties: `scripts/diff.ts` runs under Node, which only strips types.
 export class NotPublished extends Error {
-  constructor(readonly source: Source) {
+  readonly source: Source;
+
+  constructor(source: Source) {
     super(
       "ref" in source
         ? `Nothing is published for ${source.ref} yet.`
         : `Nothing is published for ${source.commit.slice(0, 7)}.`,
     );
+    this.source = source;
   }
 }
 

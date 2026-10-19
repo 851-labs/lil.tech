@@ -20,6 +20,9 @@ export function TileButton({
       title={`${tile.snapshot.screen}: ${tile.snapshot.state} (${schemeNames[tile.scheme]})`}
       onClick={() => onSelect(tile)}
     >
+      {tile.change !== undefined && (
+        <span className={`badge ${tile.change.label.toLowerCase()}`}>{tile.change.label}</span>
+      )}
       <img
         src={imageUrl(tile.variant)}
         alt={`${tile.snapshot.screen}: ${tile.snapshot.state}`}
