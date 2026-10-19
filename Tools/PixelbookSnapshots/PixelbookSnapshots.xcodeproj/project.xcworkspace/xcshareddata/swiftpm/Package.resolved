@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/851-labs/SnapshotPreviews",
       "state" : {
-        "revision" : "f36a489f67dc9ebdb75f1871aaa65f24e80584ad",
-        "version" : "0.20.0-lil.3"
+        "revision" : "c648e75320423a5c39c817b483fdc3b8faf05847",
+        "version" : "0.20.0-lil.4"
       }
     },
     {
