@@ -4,20 +4,62 @@
 # empty host app, since iOS previews need a running app. Each PNG has a JSON sidecar (module,
 # file, preview name, line).
 # Usage: scripts/pixelbook render [out-dir]
-#   out-dir  Where the images go, as <app>/<light|dark>/ (default build/pixelbook/<commit>). It's
+#          scripts/pixelbook check
+#   render   Renders into out-dir, as <app>/<light|dark>/ (default build/pixelbook/<commit>). It's
 #            replaced, so it must be new, empty, or under build/.
+#   check    Renders twice and fails if any image's pixels differ, or if a preview reported an
+#            issue: snapshots must only change when the UI does (851-2698).
 # PIXELBOOK_SIMULATOR picks the iPhone simulator (default "iPhone 18 Pro"); images take its size.
 # Previews render with preview dependencies, as in Xcode (SWIFT_DEPENDENCIES_CONTEXT). Not with
 # XCODE_RUNNING_FOR_PREVIEWS, which switches SwiftUI into its preview layout and changes sizes.
+# SnapshotPreviews fixes the clock (gettimeofday) at August 13, 2024, 07:00 UTC, so previews
+# that use the current date render the same every day.
 set -euo pipefail
 
-if [ "${1:-}" != "render" ]; then
-  echo "usage: scripts/pixelbook render [out-dir]" >&2
+command=${1:-}
+if [ "$command" != "render" ] && [ "$command" != "check" ]; then
+  echo "usage: scripts/pixelbook render [out-dir] | scripts/pixelbook check" >&2
   exit 64
 fi
 caller=$PWD
 cd "$(dirname "$0")/.."
 root=$PWD
+
+if [ "$command" = "check" ]; then
+  first="$root/build/pixelbook/check-1"
+  second="$root/build/pixelbook/check-2"
+  "$0" render "$first" 2>"$first.stderr" || { cat "$first.stderr" >&2; exit 1; }
+  "$0" render "$second" 2>"$second.stderr" || { cat "$second.stderr" >&2; exit 1; }
+  if grep -q "reported issues" "$first.stderr" "$second.stderr"; then
+    echo "Some previews reported issues; see the .log files in $first." >&2
+    exit 1
+  fi
+  # Pixels, not bytes: PNG metadata differs between runs. BMP has none.
+  bitmaps=$(mktemp -d)
+  trap 'rm -rf "$bitmaps"' EXIT
+  differ=0
+  while IFS= read -r image; do
+    relative=${image#"$first"/}
+    if [ ! -f "$second/$relative" ]; then
+      echo "Only in the first run: $relative" >&2
+      differ=$((differ + 1))
+      continue
+    fi
+    sips -s format bmp "$image" --out "$bitmaps/a.bmp" >/dev/null
+    sips -s format bmp "$second/$relative" --out "$bitmaps/b.bmp" >/dev/null
+    if ! cmp -s "$bitmaps/a.bmp" "$bitmaps/b.bmp"; then
+      echo "Differs: $relative" >&2
+      differ=$((differ + 1))
+    fi
+  done < <(find "$first" -name '*.png' | sort)
+  total=$(find "$first" -name '*.png' | wc -l | tr -d ' ')
+  if [ "$differ" -gt 0 ]; then
+    echo "$differ of $total images differ between two runs." >&2
+    exit 1
+  fi
+  echo "==> All $total images render the same twice."
+  exit 0
+fi
 out=${2:-$root/build/pixelbook/$(git rev-parse --short HEAD)}
 [[ "$out" = /* ]] || out="$caller/$out"
 if [ -e "$out" ] && [[ "$out" != "$root/build/"* ]] && [ -n "$(ls -A "$out" 2>/dev/null)" ]; then

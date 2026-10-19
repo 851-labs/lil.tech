@@ -8,6 +8,7 @@ import SwiftUI
 
 @MainActor
 private func appView(_ state: AppFeature.State) -> some View {
+  preparePreviewDatabase()
   var state = state
   // No pins, read: `EmptyReducer` never runs Summary's task to read them.
   state.summary = SummaryFeature.State(pins: [])

@@ -9,7 +9,8 @@ private let sleep = HealthCatalog.type(id: HealthDatabase.sleepType)!
 
 @MainActor
 private func detail(_ range: SleepRange, _ state: SleepDetailContent.State) -> some View {
-  NavigationStack {
+  preparePreviewDatabase()
+  return NavigationStack {
     SleepDetailContent(type: sleep, range: .constant(range), offset: .constant(0), state: state)
   }
   .frame(width: 760, height: 760)

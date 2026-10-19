@@ -48,7 +48,8 @@ private func list(_ state: HeartbeatSeriesContent.State, limit: Int = RecentHear
 
 @MainActor
 private func detail(_ series: HealthHeartbeatSeries) -> some View {
-  NavigationStack {
+  preparePreviewDatabase()
+  return NavigationStack {
     HeartbeatSeriesDetailView(series: series)
   }
   .frame(width: 760, height: 640)
@@ -91,6 +92,7 @@ private func detail(_ series: HealthHeartbeatSeries) -> some View {
 }
 
 #Preview("Heart rate with resting and walking") {
+  preparePreviewDatabase()
   let type = HealthCatalog.type(id: HealthDatabase.heartRateType)!
   let chart = try! makePreviewHealthDatabase().read { db in
     // Last week: the preview data's two weeks end today.

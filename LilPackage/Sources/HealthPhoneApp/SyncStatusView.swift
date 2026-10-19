@@ -7,6 +7,10 @@ public import SwiftUI
 public struct SyncStatusView: View {
   @Bindable var store: StoreOf<SyncStatusFeature>
 
+  /// Whether this is a preview, which uses preview dependencies (`SWIFT_DEPENDENCIES_CONTEXT`).
+  @Dependency(\.context) private var context
+  private var isPreview: Bool { context == .preview }
+
   public init(store: StoreOf<SyncStatusFeature>) {
     self.store = store
   }
@@ -42,8 +46,8 @@ public struct SyncStatusView: View {
           )
         }
         #if targetEnvironment(simulator)
-          // Not in previews, which also run in the simulator.
-          if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
+          // Not in previews (Xcode's or Pixelbook's), which also run in the simulator.
+          if !isPreview {
             SyntheticHealthSection()
           }
         #endif

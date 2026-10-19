@@ -51,7 +51,8 @@ private func list(_ state: AudiogramsContent.State, limit: Int = RecentAudiogram
 
 @MainActor
 private func detail(_ audiogram: HealthAudiogram) -> some View {
-  NavigationStack {
+  preparePreviewDatabase()
+  return NavigationStack {
     AudiogramDetailView(audiogram: audiogram)
   }
   .frame(width: 760, height: 660)
@@ -113,6 +114,7 @@ private func detail(_ audiogram: HealthAudiogram) -> some View {
 }
 
 #Preview("Environmental sound levels, week") {
+  preparePreviewDatabase()
   // A week of daily ranges, two days loud.
   let calendar = Calendar.current
   let today = calendar.startOfDay(for: now)

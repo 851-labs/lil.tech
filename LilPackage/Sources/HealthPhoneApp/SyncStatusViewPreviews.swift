@@ -34,7 +34,12 @@ private func statusView(_ state: SyncStatusFeature.State, consented: Bool = true
     $0 = consented ? HealthConsentClient.policyVersion : nil
   }
   // `EmptyReducer`: the view's task would replace the state with the real backfill's.
-  return SyncStatusView(store: Store(initialState: state) { EmptyReducer() })
+  // `ifLet`: closing an alert (e.g. when a snapshot's window goes) clears it, as the feature does.
+  return SyncStatusView(
+    store: Store(initialState: state) {
+      EmptyReducer<SyncStatusFeature.State, SyncStatusFeature.Action>()
+        .ifLet(\.$alert, action: \.alert)
+    })
 }
 
 #Preview("Checking") {
