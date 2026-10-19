@@ -2,8 +2,7 @@
 # Pixelbook (851-2696): renders every SwiftUI preview to PNGs, light and dark, with SnapshotPreviews.
 # Tools/PixelbookSnapshots has a test target per app (lil health on Mac and iPhone, lil messages):
 # the Mac's run on their own, the iPhone's in an empty host app, since iOS previews need a running
-# app. Each PNG has a JSON sidecar (module,
-# file, preview name, line).
+# app. Each PNG has a JSON sidecar (module, file, preview name, line).
 # Usage: scripts/pixelbook render [out-dir]
 #          scripts/pixelbook check
 #          scripts/pixelbook publish [--ref <name>] [--dry-run] [--hook | --pointers-only]

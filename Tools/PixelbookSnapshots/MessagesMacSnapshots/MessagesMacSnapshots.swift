@@ -21,7 +21,7 @@ final class MessagesMacSnapshots: SnapshotTest {
 
 /// `PIXELBOOK_PREVIEWS`: comma-separated regular expressions matched against each preview's
 /// `Module/File.swift:Name`, e.g. `AppViewPreviews.swift`. All of them if it's empty. (The same in
-/// both snapshot targets.)
+/// every snapshot target.)
 private func pixelbookPreviews() -> [String]? {
   let patterns = (ProcessInfo.processInfo.environment["PIXELBOOK_PREVIEWS"] ?? "")
     .split(separator: ",")
