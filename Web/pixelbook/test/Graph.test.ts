@@ -6,7 +6,11 @@ import { type Graph, graphProblems, parseGraph } from "../src/Graph.ts";
 const graph: Graph = {
   app: "health-mac",
   screens: [
-    { id: "summary", screen: "HealthMacApp/SummaryViewPreviews.swift", states: ["Pinned"] },
+    {
+      id: "summary",
+      screen: "HealthMacApp/SummaryViewPreviews.swift",
+      states: ["Pinned", "Loading"],
+    },
     { id: "metric", screen: "HealthMacApp/MetricDetailViewPreviews.swift" },
   ],
   edges: [{ from: "summary", to: "metric", label: "Choose a metric" }],
@@ -40,6 +44,27 @@ describe("graph files", () => {
         'Edge 1 needs "from" and "to" strings.',
       ],
     });
+  });
+
+  it("catches a split file's previews that aren't on any screen", () => {
+    const pinned = {
+      id: "pinned",
+      screen: "HealthMacApp/SummaryViewPreviews.swift",
+      states: ["Pinned"],
+    };
+    const split: Graph = {
+      app: "health-mac",
+      screens: [
+        pinned,
+        { id: "editor", screen: "HealthMacApp/SummaryViewPreviews.swift", title: "E", states: [] },
+      ],
+      edges: [],
+    };
+    expect(graphProblems(split, previews)).toEqual([
+      `HealthMacApp/SummaryViewPreviews.swift's "Loading" isn't on any screen.`,
+    ]);
+    // On one screen, `states` is just a selection.
+    expect(graphProblems({ ...split, screens: [pinned] }, previews)).toEqual([]);
   });
 
   it("catches references to screens, states and nodes that don't exist", () => {

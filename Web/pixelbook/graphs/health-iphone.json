@@ -1,14 +1,107 @@
 {
   "app": "health-iphone",
   "screens": [
-    { "id": "sign-in", "screen": "LilAuth/SignInView.swift" },
-    { "id": "consent", "screen": "HealthPhoneApp/HealthConsentView.swift" },
-    { "id": "access", "screen": "HealthPhoneApp/HealthAccessView.swift" },
-    { "id": "sync", "screen": "HealthPhoneApp/SyncStatusViewPreviews.swift" }
+    {
+      "id": "app",
+      "screen": "HealthPhoneApp/AppView.swift",
+      "title": "Launch",
+      "states": [
+        "Signed in",
+        "Another iPhone",
+        "Two other iPhones",
+        "Asking for consent",
+        "Asking for Health access",
+        "Signed out",
+        "Launching"
+      ]
+    },
+    {
+      "id": "sign-in",
+      "screen": "LilAuth/SignInView.swift"
+    },
+    {
+      "id": "consent",
+      "screen": "HealthPhoneApp/HealthConsentView.swift"
+    },
+    {
+      "id": "access",
+      "screen": "HealthPhoneApp/HealthAccessView.swift"
+    },
+    {
+      "id": "sync",
+      "screen": "HealthPhoneApp/SyncStatusViewPreviews.swift"
+    },
+    {
+      "id": "sign-in-methods",
+      "screen": "LilAuth/SignInMethodsSectionPreviews.swift",
+      "title": "Sign-In Methods"
+    }
   ],
   "edges": [
-    { "from": "sign-in", "to": "consent", "label": "Sign in" },
-    { "from": "consent", "to": "access", "label": "Agree" },
-    { "from": "access", "to": "sync", "label": "Continue, then allow in Health" }
+    {
+      "from": "app",
+      "to": "sign-in",
+      "label": "Signed out"
+    },
+    {
+      "from": "app",
+      "to": "consent",
+      "label": "Signed in, no consent yet"
+    },
+    {
+      "from": "app",
+      "to": "access",
+      "label": "Consent given, Health access not asked"
+    },
+    {
+      "from": "app",
+      "to": "sync",
+      "label": "Signed in and set up"
+    },
+    {
+      "from": "sign-in",
+      "to": "consent",
+      "label": "Sign in"
+    },
+    {
+      "from": "sign-in",
+      "to": "access",
+      "label": "Sign in, consent given before"
+    },
+    {
+      "from": "consent",
+      "to": "access",
+      "label": "Agree"
+    },
+    {
+      "from": "consent",
+      "to": "sync",
+      "label": "Not Now"
+    },
+    {
+      "from": "access",
+      "to": "sync",
+      "label": "Continue, then allow in Health; or Not Now"
+    },
+    {
+      "from": "sync",
+      "to": "consent",
+      "label": "Review Consent"
+    },
+    {
+      "from": "sync",
+      "to": "access",
+      "label": "Review Access"
+    },
+    {
+      "from": "sync",
+      "to": "sign-in-methods",
+      "label": "Its Sign-In Methods section"
+    },
+    {
+      "from": "sync",
+      "to": "sign-in",
+      "label": "Sign Out, or Delete Account"
+    }
   ]
 }

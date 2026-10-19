@@ -87,7 +87,7 @@ export const layoutFlowchart = (
           ? snapshots
           : screen.states.flatMap((state) => snapshots.filter((s) => s.state === state));
       const tiles = chosen.flatMap((snapshot) => tileFor(snapshot) ?? []);
-      return { id: screen.id, title: snapshots[0]?.screen ?? screen.screen, tiles };
+      return { id: screen.id, title: screen.title ?? snapshots[0]?.screen ?? screen.screen, tiles };
     });
     // Screens the graph leaves out, so a missing one is easy to spot.
     const inGraph = new Set(graph?.screens.map((screen) => screen.screen));

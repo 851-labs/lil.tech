@@ -9,6 +9,11 @@ export interface GraphScreen {
   readonly screen: string;
   /** Which previews (states) to show, first by default. All of the file's, in source order, if left out. */
   readonly states?: ReadonlyArray<string>;
+  /**
+   * Its name, if not its file's: a file can hold several screens' previews (a list and its
+   * detail, say), each a screen here with its own `states`.
+   */
+  readonly title?: string;
   /** Moves the screen from where the automatic layout puts it, in points. */
   readonly nudge?: readonly [number, number];
 }
@@ -50,6 +55,9 @@ export const parseGraph = (json: unknown): Graph | { readonly problems: Readonly
     if (typeof screen["screen"] !== "string") problems.push(`${where}'s "screen" isn't a string.`);
     if (screen["states"] !== undefined && !isStrings(screen["states"])) {
       problems.push(`${where}'s "states" isn't a list of strings.`);
+    }
+    if (screen["title"] !== undefined && typeof screen["title"] !== "string") {
+      problems.push(`${where}'s "title" isn't a string.`);
     }
     const nudge = screen["nudge"];
     if (
@@ -97,6 +105,20 @@ export const graphProblems = (graph: Graph, previews: Previews): ReadonlyArray<s
     for (const end of [edge.from, edge.to]) {
       if (!ids.has(end))
         problems.push(`An edge goes ${edge.from} → ${edge.to}, but "${end}" isn't a screen.`);
+    }
+  }
+  // A file split into several screens by `states` has every preview on one of them, so a new preview there
+  // can't go missing from the flowchart.
+  for (const [file, screens] of Map.groupBy(graph.screens, (screen) => screen.screen)) {
+    // One screen's `states` can be a selection; several split the file.
+    if (screens.length < 2 || screens.some((screen) => screen.states === undefined)) continue;
+    const shown = new Set(screens.flatMap((screen) => screen.states ?? []));
+    const missing = (previews.get(file) ?? []).filter((state) => !shown.has(state));
+    if (missing.length > 0) {
+      const names = missing.map((state) => `"${state}"`).join(", ");
+      problems.push(
+        `${file}'s ${names} ${missing.length === 1 ? "isn't" : "aren't"} on any screen.`,
+      );
     }
   }
   return problems;
