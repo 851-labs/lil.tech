@@ -1,7 +1,8 @@
 // Pixelbook (851-2696): publishes a render (`scripts/pixelbook render`) to R2, where every stage's
 // Pixelbook reads it. Run through `scripts/pixelbook publish`, which works out the render's key
 // and checks the tree is clean; from `Services/api`:
-//   node scripts/pixelbook.ts --key <key> --commit <sha> [--render <dir>] [--ref <name>] [--dry-run]
+//   node scripts/pixelbook.ts --key <key> --commit <sha> [--render <dir>] [--ref <name> [--force-ref]]
+//     [--dry-run]
 // Without --render, it only writes the commit's and ref's pointers, and exits 3 if the key's
 // snapshots aren't published yet: render them, then run it again with --render.
 //
@@ -222,19 +223,21 @@ const readRender = async (dir: string) => {
 
 /**
  * Points `refs/<ref>.json` at a commit, unless that would move it back: publishing from an older
- * checkout of a branch (a stale main, say) leaves the newer commit's snapshots in place.
+ * checkout of a branch (a stale main, say) leaves the newer commit's snapshots in place. With
+ * `force`, it moves anyway: a push is the branch, even when it rewinds it.
  */
 const pointRef = async (
   ref: string,
   commit: string,
   key: string,
+  force: boolean,
   get: (objectKey: string) => Promise<string | undefined>,
   putIfChanged: (objectKey: string, value: unknown) => Promise<void>,
 ) => {
   const objectKey = `refs/${ref}.json`;
   const current = await get(objectKey);
   const previous = current === undefined ? undefined : (JSON.parse(current) as { commit?: string });
-  if (previous?.commit !== undefined && previous.commit !== commit) {
+  if (!force && previous?.commit !== undefined && previous.commit !== commit) {
     // Exits 0 if `commit` is an ancestor of the ref's commit; it fails if that one isn't fetched.
     const behind = await run("git", ["merge-base", "--is-ancestor", commit, previous.commit]).then(
       () => true,
@@ -258,6 +261,7 @@ const main = async () => {
   const commit = argument("commit");
   const ref = argument("ref");
   const dryRun = process.argv.includes("--dry-run");
+  const forceRef = process.argv.includes("--force-ref");
   if (key === undefined || commit === undefined) {
     throw new Error("usage: node scripts/pixelbook.ts --key <key> --commit <sha> [--render <dir>]");
   }
@@ -395,7 +399,7 @@ const main = async () => {
     console.log(`Snapshots for ${key} are already published.`);
   }
   await putIfChanged(`commits/${commit}.json`, { key });
-  if (ref !== undefined) await pointRef(ref, commit, key, get, putIfChanged);
+  if (ref !== undefined) await pointRef(ref, commit, key, forceRef, get, putIfChanged);
   const done = dryRun ? "would be uploaded" : "uploaded";
   console.log(uploaded === 0 ? "Nothing new to upload." : `${uploaded} objects ${done}.`);
 };

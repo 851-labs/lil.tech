@@ -9,7 +9,8 @@
 pre-push:
   jobs:
     - name: pixelbook
-      run: scripts/pixelbook publish --hook
+      # Git gives the hook the remote's name and URL ({1}, {2}).
+      run: scripts/pixelbook publish --hook {2}
       # Git lists the pushed refs on stdin.
       use_stdin: true
 

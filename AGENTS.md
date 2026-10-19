@@ -19,9 +19,10 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   - A failing check blocks the commit. Fix it rather than skipping the hook (`LEFTHOOK=0 git commit …` is for emergencies only).
   - The Swift workflow (`.github/workflows/swift.yml`) is off for now. It can still be run by hand from the Actions tab.
 - **Pixelbook's snapshots publish before every push**, in lefthook's pre-push hook: `scripts/pixelbook publish --hook` points the pushed branch and commit at their snapshots, rendering them first (a few minutes) unless a commit with the same inputs (`LilPackage/Sources`, the snapshot project, the scripts) already did. Docs-only and test-only pushes don't render.
-  - It skips with a note, without blocking the push, when it can't publish: offline, no Cloudflare login, uncommitted changes to those inputs, or a push of something other than `HEAD`. Publish later with `scripts/pixelbook publish`.
-  - A preview that fails to render blocks the push, like a failing check. Fix it; `LEFTHOOK=0 git push` is for emergencies.
-  - Merges to `main` don't push from anyone's machine, so the Pixelbook workflow (`.github/workflows/pixelbook.yml`) points `main` at each merge's snapshots, which its branch already published if it was up to date with `main`.
+  - It skips with a note, without blocking the push, when it can't publish: offline, no Cloudflare login, uncommitted changes to those inputs, a push of something other than a branch at `HEAD`, or a render that fails for reasons of the machine's (no simulator, a failed build). Publish later with `scripts/pixelbook publish`. Pushes to other remotes are left alone.
+  - A preview that reports an issue blocks the push, like a failing check. Fix it; `LEFTHOOK=0 git push` is for emergencies.
+  - Push over HTTPS: an SSH connection sits idle while the hook renders, and can drop.
+  - Merges to `main` don't push from anyone's machine, so the Pixelbook workflow (`.github/workflows/pixelbook.yml`) points `main` at each merge's snapshots, which its branch already published if it was up to date with `main`. Otherwise the run warns, and `main` stays on its last published commit until someone runs `scripts/pixelbook publish` on it.
 - Don't bundle unrelated changes. If you find extra work, file a new ticket.
 
 ## Building

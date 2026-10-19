@@ -27,8 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # Enough history to tell whether main's pointer would move back.
-          fetch-depth: 50
+          # All of main, so a late or re-run job can tell its commit is behind main's pointer.
+          fetch-depth: 0
       - uses: ./.github/actions/setup-services
       - name: Point main at this commit's snapshots
         run: scripts/pixelbook publish --pointers-only --ref main
