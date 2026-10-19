@@ -83,9 +83,10 @@ if [ "$command" = "publish" ]; then
   commit=$(git rev-parse HEAD)
   if $hook; then
     # Git gives the hook a line per pushed ref: <local ref> <local sha> <remote ref> <remote sha>.
+    # Named as on the remote: the local ref can be just HEAD (`git push origin HEAD`).
     pushed=""
-    while read -r local_ref local_sha _ _; do
-      [ "$local_sha" = "$commit" ] && pushed=${local_ref#refs/heads/}
+    while read -r _ local_sha remote_ref _; do
+      [ "$local_sha" = "$commit" ] && pushed=${remote_ref#refs/heads/}
     done
     [ -n "$pushed" ] || skip "the push isn't of HEAD"
     ref=$pushed
