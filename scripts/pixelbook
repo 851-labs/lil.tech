@@ -5,10 +5,15 @@
 # file, preview name, line).
 # Usage: scripts/pixelbook render [out-dir]
 #          scripts/pixelbook check
+#          scripts/pixelbook publish [--ref <name>] [--dry-run]
 #   render   Renders into out-dir, as <app>/<light|dark>/ (default build/pixelbook/<commit>). It's
 #            replaced, so it must be new, empty, or under build/.
 #   check    Renders twice and fails if any image's pixels differ, or if a preview reported an
 #            issue: snapshots must only change when the UI does (851-2698).
+#   publish  Uploads HEAD's snapshots to Pixelbook's bucket (Services/api/scripts/pixelbook.ts),
+#            rendering them first unless they're already there, and points HEAD and the ref (the
+#            current branch by default) at them. Snapshots are keyed by what they're rendered
+#            from, so those paths must be committed: a commit sharing them shares the snapshots.
 # PIXELBOOK_STRICT=1 makes render exit 2 when a preview reports an issue, instead of warning.
 # PIXELBOOK_SIMULATOR picks the iPhone simulator (default "iPhone 18 Pro"); images take its size.
 # Previews render with preview dependencies, as in Xcode (SWIFT_DEPENDENCIES_CONTEXT). Not with
@@ -19,13 +24,75 @@
 set -euo pipefail
 
 command=${1:-}
-if [ "$command" != "render" ] && [ "$command" != "check" ]; then
-  echo "usage: scripts/pixelbook render [out-dir] | scripts/pixelbook check" >&2
+if [ "$command" != "render" ] && [ "$command" != "check" ] && [ "$command" != "publish" ]; then
+  echo "usage: scripts/pixelbook render [out-dir] | check | publish [--ref <name>] [--dry-run]" >&2
   exit 64
 fi
 caller=$PWD
 cd "$(dirname "$0")/.."
 root=$PWD
+project="$root/Tools/PixelbookSnapshots/PixelbookSnapshots.xcodeproj"
+
+# Previews render against the library versions the apps use: LilPackage's pins, plus
+# SnapshotPreviews' own.
+sync_pins() {
+  local resolved="$project/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+  python3 -I - "$root/LilPackage/Package.resolved" "$resolved" <<'PY'
+import json, sys
+lil = {pin["identity"]: pin for pin in json.load(open(sys.argv[1]))["pins"]}
+path = sys.argv[2]
+ours = json.load(open(path))
+pins = [lil.get(pin["identity"], pin) for pin in ours["pins"]]
+if pins != ours["pins"]:
+    ours["pins"] = pins
+    with open(path, "w") as file:
+        # Xcode's own layout, so only changed pins show in a diff.
+        json.dump(ours, file, indent=2, separators=(",", " : "))
+        file.write("\n")
+PY
+}
+
+if [ "$command" = "publish" ]; then
+  shift
+  ref=$(git symbolic-ref --short -q HEAD || true)
+  options=()
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --ref) ref=${2:?--ref needs a name}; shift 2 ;;
+      --dry-run) options+=(--dry-run); shift ;;
+      *) echo "Unknown option $1" >&2; exit 64 ;;
+    esac
+  done
+  # What snapshots are made from: the package, the snapshot project, this script and the uploader,
+  # which writes the manifests.
+  inputs=(LilPackage Tools/PixelbookSnapshots scripts/pixelbook Services/api/scripts/pixelbook.ts)
+  # Rendering syncs the snapshot project's pins, so that's done first: changed pins must be
+  # committed too.
+  sync_pins
+  if [ -n "$(git status --porcelain -- "${inputs[@]}")" ]; then
+    echo "Commit or stash your changes to ${inputs[*]} first: snapshots are keyed by commit." >&2
+    exit 1
+  fi
+  key=$(for input in "${inputs[@]}"; do git rev-parse "HEAD:$input"; done | shasum -a 256 | cut -c1-16)
+  commit=$(git rev-parse HEAD)
+  [ -n "$ref" ] && options+=(--ref "$ref")
+  upload() { (cd Services/api && node scripts/pixelbook.ts --key "$key" --commit "$commit" "$@"); }
+  status=0
+  upload ${options[@]+"${options[@]}"} || status=$?
+  [ "$status" -ne 3 ] && exit "$status"
+  render="$root/build/pixelbook/$key"
+  # A finished render of this key is reused, e.g. after a failed upload. Strict: a preview that
+  # reports an issue, or a run that stops partway, isn't published, since a published key is
+  # never rendered again.
+  if [ ! -e "$render/.finished" ]; then
+    PIXELBOOK_STRICT=1 "$root/scripts/pixelbook" render "$render"
+    touch "$render/.finished"
+  fi
+  upload --render "$render" ${options[@]+"${options[@]}"}
+  # About 100 MB, and the bucket has it now.
+  rm -rf "$render"
+  exit 0
+fi
 
 if [ "$command" = "check" ]; then
   first="$root/build/pixelbook/check-1"
@@ -70,7 +137,6 @@ if [ -e "$out" ] && [[ "$out" != "$root/build/"* ]] && [ -n "$(ls -A "$out" 2>/d
   exit 64
 fi
 derived="$root/build/pixelbook/DerivedData"
-project="$root/Tools/PixelbookSnapshots/PixelbookSnapshots.xcodeproj"
 simulator=${PIXELBOOK_SIMULATOR:-iPhone 18 Pro}
 mac="platform=macOS,arch=$(uname -m)"
 
@@ -83,22 +149,7 @@ fi
 rm -rf "$out"
 mkdir -p "$out"
 
-# Previews render against the library versions the apps use: LilPackage's pins, plus
-# SnapshotPreviews' own.
-resolved="$project/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
-python3 -I - "$root/LilPackage/Package.resolved" "$resolved" <<'PY'
-import json, sys
-lil = {pin["identity"]: pin for pin in json.load(open(sys.argv[1]))["pins"]}
-path = sys.argv[2]
-ours = json.load(open(path))
-pins = [lil.get(pin["identity"], pin) for pin in ours["pins"]]
-if pins != ours["pins"]:
-    ours["pins"] = pins
-    with open(path, "w") as file:
-        # Xcode's own layout, so only changed pins show in a diff.
-        json.dump(ours, file, indent=2, separators=(",", " : "))
-        file.write("\n")
-PY
+sync_pins
 
 echo "==> Resolving packages"
 xcodebuild -resolvePackageDependencies -project "$project" -scheme HealthMacSnapshots \
