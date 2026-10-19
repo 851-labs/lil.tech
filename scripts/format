@@ -30,6 +30,7 @@ cd "$(dirname "$0")/.."
 files=$(find . -name '*.swift' \
   -not -path '*/.build/*' \
   -not -path './.build-check/*' \
+  -not -path './build/*' \
   -not -path '*/DerivedData/*' \
   -not -path '*/.swiftpm/*' \
   -not -path '*/node_modules/*' \

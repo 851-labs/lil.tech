@@ -102,6 +102,17 @@ xcodebuild -exportArchive \
   ${provisioning[@]+"${provisioning[@]}"} \
   -quiet
 
+echo "==> Checking the Sparkle key"
+# Installed copies only accept updates signed with the key whose public half the app carries, so
+# a wrong SUPublicEDKey strands every one of them (851-2692). Sparkle's tools come with its package.
+sparkle_bin=build/releases/SourcePackages/artifacts/sparkle/Sparkle/bin
+app_key=$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$export_dir/$product.app/Contents/Info.plist")
+signing_key=$("$sparkle_bin/generate_keys" --account "lil-$app" -p | tail -1)
+if [ "$app_key" != "$signing_key" ]; then
+  echo "SUPublicEDKey ($app_key) isn't the lil-$app key's public half ($signing_key)" >&2
+  exit 1
+fi
+
 echo "==> Building DMG"
 staging="$out/dmg"
 mkdir -p "$staging"
