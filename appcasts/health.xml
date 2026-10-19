@@ -3,6 +3,21 @@
   <channel>
     <title>lil health</title>
     <item>
+      <title>0.1.2</title>
+      <pubDate>Mon, 19 Oct 2026 02:36:47 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.1.2</link>
+      <sparkle:version>195</sparkle:version>
+      <sparkle:shortVersionString>0.1.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<p>Fixed: lil health quitting right after signing in with Google or Apple.</p>]]></description>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/health%2Fv0.1.2/lil-health-0.1.2.dmg"
+        length="14571506"
+        type="application/octet-stream"
+        sparkle:edSignature="k8O0v8MPgs06Yz+aVwLdrr/j+a+WxAo7QiuoyZHKUAVv/aXmHuDMdWVpKzIEk+Ac1GdlfcQFGJtDpWmD913KCQ=="
+      />
+    </item>
+    <item>
       <title>0.1.1</title>
       <pubDate>Mon, 19 Oct 2026 01:53:40 +0000</pubDate>
       <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.1.1</link>
