@@ -187,6 +187,7 @@ xcodebuild build-for-testing -project "$project" -scheme HealthPhoneSnapshots \
 # that renders nothing fails the script.
 warnings=0
 empty=0
+total=0
 render() {
   local app=$1 appearance=$2
   shift 2
@@ -194,6 +195,7 @@ render() {
   mkdir -p "$dir"
   echo "==> Rendering $app ($appearance)"
   TEST_RUNNER_SNAPSHOTS_EXPORT_DIR="$dir" \
+    TEST_RUNNER_PIXELBOOK=1 \
     TEST_RUNNER_PIXELBOOK_APPEARANCE="$appearance" \
     TEST_RUNNER_SWIFT_DEPENDENCIES_CONTEXT=preview \
     TEST_RUNNER_TZ=America/Los_Angeles \
@@ -203,6 +205,7 @@ render() {
   local count
   count=$(find "$dir" -name '*.png' | wc -l | tr -d ' ')
   echo "    $count images"
+  total=$((total + count))
   # With PIXELBOOK_PREVIEWS, an app may have none of them.
   [ "$count" -gt 0 ] || [ -n "${PIXELBOOK_PREVIEWS:-}" ] || empty=$((empty + 1))
 }
@@ -222,6 +225,10 @@ for appearance in light dark; do
 done
 
 echo "==> $out"
+if [ "$total" -eq 0 ]; then
+  echo "Nothing rendered: does PIXELBOOK_PREVIEWS match any previews? See the .log files." >&2
+  exit 1
+fi
 if [ "$empty" -gt 0 ]; then
   echo "$empty run(s) rendered nothing; see their .log files." >&2
   exit 1
