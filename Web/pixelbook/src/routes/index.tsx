@@ -151,6 +151,9 @@ function Grid() {
         <a
           className="commit"
           href={`https://github.com/851-labs/lil.tech/commit/${book.commit}`}
+          // GitHub opens in a new tab, keeping the canvas where it is.
+          target="_blank"
+          rel="noreferrer"
           title={`Snapshots from ${book.commit}`}
         >
           {search.commit === undefined ? `${search.ref ?? "main"} · ` : ""}
@@ -169,6 +172,8 @@ function Grid() {
             changes since{" "}
             <a
               href={`https://github.com/851-labs/lil.tech/compare/${base.commit}...${book.commit}`}
+              target="_blank"
+              rel="noreferrer"
             >
               {base.commit.slice(0, 7)}
             </a>
@@ -375,7 +380,7 @@ function Detail({
       <dl>
         <dt>Source</dt>
         <dd>
-          <a href={sourceUrl(snapshot, commit)}>
+          <a href={sourceUrl(snapshot, commit)} target="_blank" rel="noreferrer">
             {snapshot.module}/{snapshot.file}
             {snapshot.line === null ? "" : `:${snapshot.line}`}
           </a>
