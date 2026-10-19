@@ -22,6 +22,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   - It skips with a note, without blocking the push, when it can't publish: offline, no Cloudflare login, uncommitted changes to those inputs, a push of something other than a branch at `HEAD`, or a render that fails for reasons of the machine's (no simulator, a failed build). Publish later with `scripts/pixelbook publish`. Pushes to other remotes are left alone.
   - A preview that reports an issue blocks the push, like a failing check. Fix it; `LEFTHOOK=0 git push` is for emergencies.
   - Push over HTTPS: an SSH connection sits idle while the hook renders, and can drop.
+  - **Xcode needs Screen Recording access**, once per Mac (System Settings › Privacy & Security › Screen & System Audio Recording): Pixelbook captures Mac previews that fill a window as the screen shows them. Without it, the hook skips and says so.
   - Each PR gets a comment from the Pixelbook workflow counting the snapshots that changed since its base, linked to the comparison on pixelbook.lil.tech.
   - Merges to `main` don't push from anyone's machine, so the Pixelbook workflow (`.github/workflows/pixelbook.yml`) points `main` at each merge's snapshots, which its branch already published if it was up to date with `main`. Otherwise the run warns, and `main` stays on its last published commit until someone runs `scripts/pixelbook publish` on it.
 - Don't bundle unrelated changes. If you find extra work, file a new ticket.

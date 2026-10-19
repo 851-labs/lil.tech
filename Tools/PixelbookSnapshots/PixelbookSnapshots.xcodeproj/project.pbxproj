@@ -510,10 +510,10 @@
 /* Begin XCRemoteSwiftPackageReference section */
 		2C0000000000000000000002 /* XCRemoteSwiftPackageReference "SnapshotPreviews" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/getsentry/SnapshotPreviews";
+			repositoryURL = "https://github.com/851-labs/SnapshotPreviews";
 			requirement = {
 				kind = exactVersion;
-				version = 0.20.0;
+				version = "0.20.0-lil.4";
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

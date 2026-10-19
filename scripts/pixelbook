@@ -22,6 +22,9 @@
 #            another) and the ref at its snapshots if they're published. CI does this for main,
 #            whose squash merges no one pushes, and for each PR's base.
 #   key      Prints the key a commit's snapshots are published under (HEAD by default).
+# Mac previews that fill a window (a split view, a navigation title or toolbar items) are captured
+# from a titled window with ScreenCaptureKit, so Xcode needs Screen Recording access once; without
+# it, or when a capture fails (a locked screen), render exits 1 and says why.
 # PIXELBOOK_STRICT=1 makes render exit 2 when a preview reports an issue, instead of warning.
 # PIXELBOOK_SIMULATOR picks the iPhone simulator (default "iPhone 18 Pro"); images take its size.
 # PIXELBOOK_PREVIEWS renders only some previews, for trying a change: comma-separated regular
@@ -295,6 +298,23 @@ xcodebuild build-for-testing -project "$project" -scheme HealthPhoneSnapshots \
 warnings=0
 empty=0
 total=0
+# Mac previews that fill a window are captured with ScreenCaptureKit (our fork of SnapshotPreviews,
+# 851-2711), which needs Xcode to have Screen Recording access: the test runner is Xcode's. A capture
+# that fails is the machine's doing (no access, a locked screen), so render stops with exit 1, which
+# the pre-push hook skips on, rather than reporting the previews.
+check_window_captures() {
+  local log=$1
+  if grep -q "SCStreamErrorDomain Code=-3801" "$log"; then
+    echo "Xcode needs Screen Recording access to capture Mac previews that fill a window. Turn it" >&2
+    echo "on in System Settings › Privacy & Security › Screen & System Audio Recording (add Xcode" >&2
+    echo "with + if it isn't listed), then render again." >&2
+    exit 1
+  fi
+  if grep -q "screenCaptureFailed" "$log"; then
+    echo "Couldn't capture some Mac previews' windows (is the screen locked or asleep?); see $log." >&2
+    exit 1
+  fi
+}
 render() {
   local app=$1 appearance=$2
   shift 2
@@ -313,6 +333,7 @@ render() {
   count=$(find "$dir" -name '*.png' | wc -l | tr -d ' ')
   echo "    $count images"
   total=$((total + count))
+  check_window_captures "$dir.log"
   # With PIXELBOOK_PREVIEWS, an app may have none of them.
   [ "$count" -gt 0 ] || [ -n "${PIXELBOOK_PREVIEWS:-}" ] || empty=$((empty + 1))
 }
