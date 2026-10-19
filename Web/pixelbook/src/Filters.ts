@@ -15,6 +15,8 @@ export interface Search {
   readonly tile?: string;
   /** `flow` for the flowchart; the grid otherwise. */
   readonly mode?: string;
+  /** A commit (or branch) to compare with, showing only what changed since it. */
+  readonly base?: string;
 }
 
 export type Mode = "grid" | "flow";
@@ -26,7 +28,16 @@ const text = (value: unknown) => (typeof value === "string" && value !== "" ? va
 /** Keeps the parameters Pixelbook knows, as strings. */
 export const validateSearch = (search: Record<string, unknown>): Search => {
   const result: Record<string, string> = {};
-  for (const name of ["ref", "commit", "apps", "platforms", "schemes", "tile", "mode"] as const) {
+  for (const name of [
+    "ref",
+    "commit",
+    "apps",
+    "platforms",
+    "schemes",
+    "tile",
+    "mode",
+    "base",
+  ] as const) {
     const value = text(search[name]);
     if (value !== undefined) result[name] = value;
   }

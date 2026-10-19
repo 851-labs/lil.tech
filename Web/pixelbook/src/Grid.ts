@@ -27,6 +27,8 @@ export interface Tile {
   /** In points: the image's pixels over its scale. */
   readonly width: number;
   readonly height: number;
+  /** In a comparison (`Diff.ts`): what this image is, e.g. "Before", and the other side's. */
+  readonly change?: { readonly label: string; readonly other?: Variant };
 }
 
 /** A label on the canvas: an app's title or a screen's name. */
@@ -137,5 +139,6 @@ export const layoutGrid = (manifests: ReadonlyArray<Manifest>, filters: Filters)
 };
 
 /** A tile's stable key, for React and for links to it. */
-export const tileId = (tile: Pick<Tile, "app" | "snapshot" | "scheme">) =>
-  `${tile.app}/${tile.snapshot.id}/${tile.scheme}`;
+export const tileId = (tile: Pick<Tile, "app" | "snapshot" | "scheme" | "change">) =>
+  `${tile.app}/${tile.snapshot.id}/${tile.scheme}` +
+  (tile.change === undefined ? "" : `/${tile.change.label}`);

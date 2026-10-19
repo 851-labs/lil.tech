@@ -1,18 +1,23 @@
 name: Pixelbook
 
-# Points Pixelbook's `main` at each merge (`scripts/pixelbook publish --pointers-only`). Snapshots are
-# rendered and published before a push, on developers' Macs (lefthook's pre-push hook), and no one
-# pushes main's squash merges. A merge shares its branch's snapshots when the branch was up to date
-# with main; otherwise main keeps pointing at its last published commit until someone publishes it
-# (`scripts/pixelbook publish` on main). Never renders: that needs Xcode.
+# Pixelbook's snapshots are rendered and published before a push, on developers' Macs (lefthook's
+# pre-push hook, `scripts/pixelbook publish --hook`). This never renders, since that needs Xcode.
+# - main: points Pixelbook's main at each merge (`publish --pointers-only`). No one pushes main's
+#   squash merges, but a merge shares its branch's snapshots when the branch was up to date with
+#   main. Otherwise the run warns, and main keeps its last published commit until someone runs
+#   `scripts/pixelbook publish` on it.
+# - Pull requests: comments how many snapshots changed since the PR's base, linked to Pixelbook's
+#   comparison (`Web/pixelbook/scripts/diff.ts`).
 
 on:
   push:
     branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
 
-# In order, so main's pointer doesn't move back.
+# In order per PR, and for main, so main's pointer doesn't move back.
 concurrency:
-  group: pixelbook-main
+  group: pixelbook-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -20,6 +25,7 @@ permissions:
 
 jobs:
   point-main:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -32,3 +38,48 @@ jobs:
       - uses: ./.github/actions/setup-services
       - name: Point main at this commit's snapshots
         run: scripts/pixelbook publish --pointers-only --ref main
+
+  compare:
+    # Fork PRs get no secrets, and their snapshots wouldn't be published.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-services
+      - name: Point the base and head at their snapshots
+        id: commits
+        run: |
+          base=$(git merge-base "origin/$BASE_REF" "$HEAD_SHA")
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          # main's merges are pointed at as they land; the base may predate that, or the head's
+          # hook may have skipped while its snapshots were published from elsewhere.
+          scripts/pixelbook publish --pointers-only --commit "$base"
+          scripts/pixelbook publish --pointers-only --commit "$HEAD_SHA"
+      - name: Comment what changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ steps.commits.outputs.base }}
+        run: |
+          body=$(node Web/pixelbook/scripts/diff.ts --base "$BASE" --head "$HEAD_SHA")
+          marker="<!-- pixelbook -->"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq "[.[] | select(.body | startswith(\"$marker\"))][0].id // empty")
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh pr comment "$PR" --body "$body"
+          fi

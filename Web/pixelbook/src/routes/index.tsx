@@ -22,21 +22,28 @@ import {
   type Platform,
   platforms,
   schemes,
+  sourceOf,
   sourceUrl,
 } from "../Snapshots.ts";
+import { diffBooks, layoutDiff, summarize } from "../Diff.ts";
 import { Labels, schemeNames, TileButton } from "../Tiles.tsx";
 
 export const Route = createFileRoute("/")({
   validateSearch,
-  loaderDeps: ({ search }) => ({ ref: search.ref, commit: search.commit }),
-  loader: ({ deps }) =>
-    loadBook(
-      deps.commit === undefined ? { ref: deps.ref ?? "main" } : { commit: deps.commit },
-    ).catch((error: unknown) => {
+  loaderDeps: ({ search }) => ({ ref: search.ref, commit: search.commit, base: search.base }),
+  loader: async ({ deps }) => {
+    try {
+      const [book, base] = await Promise.all([
+        loadBook(deps.commit === undefined ? { ref: deps.ref ?? "main" } : { commit: deps.commit }),
+        deps.base === undefined ? undefined : loadBook(sourceOf(deps.base)),
+      ]);
+      return { book, base };
+    } catch (error) {
       // A 404, with the reason.
       if (error instanceof NotPublished) throw notFound({ data: error.message });
       throw error;
-    }),
+    }
+  },
   component: Grid,
   notFoundComponent: ({ data }) => (
     <Message>
@@ -65,7 +72,7 @@ function Message({ children }: { readonly children: React.ReactNode }) {
 const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
 
 function Grid() {
-  const book = Route.useLoaderData();
+  const { book, base } = Route.useLoaderData();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const apps = useMemo(() => book.manifests.map((manifest) => manifest.app).toSorted(), [book]);
@@ -79,10 +86,20 @@ function Grid() {
       ),
     [apps, appsParameter, platformsParameter, schemesParameter],
   );
-  const mode = modeFrom(search);
+  // Comparing with a base shows only what changed, laid out like the grid.
+  const changes = useMemo(
+    () => (base === undefined ? undefined : diffBooks(base, book)),
+    [base, book],
+  );
+  const mode = changes === undefined ? modeFrom(search) : "grid";
   const grid = useMemo(
-    () => (mode === "grid" ? layoutGrid(book.manifests, filters) : undefined),
-    [book, filters, mode],
+    () =>
+      changes !== undefined
+        ? layoutDiff(changes, filters)
+        : mode === "grid"
+          ? layoutGrid(book.manifests, filters)
+          : undefined,
+    [book, changes, filters, mode],
   );
   const flow = useMemo(
     () => (mode === "flow" ? layoutFlowchart(book.manifests, graphs, filters) : undefined),
@@ -133,7 +150,20 @@ function Grid() {
           {search.commit === undefined ? `${search.ref ?? "main"} · ` : ""}
           {book.commit.slice(0, 7)}
         </a>
-        <div className="segmented" role="group" aria-label="Mode">
+        {base !== undefined && (
+          <span className="comparing">
+            changes since{" "}
+            <a
+              href={`https://github.com/851-labs/lil.tech/compare/${base.commit}...${book.commit}`}
+            >
+              {base.commit.slice(0, 7)}
+            </a>
+            <button type="button" onClick={() => setSearch({ base: undefined, tile: undefined })}>
+              Show all
+            </button>
+          </span>
+        )}
+        <div className="segmented" role="group" aria-label="Mode" hidden={changes !== undefined}>
           {(["grid", "flow"] as const).map((value) => (
             <button
               key={value}
@@ -185,9 +215,11 @@ function Grid() {
           </button>
         </div>
         <span className="count">
-          {flow === undefined
-            ? `${tiles.length} snapshots`
-            : `${flow.nodes.length + flow.unlinked.length} screens`}
+          {changes !== undefined
+            ? changeCount(summarize(changes))
+            : flow === undefined
+              ? `${tiles.length} snapshots`
+              : `${flow.nodes.length + flow.unlinked.length} screens`}
         </span>
       </header>
       <Canvas width={size.width} height={size.height} handle={canvas} onViewChange={onViewChange}>
@@ -196,13 +228,28 @@ function Grid() {
         )}
         {flow !== undefined && <FlowContent layout={flow} onSelect={select} />}
       </Canvas>
-      {tiles.length === 0 && <p className="empty">No snapshots match these filters.</p>}
+      {tiles.length === 0 && (
+        <p className="empty">
+          {changes?.length === 0 ? "No snapshots changed." : "No snapshots match these filters."}
+        </p>
+      )}
       {selected !== undefined && (
         <Detail tile={selected} commit={book.commit} onClose={() => select(undefined)} />
       )}
     </div>
   );
 }
+
+/** "2 changed, 1 new on 3 screens". */
+const changeCount = (summary: ReturnType<typeof summarize>) => {
+  const parts = [
+    summary.changed > 0 ? `${summary.changed} changed` : undefined,
+    summary.added > 0 ? `${summary.added} new` : undefined,
+    summary.removed > 0 ? `${summary.removed} removed` : undefined,
+  ].filter((part) => part !== undefined);
+  if (parts.length === 0) return "No changes";
+  return `${parts.join(", ")} on ${summary.screens} ${summary.screens === 1 ? "screen" : "screens"}`;
+};
 
 const manifestPlatform = (book: Book, app: string): Platform =>
   book.manifests.find((manifest) => manifest.app === app)?.platform ?? "ios";
@@ -283,13 +330,33 @@ function Detail({
           ×
         </button>
       </header>
-      <div className={`detail-image ${tile.platform} ${tile.scheme}`}>
-        <img
-          src={imageUrl(variant)}
-          alt={`${snapshot.screen}: ${snapshot.state}`}
-          style={{ width: tile.width, aspectRatio: `${tile.width} / ${tile.height}` }}
-        />
-      </div>
+      {/* A changed snapshot shows both sides, before first. */}
+      {(tile.change?.other === undefined
+        ? [{ label: tile.change?.label, image: variant }]
+        : tile.change.label === "Before"
+          ? [
+              { label: "Before", image: variant },
+              { label: "After", image: tile.change.other },
+            ]
+          : [
+              { label: "Before", image: tile.change.other },
+              { label: "After", image: variant },
+            ]
+      ).map(({ label, image }) => (
+        <figure key={label ?? "image"} className="detail-figure">
+          {label !== undefined && <figcaption>{label}</figcaption>}
+          <div className={`detail-image ${tile.platform} ${tile.scheme}`}>
+            <img
+              src={imageUrl(image)}
+              alt={`${snapshot.screen}: ${snapshot.state}${label === undefined ? "" : `, ${label}`}`}
+              style={{
+                width: image.width / image.scale,
+                aspectRatio: `${image.width} / ${image.height}`,
+              }}
+            />
+          </div>
+        </figure>
+      ))}
       <dl>
         <dt>Source</dt>
         <dd>
