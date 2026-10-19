@@ -3,18 +3,18 @@
   <channel>
     <title>lil health</title>
     <item>
-      <title>0.1.0</title>
-      <pubDate>Mon, 19 Oct 2026 01:16:37 +0000</pubDate>
-      <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.1.0</link>
-      <sparkle:version>191</sparkle:version>
-      <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+      <title>0.1.1</title>
+      <pubDate>Mon, 19 Oct 2026 01:53:40 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.1.1</link>
+      <sparkle:version>193</sparkle:version>
+      <sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<p>The first release of lil health for Mac: your Apple Health data, synced from lil health on your iPhone.</p>]]></description>
+      <description><![CDATA[<p>lil health for Mac: your Apple Health data, synced from lil health on your iPhone.</p>]]></description>
       <enclosure
-        url="https://github.com/851-labs/lil.tech/releases/download/health%2Fv0.1.0/lil-health-0.1.0.dmg"
-        length="14572021"
+        url="https://github.com/851-labs/lil.tech/releases/download/health%2Fv0.1.1/lil-health-0.1.1.dmg"
+        length="14600406"
         type="application/octet-stream"
-        sparkle:edSignature="FeKDCVeNRvHp6QOmcv8clIJSAS395hkAoQzFvltEu0tGQuhqSySwlPDJdLBhrh+zpu0ZRDgzZbDibncdBWI8CQ=="
+        sparkle:edSignature="YsciVZntypQsoReyxgFcLWnVWY+eT8f7xkdzz8FLI0jSlFHcL7jiLHnVKwHlhKNaYGaylhqqTBcPwO2hY6aWCQ=="
       />
     </item>
   </channel>
