@@ -42,10 +42,12 @@ export default Alchemy.Stack(
     }
     // Pixelbook (`Web/pixelbook`), a TanStack Start app that shows the snapshots in that bucket.
     // Its own ID: the bucket's is `Pixelbook`, and a repeated ID silently reuses that resource.
+    // Other stages deployed it as `Pixelbook` (851-2700), so their Worker moves to the new ID and
+    // keeps its name and domain. Not prod's, where that ID is the bucket.
     const pixelbook = yield* Cloudflare.Website.Vite("PixelbookViewer", {
       rootDir: fileURLToPath(new URL("../../Web/pixelbook", import.meta.url)),
       ...(domains === undefined ? {} : { domain: domains.pixelbook }),
-    });
+    }).pipe(stage === "prod" ? (website) => website : Alchemy.renamedFrom("Pixelbook"));
     return {
       url: worker.url,
       coreDatabase: core.databaseName,

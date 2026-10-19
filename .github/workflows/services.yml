@@ -77,12 +77,11 @@ jobs:
         working-directory: Services/api
         run: |
           pnpm run deploy --stage "$STAGE" --yes | tee deploy.log
-          # The stack's Workers are named lil-api-<id>-<stage>-…: Api, Site for the website, and
-          # PixelbookViewer.
-          # `|| true`: under pipefail, a grep that finds nothing would end the step before the checks.
-          url=$(grep -oE "https://lil-api-api-[a-z0-9.-]+\.workers\.dev" deploy.log | tail -1 || true)
-          site_url=$(grep -oE "https://lil-api-site-[a-z0-9.-]+\.workers\.dev" deploy.log | tail -1 || true)
-          pixelbook_url=$(grep -oE "https://lil-api-pixelbookviewer-[a-z0-9.-]+\.workers\.dev" deploy.log | tail -1 || true)
+          # The stack's outputs (alchemy.run.ts) end the log, one per line: `  siteUrl: 'https://…',`.
+          output() { sed -nE "s/^  $1: '(https:[^']+)'.*/\1/p" deploy.log | tail -1; }
+          url=$(output url)
+          site_url=$(output siteUrl)
+          pixelbook_url=$(output pixelbookUrl)
           if [ -z "$url" ]; then
             echo "error: couldn't find the preview URL in the deploy output" >&2
             exit 1
