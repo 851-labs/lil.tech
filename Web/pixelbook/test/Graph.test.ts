@@ -6,7 +6,11 @@ import { type Graph, graphProblems, parseGraph } from "../src/Graph.ts";
 const graph: Graph = {
   app: "health-mac",
   screens: [
-    { id: "summary", screen: "HealthMacApp/SummaryViewPreviews.swift", states: ["Pinned"] },
+    {
+      id: "summary",
+      screen: "HealthMacApp/SummaryViewPreviews.swift",
+      states: ["Pinned", "Loading"],
+    },
     { id: "metric", screen: "HealthMacApp/MetricDetailViewPreviews.swift" },
   ],
   edges: [{ from: "summary", to: "metric", label: "Choose a metric" }],
@@ -42,6 +46,33 @@ describe("graph files", () => {
     });
   });
 
+  it("catches a split file's previews that aren't on any screen", () => {
+    const split: Graph = {
+      app: "health-mac",
+      screens: [
+        { id: "pinned", screen: "HealthMacApp/SummaryViewPreviews.swift", states: ["Pinned"] },
+        { id: "metric", screen: "HealthMacApp/MetricDetailViewPreviews.swift" },
+      ],
+      edges: [],
+    };
+    expect(graphProblems(split, previews)).toEqual([
+      `HealthMacApp/SummaryViewPreviews.swift's "Loading" isn't on any screen.`,
+    ]);
+    const covered = {
+      ...split,
+      screens: [
+        ...split.screens,
+        {
+          id: "loading",
+          screen: "HealthMacApp/SummaryViewPreviews.swift",
+          title: "L",
+          states: ["Loading"],
+        },
+      ],
+    };
+    expect(graphProblems(covered, previews)).toEqual([]);
+  });
+
   it("catches references to screens, states and nodes that don't exist", () => {
     expect(graphProblems(graph, previews)).toEqual([]);
     const broken: Graph = {
@@ -56,6 +87,7 @@ describe("graph files", () => {
       'Two screens are "summary".',
       '"summary": HealthMacApp/Gone.swift has no previews.',
       'An edge goes summary → metric, but "metric" isn\'t a screen.',
+      `HealthMacApp/SummaryViewPreviews.swift's "Pinned", "Loading" aren't on any screen.`,
     ]);
   });
 
