@@ -2,5 +2,20 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>lil health</title>
+    <item>
+      <title>0.1.0</title>
+      <pubDate>Mon, 19 Oct 2026 01:16:37 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.1.0</link>
+      <sparkle:version>191</sparkle:version>
+      <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<p>The first release of lil health for Mac: your Apple Health data, synced from lil health on your iPhone.</p>]]></description>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/health%2Fv0.1.0/lil-health-0.1.0.dmg"
+        length="14572021"
+        type="application/octet-stream"
+        sparkle:edSignature="FeKDCVeNRvHp6QOmcv8clIJSAS395hkAoQzFvltEu0tGQuhqSySwlPDJdLBhrh+zpu0ZRDgzZbDibncdBWI8CQ=="
+      />
+    </item>
   </channel>
 </rss>
