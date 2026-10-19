@@ -30,7 +30,8 @@ pre-commit:
         # The apps' Info.plists, which a test checks against the server's Google client IDs.
         - "Apps/LilHealth/*-Info.plist"
         # The generated client's stamp covers the generator's pin and config.
-        - "Tools/**"
+        - "Tools/Package.*"
+        - "Tools/openapi-generator-config.yaml"
         - "scripts/format"
         - "scripts/check"
         - "scripts/generate-api-client"

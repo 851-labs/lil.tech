@@ -19,7 +19,7 @@
                BlueprintIdentifier = "2B0000000000000000000006"
                BuildableName = "HealthPhoneSnapshots.xctest"
                BlueprintName = "HealthPhoneSnapshots"
-               ReferencedContainer = "container:PixelbookHost.xcodeproj">
+               ReferencedContainer = "container:PixelbookSnapshots.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>

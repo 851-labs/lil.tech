@@ -1,5 +1,5 @@
 {
-  "originHash" : "ca599d00519e6d3c2c1af269f15522d7a5396ee670a11a36f227a4e82d944685",
+  "originHash" : "aa28409bccec2db958ec70aea655dcf094e6e58da9502bdd32fd63401f401f0a",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -60,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/sqlite-data",
       "state" : {
-        "revision" : "aa613accbe882b561f26e37a348a8f42e92cd398",
-        "version" : "1.12.1"
+        "revision" : "164bb5f223738af3d5da7a1b8de14e67e4d9cd5d",
+        "version" : "1.12.0"
       }
     },
     {
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections",
       "state" : {
-        "revision" : "35a1edcb8ebd2bfe251d587f0b69e62af28f508c",
-        "version" : "1.7.3"
+        "revision" : "3b69cedbaa49957e97c092ae400bb57602ef941f",
+        "version" : "1.7.2"
       }
     },
     {
@@ -105,8 +105,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-concurrency-extras",
       "state" : {
-        "revision" : "8a4260f7373493435bd21194585c95b72bfdd401",
-        "version" : "1.4.3"
+        "revision" : "5fa253428866f2360c3754e88537f700ed2656b5",
+        "version" : "1.4.1"
       }
     },
     {
@@ -150,8 +150,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-issue-reporting",
       "state" : {
-        "revision" : "b23bb4493c439d3e05152bc167014235ba3d47fc",
-        "version" : "2.1.2"
+        "revision" : "75b000cea2ca6d7527a57e1b9cc0bdf21a9abe9f",
+        "version" : "2.1.1"
       }
     },
     {
@@ -168,8 +168,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-openapi-runtime",
       "state" : {
-        "revision" : "ad7a252e215870ea2de9cf8605ff9336b004183a",
-        "version" : "1.13.1"
+        "revision" : "50ad7976f18fec6c09466d2aebf7be3dc9476cfb",
+        "version" : "1.13.0"
       }
     },
     {
