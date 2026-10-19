@@ -21,9 +21,12 @@ public final class AppUpdater {
       updaterDelegate: nil,
       userDriverDelegate: nil
     )
+    // KVO calls back on whichever thread changed the property. Sparkle changes it on the main
+    // thread, but the handler hops there rather than trapping if that ever changes (AGENTS.md,
+    // Objective-C callbacks).
     observation = controller.updater.observe(\.canCheckForUpdates, options: [.initial, .new]) {
       [weak self] updater, _ in
-      MainActor.assumeIsolated {
+      Task { @MainActor in
         self?.canCheckForUpdates = updater.canCheckForUpdates
       }
     }

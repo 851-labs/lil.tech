@@ -38,7 +38,7 @@ struct CycleTrackingView: View {
     .task(id: [String(monthOffset), today.formatted(.iso8601)]) {
       _ = try? await $days.load(CycleMonthRequest(month: month), scheduler: MainQueueScheduler())
     }
-    .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+    .onReceive(calendarDayChanges()) {
       today = .now
     }
   }

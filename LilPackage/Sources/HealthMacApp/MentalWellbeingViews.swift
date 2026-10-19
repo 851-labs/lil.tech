@@ -23,7 +23,7 @@ struct StateOfMindView: View {
         ?? ($logs.isLoading && logs.isEmpty ? .loading : .loaded(logs)),
       now: now
     )
-    .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+    .onReceive(calendarDayChanges()) {
       now = .now
     }
   }
