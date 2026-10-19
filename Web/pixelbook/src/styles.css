@@ -10,6 +10,10 @@
      transparent, so they're shown over it, as in a window. */
   --mac-light: #ffffff;
   --mac-dark: #1e1e1e;
+  /* iOS's system background (UIColor.systemBackground): iPhone snapshots that grew to show a
+     scroll view's content are transparent past the screen, so they're shown over it too. */
+  --ios-light: #ffffff;
+  --ios-dark: #000000;
   font-family:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 13px;
@@ -191,6 +195,14 @@ a:hover {
 
 .macos.dark {
   background: var(--mac-dark);
+}
+
+.ios.light {
+  background: var(--ios-light);
+}
+
+.ios.dark {
+  background: var(--ios-dark);
 }
 
 .ios.tile {

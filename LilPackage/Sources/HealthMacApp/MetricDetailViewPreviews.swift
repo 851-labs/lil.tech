@@ -56,8 +56,9 @@ private let heartRate = "HKQuantityTypeIdentifierHeartRate"
 }
 
 #Preview("Not a quantity") {
+  // A kind without a chart of its own. Not workouts, which have their own screen now.
   let _ = preparePreviewDatabase()
-  MetricDetailView(type: HealthCatalog.type(id: "HKWorkoutTypeIdentifier")!)
+  MetricDetailView(type: HealthCatalog.type(id: "HKCategoryTypeIdentifierMindfulSession")!)
     .previewFrame(width: 760, height: 400)
 }
 
