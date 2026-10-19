@@ -41,7 +41,8 @@ export default Alchemy.Stack(
       });
     }
     // Pixelbook (`Web/pixelbook`), a TanStack Start app that shows the snapshots in that bucket.
-    const pixelbook = yield* Cloudflare.Website.Vite("Pixelbook", {
+    // Its own ID: the bucket's is `Pixelbook`, and a repeated ID silently reuses that resource.
+    const pixelbook = yield* Cloudflare.Website.Vite("PixelbookViewer", {
       rootDir: fileURLToPath(new URL("../../Web/pixelbook", import.meta.url)),
       ...(domains === undefined ? {} : { domain: domains.pixelbook }),
     });

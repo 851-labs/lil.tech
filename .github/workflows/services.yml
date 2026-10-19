@@ -78,11 +78,11 @@ jobs:
         run: |
           pnpm run deploy --stage "$STAGE" --yes | tee deploy.log
           # The stack's Workers are named lil-api-<id>-<stage>-…: Api, Site for the website, and
-          # Pixelbook.
+          # PixelbookViewer.
           # `|| true`: under pipefail, a grep that finds nothing would end the step before the checks.
           url=$(grep -oE "https://lil-api-api-[a-z0-9.-]+\.workers\.dev" deploy.log | tail -1 || true)
           site_url=$(grep -oE "https://lil-api-site-[a-z0-9.-]+\.workers\.dev" deploy.log | tail -1 || true)
-          pixelbook_url=$(grep -oE "https://lil-api-pixelbook-[a-z0-9.-]+\.workers\.dev" deploy.log | tail -1 || true)
+          pixelbook_url=$(grep -oE "https://lil-api-pixelbookviewer-[a-z0-9.-]+\.workers\.dev" deploy.log | tail -1 || true)
           if [ -z "$url" ]; then
             echo "error: couldn't find the preview URL in the deploy output" >&2
             exit 1
