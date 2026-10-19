@@ -31,6 +31,26 @@ fi
 caller=$PWD
 cd "$(dirname "$0")/.."
 root=$PWD
+project="$root/Tools/PixelbookSnapshots/PixelbookSnapshots.xcodeproj"
+
+# Previews render against the library versions the apps use: LilPackage's pins, plus
+# SnapshotPreviews' own.
+sync_pins() {
+  local resolved="$project/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+  python3 -I - "$root/LilPackage/Package.resolved" "$resolved" <<'PY'
+import json, sys
+lil = {pin["identity"]: pin for pin in json.load(open(sys.argv[1]))["pins"]}
+path = sys.argv[2]
+ours = json.load(open(path))
+pins = [lil.get(pin["identity"], pin) for pin in ours["pins"]]
+if pins != ours["pins"]:
+    ours["pins"] = pins
+    with open(path, "w") as file:
+        # Xcode's own layout, so only changed pins show in a diff.
+        json.dump(ours, file, indent=2, separators=(",", " : "))
+        file.write("\n")
+PY
+}
 
 if [ "$command" = "publish" ]; then
   shift
@@ -43,8 +63,12 @@ if [ "$command" = "publish" ]; then
       *) echo "Unknown option $1" >&2; exit 64 ;;
     esac
   done
-  # What previews render from: the package, the snapshot project and this script.
-  inputs=(LilPackage Tools/PixelbookSnapshots scripts/pixelbook)
+  # What snapshots are made from: the package, the snapshot project, this script and the uploader,
+  # which writes the manifests.
+  inputs=(LilPackage Tools/PixelbookSnapshots scripts/pixelbook Services/api/scripts/pixelbook.ts)
+  # Rendering syncs the snapshot project's pins, so that's done first: changed pins must be
+  # committed too.
+  sync_pins
   if [ -n "$(git status --porcelain -- "${inputs[@]}")" ]; then
     echo "Commit or stash your changes to ${inputs[*]} first: snapshots are keyed by commit." >&2
     exit 1
@@ -57,11 +81,12 @@ if [ "$command" = "publish" ]; then
   upload ${options[@]+"${options[@]}"} || status=$?
   [ "$status" -ne 3 ] && exit "$status"
   render="$root/build/pixelbook/$key"
-  "$root/scripts/pixelbook" render "$render"
-  # Rendering syncs the snapshot project's pins with LilPackage's: changed pins aren't in the key.
-  if [ -n "$(git status --porcelain -- "${inputs[@]}")" ]; then
-    echo "Rendering changed ${inputs[*]} (the snapshot project's pins?): commit that, then publish." >&2
-    exit 1
+  # A finished render of this key is reused, e.g. after a failed upload. Strict: a preview that
+  # reports an issue, or a run that stops partway, isn't published, since a published key is
+  # never rendered again.
+  if [ ! -e "$render/.finished" ]; then
+    PIXELBOOK_STRICT=1 "$root/scripts/pixelbook" render "$render"
+    touch "$render/.finished"
   fi
   upload --render "$render" ${options[@]+"${options[@]}"}
   # About 100 MB, and the bucket has it now.
@@ -112,7 +137,6 @@ if [ -e "$out" ] && [[ "$out" != "$root/build/"* ]] && [ -n "$(ls -A "$out" 2>/d
   exit 64
 fi
 derived="$root/build/pixelbook/DerivedData"
-project="$root/Tools/PixelbookSnapshots/PixelbookSnapshots.xcodeproj"
 simulator=${PIXELBOOK_SIMULATOR:-iPhone 18 Pro}
 mac="platform=macOS,arch=$(uname -m)"
 
@@ -125,22 +149,7 @@ fi
 rm -rf "$out"
 mkdir -p "$out"
 
-# Previews render against the library versions the apps use: LilPackage's pins, plus
-# SnapshotPreviews' own.
-resolved="$project/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
-python3 -I - "$root/LilPackage/Package.resolved" "$resolved" <<'PY'
-import json, sys
-lil = {pin["identity"]: pin for pin in json.load(open(sys.argv[1]))["pins"]}
-path = sys.argv[2]
-ours = json.load(open(path))
-pins = [lil.get(pin["identity"], pin) for pin in ours["pins"]]
-if pins != ours["pins"]:
-    ours["pins"] = pins
-    with open(path, "w") as file:
-        # Xcode's own layout, so only changed pins show in a diff.
-        json.dump(ours, file, indent=2, separators=(",", " : "))
-        file.write("\n")
-PY
+sync_pins
 
 echo "==> Resolving packages"
 xcodebuild -resolvePackageDependencies -project "$project" -scheme HealthMacSnapshots \

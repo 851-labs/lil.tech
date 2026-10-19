@@ -3,7 +3,12 @@ import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Effect } from "effect";
 import { CoreDatabase } from "./src/core/CoreDatabase.ts";
-import { pixelbookAssetsDomain, pixelbookBucketName, stageDomains } from "./src/Deployment.ts";
+import {
+  DisposableBucket,
+  pixelbookAssetsDomain,
+  pixelbookBucketName,
+  stageDomains,
+} from "./src/Deployment.ts";
 import ApiWorker from "./src/Worker.ts";
 
 export default Alchemy.Stack(
@@ -27,7 +32,7 @@ export default Alchemy.Stack(
     // Pixelbook's snapshots (851-2696), which every stage's Pixelbook shows: so only prod has the
     // bucket, publicly readable at `pixelbookAssetsDomain`. `scripts/pixelbook publish` uploads.
     if (stage === "prod") {
-      yield* Cloudflare.R2.Bucket("Pixelbook", {
+      yield* DisposableBucket("Pixelbook", {
         name: pixelbookBucketName,
         domains: [{ name: pixelbookAssetsDomain }],
         // Each stage's Pixelbook, on its own domain, fetches the manifests.

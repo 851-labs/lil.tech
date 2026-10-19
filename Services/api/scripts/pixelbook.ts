@@ -195,6 +195,7 @@ const readRender = async (dir: string) => {
           }
         }
         const images = await inParallel(files, 8, async ({ appearance, path }) => {
+          // Only its header is needed: the bytes are read again to upload, if it's new.
           const bytes = await readFile(path);
           const sidecar = JSON.parse(
             await readFile(path.replace(/\.png$/, ".json"), "utf8").catch(() => "{}"),
@@ -207,7 +208,7 @@ const readRender = async (dir: string) => {
               sidecar,
               variant: { image: `images/${hash}.png`, ...pngInfo(bytes) },
             } satisfies RenderedImage,
-            bytes,
+            path,
           };
         });
         return { app, images };
@@ -217,6 +218,33 @@ const readRender = async (dir: string) => {
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
+};
+
+/**
+ * Points `refs/<ref>.json` at a commit, unless that would move it back: publishing from an older
+ * checkout of a branch (a stale main, say) leaves the newer commit's snapshots in place.
+ */
+const pointRef = async (
+  ref: string,
+  commit: string,
+  key: string,
+  get: (objectKey: string) => Promise<string | undefined>,
+  putIfChanged: (objectKey: string, value: unknown) => Promise<void>,
+) => {
+  const objectKey = `refs/${ref}.json`;
+  const current = await get(objectKey);
+  const previous = current === undefined ? undefined : (JSON.parse(current) as { commit?: string });
+  if (previous?.commit !== undefined && previous.commit !== commit) {
+    // Exits 0 if `commit` is an ancestor of the ref's commit; it fails if that one isn't fetched.
+    const behind = await run("git", ["merge-base", "--is-ancestor", commit, previous.commit]).then(
+      () => true,
+      () => false,
+    );
+    if (behind) {
+      return console.log(`${ref} already points at ${previous.commit}, which is newer: kept.`);
+    }
+  }
+  await putIfChanged(objectKey, { commit, key });
 };
 
 const argument = (name: string) => {
@@ -241,18 +269,23 @@ const main = async () => {
   const objectUrl = (objectKey: string) =>
     `${bucketUrl}/objects/${objectKey.split("/").map(encodeURIComponent).join("/")}`;
 
-  /** Fetches, retrying when Cloudflare's API is briefly unavailable or rate limits. */
+  /** Fetches, retrying when the network or Cloudflare's API briefly fails, or it rate limits. */
   const request = async (
     url: string,
     init: { method?: string; headers?: Record<string, string>; body?: Buffer | string } = {},
   ) => {
     for (let attempt = 1; ; attempt++) {
-      const response = await fetch(url, {
-        ...init,
-        headers: { ...authorization, ...init.headers },
-      });
-      if ((response.status !== 429 && response.status < 500) || attempt === 5) return response;
-      await response.body?.cancel();
+      const last = attempt === 5;
+      try {
+        const response = await fetch(url, {
+          ...init,
+          headers: { ...authorization, ...init.headers },
+        });
+        if ((response.status !== 429 && response.status < 500) || last) return response;
+        await response.body?.cancel();
+      } catch (error) {
+        if (last) throw error;
+      }
       await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
     }
   };
@@ -268,10 +301,13 @@ const main = async () => {
     }
     return response.text();
   };
+  /** Objects uploaded, or that would be in a dry run. */
   let uploaded = 0;
   const put = async (objectKey: string, body: Buffer | string, contentType: string) => {
-    uploaded++;
-    if (dryRun) return console.log(`would upload ${objectKey}`);
+    if (dryRun) {
+      uploaded++;
+      return console.log(`Would upload ${objectKey}`);
+    }
     const response = await request(objectUrl(objectKey), {
       method: "PUT",
       headers: { "content-type": contentType },
@@ -280,6 +316,7 @@ const main = async () => {
     if (!response.ok) {
       throw new Error(`PUT ${objectKey} answered ${response.status}: ${await reason(response)}`);
     }
+    uploaded++;
   };
   /** Every object key under `prefix`, a page of up to 1,000 at a time. */
   const list = async (prefix: string) => {
@@ -320,12 +357,14 @@ const main = async () => {
     }
     const render = await readRender(dir);
     const existing = await list("images/");
-    const images = new Map<string, Buffer>();
+    const images = new Map<string, string>();
     for (const { images: appImages } of render) {
-      for (const { image, bytes } of appImages) images.set(image.variant.image, bytes);
+      for (const { image, path } of appImages) images.set(image.variant.image, path);
     }
     const missing = [...images].filter(([objectKey]) => !existing.has(objectKey));
-    await inParallel(missing, 8, ([objectKey, bytes]) => put(objectKey, bytes, "image/png"));
+    await inParallel(missing, 8, async ([objectKey, path]) =>
+      put(objectKey, await readFile(path), "image/png"),
+    );
     const manifests = render.map(({ app, images: appImages }) =>
       buildManifest(
         app,
@@ -356,8 +395,9 @@ const main = async () => {
     console.log(`Snapshots for ${key} are already published.`);
   }
   await putIfChanged(`commits/${commit}.json`, { key });
-  if (ref !== undefined) await putIfChanged(`refs/${ref}.json`, { commit, key });
-  console.log(uploaded === 0 ? "Nothing new to upload." : `${uploaded} objects uploaded.`);
+  if (ref !== undefined) await pointRef(ref, commit, key, get, putIfChanged);
+  const done = dryRun ? "would be uploaded" : "uploaded";
+  console.log(uploaded === 0 ? "Nothing new to upload." : `${uploaded} objects ${done}.`);
 };
 
 if (import.meta.main) await main();
