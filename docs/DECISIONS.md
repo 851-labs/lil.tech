@@ -295,6 +295,11 @@ An infinite canvas of every app state, rendered from SwiftUI previews, as a grid
   - **Filters** for app, platform and appearance, and the selected snapshot, live in the URL, so a view can be shared. A snapshot opens full size with its source file and line, linked on GitHub at the commit it was rendered from.
   - **Mac snapshots** are transparent, so they're shown over the window background color of their appearance: `#FFFFFF` and `#1E1E1E` on current macOS.
   - Images load lazily at full resolution. Thumbnails can come later if zoomed-out views get slow.
+- **Flowchart mode** (851-2701): previews don't say how screens connect, so each app has a graph file, `Web/pixelbook/graphs/<app>.json`, drafted by an agent and reviewed.
+  - **Format:** `screens` are nodes, each naming the file its previews are in (`"screen": "HealthMacApp/SummaryViewPreviews.swift"`), optionally which `states` (preview names) to show and in what order, and a `nudge` ([x, y] points) for the automatic layout. `edges` go `from` one screen's `id` `to` another's, with a `label` for the action ("Choose a metric").
+  - **With the viewer, not the snapshots:** graphs are bundled into the viewer, so a PR's preview shows that PR's graphs, and editing a graph doesn't change the snapshot key or need a render.
+  - **The check:** `Web/pixelbook/scripts/graphs.ts` reads `#Preview("…")` names from LilPackage's Swift sources and fails if a graph names a file, state or screen that doesn't exist. It runs in the pre-commit hook when Swift sources or graphs change (lefthook's `pixelbook` job), and as a test.
+  - **Layout:** dagre, left to right, then nudges. A node shows one state, with ‹ › to step through the rest stacked behind it. It's sized by its first state, so edges meet what's on screen. The flowchart shows one appearance, light unless only dark is on. Screens a graph leaves out sit in a row below, "Not in the graph", so gaps are easy to spot.
 - **Spike results** (851-2697, lil health): 133 Mac and 52 iPhone previews, 370 images in light and dark. About 4 minutes cold, and 2 minutes warm.
   - Two runs are pixel-identical, though PNG metadata differs, so images are compared by pixels, not bytes.
   - Mac images have transparent backgrounds, so they're shown over the window color for their appearance.

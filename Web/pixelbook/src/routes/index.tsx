@@ -1,7 +1,17 @@
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, type CanvasHandle, type View } from "../Canvas.tsx";
-import { filtersFrom, type SearchChange, toggle, validateSearch, withChange } from "../Filters.ts";
+import {
+  filtersFrom,
+  modeFrom,
+  type SearchChange,
+  toggle,
+  validateSearch,
+  withChange,
+} from "../Filters.ts";
+import { layoutFlowchart } from "../Flow.ts";
+import { FlowContent } from "../FlowContent.tsx";
+import { graphs } from "../graphs.ts";
 import { type Label, layoutGrid, type Tile, tileId } from "../Grid.ts";
 import {
   appName,
@@ -11,10 +21,10 @@ import {
   NotPublished,
   type Platform,
   platforms,
-  type Scheme,
   schemes,
   sourceUrl,
 } from "../Snapshots.ts";
+import { Labels, schemeNames, TileButton } from "../Tiles.tsx";
 
 export const Route = createFileRoute("/")({
   validateSearch,
@@ -53,7 +63,6 @@ function Message({ children }: { readonly children: React.ReactNode }) {
 }
 
 const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
-const schemeNames: Record<Scheme, string> = { light: "Light", dark: "Dark" };
 
 function Grid() {
   const book = Route.useLoaderData();
@@ -70,8 +79,26 @@ function Grid() {
       ),
     [apps, appsParameter, platformsParameter, schemesParameter],
   );
-  const layout = useMemo(() => layoutGrid(book.manifests, filters), [book, filters]);
-  const selected = layout.tiles.find((tile) => tileId(tile) === search.tile);
+  const mode = modeFrom(search);
+  const grid = useMemo(
+    () => (mode === "grid" ? layoutGrid(book.manifests, filters) : undefined),
+    [book, filters, mode],
+  );
+  const flow = useMemo(
+    () => (mode === "flow" ? layoutFlowchart(book.manifests, graphs, filters) : undefined),
+    [book, filters, mode],
+  );
+  // Every tile there is to select.
+  const tiles = useMemo(
+    () =>
+      grid?.tiles ?? [
+        ...(flow?.nodes.flatMap((node) => node.tiles) ?? []),
+        ...(flow?.unlinked ?? []),
+      ],
+    [grid, flow],
+  );
+  const size = grid ?? flow ?? { width: 0, height: 0 };
+  const selected = tiles.find((tile) => tileId(tile) === search.tile);
 
   const setSearch = useCallback(
     (change: SearchChange) =>
@@ -106,6 +133,19 @@ function Grid() {
           {search.commit === undefined ? `${search.ref ?? "main"} · ` : ""}
           {book.commit.slice(0, 7)}
         </a>
+        <div className="segmented" role="group" aria-label="Mode">
+          {(["grid", "flow"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={mode === value ? "on" : ""}
+              aria-pressed={mode === value}
+              onClick={() => setSearch({ mode: value === "grid" ? undefined : value })}
+            >
+              {value === "grid" ? "Grid" : "Flow"}
+            </button>
+          ))}
+        </div>
         <Chips
           label="App"
           values={apps}
@@ -141,17 +181,19 @@ function Grid() {
             Fit
           </button>
         </div>
-        <span className="count">{layout.tiles.length} snapshots</span>
+        <span className="count">
+          {flow === undefined
+            ? `${tiles.length} snapshots`
+            : `${flow.nodes.length + flow.unlinked.length} screens`}
+        </span>
       </header>
-      <Canvas
-        width={layout.width}
-        height={layout.height}
-        handle={canvas}
-        onViewChange={onViewChange}
-      >
-        <Content tiles={layout.tiles} labels={layout.labels} onSelect={select} />
+      <Canvas width={size.width} height={size.height} handle={canvas} onViewChange={onViewChange}>
+        {grid !== undefined && (
+          <Content tiles={grid.tiles} labels={grid.labels} onSelect={select} />
+        )}
+        {flow !== undefined && <FlowContent layout={flow} onSelect={select} />}
       </Canvas>
-      {layout.tiles.length === 0 && <p className="empty">No snapshots match these filters.</p>}
+      {tiles.length === 0 && <p className="empty">No snapshots match these filters.</p>}
       {selected !== undefined && (
         <Detail tile={selected} commit={book.commit} onClose={() => select(undefined)} />
       )}
@@ -195,7 +237,7 @@ function Chips<A extends string>({
   );
 }
 
-/** The canvas's tiles and labels. Memoized: panning and zooming don't change them. */
+/** The grid's tiles and labels. Memoized: panning and zooming don't change them. */
 const Content = memo(function Content({
   tiles,
   labels,
@@ -207,34 +249,9 @@ const Content = memo(function Content({
 }) {
   return (
     <>
-      {labels.map((label) => (
-        <div
-          key={`${label.kind}/${label.y}`}
-          className={`label ${label.kind}`}
-          style={{ left: label.x, top: label.y }}
-        >
-          {label.text}
-        </div>
-      ))}
+      <Labels labels={labels} />
       {tiles.map((tile) => (
-        <button
-          key={tileId(tile)}
-          type="button"
-          className={`tile ${tile.platform} ${tile.scheme}`}
-          style={{ left: tile.x, top: tile.y, width: tile.width, height: tile.height }}
-          title={`${tile.snapshot.screen}: ${tile.snapshot.state} (${schemeNames[tile.scheme]})`}
-          onClick={() => onSelect(tile)}
-        >
-          <img
-            src={imageUrl(tile.variant)}
-            alt={`${tile.snapshot.screen}: ${tile.snapshot.state}`}
-            width={tile.width}
-            height={tile.height}
-            loading="lazy"
-            decoding="async"
-            draggable={false}
-          />
-        </button>
+        <TileButton key={tileId(tile)} tile={tile} onSelect={onSelect} />
       ))}
     </>
   );

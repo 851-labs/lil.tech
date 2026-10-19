@@ -292,3 +292,124 @@ a:hover {
 .message h1 {
   color: var(--text);
 }
+
+.label.caption {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--secondary);
+}
+
+.segmented {
+  display: flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.segmented button {
+  padding: 2px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--secondary);
+  cursor: pointer;
+}
+
+.segmented button.on {
+  color: var(--text);
+  background: light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.14));
+}
+
+/* Flowchart mode, in canvas points: sized to read when zoomed out. */
+.edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.edges polyline {
+  fill: none;
+  stroke: var(--secondary);
+  stroke-width: 6;
+  stroke-linejoin: round;
+}
+
+.edges marker path {
+  fill: var(--secondary);
+}
+
+.edge-label {
+  position: absolute;
+  max-width: 280px;
+  padding: 6px 14px;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  background: var(--background);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.node {
+  position: absolute;
+}
+
+.node.raised {
+  z-index: 1;
+}
+
+.node-header {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-bottom: 16px;
+  white-space: nowrap;
+}
+
+.node-title {
+  overflow: hidden;
+  font-size: 44px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.node-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 28px;
+  color: var(--secondary);
+}
+
+.node-state-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.node-state button {
+  min-width: 44px;
+  padding: 0 10px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  font-size: 28px;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+/* A screen with more states shows them stacked behind the current one. */
+.node.stacked .tile {
+  box-shadow:
+    0 0 0 1px var(--border),
+    14px 14px 0 -2px light-dark(#dcdce0, #2a2a2e),
+    28px 28px 0 -4px light-dark(#c8c8cc, #222226);
+}

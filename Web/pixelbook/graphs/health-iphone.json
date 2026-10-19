@@ -1,0 +1,14 @@
+{
+  "app": "health-iphone",
+  "screens": [
+    { "id": "sign-in", "screen": "LilAuth/SignInView.swift" },
+    { "id": "consent", "screen": "HealthPhoneApp/HealthConsentView.swift" },
+    { "id": "access", "screen": "HealthPhoneApp/HealthAccessView.swift" },
+    { "id": "sync", "screen": "HealthPhoneApp/SyncStatusViewPreviews.swift" }
+  ],
+  "edges": [
+    { "from": "sign-in", "to": "consent", "label": "Sign in" },
+    { "from": "consent", "to": "access", "label": "Agree" },
+    { "from": "access", "to": "sync", "label": "Continue, then allow in Health" }
+  ]
+}

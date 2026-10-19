@@ -13,14 +13,20 @@ export interface Search {
   readonly schemes?: string;
   /** The tile shown full size (`tileId`). */
   readonly tile?: string;
+  /** `flow` for the flowchart; the grid otherwise. */
+  readonly mode?: string;
 }
+
+export type Mode = "grid" | "flow";
+
+export const modeFrom = (search: Search): Mode => (search.mode === "flow" ? "flow" : "grid");
 
 const text = (value: unknown) => (typeof value === "string" && value !== "" ? value : undefined);
 
 /** Keeps the parameters Pixelbook knows, as strings. */
 export const validateSearch = (search: Record<string, unknown>): Search => {
   const result: Record<string, string> = {};
-  for (const name of ["ref", "commit", "apps", "platforms", "schemes", "tile"] as const) {
+  for (const name of ["ref", "commit", "apps", "platforms", "schemes", "tile", "mode"] as const) {
     const value = text(search[name]);
     if (value !== undefined) result[name] = value;
   }

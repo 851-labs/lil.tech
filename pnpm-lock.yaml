@@ -164,6 +164,9 @@ settings:
 
 catalogs:
   default:
+    '@dagrejs/dagre':
+      specifier: 3.1.1
+      version: 3.1.1
     '@effect/platform-node':
       specifier: 4.0.4
       version: 4.0.4
@@ -278,6 +281,9 @@ importers:
 
   Web/pixelbook:
     dependencies:
+      '@dagrejs/dagre':
+        specifier: 'catalog:'
+        version: 3.1.1
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.45(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -472,6 +478,12 @@ packages:
 
   '@cloudflare/workers-types@5.20261013.1':
     resolution: {integrity: sha512-0SfkM/MA+oSIAzFFmjr0wZLH54oeCtugaOn8GpJDBnerQiML+rOPq2W6j6bBGE51o+N4DOd0tvMruLmkAQzlpw==}
+
+  '@dagrejs/dagre@3.1.1':
+    resolution: {integrity: sha512-zroZB1dFOFiGgv4Xcrn1DckB1o4aOikPqD2NDQPV0WM//CXGcS6xiD0rNkqHmw6FEg4tabt4nxPLwgCWT+Vb2A==}
+
+  '@dagrejs/graphlib@4.0.5':
+    resolution: {integrity: sha512-7xrBTqIts3o+PMUZX97wSc+7TUbW+/rULzGNCTP6yooNVDXbzw4Wutg/H/xOutTB/c/k0YqOAavgPh4/Zk9PFA==}
 
   '@distilled.cloud/acme@1.0.0-rc.15':
     resolution: {integrity: sha512-SzQZoPTonWolW6yHartHKIc1sEOlrnq3XdCfCT6RUXb1iAK0YyboRE0BgROzhg4FfxqSypb1BBB0D0vwhm+qjQ==}
@@ -3417,6 +3429,12 @@ snapshots:
     optional: true
 
   '@cloudflare/workers-types@5.20261013.1': {}
+
+  '@dagrejs/dagre@3.1.1':
+    dependencies:
+      '@dagrejs/graphlib': 4.0.5
+
+  '@dagrejs/graphlib@4.0.5': {}
 
   '@distilled.cloud/acme@1.0.0-rc.15(effect@4.0.4)':
     dependencies:

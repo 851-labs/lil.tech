@@ -15,6 +15,14 @@ pre-commit:
         - "scripts/format"
         - "scripts/check"
         - "lefthook.yml"
+    # Pixelbook's graph files name previews, so renaming one in Swift is checked against them.
+    - name: pixelbook
+      run: node Web/pixelbook/scripts/graphs.ts
+      glob:
+        - "LilPackage/Sources/**/*.swift"
+        - "Web/pixelbook/graphs/**"
+        - "Web/pixelbook/src/Graph.ts"
+        - "Web/pixelbook/scripts/graphs.ts"
     - name: services
       run: scripts/check --hook --services
       glob:
