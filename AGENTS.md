@@ -18,6 +18,10 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   - The checks see the working tree, so the hook refuses to run while the paths it checks have unstaged or untracked changes. Stage them, or set them aside with `git stash --keep-index -u`.
   - A failing check blocks the commit. Fix it rather than skipping the hook (`LEFTHOOK=0 git commit …` is for emergencies only).
   - The Swift workflow (`.github/workflows/swift.yml`) is off for now. It can still be run by hand from the Actions tab.
+- **Pixelbook's snapshots publish before every push**, in lefthook's pre-push hook: `scripts/pixelbook publish --hook` points the pushed branch and commit at their snapshots, rendering them first (a few minutes) unless a commit with the same inputs (`LilPackage/Sources`, the snapshot project, the scripts) already did. Docs-only and test-only pushes don't render.
+  - It skips with a note, without blocking the push, when it can't publish: offline, no Cloudflare login, uncommitted changes to those inputs, or a push of something other than `HEAD`. Publish later with `scripts/pixelbook publish`.
+  - A preview that fails to render blocks the push, like a failing check. Fix it; `LEFTHOOK=0 git push` is for emergencies.
+  - Merges to `main` don't push from anyone's machine, so the Pixelbook workflow (`.github/workflows/pixelbook.yml`) points `main` at each merge's snapshots, which its branch already published if it was up to date with `main`.
 - Don't bundle unrelated changes. If you find extra work, file a new ticket.
 
 ## Building

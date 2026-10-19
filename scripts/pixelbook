@@ -5,7 +5,7 @@
 # file, preview name, line).
 # Usage: scripts/pixelbook render [out-dir]
 #          scripts/pixelbook check
-#          scripts/pixelbook publish [--ref <name>] [--dry-run]
+#          scripts/pixelbook publish [--ref <name>] [--dry-run] [--hook | --pointers-only]
 #   render   Renders into out-dir, as <app>/<light|dark>/ (default build/pixelbook/<commit>). It's
 #            replaced, so it must be new, empty, or under build/.
 #   check    Renders twice and fails if any image's pixels differ, or if a preview reported an
@@ -14,6 +14,10 @@
 #            rendering them first unless they're already there, and points HEAD and the ref (the
 #            current branch by default) at them. Snapshots are keyed by what they're rendered
 #            from, so those paths must be committed: a commit sharing them shares the snapshots.
+#            --hook: in the pre-push hook (lefthook.yml), publishing the pushed ref when it's HEAD,
+#            and skipping with a note when it can't, unless rendering fails.
+#            --pointers-only: never renders; only points the commit and ref at its snapshots if
+#            they're published. CI does this for main, whose squash merges no one pushes.
 # PIXELBOOK_STRICT=1 makes render exit 2 when a preview reports an issue, instead of warning.
 # PIXELBOOK_SIMULATOR picks the iPhone simulator (default "iPhone 18 Pro"); images take its size.
 # PIXELBOOK_PREVIEWS renders only some previews, for trying a change: comma-separated regular
@@ -28,7 +32,7 @@ set -euo pipefail
 
 command=${1:-}
 if [ "$command" != "render" ] && [ "$command" != "check" ] && [ "$command" != "publish" ]; then
-  echo "usage: scripts/pixelbook render [out-dir] | check | publish [--ref <name>] [--dry-run]" >&2
+  echo "usage: scripts/pixelbook render [out-dir] | check | publish [--ref <name>] [--dry-run] [--hook | --pointers-only]" >&2
   exit 64
 fi
 caller=$PWD
@@ -59,40 +63,73 @@ if [ "$command" = "publish" ]; then
   shift
   ref=$(git symbolic-ref --short -q HEAD || true)
   options=()
+  hook=false
+  pointers_only=false
   while [ $# -gt 0 ]; do
     case $1 in
       --ref) ref=${2:?--ref needs a name}; shift 2 ;;
       --dry-run) options+=(--dry-run); shift ;;
+      --hook) hook=true; shift ;;
+      --pointers-only) pointers_only=true; shift ;;
       *) echo "Unknown option $1" >&2; exit 64 ;;
     esac
   done
-  # What snapshots are made from: the package, the snapshot project, this script and the uploader,
-  # which writes the manifests.
-  inputs=(LilPackage Tools/PixelbookSnapshots scripts/pixelbook Services/api/scripts/pixelbook.ts)
+  # In the pre-push hook, anything but a failed render skips with a note instead of blocking the
+  # push: snapshots can be published later.
+  skip() {
+    echo "Pixelbook: $1, so snapshots weren't published. Run scripts/pixelbook publish later." >&2
+    exit 0
+  }
+  commit=$(git rev-parse HEAD)
+  if $hook; then
+    # Git gives the hook a line per pushed ref: <local ref> <local sha> <remote ref> <remote sha>.
+    pushed=""
+    while read -r local_ref local_sha _ _; do
+      [ "$local_sha" = "$commit" ] && pushed=${local_ref#refs/heads/}
+    done
+    [ -n "$pushed" ] || skip "the push isn't of HEAD"
+    ref=$pushed
+  fi
+  # What snapshots are made from: the package's sources and pins (not its tests), the snapshot
+  # project, this script and the uploader, which writes the manifests.
+  inputs=(LilPackage/Sources LilPackage/Package.swift LilPackage/Package.resolved
+    Tools/PixelbookSnapshots scripts/pixelbook Services/api/scripts/pixelbook.ts)
   # Rendering syncs the snapshot project's pins, so that's done first: changed pins must be
   # committed too.
-  sync_pins
-  if [ -n "$(git status --porcelain -- "${inputs[@]}")" ]; then
+  $pointers_only || sync_pins
+  changed=$(git status --porcelain -- "${inputs[@]}" | cut -c4- | tr '\n' ' ')
+  if [ -n "$changed" ]; then
+    $hook && skip "there are uncommitted changes to ${changed% }"
     echo "Commit or stash your changes to ${inputs[*]} first: snapshots are keyed by commit." >&2
     exit 1
   fi
   key=$(for input in "${inputs[@]}"; do git rev-parse "HEAD:$input"; done | shasum -a 256 | cut -c1-16)
-  commit=$(git rev-parse HEAD)
   [ -n "$ref" ] && options+=(--ref "$ref")
   upload() { (cd Services/api && node scripts/pixelbook.ts --key "$key" --commit "$commit" "$@"); }
   status=0
   upload ${options[@]+"${options[@]}"} || status=$?
-  [ "$status" -ne 3 ] && exit "$status"
+  if [ "$status" -ne 3 ]; then
+    [ "$status" -ne 0 ] && $hook && skip "couldn't reach Pixelbook's bucket (offline, or no Cloudflare login?)"
+    exit "$status"
+  fi
+  # Not published yet. CI, which can't render, only points refs at published snapshots.
+  $pointers_only && { echo "Snapshots for $key aren't published; nothing to point at."; exit 0; }
   render="$root/build/pixelbook/$key"
   # A finished render of this key is reused, e.g. after a failed upload. Strict: a preview that
   # reports an issue, or a run that stops partway, isn't published, since a published key is
-  # never rendered again.
+  # never rendered again. In the hook, that blocks the push, as a failing check would.
   if [ ! -e "$render/.finished" ]; then
+    $hook && echo "==> Pixelbook: rendering this commit's previews (a few minutes; LEFTHOOK=0 skips)"
     # Every preview: a published key is complete.
     PIXELBOOK_STRICT=1 PIXELBOOK_PREVIEWS= "$root/scripts/pixelbook" render "$render"
     touch "$render/.finished"
   fi
-  upload --render "$render" ${options[@]+"${options[@]}"}
+  status=0
+  upload --render "$render" ${options[@]+"${options[@]}"} || status=$?
+  if [ "$status" -ne 0 ]; then
+    $hook && skip "the upload failed (the render in $render is kept for next time)"
+    exit "$status"
+  fi
   # About 100 MB, and the bucket has it now.
   rm -rf "$render"
   exit 0
