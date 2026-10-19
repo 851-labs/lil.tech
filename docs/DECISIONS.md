@@ -266,6 +266,21 @@
 - **Contact names:** resolved through the Contacts framework, which requires the Contacts permission.
 - **Onboarding:** a first-launch flow that walks through granting Full Disk Access, Automation and Contacts.
 
+## Pixelbook
+
+An infinite canvas of every app state, rendered from SwiftUI previews, as a grid or a flowchart, with "what changed" on each PR (851-2696).
+
+- **Capture:** [SnapshotPreviews](https://github.com/getsentry/SnapshotPreviews) (MIT, pinned exactly) finds every `#Preview` in a test binary and writes a PNG and a JSON sidecar (module, file, preview name, line) for each. `scripts/pixelbook render` runs it for each app, light and dark.
+  - **Its own package,** `Tools/PixelbookSnapshots`, so LilPackage's tests and the pre-commit hook don't render previews.
+  - **Mac previews** render in a plain package test. The app's appearance is set from `PIXELBOOK_APPEARANCE`.
+  - **iPhone previews** need a running app, so they render in a test hosted by an empty app (`PixelbookHost`), in the iPhone 18 Pro simulator, with its appearance set by `simctl`.
+  - **Preview dependencies:** everything renders with `SWIFT_DEPENDENCIES_CONTEXT=preview`, as in Xcode, so previews that read the database get their preview data. Not with `XCODE_RUNNING_FOR_PREVIEWS`, which switches SwiftUI into its preview layout and changes image sizes.
+  - **Broken framework signature:** SnapshotPreviews ships `PreviewsSupport.framework`'s macOS slice with a broken signature, which macOS refuses to load and may move to the Trash as malware ([issue 236](https://github.com/getsentry/SnapshotPreviews/issues/236)). The script re-signs it ad hoc, locally. It's only a test dependency and never ships.
+  - **Diagnostics:** `xcodebuild` runs with `-collect-test-diagnostics never`, since collecting simulator diagnostics after a run could hang it for many minutes.
+- **Spike results** (851-2697, lil health): 133 Mac and 52 iPhone previews, 370 images in light and dark. About 4½ minutes cold (both builds), and 2 minutes warm.
+  - Two runs are pixel-identical, though PNG metadata differs, so images are compared by pixels, not bytes.
+  - Mac images have transparent backgrounds, so they're shown over the window color for their appearance.
+
 ## Open questions
 
 - What "lil" means as a product idea, and what v1 of lil messages includes.

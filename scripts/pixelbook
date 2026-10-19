@@ -1,0 +1,86 @@
+#!/bin/bash
+# Pixelbook (851-2696): renders every SwiftUI preview to PNGs, light and dark, with SnapshotPreviews
+# (Tools/PixelbookSnapshots: a package for the Mac, and a host app project for the iPhone, whose
+# previews need a running app). Each PNG has a JSON sidecar (module, file, preview name, line).
+# Usage: scripts/pixelbook render [out-dir]
+#   out-dir  Where the images go (default build/pixelbook/<commit>), as <app>/<light|dark>/.
+# Previews render with preview dependencies, as in Xcode (SWIFT_DEPENDENCIES_CONTEXT). Not with
+# XCODE_RUNNING_FOR_PREVIEWS, which switches SwiftUI into its preview layout and changes sizes.
+set -euo pipefail
+
+if [ "${1:-}" != "render" ]; then
+  echo "usage: scripts/pixelbook render [out-dir]" >&2
+  exit 64
+fi
+cd "$(dirname "$0")/.."
+root=$PWD
+out=${2:-build/pixelbook/$(git rev-parse --short HEAD)}
+[[ "$out" = /* ]] || out="$root/$out"
+derived="$root/build/pixelbook/DerivedData"
+iphone_derived="$root/build/pixelbook/DerivedData-iPhone"
+scheme=PixelbookSnapshots-Package
+iphone_project=PixelbookHost/PixelbookHost.xcodeproj
+simulator="iPhone 18 Pro"
+rm -rf "$out"
+mkdir -p "$out"
+cd Tools/PixelbookSnapshots
+
+echo "==> Resolving packages"
+xcodebuild -resolvePackageDependencies -scheme "$scheme" -derivedDataPath "$derived" -quiet
+
+# SnapshotPreviews ships PreviewsSupport.framework's macOS slice with a broken signature, which
+# macOS refuses to load and may move to the Trash as malware
+# (github.com/getsentry/SnapshotPreviews/issues/236). It's re-signed here, for this machine only.
+framework=$(find "$derived/SourcePackages/checkouts/SnapshotPreviews/PreviewsSupport/PreviewsSupport.xcframework" \
+  -maxdepth 2 -type d -path "*macos-*/PreviewsSupport.framework")
+if ! codesign --verify --strict "$framework" 2>/dev/null; then
+  chmod -R u+w "$framework"
+  codesign --force --sign - "$framework"
+fi
+
+device=$(xcrun simctl list devices available | grep -m1 "    $simulator (" | grep -oE '[0-9A-F-]{36}')
+if [ -z "$device" ]; then
+  echo "No \"$simulator\" simulator: create one in Xcode's Devices and Simulators." >&2
+  exit 1
+fi
+
+echo "==> Building for macOS and the iPhone simulator"
+xcodebuild build-for-testing -scheme "$scheme" -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath "$derived" -skipMacroValidation -quiet
+xcodebuild build-for-testing -project "$iphone_project" -scheme HealthPhoneSnapshots \
+  -destination "id=$device" -derivedDataPath "$iphone_derived" -skipMacroValidation -quiet
+
+# Runs one app's snapshot tests into $out/<app>/<appearance>. A preview that reports an issue fails
+# its test but still renders, so failures are counted, not fatal.
+failures=0
+# render <app> <appearance> <xcodebuild arguments…>
+render() {
+  local app=$1 appearance=$2
+  shift 2
+  local dir="$out/$app/$appearance"
+  mkdir -p "$dir"
+  echo "==> Rendering $app ($appearance)"
+  TEST_RUNNER_SNAPSHOTS_EXPORT_DIR="$dir" \
+    TEST_RUNNER_PIXELBOOK_APPEARANCE="$appearance" \
+    TEST_RUNNER_SWIFT_DEPENDENCIES_CONTEXT=preview \
+    xcodebuild test-without-building "$@" -collect-test-diagnostics never -quiet >"$dir.log" 2>&1 ||
+    failures=$((failures + 1))
+  echo "    $(find "$dir" -name '*.png' | wc -l | tr -d ' ') images"
+}
+
+for appearance in light dark; do
+  render health-mac "$appearance" -scheme "$scheme" -destination 'platform=macOS,arch=arm64' \
+    -derivedDataPath "$derived" -only-testing:HealthMacSnapshots
+done
+
+xcrun simctl boot "$device" 2>/dev/null || true
+for appearance in light dark; do
+  xcrun simctl ui "$device" appearance "$appearance"
+  render health-iphone "$appearance" -project "$iphone_project" -scheme HealthPhoneSnapshots \
+    -destination "id=$device" -derivedDataPath "$iphone_derived"
+done
+
+echo "==> $out"
+if [ "$failures" -gt 0 ]; then
+  echo "Some previews reported issues; see the .log files next to each folder." >&2
+fi
