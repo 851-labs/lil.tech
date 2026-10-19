@@ -2,10 +2,15 @@ import Dependencies
 import HealthDatabase
 import SQLiteData
 
-/// Gives the views a preview builds the preview database, as SQLiteData suggests for previews.
-/// Every preview whose views read the database calls it first, so none shows whatever an earlier
-/// preview prepared: Pixelbook renders them all in one process (851-2698).
+/// The synthetic database (`makePreviewHealthDatabase()`), built once per process.
+@MainActor private let previewDatabase = makePreviewHealthDatabase()
+
+/// Gives the views a preview builds the preview database, as SQLiteData suggests for previews:
+/// every preview whose views read the database calls it first, rather than reading a blank one.
+/// A preview context keeps the first preparation in a process, so every preview shares this one
+/// database: in Xcode a process per preview, and in Pixelbook one for all (851-2698). Previews only
+/// read it.
 @MainActor
 func preparePreviewDatabase() {
-  prepareDependencies { $0.defaultDatabase = makePreviewHealthDatabase() }
+  prepareDependencies { $0.defaultDatabase = previewDatabase }
 }
