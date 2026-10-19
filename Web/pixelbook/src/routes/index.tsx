@@ -25,7 +25,7 @@ import {
   sourceOf,
   sourceUrl,
 } from "../Snapshots.ts";
-import { diffBooks, layoutDiff, summarize } from "../Diff.ts";
+import { describeChanges, diffBooks, layoutDiff, summarize } from "../Diff.ts";
 import { Labels, schemeNames, TileButton } from "../Tiles.tsx";
 
 export const Route = createFileRoute("/")({
@@ -35,9 +35,15 @@ export const Route = createFileRoute("/")({
     try {
       const [book, base] = await Promise.all([
         loadBook(deps.commit === undefined ? { ref: deps.ref ?? "main" } : { commit: deps.commit }),
-        deps.base === undefined ? undefined : loadBook(sourceOf(deps.base)),
+        // A base without snapshots doesn't hide the head's: the page says so instead.
+        deps.base === undefined
+          ? undefined
+          : loadBook(sourceOf(deps.base)).catch((error: unknown) => {
+              if (error instanceof NotPublished) return null;
+              throw error;
+            }),
       ]);
-      return { book, base };
+      return { book, base: base ?? undefined, missingBase: base === null ? deps.base : undefined };
     } catch (error) {
       // A 404, with the reason.
       if (error instanceof NotPublished) throw notFound({ data: error.message });
@@ -72,7 +78,7 @@ function Message({ children }: { readonly children: React.ReactNode }) {
 const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
 
 function Grid() {
-  const { book, base } = Route.useLoaderData();
+  const { book, base, missingBase } = Route.useLoaderData();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const apps = useMemo(() => book.manifests.map((manifest) => manifest.app).toSorted(), [book]);
@@ -150,6 +156,14 @@ function Grid() {
           {search.commit === undefined ? `${search.ref ?? "main"} · ` : ""}
           {book.commit.slice(0, 7)}
         </a>
+        {missingBase !== undefined && (
+          <span className="comparing">
+            no snapshots of {missingBase.slice(0, 7)} to compare with
+            <button type="button" onClick={() => setSearch({ base: undefined })}>
+              Show all
+            </button>
+          </span>
+        )}
         {base !== undefined && (
           <span className="comparing">
             changes since{" "}
@@ -163,22 +177,24 @@ function Grid() {
             </button>
           </span>
         )}
-        <div className="segmented" role="group" aria-label="Mode" hidden={changes !== undefined}>
-          {(["grid", "flow"] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              className={mode === value ? "on" : ""}
-              aria-pressed={mode === value}
-              // A tile from one mode may not be in the other.
-              onClick={() =>
-                setSearch({ mode: value === "grid" ? undefined : value, tile: undefined })
-              }
-            >
-              {value === "grid" ? "Grid" : "Flow"}
-            </button>
-          ))}
-        </div>
+        {changes === undefined && (
+          <div className="segmented" role="group" aria-label="Mode">
+            {(["grid", "flow"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={mode === value ? "on" : ""}
+                aria-pressed={mode === value}
+                // A tile from one mode may not be in the other.
+                onClick={() =>
+                  setSearch({ mode: value === "grid" ? undefined : value, tile: undefined })
+                }
+              >
+                {value === "grid" ? "Grid" : "Flow"}
+              </button>
+            ))}
+          </div>
+        )}
         <Chips
           label="App"
           values={apps}
@@ -216,7 +232,7 @@ function Grid() {
         </div>
         <span className="count">
           {changes !== undefined
-            ? changeCount(summarize(changes))
+            ? describeChanges(summarize(changes))
             : flow === undefined
               ? `${tiles.length} snapshots`
               : `${flow.nodes.length + flow.unlinked.length} screens`}
@@ -234,22 +250,21 @@ function Grid() {
         </p>
       )}
       {selected !== undefined && (
-        <Detail tile={selected} commit={book.commit} onClose={() => select(undefined)} />
+        <Detail
+          tile={selected}
+          // A base-side tile's file and line are the base's.
+          commit={
+            base !== undefined &&
+            (selected.change?.label === "Before" || selected.change?.label === "Removed")
+              ? base.commit
+              : book.commit
+          }
+          onClose={() => select(undefined)}
+        />
       )}
     </div>
   );
 }
-
-/** "2 changed, 1 new on 3 screens". */
-const changeCount = (summary: ReturnType<typeof summarize>) => {
-  const parts = [
-    summary.changed > 0 ? `${summary.changed} changed` : undefined,
-    summary.added > 0 ? `${summary.added} new` : undefined,
-    summary.removed > 0 ? `${summary.removed} removed` : undefined,
-  ].filter((part) => part !== undefined);
-  if (parts.length === 0) return "No changes";
-  return `${parts.join(", ")} on ${summary.screens} ${summary.screens === 1 ? "screen" : "screens"}`;
-};
 
 const manifestPlatform = (book: Book, app: string): Platform =>
   book.manifests.find((manifest) => manifest.app === app)?.platform ?? "ios";

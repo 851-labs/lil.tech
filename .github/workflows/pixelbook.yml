@@ -7,7 +7,8 @@ name: Pixelbook
 #   main. Otherwise the run warns, and main keeps its last published commit until someone runs
 #   `scripts/pixelbook publish` on it.
 # - Pull requests: comments how many snapshots changed since the PR's base, linked to Pixelbook's
-#   comparison (`Web/pixelbook/scripts/diff.ts`).
+#   comparison (`Web/pixelbook/scripts/diff.ts`). It's refreshed on each push; re-run the PR's
+#   Pixelbook check after publishing by hand.
 
 on:
   push:
@@ -62,10 +63,20 @@ jobs:
       - name: Point the base and head at their snapshots
         id: commits
         run: |
-          base=$(git merge-base "origin/$BASE_REF" "$HEAD_SHA")
+          # The PR's merge base, or the nearest commit before it with snapshots: a merge from a
+          # branch that wasn't up to date with main has none.
+          merge_base=$(git merge-base "origin/$BASE_REF" "$HEAD_SHA")
+          base=$merge_base
+          for commit in $(git rev-list --first-parent --max-count=20 "$merge_base"); do
+            key=$(scripts/pixelbook key "$commit")
+            if curl -sfo /dev/null "https://pixelbook-assets.lil.tech/snapshots/$key/index.json"; then
+              base=$commit
+              break
+            fi
+          done
           echo "base=$base" >> "$GITHUB_OUTPUT"
-          # main's merges are pointed at as they land; the base may predate that, or the head's
-          # hook may have skipped while its snapshots were published from elsewhere.
+          # main's merges are pointed at as they land, but the base may predate that, and the
+          # head's hook may have skipped while its snapshots were published from elsewhere.
           scripts/pixelbook publish --pointers-only --commit "$base"
           scripts/pixelbook publish --pointers-only --commit "$HEAD_SHA"
       - name: Comment what changed

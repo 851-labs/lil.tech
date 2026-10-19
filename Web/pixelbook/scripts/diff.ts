@@ -1,7 +1,7 @@
 // Pixelbook's comment on a pull request (`.github/workflows/pixelbook.yml`): how many snapshots
 // changed since the PR's base, linked to the comparison. Prints the comment's Markdown.
 //   node Web/pixelbook/scripts/diff.ts --base <sha> --head <sha>
-import { diffBooks, summarize } from "../src/Diff.ts";
+import { describeChanges, diffBooks, summarize } from "../src/Diff.ts";
 import { type Book, loadBook, NotPublished } from "../src/Snapshots.ts";
 
 /** Where comments link to: prod's Pixelbook, which reads every commit's snapshots. */
@@ -29,13 +29,7 @@ export const comment = (
   if (summary.changed + summary.added + summary.removed === 0) {
     return `${marker}\n**Pixelbook**: no snapshots changed since ${short(base)}. [All snapshots](${pixelbookUrl}/?commit=${head})`;
   }
-  const parts = [
-    summary.changed > 0 ? `${summary.changed} changed` : undefined,
-    summary.added > 0 ? `${summary.added} new` : undefined,
-    summary.removed > 0 ? `${summary.removed} removed` : undefined,
-  ].filter((part) => part !== undefined);
-  const screens = `${summary.screens} ${summary.screens === 1 ? "screen" : "screens"}`;
-  return `${marker}\n**Pixelbook**: ${parts.join(", ")} on ${screens} since ${short(base)}. [See what changed](${link})`;
+  return `${marker}\n**Pixelbook**: ${describeChanges(summary)} since ${short(base)}. [See what changed](${link})`;
 };
 
 const load = (commit: string) =>

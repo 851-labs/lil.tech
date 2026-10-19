@@ -108,6 +108,18 @@ export const summarize = (changes: ReadonlyArray<SnapshotChange>) => {
   };
 };
 
+/** "2 changed, 1 new on 3 screens", or "No changes": the page's and the PR comment's wording. */
+export const describeChanges = (summary: ReturnType<typeof summarize>) => {
+  const parts = [
+    summary.changed > 0 ? `${summary.changed} changed` : undefined,
+    summary.added > 0 ? `${summary.added} new` : undefined,
+    summary.removed > 0 ? `${summary.removed} removed` : undefined,
+  ].filter((part) => part !== undefined);
+  if (parts.length === 0) return "No changes";
+  const screens = `${summary.screens} ${summary.screens === 1 ? "screen" : "screens"}`;
+  return `${parts.join(", ")} on ${screens}`;
+};
+
 /**
  * Lays a comparison out like the grid: an app per section, a screen per row. A changed state shows
  * each differing appearance before and after; an added or removed one shows its own side.
@@ -180,13 +192,16 @@ const layoutChanges = (changes: ReadonlyArray<SnapshotChange>, filters: Filters)
   };
   for (const change of changes) {
     for (const scheme of change.schemes.filter((scheme) => shows(filters.schemes, scheme))) {
-      if (change.kind === "changed" && change.before !== undefined && change.after !== undefined) {
-        place(change, change.before, scheme, "Before", change.after, spacing.tile);
-        place(change, change.after, scheme, "After", change.before, spacing.scheme);
-      } else if (change.after !== undefined) {
-        place(change, change.after, scheme, "New", undefined, spacing.tile);
-      } else if (change.before !== undefined) {
-        place(change, change.before, scheme, "Removed", undefined, spacing.tile);
+      // Per appearance: a changed snapshot can gain or lose one.
+      const before = change.before?.variants[scheme] === undefined ? undefined : change.before;
+      const after = change.after?.variants[scheme] === undefined ? undefined : change.after;
+      if (before !== undefined && after !== undefined) {
+        place(change, before, scheme, "Before", after, spacing.tile);
+        place(change, after, scheme, "After", before, spacing.scheme);
+      } else if (after !== undefined) {
+        place(change, after, scheme, "New", undefined, spacing.tile);
+      } else if (before !== undefined) {
+        place(change, before, scheme, "Removed", undefined, spacing.tile);
       }
     }
   }

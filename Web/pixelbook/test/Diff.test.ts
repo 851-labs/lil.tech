@@ -77,6 +77,18 @@ describe("comparing snapshots", () => {
     ]);
   });
 
+  it("labels an appearance a changed snapshot gained as new", () => {
+    const gained = book("gained", [
+      snapshot("Summary", "Pinned", "a", "b"),
+      snapshot("Summary", "Loading", "c", "d"),
+      snapshot("Account", "Export", "e", "e2"),
+    ]);
+    const layout = layoutDiff(diffBooks(base, gained), noFilters);
+    expect(layout.tiles.map((tile) => [tile.change?.label, tile.scheme])).toEqual([
+      ["New", "dark"],
+    ]);
+  });
+
   it("leaves out appearances the filters hide", () => {
     const layout = layoutDiff(diffBooks(base, head), { ...noFilters, schemes: ["light"] });
     // The only change on Summary is dark.
