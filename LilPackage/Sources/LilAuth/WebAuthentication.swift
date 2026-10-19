@@ -34,7 +34,7 @@ enum BrowserAuthorizationError: Error, Equatable {
 func openInBrowser(
   _ url: URL, until callbackScheme: String, service: String
 ) async -> Result<URL, BrowserAuthorizationError> {
-  let anchor = KeyWindowAnchor()
+  let anchor = KeyWindowAnchor(window: keyWindow())
   let browser = BrowserSession()
   let continuation = LockIsolated<
     CheckedContinuation<Result<URL, BrowserAuthorizationError>, Never>?
@@ -50,6 +50,11 @@ func openInBrowser(
   return await withTaskCancellationHandler {
     await withCheckedContinuation { resume in
       continuation.setValue(resume)
+      // Cancelled before it started: `onCancel` already ran, with nothing yet to finish.
+      if Task.isCancelled {
+        finish(.failure(.canceled))
+        return
+      }
       let started = ASWebAuthenticationSession(
         url: url, callback: .customScheme(callbackScheme),
         completionHandler: browserCompletion(service: service, finish: finish))
@@ -65,15 +70,16 @@ func openInBrowser(
   }
 }
 
-/// The browser session's completion handler, which reports how the sheet closed. Nonisolated:
-/// AuthenticationServices calls it on its own XPC queue, and a closure written inside
-/// `openInBrowser` would be main-actor-isolated, which Swift checks at runtime and traps on
-/// (851-2693).
-nonisolated func browserCompletion(
+/// The browser session's completion handler, which reports how the sheet closed.
+/// AuthenticationServices calls it on its own XPC queue. A closure written inside the
+/// main-actor `openInBrowser` would be main-actor-isolated, which Swift checks at runtime and
+/// traps on there (851-2693), so it's made here, outside any actor, and `@Sendable`. Keep it out
+/// of `openInBrowser`.
+func browserCompletion(
   service: String,
   finish: @escaping @Sendable (Result<URL, BrowserAuthorizationError>) -> Void
 ) -> @Sendable (URL?, (any Error)?) -> Void {
-  { url, error in
+  { @Sendable url, error in
     if let url {
       finish(.success(url))
     } else if let error = error as? ASWebAuthenticationSessionError,
@@ -92,19 +98,33 @@ private final class BrowserSession {
   var session: ASWebAuthenticationSession?
 }
 
-/// Presents the browser sheet over the app's key window.
-private final class KeyWindowAnchor: NSObject, ASWebAuthenticationPresentationContextProviding {
-  func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-    MainActor.assumeIsolated {
-      #if os(iOS)
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        if let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
-          return window
-        }
-        return ASPresentationAnchor(windowScene: scenes.first!)
-      #else
-        return NSApplication.shared.keyWindow ?? ASPresentationAnchor()
-      #endif
+/// The app's key window, for the browser sheet to present over.
+@MainActor
+private func keyWindow() -> ASPresentationAnchor {
+  #if os(iOS)
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    if let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
+      return window
     }
+    return ASPresentationAnchor(windowScene: scenes.first!)
+  #else
+    return NSApplication.shared.keyWindow ?? ASPresentationAnchor()
+  #endif
+}
+
+/// Presents the browser sheet over the window found when it opened, so the provider never has to
+/// assume which thread AuthenticationServices asks from.
+private final class KeyWindowAnchor: NSObject, ASWebAuthenticationPresentationContextProviding,
+  @unchecked Sendable
+{
+  /// Only read back, never changed or used here, so passing it between threads is safe.
+  private let window: ASPresentationAnchor
+
+  init(window: ASPresentationAnchor) {
+    self.window = window
+  }
+
+  func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+    window
   }
 }
