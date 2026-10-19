@@ -19,7 +19,9 @@ import SwiftUI
   var state = AppFeature.State()
   state.hasFullDiskAccess = false
   state.fullDiskAccess = FullDiskAccessFeature.State()
-  return AppView(store: Store(initialState: state) { AppFeature() })
+  // Without a reducer: the preview database always opens, so the view's access check would
+  // replace this state with the conversations, sooner or later (851-2705).
+  return AppView(store: Store(initialState: state) { EmptyReducer() })
 }
 
 #Preview("Nothing Selected", traits: .previewChatDatabase) {

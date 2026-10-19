@@ -205,7 +205,6 @@ final class MessageThreadViewController: NSViewController {
       )
       scrollView.reflectScrolledClipView(scrollView.contentView)
     }
-    updateBubbleGradients()
   }
 
   /// Messages applied before the table has a size can't be scrolled to; scroll to the latest once
@@ -217,7 +216,6 @@ final class MessageThreadViewController: NSViewController {
     hasScrolledToBottomAfterLayout = true
     tableView.layoutSubtreeIfNeeded()
     tableView.scrollRowToVisible(tableView.numberOfRows - 1)
-    updateBubbleGradients()
   }
 
   private var isScrolledToBottom: Bool {
@@ -227,7 +225,6 @@ final class MessageThreadViewController: NSViewController {
   }
 
   @objc private func boundsDidChange() {
-    updateBubbleGradients()
     if scrollView.contentView.bounds.minY < 300 {
       store.send(.scrolledNearTop)
     }
@@ -325,7 +322,6 @@ final class MessageThreadViewController: NSViewController {
       lastTableWidth = width
       remeasureRows()
     }
-    updateBubbleGradients()
   }
 
   /// Re-measures every row for a new width. Row heights don't animate: `noteHeightOfRows` animates
@@ -342,15 +338,6 @@ final class MessageThreadViewController: NSViewController {
     }
     if wasAtBottom, tableView.numberOfRows > 0 {
       tableView.scrollRowToVisible(tableView.numberOfRows - 1)
-    }
-  }
-
-  @objc private func updateBubbleGradients() {
-    let clipView = scrollView.contentView
-    let visibleRect = clipView.bounds
-    tableView.enumerateAvailableRowViews { rowView, _ in
-      (rowView.view(atColumn: 0) as? MessageCellView)?
-        .updateViewportPosition(in: clipView, visibleRect: visibleRect)
     }
   }
 
@@ -654,14 +641,6 @@ final class MessageCellView: NSTableCellView {
     [.font: NSFont.preferredFont(forTextStyle: .caption1), .foregroundColor: color]
   }
 
-  /// Updates the iMessage gradient for the bubble's position within `visibleRect`, in the
-  /// coordinates of `container`.
-  func updateViewportPosition(in container: NSView, visibleRect: NSRect) {
-    guard bubble.style == .iMessage, visibleRect.height > 0 else { return }
-    let frame = bubble.convert(bubble.bounds, to: container)
-    bubble.viewportFraction = (frame.midY - visibleRect.minY) / visibleRect.height
-  }
-
   private func configure(
     text: String,
     links: [MessageLink],
@@ -715,14 +694,6 @@ final class BubbleView: NSView {
     didSet { needsDisplay = true }
   }
 
-  /// Where the bubble sits in the visible thread, from 0 (top) to 1 (bottom). Only affects iMessage
-  /// bubbles, whose blue is a gradient across the viewport.
-  var viewportFraction: CGFloat = 1 {
-    didSet {
-      if style == .iMessage, viewportFraction != oldValue { needsDisplay = true }
-    }
-  }
-
   override var wantsUpdateLayer: Bool { true }
 
   override init(frame: NSRect) {
@@ -734,7 +705,7 @@ final class BubbleView: NSView {
     let color: NSColor =
       switch style {
       case .failed: BubbleColors.failed
-      case .iMessage: BubbleColors.iMessage(atFraction: viewportFraction)
+      case .iMessage: BubbleColors.iMessage
       case .received: BubbleColors.received
       case .textMessage: BubbleColors.textMessage
       }
