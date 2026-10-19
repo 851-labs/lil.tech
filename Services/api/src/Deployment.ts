@@ -22,14 +22,18 @@ export class Deployment extends Context.Service<
 
 /** The environment an Alchemy stage deploys. `alchemy dev` stages are named `dev_<user>`. */
 /**
- * Custom domains per stage, for the API and the website. Other stages (PR previews, personal
- * stages) use workers.dev.
+ * Custom domains per stage, for the API, the website and Pixelbook. Other stages (PR previews,
+ * personal stages) use workers.dev.
  */
 export const stageDomains: Partial<
-  Record<string, { readonly api: string; readonly site: string }>
+  Record<string, { readonly api: string; readonly site: string; readonly pixelbook: string }>
 > = {
-  prod: { api: "api.lil.tech", site: "lil.tech" },
-  staging: { api: "api.staging.lil.tech", site: "staging.lil.tech" },
+  prod: { api: "api.lil.tech", site: "lil.tech", pixelbook: "pixelbook.lil.tech" },
+  staging: {
+    api: "api.staging.lil.tech",
+    site: "staging.lil.tech",
+    pixelbook: "pixelbook.staging.lil.tech",
+  },
 };
 
 /**

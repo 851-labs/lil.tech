@@ -290,6 +290,11 @@ An infinite canvas of every app state, rendered from SwiftUI previews, as a grid
     - So a key is only published from a complete render: `publish` renders strictly, failing if a preview reports an issue or a run stops partway. A finished render that failed to upload is reused next time.
     - A branch's pointer doesn't move back to an older commit, e.g. when publishing from a stale `main`.
   - **Uploads** go through Cloudflare's REST API with the same credentials as other scripts (`Services/api/scripts/cloudflare.ts`), retrying its occasional 502s. Screen names come from preview files: `SyncStatusViewPreviews.swift` is "Sync Status".
+- **The viewer** (851-2700): a TanStack Start app in `Web/pixelbook`, deployed as a Worker by the API's stack (`Cloudflare.Website.Vite`) to `pixelbook.lil.tech`, `pixelbook.staging.lil.tech` and each PR preview. Every stage reads the same published snapshots, `main`'s by default (`?ref=` for another branch, `?commit=` with a full SHA for a commit).
+  - **Grid mode:** an infinite canvas (drag or scroll to pan, pinch or ⌘-scroll to zoom), with an app per section and a screen per row. Each state's light and dark images sit side by side, in source order, at their size in points. It opens at the top left at a readable zoom; Fit shows everything.
+  - **Filters** for app, platform and appearance, and the selected snapshot, live in the URL, so a view can be shared. A snapshot opens full size with its source file and line, linked on GitHub at the commit it was rendered from.
+  - **Mac snapshots** are transparent, so they're shown over the window background color of their appearance: `#FFFFFF` and `#1E1E1E` on current macOS.
+  - Images load lazily at full resolution. Thumbnails can come later if zoomed-out views get slow.
 - **Spike results** (851-2697, lil health): 133 Mac and 52 iPhone previews, 370 images in light and dark. About 4 minutes cold, and 2 minutes warm.
   - Two runs are pixel-identical, though PNG metadata differs, so images are compared by pixels, not bytes.
   - Mac images have transparent backgrounds, so they're shown over the window color for their appearance.

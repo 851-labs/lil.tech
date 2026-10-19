@@ -41,7 +41,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 
 ## TypeScript (Services/ and Web/)
 
-- The repo root is a pnpm workspace managed by [Vite+](https://viteplus.dev/guide/), with servers in `Services/` (the API, `Services/api`) and web projects in `Web/` (the website, `Web/site`). Install the `vp` CLI (`brew install vite-plus`), then run `vp install` at the root.
+- The repo root is a pnpm workspace managed by [Vite+](https://viteplus.dev/guide/), with servers in `Services/` (the API, `Services/api`) and web projects in `Web/` (the website, `Web/site`, and Pixelbook, `Web/pixelbook`). Install the `vp` CLI (`brew install vite-plus`), then run `vp install` at the root.
 - Node is pinned in `.node-version`, and pnpm in `package.json`, both at the root.
 - Dependency versions live only in the catalog in `pnpm-workspace.yaml`. Packages refer to them as `catalog:`. Add dependencies with `vp add <pkg>@catalog:` after adding them to the catalog, and never install `@latest` (even where the `effect-ts` skill's setup steps say to).
 - Check and test:
@@ -65,7 +65,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
 
 ### Deploying the API
 
-- The API is an Alchemy stack in `Services/api/alchemy.run.ts`. The same stack deploys the website, `Web/site/public` (static files, such as the privacy policy), to `lil.tech` in prod, `staging.lil.tech` in staging, and workers.dev elsewhere. Its state lives in Cloudflare (an `alchemy-state-store` Worker in account 851), so every machine and CI share it.
+- The API is an Alchemy stack in `Services/api/alchemy.run.ts`. The same stack deploys the website, `Web/site/public` (static files, such as the privacy policy), to `lil.tech` in prod, `staging.lil.tech` in staging, and workers.dev elsewhere. It also deploys Pixelbook (`Web/pixelbook`, a TanStack Start app) to `pixelbook.lil.tech` and `pixelbook.staging.lil.tech`. Run it locally with `vp dev` in `Web/pixelbook`: it reads the published snapshots. Its state lives in Cloudflare (an `alchemy-state-store` Worker in account 851), so every machine and CI share it.
 - Run Alchemy from `Services/api` (`npx alchemy …`), where it's installed. From anywhere else, `npx` fetches a separate copy that can't find its peer dependencies.
 - **Credentials:** once per machine, from `Services/api`, run `ALCHEMY_TUI=1 DO_NOT_TRACK=1 npx alchemy profile edit --add Cloudflare`. Choose OAuth, then **Basic Scopes**, then sign in with a Cloudflare user that's a member of account **851**, and pick that account. Credentials are saved in `~/.alchemy/profiles.json`. Alchemy hides its interactive prompts when it detects a coding agent, and `ALCHEMY_TUI=1` shows them again. Check credentials with `npx alchemy profile show`. The bare `npx alchemy profile` dashboard crashes in this beta, because `react` isn't installed.
 - **Telemetry:** Alchemy reports usage to `otel.alchemy.run` unless `DO_NOT_TRACK=1` is set. Set it in your shell.

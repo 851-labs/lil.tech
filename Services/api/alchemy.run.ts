@@ -20,7 +20,8 @@ export default Alchemy.Stack(
     // The website (`Web/site`): static pages, such as the privacy policy, served by
     // Cloudflare's asset layer with no Worker code.
     const stage = yield* Alchemy.Stage;
-    const domain = stageDomains[stage]?.site;
+    const domains = stageDomains[stage];
+    const domain = domains?.site;
     const site = yield* Cloudflare.Worker("Site", {
       assets: {
         directory: fileURLToPath(new URL("../../Web/site/public", import.meta.url)),
@@ -39,6 +40,16 @@ export default Alchemy.Stack(
         cors: [{ allowedMethods: ["GET", "HEAD"], allowedOrigins: ["*"], maxAgeSeconds: 86400 }],
       });
     }
-    return { url: worker.url, coreDatabase: core.databaseName, siteUrl: site.url };
+    // Pixelbook (`Web/pixelbook`), a TanStack Start app that shows the snapshots in that bucket.
+    const pixelbook = yield* Cloudflare.Website.Vite("Pixelbook", {
+      rootDir: fileURLToPath(new URL("../../Web/pixelbook", import.meta.url)),
+      ...(domains === undefined ? {} : { domain: domains.pixelbook }),
+    });
+    return {
+      url: worker.url,
+      coreDatabase: core.databaseName,
+      siteUrl: site.url,
+      pixelbookUrl: pixelbook.url,
+    };
   }),
 );
