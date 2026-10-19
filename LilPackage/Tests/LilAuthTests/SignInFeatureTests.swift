@@ -21,6 +21,7 @@ struct SignInFeatureTests {
     await store.send(.authorization(.appleButtonTapped)) {
       $0.authorization.nonce = zeroNonce
     }
+    await store.receive(\.authorization.delegate.started)
     // Apple gets the nonce's SHA-256.
     #expect(
       store.state.authorization.nonceHash
@@ -87,6 +88,7 @@ struct SignInFeatureTests {
         $0.authorization.nonce = zeroNonce
         $0.authorization.appleWebRequest = request
       }
+      await store.receive(\.authorization.delegate.started)
       await store.receive(\.authorization.appleWebAuthorizationFinished) {
         $0.authorization.appleWebRequest = nil
         $0.authorization.nonce = nil
@@ -135,6 +137,7 @@ struct SignInFeatureTests {
 
       // Closed: nothing happens.
       await store.send(.authorization(.appleWebButtonTapped))
+      await store.receive(\.authorization.delegate.started)
       await store.receive(\.authorization.delegate.canceled)
       #expect(store.state.status == .signedOut)
       #expect(store.state.authorization.nonce == nil)
@@ -145,6 +148,7 @@ struct SignInFeatureTests {
         .success(URL(string: "tech.lil.health://apple-signin/?id_token=t&state=other")!)
       }
       await store.send(.authorization(.appleWebButtonTapped))
+      await store.receive(\.authorization.delegate.started)
       await store.receive(\.authorization.delegate.failed)
       #expect(
         store.state.status == .failed(SignInError.failed("Apple's answer didn't match").message))
@@ -158,6 +162,7 @@ struct SignInFeatureTests {
           )!)
       }
       await store.send(.authorization(.appleWebButtonTapped))
+      await store.receive(\.authorization.delegate.started)
       await store.receive(\.authorization.delegate.canceled)
       #expect(store.state.status == .signedOut)
     }
@@ -174,6 +179,7 @@ struct SignInFeatureTests {
     await store.send(.authorization(.appleButtonTapped)) {
       $0.authorization.nonce = zeroNonce
     }
+    await store.receive(\.authorization.delegate.started)
     await store.send(.authorization(.appleAuthorizationFinished(.failure(.canceled)))) {
       $0.authorization.nonce = nil
     }
@@ -191,6 +197,7 @@ struct SignInFeatureTests {
     await store.send(.authorization(.appleButtonTapped)) {
       $0.authorization.nonce = zeroNonce
     }
+    await store.receive(\.authorization.delegate.started)
     await store.send(.authorization(.appleAuthorizationFinished(.failure(.failed("No network"))))) {
       $0.authorization.nonce = nil
     }
@@ -217,6 +224,7 @@ struct SignInFeatureTests {
     await store.send(.authorization(.appleButtonTapped)) {
       $0.authorization.nonce = zeroNonce
     }
+    await store.receive(\.authorization.delegate.started)
     await store.send(
       .authorization(
         .appleAuthorizationFinished(
@@ -238,6 +246,8 @@ struct SignInFeatureTests {
     // Apple only gives the name the first time.
     await store.send(.authorization(.appleButtonTapped)) {
       $0.authorization.nonce = zeroNonce
+    }
+    await store.receive(\.authorization.delegate.started) {
       $0.status = .signedOut
     }
     await store.send(
@@ -283,6 +293,7 @@ struct SignInFeatureTests {
     await store.send(.authorization(.googleButtonTapped)) {
       $0.authorization.googleRequest = zeroGoogleRequest
     }
+    await store.receive(\.authorization.delegate.started)
     await store.receive(\.authorization.googleAuthorizationFinished.success) {
       $0.authorization.googleRequest = nil
     }
@@ -321,6 +332,7 @@ struct SignInFeatureTests {
     await store.send(.testAccountButtonTapped) {
       $0.status = .signingIn
     }
+    await store.receive(\.authorization.close)
     await store.receive(\.signInSucceeded) {
       $0.status = .signedIn
     }
@@ -338,8 +350,10 @@ struct SignInFeatureTests {
     }
 
     await store.send(.testAccountButtonTapped) {
-      $0.authorization.googleRequest = nil
       $0.status = .signingIn
+    }
+    await store.receive(\.authorization.close) {
+      $0.authorization.googleRequest = nil
     }
     await store.receive(\.signInSucceeded) {
       $0.status = .signedIn
@@ -367,6 +381,7 @@ struct SignInFeatureTests {
     await store.send(.readyToSignIn) {
       $0.status = .signingIn
     }
+    await store.receive(\.authorization.close)
     await store.receive(\.signInSucceeded) {
       $0.status = .signedIn
     }
@@ -411,8 +426,10 @@ struct SignInFeatureTests {
 
     // A new try clears the last one's error.
     await store.send(.authorization(.googleButtonTapped)) {
-      $0.status = .signedOut
       $0.authorization.googleRequest = zeroGoogleRequest
+    }
+    await store.receive(\.authorization.delegate.started) {
+      $0.status = .signedOut
     }
     await store.receive(\.authorization.googleAuthorizationFinished.failure) {
       $0.authorization.googleRequest = nil

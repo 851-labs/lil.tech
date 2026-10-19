@@ -18,7 +18,7 @@ public struct SignInMethodsFeature {
     /// Why the last link or unlink didn't work.
     public var failure: String?
     /// The provider flows: Apple's sheet or page, and Google's page.
-    public var authorization = ProviderAuthorization.State()
+    public var authorization = ProviderAuthorization.State(owner: "sign-in-methods")
     @Presents public var alert: AlertState<Action.Alert>?
 
     public enum Methods: Equatable {
@@ -77,7 +77,8 @@ public struct SignInMethodsFeature {
 
   /// Stops everything under way, e.g. when the account signs out while the section stays.
   public static func cancel<Action>() -> Effect<Action> {
-    .merge(ProviderAuthorization.cancel(), .cancel(id: CancelID.requests))
+    .merge(
+      ProviderAuthorization.cancel(owner: "sign-in-methods"), .cancel(id: CancelID.requests))
   }
 
   @Dependency(\.signInMethods) var signInMethods
@@ -107,25 +108,14 @@ public struct SignInMethodsFeature {
         state.methods = .failed(error.message)
         return .none
 
-      case .authorization(.appleButtonTapped):
+      case .authorization(.delegate(.started(let provider))):
         state.failure = nil
-        state.linking = .apple
-        return .none
-
-      // Only if a page opened: Apple's needs the Mac's API, Google's a client.
-      case .authorization(.appleWebButtonTapped):
-        guard state.authorization.appleWebRequest != nil else { return .none }
-        state.failure = nil
-        state.linking = .apple
-        return .none
-
-      case .authorization(.googleButtonTapped):
-        guard state.authorization.googleRequest != nil else { return .none }
-        state.failure = nil
-        state.linking = .google
+        state.linking = SignInMethod.Provider(provider)
         return .none
 
       case .authorization(.delegate(.authorized(let credential))):
+        // Linking never sends Apple's name, so it isn't kept.
+        state.authorization.forgetName()
         return .run { [signInMethods] send in
           await send(
             .linkFinished(
@@ -140,12 +130,13 @@ public struct SignInMethodsFeature {
         }
         .cancellable(id: CancelID.requests)
 
-      case .authorization(.delegate(.canceled)):
-        state.linking = nil
+      // Only for the provider being linked: a late answer from another page changes nothing.
+      case .authorization(.delegate(.canceled(let provider))):
+        if state.linking == SignInMethod.Provider(provider) { state.linking = nil }
         return .none
 
-      case .authorization(.delegate(.failed(let failure))):
-        state.linking = nil
+      case .authorization(.delegate(.failed(let provider, let failure))):
+        if state.linking == SignInMethod.Provider(provider) { state.linking = nil }
         state.failure = SignInMethodError(failure).message
         return .none
 
@@ -243,6 +234,15 @@ extension SignInMethodError {
     case .unavailable: self = .unavailable
     case .rejected: self = .rejected
     case .failed(let reason): self = .failed(reason)
+    }
+  }
+}
+
+extension SignInMethod.Provider {
+  init(_ provider: ProviderAuthorization.Provider) {
+    switch provider {
+    case .apple: self = .apple
+    case .google: self = .google
     }
   }
 }

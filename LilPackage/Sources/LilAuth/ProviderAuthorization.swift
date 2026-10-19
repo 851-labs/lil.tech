@@ -16,6 +16,9 @@ public enum ProviderCredential: Equatable, Sendable {
 public struct ProviderAuthorization {
   @ObservableState
   public struct State: Equatable {
+    /// Whose flows these are (e.g. sign-in's or linking's), so closing one never cancels the
+    /// other's: both can live in one app.
+    public let owner: String
     /// The raw nonce for the Apple authorization in progress. Apple gets its SHA-256
     /// (``nonceHash``) and the server the nonce, which ties Apple's token to this request.
     public var nonce: String?
@@ -33,8 +36,9 @@ public struct ProviderAuthorization {
     public var givenName: String?
     public var familyName: String?
 
-    public init() {
+    public init(owner: String) {
       @Dependency(\.googleOAuth) var googleOAuth
+      self.owner = owner
       self.isGoogleAvailable = googleOAuth.clientID != nil
       self.appleWebAPI = AppleWebAuthorizationRequest.api(for: APIEnvironment.current())
     }
@@ -55,11 +59,6 @@ public struct ProviderAuthorization {
       familyName = nil
     }
 
-    /// Closes any browser page (with ``cancel()``'s effect).
-    public mutating func close() {
-      googleRequest = nil
-      appleWebRequest = nil
-    }
   }
 
   public enum Action {
@@ -73,17 +72,25 @@ public struct ProviderAuthorization {
     case googleButtonTapped
     /// The browser came back with Google's redirect.
     case googleAuthorizationFinished(Result<URL, GoogleAuthorizationError>)
+    /// Closes any browser page that's open, and stops a Google redemption.
+    case close
     case delegate(Delegate)
 
     @CasePathable
     public enum Delegate {
+      /// The provider's sheet or page is opening.
+      case started(Provider)
       /// Google answered, and its code is being redeemed for the ID token.
       case redeemingGoogle
       case authorized(ProviderCredential)
-      /// The person closed the provider's sheet or page.
-      case canceled
-      case failed(AuthorizationFailure)
+      /// The person closed the provider's sheet or page, or it answered after it was closed.
+      case canceled(Provider)
+      case failed(Provider, AuthorizationFailure)
     }
+  }
+
+  public enum Provider: Equatable, Sendable {
+    case apple, google
   }
 
   public enum AppleAuthorizationError: Error, Equatable, Sendable {
@@ -101,11 +108,15 @@ public struct ProviderAuthorization {
     case failed(String)
   }
 
-  enum CancelID { case google, appleWeb }
+  enum CancelID: Hashable {
+    case google(owner: String)
+    case appleWeb(owner: String)
+  }
 
-  /// Closes any browser page that's open (with ``State/close()``).
-  public static func cancel<Action>() -> Effect<Action> {
-    .merge(.cancel(id: CancelID.google), .cancel(id: CancelID.appleWeb))
+  /// Stops `owner`'s browser pages and Google redemption, e.g. when its state is about to be
+  /// replaced. While the state stays, send ``Action/close`` instead, which also clears it.
+  public static func cancel<Action>(owner: String) -> Effect<Action> {
+    .merge(.cancel(id: CancelID.google(owner: owner)), .cancel(id: CancelID.appleWeb(owner: owner)))
   }
 
   @Dependency(\.appleWebSignIn) var appleWebSignIn
@@ -119,7 +130,7 @@ public struct ProviderAuthorization {
       switch action {
       case .appleButtonTapped:
         state.nonce = withRandomNumberGenerator { Nonce.randomHex(bytes: 32, using: &$0) }
-        return .none
+        return .send(.delegate(.started(.apple)))
 
       case .appleAuthorizationFinished(let result):
         return finishApple(result, &state)
@@ -132,16 +143,19 @@ public struct ProviderAuthorization {
         // Kept where the native sheet keeps it, so both finish the same way.
         state.nonce = request.nonce
         state.appleWebRequest = request
-        return .run { [appleWebSignIn] send in
-          await send(.appleWebAuthorizationFinished(await appleWebSignIn.authorize(request)))
-        }
-        .cancellable(id: CancelID.appleWeb, cancelInFlight: true)
+        return .merge(
+          .send(.delegate(.started(.apple))),
+          .run { [appleWebSignIn] send in
+            await send(.appleWebAuthorizationFinished(await appleWebSignIn.authorize(request)))
+          }
+          .cancellable(id: CancelID.appleWeb(owner: state.owner), cancelInFlight: true)
+        )
 
       case .appleWebAuthorizationFinished(let result):
         // Gone by the time the browser answered (e.g. closed for the test account).
         guard let request = state.appleWebRequest else {
           state.nonce = nil
-          return .send(.delegate(.canceled))
+          return .send(.delegate(.canceled(.apple)))
         }
         state.appleWebRequest = nil
         return finishApple(
@@ -153,40 +167,54 @@ public struct ProviderAuthorization {
       case .googleButtonTapped:
         guard let clientID = googleOAuth.clientID else {
           reportIssue("No Google OAuth client ID: set GIDClientID in the app's Info.plist")
-          return .send(.delegate(.failed(.unavailable)))
+          return .send(.delegate(.failed(.google, .unavailable)))
         }
         let request = withRandomNumberGenerator { generator in
           GoogleAuthorizationRequest.make(clientID: clientID, using: &generator)
         }
         state.googleRequest = request
-        return .run { [googleOAuth] send in
-          await send(.googleAuthorizationFinished(await googleOAuth.authorize(request)))
-        }
-        .cancellable(id: CancelID.google, cancelInFlight: true)
+        return .merge(
+          .send(.delegate(.started(.google))),
+          .run { [googleOAuth] send in
+            await send(.googleAuthorizationFinished(await googleOAuth.authorize(request)))
+          }
+          .cancellable(id: CancelID.google(owner: state.owner), cancelInFlight: true)
+        )
 
       case .googleAuthorizationFinished(let result):
-        guard let request = state.googleRequest else { return .send(.delegate(.canceled)) }
+        guard let request = state.googleRequest else {
+          return .send(.delegate(.canceled(.google)))
+        }
         state.googleRequest = nil
         let code: String
         do throws(GoogleAuthorizationError) {
           code = try request.code(from: result.get())
         } catch {
           switch error {
-          case .canceled: return .send(.delegate(.canceled))
-          case .failed(let reason): return .send(.delegate(.failed(.failed(reason))))
+          case .canceled: return .send(.delegate(.canceled(.google)))
+          case .failed(let reason): return .send(.delegate(.failed(.google, .failed(reason))))
           }
         }
-        return .run { [googleOAuth] send in
-          await send(.delegate(.redeemingGoogle))
-          do {
-            let idToken = try await googleOAuth.redeem(code, request)
-            await send(.delegate(.authorized(.google(idToken: idToken, nonce: request.nonce))))
-          } catch {
-            await send(.delegate(.failed(.failed(error.localizedDescription))))
+        // Redeeming shows at once: a page closed with nothing under way would offer the button
+        // again, and a tap would cancel the redemption.
+        return .merge(
+          .send(.delegate(.redeemingGoogle)),
+          .run { [googleOAuth] send in
+            do {
+              let idToken = try await googleOAuth.redeem(code, request)
+              await send(.delegate(.authorized(.google(idToken: idToken, nonce: request.nonce))))
+            } catch {
+              await send(.delegate(.failed(.google, .failed(error.localizedDescription))))
+            }
           }
-        }
-        // Closing (`cancel()`) stops a redemption too.
-        .cancellable(id: CancelID.google)
+          // Closing stops a redemption too.
+          .cancellable(id: CancelID.google(owner: state.owner))
+        )
+
+      case .close:
+        state.googleRequest = nil
+        state.appleWebRequest = nil
+        return Self.cancel(owner: state.owner)
 
       case .delegate:
         return .none
@@ -210,12 +238,12 @@ public struct ProviderAuthorization {
         credential.givenName = state.givenName
         credential.familyName = state.familyName
       }
-      guard let nonce else { return .send(.delegate(.failed(.rejected))) }
+      guard let nonce else { return .send(.delegate(.failed(.apple, .rejected))) }
       return .send(.delegate(.authorized(.apple(credential, nonce: nonce))))
     case .failure(.canceled):
-      return .send(.delegate(.canceled))
+      return .send(.delegate(.canceled(.apple)))
     case .failure(.failed(let reason)):
-      return .send(.delegate(.failed(.failed(reason))))
+      return .send(.delegate(.failed(.apple, .failed(reason))))
     }
   }
 }

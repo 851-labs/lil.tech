@@ -11,7 +11,7 @@ public struct SignInFeature {
   public struct State: Equatable {
     public var status: Status
     /// The provider flows: Apple's sheet or page, and Google's page.
-    public var authorization = ProviderAuthorization.State()
+    public var authorization = ProviderAuthorization.State(owner: "sign-in")
 
     public enum Status: Equatable {
       case signedOut
@@ -70,8 +70,7 @@ public struct SignInFeature {
     }
     Reduce { state, action in
       switch action {
-      case .authorization(.appleButtonTapped), .authorization(.appleWebButtonTapped),
-        .authorization(.googleButtonTapped):
+      case .authorization(.delegate(.started)):
         state.clearFailure()
         return .none
 
@@ -98,7 +97,7 @@ public struct SignInFeature {
       case .authorization(.delegate(.canceled)):
         return .none
 
-      case .authorization(.delegate(.failed(let failure))):
+      case .authorization(.delegate(.failed(_, let failure))):
         state.status = .failed(SignInError(failure).message)
         return .none
 
@@ -129,11 +128,10 @@ public struct SignInFeature {
   }
 
   private func signInToTestAccount(_ state: inout State) -> Effect<Action> {
-    // Instead of a Google or Apple sign-in still open in the browser.
-    state.authorization.close()
     state.status = .signingIn
     return .merge(
-      ProviderAuthorization.cancel(),
+      // Instead of a Google or Apple sign-in still open in the browser.
+      .send(.authorization(.close)),
       .run { [auth] send in
         do throws(SignInError) {
           try await auth.signInToTestAccount(SignInFeature.testAccount)

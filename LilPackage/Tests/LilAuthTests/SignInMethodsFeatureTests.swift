@@ -65,8 +65,10 @@ struct SignInMethodsFeatureTests {
     }
 
     await store.send(.authorization(.googleButtonTapped)) {
-      $0.linking = .google
       $0.authorization.googleRequest = zeroGoogleRequest
+    }
+    await store.receive(\.authorization.delegate.started) {
+      $0.linking = .google
     }
     await store.receive(\.authorization.googleAuthorizationFinished.success) {
       $0.authorization.googleRequest = nil
@@ -117,8 +119,10 @@ struct SignInMethodsFeatureTests {
     }
 
     await store.send(.authorization(.appleButtonTapped)) {
-      $0.linking = .apple
       $0.authorization.nonce = zeroNonce
+    }
+    await store.receive(\.authorization.delegate.started) {
+      $0.linking = .apple
     }
     await store.send(.authorization(.appleAuthorizationFinished(.failure(.canceled)))) {
       $0.authorization.nonce = nil
@@ -236,5 +240,52 @@ struct SignInMethodsFeatureTests {
 
     await store.send(.authorization(.appleWebButtonTapped))
     #expect(store.state.linking == nil)
+  }
+
+  @Test
+  func aLateAnswerFromAnotherPageDoesntEndALink() async {
+    let store = TestStore(
+      initialState: SignInMethodsFeature.State(methods: .loaded([google]), linking: .apple)
+    ) {
+      SignInMethodsFeature()
+    }
+
+    // Google's page answering after it closed, while Apple is being linked.
+    await store.send(
+      .authorization(.googleAuthorizationFinished(.success(googleCallback(state: zeroState)))))
+    await store.receive(\.authorization.delegate.canceled)
+    #expect(store.state.linking == .apple)
+  }
+
+  @Test
+  func linkingForgetsApplesName() async {
+    var initial = SignInMethodsFeature.State(methods: .loaded([google]))
+    initial.authorization.nonce = zeroNonce
+    initial.linking = .apple
+    let store = TestStore(initialState: initial) {
+      SignInMethodsFeature()
+    } withDependencies: {
+      $0.signInMethods.linkApple = { _, _ throws(SignInMethodError) in apple }
+      $0.signInMethods.list = { () throws(SignInMethodError) in [google, apple] }
+    }
+
+    await store.send(
+      .authorization(
+        .appleAuthorizationFinished(
+          .success(AppleCredential(identityToken: "t", givenName: "Ada", familyName: "Lovelace"))))
+    ) {
+      $0.authorization.nonce = nil
+      $0.authorization.givenName = "Ada"
+      $0.authorization.familyName = "Lovelace"
+    }
+    await store.receive(\.authorization.delegate.authorized) {
+      $0.authorization.givenName = nil
+      $0.authorization.familyName = nil
+    }
+    await store.receive(\.linkFinished.success) {
+      $0.linking = nil
+      $0.methods = .loaded([google, apple])
+    }
+    await store.receive(\.methodsLoaded.success)
   }
 }
