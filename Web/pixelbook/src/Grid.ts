@@ -12,7 +12,7 @@ export interface Filters {
 
 export const noFilters: Filters = { apps: [], platforms: [], schemes: [] };
 
-const shows = <A>(chosen: ReadonlyArray<A>, value: A) =>
+export const shows = <A>(chosen: ReadonlyArray<A>, value: A) =>
   chosen.length === 0 || chosen.includes(value);
 
 /** A snapshot in one color scheme, placed on the canvas. */
@@ -31,7 +31,7 @@ export interface Tile {
 
 /** A label on the canvas: an app's title or a screen's name. */
 export interface Label {
-  readonly kind: "app" | "screen";
+  readonly kind: "app" | "screen" | "caption";
   readonly text: string;
   readonly x: number;
   readonly y: number;
@@ -62,10 +62,14 @@ export const spacing = {
   app: 240,
 };
 
-const byText = (a: string, b: string) => a.localeCompare(b, "en");
+export const byText = (a: string, b: string) => a.localeCompare(b, "en");
+
+/** A screen's states in the order they're written in its file. */
+export const sourceOrder = (a: Snapshot, b: Snapshot) =>
+  (a.line ?? 0) - (b.line ?? 0) || byText(a.state, b.state);
 
 /** A row of tiles, placed from x = 0 and y = 0. */
-const layoutRow = (
+export const layoutRow = (
   manifest: Manifest,
   states: ReadonlyArray<Snapshot>,
   shownSchemes: ReadonlyArray<Scheme>,
@@ -111,9 +115,7 @@ export const layoutGrid = (manifests: ReadonlyArray<Manifest>, filters: Filters)
     const rows = [...screens.keys()]
       .toSorted(byText)
       .map((screen) => {
-        const states = (screens.get(screen) ?? []).toSorted(
-          (a, b) => (a.line ?? 0) - (b.line ?? 0) || byText(a.state, b.state),
-        );
+        const states = (screens.get(screen) ?? []).toSorted(sourceOrder);
         return { screen, ...layoutRow(manifest, states, shownSchemes) };
       })
       .filter((row) => row.tiles.length > 0);

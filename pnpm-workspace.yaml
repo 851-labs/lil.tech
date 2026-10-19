@@ -6,6 +6,7 @@ packages:
 catalogMode: prefer
 
 catalog:
+  "@dagrejs/dagre": 3.1.1
   "@effect/platform-node": 4.0.4
   "@effect/sql-d1": 4.0.4
   "@effect/sql-sqlite-node": 4.0.4

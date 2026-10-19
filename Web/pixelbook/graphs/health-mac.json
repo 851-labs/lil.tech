@@ -1,0 +1,23 @@
+{
+  "app": "health-mac",
+  "screens": [
+    { "id": "sign-in", "screen": "LilAuth/SignInView.swift" },
+    {
+      "id": "summary",
+      "screen": "HealthMacApp/SummaryViewPreviews.swift",
+      "states": ["Pinned", "Nothing pinned", "Edit", "Edit, searching", "Loading", "Failed"]
+    },
+    { "id": "category", "screen": "HealthMacApp/CategoryViewPreviews.swift" },
+    { "id": "metric", "screen": "HealthMacApp/MetricDetailViewPreviews.swift" },
+    { "id": "sleep", "screen": "HealthMacApp/SleepDetailViewPreviews.swift" },
+    { "id": "account", "screen": "HealthMacApp/AccountSheetPreviews.swift" }
+  ],
+  "edges": [
+    { "from": "sign-in", "to": "summary", "label": "Sign in" },
+    { "from": "summary", "to": "category", "label": "Choose a category in the sidebar" },
+    { "from": "summary", "to": "metric", "label": "Choose a pinned metric" },
+    { "from": "category", "to": "metric", "label": "Choose a metric" },
+    { "from": "category", "to": "sleep", "label": "Choose Sleep" },
+    { "from": "summary", "to": "account", "label": "Account › Account Settings…" }
+  ]
+}
