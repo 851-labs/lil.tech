@@ -15,7 +15,7 @@ private func detail(
   return NavigationStack {
     MetricDetailContent(type: type, range: .constant(range), offset: .constant(0), state: loaded)
   }
-  .frame(width: 760, height: 820)
+  .previewFrame(width: 760, height: 820)
 }
 
 @MainActor
@@ -58,7 +58,7 @@ private let heartRate = "HKQuantityTypeIdentifierHeartRate"
 #Preview("Not a quantity") {
   let _ = preparePreviewDatabase()
   MetricDetailView(type: HealthCatalog.type(id: "HKWorkoutTypeIdentifier")!)
-    .frame(width: 760, height: 400)
+    .previewFrame(width: 760, height: 400)
 }
 
 #Preview("No data") {

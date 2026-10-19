@@ -13,7 +13,7 @@ private func detail(_ range: SleepRange, _ state: SleepDetailContent.State) -> s
   return NavigationStack {
     SleepDetailContent(type: sleep, range: .constant(range), offset: .constant(0), state: state)
   }
-  .frame(width: 760, height: 760)
+  .previewFrame(width: 760, height: 760)
 }
 
 @MainActor

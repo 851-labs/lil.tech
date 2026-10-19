@@ -18,7 +18,7 @@ private func list(_ state: WorkoutsContent.State) -> some View {
   NavigationStack {
     WorkoutsContent(state: state)
   }
-  .frame(width: 620, height: 640)
+  .previewFrame(width: 620, height: 640)
 }
 
 #Preview("Workouts") {
@@ -66,7 +66,7 @@ private func detail(_ route: (HealthWorkout) -> WorkoutDetailContent.Route, kind
   return NavigationStack {
     WorkoutDetailContent(workout: workout, heartRates: heartRates, route: route(workout))
   }
-  .frame(width: 760, height: 1300)
+  .previewFrame(width: 760, height: 1300)
 }
 
 #Preview("Run with route") {

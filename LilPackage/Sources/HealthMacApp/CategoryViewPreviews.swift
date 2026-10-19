@@ -10,7 +10,7 @@ private func metrics(_ category: HealthCategory, _ state: MetricsView.State) -> 
   NavigationStack {
     MetricsView(category: category, state: state)
   }
-  .frame(width: 760, height: 720)
+  .previewFrame(width: 760, height: 720)
 }
 
 @MainActor

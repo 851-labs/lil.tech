@@ -60,7 +60,7 @@ private func stateOfMind(
   NavigationStack {
     StateOfMindContent(state: state, now: now, limit: limit)
   }
-  .frame(width: 680, height: 760)
+  .previewFrame(width: 680, height: 760)
 }
 
 @MainActor
@@ -72,7 +72,7 @@ private func assessments(_ kind: AssessmentKind, _ state: ScoredAssessmentsConte
       kind: kind, name: kind == .gad7 ? "Anxiety Risk (GAD-7)" : "Depression Risk (PHQ-9)",
       state: state)
   }
-  .frame(width: 640, height: 600)
+  .previewFrame(width: 640, height: 600)
 }
 
 #Preview("State of Mind") {
