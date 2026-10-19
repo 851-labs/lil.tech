@@ -16,6 +16,9 @@
 #            from, so those paths must be committed: a commit sharing them shares the snapshots.
 # PIXELBOOK_STRICT=1 makes render exit 2 when a preview reports an issue, instead of warning.
 # PIXELBOOK_SIMULATOR picks the iPhone simulator (default "iPhone 18 Pro"); images take its size.
+# PIXELBOOK_PREVIEWS renders only some previews, for trying a change: comma-separated regular
+# expressions matched against each preview's Module/File.swift:Name (e.g. AppViewPreviews.swift).
+# Not for publishing, which renders everything.
 # Previews render with preview dependencies, as in Xcode (SWIFT_DEPENDENCIES_CONTEXT). Not with
 # XCODE_RUNNING_FOR_PREVIEWS, which switches SwiftUI into its preview layout and changes sizes.
 # SnapshotPreviews fixes the clock (gettimeofday) at August 13, 2024, 07:00 UTC, so previews
@@ -85,7 +88,8 @@ if [ "$command" = "publish" ]; then
   # reports an issue, or a run that stops partway, isn't published, since a published key is
   # never rendered again.
   if [ ! -e "$render/.finished" ]; then
-    PIXELBOOK_STRICT=1 "$root/scripts/pixelbook" render "$render"
+    # Every preview: a published key is complete.
+    PIXELBOOK_STRICT=1 PIXELBOOK_PREVIEWS= "$root/scripts/pixelbook" render "$render"
     touch "$render/.finished"
   fi
   upload --render "$render" ${options[@]+"${options[@]}"}
@@ -193,12 +197,14 @@ render() {
     TEST_RUNNER_PIXELBOOK_APPEARANCE="$appearance" \
     TEST_RUNNER_SWIFT_DEPENDENCIES_CONTEXT=preview \
     TEST_RUNNER_TZ=America/Los_Angeles \
+    TEST_RUNNER_PIXELBOOK_PREVIEWS="${PIXELBOOK_PREVIEWS:-}" \
     xcodebuild test-without-building -project "$project" "$@" -derivedDataPath "$derived" \
     -collect-test-diagnostics never -quiet >"$dir.log" 2>&1 || warnings=$((warnings + 1))
   local count
   count=$(find "$dir" -name '*.png' | wc -l | tr -d ' ')
   echo "    $count images"
-  [ "$count" -gt 0 ] || empty=$((empty + 1))
+  # With PIXELBOOK_PREVIEWS, an app may have none of them.
+  [ "$count" -gt 0 ] || [ -n "${PIXELBOOK_PREVIEWS:-}" ] || empty=$((empty + 1))
 }
 
 for appearance in light dark; do

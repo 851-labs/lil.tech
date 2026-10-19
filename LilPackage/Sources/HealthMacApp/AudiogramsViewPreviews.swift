@@ -46,7 +46,7 @@ private func list(_ state: AudiogramsContent.State, limit: Int = RecentAudiogram
   NavigationStack {
     AudiogramsContent(state: state, limit: limit)
   }
-  .frame(width: 620, height: 480)
+  .previewFrame(width: 620, height: 480)
 }
 
 @MainActor
@@ -55,7 +55,7 @@ private func detail(_ audiogram: HealthAudiogram) -> some View {
   return NavigationStack {
     AudiogramDetailView(audiogram: audiogram)
   }
-  .frame(width: 760, height: 660)
+  .previewFrame(width: 760, height: 660)
 }
 
 #Preview("Audiograms") {
@@ -134,5 +134,5 @@ private func detail(_ audiogram: HealthAudiogram) -> some View {
       type: HealthCatalog.type(id: "HKQuantityTypeIdentifierEnvironmentalAudioExposure")!,
       range: .constant(.week), offset: .constant(0), state: .loaded(chart))
   }
-  .frame(width: 760, height: 720)
+  .previewFrame(width: 760, height: 720)
 }

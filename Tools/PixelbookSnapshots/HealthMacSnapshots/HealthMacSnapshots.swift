@@ -12,4 +12,17 @@ final class HealthMacSnapshots: SnapshotTest {
       NSApplication.shared.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     }
   }
+
+  /// Only some previews, if `scripts/pixelbook` was given `PIXELBOOK_PREVIEWS`.
+  override class func snapshotPreviews() -> [String]? {
+    pixelbookPreviews()
+  }
+}
+
+/// `PIXELBOOK_PREVIEWS`: comma-separated regular expressions matched against each preview's
+/// `Module/File.swift:Name`, e.g. `AppViewPreviews.swift`.
+/// All of them if it's empty.
+func pixelbookPreviews() -> [String]? {
+  let patterns = ProcessInfo.processInfo.environment["PIXELBOOK_PREVIEWS"]?.split(separator: ",")
+  return patterns?.isEmpty == false ? patterns?.map(String.init) : nil
 }

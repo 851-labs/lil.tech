@@ -39,7 +39,7 @@ private func cycle(_ state: CycleTrackingContent.State, selected: Date? = nil) -
   NavigationStack {
     CycleTrackingContent(month: month, selected: .constant(selected), state: state)
   }
-  .frame(width: 760, height: 900)
+  .previewFrame(width: 760, height: 900)
 }
 
 #Preview("Cycle Tracking") {

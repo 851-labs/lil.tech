@@ -34,7 +34,7 @@ private func list(
   NavigationStack {
     ElectrocardiogramsContent(state: state, limit: limit)
   }
-  .frame(width: 620, height: 560)
+  .previewFrame(width: 620, height: 560)
 }
 
 @MainActor
@@ -44,7 +44,7 @@ private func detail(
   NavigationStack {
     ElectrocardiogramDetailContent(recording: recording, trace: trace)
   }
-  .frame(width: 860, height: 640)
+  .previewFrame(width: 860, height: 640)
 }
 
 #Preview("ECGs") {
@@ -90,7 +90,7 @@ private func detail(
   return NavigationStack {
     ElectrocardiogramDetailContent(recording: recordings[0], trace: .loaded(tall))
   }
-  .frame(width: 520, height: 640)
+  .previewFrame(width: 520, height: 640)
 }
 
 #Preview("Recording loading") {

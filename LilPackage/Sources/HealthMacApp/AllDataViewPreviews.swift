@@ -21,7 +21,7 @@ private func allData(_ type: HealthDataType, _ state: AllDataContent.State) -> s
   NavigationStack {
     AllDataContent(type: type, state: state, loadMore: {})
   }
-  .frame(width: 560, height: 620)
+  .previewFrame(width: 560, height: 620)
 }
 
 #Preview("All data") {
@@ -48,7 +48,7 @@ private func allData(_ type: HealthDataType, _ state: AllDataContent.State) -> s
   NavigationStack {
     SampleDetailView(type: heartRate, sample: previewSamples(heartRate, limit: 1)[0])
   }
-  .frame(width: 560, height: 620)
+  .previewFrame(width: 560, height: 620)
 }
 
 #Preview("Sample without device") {
@@ -60,7 +60,7 @@ private func allData(_ type: HealthDataType, _ state: AllDataContent.State) -> s
         endDate: 1_760_400_600_000, value: 412, unit: "count", sourceName: "Pedometer++",
         sourceBundleID: "com.example.pedometer"))
   }
-  .frame(width: 560, height: 360)
+  .previewFrame(width: 560, height: 360)
 }
 
 @MainActor
@@ -68,7 +68,7 @@ private func sources(_ state: DataSourcesContent.State) -> some View {
   NavigationStack {
     DataSourcesContent(type: heartRate, state: state)
   }
-  .frame(width: 560, height: 420)
+  .previewFrame(width: 560, height: 420)
 }
 
 #Preview("Sources") {
@@ -112,5 +112,5 @@ private func sources(_ state: DataSourcesContent.State) -> some View {
       type: heartRate, state: .loaded(previewSamples(heartRate, limit: 3), hasMore: true),
       moreFailed: true, loadMore: {})
   }
-  .frame(width: 560, height: 360)
+  .previewFrame(width: 560, height: 360)
 }

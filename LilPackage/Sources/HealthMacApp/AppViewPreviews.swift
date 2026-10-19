@@ -14,7 +14,7 @@ private func appView(_ state: AppFeature.State) -> some View {
   state.summary = SummaryFeature.State(pins: [])
   // `EmptyReducer`: the view's task would replace the state with the real session's.
   return AppView(store: Store(initialState: state) { EmptyReducer() })
-    .frame(width: 960, height: 640)
+    .previewFrame(width: 960, height: 640)
 }
 
 #Preview("Launching") {

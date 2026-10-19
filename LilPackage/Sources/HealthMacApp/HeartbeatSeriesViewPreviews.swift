@@ -43,7 +43,7 @@ private func list(_ state: HeartbeatSeriesContent.State, limit: Int = RecentHear
   NavigationStack {
     HeartbeatSeriesContent(state: state, limit: limit)
   }
-  .frame(width: 620, height: 520)
+  .previewFrame(width: 620, height: 520)
 }
 
 @MainActor
@@ -52,7 +52,7 @@ private func detail(_ series: HealthHeartbeatSeries) -> some View {
   return NavigationStack {
     HeartbeatSeriesDetailView(series: series)
   }
-  .frame(width: 760, height: 640)
+  .previewFrame(width: 760, height: 640)
 }
 
 #Preview("Beat-to-beat measurements") {
@@ -115,5 +115,5 @@ private func detail(_ series: HealthHeartbeatSeries) -> some View {
       type: type, range: .constant(.week), offset: .constant(-1), state: .loaded(chart),
       overlays: [resting, walking])
   }
-  .frame(width: 760, height: 720)
+  .previewFrame(width: 760, height: 720)
 }

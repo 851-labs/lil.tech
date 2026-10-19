@@ -108,6 +108,7 @@ All visual validation goes through SwiftUI previews rendered with `RenderPreview
 - Every feature has a preview for each state of its state machine: loaded, empty, loading, failed, pending, and edge-case content.
 - A UI change comes with previews for each state it affects. Render them, check the snapshots, and attach them to both the PR and the Linear ticket (as a comment).
 - `scripts/contact-sheet <out.png> <columns> <images…>` combines snapshots into one labeled image for the ticket.
+- **Mac preview sizes:** use `previewFrame(width:height:)`, not `.frame(width:height:)`. Pixelbook's snapshots grow a preview to show all of its scroll content, and a fixed height leaves a blank band above it instead.
 
 ## Privacy: user data
 

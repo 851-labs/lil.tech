@@ -22,7 +22,7 @@ private func summary(
   NavigationStack {
     SummaryContent(pins: pins, state: state, highlights: highlights, edit: {}, pin: { _ in })
   }
-  .frame(width: 760, height: 1100)
+  .previewFrame(width: 760, height: 1100)
 }
 
 /// The preview database's week highlights (two weeks of data), and a made-up trend.
