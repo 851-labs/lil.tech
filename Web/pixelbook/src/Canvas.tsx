@@ -77,10 +77,11 @@ export function Canvas({
   readonly children: ReactNode;
 }) {
   const viewport = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<View>({ x: 0, y: 0, zoom: 0.1 });
+  // The start view for a canvas wider than the viewport, the usual case, so the server renders
+  // what the browser starts with.
+  const [view, setView] = useState<View>(() => startView(width, 0));
   const [dragging, setDragging] = useState(false);
 
-  const update = useCallback((change: (view: View) => View) => setView(change), []);
   useEffect(() => onViewChange(view), [view, onViewChange]);
 
   const fit = useCallback(() => {
@@ -101,12 +102,12 @@ export function Canvas({
       zoomBy: (factor) => {
         const element = viewport.current;
         if (element === null) return;
-        update((view) =>
+        setView((view) =>
           zoomAround(view, factor, element.clientWidth / 2, element.clientHeight / 2),
         );
       },
     }),
-    [fit, update],
+    [fit],
   );
 
   // Wheel and Safari's gesture events, which React only listens to passively.
@@ -119,12 +120,21 @@ export function Canvas({
     };
     const wheel = (event: WheelEvent) => {
       event.preventDefault();
+      // Some mice scroll by lines or pages (Firefox's do), not points.
+      const unit =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? 16
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? element.clientHeight
+            : 1;
+      const dx = event.deltaX * unit;
+      const dy = event.deltaY * unit;
       // A trackpad pinch arrives as a wheel event with Ctrl held.
       if (event.ctrlKey || event.metaKey) {
         const [px, py] = point(event);
-        update((view) => zoomAround(view, Math.exp(-event.deltaY * 0.01), px, py));
+        setView((view) => zoomAround(view, Math.exp(-dy * 0.01), px, py));
       } else {
-        update((view) => ({ ...view, x: view.x - event.deltaX, y: view.y - event.deltaY }));
+        setView((view) => ({ ...view, x: view.x - dx, y: view.y - dy }));
       }
     };
     let gestureScale = 1;
@@ -138,7 +148,7 @@ export function Canvas({
       const [px, py] = point(gesture);
       const factor = gesture.scale / gestureScale;
       gestureScale = gesture.scale;
-      update((view) => zoomAround(view, factor, px, py));
+      setView((view) => zoomAround(view, factor, px, py));
     };
     element.addEventListener("wheel", wheel, { passive: false });
     element.addEventListener("gesturestart", gestureStart);
@@ -148,17 +158,26 @@ export function Canvas({
       element.removeEventListener("gesturestart", gestureStart);
       element.removeEventListener("gesturechange", gestureChange);
     };
-  }, [update]);
+  }, []);
 
-  // Dragging pans. A drag that started on a tile doesn't also select it.
-  const press = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  // Dragging with one pointer pans; others are ignored. A drag that started on a tile doesn't also
+  // select it.
+  const press = useRef<{ pointer: number; x: number; y: number; moved: boolean } | null>(null);
   const onPointerDown = (event: React.PointerEvent) => {
-    if (event.button !== 0) return;
-    press.current = { x: event.clientX, y: event.clientY, moved: false };
+    // A second finger isn't primary.
+    if (event.button !== 0 || !event.isPrimary) return;
+    const pointer = event.pointerId;
+    press.current = { pointer, x: event.clientX, y: event.clientY, moved: false };
   };
   const onPointerMove = (event: React.PointerEvent) => {
     const current = press.current;
-    if (current === null) return;
+    if (current === null || event.pointerId !== current.pointer) return;
+    // Released where the canvas didn't hear it, e.g. over the toolbar.
+    if (event.buttons === 0) {
+      press.current = null;
+      setDragging(false);
+      return;
+    }
     const dx = event.clientX - current.x;
     const dy = event.clientY - current.y;
     if (!current.moved && Math.hypot(dx, dy) < dragThreshold) return;
@@ -167,10 +186,11 @@ export function Canvas({
       setDragging(true);
       event.currentTarget.setPointerCapture(event.pointerId);
     }
-    press.current = { x: event.clientX, y: event.clientY, moved: true };
-    update((view) => ({ ...view, x: view.x + dx, y: view.y + dy }));
+    press.current = { ...current, x: event.clientX, y: event.clientY };
+    setView((view) => ({ ...view, x: view.x + dx, y: view.y + dy }));
   };
-  const onPointerUp = () => {
+  const onPointerUp = (event: React.PointerEvent) => {
+    if (event.pointerId !== press.current?.pointer) return;
     setDragging(false);
     // Cleared after the click that follows, which checks it.
     setTimeout(() => (press.current = null));

@@ -271,6 +271,17 @@ a:hover {
   overflow-wrap: anywhere;
 }
 
+.empty {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  color: var(--secondary);
+  pointer-events: none;
+}
+
 .message {
   max-width: 560px;
   margin: 120px auto;

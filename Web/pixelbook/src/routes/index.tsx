@@ -1,7 +1,7 @@
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, type CanvasHandle, type View } from "../Canvas.tsx";
-import { filtersFrom, type Search, toggle, validateSearch } from "../Filters.ts";
+import { filtersFrom, type SearchChange, toggle, validateSearch, withChange } from "../Filters.ts";
 import { type Label, layoutGrid, type Tile, tileId } from "../Grid.ts";
 import {
   appName,
@@ -59,12 +59,22 @@ function Grid() {
   const book = Route.useLoaderData();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
-  const filters = filtersFrom(search);
-  const layout = useMemo(() => layoutGrid(book.manifests, filters), [book, search]);
+  const apps = useMemo(() => book.manifests.map((manifest) => manifest.app).toSorted(), [book]);
+  // Not the whole search: selecting a snapshot doesn't change the layout.
+  const { apps: appsParameter, platforms: platformsParameter, schemes: schemesParameter } = search;
+  const filters = useMemo(
+    () =>
+      filtersFrom(
+        { apps: appsParameter, platforms: platformsParameter, schemes: schemesParameter },
+        apps,
+      ),
+    [apps, appsParameter, platformsParameter, schemesParameter],
+  );
+  const layout = useMemo(() => layoutGrid(book.manifests, filters), [book, filters]);
   const selected = layout.tiles.find((tile) => tileId(tile) === search.tile);
 
   const setSearch = useCallback(
-    (change: { [Name in keyof Search]?: Search[Name] | undefined }) =>
+    (change: SearchChange) =>
       void navigate({ search: (previous) => withChange(previous, change), replace: true }),
     [navigate],
   );
@@ -72,16 +82,17 @@ function Grid() {
     (tile: Tile | undefined) => setSearch({ tile: tile === undefined ? undefined : tileId(tile) }),
     [setSearch],
   );
+  const open = selected !== undefined;
   useEffect(() => {
+    if (!open) return;
     const close = (event: KeyboardEvent) => event.key === "Escape" && select(undefined);
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
-  }, [select]);
+  }, [open, select]);
 
   const canvas = useRef<CanvasHandle>(null);
   const [zoom, setZoom] = useState(0.1);
   const onViewChange = useCallback((view: View) => setZoom(view.zoom), []);
-  const apps = book.manifests.map((manifest) => manifest.app).toSorted();
 
   return (
     <div className="app">
@@ -140,21 +151,13 @@ function Grid() {
       >
         <Content tiles={layout.tiles} labels={layout.labels} onSelect={select} />
       </Canvas>
+      {layout.tiles.length === 0 && <p className="empty">No snapshots match these filters.</p>}
       {selected !== undefined && (
         <Detail tile={selected} commit={book.commit} onClose={() => select(undefined)} />
       )}
     </div>
   );
 }
-
-/** `search` with `change`'s parameters, leaving out those it clears. */
-const withChange = (
-  search: Search,
-  change: { [Name in keyof Search]?: Search[Name] | undefined },
-): Search =>
-  Object.fromEntries(
-    Object.entries({ ...search, ...change }).filter(([, value]) => value !== undefined),
-  );
 
 const manifestPlatform = (book: Book, app: string): Platform =>
   book.manifests.find((manifest) => manifest.app === app)?.platform ?? "ios";

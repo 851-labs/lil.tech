@@ -50,7 +50,7 @@ export interface Book {
   readonly manifests: ReadonlyArray<Manifest>;
 }
 
-/** Which snapshots to show: a branch's latest (e.g. `main`), or a commit's. */
+/** Which snapshots to show: a branch's latest (e.g. `main`), or a commit's, by its full SHA. */
 export type Source = { readonly ref: string } | { readonly commit: string };
 
 export class NotPublished extends Error {
@@ -64,7 +64,9 @@ export class NotPublished extends Error {
 }
 
 const fetchJson = async <A>(path: string): Promise<A | undefined> => {
-  const response = await fetch(`${assetsUrl}/${path}`);
+  // Branch names have slashes, which are kept; anything else is encoded.
+  const encoded = path.split("/").map(encodeURIComponent).join("/");
+  const response = await fetch(`${assetsUrl}/${encoded}`);
   if (response.status === 404) return undefined;
   if (!response.ok) throw new Error(`${path} answered ${response.status}`);
   return (await response.json()) as A;

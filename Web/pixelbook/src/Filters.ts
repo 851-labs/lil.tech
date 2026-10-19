@@ -33,8 +33,21 @@ const list = (value: string | undefined) =>
 const known = <A extends string>(values: ReadonlyArray<A>, chosen: ReadonlyArray<string>) =>
   values.filter((value) => chosen.includes(value));
 
-export const filtersFrom = (search: Search): Filters => ({
-  apps: list(search.apps),
+/** A change to the search: a parameter set to `undefined` is cleared. */
+export type SearchChange = { [Name in keyof Search]?: Search[Name] | undefined };
+
+/** `search` with `change`'s parameters, leaving out those it clears. */
+export const withChange = (search: Search, change: SearchChange): Search =>
+  Object.fromEntries(
+    Object.entries({ ...search, ...change }).filter(([, value]) => value !== undefined),
+  );
+
+/** The filters in `search`, ignoring values that don't exist, such as an app this commit lacks. */
+export const filtersFrom = (
+  search: Pick<SearchChange, "apps" | "platforms" | "schemes">,
+  apps: ReadonlyArray<string>,
+): Filters => ({
+  apps: known(apps, list(search.apps)),
   platforms: known<Platform>(platforms, list(search.platforms)),
   schemes: known<Scheme>(schemes, list(search.schemes)),
 });
