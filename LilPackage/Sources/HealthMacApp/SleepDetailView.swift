@@ -24,7 +24,7 @@ struct SleepDetailView: View {
       _ = try? await $nights.load(
         SleepRequest(range: range, offset: offset, day: today), scheduler: MainQueueScheduler())
     }
-    .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+    .onReceive(calendarDayChanges()) {
       today = .now
     }
   }

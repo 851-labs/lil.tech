@@ -42,7 +42,7 @@ struct SummaryView: View {
     }
     .task { await store.send(.task).finish() }
     // "Today" and the last 7 days move at midnight, even if nothing syncs.
-    .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+    .onReceive(calendarDayChanges()) {
       Task { @MainActor in
         _ = try? await $highlights.load(
           HighlightsRequest(day: .now), scheduler: MainQueueScheduler())
