@@ -276,13 +276,17 @@ An infinite canvas of every app state, rendered from SwiftUI previews, as a grid
   - **Mac previews** render in a plain test target. The app's appearance is set from `PIXELBOOK_APPEARANCE`.
   - **iPhone previews** need a running app, so their test is hosted by an empty app (`PixelbookHost`) in the iPhone 18 Pro simulator (`PIXELBOOK_SIMULATOR`). The appearance is set by `simctl` and put back afterwards.
   - **Preview dependencies:** everything renders with `SWIFT_DEPENDENCIES_CONTEXT=preview`, as in Xcode. Not with `XCODE_RUNNING_FOR_PREVIEWS`, which switches SwiftUI into its preview layout and changes image sizes.
-  - **Warnings:** a preview that reports an issue (a runtime warning in Xcode) fails its test but still renders, so the script warns. A run that renders nothing fails it.
+  - **Warnings:** a preview that reports an issue (a runtime warning in Xcode) fails its test but still renders, so `render` warns and `check` fails. A run that renders nothing fails `render`.
+  - **Determinism** (851-2698): snapshots must only change when the UI does, so `scripts/pixelbook check` renders twice and fails if any image's pixels differ, or if a preview reports an issue.
+    - **The clock:** SnapshotPreviews fixes it, hooking `gettimeofday` at August 13, 2024, 07:00 UTC (on arm64), so previews that use the current date render the same every day. The script fixes the time zone (`TZ`), so day boundaries don't move with the machine or daylight saving time. The locale is still the machine's.
+    - **The database:** previews whose views read it call `preparePreviewDatabase()` first, rather than reading a blank one (and, in Pixelbook, whatever an earlier preview prepared). A preview context keeps the first preparation in a process, so every preview shares one synthetic database, built once, which previews only read.
+    - **Alerts:** previews that show an alert give their `EmptyReducer` an `ifLet`, so closing it (when a snapshot's window goes) clears it, as the feature does.
   - **Broken framework signature:** SnapshotPreviews ships `PreviewsSupport.framework`'s macOS slice with a broken signature, which macOS refuses to load and may move to the Trash as malware ([issue 236](https://github.com/getsentry/SnapshotPreviews/issues/236)). The script re-signs it ad hoc, in its own package checkout. It's only a test dependency and never ships.
   - **Diagnostics:** `xcodebuild` runs with `-collect-test-diagnostics never`, since collecting simulator diagnostics after a run could hang it for many minutes. Plain `swift test` couldn't load the binary framework, so it's `xcodebuild` throughout.
 - **Spike results** (851-2697, lil health): 133 Mac and 52 iPhone previews, 370 images in light and dark. About 4 minutes cold, and 2 minutes warm.
   - Two runs are pixel-identical, though PNG metadata differs, so images are compared by pixels, not bytes.
   - Mac images have transparent backgrounds, so they're shown over the window color for their appearance.
-  - **28 previews report issues:** 23 Mac ones read the database without preparing it, and 5 iPhone ones trip TCA's presentation-binding check. They're for 851-2698, after which warnings can fail the run.
+  - **28 previews reported issues:** 23 Mac previews read the database without preparing it (29 once the Sleep ones, which had inherited an earlier preview's, were counted), and 5 iPhone ones tripped TCA's presentation-binding check. All fixed in 851-2698.
 
 ## Open questions
 

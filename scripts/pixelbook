@@ -4,20 +4,65 @@
 # empty host app, since iOS previews need a running app. Each PNG has a JSON sidecar (module,
 # file, preview name, line).
 # Usage: scripts/pixelbook render [out-dir]
-#   out-dir  Where the images go, as <app>/<light|dark>/ (default build/pixelbook/<commit>). It's
+#          scripts/pixelbook check
+#   render   Renders into out-dir, as <app>/<light|dark>/ (default build/pixelbook/<commit>). It's
 #            replaced, so it must be new, empty, or under build/.
+#   check    Renders twice and fails if any image's pixels differ, or if a preview reported an
+#            issue: snapshots must only change when the UI does (851-2698).
+# PIXELBOOK_STRICT=1 makes render exit 2 when a preview reports an issue, instead of warning.
 # PIXELBOOK_SIMULATOR picks the iPhone simulator (default "iPhone 18 Pro"); images take its size.
 # Previews render with preview dependencies, as in Xcode (SWIFT_DEPENDENCIES_CONTEXT). Not with
 # XCODE_RUNNING_FOR_PREVIEWS, which switches SwiftUI into its preview layout and changes sizes.
+# SnapshotPreviews fixes the clock (gettimeofday) at August 13, 2024, 07:00 UTC, so previews
+# that use the current date render the same every day. The time zone is fixed too (TZ), so day
+# boundaries don't move with the machine or daylight saving time.
 set -euo pipefail
 
-if [ "${1:-}" != "render" ]; then
-  echo "usage: scripts/pixelbook render [out-dir]" >&2
+command=${1:-}
+if [ "$command" != "render" ] && [ "$command" != "check" ]; then
+  echo "usage: scripts/pixelbook render [out-dir] | scripts/pixelbook check" >&2
   exit 64
 fi
 caller=$PWD
 cd "$(dirname "$0")/.."
 root=$PWD
+
+if [ "$command" = "check" ]; then
+  first="$root/build/pixelbook/check-1"
+  second="$root/build/pixelbook/check-2"
+  # Strict: a preview that reports an issue fails the render (exit 2), so the second run is skipped.
+  for run in "$first" "$second"; do
+    if ! PIXELBOOK_STRICT=1 "$root/scripts/pixelbook" render "$run"; then
+      echo "Rendering into $run failed or a preview reported an issue; see its .log files." >&2
+      exit 1
+    fi
+  done
+  # The same images both times…
+  images() { (cd "$1" && find . -name '*.png' | sort); }
+  if ! diff <(images "$first") <(images "$second") >&2; then
+    echo "The two runs rendered different sets of images (< first, > second)." >&2
+    exit 1
+  fi
+  # …with the same pixels. Not bytes: PNG metadata differs between runs, and BMP has none.
+  bitmaps=$(mktemp -d)
+  trap 'rm -rf "$bitmaps"' EXIT
+  differ=0
+  while IFS= read -r relative; do
+    sips -s format bmp "$first/$relative" --out "$bitmaps/a.bmp" >/dev/null
+    sips -s format bmp "$second/$relative" --out "$bitmaps/b.bmp" >/dev/null
+    if ! cmp -s "$bitmaps/a.bmp" "$bitmaps/b.bmp"; then
+      echo "Differs: $relative" >&2
+      differ=$((differ + 1))
+    fi
+  done < <(images "$first")
+  total=$(images "$first" | wc -l | tr -d ' ')
+  if [ "$differ" -gt 0 ]; then
+    echo "$differ of $total images differ between two runs." >&2
+    exit 1
+  fi
+  echo "==> All $total images render the same twice."
+  exit 0
+fi
 out=${2:-$root/build/pixelbook/$(git rev-parse --short HEAD)}
 [[ "$out" = /* ]] || out="$caller/$out"
 if [ -e "$out" ] && [[ "$out" != "$root/build/"* ]] && [ -n "$(ls -A "$out" 2>/dev/null)" ]; then
@@ -96,6 +141,7 @@ render() {
   TEST_RUNNER_SNAPSHOTS_EXPORT_DIR="$dir" \
     TEST_RUNNER_PIXELBOOK_APPEARANCE="$appearance" \
     TEST_RUNNER_SWIFT_DEPENDENCIES_CONTEXT=preview \
+    TEST_RUNNER_TZ=America/Los_Angeles \
     xcodebuild test-without-building -project "$project" "$@" -derivedDataPath "$derived" \
     -collect-test-diagnostics never -quiet >"$dir.log" 2>&1 || warnings=$((warnings + 1))
   local count
@@ -119,10 +165,11 @@ for appearance in light dark; do
 done
 
 echo "==> $out"
-if [ "$warnings" -gt 0 ]; then
-  echo "Some previews reported issues; see the .log file next to each folder." >&2
-fi
 if [ "$empty" -gt 0 ]; then
   echo "$empty run(s) rendered nothing; see their .log files." >&2
   exit 1
+fi
+if [ "$warnings" -gt 0 ]; then
+  echo "Some previews reported issues; see the .log file next to each folder." >&2
+  [ "${PIXELBOOK_STRICT:-}" = 1 ] && exit 2
 fi

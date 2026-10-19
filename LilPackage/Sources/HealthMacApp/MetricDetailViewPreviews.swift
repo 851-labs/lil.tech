@@ -9,6 +9,7 @@ import SwiftUI
 private func detail(
   _ id: String, _ range: ChartRange, state: ((HealthDataType) -> MetricDetailContent.State)? = nil
 ) -> some View {
+  preparePreviewDatabase()
   let type = HealthCatalog.type(id: id)!
   let loaded = state?(type) ?? .loaded(previewChart(type, range))
   return NavigationStack {
@@ -55,6 +56,7 @@ private let heartRate = "HKQuantityTypeIdentifierHeartRate"
 }
 
 #Preview("Not a quantity") {
+  let _ = preparePreviewDatabase()
   MetricDetailView(type: HealthCatalog.type(id: "HKWorkoutTypeIdentifier")!)
     .frame(width: 760, height: 400)
 }

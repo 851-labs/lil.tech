@@ -74,16 +74,17 @@ public struct AppView: View {
   AppView(store: Store(initialState: AppFeature.State(isSignedIn: true)) { EmptyReducer() })
 }
 
+// `ifLet`: closing an alert (e.g. when a snapshot's window goes) clears it, as the feature does.
 #Preview("Another iPhone") {
   AppView(
     store: Store(initialState: AppFeature.State(isSignedIn: true, alert: .otherIPhones(1))) {
-      EmptyReducer()
+      EmptyReducer<AppFeature.State, AppFeature.Action>().ifLet(\.$alert, action: \.alert)
     })
 }
 
 #Preview("Two other iPhones") {
   AppView(
     store: Store(initialState: AppFeature.State(isSignedIn: true, alert: .otherIPhones(2))) {
-      EmptyReducer()
+      EmptyReducer<AppFeature.State, AppFeature.Action>().ifLet(\.$alert, action: \.alert)
     })
 }
