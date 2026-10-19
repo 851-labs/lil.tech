@@ -18,19 +18,23 @@ struct SignInFeatureTests {
       }
     }
 
-    await store.send(.appleButtonTapped) {
-      $0.nonce = zeroNonce
+    await store.send(.authorization(.appleButtonTapped)) {
+      $0.authorization.nonce = zeroNonce
     }
     // Apple gets the nonce's SHA-256.
     #expect(
-      store.state.nonceHash == "60e05bd1b195af2f94112fa7197a5c88289058840ce7c6df9693756bc6250f55")
+      store.state.authorization.nonceHash
+        == "60e05bd1b195af2f94112fa7197a5c88289058840ce7c6df9693756bc6250f55")
     await store.send(
-      .appleAuthorizationFinished(.success(AppleCredential(identityToken: "apple-token")))
+      .authorization(
+        .appleAuthorizationFinished(.success(AppleCredential(identityToken: "apple-token"))))
     ) {
+      $0.authorization.nonce = nil
+    }
+    await store.receive(\.authorization.delegate.authorized) {
       $0.status = .signingIn
     }
     await store.receive(\.signInSucceeded) {
-      $0.nonce = nil
       $0.status = .signedIn
     }
     await store.receive(\.delegate.signedIn)
@@ -41,7 +45,7 @@ struct SignInFeatureTests {
     func signingInThroughApplesWebPageOnTheMac() async throws {
       let api = URL(string: "https://api.lil.tech")!
       var initial = SignInFeature.State()
-      initial.appleWebAPI = api
+      initial.authorization.appleWebAPI = api
       var zeros = Zeros()
       let request = AppleWebAuthorizationRequest.make(api: api, using: &zeros)
       // Apple's page, for the Services ID, returning through the API.
@@ -79,20 +83,22 @@ struct SignInFeatureTests {
         }
       }
 
-      await store.send(.appleWebButtonTapped) {
-        $0.nonce = zeroNonce
-        $0.appleWebRequest = request
+      await store.send(.authorization(.appleWebButtonTapped)) {
+        $0.authorization.nonce = zeroNonce
+        $0.authorization.appleWebRequest = request
       }
-      await store.receive(\.appleWebAuthorizationFinished) {
-        $0.appleWebRequest = nil
-        $0.givenName = "Mary Ann"
-        $0.familyName = "van der Berg"
+      await store.receive(\.authorization.appleWebAuthorizationFinished) {
+        $0.authorization.appleWebRequest = nil
+        $0.authorization.nonce = nil
+        $0.authorization.givenName = "Mary Ann"
+        $0.authorization.familyName = "van der Berg"
+      }
+      await store.receive(\.authorization.delegate.authorized) {
         $0.status = .signingIn
       }
       await store.receive(\.signInSucceeded) {
-        $0.nonce = nil
-        $0.givenName = nil
-        $0.familyName = nil
+        $0.authorization.givenName = nil
+        $0.authorization.familyName = nil
         $0.status = .signedIn
       }
       await store.receive(\.delegate.signedIn)
@@ -113,10 +119,10 @@ struct SignInFeatureTests {
     @Test
     func applesWebPageCanceledOrMismatched() async {
       var initial = SignInFeature.State()
-      initial.appleWebAPI = URL(string: "https://api.lil.tech")!
+      initial.authorization.appleWebAPI = URL(string: "https://api.lil.tech")!
       let answer = LockIsolated<
         @Sendable (AppleWebAuthorizationRequest) -> Result<
-          URL, SignInFeature.AppleAuthorizationError
+          URL, ProviderAuthorization.AppleAuthorizationError
         >
       >({ _ in .failure(.canceled) })
       let store = TestStore(initialState: initial) {
@@ -128,18 +134,18 @@ struct SignInFeatureTests {
       store.exhaustivity = .off
 
       // Closed: nothing happens.
-      await store.send(.appleWebButtonTapped)
-      await store.receive(\.appleWebAuthorizationFinished)
+      await store.send(.authorization(.appleWebButtonTapped))
+      await store.receive(\.authorization.delegate.canceled)
       #expect(store.state.status == .signedOut)
-      #expect(store.state.nonce == nil)
-      #expect(store.state.appleWebRequest == nil)
+      #expect(store.state.authorization.nonce == nil)
+      #expect(store.state.authorization.appleWebRequest == nil)
 
       // An answer to another request: refused.
       answer.setValue { _ in
         .success(URL(string: "tech.lil.health://apple-signin/?id_token=t&state=other")!)
       }
-      await store.send(.appleWebButtonTapped)
-      await store.receive(\.appleWebAuthorizationFinished)
+      await store.send(.authorization(.appleWebButtonTapped))
+      await store.receive(\.authorization.delegate.failed)
       #expect(
         store.state.status == .failed(SignInError.failed("Apple's answer didn't match").message))
 
@@ -151,8 +157,8 @@ struct SignInFeatureTests {
               "tech.lil.health://apple-signin/?error=user_cancelled_authorize&state=\(request.state)"
           )!)
       }
-      await store.send(.appleWebButtonTapped)
-      await store.receive(\.appleWebAuthorizationFinished)
+      await store.send(.authorization(.appleWebButtonTapped))
+      await store.receive(\.authorization.delegate.canceled)
       #expect(store.state.status == .signedOut)
     }
   #endif
@@ -165,12 +171,13 @@ struct SignInFeatureTests {
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(Zeros())
     }
 
-    await store.send(.appleButtonTapped) {
-      $0.nonce = zeroNonce
+    await store.send(.authorization(.appleButtonTapped)) {
+      $0.authorization.nonce = zeroNonce
     }
-    await store.send(.appleAuthorizationFinished(.failure(.canceled))) {
-      $0.nonce = nil
+    await store.send(.authorization(.appleAuthorizationFinished(.failure(.canceled)))) {
+      $0.authorization.nonce = nil
     }
+    await store.receive(\.authorization.delegate.canceled)
   }
 
   @Test
@@ -181,11 +188,13 @@ struct SignInFeatureTests {
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(Zeros())
     }
 
-    await store.send(.appleButtonTapped) {
-      $0.nonce = zeroNonce
+    await store.send(.authorization(.appleButtonTapped)) {
+      $0.authorization.nonce = zeroNonce
     }
-    await store.send(.appleAuthorizationFinished(.failure(.failed("No network")))) {
-      $0.nonce = nil
+    await store.send(.authorization(.appleAuthorizationFinished(.failure(.failed("No network"))))) {
+      $0.authorization.nonce = nil
+    }
+    await store.receive(\.authorization.delegate.failed) {
       $0.status = .failed("Signing in didn't work: No network")
     }
   }
@@ -205,38 +214,44 @@ struct SignInFeatureTests {
       }
     }
 
-    await store.send(.appleButtonTapped) {
-      $0.nonce = zeroNonce
+    await store.send(.authorization(.appleButtonTapped)) {
+      $0.authorization.nonce = zeroNonce
     }
     await store.send(
-      .appleAuthorizationFinished(
-        .success(
-          AppleCredential(identityToken: "apple-token", givenName: "Ada", familyName: "Lovelace"))
-      )
+      .authorization(
+        .appleAuthorizationFinished(
+          .success(
+            AppleCredential(
+              identityToken: "apple-token", givenName: "Ada", familyName: "Lovelace"))))
     ) {
-      $0.givenName = "Ada"
-      $0.familyName = "Lovelace"
+      $0.authorization.nonce = nil
+      $0.authorization.givenName = "Ada"
+      $0.authorization.familyName = "Lovelace"
+    }
+    await store.receive(\.authorization.delegate.authorized) {
       $0.status = .signingIn
     }
     await store.receive(\.signInFailed) {
-      $0.nonce = nil
       $0.status = .failed("Signing in isn't available right now. Please try again later.")
     }
 
     // Apple only gives the name the first time.
-    await store.send(.appleButtonTapped) {
-      $0.nonce = zeroNonce
+    await store.send(.authorization(.appleButtonTapped)) {
+      $0.authorization.nonce = zeroNonce
       $0.status = .signedOut
     }
     await store.send(
-      .appleAuthorizationFinished(.success(AppleCredential(identityToken: "apple-token-2")))
+      .authorization(
+        .appleAuthorizationFinished(.success(AppleCredential(identityToken: "apple-token-2"))))
     ) {
+      $0.authorization.nonce = nil
+    }
+    await store.receive(\.authorization.delegate.authorized) {
       $0.status = .signingIn
     }
     await store.receive(\.signInSucceeded) {
-      $0.nonce = nil
-      $0.givenName = nil
-      $0.familyName = nil
+      $0.authorization.givenName = nil
+      $0.authorization.familyName = nil
       $0.status = .signedIn
     }
     await store.receive(\.delegate.signedIn)
@@ -265,13 +280,16 @@ struct SignInFeatureTests {
       }
     }
 
-    await store.send(.googleButtonTapped) {
-      $0.googleRequest = zeroGoogleRequest
+    await store.send(.authorization(.googleButtonTapped)) {
+      $0.authorization.googleRequest = zeroGoogleRequest
     }
-    await store.receive(\.googleAuthorizationFinished.success) {
-      $0.googleRequest = nil
+    await store.receive(\.authorization.googleAuthorizationFinished.success) {
+      $0.authorization.googleRequest = nil
+    }
+    await store.receive(\.authorization.delegate.redeemingGoogle) {
       $0.status = .signingIn
     }
+    await store.receive(\.authorization.delegate.authorized)
     await store.receive(\.signInSucceeded) {
       $0.status = .signedIn
     }
@@ -285,9 +303,10 @@ struct SignInFeatureTests {
     }
 
     await withKnownIssue {
-      await store.send(.googleButtonTapped) {
-        $0.status = .failed("Signing in isn't available right now. Please try again later.")
-      }
+      await store.send(.authorization(.googleButtonTapped))
+    }
+    await store.receive(\.authorization.delegate.failed) {
+      $0.status = .failed("Signing in isn't available right now. Please try again later.")
     }
   }
 
@@ -300,6 +319,26 @@ struct SignInFeatureTests {
     }
 
     await store.send(.testAccountButtonTapped) {
+      $0.status = .signingIn
+    }
+    await store.receive(\.signInSucceeded) {
+      $0.status = .signedIn
+    }
+    await store.receive(\.delegate.signedIn)
+  }
+
+  @Test
+  func theTestAccountClosesAGooglePageStillOpen() async {
+    var initial = SignInFeature.State()
+    initial.authorization.googleRequest = zeroGoogleRequest
+    let store = TestStore(initialState: initial) {
+      SignInFeature()
+    } withDependencies: {
+      $0.auth.signInToTestAccount = { _ in }
+    }
+
+    await store.send(.testAccountButtonTapped) {
+      $0.authorization.googleRequest = nil
       $0.status = .signingIn
     }
     await store.receive(\.signInSucceeded) {
@@ -371,34 +410,44 @@ struct SignInFeatureTests {
     }
 
     // A new try clears the last one's error.
-    await store.send(.googleButtonTapped) {
+    await store.send(.authorization(.googleButtonTapped)) {
       $0.status = .signedOut
-      $0.googleRequest = zeroGoogleRequest
+      $0.authorization.googleRequest = zeroGoogleRequest
     }
-    await store.receive(\.googleAuthorizationFinished.failure) {
-      $0.googleRequest = nil
+    await store.receive(\.authorization.googleAuthorizationFinished.failure) {
+      $0.authorization.googleRequest = nil
     }
+    await store.receive(\.authorization.delegate.canceled)
   }
 
   @Test
   func cancelingGoogle() async {
-    let store = TestStore(initialState: SignInFeature.State(googleRequest: zeroGoogleRequest)) {
+    var initial = SignInFeature.State()
+    initial.authorization.googleRequest = zeroGoogleRequest
+    let store = TestStore(initialState: initial) {
       SignInFeature()
     }
 
-    await store.send(.googleAuthorizationFinished(.failure(.canceled))) {
-      $0.googleRequest = nil
+    await store.send(.authorization(.googleAuthorizationFinished(.failure(.canceled)))) {
+      $0.authorization.googleRequest = nil
     }
+    await store.receive(\.authorization.delegate.canceled)
   }
 
   @Test
   func aGoogleRedirectForAnotherRequestFails() async {
-    let store = TestStore(initialState: SignInFeature.State(googleRequest: zeroGoogleRequest)) {
+    var initial = SignInFeature.State()
+    initial.authorization.googleRequest = zeroGoogleRequest
+    let store = TestStore(initialState: initial) {
       SignInFeature()
     }
 
-    await store.send(.googleAuthorizationFinished(.success(googleCallback(state: "other")))) {
-      $0.googleRequest = nil
+    await store.send(
+      .authorization(.googleAuthorizationFinished(.success(googleCallback(state: "other"))))
+    ) {
+      $0.authorization.googleRequest = nil
+    }
+    await store.receive(\.authorization.delegate.failed) {
       $0.status = .failed("Signing in didn't work: Google's answer didn't match")
     }
   }
@@ -408,17 +457,23 @@ struct SignInFeatureTests {
     struct Offline: LocalizedError {
       var errorDescription: String? { "The Internet connection appears to be offline." }
     }
-    let store = TestStore(initialState: SignInFeature.State(googleRequest: zeroGoogleRequest)) {
+    var initial = SignInFeature.State()
+    initial.authorization.googleRequest = zeroGoogleRequest
+    let store = TestStore(initialState: initial) {
       SignInFeature()
     } withDependencies: {
       $0.googleOAuth.redeem = { _, _ in throw Offline() }
     }
 
-    await store.send(.googleAuthorizationFinished(.success(googleCallback(state: zeroState)))) {
-      $0.googleRequest = nil
+    await store.send(
+      .authorization(.googleAuthorizationFinished(.success(googleCallback(state: zeroState))))
+    ) {
+      $0.authorization.googleRequest = nil
+    }
+    await store.receive(\.authorization.delegate.redeemingGoogle) {
       $0.status = .signingIn
     }
-    await store.receive(\.signInFailed) {
+    await store.receive(\.authorization.delegate.failed) {
       $0.status = .failed(
         "Signing in didn't work: The Internet connection appears to be offline.")
     }
@@ -431,8 +486,10 @@ struct SignInFeatureTests {
     }
 
     await store.send(
-      .appleAuthorizationFinished(.success(AppleCredential(identityToken: "apple-token")))
-    ) {
+      .authorization(
+        .appleAuthorizationFinished(.success(AppleCredential(identityToken: "apple-token"))))
+    )
+    await store.receive(\.authorization.delegate.failed) {
       $0.status = .failed("Signing in didn't work. Please try again.")
     }
   }

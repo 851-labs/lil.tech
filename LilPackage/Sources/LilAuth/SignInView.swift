@@ -36,10 +36,10 @@ public struct SignInView: View {
             #if os(macOS)
               // Apple's web page: the native sheet needs an entitlement that Developer ID builds
               // can't have (`docs/DECISIONS.md`).
-              if store.appleWebAPI != nil {
+              if store.authorization.appleWebAPI != nil {
                 // Apple's colors for its button: black on light, white on dark.
                 Button {
-                  store.send(.appleWebButtonTapped)
+                  store.send(.authorization(.appleWebButtonTapped))
                 } label: {
                   Label("Sign in with Apple", systemImage: "apple.logo")
                     .font(.body.weight(.medium))
@@ -53,16 +53,17 @@ public struct SignInView: View {
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: 320)
-                .opacity(store.appleWebRequest == nil ? 1 : 0.5)
-                .disabled(store.appleWebRequest != nil)
+                .opacity(store.authorization.appleWebRequest == nil ? 1 : 0.5)
+                .disabled(store.authorization.appleWebRequest != nil)
               }
             #else
               SignInWithAppleButton(.signIn) { request in
-                store.send(.appleButtonTapped)
+                store.send(.authorization(.appleButtonTapped))
                 request.requestedScopes = [.fullName, .email]
-                request.nonce = store.nonceHash
+                request.nonce = store.authorization.nonceHash
               } onCompletion: { result in
-                store.send(.appleAuthorizationFinished(Self.credential(from: result)))
+                store.send(
+                  .authorization(.appleAuthorizationFinished(Self.credential(from: result))))
               }
               .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
               .frame(maxWidth: 320)
@@ -70,10 +71,10 @@ public struct SignInView: View {
               .clipShape(.rect(cornerRadius: SignInButtonMetrics.cornerRadius))
             #endif
 
-            if store.isGoogleAvailable {
-              GoogleSignInButton { store.send(.googleButtonTapped) }
+            if store.authorization.isGoogleAvailable {
+              GoogleSignInButton { store.send(.authorization(.googleButtonTapped)) }
                 .frame(maxWidth: 320)
-                .disabled(store.googleRequest != nil)
+                .disabled(store.authorization.googleRequest != nil)
             }
 
             if store.isTestAccountAvailable {
@@ -131,7 +132,7 @@ public struct SignInView: View {
   /// Apple's answer to the native sheet, as the features take it.
   static func credential(
     from result: Result<ASAuthorization, any Error>
-  ) -> Result<AppleCredential, SignInFeature.AppleAuthorizationError> {
+  ) -> Result<AppleCredential, ProviderAuthorization.AppleAuthorizationError> {
     switch result {
     case .success(let authorization):
       guard
@@ -172,7 +173,7 @@ private func signedOut() -> SignInView {
   var state = SignInFeature.State()
   state.isTestAccountAvailable = true
   // Apple can't return to a preview: the Mac has no Apple button there.
-  state.appleWebAPI = nil
+  state.authorization.appleWebAPI = nil
   return SignInView(
     store: Store(initialState: state) { SignInFeature() }, appName: "lil health",
     privacyPolicy: URL(string: "https://lil.tech/privacy"))
@@ -210,21 +211,17 @@ private func signedOut() -> SignInView {
 }
 
 #Preview("Google sheet open") {
-  SignInView(
-    store: Store(
-      initialState: SignInFeature.State(
-        googleRequest: GoogleAuthorizationRequest(
-          clientID: "preview.apps.googleusercontent.com", codeVerifier: "verifier",
-          nonce: "nonce", state: "state"))
-    ) {
-      SignInFeature()
-    },
-    appName: "lil health")
+  var state = SignInFeature.State()
+  state.authorization.googleRequest = GoogleAuthorizationRequest(
+    clientID: "preview.apps.googleusercontent.com", codeVerifier: "verifier", nonce: "nonce",
+    state: "state")
+  return SignInView(
+    store: Store(initialState: state) { SignInFeature() }, appName: "lil health")
 }
 
 #Preview("Apple's page open (the Mac)") {
   var state = SignInFeature.State()
-  state.appleWebRequest = AppleWebAuthorizationRequest(
+  state.authorization.appleWebRequest = AppleWebAuthorizationRequest(
     redirectURI: URL(string: "https://api.lil.tech/v1/auth/apple/web")!, nonce: "nonce",
     state: "state")
   return SignInView(
