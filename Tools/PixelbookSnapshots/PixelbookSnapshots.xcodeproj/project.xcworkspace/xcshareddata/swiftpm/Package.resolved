@@ -1,5 +1,5 @@
 {
-  "originHash" : "aa28409bccec2db958ec70aea655dcf094e6e58da9502bdd32fd63401f401f0a",
+  "originHash" : "f13394e23543b014c9d68bcff4da583bb0bb8c398dc54fb299dc378e57f254dd",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -40,10 +40,10 @@
     {
       "identity" : "snapshotpreviews",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/getsentry/SnapshotPreviews",
+      "location" : "https://github.com/851-labs/SnapshotPreviews",
       "state" : {
-        "revision" : "e90a09906ef9d0d7fc29871202b4048cd360ee25",
-        "version" : "0.20.0"
+        "revision" : "f36a489f67dc9ebdb75f1871aaa65f24e80584ad",
+        "version" : "0.20.0-lil.3"
       }
     },
     {

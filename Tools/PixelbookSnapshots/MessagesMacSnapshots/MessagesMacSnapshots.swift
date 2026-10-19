@@ -13,6 +13,13 @@ final class MessagesMacSnapshots: SnapshotTest {
     }
   }
 
+  /// Captured from the window, as the screen shows it: drawing the view (`cacheDisplay`, the
+  /// default) misses vibrant content, such as the sidebar's icons (851-2711). Our fork of
+  /// SnapshotPreviews adds this.
+  override class func capturesWindow() -> Bool {
+    true
+  }
+
   /// Only some previews, if `scripts/pixelbook` was given `PIXELBOOK_PREVIEWS`.
   override class func snapshotPreviews() -> [String]? {
     pixelbookPreviews()
