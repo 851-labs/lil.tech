@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, type CanvasHandle, type View } from "../Canvas.tsx";
 import { filtersFrom, type Search, toggle, validateSearch } from "../Filters.ts";
@@ -20,24 +20,37 @@ export const Route = createFileRoute("/")({
   validateSearch,
   loaderDeps: ({ search }) => ({ ref: search.ref, commit: search.commit }),
   loader: ({ deps }) =>
-    loadBook(deps.commit === undefined ? { ref: deps.ref ?? "main" } : { commit: deps.commit }),
+    loadBook(
+      deps.commit === undefined ? { ref: deps.ref ?? "main" } : { commit: deps.commit },
+    ).catch((error: unknown) => {
+      // A 404, with the reason.
+      if (error instanceof NotPublished) throw notFound({ data: error.message });
+      throw error;
+    }),
   component: Grid,
-  errorComponent: ({ error }) => (
-    <main className="message">
-      <h1>Pixelbook</h1>
+  notFoundComponent: ({ data }) => (
+    <Message>
+      <p>{typeof data === "string" ? data : "Nothing is published here."}</p>
       <p>
-        {error instanceof NotPublished
-          ? error.message
-          : `Couldn't load snapshots: ${error instanceof Error ? error.message : String(error)}`}
+        Publish snapshots with <code>scripts/pixelbook publish</code>.
       </p>
-      {error instanceof NotPublished && (
-        <p>
-          Publish snapshots with <code>scripts/pixelbook publish</code>.
-        </p>
-      )}
-    </main>
+    </Message>
+  ),
+  errorComponent: ({ error }) => (
+    <Message>
+      <p>Couldn't load snapshots: {error instanceof Error ? error.message : String(error)}</p>
+    </Message>
   ),
 });
+
+function Message({ children }: { readonly children: React.ReactNode }) {
+  return (
+    <main className="message">
+      <h1>Pixelbook</h1>
+      {children}
+    </main>
+  );
+}
 
 const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
 const schemeNames: Record<Scheme, string> = { light: "Light", dark: "Dark" };
