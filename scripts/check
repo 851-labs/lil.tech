@@ -1,11 +1,13 @@
 #!/bin/sh
 # Runs the checks GitHub used to run before every merge (`docs/DECISIONS.md`). The pre-commit
 # hook (`lefthook.yml`) runs the parts a commit touches.
-# Usage: scripts/check [--hook] [--swift] [--services]   (both parts when neither is given)
+# Usage: scripts/check [--hook] [--swift] [--services] [--pixelbook]   (every part when none is given)
 #   --swift     Swift lint, the package's tests, and the apps' builds.
 #   --services  Format, lint and type checks (`scripts/format --lint --services`, which also checks
 #               the OpenAPI spec is fresh), the generated Swift client regenerated and compared,
 #               and every workspace package's tests.
+#   --pixelbook  Pixelbook's graph files against the Swift previews they name
+#               (`Web/pixelbook/scripts/graphs.ts`), so renaming a preview can't break one.
 #   --hook      Refuse to run while the checked paths have unstaged or untracked changes: the
 #               checks see the working tree, so it has to match what's being committed.
 # Every step runs even after one fails, so one failure doesn't hide another.
@@ -13,21 +15,24 @@ set -u
 
 swift=false
 services=false
+pixelbook=false
 hook=false
 for arg in "$@"; do
   case "$arg" in
     --swift) swift=true ;;
     --services) services=true ;;
+    --pixelbook) pixelbook=true ;;
     --hook) hook=true ;;
     *)
-      echo "usage: scripts/check [--hook] [--swift] [--services]" >&2
+      echo "usage: scripts/check [--hook] [--swift] [--services] [--pixelbook]" >&2
       exit 2
       ;;
   esac
 done
-if ! $swift && ! $services; then
+if ! $swift && ! $services && ! $pixelbook; then
   swift=true
   services=true
+  pixelbook=true
 fi
 
 cd "$(dirname "$0")/.."
@@ -45,13 +50,11 @@ step() {
 swift_paths="LilPackage Apps Tools Lil.xcworkspace .swift-format scripts"
 # The TypeScript workspace, with its root config, plus what the generated client depends on.
 services_paths="Services Web Apps/LilHealth/LilHealth-Info.plist Apps/LilHealth/LilHealthiOS-Info.plist package.json pnpm-workspace.yaml pnpm-lock.yaml .node-version vite.config.ts tsconfig.json tsconfig.base.json Tools LilPackage/Sources/LilAPIGenerated scripts"
-if $swift && $services; then
-  paths="$swift_paths $services_paths"
-elif $swift; then
-  paths="$swift_paths"
-else
-  paths="$services_paths"
-fi
+pixelbook_paths="LilPackage/Sources Web/pixelbook/graphs Web/pixelbook/src/Graph.ts Web/pixelbook/scripts"
+paths=""
+$swift && paths="$paths $swift_paths"
+$services && paths="$paths $services_paths"
+$pixelbook && paths="$paths $pixelbook_paths"
 if $hook; then
   # shellcheck disable=SC2086
   dirty=$(git status --porcelain --untracked-files=all -- $paths lefthook.yml |
@@ -84,6 +87,10 @@ if $services; then
   step scripts/format --lint --services
   step scripts/generate-api-client --check
   step vp run -r test
+fi
+
+if $pixelbook; then
+  step node Web/pixelbook/scripts/graphs.ts
 fi
 
 exit "$status"

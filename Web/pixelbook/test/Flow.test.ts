@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
-import { layoutFlowchart, nodeHeader } from "../src/Flow.ts";
+import { layoutFlowchart, nodeHeader, placeholder, unlinkedRowWidth } from "../src/Flow.ts";
 import type { Graph } from "../src/Graph.ts";
-import { noFilters } from "../src/Grid.ts";
+import { noFilters, spacing } from "../src/Grid.ts";
 import type { Manifest, Snapshot } from "../src/Snapshots.ts";
 
 const snapshot = (file: string, state: string, line: number, dark = true): Snapshot => ({
@@ -72,11 +72,39 @@ describe("flowchart layout", () => {
     expect(layout.labels.map((label) => label.text)).toContain("No graph yet");
   });
 
-  it("uses the scheme the filters show, leaving out states without it", () => {
+  it("uses the scheme the filters show, with a placeholder for screens without it", () => {
     const layout = layoutFlowchart([mac], [graph], { ...noFilters, schemes: ["dark"] });
-    // The metric has no dark image, so it has no node, and its edge goes too.
-    expect(layout.nodes.map((node) => node.key)).toEqual(["health-mac/summary"]);
-    expect(layout.edges).toEqual([]);
-    expect(layout.nodes[0]?.tiles[0]?.scheme).toBe("dark");
+    const [summary, metric] = layout.nodes;
+    expect(summary?.tiles[0]?.scheme).toBe("dark");
+    // The metric has no dark image: it stays, edges and all, as a placeholder.
+    expect(metric).toMatchObject({ key: "health-mac/metric", tiles: [] });
+    expect(metric?.height).toBe(nodeHeader + placeholder.height);
+    expect(layout.edges).toHaveLength(1);
+  });
+
+  it("leaves out apps with nothing in the appearance", () => {
+    const lightOnly: Manifest = {
+      ...mac,
+      app: "health-iphone",
+      platform: "ios",
+      snapshots: [snapshot("SignInView.swift", "Signed out", 1, false)],
+    };
+    const layout = layoutFlowchart([mac, lightOnly], [graph], { ...noFilters, schemes: ["dark"] });
+    expect(
+      layout.labels.filter((label) => label.kind === "app").map((label) => label.text),
+    ).toEqual(["lil health for Mac"]);
+  });
+
+  it("wraps the rows of screens left out of the graph", () => {
+    const many: Manifest = {
+      ...mac,
+      snapshots: Array.from({ length: 30 }, (_, index) =>
+        snapshot(`Screen${String(index).padStart(2, "0")}Previews.swift`, "A", 1),
+      ),
+    };
+    const layout = layoutFlowchart([many], [], noFilters);
+    const right = Math.max(...layout.unlinked.map((tile) => tile.x + tile.width));
+    expect(right).toBeLessThanOrEqual(spacing.margin + unlinkedRowWidth);
+    expect(new Set(layout.unlinked.map((tile) => tile.y)).size).toBeGreaterThan(1);
   });
 });

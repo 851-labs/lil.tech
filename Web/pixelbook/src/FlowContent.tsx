@@ -67,11 +67,12 @@ function Node({
   readonly node: FlowNode;
   readonly onSelect: (tile: Tile) => void;
 }) {
-  const [index, setIndex] = useState(0);
+  const [steps, setSteps] = useState(0);
   const count = node.tiles.length;
-  const tile = node.tiles[index % count];
-  if (tile === undefined) return null;
-  const step = (by: number) => setIndex((index + by + count) % count);
+  // Wrapped here, since filters can leave a node fewer states than it was stepped through.
+  const index = count === 0 ? 0 : steps % count;
+  const tile = node.tiles[index];
+  const step = (by: number) => setSteps(index + by + count);
   return (
     <div
       // Raised once stepped, since another state can be larger than the first and overlap.
@@ -86,7 +87,7 @@ function Node({
               ‹
             </button>
           )}
-          <span className="node-state-name">{tile.snapshot.state}</span>
+          <span className="node-state-name">{tile?.snapshot.state ?? "No snapshots"}</span>
           {count > 1 && (
             <>
               <span className="node-count">
@@ -99,7 +100,15 @@ function Node({
           )}
         </div>
       </header>
-      <TileButton tile={{ ...tile, x: 0, y: nodeHeader }} onSelect={onSelect} />
+      {tile === undefined ? (
+        // The graph names a screen with no snapshots here: not rendered for this app, or none in
+        // this appearance.
+        <div className="placeholder" style={{ top: nodeHeader, height: node.height - nodeHeader }}>
+          No snapshots of {node.title} for this app in this appearance
+        </div>
+      ) : (
+        <TileButton tile={{ ...tile, x: 0, y: nodeHeader }} onSelect={onSelect} />
+      )}
     </div>
   );
 }

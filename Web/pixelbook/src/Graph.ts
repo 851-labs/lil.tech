@@ -1,8 +1,6 @@
 // Flowchart mode's graph files (`graphs/<app>.json`): how an app's screens connect, which previews
 // can't say. A node is a screen, named by the file its previews are in, and an edge is the action
 // that goes from one to another. The files ship with the viewer, so a PR's preview shows its graphs.
-import dagre from "@dagrejs/dagre";
-
 /** A screen on the flowchart. */
 export interface GraphScreen {
   /** Unique in the file; edges use it. */
@@ -102,82 +100,4 @@ export const graphProblems = (graph: Graph, previews: Previews): ReadonlyArray<s
     }
   }
   return problems;
-};
-
-/** A screen placed on the canvas: its top-left corner and size, in points. */
-export interface PlacedScreen {
-  readonly id: string;
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-}
-
-/** An edge's route, through points on the canvas, and where its label goes. */
-export interface PlacedEdge {
-  readonly from: string;
-  readonly to: string;
-  readonly label: string | undefined;
-  readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
-  readonly labelAt: { readonly x: number; readonly y: number } | undefined;
-}
-
-/** Spacing between screens, in points. */
-export const flowSpacing = { rank: 280, node: 120, label: { width: 240, height: 48 } };
-
-/**
- * Lays a graph out left to right with dagre, given each screen's size, then applies nudges. Edges
- * that a nudge moved an end of are drawn straight between the screens.
- */
-export const layoutFlow = (
-  graph: Graph,
-  sizes: ReadonlyMap<string, { readonly width: number; readonly height: number }>,
-): { readonly screens: ReadonlyArray<PlacedScreen>; readonly edges: ReadonlyArray<PlacedEdge> } => {
-  const shown = graph.screens.filter((screen) => sizes.has(screen.id));
-  const g = new dagre.graphlib.Graph({ multigraph: true });
-  g.setGraph({ rankdir: "LR", ranksep: flowSpacing.rank, nodesep: flowSpacing.node });
-  g.setDefaultEdgeLabel(() => ({}));
-  for (const screen of shown) {
-    const size = sizes.get(screen.id) ?? { width: 0, height: 0 };
-    g.setNode(screen.id, { width: size.width, height: size.height });
-  }
-  const edges = graph.edges.filter((edge) => g.hasNode(edge.from) && g.hasNode(edge.to));
-  for (const [index, edge] of edges.entries()) {
-    const label = edge.label === undefined ? {} : flowSpacing.label;
-    g.setEdge(edge.from, edge.to, { ...label, labelpos: "c" }, String(index));
-  }
-  dagre.layout(g);
-
-  const nudges = new Map(shown.map((screen) => [screen.id, screen.nudge ?? [0, 0]] as const));
-  const placed = shown.map((screen): PlacedScreen => {
-    const node = g.node(screen.id);
-    const [dx, dy] = nudges.get(screen.id) ?? [0, 0];
-    return {
-      id: screen.id,
-      x: node.x - node.width / 2 + dx,
-      y: node.y - node.height / 2 + dy,
-      width: node.width,
-      height: node.height,
-    };
-  });
-  const byId = new Map(placed.map((screen) => [screen.id, screen]));
-  const nudged = (id: string) => {
-    const [dx, dy] = nudges.get(id) ?? [0, 0];
-    return dx !== 0 || dy !== 0;
-  };
-  const placedEdges = edges.map((edge, index): PlacedEdge => {
-    const routed = g.edge({ v: edge.from, w: edge.to, name: String(index) });
-    const from = byId.get(edge.from);
-    const to = byId.get(edge.to);
-    if ((nudged(edge.from) || nudged(edge.to)) && from !== undefined && to !== undefined) {
-      const start = { x: from.x + from.width, y: from.y + from.height / 2 };
-      const end = { x: to.x, y: to.y + to.height / 2 };
-      const middle = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
-      return { ...edge, label: edge.label, points: [start, end], labelAt: middle };
-    }
-    const labelAt =
-      routed.x === undefined || routed.y === undefined ? undefined : { x: routed.x, y: routed.y };
-    return { ...edge, label: edge.label, points: routed.points ?? [], labelAt };
-  });
-  return { screens: placed, edges: placedEdges };
 };

@@ -10,11 +10,21 @@ import { type Graph, graphProblems, parseGraph, type Previews } from "../src/Gra
 const root = fileURLToPath(new URL("../../..", import.meta.url));
 export const graphsDirectory = fileURLToPath(new URL("../graphs", import.meta.url));
 
-/** A Swift file's preview names, in source order: `#Preview("Name")`, over one line or several. */
-export const previewNames = (source: string): ReadonlyArray<string> =>
-  [...source.matchAll(/#Preview\(\s*"((?:[^"\\]|\\.)*)"/g)].map(([, name]) =>
+/** Swift without its comments, so a commented-out preview doesn't count. */
+const withoutComments = (source: string) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
+/**
+ * A Swift file's previews' names, in source order: `#Preview("Name")`, over one line or several.
+ * Undefined if it has no previews; unnamed ones (`#Preview {`) count, but graphs can't name them.
+ */
+export const previewNames = (source: string): ReadonlyArray<string> | undefined => {
+  const code = withoutComments(source);
+  if (!/#Preview\s*[({]/.test(code)) return undefined;
+  return [...code.matchAll(/#Preview\(\s*"((?:[^"\\]|\\.)*)"/g)].map(([, name]) =>
     (name ?? "").replace(/\\(.)/g, "$1"),
   );
+};
 
 /** Every preview file in LilPackage's modules, keyed by `Module/File.swift`, as graphs name them. */
 export const scanPreviews = async (
@@ -26,7 +36,7 @@ export const scanPreviews = async (
     const files = await readdir(join(sources, module.name), { recursive: true });
     for (const file of files.filter((name) => name.endsWith(".swift"))) {
       const names = previewNames(await readFile(join(sources, module.name, file), "utf8"));
-      if (names.length > 0) previews.set(`${module.name}/${basename(file)}`, names);
+      if (names !== undefined) previews.set(`${module.name}/${basename(file)}`, names);
     }
   }
   return previews;

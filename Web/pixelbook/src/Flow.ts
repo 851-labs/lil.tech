@@ -1,14 +1,27 @@
 // Flowchart mode: each app's screens laid out by its graph file, a screen per node showing one state
-// at a time, with the screens the graph leaves out in a row below. Positions are in points.
-import { type Graph, layoutFlow, type PlacedEdge } from "./Graph.ts";
-import { byText, type Filters, type Label, layoutRow, shows, spacing, type Tile } from "./Grid.ts";
+// at a time, with the screens the graph leaves out in rows below. Positions are in points.
+import dagre from "@dagrejs/dagre";
+import type { Graph } from "./Graph.ts";
+import {
+  byText,
+  type Filters,
+  type Label,
+  layoutRow,
+  shows,
+  sourceOrder,
+  spacing,
+  type Tile,
+} from "./Grid.ts";
 import { appName, type Manifest, type Scheme, schemes, type Snapshot } from "./Snapshots.ts";
 
 /** A screen on the flowchart: one of its states at a time. */
 export interface FlowNode {
   readonly key: string;
   readonly title: string;
-  /** Its states' tiles, in the order the graph gives; the first shows to start with. */
+  /**
+   * Its states' tiles, in the order the graph gives; the first shows to start with. None if the
+   * graph names a screen this app has no snapshots of here, which shows as a placeholder.
+   */
   readonly tiles: ReadonlyArray<Tile>;
   readonly x: number;
   readonly y: number;
@@ -30,11 +43,14 @@ export interface FlowLayout {
 /** The height of a node's header: its screen's name, its state and the state picker. */
 export const nodeHeader = 112;
 
+/** A placeholder's size, for a screen without snapshots. */
+export const placeholder = { width: 480, height: 240 };
+
+/** Rows of screens left out of the graph wrap after this width, in points. */
+export const unlinkedRowWidth = 8000;
+
 /** `Module/File.swift`, as graph files name screens. */
 const screenKey = (snapshot: Snapshot) => `${snapshot.module}/${snapshot.file}`;
-
-const sourceOrder = (a: Snapshot, b: Snapshot) =>
-  (a.line ?? 0) - (b.line ?? 0) || byText(a.state, b.state);
 
 /**
  * Lays out each shown app's flowchart, one app below another. Each node shows the first color
@@ -61,13 +77,30 @@ export const layoutFlowchart = (
   for (const manifest of shown) {
     const graph = graphs.find((graph) => graph.app === manifest.app);
     const byScreen = Map.groupBy(manifest.snapshots.toSorted(sourceOrder), screenKey);
-    const tileFor = (snapshot: Snapshot): Tile | undefined => {
-      const variant = snapshot.variants[scheme];
-      if (variant === undefined) return undefined;
-      const { app, platform } = manifest;
-      const size = { width: variant.width / variant.scale, height: variant.height / variant.scale };
-      return { app, platform, snapshot, scheme, variant, x: 0, y: 0, ...size };
-    };
+    const tileFor = (snapshot: Snapshot) => layoutRow(manifest, [snapshot], [scheme]).tiles[0];
+
+    // The graph's screens, with the states it names (all, by default) that have this scheme.
+    const graphed = (graph?.screens ?? []).map((screen) => {
+      const snapshots = byScreen.get(screen.screen) ?? [];
+      const chosen =
+        screen.states === undefined
+          ? snapshots
+          : screen.states.flatMap((state) => snapshots.filter((s) => s.state === state));
+      const tiles = chosen.flatMap((snapshot) => tileFor(snapshot) ?? []);
+      return { id: screen.id, title: snapshots[0]?.screen ?? screen.screen, tiles };
+    });
+    // Screens the graph leaves out, so a missing one is easy to spot.
+    const inGraph = new Set(graph?.screens.map((screen) => screen.screen));
+    const rest = [...byScreen.keys()]
+      .filter((key) => !inGraph.has(key))
+      .flatMap((key) => {
+        const first = byScreen.get(key)?.find((snapshot) => tileFor(snapshot) !== undefined);
+        return first === undefined ? [] : [first];
+      })
+      .toSorted((a, b) => byText(a.screen, b.screen));
+    // An app with nothing in this appearance gets no section.
+    const anyGraphed = graphed.some((screen) => screen.tiles.length > 0);
+    if (!anyGraphed && rest.length === 0) continue;
 
     if (labels.length > 0) y += spacing.app;
     labels.push({
@@ -78,26 +111,14 @@ export const layoutFlowchart = (
     });
     y += spacing.appLabel;
 
-    // The graph's screens, with the states it names (all, by default) that have this scheme.
-    const graphed = new Map<string, { title: string; tiles: Tile[] }>();
-    for (const screen of graph?.screens ?? []) {
-      const snapshots = byScreen.get(screen.screen) ?? [];
-      const chosen =
-        screen.states === undefined
-          ? snapshots
-          : screen.states.flatMap((state) => snapshots.filter((s) => s.state === state));
-      const tiles = chosen.flatMap((snapshot) => tileFor(snapshot) ?? []);
-      const title = snapshots[0]?.screen ?? screen.screen;
-      if (tiles.length > 0) graphed.set(screen.id, { title, tiles });
-    }
-    if (graph !== undefined && graphed.size > 0) {
+    if (graph !== undefined && anyGraphed) {
       // Sized by the state shown first, so edges meet what's on screen. Other states can be
       // larger, and overlap their neighbors while they're showing.
       const sizes = new Map(
-        [...graphed].map(([id, { tiles }]) => [
-          id,
-          { width: tiles[0]?.width ?? 0, height: nodeHeader + (tiles[0]?.height ?? 0) },
-        ]),
+        graphed.map(({ id, tiles }) => {
+          const first = tiles[0] ?? placeholder;
+          return [id, { width: first.width, height: nodeHeader + first.height }] as const;
+        }),
       );
       const flow = layoutFlow(graph, sizes);
       // dagre's coordinates start near 0, but nudges can go negative.
@@ -106,8 +127,9 @@ export const layoutFlowchart = (
       const dx = spacing.margin - left;
       const dy = y - top;
       let bottom = y;
+      const byId = new Map(graphed.map((screen) => [screen.id, screen]));
       for (const placed of flow.screens) {
-        const { title, tiles } = graphed.get(placed.id) ?? { title: "", tiles: [] };
+        const { title, tiles } = byId.get(placed.id) ?? { title: "", tiles: [] };
         const node = { ...placed, x: placed.x + dx, y: placed.y + dy };
         nodes.push({ key: `${manifest.app}/${placed.id}`, title, tiles, ...node });
         bottom = Math.max(bottom, node.y + node.height);
@@ -126,35 +148,29 @@ export const layoutFlowchart = (
       y = bottom;
     }
 
-    // Screens the graph leaves out, so a missing one is easy to spot.
-    const inGraph = new Set(graph?.screens.map((screen) => screen.screen));
-    const rest = [...byScreen.keys()]
-      .filter((key) => !inGraph.has(key))
-      .flatMap((key) => {
-        const snapshots = byScreen.get(key) ?? [];
-        const first = snapshots.find((snapshot) => snapshot.variants[scheme] !== undefined);
-        return first === undefined ? [] : [first];
-      })
-      .toSorted((a, b) => byText(a.screen, b.screen));
     if (rest.length > 0) {
-      if (graphed.size > 0) y += spacing.row;
-      labels.push({
-        kind: "screen",
-        text: graph === undefined ? "No graph yet" : "Not in the graph",
-        x: spacing.margin,
-        y,
-      });
+      if (anyGraphed) y += spacing.row;
+      const text = graph === undefined ? "No graph yet" : "Not in the graph";
+      labels.push({ kind: "screen", text, x: spacing.margin, y });
       y += spacing.screenLabel;
-      const row = layoutRow(manifest, rest, [scheme]);
-      // Each screen's name above its tile.
-      y += spacing.screenLabel;
-      for (const tile of row.tiles) {
-        const x = spacing.margin + tile.x;
-        labels.push({ kind: "caption", text: tile.snapshot.screen, x, y: y - spacing.screenLabel });
-        unlinked.push({ ...tile, x, y });
+      // Each screen's name above its tile, in rows that wrap.
+      const tiles = layoutRow(manifest, rest, [scheme]).tiles;
+      let x = 0;
+      let rowHeight = 0;
+      for (const tile of tiles) {
+        if (x > 0 && x + tile.width > unlinkedRowWidth) {
+          y += spacing.screenLabel + rowHeight + spacing.row;
+          x = 0;
+          rowHeight = 0;
+        }
+        const placed = { ...tile, x: spacing.margin + x, y: y + spacing.screenLabel };
+        labels.push({ kind: "caption", text: tile.snapshot.screen, x: placed.x, y });
+        unlinked.push(placed);
+        x += tile.width + spacing.tile;
+        rowHeight = Math.max(rowHeight, tile.height);
+        width = Math.max(width, placed.x + tile.width);
       }
-      width = Math.max(width, spacing.margin + row.width);
-      y += row.height;
+      y += spacing.screenLabel + rowHeight;
     }
   }
   return {
@@ -165,4 +181,83 @@ export const layoutFlowchart = (
     width: width + spacing.margin,
     height: y + spacing.margin,
   };
+};
+
+/** A screen placed on the canvas: its top-left corner and size, in points. */
+export interface PlacedScreen {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** An edge's route, through points on the canvas, and where its label goes. */
+export interface PlacedEdge {
+  readonly from: string;
+  readonly to: string;
+  readonly label: string | undefined;
+  readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
+  readonly labelAt: { readonly x: number; readonly y: number } | undefined;
+}
+
+/** Spacing between screens, in points. */
+// Edge labels' room matches their CSS (`.edge-label`): up to 280 wide plus padding, two lines.
+export const flowSpacing = { rank: 320, node: 120, label: { width: 320, height: 96 } };
+
+/**
+ * Lays a graph out left to right with dagre, given each screen's size, then applies nudges. Edges
+ * that a nudge moved an end of are drawn straight between the screens.
+ */
+export const layoutFlow = (
+  graph: Graph,
+  sizes: ReadonlyMap<string, { readonly width: number; readonly height: number }>,
+): { readonly screens: ReadonlyArray<PlacedScreen>; readonly edges: ReadonlyArray<PlacedEdge> } => {
+  const shown = graph.screens.filter((screen) => sizes.has(screen.id));
+  const g = new dagre.graphlib.Graph({ multigraph: true });
+  g.setGraph({ rankdir: "LR", ranksep: flowSpacing.rank, nodesep: flowSpacing.node });
+  g.setDefaultEdgeLabel(() => ({}));
+  for (const screen of shown) {
+    const size = sizes.get(screen.id) ?? { width: 0, height: 0 };
+    g.setNode(screen.id, { width: size.width, height: size.height });
+  }
+  const edges = graph.edges.filter((edge) => g.hasNode(edge.from) && g.hasNode(edge.to));
+  for (const [index, edge] of edges.entries()) {
+    const label = edge.label === undefined ? {} : flowSpacing.label;
+    g.setEdge(edge.from, edge.to, { ...label, labelpos: "c" }, String(index));
+  }
+  dagre.layout(g);
+
+  const nudges = new Map(shown.map((screen) => [screen.id, screen.nudge ?? [0, 0]] as const));
+  const placed = shown.map((screen): PlacedScreen => {
+    const node = g.node(screen.id);
+    const [dx, dy] = nudges.get(screen.id) ?? [0, 0];
+    return {
+      id: screen.id,
+      x: node.x - node.width / 2 + dx,
+      y: node.y - node.height / 2 + dy,
+      width: node.width,
+      height: node.height,
+    };
+  });
+  const byId = new Map(placed.map((screen) => [screen.id, screen]));
+  const nudged = (id: string) => {
+    const [dx, dy] = nudges.get(id) ?? [0, 0];
+    return dx !== 0 || dy !== 0;
+  };
+  const placedEdges = edges.map((edge, index): PlacedEdge => {
+    const routed = g.edge({ v: edge.from, w: edge.to, name: String(index) });
+    const from = byId.get(edge.from);
+    const to = byId.get(edge.to);
+    if ((nudged(edge.from) || nudged(edge.to)) && from !== undefined && to !== undefined) {
+      const start = { x: from.x + from.width, y: from.y + from.height / 2 };
+      const end = { x: to.x, y: to.y + to.height / 2 };
+      const middle = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+      return { ...edge, label: edge.label, points: [start, end], labelAt: middle };
+    }
+    const labelAt =
+      routed.x === undefined || routed.y === undefined ? undefined : { x: routed.x, y: routed.y };
+    return { ...edge, label: edge.label, points: routed.points ?? [], labelAt };
+  });
+  return { screens: placed, edges: placedEdges };
 };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { checkGraphs, previewNames, scanPreviews } from "../scripts/graphs.ts";
-import { type Graph, graphProblems, layoutFlow, parseGraph } from "../src/Graph.ts";
+import { layoutFlow } from "../src/Flow.ts";
+import { type Graph, graphProblems, parseGraph } from "../src/Graph.ts";
 
 const graph: Graph = {
   app: "health-mac",
@@ -20,6 +21,14 @@ describe("graph files", () => {
   it("finds previews' names in Swift, over one line or several", () => {
     const source = `#Preview("Pinned") {}\n#Preview(\n  "Group",\n  traits: .x\n) {}\n#Preview("Say \\"hi\\"") {}`;
     expect(previewNames(source)).toEqual(["Pinned", "Group", 'Say "hi"']);
+  });
+
+  it("skips commented-out previews, and counts unnamed ones", () => {
+    expect(
+      previewNames('// #Preview("Old") {}\n/* #Preview("Older") {} */\n#Preview("New") {}'),
+    ).toEqual(["New"]);
+    expect(previewNames('#Preview {\n  Text("Hi")\n}')).toEqual([]);
+    expect(previewNames('// #Preview("Old") {}\nstruct A {}')).toBeUndefined();
   });
 
   it("says what's wrong with a graph's shape", () => {

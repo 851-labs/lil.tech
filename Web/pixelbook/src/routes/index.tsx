@@ -140,7 +140,10 @@ function Grid() {
               type="button"
               className={mode === value ? "on" : ""}
               aria-pressed={mode === value}
-              onClick={() => setSearch({ mode: value === "grid" ? undefined : value })}
+              // A tile from one mode may not be in the other.
+              onClick={() =>
+                setSearch({ mode: value === "grid" ? undefined : value, tile: undefined })
+              }
             >
               {value === "grid" ? "Grid" : "Flow"}
             </button>

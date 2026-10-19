@@ -64,6 +64,10 @@ export const spacing = {
 
 export const byText = (a: string, b: string) => a.localeCompare(b, "en");
 
+/** A screen's states in the order they're written in its file. */
+export const sourceOrder = (a: Snapshot, b: Snapshot) =>
+  (a.line ?? 0) - (b.line ?? 0) || byText(a.state, b.state);
+
 /** A row of tiles, placed from x = 0 and y = 0. */
 export const layoutRow = (
   manifest: Manifest,
@@ -111,9 +115,7 @@ export const layoutGrid = (manifests: ReadonlyArray<Manifest>, filters: Filters)
     const rows = [...screens.keys()]
       .toSorted(byText)
       .map((screen) => {
-        const states = (screens.get(screen) ?? []).toSorted(
-          (a, b) => (a.line ?? 0) - (b.line ?? 0) || byText(a.state, b.state),
-        );
+        const states = (screens.get(screen) ?? []).toSorted(sourceOrder);
         return { screen, ...layoutRow(manifest, states, shownSchemes) };
       })
       .filter((row) => row.tiles.length > 0);
