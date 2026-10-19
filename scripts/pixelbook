@@ -66,6 +66,7 @@ if [ "$command" = "publish" ]; then
   upload --render "$render" ${options[@]+"${options[@]}"}
   # About 100 MB, and the bucket has it now.
   rm -rf "$render"
+  exit 0
 fi
 
 if [ "$command" = "check" ]; then
