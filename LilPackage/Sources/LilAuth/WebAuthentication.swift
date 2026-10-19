@@ -51,18 +51,8 @@ func openInBrowser(
     await withCheckedContinuation { resume in
       continuation.setValue(resume)
       let started = ASWebAuthenticationSession(
-        url: url, callback: .customScheme(callbackScheme)
-      ) { url, error in
-        if let url {
-          finish(.success(url))
-        } else if let error = error as? ASWebAuthenticationSessionError,
-          error.code == .canceledLogin
-        {
-          finish(.failure(.canceled))
-        } else {
-          finish(.failure(.failed(error?.localizedDescription ?? "\(service) didn't answer")))
-        }
-      }
+        url: url, callback: .customScheme(callbackScheme),
+        completionHandler: browserCompletion(service: service, finish: finish))
       started.presentationContextProvider = anchor
       browser.session = started
       if !started.start() {
@@ -72,6 +62,27 @@ func openInBrowser(
   } onCancel: {
     Task { @MainActor in browser.session?.cancel() }
     finish(.failure(.canceled))
+  }
+}
+
+/// The browser session's completion handler, which reports how the sheet closed. Nonisolated:
+/// AuthenticationServices calls it on its own XPC queue, and a closure written inside
+/// `openInBrowser` would be main-actor-isolated, which Swift checks at runtime and traps on
+/// (851-2693).
+nonisolated func browserCompletion(
+  service: String,
+  finish: @escaping @Sendable (Result<URL, BrowserAuthorizationError>) -> Void
+) -> @Sendable (URL?, (any Error)?) -> Void {
+  { url, error in
+    if let url {
+      finish(.success(url))
+    } else if let error = error as? ASWebAuthenticationSessionError,
+      error.code == .canceledLogin
+    {
+      finish(.failure(.canceled))
+    } else {
+      finish(.failure(.failed(error?.localizedDescription ?? "\(service) didn't answer")))
+    }
   }
 }
 
