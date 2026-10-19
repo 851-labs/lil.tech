@@ -30,7 +30,7 @@ On the Mac that builds releases:
 
    If a key is lost, a Developer ID-signed app can still move to a new one: Sparkle accepts an update that changes the EdDSA key or the Developer ID certificate, but never both in the same release. So don't rotate the certificate and the key together.
 
-   Sparkle's tools (`generate_keys`, `sign_update`, `generate_appcast`) come from the Sparkle release archive on GitHub.
+   Sparkle's tools (`generate_keys`, `sign_update`, `generate_appcast`) come with its package: `scripts/release` uses the copy in its package checkouts (`build/releases/SourcePackages/artifacts/sparkle/Sparkle/bin`), or `SPARKLE_BIN` if set. They're also in the Sparkle release archive on GitHub. The keychain asks before each copy reads a key for the first time; Always Allow skips it after that.
 
 ## Building a release
 
@@ -41,11 +41,13 @@ scripts/release health 0.1.0   # lil health for Mac
 
 This:
 
-1. archives the app with that marketing version and a build number equal to the commit count;
-2. exports it with Developer ID;
-3. packages it into a DMG and signs that;
-4. notarizes and staples the DMG;
-5. verifies it with Gatekeeper.
+1. checks that the app's `SUPublicEDKey` is the public half of its signing key (`lil-<app>`), before building anything and again on the exported app (851-2692);
+2. archives the app with that marketing version and a build number equal to the commit count;
+3. exports it with Developer ID;
+4. packages it into a DMG and signs that;
+5. notarizes and staples the DMG;
+6. verifies it with Gatekeeper;
+7. signs the DMG for Sparkle, printing the `sparkle:edSignature` and `length` attributes for the appcast and saving them to `enclosure.txt`.
 
 The DMG is written to `build/releases/<app>/<version>/`.
 
@@ -55,9 +57,8 @@ Don't hand out a build before it's published: its build number is the commit cou
 
 ## Publishing a release
 
-1. **Build.** Build the notarized DMG with `scripts/release <app> <version>` from a clean `main`. Note the build number it prints; it's the commit count.
-2. **Sign for Sparkle.** Run `sign_update --account lil-<app> build/releases/<app>/<version>/<file>.dmg`. It prints the `sparkle:edSignature` and `length` attributes for the appcast.
-3. **Create the GitHub Release.**
+1. **Build.** Build the notarized, Sparkle-signed DMG with `scripts/release <app> <version>` from a clean `main`. Note the build number it prints (the commit count) and the enclosure attributes in `enclosure.txt`.
+2. **Create the GitHub Release.**
 
    ```
    git tag -a <app>/v<version> <commit> -m "lil <app> <version>"
@@ -65,10 +66,10 @@ Don't hand out a build before it's published: its build number is the commit cou
    gh release create <app>/v<version> <dmg> --verify-tag --title "lil <app> <version>"
    ```
 
-4. **Add an `<item>` to the top of `appcasts/<app>.xml`.** Set:
+3. **Add an `<item>` to the top of `appcasts/<app>.xml`.** Set:
    - `sparkle:version` to the build number;
    - `sparkle:shortVersionString` to the version;
-   - the `enclosure` to the signature and length from step 2.
+   - the `enclosure` to the signature and length from `enclosure.txt`.
 
    Merge it to `main`. Installed apps pick it up from `raw.githubusercontent.com`.
 

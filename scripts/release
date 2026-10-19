@@ -8,7 +8,9 @@
 # which Sparkle relies on to order updates.
 #
 # Requires the "Developer ID Application" certificate and a notarytool keychain profile named
-# lil-notary (see docs/RELEASING.md). Output goes to build/releases/<app>/<version>/.
+# lil-notary, and the app's Sparkle key in the keychain (see docs/RELEASING.md). Output goes to
+# build/releases/<app>/<version>/, with the appcast enclosure's signature and length in
+# enclosure.txt.
 set -euo pipefail
 
 if [ $# -lt 2 ]; then
@@ -25,6 +27,7 @@ case "$app" in
     scheme=LilMessages
     product="lil messages"
     dmg_name=lil-messages
+    info_plist=Apps/LilMessages/Info.plist
     # Signed with the Developer ID certificate alone: it claims no entitlements.
     provisioned=false
     ;;
@@ -32,6 +35,7 @@ case "$app" in
     scheme=LilHealth
     product="lil health"
     dmg_name=lil-health
+    info_plist=Apps/LilHealth/LilHealth-Info.plist
     # Its keychain access group (the data protection Keychain holds the session) needs a
     # Developer ID provisioning profile, which Xcode makes and renews.
     provisioned=true
@@ -60,6 +64,30 @@ rm -rf "$out"
 mkdir -p "$out"
 trap 'rm -rf "$out/DerivedData"' EXIT
 
+# Sparkle's tools come with its package, in the release's package checkouts. SPARKLE_BIN points
+# elsewhere, e.g. at a copy the keychain already lets read the signing key.
+packages=build/releases/SourcePackages
+sparkle_bin=${SPARKLE_BIN:-$packages/artifacts/sparkle/Sparkle/bin}
+
+# Installed copies only take updates signed with the key whose public half the app carries
+# (SUPublicEDKey). A wrong one can only be fixed through Sparkle's key rotation for Developer
+# ID-signed apps (docs/RELEASING.md), so it's checked before anything is built (851-2692).
+check_sparkle_key() {
+  local app_key signing_key
+  app_key=$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$1")
+  signing_key=$("$sparkle_bin/generate_keys" --account "lil-$app" -p | tail -1)
+  if [ "$app_key" != "$signing_key" ]; then
+    echo "SUPublicEDKey in $1 ($app_key) isn't the lil-$app key's public half ($signing_key)" >&2
+    exit 1
+  fi
+}
+
+echo "==> Resolving packages and checking the Sparkle key"
+xcodebuild -resolvePackageDependencies -workspace Lil.xcworkspace -scheme "$scheme" \
+  -derivedDataPath "$out/DerivedData" -clonedSourcePackagesDirPath "$packages" \
+  -onlyUsePackageVersionsFromResolvedFile -quiet
+check_sparkle_key "$info_plist"
+
 # In its own derived data: a release builds from scratch, so nothing stale from Xcode's builds
 # (such as a package graph it has cached) can break or end up in it. Package checkouts are kept
 # between releases, apart from Xcode's.
@@ -71,7 +99,7 @@ xcodebuild archive \
   -destination 'generic/platform=macOS' \
   -archivePath "$archive" \
   -derivedDataPath "$out/DerivedData" \
-  -clonedSourcePackagesDirPath build/releases/SourcePackages \
+  -clonedSourcePackagesDirPath "$packages" \
   -skipMacroValidation \
   ${provisioning[@]+"${provisioning[@]}"} \
   MARKETING_VERSION="$version" \
@@ -102,16 +130,8 @@ xcodebuild -exportArchive \
   ${provisioning[@]+"${provisioning[@]}"} \
   -quiet
 
-echo "==> Checking the Sparkle key"
-# Installed copies only accept updates signed with the key whose public half the app carries, so
-# a wrong SUPublicEDKey strands every one of them (851-2692). Sparkle's tools come with its package.
-sparkle_bin=build/releases/SourcePackages/artifacts/sparkle/Sparkle/bin
-app_key=$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$export_dir/$product.app/Contents/Info.plist")
-signing_key=$("$sparkle_bin/generate_keys" --account "lil-$app" -p | tail -1)
-if [ "$app_key" != "$signing_key" ]; then
-  echo "SUPublicEDKey ($app_key) isn't the lil-$app key's public half ($signing_key)" >&2
-  exit 1
-fi
+# Again on what was built, in case anything changed the key on the way.
+check_sparkle_key "$export_dir/$product.app/Contents/Info.plist"
 
 echo "==> Building DMG"
 staging="$out/dmg"
@@ -132,4 +152,8 @@ else
   echo "==> Skipping notarization"
 fi
 
-echo "==> $dmg"
+# Last, since stapling changes the DMG. With the key just checked against the app's.
+echo "==> Signing for Sparkle"
+"$sparkle_bin/sign_update" --account "lil-$app" "$dmg" | tee "$out/enclosure.txt"
+
+echo "==> $dmg (build $build_number)"
