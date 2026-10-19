@@ -11,8 +11,8 @@ private let google = SignInMethod(id: "idt_google", provider: .google, email: "a
 @MainActor
 private func section(_ configure: (inout SignInMethodsFeature.State) -> Void) -> some View {
   var state = SignInMethodsFeature.State(methods: .loaded([apple]))
-  state.isGoogleAvailable = true
-  state.appleWebAPI = URL(string: "https://api.lil.tech")
+  state.authorization.isGoogleAvailable = true
+  state.authorization.appleWebAPI = URL(string: "https://api.lil.tech")
   configure(&state)
   // `EmptyReducer`, so the section's `.task` doesn't replace the state shown.
   return Form {

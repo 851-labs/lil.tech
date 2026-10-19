@@ -62,19 +62,20 @@ public struct SignInMethodsSection: View {
       #if os(macOS)
         // Apple's web page, as on the sign-in screen. Not on a preview deployment, which Apple
         // can't return to.
-        if store.appleWebAPI != nil {
+        if store.authorization.appleWebAPI != nil {
           LinkButton(provider: provider, isLinking: isLinking) {
-            store.send(.linkAppleWebButtonTapped)
+            store.send(.authorization(.appleWebButtonTapped))
           }
           .disabled(store.isBusy)
         }
       #else
         SignInWithAppleButton(.continue) { request in
-          store.send(.linkAppleButtonTapped)
+          store.send(.authorization(.appleButtonTapped))
           request.requestedScopes = [.email]
-          request.nonce = store.nonceHash
+          request.nonce = store.authorization.nonceHash
         } onCompletion: { result in
-          store.send(.appleAuthorizationFinished(SignInView.credential(from: result)))
+          store.send(
+            .authorization(.appleAuthorizationFinished(SignInView.credential(from: result))))
         }
         .frame(height: SignInButtonMetrics.height)
         .disabled(store.isBusy)
@@ -84,7 +85,7 @@ public struct SignInMethodsSection: View {
       #endif
     case .google:
       LinkButton(provider: provider, isLinking: isLinking) {
-        store.send(.linkGoogleButtonTapped)
+        store.send(.authorization(.googleButtonTapped))
       }
       .disabled(store.isBusy)
     }

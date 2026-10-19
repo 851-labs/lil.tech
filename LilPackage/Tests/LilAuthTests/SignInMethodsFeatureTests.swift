@@ -14,7 +14,7 @@ struct SignInMethodsFeatureTests {
   @Test
   func loadsTheMethodsAndOffersTheOthers() async {
     var initial = SignInMethodsFeature.State()
-    initial.isGoogleAvailable = true
+    initial.authorization.isGoogleAvailable = true
     let store = TestStore(initialState: initial) {
       SignInMethodsFeature()
     } withDependencies: {
@@ -33,9 +33,9 @@ struct SignInMethodsFeatureTests {
   @Test
   func googleIsOnlyOfferedWithAClient() {
     var state = SignInMethodsFeature.State(methods: .loaded([apple]))
-    state.isGoogleAvailable = false
+    state.authorization.isGoogleAvailable = false
     #expect(state.linkableProviders.isEmpty)
-    state.isGoogleAvailable = true
+    state.authorization.isGoogleAvailable = true
     state.methods = .loaded([apple, google])
     #expect(state.linkableProviders.isEmpty)
     #expect(state.canUnlink)
@@ -44,7 +44,7 @@ struct SignInMethodsFeatureTests {
   @Test
   func linkingGoogle() async {
     var initial = SignInMethodsFeature.State(methods: .loaded([apple]))
-    initial.isGoogleAvailable = true
+    initial.authorization.isGoogleAvailable = true
     let store = TestStore(initialState: initial) {
       SignInMethodsFeature()
     } withDependencies: {
@@ -64,13 +64,17 @@ struct SignInMethodsFeatureTests {
       $0.signInMethods.list = { () throws(SignInMethodError) in [apple, google] }
     }
 
-    await store.send(.linkGoogleButtonTapped) {
+    await store.send(.authorization(.googleButtonTapped)) {
+      $0.authorization.googleRequest = zeroGoogleRequest
+    }
+    await store.receive(\.authorization.delegate.started) {
       $0.linking = .google
-      $0.googleRequest = zeroGoogleRequest
     }
-    await store.receive(\.googleAuthorizationFinished.success) {
-      $0.googleRequest = nil
+    await store.receive(\.authorization.googleAuthorizationFinished.success) {
+      $0.authorization.googleRequest = nil
     }
+    await store.receive(\.authorization.delegate.redeemingGoogle)
+    await store.receive(\.authorization.delegate.authorized)
     await store.receive(\.linkFinished.success) {
       $0.linking = nil
       $0.methods = .loaded([apple, google])
@@ -81,7 +85,7 @@ struct SignInMethodsFeatureTests {
   @Test
   func anAccountThatSignsInToAnotherUserIsRefused() async {
     var initial = SignInMethodsFeature.State(methods: .loaded([google]))
-    initial.nonce = zeroNonce
+    initial.authorization.nonce = zeroNonce
     initial.linking = .apple
     let store = TestStore(initialState: initial) {
       SignInMethodsFeature()
@@ -94,10 +98,12 @@ struct SignInMethodsFeatureTests {
     }
 
     await store.send(
-      .appleAuthorizationFinished(.success(AppleCredential(identityToken: "apple-token")))
+      .authorization(
+        .appleAuthorizationFinished(.success(AppleCredential(identityToken: "apple-token"))))
     ) {
-      $0.nonce = nil
+      $0.authorization.nonce = nil
     }
+    await store.receive(\.authorization.delegate.authorized)
     await store.receive(\.linkFinished.failure) {
       $0.linking = nil
       $0.failure = SignInMethodError.inUse(.apple).message
@@ -112,13 +118,17 @@ struct SignInMethodsFeatureTests {
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(Zeros())
     }
 
-    await store.send(.linkAppleButtonTapped) {
-      $0.linking = .apple
-      $0.nonce = zeroNonce
+    await store.send(.authorization(.appleButtonTapped)) {
+      $0.authorization.nonce = zeroNonce
     }
-    await store.send(.appleAuthorizationFinished(.failure(.canceled))) {
+    await store.receive(\.authorization.delegate.started) {
+      $0.linking = .apple
+    }
+    await store.send(.authorization(.appleAuthorizationFinished(.failure(.canceled)))) {
+      $0.authorization.nonce = nil
+    }
+    await store.receive(\.authorization.delegate.canceled) {
       $0.linking = nil
-      $0.nonce = nil
     }
   }
 
@@ -212,8 +222,70 @@ struct SignInMethodsFeatureTests {
       SignInMethodsFeature()
     }
 
-    await store.send(.googleAuthorizationFinished(.success(googleCallback(state: zeroState)))) {
+    await store.send(
+      .authorization(.googleAuthorizationFinished(.success(googleCallback(state: zeroState)))))
+    await store.receive(\.authorization.delegate.canceled) {
       $0.linking = nil
     }
+  }
+
+  @Test
+  func linkingIsntStartedWithoutAPageToOpen() async {
+    var initial = SignInMethodsFeature.State(methods: .loaded([google]))
+    // A preview deployment: Apple can't return to it, so its page doesn't open.
+    initial.authorization.appleWebAPI = nil
+    let store = TestStore(initialState: initial) {
+      SignInMethodsFeature()
+    }
+
+    await store.send(.authorization(.appleWebButtonTapped))
+    #expect(store.state.linking == nil)
+  }
+
+  @Test
+  func aLateAnswerFromAnotherPageDoesntEndALink() async {
+    let store = TestStore(
+      initialState: SignInMethodsFeature.State(methods: .loaded([google]), linking: .apple)
+    ) {
+      SignInMethodsFeature()
+    }
+
+    // Google's page answering after it closed, while Apple is being linked.
+    await store.send(
+      .authorization(.googleAuthorizationFinished(.success(googleCallback(state: zeroState)))))
+    await store.receive(\.authorization.delegate.canceled)
+    #expect(store.state.linking == .apple)
+  }
+
+  @Test
+  func linkingForgetsApplesName() async {
+    var initial = SignInMethodsFeature.State(methods: .loaded([google]))
+    initial.authorization.nonce = zeroNonce
+    initial.linking = .apple
+    let store = TestStore(initialState: initial) {
+      SignInMethodsFeature()
+    } withDependencies: {
+      $0.signInMethods.linkApple = { _, _ throws(SignInMethodError) in apple }
+      $0.signInMethods.list = { () throws(SignInMethodError) in [google, apple] }
+    }
+
+    await store.send(
+      .authorization(
+        .appleAuthorizationFinished(
+          .success(AppleCredential(identityToken: "t", givenName: "Ada", familyName: "Lovelace"))))
+    ) {
+      $0.authorization.nonce = nil
+      $0.authorization.givenName = "Ada"
+      $0.authorization.familyName = "Lovelace"
+    }
+    await store.receive(\.authorization.delegate.authorized) {
+      $0.authorization.givenName = nil
+      $0.authorization.familyName = nil
+    }
+    await store.receive(\.linkFinished.success) {
+      $0.linking = nil
+      $0.methods = .loaded([google, apple])
+    }
+    await store.receive(\.methodsLoaded.success)
   }
 }

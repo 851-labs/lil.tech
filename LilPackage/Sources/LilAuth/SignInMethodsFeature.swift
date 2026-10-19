@@ -1,9 +1,10 @@
 public import ComposableArchitecture
-public import Foundation
+import Foundation
 import LilAPI
 
 /// The account's sign-in methods, in account settings: linking another provider's account (with
-/// the same Apple and Google flows as signing in) and unlinking one, never the last. Accounts are
+/// the same Apple and Google flows as signing in, `ProviderAuthorization`) and unlinking one,
+/// never the last. Accounts are
 /// never linked by email, or merged (`docs/DECISIONS.md`).
 @Reducer
 public struct SignInMethodsFeature {
@@ -16,16 +17,8 @@ public struct SignInMethodsFeature {
     public var unlinking: SignInMethod.ID?
     /// Why the last link or unlink didn't work.
     public var failure: String?
-    /// The raw nonce for Apple's sheet, whose SHA-256 (``nonceHash``) Apple gets.
-    public var nonce: String?
-    /// The Google sign-in in the browser, while it's open.
-    public var googleRequest: GoogleAuthorizationRequest?
-    /// The Apple sign-in in the browser, while it's open (the Mac).
-    public var appleWebRequest: AppleWebAuthorizationRequest?
-    /// Whether the app has a Google OAuth client, so Google can be linked.
-    public var isGoogleAvailable: Bool
-    /// The API Apple's web sign-in returns through, on the Mac (`AppleWebAuthorizationRequest`).
-    public var appleWebAPI: URL?
+    /// The provider flows: Apple's sheet or page, and Google's page.
+    public var authorization = ProviderAuthorization.State(owner: "sign-in-methods")
     @Presents public var alert: AlertState<Action.Alert>?
 
     public enum Methods: Equatable {
@@ -38,18 +31,10 @@ public struct SignInMethodsFeature {
       methods: Methods = .loading, linking: SignInMethod.Provider? = nil,
       unlinking: SignInMethod.ID? = nil, failure: String? = nil
     ) {
-      @Dependency(\.googleOAuth) var googleOAuth
       self.methods = methods
       self.linking = linking
       self.unlinking = unlinking
       self.failure = failure
-      self.isGoogleAvailable = googleOAuth.clientID != nil
-      self.appleWebAPI = AppleWebAuthorizationRequest.api(for: APIEnvironment.current())
-    }
-
-    /// What Apple's request `nonce` is set to.
-    public var nonceHash: String? {
-      nonce.map(Nonce.sha256Hex)
     }
 
     /// The providers the account can link: those it hasn't, that this app can sign in with.
@@ -57,7 +42,7 @@ public struct SignInMethodsFeature {
       guard case .loaded(let methods) = methods else { return [] }
       return SignInMethod.Provider.allCases.filter { provider in
         !methods.contains { $0.provider == provider }
-          && (provider != .google || isGoogleAvailable)
+          && (provider != .google || authorization.isGoogleAvailable)
       }
     }
 
@@ -77,14 +62,7 @@ public struct SignInMethodsFeature {
     case task
     case retryButtonTapped
     case methodsLoaded(Result<[SignInMethod], SignInMethodError>)
-    /// The iPhone's Apple button was tapped, just before Apple's sheet appears.
-    case linkAppleButtonTapped
-    case appleAuthorizationFinished(Result<AppleCredential, SignInFeature.AppleAuthorizationError>)
-    /// The Mac's Apple button: Apple's web page, in the browser.
-    case linkAppleWebButtonTapped
-    case appleWebAuthorizationFinished(Result<URL, SignInFeature.AppleAuthorizationError>)
-    case linkGoogleButtonTapped
-    case googleAuthorizationFinished(Result<URL, GoogleAuthorizationError>)
+    case authorization(ProviderAuthorization.Action)
     case linkFinished(Result<SignInMethod, SignInMethodError>)
     case unlinkButtonTapped(SignInMethod)
     case unlinkFinished(Result<SignInMethod.ID, SignInMethodError>)
@@ -95,23 +73,22 @@ public struct SignInMethodsFeature {
     }
   }
 
-  enum CancelID { case google, appleWeb, requests }
+  enum CancelID { case requests }
 
   /// Stops everything under way, e.g. when the account signs out while the section stays.
   public static func cancel<Action>() -> Effect<Action> {
     .merge(
-      .cancel(id: CancelID.google), .cancel(id: CancelID.appleWeb),
-      .cancel(id: CancelID.requests))
+      ProviderAuthorization.cancel(owner: "sign-in-methods"), .cancel(id: CancelID.requests))
   }
 
-  @Dependency(\.appleWebSignIn) var appleWebSignIn
-  @Dependency(\.googleOAuth) var googleOAuth
   @Dependency(\.signInMethods) var signInMethods
-  @Dependency(\.withRandomNumberGenerator) var withRandomNumberGenerator
 
   public init() {}
 
   public var body: some ReducerOf<Self> {
+    Scope(\.authorization, action: \.authorization) {
+      ProviderAuthorization()
+    }
     Reduce { state, action in
       switch action {
       case .task:
@@ -131,87 +108,40 @@ public struct SignInMethodsFeature {
         state.methods = .failed(error.message)
         return .none
 
-      case .linkAppleButtonTapped:
+      case .authorization(.delegate(.started(let provider))):
         state.failure = nil
-        state.linking = .apple
-        state.nonce = withRandomNumberGenerator { Nonce.randomHex(bytes: 32, using: &$0) }
+        state.linking = SignInMethod.Provider(provider)
         return .none
 
-      case .appleAuthorizationFinished(let result):
-        return finishApple(result, &state)
-
-      case .linkAppleWebButtonTapped:
-        guard let api = state.appleWebAPI else { return .none }
-        state.failure = nil
-        state.linking = .apple
-        let request = withRandomNumberGenerator {
-          AppleWebAuthorizationRequest.make(api: api, using: &$0)
-        }
-        state.nonce = request.nonce
-        state.appleWebRequest = request
-        return .run { [appleWebSignIn] send in
-          await send(.appleWebAuthorizationFinished(await appleWebSignIn.authorize(request)))
-        }
-        .cancellable(id: CancelID.appleWeb, cancelInFlight: true)
-
-      case .appleWebAuthorizationFinished(let result):
-        guard let request = state.appleWebRequest else {
-          state.linking = nil
-          state.nonce = nil
-          return .none
-        }
-        state.appleWebRequest = nil
-        return finishApple(
-          result.flatMap { callback in
-            Result { () throws(SignInFeature.AppleAuthorizationError) in
-              try request.credential(from: callback)
-            }
-          },
-          &state)
-
-      case .linkGoogleButtonTapped:
-        guard let clientID = googleOAuth.clientID else { return .none }
-        state.failure = nil
-        state.linking = .google
-        let request = withRandomNumberGenerator { generator in
-          GoogleAuthorizationRequest.make(clientID: clientID, using: &generator)
-        }
-        state.googleRequest = request
-        return .run { [googleOAuth] send in
-          await send(.googleAuthorizationFinished(await googleOAuth.authorize(request)))
-        }
-        .cancellable(id: CancelID.google, cancelInFlight: true)
-
-      case .googleAuthorizationFinished(let result):
-        guard let request = state.googleRequest else {
-          state.linking = nil
-          return .none
-        }
-        state.googleRequest = nil
-        let code: String
-        do throws(GoogleAuthorizationError) {
-          code = try request.code(from: result.get())
-        } catch {
-          state.linking = nil
-          if case .failed(let reason) = error {
-            state.failure = SignInMethodError.failed(reason).message
-          }
-          return .none
-        }
-        return .run { [googleOAuth, signInMethods] send in
+      case .authorization(.delegate(.authorized(let credential))):
+        // Linking never sends Apple's name, so it isn't kept.
+        state.authorization.forgetName()
+        return .run { [signInMethods] send in
           await send(
             .linkFinished(
               await catching { () async throws(SignInMethodError) in
-                let idToken: String
-                do {
-                  idToken = try await googleOAuth.redeem(code, request)
-                } catch {
-                  throw .failed(error.localizedDescription)
+                switch credential {
+                case .apple(let credential, let nonce):
+                  try await signInMethods.linkApple(credential, nonce)
+                case .google(let idToken, let nonce):
+                  try await signInMethods.linkGoogle(idToken, nonce)
                 }
-                return try await signInMethods.linkGoogle(idToken, request.nonce)
               }))
         }
         .cancellable(id: CancelID.requests)
+
+      // Only for the provider being linked: a late answer from another page changes nothing.
+      case .authorization(.delegate(.canceled(let provider))):
+        if state.linking == SignInMethod.Provider(provider) { state.linking = nil }
+        return .none
+
+      case .authorization(.delegate(.failed(let provider, let failure))):
+        if state.linking == SignInMethod.Provider(provider) { state.linking = nil }
+        state.failure = SignInMethodError(failure).message
+        return .none
+
+      case .authorization:
+        return .none
 
       case .linkFinished(.success(let method)):
         state.linking = nil
@@ -285,38 +215,6 @@ public struct SignInMethodsFeature {
     }
     .cancellable(id: CancelID.requests)
   }
-
-  /// Links the Apple account from Apple's answer, from the native sheet (the iPhone) or Apple's
-  /// web page (the Mac), with the nonce kept for the request.
-  private func finishApple(
-    _ result: Result<AppleCredential, SignInFeature.AppleAuthorizationError>, _ state: inout State
-  ) -> Effect<Action> {
-    let nonce = state.nonce
-    state.nonce = nil
-    switch result {
-    case .success(let credential):
-      guard let nonce else {
-        state.linking = nil
-        state.failure = SignInMethodError.rejected.message
-        return .none
-      }
-      return .run { [signInMethods] send in
-        await send(
-          .linkFinished(
-            await catching { () async throws(SignInMethodError) in
-              try await signInMethods.linkApple(credential, nonce)
-            }))
-      }
-      .cancellable(id: CancelID.requests)
-    case .failure(.canceled):
-      state.linking = nil
-      return .none
-    case .failure(.failed(let reason)):
-      state.linking = nil
-      state.failure = SignInMethodError.failed(reason).message
-      return .none
-    }
-  }
 }
 
 /// What `body` returned or threw.
@@ -327,5 +225,24 @@ private func catching<Success>(
     return .success(try await body())
   } catch {
     return .failure(error)
+  }
+}
+
+extension SignInMethodError {
+  init(_ failure: ProviderAuthorization.AuthorizationFailure) {
+    switch failure {
+    case .unavailable: self = .unavailable
+    case .rejected: self = .rejected
+    case .failed(let reason): self = .failed(reason)
+    }
+  }
+}
+
+extension SignInMethod.Provider {
+  init(_ provider: ProviderAuthorization.Provider) {
+    switch provider {
+    case .apple: self = .apple
+    case .google: self = .google
+    }
   }
 }

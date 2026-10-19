@@ -44,7 +44,7 @@ public struct AppleWebAuthorizationRequest: Equatable, Sendable {
   /// from Apple's answer as the API's return URL passes it on.
   public func credential(
     from callback: URL
-  ) throws(SignInFeature.AppleAuthorizationError) -> AppleCredential {
+  ) throws(ProviderAuthorization.AppleAuthorizationError) -> AppleCredential {
     let query = CallbackQuery(callback)
     let value = { (name: String) in query[name] }
     if let error = value("error") {
@@ -110,13 +110,13 @@ extension DependencyValues {
 public struct AppleWebSignIn: Sendable {
   public var authorize:
     @Sendable (_ request: AppleWebAuthorizationRequest) async -> Result<
-      URL, SignInFeature.AppleAuthorizationError
+      URL, ProviderAuthorization.AppleAuthorizationError
     >
 
   public init(
     authorize:
       @escaping @Sendable (_ request: AppleWebAuthorizationRequest) async -> Result<
-        URL, SignInFeature.AppleAuthorizationError
+        URL, ProviderAuthorization.AppleAuthorizationError
       >
   ) {
     self.authorize = authorize

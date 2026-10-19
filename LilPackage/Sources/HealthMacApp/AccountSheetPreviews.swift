@@ -13,8 +13,8 @@ private func sheet(_ status: DataExportFeature.State.Status) -> some View {
     methods: .loaded([
       SignInMethod(id: "idt_apple", provider: .apple, email: "x7y2@privaterelay.appleid.com")
     ]))
-  state.signInMethods.isGoogleAvailable = true
-  state.signInMethods.appleWebAPI = URL(string: "https://api.lil.tech")
+  state.signInMethods.authorization.isGoogleAvailable = true
+  state.signInMethods.authorization.appleWebAPI = URL(string: "https://api.lil.tech")
   state.dataExport.status = status
   // `EmptyReducer`, so the sections' tasks don't replace the state shown.
   return AccountSheet(store: Store(initialState: state) { EmptyReducer() })
