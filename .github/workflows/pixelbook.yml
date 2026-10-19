@@ -1,0 +1,34 @@
+name: Pixelbook
+
+# Points Pixelbook's `main` at each merge (`scripts/pixelbook publish --pointers-only`). Snapshots are
+# rendered and published before a push, on developers' Macs (lefthook's pre-push hook), and no one
+# pushes main's squash merges. A merge shares its branch's snapshots when the branch was up to date
+# with main; otherwise main keeps pointing at its last published commit until someone publishes it
+# (`scripts/pixelbook publish` on main). Never renders: that needs Xcode.
+
+on:
+  push:
+    branches: [main]
+
+# In order, so main's pointer doesn't move back.
+concurrency:
+  group: pixelbook-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  point-main:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # All of main, so a late or re-run job can tell its commit is behind main's pointer.
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-services
+      - name: Point main at this commit's snapshots
+        run: scripts/pixelbook publish --pointers-only --ref main
