@@ -32,6 +32,13 @@ export const stageDomains: Partial<
   staging: { api: "api.staging.lil.tech", site: "staging.lil.tech" },
 };
 
+/**
+ * Pixelbook's bucket of snapshots (851-2696), prod's only, which every stage's Pixelbook reads, and
+ * the domain it's public at.
+ */
+export const pixelbookBucketName = "lil-pixelbook";
+export const pixelbookAssetsDomain = "pixelbook-assets.lil.tech";
+
 export const environmentForStage = (stage: string): Environment => {
   if (stage === "prod" || stage === "staging") return stage;
   return stage.startsWith("dev_") ? "local" : "preview";

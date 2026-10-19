@@ -5,10 +5,15 @@
 # file, preview name, line).
 # Usage: scripts/pixelbook render [out-dir]
 #          scripts/pixelbook check
+#          scripts/pixelbook publish [--ref <name>] [--dry-run]
 #   render   Renders into out-dir, as <app>/<light|dark>/ (default build/pixelbook/<commit>). It's
 #            replaced, so it must be new, empty, or under build/.
 #   check    Renders twice and fails if any image's pixels differ, or if a preview reported an
 #            issue: snapshots must only change when the UI does (851-2698).
+#   publish  Uploads HEAD's snapshots to Pixelbook's bucket (Services/api/scripts/pixelbook.ts),
+#            rendering them first unless they're already there, and points HEAD and the ref (the
+#            current branch by default) at them. Snapshots are keyed by what they're rendered
+#            from, so those paths must be committed: a commit sharing them shares the snapshots.
 # PIXELBOOK_STRICT=1 makes render exit 2 when a preview reports an issue, instead of warning.
 # PIXELBOOK_SIMULATOR picks the iPhone simulator (default "iPhone 18 Pro"); images take its size.
 # Previews render with preview dependencies, as in Xcode (SWIFT_DEPENDENCIES_CONTEXT). Not with
@@ -19,13 +24,49 @@
 set -euo pipefail
 
 command=${1:-}
-if [ "$command" != "render" ] && [ "$command" != "check" ]; then
-  echo "usage: scripts/pixelbook render [out-dir] | scripts/pixelbook check" >&2
+if [ "$command" != "render" ] && [ "$command" != "check" ] && [ "$command" != "publish" ]; then
+  echo "usage: scripts/pixelbook render [out-dir] | check | publish [--ref <name>] [--dry-run]" >&2
   exit 64
 fi
 caller=$PWD
 cd "$(dirname "$0")/.."
 root=$PWD
+
+if [ "$command" = "publish" ]; then
+  shift
+  ref=$(git symbolic-ref --short -q HEAD || true)
+  options=()
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --ref) ref=${2:?--ref needs a name}; shift 2 ;;
+      --dry-run) options+=(--dry-run); shift ;;
+      *) echo "Unknown option $1" >&2; exit 64 ;;
+    esac
+  done
+  # What previews render from: the package, the snapshot project and this script.
+  inputs=(LilPackage Tools/PixelbookSnapshots scripts/pixelbook)
+  if [ -n "$(git status --porcelain -- "${inputs[@]}")" ]; then
+    echo "Commit or stash your changes to ${inputs[*]} first: snapshots are keyed by commit." >&2
+    exit 1
+  fi
+  key=$(for input in "${inputs[@]}"; do git rev-parse "HEAD:$input"; done | shasum -a 256 | cut -c1-16)
+  commit=$(git rev-parse HEAD)
+  [ -n "$ref" ] && options+=(--ref "$ref")
+  upload() { (cd Services/api && node scripts/pixelbook.ts --key "$key" --commit "$commit" "$@"); }
+  status=0
+  upload ${options[@]+"${options[@]}"} || status=$?
+  [ "$status" -ne 3 ] && exit "$status"
+  render="$root/build/pixelbook/$key"
+  "$root/scripts/pixelbook" render "$render"
+  # Rendering syncs the snapshot project's pins with LilPackage's: changed pins aren't in the key.
+  if [ -n "$(git status --porcelain -- "${inputs[@]}")" ]; then
+    echo "Rendering changed ${inputs[*]} (the snapshot project's pins?): commit that, then publish." >&2
+    exit 1
+  fi
+  upload --render "$render" ${options[@]+"${options[@]}"}
+  # About 100 MB, and the bucket has it now.
+  rm -rf "$render"
+fi
 
 if [ "$command" = "check" ]; then
   first="$root/build/pixelbook/check-1"
