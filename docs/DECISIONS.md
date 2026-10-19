@@ -312,6 +312,8 @@ An infinite canvas of every app state, rendered from SwiftUI previews, as a grid
   - **The key's inputs** are listed in `scripts/pixelbook`, so changing that list (as 851-2703 did) gives older commits different keys than they were published under: comparisons need both sides published under the current list.
 - **lil messages** (851-2705): its own Mac test target, `MessagesMacSnapshots`, linking `MessagesApp`, renders as `messages-mac`, with a graph like lil health's.
   - Its sent iMessage bubbles are one solid blue now, not Messages.app's gradient across the visible thread. The gradient followed the scroll position, so a snapshot's colors depended on when it was drawn, and dropping it was simpler than chasing every update (our call, after it made a preview flaky).
+- **Backgrounds** (851-2708): iPhone snapshots that grew to show a scroll view's content are transparent past the screen, so the viewer shows them over iOS's system background for their appearance (white or black), as it does Mac ones over the window color. Over the canvas, dark mode's white text was nearly invisible.
+- **Mac sidebars** render without their icons in light mode, and with dim text in dark. SnapshotPreviews draws Mac previews with `cacheDisplay`, which misses vibrant content; capturing the window would fix it, but choosing that means depending on SnapshotPreviews in the apps or forking it (851-2711).
 - **Spike results** (851-2697, lil health): 133 Mac and 52 iPhone previews, 370 images in light and dark. About 4 minutes cold, and 2 minutes warm.
   - Two runs are pixel-identical, though PNG metadata differs, so images are compared by pixels, not bytes.
   - Mac images have transparent backgrounds, so they're shown over the window color for their appearance.

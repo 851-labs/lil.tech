@@ -6,10 +6,7 @@
   --text: light-dark(#1c1c1e, #f2f2f4);
   --secondary: light-dark(#6e6e73, #a1a1a6);
   --accent: light-dark(#0a66ff, #4c8dff);
-  /* The Mac's window background (NSColor.windowBackgroundColor) per appearance: Mac snapshots are
-     transparent, so they're shown over it, as in a window. */
-  --mac-light: #ffffff;
-  --mac-dark: #1e1e1e;
+
   font-family:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 13px;
@@ -185,12 +182,28 @@ a:hover {
   outline-offset: 4px;
 }
 
-.macos.light {
-  background: var(--mac-light);
+/* What a snapshot is shown over, per platform and appearance. The Mac's window background
+   (NSColor.windowBackgroundColor): Mac snapshots are transparent, as in a window. iOS's system
+   background (UIColor.systemBackground): iPhone snapshots that grew to show a scroll view's content
+   are transparent too. */
+.macos {
+  --snapshot-light: #ffffff;
+  --snapshot-dark: #1e1e1e;
 }
 
-.macos.dark {
-  background: var(--mac-dark);
+.ios {
+  --snapshot-light: #ffffff;
+  --snapshot-dark: #000000;
+}
+
+.macos.light,
+.ios.light {
+  background: var(--snapshot-light);
+}
+
+.macos.dark,
+.ios.dark {
+  background: var(--snapshot-dark);
 }
 
 .ios.tile {

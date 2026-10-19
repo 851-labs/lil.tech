@@ -56,8 +56,10 @@ private let heartRate = "HKQuantityTypeIdentifierHeartRate"
 }
 
 #Preview("Not a quantity") {
+  // A characteristic, which won't get a chart: the fallback's preview went stale once workouts got
+  // their own screen (851-2708).
   let _ = preparePreviewDatabase()
-  MetricDetailView(type: HealthCatalog.type(id: "HKWorkoutTypeIdentifier")!)
+  MetricDetailView(type: HealthCatalog.type(id: "HKCharacteristicTypeIdentifierBloodType")!)
     .previewFrame(width: 760, height: 400)
 }
 
