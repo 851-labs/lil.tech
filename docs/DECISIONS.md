@@ -266,6 +266,24 @@
 - **Contact names:** resolved through the Contacts framework, which requires the Contacts permission.
 - **Onboarding:** a first-launch flow that walks through granting Full Disk Access, Automation and Contacts.
 
+## Pixelbook
+
+An infinite canvas of every app state, rendered from SwiftUI previews, as a grid or a flowchart, with "what changed" on each PR (851-2696).
+
+- **Capture:** [SnapshotPreviews](https://github.com/getsentry/SnapshotPreviews) (MIT, pinned exactly) finds every `#Preview` in a test binary and writes a PNG and a JSON sidecar (module, file, preview name, line) for each. `scripts/pixelbook render` runs it for each app, light and dark.
+  - **Its own project,** `Tools/PixelbookSnapshots/PixelbookSnapshots.xcodeproj`, so LilPackage's tests and the pre-commit hook don't render previews. It has a test target per app.
+  - **Pins:** the project's pins are copied from LilPackage's `Package.resolved` before each run, so previews render against the apps' library versions.
+  - **Mac previews** render in a plain test target. The app's appearance is set from `PIXELBOOK_APPEARANCE`.
+  - **iPhone previews** need a running app, so their test is hosted by an empty app (`PixelbookHost`) in the iPhone 18 Pro simulator (`PIXELBOOK_SIMULATOR`). The appearance is set by `simctl` and put back afterwards.
+  - **Preview dependencies:** everything renders with `SWIFT_DEPENDENCIES_CONTEXT=preview`, as in Xcode. Not with `XCODE_RUNNING_FOR_PREVIEWS`, which switches SwiftUI into its preview layout and changes image sizes.
+  - **Warnings:** a preview that reports an issue (a runtime warning in Xcode) fails its test but still renders, so the script warns. A run that renders nothing fails it.
+  - **Broken framework signature:** SnapshotPreviews ships `PreviewsSupport.framework`'s macOS slice with a broken signature, which macOS refuses to load and may move to the Trash as malware ([issue 236](https://github.com/getsentry/SnapshotPreviews/issues/236)). The script re-signs it ad hoc, in its own package checkout. It's only a test dependency and never ships.
+  - **Diagnostics:** `xcodebuild` runs with `-collect-test-diagnostics never`, since collecting simulator diagnostics after a run could hang it for many minutes. Plain `swift test` couldn't load the binary framework, so it's `xcodebuild` throughout.
+- **Spike results** (851-2697, lil health): 133 Mac and 52 iPhone previews, 370 images in light and dark. About 4 minutes cold, and 2 minutes warm.
+  - Two runs are pixel-identical, though PNG metadata differs, so images are compared by pixels, not bytes.
+  - Mac images have transparent backgrounds, so they're shown over the window color for their appearance.
+  - **28 previews report issues:** 23 Mac ones read the database without preparing it, and 5 iPhone ones trip TCA's presentation-binding check. They're for 851-2698, after which warnings can fail the run.
+
 ## Open questions
 
 - What "lil" means as a product idea, and what v1 of lil messages includes.
