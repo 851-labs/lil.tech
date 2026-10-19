@@ -1,0 +1,28 @@
+{
+  "app": "messages-mac",
+  "screens": [
+    {
+      "id": "window",
+      "screen": "MessagesApp/AppViewPreviews.swift",
+      "title": "Window",
+      "states": ["Thread Open", "Nothing Selected", "Needs Full Disk Access", "Checking Access"]
+    },
+    { "id": "full-disk-access", "screen": "OnboardingFeature/FullDiskAccessView.swift" },
+    {
+      "id": "conversations",
+      "screen": "ConversationListFeature/ConversationListViewPreviews.swift",
+      "title": "Conversations"
+    },
+    {
+      "id": "thread",
+      "screen": "MessageThreadFeature/MessageThreadViewPreviews.swift",
+      "title": "Thread"
+    }
+  ],
+  "edges": [
+    { "from": "window", "to": "full-disk-access", "label": "No Full Disk Access yet" },
+    { "from": "full-disk-access", "to": "window", "label": "Turn it on, then Check Again" },
+    { "from": "window", "to": "conversations", "label": "The sidebar" },
+    { "from": "conversations", "to": "thread", "label": "Choose a conversation" }
+  ]
+}

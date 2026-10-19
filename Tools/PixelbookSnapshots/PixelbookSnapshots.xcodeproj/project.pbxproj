@@ -10,7 +10,9 @@
 		2B000000000000000000000A /* HealthPhoneApp in Frameworks */ = {isa = PBXBuildFile; productRef = 2B000000000000000000000B /* HealthPhoneApp */; };
 		2B0000000000000000000012 /* SnapshottingTests in Frameworks */ = {isa = PBXBuildFile; productRef = 2B0000000000000000000013 /* SnapshottingTests */; };
 		2D000000000000000000000A /* HealthMacApp in Frameworks */ = {isa = PBXBuildFile; productRef = 2D000000000000000000000B /* HealthMacApp */; };
+		2E000000000000000000000A /* MessagesApp in Frameworks */ = {isa = PBXBuildFile; productRef = 2E000000000000000000000B /* MessagesApp */; };
 		2D0000000000000000000012 /* SnapshottingTests in Frameworks */ = {isa = PBXBuildFile; productRef = 2D0000000000000000000013 /* SnapshottingTests */; };
+		2E0000000000000000000012 /* SnapshottingTests in Frameworks */ = {isa = PBXBuildFile; productRef = 2E0000000000000000000013 /* SnapshottingTests */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,6 +29,7 @@
 		2A0000000000000000000004 /* PixelbookHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PixelbookHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B0000000000000000000004 /* HealthPhoneSnapshots.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HealthPhoneSnapshots.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D0000000000000000000004 /* HealthMacSnapshots.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HealthMacSnapshots.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2E0000000000000000000004 /* MessagesMacSnapshots.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MessagesMacSnapshots.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -43,6 +46,11 @@
 		2D0000000000000000000005 /* HealthMacSnapshots */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = HealthMacSnapshots;
+			sourceTree = "<group>";
+		};
+		2E0000000000000000000005 /* MessagesMacSnapshots */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MessagesMacSnapshots;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -73,6 +81,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		2E0000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2E000000000000000000000A /* MessagesApp in Frameworks */,
+				2E0000000000000000000012 /* SnapshottingTests in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -82,6 +99,7 @@
 				2A0000000000000000000005 /* PixelbookHost */,
 				2B0000000000000000000005 /* HealthPhoneSnapshots */,
 				2D0000000000000000000005 /* HealthMacSnapshots */,
+				2E0000000000000000000005 /* MessagesMacSnapshots */,
 				2A0000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -92,6 +110,7 @@
 				2A0000000000000000000004 /* PixelbookHost.app */,
 				2B0000000000000000000004 /* HealthPhoneSnapshots.xctest */,
 				2D0000000000000000000004 /* HealthMacSnapshots.xctest */,
+				2E0000000000000000000004 /* MessagesMacSnapshots.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -168,6 +187,30 @@
 			productReference = 2D0000000000000000000004 /* HealthMacSnapshots.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		2E0000000000000000000006 /* MessagesMacSnapshots */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2E000000000000000000000F /* Build configuration list for PBXNativeTarget "MessagesMacSnapshots" */;
+			buildPhases = (
+				2E0000000000000000000007 /* Sources */,
+				2E0000000000000000000008 /* Frameworks */,
+				2E0000000000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				2E0000000000000000000005 /* MessagesMacSnapshots */,
+			);
+			name = MessagesMacSnapshots;
+			packageProductDependencies = (
+				2E000000000000000000000B /* MessagesApp */,
+				2E0000000000000000000013 /* SnapshottingTests */,
+			);
+			productName = MessagesMacSnapshots;
+			productReference = 2E0000000000000000000004 /* MessagesMacSnapshots.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -186,6 +229,9 @@
 						TestTargetID = 2A0000000000000000000006;
 					};
 					2D0000000000000000000006 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					2E0000000000000000000006 = {
 						CreatedOnToolsVersion = 27.0;
 					};
 				};
@@ -211,6 +257,7 @@
 				2A0000000000000000000006 /* PixelbookHost */,
 				2B0000000000000000000006 /* HealthPhoneSnapshots */,
 				2D0000000000000000000006 /* HealthMacSnapshots */,
+				2E0000000000000000000006 /* MessagesMacSnapshots */,
 			);
 		};
 /* End PBXProject section */
@@ -237,6 +284,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		2E0000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -255,6 +309,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		2D0000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2E0000000000000000000007 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -353,12 +414,36 @@
 			};
 			name = Debug;
 		};
+		2E0000000000000000000014 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.pixelbook.messages-mac-snapshots;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+			};
+			name = Debug;
+		};
 		2D0000000000000000000015 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.pixelbook.health-mac-snapshots;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+			};
+			name = Release;
+		};
+		2E0000000000000000000015 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.pixelbook.messages-mac-snapshots;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
@@ -404,6 +489,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		2E000000000000000000000F /* Build configuration list for PBXNativeTarget "MessagesMacSnapshots" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2E0000000000000000000014 /* Debug */,
+				2E0000000000000000000015 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -440,7 +534,17 @@
 			package = 2C0000000000000000000001 /* XCLocalSwiftPackageReference "../../LilPackage" */;
 			productName = HealthMacApp;
 		};
+		2E000000000000000000000B /* MessagesApp */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2C0000000000000000000001 /* XCLocalSwiftPackageReference "../../LilPackage" */;
+			productName = MessagesApp;
+		};
 		2D0000000000000000000013 /* SnapshottingTests */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2C0000000000000000000002 /* XCRemoteSwiftPackageReference "SnapshotPreviews" */;
+			productName = SnapshottingTests;
+		};
+		2E0000000000000000000013 /* SnapshottingTests */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 2C0000000000000000000002 /* XCRemoteSwiftPackageReference "SnapshotPreviews" */;
 			productName = SnapshottingTests;

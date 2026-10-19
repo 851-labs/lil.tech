@@ -1,7 +1,8 @@
 #!/bin/bash
 # Pixelbook (851-2696): renders every SwiftUI preview to PNGs, light and dark, with SnapshotPreviews.
-# Tools/PixelbookSnapshots has a test target per app: the Mac's runs on its own, the iPhone's in an
-# empty host app, since iOS previews need a running app. Each PNG has a JSON sidecar (module,
+# Tools/PixelbookSnapshots has a test target per app (lil health on Mac and iPhone, lil messages):
+# the Mac's run on their own, the iPhone's in an empty host app, since iOS previews need a running
+# app. Each PNG has a JSON sidecar (module,
 # file, preview name, line).
 # Usage: scripts/pixelbook render [out-dir]
 #          scripts/pixelbook check
@@ -281,8 +282,10 @@ if ! codesign --verify --strict "$frameworks" 2>/dev/null; then
 fi
 
 echo "==> Building for macOS and the iPhone simulator"
-xcodebuild build-for-testing -project "$project" -scheme HealthMacSnapshots -destination "$mac" \
-  -derivedDataPath "$derived" -onlyUsePackageVersionsFromResolvedFile -skipMacroValidation -quiet
+for scheme in HealthMacSnapshots MessagesMacSnapshots; do
+  xcodebuild build-for-testing -project "$project" -scheme "$scheme" -destination "$mac" \
+    -derivedDataPath "$derived" -onlyUsePackageVersionsFromResolvedFile -skipMacroValidation -quiet
+done
 xcodebuild build-for-testing -project "$project" -scheme HealthPhoneSnapshots \
   -destination "id=$device" -derivedDataPath "$derived" -onlyUsePackageVersionsFromResolvedFile \
   -skipMacroValidation -quiet
@@ -317,6 +320,7 @@ render() {
 
 for appearance in light dark; do
   render health-mac "$appearance" -scheme HealthMacSnapshots -destination "$mac"
+  render messages-mac "$appearance" -scheme MessagesMacSnapshots -destination "$mac"
 done
 
 # The simulator is shared with everyday use, so its appearance is put back afterwards.

@@ -5,19 +5,8 @@ import Testing
 
 struct BubbleColorsTests {
   @Test
-  func iMessageGradientRunsFromLightToDeepBlue() {
-    let top = BubbleColors.iMessage(atFraction: 0)
-    let bottom = BubbleColors.iMessage(atFraction: 1)
-    #expect(rgb(top) == [104, 207, 252])
-    #expect(rgb(bottom) == [44, 172, 252])
-  }
-
-  @Test
-  func iMessageGradientClampsOutsideTheViewport() {
-    #expect(
-      rgb(BubbleColors.iMessage(atFraction: -0.5)) == rgb(BubbleColors.iMessage(atFraction: 0)))
-    #expect(
-      rgb(BubbleColors.iMessage(atFraction: 1.5)) == rgb(BubbleColors.iMessage(atFraction: 1)))
+  func iMessageIsOneBlue() {
+    #expect(rgb(BubbleColors.iMessage) == [44, 172, 252])
   }
 
   @Test
