@@ -110,7 +110,8 @@ extension HealthCatalog {
       "EstimatedWorkoutEffortScore", "Estimated Workout Effort", .activity, "appleEffortScore",
       .discreteArithmetic, .ios(18)
     ),
-    // HealthKit refuses third-party reads of NikeFuel. Confirm on a device in 851-2607.
+    // HealthKit refuses third-party reads of NikeFuel. Not confirmed on a device: 851-2607's check
+    // couldn't find it in Health's list of what lil health reads, which has no search.
     quantity(
       "NikeFuel", "NikeFuel", .activity, "count", .cumulative, .ios(8),
       readAuthorization: .unavailable
@@ -256,8 +257,9 @@ extension HealthCatalog {
       .ios(26), readAuthorization: .perObject
     ),
     special(
-      // Dose events are readable for the medications the user shares per object. Confirm on a
-      // device in 851-2607.
+      // Dose events come with the medications the user shares per object: on a device (851-2607),
+      // Health's picker lists medications, current and archived, with no switch of their own for
+      // doses. Reading them is checked with medications' sync (851-2571).
       "HKMedicationDoseEventTypeIdentifierMedicationDoseEvent", .medicationDoseEvent,
       "Medication Doses", .medications, .ios(26), readAuthorization: .perObject
     ),
