@@ -1,7 +1,15 @@
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, type CanvasHandle } from "../Canvas.tsx";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Canvas, type CanvasHandle, type Insets } from "../Canvas.tsx";
 import { flowNodes, gridNodes, withSteps } from "../Elements.ts";
+import {
+  type Direction,
+  type Frame,
+  flowFrames,
+  frameOf,
+  gridFrames,
+  neighbor,
+} from "../Selection.ts";
 import {
   filtersFrom,
   modeFrom,
@@ -33,6 +41,7 @@ import {
   LabelNodeView,
   schemeNames,
   SelectContext,
+  SelectedContext,
   snapshotBackground,
   TileNodeView,
 } from "../Tiles.tsx";
@@ -163,15 +172,107 @@ function Grid() {
     (tile: Tile | undefined) => setSearch({ tile: tile === undefined ? undefined : tileId(tile) }),
     [setSearch],
   );
-  const open = selected !== undefined;
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: KeyboardEvent) => event.key === "Escape" && select(undefined);
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, [open, select]);
+  const deselect = useCallback(() => select(undefined), [select]);
+  // A click on the empty canvas, which deselects.
+  const selectedId = search.tile;
+  const onPaneClick = useCallback(() => {
+    if (selectedId !== undefined) deselect();
+  }, [selectedId, deselect]);
 
   const canvas = useRef<CanvasHandle>(null);
+  // What the arrow keys move between, and where the selection is.
+  const frames = useMemo(
+    () =>
+      grid !== undefined
+        ? gridFrames(grid.tiles)
+        : flow !== undefined
+          ? flowFrames(flow, steps)
+          : [],
+    [grid, flow, steps],
+  );
+  const selectedFrame = frameOf(frames, search.tile);
+
+  // The panels beside the canvas, which narrow windows show over it.
+  const body = useRef<HTMLDivElement>(null);
+  const covered = useCallback((): Insets => {
+    let insets = { left: 0, right: 0 };
+    for (const panel of body.current?.querySelectorAll<HTMLElement>(":scope > aside") ?? []) {
+      if (getComputedStyle(panel).position !== "absolute") continue;
+      insets =
+        panel.offsetLeft === 0
+          ? { ...insets, left: panel.offsetWidth }
+          : { ...insets, right: panel.offsetWidth };
+    }
+    return insets;
+  }, []);
+  // A frame the arrow keys selected, shown once the inspector the selection opens is laid out.
+  const toReveal = useRef<Frame | undefined>(undefined);
+  useEffect(() => {
+    const frame = toReveal.current;
+    if (frame === undefined) return;
+    toReveal.current = undefined;
+    const next = requestAnimationFrame(() => canvas.current?.reveal(frame.box, covered()));
+    return () => cancelAnimationFrame(next);
+  }, [search.tile, covered]);
+
+  const [helpShown, setHelpShown] = useState(false);
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || isTyping(event.target) || inPanel(event.target)) return;
+      const view = canvas.current;
+      const direction = arrowDirections[event.key];
+      // Shortcuts with other modifiers are the browser's or the system's.
+      const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
+      if (event.key === "Escape") {
+        if (helpShown) setHelpShown(false);
+        else if (search.tile !== undefined) deselect();
+        else return;
+      } else if (event.key === "?" && plain) {
+        if (!event.repeat) setHelpShown((shown) => !shown);
+      } else if (helpShown) {
+        // The rest wait until the list is closed.
+        return;
+      } else if (direction !== undefined && plain && !event.shiftKey) {
+        // With nothing selected, the first frame.
+        const next =
+          selectedFrame === undefined ? frames[0] : neighbor(frames, selectedFrame, direction);
+        if (next === undefined) return;
+        // So Space or Enter doesn't press a tile clicked before.
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && focused.closest(".react-flow") !== null)
+          focused.blur();
+        toReveal.current = next;
+        select(next.tile);
+      } else if (plain && event.shiftKey && event.code === "Digit1") {
+        view?.fit();
+      } else if (plain && event.shiftKey && event.code === "Digit2") {
+        if (selectedFrame === undefined) return;
+        view?.zoomTo(selectedFrame.box, covered());
+      } else if ((event.key === "+" || event.key === "=") && !event.altKey) {
+        // With ⌘ too, rather than the browser zooming the page.
+        view?.zoomBy(1.5);
+      } else if ((event.key === "-" || event.key === "_") && !event.altKey) {
+        view?.zoomBy(1 / 1.5);
+      } else {
+        return;
+      }
+      event.preventDefault();
+    };
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, [frames, selectedFrame, search.tile, select, deselect, helpShown, covered]);
+
+  // Stepping the selected flowchart screen selects the state it steps to, which it shows.
+  const stepScreen = useCallback(
+    (key: string, to: number) => {
+      step(key, to);
+      const node = flow?.nodes.find((node) => node.key === key);
+      const tile = node?.tiles[to % node.tiles.length];
+      if (tile !== undefined && node?.tiles.some((state) => tileId(state) === search.tile))
+        select(tile);
+    },
+    [step, flow, search.tile, select],
+  );
   // Unknown until the canvas has measured itself.
   const [zoom, setZoom] = useState<number>();
 
@@ -264,7 +365,7 @@ function Grid() {
             type="button"
             className={plainButton}
             onClick={() => canvas.current?.zoomBy(1 / 1.5)}
-            title="Zoom out"
+            title="Zoom out (−)"
           >
             −
           </button>
@@ -275,7 +376,7 @@ function Grid() {
             type="button"
             className={plainButton}
             onClick={() => canvas.current?.zoomBy(1.5)}
-            title="Zoom in"
+            title="Zoom in (+)"
           >
             +
           </button>
@@ -283,13 +384,22 @@ function Grid() {
             type="button"
             className={plainButton}
             onClick={() => canvas.current?.fit()}
-            title="Show everything"
+            title="Show everything (⇧1)"
           >
             Fit
           </button>
+          <button
+            type="button"
+            className={plainButton}
+            onClick={() => setHelpShown((shown) => !shown)}
+            title="Keyboard shortcuts (?)"
+            aria-pressed={helpShown}
+          >
+            ?
+          </button>
         </div>
       </header>
-      <div className="relative flex min-h-0 flex-1">
+      <div ref={body} className="relative flex min-h-0 flex-1">
         {sidebar.open !== false && (
           <Sidebar
             width={sidebar.width}
@@ -325,19 +435,26 @@ function Grid() {
             />
           </Sidebar>
         )}
-        <main className="relative min-w-0 flex-1 bg-background">
+        <main
+          className="relative min-w-0 flex-1 bg-background"
+          // For what's drawn the same size at any zoom, such as the selection's outline.
+          style={{ "--zoom": zoom ?? 1 } as React.CSSProperties}
+        >
           <DensityContext value={density}>
             <SelectContext value={select}>
-              <StepContext value={step}>
-                <Canvas
-                  width={size.width}
-                  height={size.height}
-                  nodes={nodes}
-                  nodeTypes={nodeTypes}
-                  handle={canvas}
-                  onZoomChange={setZoom}
-                />
-              </StepContext>
+              <SelectedContext value={search.tile}>
+                <StepContext value={stepScreen}>
+                  <Canvas
+                    width={size.width}
+                    height={size.height}
+                    nodes={nodes}
+                    nodeTypes={nodeTypes}
+                    handle={canvas}
+                    onZoomChange={setZoom}
+                    onPaneClick={onPaneClick}
+                  />
+                </StepContext>
+              </SelectedContext>
             </SelectContext>
           </DensityContext>
           {tiles.length === 0 && (
@@ -358,9 +475,71 @@ function Grid() {
                 ? base.commit
                 : book.commit
             }
-            onClose={() => select(undefined)}
+            onClose={deselect}
           />
         )}
+      </div>
+      {helpShown && <ShortcutsHelp onClose={() => setHelpShown(false)} />}
+    </div>
+  );
+}
+
+const arrowDirections: Partial<Record<string, Direction>> = {
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  ArrowUp: "up",
+  ArrowDown: "down",
+};
+
+/** Whether a key goes to a panel beside the canvas, such as the inspector, to scroll it. */
+const inPanel = (target: EventTarget | null) =>
+  target instanceof Element && target.closest("aside") !== null;
+
+/** Whether a key goes to a field being typed in, rather than to the canvas. */
+const isTyping = (target: EventTarget | null) =>
+  target instanceof HTMLElement &&
+  (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+
+/** The canvas's keyboard shortcuts, and the rest of its input, for the list `?` opens. */
+const shortcuts: ReadonlyArray<readonly [keys: string, action: string]> = [
+  ["← ↑ → ↓", "Select the nearest frame that way"],
+  ["Esc", "Deselect"],
+  ["⇧1", "Show everything"],
+  ["⇧2", "Zoom to the selection"],
+  ["+ and −", "Zoom in and out, with or without ⌘"],
+  ["Drag or scroll", "Pan, also while holding Space"],
+  ["Pinch or ⌘-scroll", "Zoom"],
+  ["?", "Show or hide these shortcuts"],
+];
+
+function ShortcutsHelp({ onClose }: { readonly onClose: () => void }) {
+  return (
+    // A click outside it closes it.
+    <div className="absolute inset-0 z-4 flex items-center justify-center" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-label="Keyboard shortcuts"
+        className="w-[380px] max-w-[calc(100vw-32px)] rounded-control border border-border bg-surface p-4 shadow-popover"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="mb-3 flex items-center justify-between">
+          <h2 className="text-small font-semibold">Keyboard shortcuts</h2>
+          <button type="button" className={plainButton} onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </header>
+        <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 text-small">
+          {shortcuts.map(([keys, action]) => (
+            <Fragment key={keys}>
+              <dt>
+                <kbd className="rounded-chip border border-border bg-background px-1.5 py-0.5 font-sans text-mini whitespace-nowrap">
+                  {keys}
+                </kbd>
+              </dt>
+              <dd className="text-secondary">{action}</dd>
+            </Fragment>
+          ))}
+        </dl>
       </div>
     </div>
   );
