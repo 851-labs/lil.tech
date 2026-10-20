@@ -10,6 +10,7 @@
     "check": "vp check"
   },
   "dependencies": {
+    "@base-ui/react": "catalog:",
     "@dagrejs/dagre": "catalog:",
     "@fontsource-variable/inter": "catalog:",
     "@tanstack/react-router": "catalog:",

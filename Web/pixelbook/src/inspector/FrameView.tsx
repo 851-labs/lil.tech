@@ -3,6 +3,7 @@ import { Button } from "../comps/Button.tsx";
 import { Detail, DetailList } from "../comps/Detail.tsx";
 import { ExternalLink } from "../comps/ExternalLink.tsx";
 import { SectionTitle } from "../comps/SectionTitle.tsx";
+import { Tooltip } from "../comps/Tooltip.tsx";
 import type { Tile } from "../lib/Grid.ts";
 import {
   appName,
@@ -47,9 +48,11 @@ export function FrameView({
             {snapshot.screen} · {appName(tile.app, tile.platform)}
           </p>
         </div>
-        <Button variant="icon" onClick={onClose} title="Close (Esc)">
-          ×
-        </Button>
+        <Tooltip label="Close" keys="Esc">
+          <Button variant="icon" onClick={onClose} aria-label="Close" aria-keyshortcuts="Escape">
+            ×
+          </Button>
+        </Tooltip>
       </header>
 
       {/* The canvas shows the frame itself (851-2788); only a change's before and after are shown

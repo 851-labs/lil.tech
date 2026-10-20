@@ -22,7 +22,8 @@ export function FilterList<A extends string>({
         <Checkbox
           key={value}
           checked={chosen.length === 0 || chosen.includes(value)}
-          onClick={() => onToggle(value)}
+          // The filter toggles it, and keeps the last one on.
+          onCheckedChange={() => onToggle(value)}
         >
           {name(value)}
         </Checkbox>

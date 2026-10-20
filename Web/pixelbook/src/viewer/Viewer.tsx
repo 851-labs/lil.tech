@@ -6,10 +6,12 @@ import { Canvas, type CanvasHandle, type Insets } from "../canvas/Canvas.tsx";
 import { LabelNodeView } from "../canvas/LabelNode.tsx";
 import { DensityContext, SelectContext, SelectedContext, TileNodeView } from "../canvas/Tile.tsx";
 import { Button } from "../comps/Button.tsx";
+import { focusRing } from "../comps/Focus.ts";
 import { ExternalLink } from "../comps/ExternalLink.tsx";
 import { SidebarIcon } from "../comps/Icons.tsx";
 import { Segmented } from "../comps/Segmented.tsx";
 import { Sidebar } from "../comps/Sidebar.tsx";
+import { Tooltip, TooltipProvider } from "../comps/Tooltip.tsx";
 import { RoutesNodeView } from "../flow/RoutesNode.tsx";
 import { ScreenNodeView } from "../flow/ScreenNode.tsx";
 import { StepContext } from "../flow/StepContext.ts";
@@ -244,6 +246,18 @@ export function Viewer() {
   );
 
   const [helpShown, setHelpShown] = useState(false);
+  // What had focus when `?` opened the shortcuts, which gets it back when they close: the canvas,
+  // say, rather than the header's `?` button, which gets it back when it opened them.
+  const focusBeforeHelp = useRef<Element | null>(null);
+  const openHelp = useCallback((open: boolean) => {
+    if (open) focusBeforeHelp.current = null;
+    setHelpShown(open);
+  }, []);
+  const focusAfterHelp = useCallback(() => {
+    const before = focusBeforeHelp.current;
+    if (before === null) return true;
+    return before instanceof HTMLElement && before !== document.body ? before : false;
+  }, []);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || isTyping(event.target)) return;
@@ -251,15 +265,17 @@ export function Viewer() {
       const direction = arrowDirections[event.key];
       // Shortcuts with other modifiers are the browser's or the system's.
       const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
-      if (event.key === "Escape") {
-        if (helpShown) setHelpShown(false);
-        else if (search.tile !== undefined) deselect();
-        else return;
-      } else if (event.key === "?" && plain) {
-        if (!event.repeat) setHelpShown((shown) => !shown);
+      if (event.key === "?" && plain) {
+        if (event.repeat) return;
+        if (!helpShown) focusBeforeHelp.current = document.activeElement;
+        setHelpShown(!helpShown);
       } else if (helpShown) {
-        // The rest wait until the list is closed.
+        // The rest wait until the list is closed. Its dialog closes on Escape, and marks the key
+        // handled, so it doesn't deselect too.
         return;
+      } else if (event.key === "Escape") {
+        if (search.tile !== undefined) deselect();
+        else return;
       } else if (direction !== undefined && plain && !event.shiftKey) {
         // In the sidebar or inspector, they scroll it.
         if (inPanel(event.target)) return;
@@ -310,162 +326,178 @@ export function Viewer() {
   const sidebar = useSidebar();
 
   return (
-    <div className="fixed inset-0 flex flex-col">
-      <header className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-surface px-3 py-1.5">
-        <Button
-          className="border-transparent px-1.5"
-          onClick={sidebar.toggle}
-          title="Show or hide the sidebar"
-        >
-          <SidebarIcon />
-        </Button>
-        <h1 className="mr-1 text-small font-semibold text-foreground">Pixelbook</h1>
-        <ExternalLink
-          className="font-mono text-mini text-secondary"
-          href={commitUrl(book.commit)}
-          title={`Snapshots from ${book.commit}`}
-        >
-          {search.commit === undefined ? `${search.ref ?? "main"} · ` : ""}
-          {book.commit.slice(0, 7)}
-        </ExternalLink>
-        {missingBase !== undefined && (
-          <span className="flex flex-wrap items-center gap-1.5 text-mini text-secondary">
-            no snapshots of {missingBase.slice(0, 7)} to compare with
-            <Button onClick={() => setSearch({ base: undefined })}>Show all</Button>
-          </span>
-        )}
-        {base !== undefined && (
-          <span className="flex flex-wrap items-center gap-1.5 text-mini text-secondary">
-            changes since{" "}
-            <ExternalLink
-              className="font-mono text-mini"
-              href={compareUrl(base.commit, book.commit)}
+    <TooltipProvider>
+      <div className="fixed inset-0 flex flex-col">
+        <header className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-surface px-3 py-1.5">
+          <Tooltip label="Show or hide the sidebar">
+            <Button
+              className="border-transparent px-1.5"
+              onClick={sidebar.toggle}
+              aria-label="Show or hide the sidebar"
             >
-              {base.commit.slice(0, 7)}
-            </ExternalLink>
-            <Button onClick={() => setSearch({ base: undefined, tile: undefined })}>
-              Show all
+              <SidebarIcon />
             </Button>
-          </span>
-        )}
-        {changes === undefined && (
-          <Segmented
-            label="Mode"
-            options={modes}
-            value={mode}
-            // A tile from one mode may not be in the other.
-            onChange={(value) =>
-              setSearch({ mode: value === "grid" ? undefined : value, tile: undefined })
-            }
-          />
-        )}
-        <span className="ml-auto truncate text-mini text-secondary max-sm:hidden">{shown}</span>
-        <div className="flex items-center gap-1 max-sm:ml-auto" role="group" aria-label="Zoom">
-          <Button onClick={() => canvas.current?.zoomBy(1 / 1.5)} title="Zoom out (−)">
-            −
-          </Button>
-          <span className="min-w-10 text-center text-mini text-secondary tabular-nums">
-            {zoom === undefined ? "" : `${Math.round(zoom * 100)}%`}
-          </span>
-          <Button onClick={() => canvas.current?.zoomBy(1.5)} title="Zoom in (+)">
-            +
-          </Button>
-          <Button onClick={() => canvas.current?.fit()} title="Show everything (⇧1)">
-            Fit
-          </Button>
-          <Button
-            onClick={() => setHelpShown((shown) => !shown)}
-            title="Keyboard shortcuts (?)"
-            aria-pressed={helpShown}
-          >
-            ?
-          </Button>
-        </div>
-      </header>
-      <div ref={body} className="relative flex min-h-0 flex-1">
-        {sidebar.open !== false && (
-          <Sidebar
-            label="Filters and layers"
-            width={sidebar.width}
-            onResize={sidebar.resize}
-            onResized={sidebar.remember}
-            // Until toggled, it shows only in wide windows.
-            hiddenWhenNarrow={sidebar.open === undefined}
-          >
-            <FilterList
-              label="Apps"
-              values={apps}
-              chosen={filters.apps}
-              name={(app) => appName(app, manifestPlatform(book, app))}
-              onToggle={(app) => setSearch({ apps: toggle(apps, filters.apps, app) })}
-            />
-            <FilterList
-              label="Platforms"
-              values={platforms}
-              chosen={filters.platforms}
-              name={(platform) => platformNames[platform]}
-              onToggle={(platform) =>
-                setSearch({ platforms: toggle(platforms, filters.platforms, platform) })
-              }
-            />
-            <FilterList
-              label="Appearances"
-              values={schemes}
-              chosen={filters.schemes}
-              name={(scheme) => schemeNames[scheme]}
-              onToggle={(scheme) =>
-                setSearch({ schemes: toggle(schemes, filters.schemes, scheme) })
-              }
-            />
-            <LayersList apps={layers} selected={search.tile} onChoose={choose} />
-          </Sidebar>
-        )}
-        <main
-          className="relative min-w-0 flex-1 bg-background"
-          // For what's drawn the same size at any zoom, such as the selection's outline.
-          style={{ "--zoom": zoom ?? 1 } as React.CSSProperties}
-        >
-          <DensityContext value={density}>
-            <SelectContext value={select}>
-              <SelectedContext value={search.tile}>
-                <StepContext value={stepScreen}>
-                  <Canvas
-                    width={size.width}
-                    height={size.height}
-                    nodes={nodes}
-                    nodeTypes={nodeTypes}
-                    handle={canvas}
-                    onZoomChange={setZoom}
-                    onPaneClick={onPaneClick}
-                  />
-                </StepContext>
-              </SelectedContext>
-            </SelectContext>
-          </DensityContext>
-          {tiles.length === 0 && (
-            <p className="pointer-events-none absolute top-1/2 right-0 left-0 text-center text-secondary">
-              {changes?.length === 0
-                ? "No snapshots changed."
-                : "No snapshots match these filters."}
-            </p>
+          </Tooltip>
+          <h1 className="mr-1 text-small font-semibold text-foreground">Pixelbook</h1>
+          <Tooltip label={`Snapshots from ${book.commit}`}>
+            <ExternalLink
+              className={`rounded-chip font-mono text-mini text-secondary ${focusRing}`}
+              href={commitUrl(book.commit)}
+            >
+              {search.commit === undefined ? `${search.ref ?? "main"} · ` : ""}
+              {book.commit.slice(0, 7)}
+            </ExternalLink>
+          </Tooltip>
+          {missingBase !== undefined && (
+            <span className="flex flex-wrap items-center gap-1.5 text-mini text-secondary">
+              no snapshots of {missingBase.slice(0, 7)} to compare with
+              <Button onClick={() => setSearch({ base: undefined })}>Show all</Button>
+            </span>
           )}
-        </main>
-        <Inspector
-          tile={selected}
-          // A base-side tile's file and line are the base's.
-          commit={
-            base !== undefined &&
-            (selected?.change?.label === "Before" || selected?.change?.label === "Removed")
-              ? base.commit
-              : book.commit
-          }
-          summary={summary}
-          onClose={deselect}
-          onZoomTo={zoomToSelection}
-        />
+          {base !== undefined && (
+            <span className="flex flex-wrap items-center gap-1.5 text-mini text-secondary">
+              changes since{" "}
+              <ExternalLink
+                className="font-mono text-mini"
+                href={compareUrl(base.commit, book.commit)}
+              >
+                {base.commit.slice(0, 7)}
+              </ExternalLink>
+              <Button onClick={() => setSearch({ base: undefined, tile: undefined })}>
+                Show all
+              </Button>
+            </span>
+          )}
+          {changes === undefined && (
+            <Segmented
+              label="Mode"
+              options={modes}
+              value={mode}
+              // A tile from one mode may not be in the other.
+              onChange={(value) =>
+                setSearch({ mode: value === "grid" ? undefined : value, tile: undefined })
+              }
+            />
+          )}
+          <span className="ml-auto truncate text-mini text-secondary max-sm:hidden">{shown}</span>
+          <div className="flex items-center gap-1 max-sm:ml-auto" role="group" aria-label="Zoom">
+            <Tooltip label="Zoom out" keys="−">
+              <Button
+                onClick={() => canvas.current?.zoomBy(1 / 1.5)}
+                aria-label="Zoom out"
+                aria-keyshortcuts="-"
+              >
+                −
+              </Button>
+            </Tooltip>
+            <span className="min-w-10 text-center text-mini text-secondary tabular-nums">
+              {zoom === undefined ? "" : `${Math.round(zoom * 100)}%`}
+            </span>
+            <Tooltip label="Zoom in" keys="+">
+              <Button
+                onClick={() => canvas.current?.zoomBy(1.5)}
+                aria-label="Zoom in"
+                aria-keyshortcuts="+"
+              >
+                +
+              </Button>
+            </Tooltip>
+            <Tooltip label="Show everything" keys="⇧1">
+              <Button
+                onClick={() => canvas.current?.fit()}
+                aria-label="Fit: show everything"
+                aria-keyshortcuts="Shift+1"
+              >
+                Fit
+              </Button>
+            </Tooltip>
+            <ShortcutsHelp open={helpShown} onOpenChange={openHelp} finalFocus={focusAfterHelp} />
+          </div>
+        </header>
+        <div ref={body} className="relative flex min-h-0 flex-1">
+          {sidebar.open !== false && (
+            <Sidebar
+              label="Filters and layers"
+              width={sidebar.width}
+              onResize={sidebar.resize}
+              onResized={sidebar.remember}
+              // Until toggled, it shows only in wide windows.
+              hiddenWhenNarrow={sidebar.open === undefined}
+            >
+              <FilterList
+                label="Apps"
+                values={apps}
+                chosen={filters.apps}
+                name={(app) => appName(app, manifestPlatform(book, app))}
+                onToggle={(app) => setSearch({ apps: toggle(apps, filters.apps, app) })}
+              />
+              <FilterList
+                label="Platforms"
+                values={platforms}
+                chosen={filters.platforms}
+                name={(platform) => platformNames[platform]}
+                onToggle={(platform) =>
+                  setSearch({ platforms: toggle(platforms, filters.platforms, platform) })
+                }
+              />
+              <FilterList
+                label="Appearances"
+                values={schemes}
+                chosen={filters.schemes}
+                name={(scheme) => schemeNames[scheme]}
+                onToggle={(scheme) =>
+                  setSearch({ schemes: toggle(schemes, filters.schemes, scheme) })
+                }
+              />
+              <LayersList apps={layers} selected={search.tile} onChoose={choose} />
+            </Sidebar>
+          )}
+          <main
+            className="relative min-w-0 flex-1 bg-background"
+            // For what's drawn the same size at any zoom, such as the selection's outline.
+            style={{ "--zoom": zoom ?? 1 } as React.CSSProperties}
+          >
+            <DensityContext value={density}>
+              <SelectContext value={select}>
+                <SelectedContext value={search.tile}>
+                  <StepContext value={stepScreen}>
+                    <Canvas
+                      width={size.width}
+                      height={size.height}
+                      nodes={nodes}
+                      nodeTypes={nodeTypes}
+                      handle={canvas}
+                      onZoomChange={setZoom}
+                      onPaneClick={onPaneClick}
+                    />
+                  </StepContext>
+                </SelectedContext>
+              </SelectContext>
+            </DensityContext>
+            {tiles.length === 0 && (
+              <p className="pointer-events-none absolute top-1/2 right-0 left-0 text-center text-secondary">
+                {changes?.length === 0
+                  ? "No snapshots changed."
+                  : "No snapshots match these filters."}
+              </p>
+            )}
+          </main>
+          <Inspector
+            tile={selected}
+            // A base-side tile's file and line are the base's.
+            commit={
+              base !== undefined &&
+              (selected?.change?.label === "Before" || selected?.change?.label === "Removed")
+                ? base.commit
+                : book.commit
+            }
+            summary={summary}
+            onClose={deselect}
+            onZoomTo={zoomToSelection}
+          />
+        </div>
       </div>
-      {helpShown && <ShortcutsHelp onClose={() => setHelpShown(false)} />}
-    </div>
+    </TooltipProvider>
   );
 }
 
