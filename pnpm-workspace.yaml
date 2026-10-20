@@ -6,6 +6,7 @@ packages:
 catalogMode: prefer
 
 catalog:
+  "@base-ui/react": 1.9.0
   "@dagrejs/dagre": 3.1.1
   "@effect/platform-node": 4.0.4
   "@effect/sql-d1": 4.0.4

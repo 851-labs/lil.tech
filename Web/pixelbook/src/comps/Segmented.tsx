@@ -1,4 +1,11 @@
-/** A choice of a few options, one of them on, as Linear's segmented controls. */
+import { Toggle } from "@base-ui/react/toggle";
+import { ToggleGroup } from "@base-ui/react/toggle-group";
+import { focusRing } from "./Focus.ts";
+
+/**
+ * A choice of a few options, one of them on, as Linear's segmented controls: Base UI's Toggle
+ * Group, where the arrow keys move between options and Space or Enter chooses one.
+ */
 export function Segmented<A extends string>({
   label,
   options,
@@ -11,22 +18,25 @@ export function Segmented<A extends string>({
   readonly onChange: (value: A) => void;
 }) {
   return (
-    <div
+    <ToggleGroup
       className="flex w-fit rounded-control border border-border p-0.5"
-      role="group"
       aria-label={label}
+      value={[value]}
+      onValueChange={(values) => {
+        // Pressing the chosen option again would leave none on.
+        const chosen = options.find((option) => values.includes(option.value));
+        if (chosen !== undefined) onChange(chosen.value);
+      }}
     >
       {options.map((option) => (
-        <button
+        <Toggle
           key={option.value}
-          type="button"
-          className={`h-6 cursor-pointer rounded-chip px-2.5 text-mini font-medium ${value === option.value ? "bg-selected text-foreground" : "text-secondary hover:bg-hover hover:text-muted"}`}
-          aria-pressed={value === option.value}
-          onClick={() => onChange(option.value)}
+          value={option.value}
+          className={`h-6 cursor-pointer rounded-chip px-2.5 text-mini font-medium text-secondary not-data-pressed:hover:bg-hover not-data-pressed:hover:text-muted data-pressed:bg-selected data-pressed:text-foreground ${focusRing}`}
         >
           {option.name}
-        </button>
+        </Toggle>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }

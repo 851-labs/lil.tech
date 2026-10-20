@@ -1,6 +1,8 @@
 import { Fragment } from "react";
 import { Button } from "../comps/Button.tsx";
+import { Dialog, type DialogFinalFocus } from "../comps/Dialog.tsx";
 import { Kbd } from "../comps/Kbd.tsx";
+import { Tooltip } from "../comps/Tooltip.tsx";
 
 /** The canvas's keyboard shortcuts, and the rest of its input, for the list `?` opens. */
 const shortcuts: ReadonlyArray<readonly [keys: string, action: string]> = [
@@ -14,33 +16,40 @@ const shortcuts: ReadonlyArray<readonly [keys: string, action: string]> = [
   ["?", "Show or hide these shortcuts"],
 ];
 
-export function ShortcutsHelp({ onClose }: { readonly onClose: () => void }) {
+/** The header's `?` button, and the list of shortcuts it opens, as `?` does. */
+export function ShortcutsHelp({
+  open,
+  onOpenChange,
+  finalFocus,
+}: {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly finalFocus: DialogFinalFocus;
+}) {
   return (
-    // A click outside it closes it.
-    <div className="absolute inset-0 z-4 flex items-center justify-center" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-label="Keyboard shortcuts"
-        className="w-[380px] max-w-[calc(100vw-32px)] rounded-control border border-border bg-surface p-4 shadow-popover"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className="mb-3 flex items-center justify-between">
-          <h2 className="text-small font-semibold">Keyboard shortcuts</h2>
-          <Button onClick={onClose} aria-label="Close">
-            ×
+    <Dialog
+      title="Keyboard shortcuts"
+      open={open}
+      onOpenChange={onOpenChange}
+      finalFocus={finalFocus}
+      trigger={
+        <Tooltip label="Keyboard shortcuts" keys="?">
+          <Button aria-label="Keyboard shortcuts" aria-keyshortcuts="?">
+            ?
           </Button>
-        </header>
-        <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 text-small">
-          {shortcuts.map(([keys, action]) => (
-            <Fragment key={keys}>
-              <dt>
-                <Kbd>{keys}</Kbd>
-              </dt>
-              <dd className="text-secondary">{action}</dd>
-            </Fragment>
-          ))}
-        </dl>
-      </div>
-    </div>
+        </Tooltip>
+      }
+    >
+      <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 text-small">
+        {shortcuts.map(([keys, action]) => (
+          <Fragment key={keys}>
+            <dt>
+              <Kbd>{keys}</Kbd>
+            </dt>
+            <dd className="text-secondary">{action}</dd>
+          </Fragment>
+        ))}
+      </dl>
+    </Dialog>
   );
 }

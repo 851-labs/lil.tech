@@ -1,8 +1,9 @@
 // The sidebar's layers list (851-2763): apps, their screens and each screen's states, collapsible
 // and searchable. Choosing a state selects it and zooms to it; selecting on the canvas shows it here.
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Collapsible } from "../comps/Collapsible.tsx";
+import { focusRingInset } from "../comps/Focus.ts";
 import { badgeColors } from "../comps/SnapshotStyles.ts";
-import { ChevronIcon } from "../comps/Icons.tsx";
 import { SectionTitle } from "../comps/SectionTitle.tsx";
 import {
   badgeLabel,
@@ -13,8 +14,7 @@ import {
 } from "../lib/Layers.ts";
 
 /** A row: each level indents it further. */
-const row =
-  "flex h-7 w-full cursor-pointer items-center gap-1.5 rounded-chip pr-2 text-left text-small hover:bg-hover";
+const row = `flex h-7 w-full cursor-pointer items-center gap-1.5 rounded-chip pr-2 text-left text-small hover:bg-hover ${focusRingInset}`;
 
 /** Memoized: its page re-renders with each zoom. */
 export const LayersList = memo(function LayersList({
@@ -49,7 +49,7 @@ export const LayersList = memo(function LayersList({
   useEffect(() => {
     if (pendingApp === undefined || pendingScreen === undefined) return;
     setClosedApps((closed) => without(closed, pendingApp));
-    setOpenScreens((open) => (open.has(pendingScreen) ? open : new Set(open).add(pendingScreen)));
+    setOpenScreens((open) => withKey(open, pendingScreen, true));
   }, [pendingApp, pendingScreen]);
   // After each render while it's pending: once its row is shown, scroll to it.
   useLayoutEffect(() => {
@@ -84,74 +84,68 @@ export const LayersList = memo(function LayersList({
         {shown.map((app) => {
           const appOpen = searching || !closedApps.has(app.key);
           return (
-            <div key={app.key}>
-              <button
-                type="button"
-                className={`${row} pl-1 font-medium text-foreground`}
-                aria-expanded={appOpen}
-                onClick={(event) => {
-                  handBack(event);
-                  setClosedApps((closed) => toggled(closed, app.key));
-                }}
-              >
-                <ChevronIcon open={appOpen} />
-                <span className="truncate">{app.name}</span>
-              </button>
-              {appOpen &&
-                app.screens.map((screen) => {
-                  const screenOpen = searching || openScreens.has(screen.key);
-                  return (
-                    <div key={screen.key}>
-                      <button
-                        type="button"
-                        className={`${row} pl-5 text-foreground`}
-                        aria-expanded={screenOpen}
-                        onClick={(event) => {
-                          handBack(event);
-                          setOpenScreens((open) => toggled(open, screen.key));
-                        }}
-                      >
-                        <ChevronIcon open={screenOpen} />
+            <Collapsible
+              key={app.key}
+              open={appOpen}
+              onOpenChange={(open) => setClosedApps((closed) => withKey(closed, app.key, !open))}
+              label={<span className="truncate">{app.name}</span>}
+              className={`${row} pl-1 font-medium text-foreground`}
+              onClick={handBack}
+            >
+              {app.screens.map((screen) => {
+                const screenOpen = searching || openScreens.has(screen.key);
+                return (
+                  <Collapsible
+                    key={screen.key}
+                    open={screenOpen}
+                    onOpenChange={(open) =>
+                      setOpenScreens((screens) => withKey(screens, screen.key, open))
+                    }
+                    label={
+                      <>
                         <span className="truncate">{screen.name}</span>
                         <span className="ml-auto text-mini text-secondary tabular-nums">
                           {screen.states.length}
                         </span>
-                      </button>
-                      {screenOpen &&
-                        screen.states.map((state) => {
-                          const current = selected !== undefined && state.ids.includes(selected);
-                          return (
-                            <button
-                              key={state.key}
-                              type="button"
-                              aria-current={current ? "true" : undefined}
-                              data-layer={state.key}
-                              className={`${row} pl-[42px] ${current ? "bg-selected text-foreground" : "text-muted"}`}
-                              onClick={(event) => {
-                                handBack(event);
-                                onChoose(state);
-                              }}
+                      </>
+                    }
+                    className={`${row} pl-5 text-foreground`}
+                    onClick={handBack}
+                  >
+                    {screen.states.map((state) => {
+                      const current = selected !== undefined && state.ids.includes(selected);
+                      return (
+                        <button
+                          key={state.key}
+                          type="button"
+                          aria-current={current ? "true" : undefined}
+                          data-layer={state.key}
+                          className={`${row} pl-[42px] ${current ? "bg-selected text-foreground" : "text-muted"}`}
+                          onClick={(event) => {
+                            handBack(event);
+                            onChoose(state);
+                          }}
+                        >
+                          <span className="truncate">{state.name}</span>
+                          {state.detail !== undefined && (
+                            <span className="shrink-0 text-mini text-secondary">
+                              {state.detail}
+                            </span>
+                          )}
+                          {state.badge !== undefined && (
+                            <span
+                              className={`ml-auto shrink-0 rounded-full px-1.5 text-[11px] leading-4 font-semibold text-white ${badgeColors[badgeLabel[state.badge]]}`}
                             >
-                              <span className="truncate">{state.name}</span>
-                              {state.detail !== undefined && (
-                                <span className="shrink-0 text-mini text-secondary">
-                                  {state.detail}
-                                </span>
-                              )}
-                              {state.badge !== undefined && (
-                                <span
-                                  className={`ml-auto shrink-0 rounded-full px-1.5 text-[11px] leading-4 font-semibold text-white ${badgeColors[badgeLabel[state.badge]]}`}
-                                >
-                                  {state.badge}
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                    </div>
-                  );
-                })}
-            </div>
+                              {state.badge}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </Collapsible>
+                );
+              })}
+            </Collapsible>
           );
         })}
       </div>
@@ -167,8 +161,9 @@ const handBack = (event: React.MouseEvent<HTMLElement>) => {
   if (event.detail > 0) event.currentTarget.blur();
 };
 
-const toggled = (set: ReadonlySet<string>, key: string) =>
-  set.has(key) ? without(set, key) : new Set(set).add(key);
+/** The set with the key in it or not. */
+const withKey = (set: ReadonlySet<string>, key: string, included: boolean) =>
+  included ? (set.has(key) ? set : new Set(set).add(key)) : without(set, key);
 
 const without = (set: ReadonlySet<string>, key: string) => {
   if (!set.has(key)) return set;

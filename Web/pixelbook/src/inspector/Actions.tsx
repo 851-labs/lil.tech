@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Button, plainButton } from "../comps/Button.tsx";
-import { ExternalLink } from "../comps/ExternalLink.tsx";
+import { Button, ButtonLink } from "../comps/Button.tsx";
+import { Tooltip } from "../comps/Tooltip.tsx";
 import { imageUrl, type Variant } from "../lib/Snapshots.ts";
 
 /** Zoom to the frame, open its image full size, or copy a link to it. */
@@ -30,12 +30,12 @@ export function Actions({
   };
   return (
     <div className="flex flex-wrap gap-1.5">
-      <Button onClick={onZoomTo} title="Zoom to it (⇧2)">
-        Zoom to
-      </Button>
-      <ExternalLink className={`${plainButton} hover:no-underline`} href={imageUrl(image)}>
-        Open image
-      </ExternalLink>
+      <Tooltip label="Zoom to it" keys="⇧2">
+        <Button onClick={onZoomTo} aria-keyshortcuts="Shift+2">
+          Zoom to
+        </Button>
+      </Tooltip>
+      <ButtonLink href={imageUrl(image)}>Open image</ButtonLink>
       <Button onClick={() => void copy()}>{copied ?? "Copy link"}</Button>
     </div>
   );
