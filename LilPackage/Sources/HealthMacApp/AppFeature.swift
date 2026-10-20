@@ -221,9 +221,11 @@ public struct AppFeature {
   }
 }
 
-/// What the sidebar can select: Summary, a category to browse, or a data type found by search.
+/// What the sidebar can select: Summary, Health Details, a category to browse, or a data type
+/// found by search.
 public enum SidebarItem: Hashable, Sendable {
   case summary
+  case healthDetails
   case category(HealthCategory)
   case dataType(String)
 }

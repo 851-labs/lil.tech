@@ -38,7 +38,8 @@ public struct AppView: View {
   }
 }
 
-/// iPad Health's sidebar: Summary, then the Health categories, and a search for data types.
+/// iPad Health's sidebar: Summary and Health Details, then the Health categories, and a search for
+/// data types.
 struct SidebarView: View {
   @Bindable var store: StoreOf<AppFeature>
   @Environment(\.openSettings) private var openSettings
@@ -65,6 +66,8 @@ struct SidebarView: View {
       } else {
         Label("Summary", systemImage: "heart.text.square.fill")
           .tag(SidebarItem.summary)
+        Label("Health Details", systemImage: "person.text.rectangle.fill")
+          .tag(SidebarItem.healthDetails)
         Section("Health Categories") {
           ForEach(HealthCategory.allCases) { category in
             HealthCategoryLabel(category)
@@ -87,8 +90,8 @@ struct SidebarView: View {
   }
 }
 
-/// What's selected: Summary's pins, a category's metrics, or a metric found by search. A
-/// metric's card opens its detail.
+/// What's selected: Summary's pins, Health Details, a category's metrics, or a metric found by
+/// search. A metric's card opens its detail.
 struct DetailView: View {
   let store: StoreOf<AppFeature>
 
@@ -98,6 +101,10 @@ struct DetailView: View {
       NavigationStack {
         SummaryView(store: store.scope(\.summary, action: \.summary))
           .navigationDestination(for: String.self) { MetricDetail(typeID: $0) }
+      }
+    case .healthDetails:
+      NavigationStack {
+        HealthDetailsView()
       }
     case .category(let category):
       NavigationStack {
