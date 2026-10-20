@@ -83,8 +83,9 @@ function ExternalLink(props: Omit<React.ComponentProps<"a">, "target" | "rel">) 
 
 const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
 
-/** A small round-ended button in the toolbar: zoom, Show all, and a filter's chips. */
-const pillButton = "cursor-pointer rounded-full border px-2.5 py-[3px]";
+/** A small control in the toolbar, as Linear's: zoom, Show all, and a filter's chips. */
+const pillButton =
+  "flex h-6 cursor-pointer items-center rounded-[6px] border px-2 text-mini font-medium hover:bg-hover";
 
 function Grid() {
   const { book, base, missingBase } = Route.useLoaderData();
@@ -158,10 +159,10 @@ function Grid() {
 
   return (
     <div className="fixed inset-0">
-      <header className="absolute top-3 right-3 left-3 z-2 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2 shadow-[0_4px_24px_rgb(0_0_0/0.08)] backdrop-blur-[20px]">
-        <h1 className="text-[15px] font-semibold">Pixelbook</h1>
+      <header className="absolute top-3 right-3 left-3 z-2 flex flex-wrap items-center gap-2 rounded-control border border-border bg-surface px-3 py-1.5 shadow-panel">
+        <h1 className="mr-1 text-small font-semibold text-foreground">Pixelbook</h1>
         <ExternalLink
-          className="font-mono text-[12px] text-secondary"
+          className="font-mono text-mini text-secondary"
           href={`https://github.com/851-labs/lil.tech/commit/${book.commit}`}
           title={`Snapshots from ${book.commit}`}
         >
@@ -173,7 +174,7 @@ function Grid() {
             no snapshots of {missingBase.slice(0, 7)} to compare with
             <button
               type="button"
-              className={`${pillButton} border-border`}
+              className={`${pillButton} border-border text-muted`}
               onClick={() => setSearch({ base: undefined })}
             >
               Show all
@@ -184,14 +185,14 @@ function Grid() {
           <span className="flex items-center gap-1.5 text-secondary">
             changes since{" "}
             <ExternalLink
-              className="font-mono text-[12px]"
+              className="font-mono text-mini"
               href={`https://github.com/851-labs/lil.tech/compare/${base.commit}...${book.commit}`}
             >
               {base.commit.slice(0, 7)}
             </ExternalLink>
             <button
               type="button"
-              className={`${pillButton} border-border`}
+              className={`${pillButton} border-border text-muted`}
               onClick={() => setSearch({ base: undefined, tile: undefined })}
             >
               Show all
@@ -200,7 +201,7 @@ function Grid() {
         )}
         {changes === undefined && (
           <div
-            className="flex rounded-lg border border-border p-0.5"
+            className="flex rounded-control border border-border p-0.5"
             role="group"
             aria-label="Mode"
           >
@@ -208,7 +209,7 @@ function Grid() {
               <button
                 key={value}
                 type="button"
-                className={`cursor-pointer rounded-md px-3 py-0.5 ${mode === value ? "bg-selected text-foreground" : "text-secondary"}`}
+                className={`h-6 cursor-pointer rounded-[6px] px-2.5 text-mini font-medium ${mode === value ? "bg-selected text-foreground" : "text-secondary hover:bg-hover hover:text-muted"}`}
                 aria-pressed={mode === value}
                 // A tile from one mode may not be in the other.
                 onClick={() =>
@@ -246,18 +247,18 @@ function Grid() {
         <div className="ml-auto flex items-center gap-1" role="group" aria-label="Zoom">
           <button
             type="button"
-            className={`${pillButton} border-border`}
+            className={`${pillButton} border-border text-muted`}
             onClick={() => canvas.current?.zoomBy(1 / 1.5)}
             title="Zoom out"
           >
             −
           </button>
-          <span className="min-w-11 text-center text-secondary tabular-nums">
+          <span className="min-w-10 text-center text-mini text-secondary tabular-nums">
             {zoom === undefined ? "" : `${Math.round(zoom * 100)}%`}
           </span>
           <button
             type="button"
-            className={`${pillButton} border-border`}
+            className={`${pillButton} border-border text-muted`}
             onClick={() => canvas.current?.zoomBy(1.5)}
             title="Zoom in"
           >
@@ -265,14 +266,14 @@ function Grid() {
           </button>
           <button
             type="button"
-            className={`${pillButton} border-border`}
+            className={`${pillButton} border-border text-muted`}
             onClick={() => canvas.current?.fit()}
             title="Show everything"
           >
             Fit
           </button>
         </div>
-        <span className="text-secondary">
+        <span className="text-mini text-secondary">
           {changes !== undefined
             ? describeChanges(summarize(changes))
             : flow === undefined
@@ -334,7 +335,7 @@ function Chips<A extends string>({
           <button
             key={value}
             type="button"
-            className={`${pillButton} ${on ? "border-accent bg-accent text-white" : "border-border text-secondary"}`}
+            className={`${pillButton} ${on ? "border-border bg-selected text-foreground" : "border-dashed border-border text-secondary hover:bg-hover"}`}
             aria-pressed={on}
             onClick={() => onToggle(value)}
           >
@@ -397,19 +398,19 @@ function Detail({
   const { snapshot, variant } = tile;
   return (
     <aside
-      className="absolute top-[72px] right-3 bottom-3 z-3 flex w-[min(560px,calc(100%-24px))] flex-col gap-3 overflow-auto rounded-xl border border-border bg-surface p-4 shadow-[0_8px_40px_rgb(0_0_0/0.16)] backdrop-blur-[20px]"
+      className="absolute top-[64px] right-3 bottom-3 z-3 flex w-[min(560px,calc(100%-24px))] flex-col gap-3 overflow-auto rounded-xl border border-border bg-surface p-4 shadow-popover"
       aria-label={`${snapshot.screen}: ${snapshot.state}`}
     >
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-[17px] font-bold">{snapshot.state}</h2>
-          <p className="mt-1 text-secondary">
+          <h2 className="text-regular font-semibold text-foreground">{snapshot.state}</h2>
+          <p className="mt-0.5 text-secondary">
             {snapshot.screen} · {appName(tile.app, tile.platform)} · {schemeNames[tile.scheme]}
           </p>
         </div>
         <button
           type="button"
-          className="cursor-pointer px-1.5 py-px text-[22px] leading-none text-secondary"
+          className="flex size-7 cursor-pointer items-center justify-center rounded-control text-large leading-none text-secondary hover:bg-hover hover:text-foreground"
           onClick={onClose}
           title="Close (Esc)"
         >
@@ -431,10 +432,10 @@ function Detail({
       ).map(({ label, image }) => (
         <figure key={label ?? "image"} className="flex flex-col gap-1.5">
           {label !== undefined && (
-            <figcaption className="font-semibold text-secondary">{label}</figcaption>
+            <figcaption className="text-mini font-medium text-secondary">{label}</figcaption>
           )}
           <div
-            className={`max-w-full self-center overflow-hidden rounded-[10px] shadow-[0_0_0_1px_var(--color-border)] ${snapshotBackground(tile.platform, tile.scheme)}`}
+            className={`max-w-full self-center overflow-hidden rounded-control shadow-[0_0_0_1px_var(--color-border)] ${snapshotBackground(tile.platform, tile.scheme)}`}
           >
             <img
               src={imageUrl(image)}

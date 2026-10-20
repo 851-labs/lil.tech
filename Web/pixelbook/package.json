@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "catalog:",
+    "@fontsource-variable/inter": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
     "react": "catalog:",
