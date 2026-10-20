@@ -296,6 +296,9 @@ xcodebuild build-for-testing -project "$project" -scheme HealthPhoneSnapshots \
 # 851-2711), which needs Xcode to have Screen Recording access: the test runner is Xcode's. A capture
 # that fails is the machine's doing (no access, a locked screen), so render stops with exit 1, which
 # the pre-push hook skips on, rather than reporting the previews.
+capture_failed() {
+  grep -qE "SCStreamErrorDomain Code=-3801|screenCaptureFailed" "$1"
+}
 check_window_captures() {
   local log=$1
   if grep -q "SCStreamErrorDomain Code=-3801" "$log"; then
@@ -304,7 +307,7 @@ check_window_captures() {
     echo "with + if it isn't listed), then render again." >&2
     exit 1
   fi
-  if grep -q "screenCaptureFailed" "$log"; then
+  if capture_failed "$log"; then
     echo "Couldn't capture some Mac previews' windows (is the screen locked or asleep?); see $log." >&2
     exit 1
   fi
@@ -330,56 +333,97 @@ run() {
   echo "$status" >"$dir.status"
 }
 
+# The runs, as <app>:<scheme>, each in light and dark.
+mac_apps=(health-mac:HealthMacSnapshots messages-mac:MessagesMacSnapshots)
+iphone_apps=(health-iphone:HealthPhoneSnapshots)
+
 # The Mac's runs and the iPhone's go side by side (851-2749): the iPhone's run in the simulator,
 # apart from the screen the Mac's windows are captured on. Within each, runs go one after another:
 # two Mac test runs at once hang, and the iPhone's appearance is the simulator's, for every app on
-# it.
+# it. Each lane exits 1 if one of its runs couldn't start, and 2 if a window capture failed.
 mac_runs() {
-  local appearance app
+  local appearance entry
   for appearance in light dark; do
-    for app in health-mac messages-mac; do
-      local scheme=HealthMacSnapshots
-      [ "$app" = messages-mac ] && scheme=MessagesMacSnapshots
-      run "$app" "$appearance" -scheme "$scheme" -destination "$mac"
-      # A window capture that failed would fail the rest too; the summary below says why.
-      grep -qE "SCStreamErrorDomain Code=-3801|screenCaptureFailed" "$out/$app/$appearance.log" &&
-        return 0
+    for entry in "${mac_apps[@]}"; do
+      run "${entry%%:*}" "$appearance" -scheme "${entry#*:}" -destination "$mac" || return 1
+      # It would fail the rest too.
+      capture_failed "$out/${entry%%:*}/$appearance.log" && return 2
     done
   done
+  return 0
 }
 iphone_runs() {
+  local appearance entry
   for appearance in light dark; do
-    xcrun simctl ui "$device" appearance "$appearance"
-    run health-iphone "$appearance" -scheme HealthPhoneSnapshots -destination "id=$device"
+    xcrun simctl ui "$device" appearance "$appearance" || return 1
+    for entry in "${iphone_apps[@]}"; do
+      run "${entry%%:*}" "$appearance" -scheme "${entry#*:}" -destination "id=$device" || return 1
+    done
   done
+  return 0
 }
 
-# The simulator is shared with everyday use, so its appearance is put back afterwards.
+# The simulator is shared with everyday use, so its appearance is put back afterwards, once
+# nothing is changing it. Interrupted, the lanes and their test runs stop too.
 xcrun simctl boot "$device" 2>/dev/null || true
 xcrun simctl bootstatus "$device" -b >/dev/null
 original=$(xcrun simctl ui "$device" appearance)
-trap 'xcrun simctl ui "$device" appearance "$original" 2>/dev/null || true' EXIT
+lanes=()
+stop_lanes() {
+  local lane
+  for lane in ${lanes[@]+"${lanes[@]}"}; do
+    pkill -P "$lane" 2>/dev/null || true
+    kill "$lane" 2>/dev/null || true
+  done
+  wait 2>/dev/null || true
+}
+trap 'stop_lanes; xcrun simctl ui "$device" appearance "$original" 2>/dev/null || true' EXIT
+trap 'exit 130' INT TERM
 mac_runs &
+mac_lane=$!
 iphone_runs &
-wait
+iphone_lane=$!
+lanes=("$mac_lane" "$iphone_lane")
+mac_status=0
+wait "$mac_lane" || mac_status=$?
+# A failed window capture is the machine's: the iPhone's runs needn't finish to say so.
+if [ "$mac_status" -eq 2 ]; then
+  stop_lanes
+else
+  iphone_status=0
+  wait "$iphone_lane" || iphone_status=$?
+  if [ "$mac_status" -ne 0 ] || [ "$iphone_status" -ne 0 ]; then
+    echo "A render couldn't start (the simulator, or xcodebuild); see the .log files in $out." >&2
+    exit 1
+  fi
+fi
+lanes=()
 
 # A preview that reports an issue fails its test but still renders, so that's a warning; a run
-# that renders nothing fails the script.
+# that renders nothing, or never ran, fails the script.
 warnings=0
 empty=0
 total=0
-for run_dir in health-mac/light messages-mac/light health-mac/dark messages-mac/dark \
-  health-iphone/light health-iphone/dark; do
-  dir="$out/$run_dir"
-  [ -f "$dir.log" ] || continue
-  check_window_captures "$dir.log"
-  count=$(find "$dir" -name '*.png' | wc -l | tr -d ' ')
-  echo "    $run_dir: $count images"
-  total=$((total + count))
-  [ "$(cat "$dir.status" 2>/dev/null || echo 1)" -eq 0 ] || warnings=$((warnings + 1))
-  # With PIXELBOOK_PREVIEWS, an app may have none of them.
-  [ "$count" -gt 0 ] || [ -n "${PIXELBOOK_PREVIEWS:-}" ] || empty=$((empty + 1))
+for entry in "${mac_apps[@]}" "${iphone_apps[@]}"; do
+  for appearance in light dark; do
+    dir="$out/${entry%%:*}/$appearance"
+    if [ ! -f "$dir.log" ]; then
+      # The Mac's runs stop at a failed window capture, reported here.
+      [ "$mac_status" -eq 2 ] && continue
+      echo "    ${entry%%:*}/$appearance: didn't run" >&2
+      empty=$((empty + 1))
+      continue
+    fi
+    check_window_captures "$dir.log"
+    count=$(find "$dir" -name '*.png' | wc -l | tr -d ' ')
+    echo "    ${entry%%:*}/$appearance: $count images"
+    total=$((total + count))
+    [ "$(cat "$dir.status" 2>/dev/null || echo 1)" -eq 0 ] || warnings=$((warnings + 1))
+    # With PIXELBOOK_PREVIEWS, an app may have none of them.
+    [ "$count" -gt 0 ] || [ -n "${PIXELBOOK_PREVIEWS:-}" ] || empty=$((empty + 1))
+  done
 done
+
 echo "==> $out"
 if [ "$total" -eq 0 ]; then
   echo "Nothing rendered: does PIXELBOOK_PREVIEWS match any previews? See the .log files." >&2
