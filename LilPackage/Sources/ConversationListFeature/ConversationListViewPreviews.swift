@@ -121,9 +121,20 @@ extension PreviewTrait where T == Preview.ViewTraits {
 }
 
 /// A synthetic contact photo: a smiley on a gradient. Previews never use real contact photos.
+/// Drawn into a bitmap of a fixed size, in light, so it's the same on every Mac: drawn outside any
+/// view, it took the current drawing appearance, which followed the system's rather than the app's
+/// (the smiley turned into a filled disc in dark), and the screen's scale (851-2751).
 private let previewContactPhoto: Data = {
   let size = NSSize(width: 120, height: 120)
-  let image = NSImage(size: size, flipped: false) { rect in
+  let bitmap = NSBitmapImageRep(
+    bitmapDataPlanes: nil, pixelsWide: 240, pixelsHigh: 240, bitsPerSample: 8,
+    samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+    bytesPerRow: 0, bitsPerPixel: 0)!
+  bitmap.size = size
+  NSGraphicsContext.saveGraphicsState()
+  NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+  NSAppearance(named: .aqua)!.performAsCurrentDrawingAppearance {
+    let rect = NSRect(origin: .zero, size: size)
     NSGradient(starting: .systemOrange, ending: .systemPink)?.draw(in: rect, angle: -90)
     let symbol = NSImage(systemSymbolName: "face.smiling", accessibilityDescription: nil)?
       .withSymbolConfiguration(.init(pointSize: 64, weight: .regular))
@@ -144,8 +155,7 @@ private let previewContactPhoto: Data = {
         )
       )
     }
-    return true
   }
-  let bitmap = image.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:))
-  return bitmap?.representation(using: .png, properties: [:]) ?? Data()
+  NSGraphicsContext.restoreGraphicsState()
+  return bitmap.representation(using: .png, properties: [:]) ?? Data()
 }()
