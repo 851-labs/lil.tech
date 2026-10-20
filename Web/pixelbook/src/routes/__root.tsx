@@ -1,4 +1,5 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import inter from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 import styles from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -9,7 +10,12 @@ export const Route = createRootRoute({
       { name: "color-scheme", content: "light dark" },
       { title: "Pixelbook" },
     ],
-    links: [{ rel: "stylesheet", href: styles }],
+    links: [
+      // Requested with the page rather than once the stylesheet asks, so text doesn't reflow
+      // into it.
+      { rel: "preload", href: inter, as: "font", type: "font/woff2", crossOrigin: "anonymous" },
+      { rel: "stylesheet", href: styles },
+    ],
   }),
   component: Root,
 });

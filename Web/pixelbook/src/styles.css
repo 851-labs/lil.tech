@@ -1,20 +1,27 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
 
 /* Pixelbook's colors, in light and dark, and fonts, as the theme's tokens: utilities such as
    `bg-surface` and `text-secondary` use them. Tailwind turns `light-dark()` into the system's
    appearance (`prefers-color-scheme`). */
 @theme {
-  --color-background: light-dark(#f2f2f4, #121214);
-  --color-surface: light-dark(rgb(255 255 255 / 0.85), rgb(36 36 40 / 0.85));
-  --color-border: light-dark(rgb(0 0 0 / 0.1), rgb(255 255 255 / 0.12));
-  --color-foreground: light-dark(#1c1c1e, #f2f2f4);
-  --color-secondary: light-dark(#6e6e73, #a1a1a6);
-  --color-accent: light-dark(#0a66ff, #4c8dff);
-  /* A segmented control's chosen segment. */
-  --color-selected: light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.14));
-  /* The states stacked behind a flowchart node's current one. */
-  --color-stack-1: light-dark(#dcdce0, #2a2a2e);
-  --color-stack-2: light-dark(#c8c8cc, #222226);
+  /* Linear's (851-2761), read from its app in light and dark: the page, a panel on it, borders,
+     text in three levels, and the accent. */
+  --color-background: light-dark(lch(94.44% 0.5 282), lch(2.595% 0.4 272));
+  --color-surface: light-dark(lch(97.94% 0.5 282), lch(5.52% 0.4 272));
+  --color-border: light-dark(lch(88.49% 0 282), lch(14.16% 1.48 272));
+  --color-foreground: light-dark(lch(9.794% 0 282), lch(100% 0 272));
+  --color-muted: light-dark(lch(19.588% 1.25 282), lch(90.451% 1.2 272));
+  --color-secondary: light-dark(lch(39.176% 1.25 282), lch(61.803% 1.2 272));
+  /* Linear's indigo, lighter in dark, so links read on its near-black panels (AA). */
+  --color-accent: light-dark(#5e69d1, #8e97f0);
+  /* A control that's on or hovered: a chosen segment or chip, a hovered button. */
+  --color-selected: light-dark(lch(90.94% 0.5 282), lch(8.22% 1.3 272));
+  --color-hover: light-dark(lch(92.44% 0.5 282), lch(7.32% 0.85 272));
+  /* The states stacked behind a flowchart node's current one, darker further back, and apart from
+     the border. */
+  --color-stack-1: light-dark(lch(86% 0.5 282), lch(11% 1.3 272));
+  --color-stack-2: light-dark(lch(80% 0.5 282), lch(8% 1.3 272));
   /* A comparison's badges. */
   --color-added: #1f9d55;
   --color-removed: #d93025;
@@ -27,9 +34,19 @@
   --color-iphone-light: #ffffff;
   --color-iphone-dark: #000000;
 
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  /* Linear's type: Inter, at its sizes and its normal weight of 450. */
+  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --text-mini: 12px;
+  --text-small: 13px;
+  --text-regular: 15px;
+  --text-large: 18px;
+  --font-weight-normal: 450;
+  --radius-control: 8px;
+  --radius-chip: 6px;
+  /* A floating panel's, as Linear's menus and popovers. */
+  --shadow-panel: 0px 4px 4px -1px rgb(0 0 0 / 0.04), 0px 1px 1px 0px rgb(0 0 0 / 0.08);
+  --shadow-popover: 0 8px 32px rgb(0 0 0 / 0.16), 0 1px 2px rgb(0 0 0 / 0.08);
 }
 
 @layer base {
@@ -46,9 +63,9 @@
   }
 
   body {
-    /* 13 points, as macOS apps' text. The root stays at 16, so Tailwind's spacing keeps its
-       sizes. */
+    /* 13 px, Linear's text size. The root stays at 16, so Tailwind's spacing keeps its sizes. */
     font-size: 13px;
+    font-weight: var(--font-weight-normal);
     color: var(--color-foreground);
     background: var(--color-background);
   }
