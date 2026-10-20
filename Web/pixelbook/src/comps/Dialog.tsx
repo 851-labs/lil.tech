@@ -26,7 +26,7 @@ export function Dialog({
   readonly children: React.ReactNode;
 }) {
   return (
-    <BaseDialog.Root open={open} onOpenChange={(open) => onOpenChange(open)}>
+    <BaseDialog.Root open={open} onOpenChange={onOpenChange}>
       <BaseDialog.Trigger render={trigger} />
       <BaseDialog.Portal>
         <BaseDialog.Popup

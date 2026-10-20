@@ -13,6 +13,10 @@ export const arrowDirections: Partial<Record<string, Direction>> = {
 export const inPanel = (target: EventTarget | null) =>
   target instanceof Element && target.closest("aside") !== null;
 
+/** Whether a key goes to a group of controls, such as a segmented control, rather than the canvas. */
+export const inGroup = (target: EventTarget | null) =>
+  target instanceof Element && target.closest('[role="group"]') !== null;
+
 /** Whether a key goes to a field being typed in, rather than to the canvas. */
 export const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement &&

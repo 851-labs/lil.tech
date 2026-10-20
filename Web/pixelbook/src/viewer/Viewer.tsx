@@ -26,7 +26,7 @@ import { filtersFrom, modeFrom, type SearchChange, toggle, withChange } from "..
 import { layoutFlowchart } from "../lib/Flow.ts";
 import { graphs } from "../lib/graphs.ts";
 import { layoutGrid, type Tile, tileId } from "../lib/Grid.ts";
-import { arrowDirections, inPanel, isTyping } from "../lib/Keys.ts";
+import { arrowDirections, inGroup, inPanel, isTyping } from "../lib/Keys.ts";
 import { flowLayers, gridLayers, type LayerState } from "../lib/Layers.ts";
 import { flowFrames, frameOf, gridFrames, neighbor } from "../lib/Selection.ts";
 import {
@@ -273,12 +273,9 @@ export function Viewer() {
         // The rest wait until the list is closed. Its dialog closes on Escape, and marks the key
         // handled, so it doesn't deselect too.
         return;
-      } else if (event.key === "Escape") {
-        if (search.tile !== undefined) deselect();
-        else return;
       } else if (direction !== undefined && plain && !event.shiftKey) {
-        // In the sidebar or inspector, they scroll it.
-        if (inPanel(event.target)) return;
+        // In the sidebar or inspector, they scroll it; in a segmented control, they choose.
+        if (inPanel(event.target) || inGroup(event.target)) return;
         // With nothing selected, the first frame.
         const next =
           selectedFrame === undefined ? frames[0] : neighbor(frames, selectedFrame, direction);
@@ -302,8 +299,18 @@ export function Viewer() {
       }
       event.preventDefault();
     };
+    // Escape deselects before anything else sees it: an open tooltip (Base UI's) takes the key,
+    // which would otherwise make deselecting take two. The tooltip still closes.
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || helpShown || isTyping(event.target)) return;
+      if (search.tile !== undefined) deselect();
+    };
     window.addEventListener("keydown", keydown);
-    return () => window.removeEventListener("keydown", keydown);
+    window.addEventListener("keydown", escape, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", keydown);
+      window.removeEventListener("keydown", escape, { capture: true });
+    };
   }, [frames, selectedFrame, search.tile, show, deselect, helpShown, zoomToSelection]);
 
   // Stepping the selected flowchart screen selects the state it steps to, which it shows.
@@ -343,6 +350,7 @@ export function Viewer() {
             <ExternalLink
               className={`rounded-chip font-mono text-mini text-secondary ${focusRing}`}
               href={commitUrl(book.commit)}
+              aria-label={`Snapshots from ${book.commit}`}
             >
               {search.commit === undefined ? `${search.ref ?? "main"} · ` : ""}
               {book.commit.slice(0, 7)}
@@ -358,7 +366,7 @@ export function Viewer() {
             <span className="flex flex-wrap items-center gap-1.5 text-mini text-secondary">
               changes since{" "}
               <ExternalLink
-                className="font-mono text-mini"
+                className={`rounded-chip font-mono text-mini ${focusRing}`}
                 href={compareUrl(base.commit, book.commit)}
               >
                 {base.commit.slice(0, 7)}

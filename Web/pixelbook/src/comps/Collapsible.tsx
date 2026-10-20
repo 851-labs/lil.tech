@@ -24,7 +24,7 @@ export function Collapsible({
   readonly children: React.ReactNode;
 }) {
   return (
-    <BaseCollapsible.Root open={open} onOpenChange={(open) => onOpenChange(open)}>
+    <BaseCollapsible.Root open={open} onOpenChange={onOpenChange}>
       <BaseCollapsible.Trigger className={className} onClick={onClick}>
         <ChevronIcon open={open} />
         {label}

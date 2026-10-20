@@ -18,7 +18,7 @@ export function Checkbox({
   return (
     <BaseCheckbox.Root
       checked={checked}
-      onCheckedChange={(checked) => onCheckedChange(checked)}
+      onCheckedChange={onCheckedChange}
       nativeButton
       render={<button type="button" />}
       className={`group flex h-7 cursor-pointer items-center gap-2 rounded-chip px-2 text-left text-small text-secondary hover:bg-hover data-checked:text-foreground ${focusRingInset}`}

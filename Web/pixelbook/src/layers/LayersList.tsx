@@ -49,7 +49,7 @@ export const LayersList = memo(function LayersList({
   useEffect(() => {
     if (pendingApp === undefined || pendingScreen === undefined) return;
     setClosedApps((closed) => without(closed, pendingApp));
-    setOpenScreens((open) => withOpen(open, pendingScreen, true));
+    setOpenScreens((open) => withKey(open, pendingScreen, true));
   }, [pendingApp, pendingScreen]);
   // After each render while it's pending: once its row is shown, scroll to it.
   useLayoutEffect(() => {
@@ -87,7 +87,7 @@ export const LayersList = memo(function LayersList({
             <Collapsible
               key={app.key}
               open={appOpen}
-              onOpenChange={(open) => setClosedApps((closed) => withOpen(closed, app.key, !open))}
+              onOpenChange={(open) => setClosedApps((closed) => withKey(closed, app.key, !open))}
               label={<span className="truncate">{app.name}</span>}
               className={`${row} pl-1 font-medium text-foreground`}
               onClick={handBack}
@@ -99,7 +99,7 @@ export const LayersList = memo(function LayersList({
                     key={screen.key}
                     open={screenOpen}
                     onOpenChange={(open) =>
-                      setOpenScreens((screens) => withOpen(screens, screen.key, open))
+                      setOpenScreens((screens) => withKey(screens, screen.key, open))
                     }
                     label={
                       <>
@@ -162,7 +162,7 @@ const handBack = (event: React.MouseEvent<HTMLElement>) => {
 };
 
 /** The set with the key in it or not. */
-const withOpen = (set: ReadonlySet<string>, key: string, included: boolean) =>
+const withKey = (set: ReadonlySet<string>, key: string, included: boolean) =>
   included ? (set.has(key) ? set : new Set(set).add(key)) : without(set, key);
 
 const without = (set: ReadonlySet<string>, key: string) => {
