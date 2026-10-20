@@ -21,8 +21,9 @@ public struct AppFeature {
     /// Shown in the sidebar's footer.
     public var syncStatus: SyncStatus
     public var summary: SummaryFeature.State
-    /// Account settings, in a sheet from the account menu.
-    @Presents public var account: AccountFeature.State?
+    /// Account settings, in the Settings window. Kept here rather than presented, so the window
+    /// works whether or not the main one is open, and an export keeps going when it closes.
+    public var account = AccountFeature.State()
     /// Pins from before they synced, moved up when sync starts (`movePinsUp`).
     @Shared(.summaryPins) var localPins: [String]
 
@@ -58,8 +59,7 @@ public struct AppFeature {
     case retrySyncButtonTapped
     case signedInChanged(Bool)
     case signIn(SignInFeature.Action)
-    case account(PresentationAction<AccountFeature.Action>)
-    case accountButtonTapped
+    case account(AccountFeature.Action)
     case signOutButtonTapped
     case summary(SummaryFeature.Action)
     case syncStatusChanged(SyncStatus)
@@ -98,6 +98,9 @@ public struct AppFeature {
     Scope(\.summary, action: \.summary) {
       SummaryFeature()
     }
+    Scope(\.account, action: \.account) {
+      AccountFeature()
+    }
     Reduce { state, action in
       switch action {
       case .binding:
@@ -119,7 +122,7 @@ public struct AppFeature {
         state.selection = .summary
         state.searchText = ""
         state.syncStatus = .idle
-        state.account = nil
+        state.account = AccountFeature.State()
         // Pins are the account's choice, like its data, and leave with it.
         state.summary = SummaryFeature.State()
         state.$localPins.withLock { $0 = [] }
@@ -130,6 +133,8 @@ public struct AppFeature {
           .cancel(id: CancelID.pull),
           .cancel(id: CancelID.sync),
           .cancel(id: SummaryFeature.CancelID.write),
+          // What the Settings window started for the account stops with it.
+          AccountFeature.cancel(),
           .run { [sync, blobCache] send in
             // First, so it's done even if the database can't be.
             await blobCache.removeAll()
@@ -148,10 +153,6 @@ public struct AppFeature {
         return .run { [auth] _ in await auth.signOut() }
 
       case .account:
-        return .none
-
-      case .accountButtonTapped:
-        state.account = AccountFeature.State()
         return .none
 
       case .summary:
@@ -177,9 +178,6 @@ public struct AppFeature {
           }
         }
       }
-    }
-    .ifLet(\.$account, action: \.account) {
-      AccountFeature()
     }
   }
 

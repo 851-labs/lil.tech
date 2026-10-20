@@ -27,6 +27,9 @@ struct LilHealthApp: App {
         fatalError("Couldn't open the local database: \(error)")
       }
     }
+    // Here rather than in the main window, so the session is followed while it's closed too,
+    // for the Settings window.
+    Task { await Self.store.send(.task).finish() }
   }
 
   var body: some Scene {
@@ -41,6 +44,10 @@ struct LilHealthApp: App {
       CommandGroup(after: .appSettings) {
         SignOutCommand(store: Self.store)
       }
+    }
+    // lil health › Settings… (⌘,), and the account menu's Account Settings….
+    Settings {
+      SettingsView(store: Self.store)
     }
   }
 }
