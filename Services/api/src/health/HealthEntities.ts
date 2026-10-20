@@ -213,6 +213,15 @@ export const HealthVisionPrescription = defineEntity("health_vision_prescription
 const numbersOrNull = (value: Record<string, unknown>) =>
   Object.values(value).every((field) => field === null || typeof field === "number");
 
+/** A prism's amounts and angle (numbers, or null if in another unit) and its bases (raw values). */
+const isPrism = (prism: unknown) =>
+  isObject(prism) &&
+  ["amount", "angle", "verticalAmount", "horizontalAmount"].every(
+    (key) => prism[key] === null || typeof prism[key] === "number",
+  ) &&
+  Number.isInteger(prism.verticalBase) &&
+  Number.isInteger(prism.horizontalBase);
+
 /** Checks a vision prescription has the shape `HealthVisionPrescription` documents. */
 const checkVisionPrescription = (
   prescriptionType: unknown,
@@ -228,8 +237,8 @@ const checkVisionPrescription = (
     }
     const { prism, ...values } = eye;
     if (!numbersOrNull(values)) return "a lens's values must be numbers or null";
-    if (prism !== undefined && prism !== null && !(isObject(prism) && numbersOrNull(prism))) {
-      return "a lens's prism must be null or numbers";
+    if (prism !== undefined && prism !== null && !isPrism(prism)) {
+      return "a lens's prism must be null or { amount, angle, verticalAmount, verticalBase, horizontalAmount, horizontalBase }";
     }
   }
   return undefined;

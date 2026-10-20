@@ -307,12 +307,15 @@ struct HealthEncoderTests {
     let prescription = HKGlassesPrescription(
       rightEyeSpecification: right, leftEyeSpecification: nil, dateIssued: start,
       expirationDate: expires, device: nil, metadata: nil)
-    let mutation = HealthEncoder.visionPrescription(prescription)
+    let mutation = try #require(HealthEncoder.visionPrescription(prescription))
     #expect(mutation.entity == "health_vision_prescription")
+    // Its source revision and device go up once per file, as other records' do.
+    #expect(HealthBatchWriter.provenanceEntities.contains(mutation.entity))
     _ = try row(mutation, as: Components.Schemas.HealthVisionPrescription.self)
     let encoded = try #require(try line(mutation)["row"] as? [String: Any])
     #expect(encoded["prescriptionType"] as? Int == 1)
     #expect(encoded["startDate"] as? Double == HealthEncoder.milliseconds(start))
+    #expect(encoded["endDate"] as? Double == HealthEncoder.milliseconds(start))
     #expect(encoded["expirationDate"] as? Double == HealthEncoder.milliseconds(expires))
     #expect(encoded["brand"] is NSNull)
     #expect(encoded["leftEye"] is NSNull)
@@ -341,7 +344,7 @@ struct HealthEncoderTests {
     let prescription = HKContactsPrescription(
       rightEyeSpecification: lens(-2.25), leftEyeSpecification: lens(-2), brand: "Synthetic",
       dateIssued: start, expirationDate: nil, device: nil, metadata: nil)
-    let mutation = HealthEncoder.visionPrescription(prescription)
+    let mutation = try #require(HealthEncoder.visionPrescription(prescription))
     _ = try row(mutation, as: Components.Schemas.HealthVisionPrescription.self)
     let encoded = try #require(try line(mutation)["row"] as? [String: Any])
     #expect(encoded["prescriptionType"] as? Int == 2)
@@ -355,10 +358,10 @@ struct HealthEncoderTests {
   }
 
   @Test
-  func visionPrescriptionsAreBackfilledOnceShared() {
+  func visionPrescriptionsArentPagedThroughWithAnchors() {
+    // Health shares them one by one, at any time: they're read whole each run instead.
     let types = HealthBackfillType.all(availableOn: .ios(26))
-    let prescriptions = types.first { $0.id == "HKVisionPrescriptionTypeIdentifier" }
-    #expect(prescriptions?.entity == "health_vision_prescription")
+    #expect(!types.contains { $0.id == "HKVisionPrescriptionTypeIdentifier" })
   }
 
   @Test

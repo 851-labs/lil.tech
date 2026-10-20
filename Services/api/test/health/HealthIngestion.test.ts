@@ -703,8 +703,14 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
           id: uuid(4654),
           row: { ...glasses.row, rightEye: { ...lens, prism: "base up" } },
         },
+        // A prism without its bases.
+        {
+          ...glasses,
+          id: uuid(4655),
+          row: { ...glasses.row, rightEye: { ...lens, prism: { amount: 1, angle: 90 } } },
+        },
       ]);
-      assert.deepInclude(batch, { status: "applied", applied: 2, rejected: 3 });
+      assert.deepInclude(batch, { status: "applied", applied: 2, rejected: 4 });
       const sql = (yield* TestStores).sqlFor(userId);
       assert.deepStrictEqual(
         sql?.exec(
