@@ -1,4 +1,4 @@
-import { snapshotBackground } from "../canvas/Tile.tsx";
+import { snapshotBackground } from "../comps/SnapshotStyles.ts";
 import { Button } from "../comps/Button.tsx";
 import { Detail, DetailList } from "../comps/Detail.tsx";
 import { ExternalLink } from "../comps/ExternalLink.tsx";

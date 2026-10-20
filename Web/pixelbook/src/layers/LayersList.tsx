@@ -1,7 +1,7 @@
 // The sidebar's layers list (851-2763): apps, their screens and each screen's states, collapsible
 // and searchable. Choosing a state selects it and zooms to it; selecting on the canvas shows it here.
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { badgeColors } from "../canvas/Tile.tsx";
+import { badgeColors } from "../comps/SnapshotStyles.ts";
 import { ChevronIcon } from "../comps/Icons.tsx";
 import { SectionTitle } from "../comps/SectionTitle.tsx";
 import {

@@ -164,7 +164,7 @@ export const sourceUrl = (snapshot: Snapshot, commit: string) =>
 /** "health-mac" → "lil health for Mac". */
 export const appName = (app: string, platform: Platform) => {
   const name = app.replace(/-(mac|iphone|ipad|ios)$/, "");
-  return `lil ${name} for ${platform === "macos" ? "Mac" : "iPhone"}`;
+  return `lil ${name} for ${platformNames[platform]}`;
 };
 
 /** The platform of a book's app, by its manifest. */
