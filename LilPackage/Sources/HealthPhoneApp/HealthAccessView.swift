@@ -107,9 +107,8 @@ public struct HealthAccessView: View {
       .multilineTextAlignment(.center)
       .foregroundStyle(.secondary)
       VStack(spacing: 12) {
-        Button("Choose Medications…") { store.send(.perObjectButtonTapped(.medications)) }
-        Button("Choose Vision Prescriptions…") {
-          store.send(.perObjectButtonTapped(.visionPrescriptions))
+        ForEach(PerObjectHealthType.allCases, id: \.self) { type in
+          Button(type.chooseTitle) { store.send(.perObjectButtonTapped(type)) }
         }
       }
       .buttonStyle(.bordered)

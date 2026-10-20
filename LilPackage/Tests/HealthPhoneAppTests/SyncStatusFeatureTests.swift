@@ -136,20 +136,20 @@ struct SyncStatusFeatureTests {
 
   @Test
   func buttons() async {
-    let opened = LockIsolated<[URL]>([])
+    let chosen = LockIsolated<[PerObjectHealthType]>([])
     let signedOut = LockIsolated(false)
     let store = TestStore(initialState: SyncStatusFeature.State()) {
       SyncStatusFeature()
     } withDependencies: {
-      $0.openURL = OpenURLEffect { url in
-        opened.withValue { $0.append(url) }
-        return true
-      }
+      $0.healthAuthorization.requestPerObject = { type in chosen.withValue { $0.append(type) } }
       $0.auth.signOut = { signedOut.setValue(true) }
     }
 
-    await store.send(.openSettingsButtonTapped).finish()
-    #expect(opened.value == [URL(string: "app-settings:")!])
+    // Health's picker, then the app uploads what's newly shared.
+    await store.send(.chooseButtonTapped(.medications)) { $0.isChoosing = true }
+    await store.receive(\.chooseFinished) { $0.isChoosing = false }
+    await store.receive(\.delegate.retry)
+    #expect(chosen.value == [.medications])
     await store.send(.signOutButtonTapped).finish()
     #expect(signedOut.value)
     await store.send(.reviewHealthAccessButtonTapped)
@@ -312,6 +312,23 @@ struct SyncStatusFeatureTests {
     }
     await store.send(.signOutButtonTapped) {
       $0.isUploadingAgain = false
+    }
+  }
+
+  @Test
+  func choosingFailsWithAnAlert() async {
+    struct Unavailable: LocalizedError {
+      var errorDescription: String? { "Health data is unavailable on this device." }
+    }
+    let store = TestStore(initialState: SyncStatusFeature.State()) {
+      SyncStatusFeature()
+    } withDependencies: {
+      $0.healthAuthorization.requestPerObject = { _ in throw Unavailable() }
+    }
+    await store.send(.chooseButtonTapped(.visionPrescriptions)) { $0.isChoosing = true }
+    await store.receive(\.chooseFailed) {
+      $0.isChoosing = false
+      $0.alert = .chooseFailed("Health data is unavailable on this device.")
     }
   }
 }
