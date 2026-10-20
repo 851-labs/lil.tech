@@ -123,6 +123,18 @@ struct SyncStatusFeatureTests {
   }
 
   @Test
+  func settingsStayOpenWhileTheyreBusy() async {
+    let store = TestStore(
+      initialState: SyncStatusFeature.State(isDeletingAccount: true, isShowingSettings: true)
+    ) {
+      SyncStatusFeature()
+    }
+
+    // Deleting the account's answer shows in the sheet, so Done and swiping it away wait.
+    await store.send(.settingsPresented(false))
+  }
+
+  @Test
   func buttons() async {
     let opened = LockIsolated<[URL]>([])
     let signedOut = LockIsolated(false)

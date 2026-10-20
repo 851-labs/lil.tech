@@ -11,6 +11,7 @@ struct SettingsSheet: View {
   /// Whether this is a preview, which uses preview dependencies (`SWIFT_DEPENDENCIES_CONTEXT`).
   @Dependency(\.context) private var context
   private var isPreview: Bool { context == .preview }
+  /// Withdrawing consent or deleting the account: the sheet waits behind a progress overlay.
   private var isBusy: Bool { store.isDeletingAccount || store.isWithdrawingConsent }
 
   var body: some View {
@@ -42,6 +43,7 @@ struct SettingsSheet: View {
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
           Button("Done") { store.send(.settingsPresented(false)) }
+            .disabled(store.isSettingsBusy)
         }
       }
       .disabled(isBusy)
@@ -56,6 +58,6 @@ struct SettingsSheet: View {
       }
       .alert($store.scope(\.alert, action: \.alert))
     }
-    .interactiveDismissDisabled(isBusy)
+    .interactiveDismissDisabled(store.isSettingsBusy)
   }
 }

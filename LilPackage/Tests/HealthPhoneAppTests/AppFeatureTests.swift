@@ -34,6 +34,21 @@ private func heldConsentChecks() -> (
 @Suite(.dependencies)
 struct AppFeatureTests {
   @Test
+  func anAlertOfTheAppsClosesSettings() async {
+    var state = AppFeature.State(isSignedIn: true)
+    state.syncStatus.isShowingSettings = true
+    let store = TestStore(initialState: state) {
+      AppFeature()
+    }
+
+    // Settings, a sheet on the main screen, would hide the warning about other iPhones.
+    await store.send(.otherIPhonesFound(1)) {
+      $0.alert = .otherIPhones(1)
+      $0.syncStatus.isShowingSettings = false
+    }
+  }
+
+  @Test
   func followsTheSession() async {
     let (updates, continuation) = AsyncStream<Bool>.makeStream()
     let consent = heldConsentChecks()

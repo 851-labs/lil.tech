@@ -37,6 +37,10 @@ private func settings(
   settings(consented: false)
 }
 
+#Preview("Loading sign-in methods") {
+  settings(methods: .loading)
+}
+
 #Preview("Sign-in methods failed") {
   settings(methods: .failed(SignInMethodError.unavailable.message))
 }
@@ -51,6 +55,12 @@ private func settings(
 
 #Preview("Consent withdrawn") {
   settings(SyncStatusFeature.State(alert: .consentWithdrawn), consented: false)
+}
+
+#Preview("Withdrawal failed") {
+  settings(
+    SyncStatusFeature.State(
+      alert: .withdrawalFailed("It isn't possible right now. Please try again later.")))
 }
 
 #Preview("Delete account?") {

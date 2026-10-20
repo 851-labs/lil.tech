@@ -58,6 +58,12 @@ public struct SyncStatusFeature {
 
     public var hasConsent: Bool { consentedPolicyVersion == HealthConsentClient.policyVersion }
 
+    /// Whether the Settings sheet has something in progress: withdrawing consent, deleting the
+    /// account, or linking or unlinking a sign-in method.
+    public var isSettingsBusy: Bool {
+      isWithdrawingConsent || isDeletingAccount || signInMethods.isBusy
+    }
+
     public var status: Status {
       if !hasConsent { return .needsConsent }
       guard let progress else { return .loading }
@@ -240,6 +246,8 @@ public struct SyncStatusFeature {
         return .run { [openURL] _ in await openURL(Self.settingsURL) }
 
       case .settingsPresented(let presented):
+        // Not closed while what it started is in progress: its answers show in it.
+        if !presented, state.isSettingsBusy { return .none }
         state.isShowingSettings = presented
         return .none
 

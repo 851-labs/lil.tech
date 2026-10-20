@@ -28,7 +28,7 @@ public struct SyncStatusView: View {
             Text("Categories")
           } footer: {
             Text(
-              "Health doesn't tell apps what you turned off. If a category stays empty, check its access in Settings."
+              "Health doesn't tell apps what you turned off. If a category stays empty, check its access in the Settings app."
             )
           }
         }

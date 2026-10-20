@@ -39,6 +39,11 @@ public struct AppFeature {
       self.alert = alert
     }
 
+    /// Whether consent, Health access or an alert of the app's takes over from the main screen.
+    var takesOverFromMainScreen: Bool {
+      healthConsent != nil || healthAccess != nil || alert != nil
+    }
+
     /// Consent to the policy this app describes is in force, as far as this iPhone knows.
     public var hasConsent: Bool { consentedPolicyVersion == HealthConsentClient.policyVersion }
 
@@ -268,6 +273,12 @@ public struct AppFeature {
       HealthAccessFeature()
     }
     .ifLet(\.$alert, action: \.alert)
+    // Settings, a sheet on the main screen, closes rather than staying open behind what takes
+    // over, or opening again later.
+    .onChange(of: \.takesOverFromMainScreen) { _, state in
+      if state.takesOverFromMainScreen { state.syncStatus.isShowingSettings = false }
+      return .none
+    }
   }
 }
 
