@@ -27,20 +27,29 @@ export const LayersList = memo(function LayersList({
   const shown = useMemo(() => searchLayers(apps, query), [apps, query]);
 
   // A frame selected on the canvas opens its screen here, even if closed since, and scrolls to it
-  // once it's open; opening and closing others leaves the list where it is.
+  // once it's open; opening and closing others leaves the list where it is. Only once per
+  // selection: a filter gives the list new apps, which mustn't scroll it again (851-2789).
   const list = useRef<HTMLDivElement>(null);
   const place = useMemo(() => layerOf(apps, selected), [apps, selected]);
+  const revealed = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (place === undefined) return;
+    if (place === undefined || revealed.current === selected) return;
     setClosedApps((closed) => without(closed, place.app));
     setOpenScreens((open) => (open.has(place.screen) ? open : new Set(open).add(place.screen)));
-    const next = requestAnimationFrame(() =>
-      list.current
-        ?.querySelector(`[data-layer="${CSS.escape(place.state)}"]`)
-        ?.scrollIntoView({ block: "nearest" }),
-    );
+    // Once its row is shown: a screen just opened may take a few frames. Noted once it scrolls,
+    // so a filter changed before then doesn't lose it.
+    let frames = 0;
+    let next = requestAnimationFrame(function reveal() {
+      const row = list.current?.querySelector(`[data-layer="${CSS.escape(place.state)}"]`);
+      if (row === null || row === undefined) {
+        if (++frames < 30) next = requestAnimationFrame(reveal);
+        return;
+      }
+      revealed.current = selected;
+      row.scrollIntoView({ block: "nearest" });
+    });
     return () => cancelAnimationFrame(next);
-  }, [place]);
+  }, [place, selected]);
 
   return (
     <section className="flex flex-col gap-1" aria-label="Layers">
