@@ -1,6 +1,12 @@
 import { assert, describe, it } from "@effect/vitest";
 import { deflateSync } from "node:zlib";
-import { buildManifest, pngInfo, type RenderedImage, screenName } from "../scripts/pixelbook.ts";
+import {
+  buildManifest,
+  pngInfo,
+  type RenderedImage,
+  screenName,
+  sourcePaths,
+} from "../scripts/pixelbook.ts";
 
 describe("Pixelbook manifests", () => {
   it("names screens after their preview files", () => {
@@ -33,11 +39,17 @@ describe("Pixelbook manifests", () => {
         scale: 2,
       },
     });
-    const manifest = buildManifest("health-mac", "k", "c", [
-      image("HealthMacApp_SyncStatusViewPreviews.swift_Syncing", "dark", "2"),
-      image("HealthMacApp_SyncStatusViewPreviews.swift_Failed", "light", "3", 30),
-      image("HealthMacApp_SyncStatusViewPreviews.swift_Syncing", "light", "1"),
-    ]);
+    const manifest = buildManifest(
+      "health-mac",
+      "k",
+      "c",
+      [
+        image("HealthMacApp_SyncStatusViewPreviews.swift_Syncing", "dark", "2"),
+        image("HealthMacApp_SyncStatusViewPreviews.swift_Failed", "light", "3", 30),
+        image("HealthMacApp_SyncStatusViewPreviews.swift_Syncing", "light", "1"),
+      ],
+      () => undefined,
+    );
     assert.strictEqual(manifest.platform, "macos");
     assert.deepStrictEqual(
       manifest.snapshots.map(({ state, line, variants }) => ({
@@ -68,7 +80,10 @@ describe("Pixelbook manifests", () => {
     assert.strictEqual(first?.module, "HealthMacApp");
     assert.strictEqual(first?.file, "SyncStatusViewPreviews.swift");
     assert.strictEqual(first?.screen, "Sync Status");
-    assert.strictEqual(buildManifest("health-iphone", "k", "c", []).platform, "ios");
+    assert.strictEqual(
+      buildManifest("health-iphone", "k", "c", [], () => undefined).platform,
+      "ios",
+    );
   });
 
   it("reads a PNG's size and scale", () => {
@@ -96,5 +111,60 @@ describe("Pixelbook manifests", () => {
       scale: 3,
     });
     assert.strictEqual(pngInfo(png(pixels)).scale, 1);
+  });
+
+  it("finds each preview's file in its module's folders", () => {
+    const pathOf = sourcePaths([
+      "LilPackage/Sources/HealthMacApp/AppView.swift",
+      "LilPackage/Sources/HealthMacApp/Pages/Sleep/SleepDetailViewPreviews.swift",
+      "LilPackage/Sources/HealthMacApp/Pages/Twice.swift",
+      "LilPackage/Sources/HealthMacApp/Shared/Twice.swift",
+      "LilPackage/Sources/HealthMacApp/Resources/Notes.md",
+      "LilPackage/Sources/HealthUI/AppView.swift",
+      "LilPackage/Tests/HealthMacAppTests/AppViewTests.swift",
+      "",
+    ]);
+    assert.strictEqual(
+      pathOf("HealthMacApp", "SleepDetailViewPreviews.swift"),
+      "LilPackage/Sources/HealthMacApp/Pages/Sleep/SleepDetailViewPreviews.swift",
+    );
+    // By module: another module's file of the same name is its own.
+    assert.strictEqual(
+      pathOf("HealthMacApp", "AppView.swift"),
+      "LilPackage/Sources/HealthMacApp/AppView.swift",
+    );
+    assert.strictEqual(
+      pathOf("HealthUI", "AppView.swift"),
+      "LilPackage/Sources/HealthUI/AppView.swift",
+    );
+    // Ambiguous, outside Sources, or missing: none.
+    assert.strictEqual(pathOf("HealthMacApp", "Twice.swift"), undefined);
+    assert.strictEqual(pathOf("HealthMacAppTests", "AppViewTests.swift"), undefined);
+    assert.strictEqual(pathOf("HealthMacApp", "Missing.swift"), undefined);
+
+    const manifest = buildManifest(
+      "health-mac",
+      "k",
+      "c",
+      [
+        {
+          name: "HealthMacApp_SleepDetailViewPreviews.swift_Night",
+          appearance: "light",
+          sidecar: { group: "HealthMacApp/SleepDetailViewPreviews.swift" },
+          variant: {
+            image: "images/1.png",
+            thumbnail: "thumbnails/1.png",
+            width: 2,
+            height: 2,
+            scale: 2,
+          },
+        },
+      ],
+      pathOf,
+    );
+    assert.strictEqual(
+      manifest.snapshots[0]?.path,
+      "LilPackage/Sources/HealthMacApp/Pages/Sleep/SleepDetailViewPreviews.swift",
+    );
   });
 });

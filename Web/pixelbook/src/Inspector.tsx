@@ -9,6 +9,7 @@ import {
   compareUrl,
   imageUrl,
   schemes,
+  sourcePath,
   sourceUrl,
   type Variant,
 } from "./Snapshots.ts";
@@ -205,7 +206,7 @@ function FrameView({
           </Detail>
           <Detail name="Source">
             <ExternalLink href={sourceUrl(snapshot, commit)}>
-              {snapshot.module}/{snapshot.file}
+              {sourcePath(snapshot).replace(/^LilPackage\/Sources\//, "")}
               {snapshot.line === null ? "" : `:${snapshot.line}`}
             </ExternalLink>
           </Detail>
