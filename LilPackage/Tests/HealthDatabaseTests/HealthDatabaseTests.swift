@@ -408,8 +408,18 @@ struct BrowseQueriesTests {
           sourceBundleID: "com.example")
       }.execute(db)
       try HealthActivitySummary.insert { HealthActivitySummary(id: "2025-10-13") }.execute(db)
+      try HealthMedicationDose.insert {
+        HealthMedicationDose(
+          id: "d1", startDate: utc(9).unixMilliseconds, endDate: utc(9).unixMilliseconds,
+          medication: "m1", logStatus: 4, scheduleType: 1, unit: "count", sourceName: "Test",
+          sourceBundleID: "com.example")
+      }.execute(db)
     }
     #expect(try summary(headache).latestDate == utc(10))
+    // Medications have no dates of their own: theirs is the latest dose's.
+    #expect(try summary("HKDataTypeUserAnnotatedMedicationConcept").latestDate == utc(9))
+    #expect(
+      try summary("HKMedicationDoseEventTypeIdentifierMedicationDoseEvent").latestDate == utc(9))
     #expect(try summary(headache).latestValue == nil)
     #expect(try summary("HKActivitySummaryTypeIdentifier").latestDate == utc(0, day: 13))
     // A day's, not a moment's.
@@ -1113,6 +1123,22 @@ struct HealthSyncTests {
         "expirationDate": null, "brand": "Synthetic", "rightEye": {"sphere": -2.25},
         "leftEye": null, "sourceName": "Test iPhone", "sourceBundleId": "com.example"
         """),
+      upsert(
+        17, "health_medication", String(repeating: "c", count: 64),
+        """
+        "name": "Synthetic 10 mg Tablet", "nickname": null, "generalForm": "tablet",
+        "isArchived": false, "hasSchedule": true,
+        "codings": [{"system": "http://example.com/codes", "version": null, "code": "12345"}]
+        """),
+      upsert(
+        18, "health_medication_dose", "6f1c2a40-0000-4000-8000-00000000000b",
+        """
+        "startDate": 1760400000000, "endDate": 1760400000000,
+        "medication": "\(String(repeating: "c", count: 64))", "logStatus": 4,
+        "scheduleType": 2, "scheduledDate": 1760399100000, "scheduledDoseQuantity": 1,
+        "doseQuantity": 1, "unit": "count", "sourceName": "Test iPhone",
+        "sourceBundleId": "com.example"
+        """),
     ]
     let api = Client.mock { request, _ in
       #expect(request.path?.hasPrefix("/v1/sync/changes") == true)
@@ -1121,7 +1147,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 16, head: 16, hasMore: false)))
+              epoch: 1, changes: changes, next: 18, head: 18, hasMore: false)))
       )
     }
     let engine = withDependencies {
@@ -1184,6 +1210,16 @@ struct HealthSyncTests {
     #expect(prescriptions.map(\.brand) == ["Synthetic"])
     #expect(prescriptions.map(\.rightEye) == [#"{"sphere":-2.25}"#])
     #expect(prescriptions.map(\.leftEye) == [nil])
+    let medications = try await database.read { db in try HealthMedication.fetchAll(db) }
+    #expect(medications.map(\.name) == ["Synthetic 10 mg Tablet"])
+    #expect(medications.map(\.hasSchedule) == [true])
+    #expect(
+      medications.map(\.codings)
+        == [#"[{"code":"12345","system":"http://example.com/codes","version":null}]"#])
+    let doses = try await database.read { db in try HealthMedicationDose.fetchAll(db) }
+    #expect(doses.map(\.medication) == [String(repeating: "c", count: 64)])
+    #expect(doses.map(\.logStatus) == [4])
+    #expect(doses.map(\.scheduledDate) == [1_760_399_100_000])
     let routes = try await database.read { db in try HealthWorkoutRoute.fetchAll(db) }
     #expect(routes.map(\.locationCount) == [3600])
     #expect(routes.map(\.workout) == ["6f1c2a40-0000-4000-8000-000000000004"])
@@ -1215,6 +1251,7 @@ struct HealthSyncTests {
       writable(HealthAudiogram.self), writable(HealthElectrocardiogram.self),
       writable(HealthWorkoutRoute.self), writable(HealthHeartbeatSeries.self),
       writable(HealthStatisticsDevice.self), writable(HealthVisionPrescription.self),
+      writable(HealthMedication.self), writable(HealthMedicationDose.self),
     ]
     #expect(Set(tables.map(\.0)).count == HealthDatabase.syncEntities.count)
     for (table, written) in tables {
@@ -1395,6 +1432,19 @@ struct HealthSyncTests {
     }
     try roundTrip { v in
       HealthStatisticsDevice(id: "sd", device: "d\(v)", pairedWithWatch: v == 1, reportedAt: v)
+    }
+    try roundTrip { v in
+      HealthMedication(
+        id: "med", name: "n\(v)", nickname: "k\(v)", generalForm: "f\(v)", isArchived: v == 1,
+        hasSchedule: v == 2, codings: "c\(v)")
+    }
+    try roundTrip { v in
+      HealthMedicationDose(
+        id: "dose", startDate: 10 + v, endDate: 20 + v, medication: "m\(v)", logStatus: 30 + v,
+        scheduleType: 40 + v, scheduledDate: 50 + v, scheduledDoseQuantity: Double(60 + v),
+        doseQuantity: Double(70 + v), unit: "u\(v)", sourceName: source.name,
+        sourceBundleID: source.bundle, sourceRevision: source.revision, device: device,
+        metadata: metadata, provenance: "p\(v)")
     }
   }
 

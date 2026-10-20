@@ -249,6 +249,56 @@ public enum HealthDatabase {
       )
       .execute(db)
     }
+    migrator.registerMigration("Create medications and doses") { db in
+      try #sql(
+        """
+        CREATE TABLE "healthMedications" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "name" TEXT NOT NULL,
+          "nickname" TEXT,
+          "generalForm" TEXT NOT NULL,
+          "isArchived" INTEGER NOT NULL,
+          "hasSchedule" INTEGER NOT NULL,
+          "codings" TEXT NOT NULL
+        ) STRICT
+        """
+      )
+      .execute(db)
+      try #sql(
+        """
+        CREATE TABLE "healthMedicationDoses" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "startDate" INTEGER NOT NULL,
+          "endDate" INTEGER NOT NULL,
+          "medication" TEXT NOT NULL,
+          "logStatus" INTEGER NOT NULL,
+          "scheduleType" INTEGER NOT NULL,
+          "scheduledDate" INTEGER,
+          "scheduledDoseQuantity" REAL,
+          "doseQuantity" REAL,
+          "unit" TEXT NOT NULL,
+          "sourceName" TEXT NOT NULL,
+          "sourceBundleID" TEXT NOT NULL,
+          "sourceRevision" TEXT,
+          "device" TEXT,
+          "metadata" TEXT,
+          "provenance" TEXT
+        ) STRICT
+        """
+      )
+      .execute(db)
+      try #sql(
+        #"CREATE INDEX "healthMedicationDoses_startDate" ON "healthMedicationDoses" ("startDate")"#
+      )
+      .execute(db)
+      try #sql(
+        """
+        CREATE INDEX "healthMedicationDoses_medication" \
+        ON "healthMedicationDoses" ("medication", "startDate")
+        """
+      )
+      .execute(db)
+    }
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
@@ -466,6 +516,21 @@ public enum HealthDatabase {
         sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
         sourceRevision: try json(row.sourceRevision), device: try json(row.device),
         metadata: try json(row.metadata), provenance: row.provenance)
+    },
+    entity("health_medication", Components.Schemas.HealthMedication.self) { row in
+      HealthMedication(
+        id: row.id, name: row.name, nickname: row.nickname, generalForm: row.generalForm,
+        isArchived: row.isArchived, hasSchedule: row.hasSchedule,
+        codings: try json(row.codings) ?? "[]")
+    },
+    entity("health_medication_dose", Components.Schemas.HealthMedicationDose.self) { row in
+      HealthMedicationDose(
+        id: row.id, startDate: row.startDate, endDate: row.endDate, medication: row.medication,
+        logStatus: row.logStatus, scheduleType: row.scheduleType,
+        scheduledDate: row.scheduledDate, scheduledDoseQuantity: row.scheduledDoseQuantity,
+        doseQuantity: row.doseQuantity, unit: row.unit, sourceName: row.sourceName,
+        sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
+        device: try json(row.device), metadata: try json(row.metadata), provenance: row.provenance)
     },
     entity("health_statistics_device", Components.Schemas.HealthStatisticsDevice.self) { row in
       HealthStatisticsDevice(

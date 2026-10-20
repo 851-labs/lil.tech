@@ -4349,6 +4349,401 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthMedication`.
+        public struct HealthMedication: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthMedication/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthMedication/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthMedication/nickname`.
+            public var nickname: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HealthMedication/generalForm`.
+            public var generalForm: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthMedication/isArchived`.
+            public var isArchived: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/HealthMedication/hasSchedule`.
+            public var hasSchedule: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/HealthMedication/codings`.
+            public var codings: OpenAPIRuntime.OpenAPIValueContainer
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthMedication`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - name:
+            ///   - nickname:
+            ///   - generalForm:
+            ///   - isArchived:
+            ///   - hasSchedule:
+            ///   - codings:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                name: Swift.String,
+                nickname: Swift.String? = nil,
+                generalForm: Swift.String,
+                isArchived: Swift.Bool,
+                hasSchedule: Swift.Bool,
+                codings: OpenAPIRuntime.OpenAPIValueContainer,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.name = name
+                self.nickname = nickname
+                self.generalForm = generalForm
+                self.isArchived = isArchived
+                self.hasSchedule = hasSchedule
+                self.codings = codings
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case name
+                case nickname
+                case generalForm
+                case isArchived
+                case hasSchedule
+                case codings
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.name = try container.decode(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.nickname = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .nickname
+                )
+                self.generalForm = try container.decode(
+                    Swift.String.self,
+                    forKey: .generalForm
+                )
+                self.isArchived = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .isArchived
+                )
+                self.hasSchedule = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .hasSchedule
+                )
+                self.codings = try container.decode(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .codings
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "name",
+                    "nickname",
+                    "generalForm",
+                    "isArchived",
+                    "hasSchedule",
+                    "codings"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.name,
+                    forKey: .name
+                )
+                try container.encodeIfPresent(
+                    self.nickname,
+                    forKey: .nickname
+                )
+                try container.encode(
+                    self.generalForm,
+                    forKey: .generalForm
+                )
+                try container.encode(
+                    self.isArchived,
+                    forKey: .isArchived
+                )
+                try container.encode(
+                    self.hasSchedule,
+                    forKey: .hasSchedule
+                )
+                try container.encode(
+                    self.codings,
+                    forKey: .codings
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthMedicationDose`.
+        public struct HealthMedicationDose: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/startDate`.
+            public var startDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/endDate`.
+            public var endDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/medication`.
+            public var medication: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/logStatus`.
+            public var logStatus: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/scheduleType`.
+            public var scheduleType: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/scheduledDate`.
+            public var scheduledDate: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/scheduledDoseQuantity`.
+            public var scheduledDoseQuantity: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/doseQuantity`.
+            public var doseQuantity: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/unit`.
+            public var unit: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/sourceName`.
+            public var sourceName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/sourceBundleId`.
+            public var sourceBundleId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/sourceRevision`.
+            public var sourceRevision: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/device`.
+            public var device: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/metadata`.
+            public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDose/provenance`.
+            public var provenance: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthMedicationDose`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - startDate:
+            ///   - endDate:
+            ///   - medication:
+            ///   - logStatus:
+            ///   - scheduleType:
+            ///   - scheduledDate:
+            ///   - scheduledDoseQuantity:
+            ///   - doseQuantity:
+            ///   - unit:
+            ///   - sourceName:
+            ///   - sourceBundleId:
+            ///   - sourceRevision:
+            ///   - device:
+            ///   - metadata:
+            ///   - provenance:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                startDate: Swift.Int,
+                endDate: Swift.Int,
+                medication: Swift.String,
+                logStatus: Swift.Int,
+                scheduleType: Swift.Int,
+                scheduledDate: Swift.Int? = nil,
+                scheduledDoseQuantity: Swift.Double? = nil,
+                doseQuantity: Swift.Double? = nil,
+                unit: Swift.String,
+                sourceName: Swift.String,
+                sourceBundleId: Swift.String,
+                sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                provenance: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.startDate = startDate
+                self.endDate = endDate
+                self.medication = medication
+                self.logStatus = logStatus
+                self.scheduleType = scheduleType
+                self.scheduledDate = scheduledDate
+                self.scheduledDoseQuantity = scheduledDoseQuantity
+                self.doseQuantity = doseQuantity
+                self.unit = unit
+                self.sourceName = sourceName
+                self.sourceBundleId = sourceBundleId
+                self.sourceRevision = sourceRevision
+                self.device = device
+                self.metadata = metadata
+                self.provenance = provenance
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case startDate
+                case endDate
+                case medication
+                case logStatus
+                case scheduleType
+                case scheduledDate
+                case scheduledDoseQuantity
+                case doseQuantity
+                case unit
+                case sourceName
+                case sourceBundleId
+                case sourceRevision
+                case device
+                case metadata
+                case provenance
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.startDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .startDate
+                )
+                self.endDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .endDate
+                )
+                self.medication = try container.decode(
+                    Swift.String.self,
+                    forKey: .medication
+                )
+                self.logStatus = try container.decode(
+                    Swift.Int.self,
+                    forKey: .logStatus
+                )
+                self.scheduleType = try container.decode(
+                    Swift.Int.self,
+                    forKey: .scheduleType
+                )
+                self.scheduledDate = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .scheduledDate
+                )
+                self.scheduledDoseQuantity = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .scheduledDoseQuantity
+                )
+                self.doseQuantity = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .doseQuantity
+                )
+                self.unit = try container.decode(
+                    Swift.String.self,
+                    forKey: .unit
+                )
+                self.sourceName = try container.decode(
+                    Swift.String.self,
+                    forKey: .sourceName
+                )
+                self.sourceBundleId = try container.decode(
+                    Swift.String.self,
+                    forKey: .sourceBundleId
+                )
+                self.sourceRevision = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .sourceRevision
+                )
+                self.device = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .device
+                )
+                self.metadata = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .metadata
+                )
+                self.provenance = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .provenance
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "startDate",
+                    "endDate",
+                    "medication",
+                    "logStatus",
+                    "scheduleType",
+                    "scheduledDate",
+                    "scheduledDoseQuantity",
+                    "doseQuantity",
+                    "unit",
+                    "sourceName",
+                    "sourceBundleId",
+                    "sourceRevision",
+                    "device",
+                    "metadata",
+                    "provenance"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.startDate,
+                    forKey: .startDate
+                )
+                try container.encode(
+                    self.endDate,
+                    forKey: .endDate
+                )
+                try container.encode(
+                    self.medication,
+                    forKey: .medication
+                )
+                try container.encode(
+                    self.logStatus,
+                    forKey: .logStatus
+                )
+                try container.encode(
+                    self.scheduleType,
+                    forKey: .scheduleType
+                )
+                try container.encodeIfPresent(
+                    self.scheduledDate,
+                    forKey: .scheduledDate
+                )
+                try container.encodeIfPresent(
+                    self.scheduledDoseQuantity,
+                    forKey: .scheduledDoseQuantity
+                )
+                try container.encodeIfPresent(
+                    self.doseQuantity,
+                    forKey: .doseQuantity
+                )
+                try container.encode(
+                    self.unit,
+                    forKey: .unit
+                )
+                try container.encode(
+                    self.sourceName,
+                    forKey: .sourceName
+                )
+                try container.encode(
+                    self.sourceBundleId,
+                    forKey: .sourceBundleId
+                )
+                try container.encodeIfPresent(
+                    self.sourceRevision,
+                    forKey: .sourceRevision
+                )
+                try container.encodeIfPresent(
+                    self.device,
+                    forKey: .device
+                )
+                try container.encodeIfPresent(
+                    self.metadata,
+                    forKey: .metadata
+                )
+                try container.encodeIfPresent(
+                    self.provenance,
+                    forKey: .provenance
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthPin`.
         public struct HealthPin: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthPin/id`.

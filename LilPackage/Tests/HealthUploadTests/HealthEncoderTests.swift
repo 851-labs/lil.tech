@@ -22,6 +22,38 @@ private func row<Row: Decodable>(_ mutation: HealthMutation, as _: Row.Type) thr
   return try JSONDecoder().decode(Row.self, from: JSONEncoder().encode(row))
 }
 
+/// A medication concept identifier, as HealthKit would archive one, since it has no public
+/// initializer: `SyntheticConcept` archived under HealthKit's class name, then unarchived as a
+/// real `HKHealthConceptIdentifier`.
+private func conceptIdentifier(_ underlying: String) throws -> HKHealthConceptIdentifier {
+  let archiver = NSKeyedArchiver(requiringSecureCoding: true)
+  archiver.setClassName("HKHealthConceptIdentifier", for: SyntheticConcept.self)
+  archiver.encode(SyntheticConcept(underlying), forKey: NSKeyedArchiveRootObjectKey)
+  archiver.finishEncoding()
+  return try #require(
+    try NSKeyedUnarchiver.unarchivedObject(
+      ofClass: HKHealthConceptIdentifier.self, from: archiver.encodedData))
+}
+
+/// Encodes what `HKHealthConceptIdentifier` does (on macOS 27): its domain and underlying
+/// identifier.
+@objc(LilSyntheticConcept)
+private final class SyntheticConcept: NSObject, NSSecureCoding {
+  static var supportsSecureCoding: Bool { true }
+  let underlying: String
+
+  init(_ underlying: String) {
+    self.underlying = underlying
+  }
+
+  init?(coder: NSCoder) { nil }
+
+  func encode(with coder: NSCoder) {
+    coder.encode(HKHealthConceptDomain.medication.rawValue as NSString, forKey: "DomainKey")
+    coder.encode(underlying as NSString, forKey: "UnderlyingIdentifierKey")
+  }
+}
+
 struct HealthEncoderTests {
   /// Pinned: a sample's start is part of how the server finds it.
   @Test
@@ -362,6 +394,112 @@ struct HealthEncoderTests {
     // Health shares them one by one, at any time: they're read whole each run instead.
     let types = HealthBackfillType.all(availableOn: .ios(26))
     #expect(!types.contains { $0.id == "HKVisionPrescriptionTypeIdentifier" })
+  }
+
+  @Test
+  func medicationKeyedByItsConcept() throws {
+    let record = MedicationRecord(
+      id: String(repeating: "a", count: 64), name: "Synthetic 10 mg Tablet",
+      nickname: "Morning pill", generalForm: HKMedicationGeneralForm.tablet.rawValue,
+      isArchived: false, hasSchedule: true,
+      codings: [
+        .init(system: "http://example.com/b", version: nil, code: "2"),
+        .init(system: "http://example.com/a", version: "1", code: "1"),
+      ])
+    let mutation = HealthEncoder.medication(record)
+    #expect(mutation.entity == "health_medication")
+    #expect(mutation.id == record.id)
+    // Not a sample: it has no source revision or device.
+    #expect(!HealthBatchWriter.provenanceEntities.contains(mutation.entity))
+    let decoded = try row(mutation, as: Components.Schemas.HealthMedication.self)
+    #expect(decoded.name == "Synthetic 10 mg Tablet")
+    #expect(decoded.nickname == "Morning pill")
+    #expect(decoded.generalForm == "tablet")
+    #expect(!decoded.isArchived)
+    #expect(decoded.hasSchedule)
+    let encoded = try #require(try line(mutation)["row"] as? [String: Any])
+    // Sorted, so the same medication always hashes the same.
+    let codings = try #require(encoded["codings"] as? [[String: Any]])
+    #expect(
+      codings.map { $0["system"] as? String } == ["http://example.com/a", "http://example.com/b"])
+    #expect(codings.first?["version"] as? String == "1")
+    #expect(codings.last?["version"] is NSNull)
+  }
+
+  @Test
+  func medicationsAreOnePerConceptCurrentOnesFirst() {
+    let medication = { (nickname: String, isArchived: Bool) in
+      MedicationRecord(
+        id: "concept", name: "Synthetic", nickname: nickname, generalForm: "tablet",
+        isArchived: isArchived, hasSchedule: false, codings: [])
+    }
+    let medications = HealthEncoder.medications([
+      medication("Archived", true), medication("Current", false),
+    ])
+    #expect(medications.count == 1)
+    #expect(medications.first?.row?["nickname"] == "Current")
+  }
+
+  @Test
+  func medicationDoseEvent() throws {
+    let scheduled = start.addingTimeInterval(-900)
+    let dose = MedicationDoseRecord(
+      id: UUID(uuidString: "6F1C2A40-0000-4000-8000-0000000000C1")!,
+      medication: String(repeating: "a", count: 64),
+      logStatus: HKMedicationDoseEvent.LogStatus.taken.rawValue,
+      scheduleType: HKMedicationDoseEvent.ScheduleType.schedule.rawValue,
+      scheduledDate: scheduled, scheduledDoseQuantity: 2, doseQuantity: 1, unit: "count",
+      provenance: HealthEncoder.provenance(
+        of: HKQuantitySample(
+          type: HKQuantityType(.heartRate),
+          quantity: HKQuantity(unit: .count().unitDivided(by: .minute()), doubleValue: 1),
+          start: start, end: start)))
+    let mutation = HealthEncoder.medicationDose(dose)
+    #expect(mutation.entity == "health_medication_dose")
+    #expect(mutation.id == "6f1c2a40-0000-4000-8000-0000000000c1")
+    // Its source revision and device go up once per file, as other samples' do.
+    #expect(HealthBatchWriter.provenanceEntities.contains(mutation.entity))
+    let decoded = try row(mutation, as: Components.Schemas.HealthMedicationDose.self)
+    #expect(decoded.medication == dose.medication)
+    #expect(decoded.logStatus == 4)
+    #expect(decoded.scheduleType == 2)
+    #expect(decoded.scheduledDate == Int(HealthEncoder.milliseconds(scheduled)))
+    #expect(decoded.scheduledDoseQuantity == 2)
+    #expect(decoded.doseQuantity == 1)
+    #expect(decoded.unit == "count")
+    #expect(decoded.startDate == 1_760_400_000_000)
+
+    // As needed, with no schedule.
+    var asNeeded = dose
+    asNeeded.scheduleType = HKMedicationDoseEvent.ScheduleType.asNeeded.rawValue
+    asNeeded.scheduledDate = nil
+    asNeeded.scheduledDoseQuantity = nil
+    let encoded = try #require(
+      try line(HealthEncoder.medicationDose(asNeeded))["row"] as? [String: Any])
+    #expect(encoded["scheduleType"] as? Int == 1)
+    #expect(encoded["scheduledDate"] is NSNull)
+    #expect(encoded["scheduledDoseQuantity"] is NSNull)
+  }
+
+  @Test
+  func conceptIDsMatchWhenTheConceptsDo() throws {
+    let a = try conceptIdentifier("synthetic-a")
+    let id = HealthEncoder.conceptID(a)
+    #expect(id.wholeMatch(of: /[0-9a-f]{64}/) != nil)
+    // The same concept, made separately, has the same ID; another concept another.
+    #expect(HealthEncoder.conceptID(try conceptIdentifier("synthetic-a")) == id)
+    #expect(try conceptIdentifier("synthetic-a") == a)
+    #expect(HealthEncoder.conceptID(try conceptIdentifier("synthetic-b")) != id)
+  }
+
+  @Test
+  func medicationDosesArePagedThroughWithAnchorsAndMedicationsArent() {
+    let types = HealthBackfillType.all(availableOn: .ios(26))
+    let doses = types.first { $0.id == "HKMedicationDoseEventTypeIdentifierMedicationDoseEvent" }
+    #expect(doses?.entity == "health_medication_dose")
+    #expect(doses?.pageSize == nil)
+    // Read whole each run instead, like vision prescriptions.
+    #expect(!types.contains { $0.id == "HKDataTypeUserAnnotatedMedicationConcept" })
   }
 
   @Test

@@ -244,6 +244,85 @@ const checkVisionPrescription = (
   return undefined;
 };
 
+/**
+ * A medication concept's ID: the SHA-256 (lowercase hex) the iPhone makes from HealthKit's
+ * `HKHealthConceptIdentifier`, which has no public value of its own.
+ */
+const medicationConceptId = /^[0-9a-f]{64}$/;
+
+/**
+ * Medications (`HKUserAnnotatedMedication`, 851-2571), current and archived, that the person
+ * shares one by one (per-object read authorization). Keyed by their concept's ID, which their
+ * doses refer to. They aren't samples, so they have no dates or source.
+ */
+export const HealthMedication = defineEntity("health_medication", {
+  clientWritable: false,
+  id: medicationConceptId,
+  fields: {
+    /** Its name, as Health shows it (`HKMedicationConcept.displayText`). */
+    name: Column.text,
+    /** The name the person gave it, if any. */
+    nickname: Column.nullable(Column.text),
+    /** `HKMedicationGeneralForm`'s raw value, e.g. `tablet`. Any string, so new forms go through. */
+    generalForm: Column.text,
+    isArchived: Column.boolean,
+    hasSchedule: Column.boolean,
+    /**
+     * Codes for it in clinical systems (`HKClinicalCoding`), e.g. RxNorm's: `[{ system, version,
+     * code }]`, `version` possibly null.
+     */
+    codings: Column.json,
+  },
+  checkRow: (_, row) => checkCodings(row.codings),
+});
+
+/** Checks a medication's codings have the shape `HealthMedication` documents. */
+const checkCodings = (codings: unknown): string | undefined => {
+  if (!Array.isArray(codings)) return "codings must be an array";
+  for (const coding of codings) {
+    const ok =
+      isObject(coding) &&
+      typeof coding.system === "string" &&
+      typeof coding.code === "string" &&
+      (coding.version === null || typeof coding.version === "string");
+    if (!ok) return "each coding must be { system, version, code }";
+  }
+  return undefined;
+};
+
+/**
+ * Medication dose events (`HKMedicationDoseEvent`, 851-2571): a dose logged as taken or skipped,
+ * or a scheduled one that wasn't logged. Health shares those of the medications the person
+ * shares. Enum fields are HealthKit's raw values, any integer, so values a later iOS adds go
+ * through.
+ */
+export const HealthMedicationDose = defineEntity("health_medication_dose", {
+  clientWritable: false,
+  id: healthKitUUID,
+  fields: {
+    startDate: Column.integer,
+    endDate: Column.integer,
+    /** The `health_medication` it's a dose of, by its concept's ID. */
+    medication: Column.text,
+    /** `HKMedicationDoseEvent.LogStatus`'s raw value, e.g. 4 for taken, 5 for skipped. */
+    logStatus: Column.integer,
+    /** `HKMedicationDoseEvent.ScheduleType`'s raw value: 1 as needed, 2 scheduled. */
+    scheduleType: Column.integer,
+    /** When it was scheduled for, if it was. */
+    scheduledDate: Column.nullable(Column.integer),
+    /** The dose scheduled and the dose logged, in `unit`. */
+    scheduledDoseQuantity: Column.nullable(Column.real),
+    doseQuantity: Column.nullable(Column.real),
+    /** The quantities' unit, as an `HKUnit` string. */
+    unit: Column.text,
+    ...provenance,
+  },
+  checkRow: (_, row) =>
+    typeof row.medication === "string" && medicationConceptId.test(row.medication)
+      ? undefined
+      : "medication must be a medication's concept ID",
+});
+
 /** Whether a field is a list of HealthKit enum raw values. */
 const isRawValues = (value: unknown) =>
   Array.isArray(value) && value.every((element) => Number.isInteger(element));
@@ -526,4 +605,6 @@ export const healthEntities = [
   HealthHeartbeatSeries,
   HealthWorkoutRoute,
   HealthVisionPrescription,
+  HealthMedication,
+  HealthMedicationDose,
 ] as const;
