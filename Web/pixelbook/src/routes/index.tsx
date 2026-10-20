@@ -1,8 +1,15 @@
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, type CanvasHandle } from "../Canvas.tsx";
+import { Canvas, type CanvasHandle, type Insets } from "../Canvas.tsx";
 import { flowNodes, gridNodes, withSteps } from "../Elements.ts";
-import { type Direction, flowFrames, frameOf, gridFrames, neighbor } from "../Selection.ts";
+import {
+  type Direction,
+  type Frame,
+  flowFrames,
+  frameOf,
+  gridFrames,
+  neighbor,
+} from "../Selection.ts";
 import {
   filtersFrom,
   modeFrom,
@@ -166,6 +173,11 @@ function Grid() {
     [setSearch],
   );
   const deselect = useCallback(() => select(undefined), [select]);
+  // A click on the empty canvas, which deselects.
+  const selectedId = search.tile;
+  const onPaneClick = useCallback(() => {
+    if (selectedId !== undefined) deselect();
+  }, [selectedId, deselect]);
 
   const canvas = useRef<CanvasHandle>(null);
   // What the arrow keys move between, and where the selection is.
@@ -179,35 +191,67 @@ function Grid() {
     [grid, flow, steps],
   );
   const selectedFrame = frameOf(frames, search.tile);
+
+  // The panels beside the canvas, which narrow windows show over it.
+  const body = useRef<HTMLDivElement>(null);
+  const covered = useCallback((): Insets => {
+    let insets = { left: 0, right: 0 };
+    for (const panel of body.current?.querySelectorAll<HTMLElement>(":scope > aside") ?? []) {
+      if (getComputedStyle(panel).position !== "absolute") continue;
+      insets =
+        panel.offsetLeft === 0
+          ? { ...insets, left: panel.offsetWidth }
+          : { ...insets, right: panel.offsetWidth };
+    }
+    return insets;
+  }, []);
+  // A frame the arrow keys selected, shown once the inspector the selection opens is laid out.
+  const toReveal = useRef<Frame | undefined>(undefined);
+  useEffect(() => {
+    const frame = toReveal.current;
+    if (frame === undefined) return;
+    toReveal.current = undefined;
+    const next = requestAnimationFrame(() => canvas.current?.reveal(frame.box, covered()));
+    return () => cancelAnimationFrame(next);
+  }, [search.tile, covered]);
+
   const [helpShown, setHelpShown] = useState(false);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || isTyping(event.target)) return;
+      if (event.defaultPrevented || isTyping(event.target) || inPanel(event.target)) return;
       const view = canvas.current;
       const direction = arrowDirections[event.key];
+      // Shortcuts with other modifiers are the browser's or the system's.
+      const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
       if (event.key === "Escape") {
         if (helpShown) setHelpShown(false);
-        else if (selected !== undefined) deselect();
+        else if (search.tile !== undefined) deselect();
         else return;
-      } else if (event.key === "?") {
-        setHelpShown((shown) => !shown);
-      } else if (direction !== undefined) {
-        if (event.metaKey || event.ctrlKey || event.altKey) return;
+      } else if (event.key === "?" && plain) {
+        if (!event.repeat) setHelpShown((shown) => !shown);
+      } else if (helpShown) {
+        // The rest wait until the list is closed.
+        return;
+      } else if (direction !== undefined && plain && !event.shiftKey) {
         // With nothing selected, the first frame.
         const next =
           selectedFrame === undefined ? frames[0] : neighbor(frames, selectedFrame, direction);
         if (next === undefined) return;
+        // So Space or Enter doesn't press a tile clicked before.
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && focused.closest(".react-flow") !== null)
+          focused.blur();
+        toReveal.current = next;
         select(next.tile);
-        view?.reveal(next.box);
-      } else if (event.shiftKey && event.code === "Digit1") {
+      } else if (plain && event.shiftKey && event.code === "Digit1") {
         view?.fit();
-      } else if (event.shiftKey && event.code === "Digit2") {
+      } else if (plain && event.shiftKey && event.code === "Digit2") {
         if (selectedFrame === undefined) return;
-        view?.zoomTo(selectedFrame.box);
-      } else if (event.key === "+" || event.key === "=") {
+        view?.zoomTo(selectedFrame.box, covered());
+      } else if ((event.key === "+" || event.key === "=") && !event.altKey) {
         // With ⌘ too, rather than the browser zooming the page.
         view?.zoomBy(1.5);
-      } else if (event.key === "-" || event.key === "_") {
+      } else if ((event.key === "-" || event.key === "_") && !event.altKey) {
         view?.zoomBy(1 / 1.5);
       } else {
         return;
@@ -216,7 +260,19 @@ function Grid() {
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [frames, selectedFrame, selected, select, deselect, helpShown]);
+  }, [frames, selectedFrame, search.tile, select, deselect, helpShown, covered]);
+
+  // Stepping the selected flowchart screen selects the state it steps to, which it shows.
+  const stepScreen = useCallback(
+    (key: string, to: number) => {
+      step(key, to);
+      const node = flow?.nodes.find((node) => node.key === key);
+      const tile = node?.tiles[to % node.tiles.length];
+      if (tile !== undefined && node?.tiles.some((state) => tileId(state) === search.tile))
+        select(tile);
+    },
+    [step, flow, search.tile, select],
+  );
   // Unknown until the canvas has measured itself.
   const [zoom, setZoom] = useState<number>();
 
@@ -343,7 +399,7 @@ function Grid() {
           </button>
         </div>
       </header>
-      <div className="relative flex min-h-0 flex-1">
+      <div ref={body} className="relative flex min-h-0 flex-1">
         {sidebar.open !== false && (
           <Sidebar
             width={sidebar.width}
@@ -387,7 +443,7 @@ function Grid() {
           <DensityContext value={density}>
             <SelectContext value={select}>
               <SelectedContext value={search.tile}>
-                <StepContext value={step}>
+                <StepContext value={stepScreen}>
                   <Canvas
                     width={size.width}
                     height={size.height}
@@ -395,7 +451,7 @@ function Grid() {
                     nodeTypes={nodeTypes}
                     handle={canvas}
                     onZoomChange={setZoom}
-                    onPaneClick={deselect}
+                    onPaneClick={onPaneClick}
                   />
                 </StepContext>
               </SelectedContext>
@@ -434,6 +490,10 @@ const arrowDirections: Partial<Record<string, Direction>> = {
   ArrowUp: "up",
   ArrowDown: "down",
 };
+
+/** Whether a key goes to a panel beside the canvas, such as the inspector, to scroll it. */
+const inPanel = (target: EventTarget | null) =>
+  target instanceof Element && target.closest("aside") !== null;
 
 /** Whether a key goes to a field being typed in, rather than to the canvas. */
 const isTyping = (target: EventTarget | null) =>

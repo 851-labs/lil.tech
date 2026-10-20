@@ -4,12 +4,12 @@ import {
   type Node,
   type NodeTypes,
   ReactFlow,
+  type Rect,
   ReactFlowProvider,
   useReactFlow,
   useStore,
 } from "@xyflow/react";
 import { memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import type { Box } from "./Selection.ts";
 
 export interface View {
   readonly x: number;
@@ -56,13 +56,21 @@ export const startView = (width: number, viewportWidth: number, minimumZoom = 0.
   return { zoom, x: Math.max(0, (viewportWidth - width * zoom) / 2), y: 0 };
 };
 
+/** How far panels over the canvas's sides cover it, in screen points. */
+export interface Insets {
+  readonly left: number;
+  readonly right: number;
+}
+
+const noInsets: Insets = { left: 0, right: 0 };
+
 export interface CanvasHandle {
   readonly zoomBy: (factor: number) => void;
   readonly fit: () => void;
-  /** Zooms to show `box` filling the view, animated. */
-  readonly zoomTo: (box: Box) => void;
-  /** Pans to show `box` whole, at the same zoom, unless it already is. */
-  readonly reveal: (box: Box) => void;
+  /** Zooms to show `box` filling what `insets` leave of the view, animated. */
+  readonly zoomTo: (box: Rect, insets?: Insets) => void;
+  /** Pans to show `box` whole in what `insets` leave of the view, at the same zoom, unless it is. */
+  readonly reveal: (box: Rect, insets?: Insets) => void;
 }
 
 /** How long zooming or panning to a frame takes, in milliseconds. */
@@ -106,7 +114,7 @@ function Flow<N extends Node>({
   onZoomChange,
   onPaneClick,
 }: CanvasProps<N>) {
-  const { viewportInitialized, getViewport, setViewport, fitBounds, setCenter } = useReactFlow<N>();
+  const { viewportInitialized, getViewport, setViewport } = useReactFlow<N>();
   const viewportWidth = useStore((state) => state.width);
   const viewportHeight = useStore((state) => state.height);
   const element = useRef<HTMLDivElement>(null);
@@ -117,7 +125,31 @@ function Flow<N extends Node>({
   // Whether the view has moved since it started: until then, a viewport that changes size (a
   // sidebar shown, hidden or resized) starts it over, so it stays as wide as the viewport.
   const touched = useRef(false);
-  const show = useCallback((view: View) => void setViewport(view), [setViewport]);
+  // Where an animated move is going, while it goes, so the next one starts from there.
+  const target = useRef<View | undefined>(undefined);
+  const show = useCallback(
+    (view: View) => {
+      target.current = undefined;
+      void setViewport(view);
+    },
+    [setViewport],
+  );
+  const animate = useCallback(
+    (view: View) => {
+      touched.current = true;
+      target.current = view;
+      void setViewport(view, { duration: moveDuration }).then(() => {
+        if (target.current === view) target.current = undefined;
+      });
+    },
+    [setViewport],
+  );
+  /** What `insets` leave of the viewport, measured now, since a panel may have just opened. */
+  const area = useCallback(({ left, right }: Insets) => {
+    const wrapper = element.current;
+    const width = (wrapper?.clientWidth ?? 0) - left - right;
+    return { left, width, height: wrapper?.clientHeight ?? 0 };
+  }, []);
   // Whether it's shown its start view, rather than the default.
   const [started, setStarted] = useState(false);
   // Starts over when the content changes, e.g. with a filter.
@@ -141,28 +173,38 @@ function Flow<N extends Node>({
         touched.current = true;
         show(zoomAround(getViewport(), factor, viewportWidth / 2, viewportHeight / 2));
       },
-      zoomTo: (box) => {
-        touched.current = true;
-        void fitBounds(box, { padding: 0.1, duration: moveDuration });
-      },
-      reveal: (box) => {
-        const { x, y, zoom } = getViewport();
-        const left = box.x * zoom + x;
-        const top = box.y * zoom + y;
-        const shown =
-          left >= 0 &&
-          top >= 0 &&
-          left + box.width * zoom <= viewportWidth &&
-          top + box.height * zoom <= viewportHeight;
-        if (shown) return;
-        touched.current = true;
-        void setCenter(box.x + box.width / 2, box.y + box.height / 2, {
+      zoomTo: (box, insets = noInsets) => {
+        const { left, width, height } = area(insets);
+        // A tenth of the view around it.
+        const zoom = clampZoom(Math.min(width / box.width, height / box.height) * 0.9);
+        animate({
           zoom,
-          duration: moveDuration,
+          x: left + (width - box.width * zoom) / 2 - box.x * zoom,
+          y: (height - box.height * zoom) / 2 - box.y * zoom,
+        });
+      },
+      reveal: (box, insets = noInsets) => {
+        const { left, width, height } = area(insets);
+        const view = target.current ?? getViewport();
+        // Moving to a frame counts as moving the view, even if it's in view: the canvas stays put
+        // when the inspector it opens narrows it.
+        touched.current = true;
+        const x = box.x * view.zoom + view.x;
+        const y = box.y * view.zoom + view.y;
+        const shown =
+          x >= left &&
+          y >= 0 &&
+          x + box.width * view.zoom <= left + width &&
+          y + box.height * view.zoom <= height;
+        if (shown) return;
+        animate({
+          zoom: view.zoom,
+          x: left + width / 2 - (box.x + box.width / 2) * view.zoom,
+          y: height / 2 - (box.y + box.height / 2) * view.zoom,
         });
       },
     }),
-    [width, height, viewportWidth, viewportHeight, getViewport, show, fitBounds, setCenter],
+    [width, height, viewportWidth, viewportHeight, getViewport, show, area, animate],
   );
 
   // What React Flow's own input handling leaves out.
@@ -253,10 +295,14 @@ function Flow<N extends Node>({
       // Moved by input, rather than set: the event's `null` when it was set. A press starts a move
       // that only a drag continues, and one wheel event only starts one.
       onMoveStart={(event) => {
-        if (event?.type === "wheel") touched.current = true;
+        if (event?.type !== "wheel") return;
+        touched.current = true;
+        target.current = undefined;
       }}
       onMove={(event) => {
-        if (event !== null) touched.current = true;
+        if (event === null) return;
+        touched.current = true;
+        target.current = undefined;
       }}
       onPaneClick={onPaneClick}
       attributionPosition="bottom-left"

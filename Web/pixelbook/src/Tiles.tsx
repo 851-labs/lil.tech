@@ -56,12 +56,11 @@ export function TileButton({
       className={[
         // React Flow's nodes don't take pointer events when they can't be selected or dragged.
         "pointer-events-auto absolute cursor-pointer overflow-hidden",
-        // Outlined when selected, and lighter when hovered, as in Figma: 2 screen pixels at any
-        // zoom (`--zoom`, which the page sets).
+        // Outlined when selected, and lighter when hovered or focused, as in Figma: 2 screen pixels
+        // at any zoom (`--zoom`, which the page sets).
         selected
           ? "outline-[length:calc(2px/var(--zoom,1))] outline-offset-[calc(3px/var(--zoom,1))] outline-accent"
-          : "hover:outline-[length:calc(2px/var(--zoom,1))] hover:outline-offset-[calc(3px/var(--zoom,1))] hover:outline-accent/40",
-        "focus-visible:outline-[length:calc(2px/var(--zoom,1))] focus-visible:outline-offset-[calc(3px/var(--zoom,1))] focus-visible:outline-accent",
+          : "hover:outline-[length:calc(2px/var(--zoom,1))] hover:outline-offset-[calc(3px/var(--zoom,1))] hover:outline-accent/40 focus-visible:outline-[length:calc(2px/var(--zoom,1))] focus-visible:outline-offset-[calc(3px/var(--zoom,1))] focus-visible:outline-accent/40",
         tile.platform === "ios" ? "rounded-[28px]" : "rounded-[10px]",
         stacked
           ? "shadow-[0_0_0_1px_var(--color-border),14px_14px_0_-2px_var(--color-stack-1),28px_28px_0_-4px_var(--color-stack-2)]"

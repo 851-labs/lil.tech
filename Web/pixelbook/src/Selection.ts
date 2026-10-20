@@ -1,20 +1,14 @@
 // The frames on the canvas that can be selected, and moving the selection between them with the
 // arrow keys (851-2765): along the flowchart's routes, or to the nearest frame that way.
+import type { Rect } from "@xyflow/react";
 import { type FlowLayout, nodeHeader } from "./Flow.ts";
 import { type Tile, tileId } from "./Grid.ts";
-
-/** A rectangle on the canvas, in canvas points. */
-export interface Box {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-}
 
 /** A frame on the canvas: the tile it shows, and where. */
 export interface Frame {
   readonly tile: Tile;
-  readonly box: Box;
+  /** In canvas points. */
+  readonly box: Rect;
   /** The IDs of the tiles it can show, selecting it: a flowchart screen's states. */
   readonly ids: ReadonlyArray<string>;
   /** Unique among the frames: a flowchart screen's key, or its tile's ID. */
@@ -70,7 +64,7 @@ const vectors: Record<Direction, readonly [number, number]> = {
   down: [0, 1],
 };
 
-const center = ({ x, y, width, height }: Box) => [x + width / 2, y + height / 2] as const;
+const center = ({ x, y, width, height }: Rect) => [x + width / 2, y + height / 2] as const;
 
 /**
  * The frame to move to from `from` in `direction`. Right and left follow a flowchart screen's
