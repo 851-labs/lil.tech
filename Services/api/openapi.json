@@ -3487,6 +3487,123 @@
         ],
         "additionalProperties": true
       },
+      "HealthMedication": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nickname": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "generalForm": {
+            "type": "string"
+          },
+          "isArchived": {
+            "type": "boolean"
+          },
+          "hasSchedule": {
+            "type": "boolean"
+          },
+          "codings": {}
+        },
+        "required": [
+          "id",
+          "name",
+          "generalForm",
+          "isArchived",
+          "hasSchedule",
+          "codings"
+        ],
+        "additionalProperties": true
+      },
+      "HealthMedicationDose": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "endDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "medication": {
+            "type": "string"
+          },
+          "logStatus": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "scheduleType": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "scheduledDate": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "scheduledDoseQuantity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "doseQuantity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "sourceBundleId": {
+            "type": "string"
+          },
+          "sourceRevision": {},
+          "device": {},
+          "metadata": {},
+          "provenance": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "startDate",
+          "endDate",
+          "medication",
+          "logStatus",
+          "scheduleType",
+          "unit",
+          "sourceName",
+          "sourceBundleId"
+        ],
+        "additionalProperties": true
+      },
       "HealthPin": {
         "type": "object",
         "properties": {

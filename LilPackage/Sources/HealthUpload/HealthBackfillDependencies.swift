@@ -22,16 +22,17 @@ public struct HealthBackfillType: Hashable, Sendable {
   }
 
   /// Every quantity and category type the app can read, workouts and their routes, State of
-  /// Mind, scored assessments, audiograms, ECGs, heartbeat series, and the correlations, which are
-  /// read through their component types. Vision prescriptions are read whole each run instead
-  /// (``HealthVisionPrescriptionsReader``).
+  /// Mind, scored assessments, audiograms, ECGs, heartbeat series, medication dose events (those
+  /// of the medications Health shares, 851-2571), and the correlations, which are read through
+  /// their component types. Vision prescriptions and medications are read whole each run instead
+  /// (``HealthVisionPrescriptionsReader``, ``HealthMedicationsReader``).
   public static func all(availableOn version: IOSVersion) -> [Self] {
     HealthCatalog.types(availableOn: version).compactMap { type in
       switch (type.kind, type.readAuthorization) {
       case (.quantity, .standard), (.category, .standard), (.workout, .standard),
         (.stateOfMind, .standard), (.scoredAssessment, .standard), (.audiogram, .standard),
         (.electrocardiogram, .standard), (.heartbeatSeries, .standard),
-        (.workoutRoute, .standard):
+        (.workoutRoute, .standard), (.medicationDoseEvent, .perObject):
         Self(id: type.id)
       case (.correlation, _): Self(id: type.id, isCorrelation: true)
       default: nil
@@ -52,6 +53,7 @@ extension HealthBackfillType {
     case .electrocardiogram: return HealthEncoder.electrocardiogramEntity
     case .heartbeatSeries: return HealthEncoder.heartbeatSeriesEntity
     case .workoutRoute: return HealthEncoder.workoutRouteEntity
+    case .medicationDoseEvent: return HealthEncoder.medicationDoseEntity
     default: return HealthEncoder.sampleEntity
     }
   }
@@ -262,6 +264,8 @@ extension HealthReader: DependencyKey {
           } else if let series = sample as? HKHeartbeatSeriesSample {
             mutations.append(
               HealthEncoder.heartbeatSeries(try await HeartbeatSeriesRecord(series, store: store)))
+          } else if let dose = sample as? HKMedicationDoseEvent {
+            mutations.append(HealthEncoder.medicationDose(MedicationDoseRecord(dose)))
           } else if let ecg = sample as? HKElectrocardiogram {
             let (mutation, blob) = HealthEncoder.electrocardiogram(
               try await ElectrocardiogramRecord(ecg, store: store))
@@ -337,11 +341,14 @@ public struct HealthBackfillStorage: Sendable {
     )
   }
 
-  /// Files in `directory`: the state as JSON, each batch file, and each blob.
+  /// Files in `directory`: the state as JSON, each batch file, each blob, and other files the
+  /// backfill keeps (named with their extension, e.g. `medication-doses.json`).
   public static func directory(_ directory: URL) -> Self {
     let stateURL = directory.appending(path: "state.json")
     let file = { @Sendable (name: String) in
-      directory.appending(path: name.hasPrefix("blob-") ? "\(name).bin" : "\(name).ndjson.gz")
+      directory.appending(
+        path: name.hasPrefix("blob-")
+          ? "\(name).bin" : name.contains(".") ? name : "\(name).ndjson.gz")
     }
     let prepare = { @Sendable in
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

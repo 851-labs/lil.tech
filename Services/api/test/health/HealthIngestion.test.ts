@@ -730,6 +730,103 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
     }),
   );
 
+  it.effect("applies medications and their dose events", () =>
+    Effect.gen(function* () {
+      const concept = "a".repeat(64);
+      const medication = {
+        entity: "health_medication",
+        op: "upsert",
+        id: concept,
+        row: {
+          name: "Synthetic 10 mg Tablet",
+          nickname: "Morning pill",
+          generalForm: "tablet",
+          isArchived: false,
+          hasSchedule: true,
+          codings: [{ system: "http://example.com/codes", version: null, code: "12345" }],
+        },
+      };
+      const dose = {
+        entity: "health_medication_dose",
+        op: "upsert",
+        id: uuid(4660),
+        row: {
+          startDate: 1760400000000,
+          endDate: 1760400000000,
+          medication: concept,
+          logStatus: 4,
+          scheduleType: 2,
+          scheduledDate: 1760399100000,
+          scheduledDoseQuantity: 1,
+          doseQuantity: 1,
+          unit: "count",
+          sourceName: "Test iPhone",
+          sourceBundleId: "com.apple.health.00000000",
+        },
+      };
+      const { batch } = yield* ingest([
+        medication,
+        { ...medication, id: "b".repeat(64), row: { ...medication.row, nickname: null } },
+        dose,
+        // A log status and schedule type a later iOS might add go through.
+        {
+          ...dose,
+          id: uuid(4661),
+          row: { ...dose.row, logStatus: 99, scheduleType: 7, scheduledDate: null },
+        },
+        // An as-needed dose, without a scheduled quantity.
+        {
+          ...dose,
+          id: uuid(4662),
+          row: { ...dose.row, scheduleType: 1, scheduledDate: null, scheduledDoseQuantity: null },
+        },
+        // Not a concept ID.
+        { ...medication, id: "Synthetic" },
+        // A coding without its code.
+        {
+          ...medication,
+          id: "c".repeat(64),
+          row: { ...medication.row, codings: [{ system: "x", version: null }] },
+        },
+        // A dose of something other than a concept ID.
+        { ...dose, id: uuid(4663), row: { ...dose.row, medication: "Synthetic" } },
+        // A log status that isn't an integer.
+        { ...dose, id: uuid(4664), row: { ...dose.row, logStatus: "taken" } },
+      ]);
+      assert.deepInclude(batch, { status: "applied", applied: 5, rejected: 4 });
+      const sql = (yield* TestStores).sqlFor(userId);
+      assert.deepStrictEqual(
+        sql?.exec(
+          "SELECT nickname, general_form, is_archived, codings FROM health_medication ORDER BY id",
+        ),
+        [
+          {
+            nickname: "Morning pill",
+            general_form: "tablet",
+            is_archived: 0,
+            codings: '[{"code":"12345","system":"http://example.com/codes","version":null}]',
+          },
+          {
+            nickname: null,
+            general_form: "tablet",
+            is_archived: 0,
+            codings: '[{"code":"12345","system":"http://example.com/codes","version":null}]',
+          },
+        ],
+      );
+      assert.deepStrictEqual(
+        sql?.exec(
+          "SELECT medication, log_status, schedule_type, scheduled_date FROM health_medication_dose ORDER BY id",
+        ),
+        [
+          { medication: concept, log_status: 4, schedule_type: 2, scheduled_date: 1760399100000 },
+          { medication: concept, log_status: 99, schedule_type: 7, scheduled_date: null },
+          { medication: concept, log_status: 4, schedule_type: 1, scheduled_date: null },
+        ],
+      );
+    }),
+  );
+
   it.effect("applies ECGs, which refer to their voltages blob", () =>
     Effect.gen(function* () {
       const ecg = {

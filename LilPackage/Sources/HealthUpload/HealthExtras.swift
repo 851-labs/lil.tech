@@ -3,8 +3,9 @@ public import Foundation
 import HealthKit
 import IssueReporting
 
-// What isn't a sample, so has no anchors: characteristics and Activity summaries. The backfill
-// reads them on every run of everything (`HealthBackfill.uploadExtras`).
+// What has no anchors: characteristics, vision prescriptions, medications and Activity summaries.
+// The backfill reads them on every run of everything (`HealthBackfill.uploadExtras`,
+// `HealthBackfill.uploadMedications`).
 
 extension DependencyValues {
   public var healthCharacteristicsReader: HealthCharacteristicsReader {
@@ -15,6 +16,11 @@ extension DependencyValues {
   public var healthVisionPrescriptionsReader: HealthVisionPrescriptionsReader {
     get { self[HealthVisionPrescriptionsReader.self] }
     set { self[HealthVisionPrescriptionsReader.self] = newValue }
+  }
+
+  public var healthMedicationsReader: HealthMedicationsReader {
+    get { self[HealthMedicationsReader.self] }
+    set { self[HealthMedicationsReader.self] = newValue }
   }
 
   public var healthActivitySummaryReader: HealthActivitySummaryReader {
@@ -116,6 +122,36 @@ extension HealthVisionPrescriptionsReader: DependencyKey {
         throw HealthReader.Locked.mapped(error)
       }
       return prescriptions.compactMap(HealthEncoder.visionPrescription)
+    }
+  }
+
+  /// None shared, unless a test says otherwise: most tests aren't about them.
+  public static var testValue: Self { Self { [] } }
+}
+
+/// Reads every medication Health shares with the app (851-2571), current and archived. Health
+/// shares them one by one, like vision prescriptions, and they aren't samples, so there's no
+/// anchor: they're all read every run of everything (`HealthBackfill.uploadMedications`). Their
+/// dose events are samples, read with anchors.
+public struct HealthMedicationsReader: Sendable {
+  public var read: @Sendable () async throws -> [HealthMutation]
+
+  public init(read: @escaping @Sendable () async throws -> [HealthMutation]) {
+    self.read = read
+  }
+}
+
+extension HealthMedicationsReader: DependencyKey {
+  public static var liveValue: Self {
+    let store = HKHealthStore()
+    return Self {
+      let medications: [HKUserAnnotatedMedication]
+      do {
+        medications = try await HKUserAnnotatedMedicationQueryDescriptor().result(for: store)
+      } catch {
+        throw HealthReader.Locked.mapped(error)
+      }
+      return HealthEncoder.medications(medications.map(MedicationRecord.init))
     }
   }
 

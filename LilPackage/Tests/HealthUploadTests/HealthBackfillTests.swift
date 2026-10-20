@@ -43,6 +43,64 @@ private final class FakeHealth: Sendable {
   }
 }
 
+private let medicationDoses = HealthBackfillType(
+  id: "HKMedicationDoseEventTypeIdentifierMedicationDoseEvent")
+
+/// A fake of Health's medications and their doses (851-2571). Only the shared medications'
+/// doses can be read. Anchors are how far through `log` a read got: reading on from one only
+/// finds what was logged or deleted since, as HealthKit's anchored queries do.
+private final class FakeMedications: Sendable {
+  enum Event: Sendable {
+    case logged(_ dose: String, _ medication: String)
+    case deleted(_ dose: String)
+  }
+
+  let shared = LockIsolated<Set<String>>([])
+  let log = LockIsolated<[Event]>([])
+  /// The anchor each read started from.
+  let reads = LockIsolated<[Int?]>([])
+
+  var medicationsReader: HealthMedicationsReader {
+    HealthMedicationsReader { [self] in
+      HealthEncoder.medications(
+        shared.value.sorted().map {
+          MedicationRecord(
+            id: $0, name: "Synthetic \($0)", nickname: nil, generalForm: "tablet",
+            isArchived: false, hasSchedule: true, codings: [])
+        })
+    }
+  }
+
+  var reader: HealthReader {
+    HealthReader { [self] type, anchor, _ in
+      #expect(type.entity == HealthEncoder.medicationDoseEntity)
+      let from = anchor.map { Int(String(decoding: $0, as: UTF8.self))! }
+      reads.withValue { $0.append(from) }
+      let log = log.value
+      let deleted = Set(
+        log.compactMap { if case .deleted(let dose) = $0 { dose } else { nil } })
+      let shared = shared.value
+      var mutations: [HealthMutation] = []
+      for event in log.dropFirst(from ?? 0) {
+        switch event {
+        case .logged(let dose, let medication):
+          // From the start, only what's still there.
+          guard shared.contains(medication), from != nil || !deleted.contains(dose) else {
+            continue
+          }
+          mutations.append(
+            .upsert(
+              HealthEncoder.medicationDoseEntity, id: dose,
+              row: ["medication": .string(medication)]))
+        case .deleted(let dose):
+          if from != nil { mutations.append(.delete(HealthEncoder.medicationDoseEntity, id: dose)) }
+        }
+      }
+      return HealthPage(mutations: mutations, anchor: Data(String(log.count).utf8), hasMore: false)
+    }
+  }
+}
+
 /// A fake server: records accepted batch IDs and the IDs of the records in them.
 private final class FakeServer: Sendable {
   let accepted = LockIsolated<[String]>([])
@@ -498,8 +556,15 @@ struct HealthBackfillTests {
     #expect(try storage.loadFile("a") == Data([1, 2, 3]))
     try storage.removeFile("a")
     #expect(try storage.loadFile("a") == nil)
+    // A file named with its extension keeps it.
+    try storage.saveFile(HealthBackfill.medicationDosesFile, Data("{}".utf8))
+    #expect(
+      FileManager.default.fileExists(
+        atPath: directory.appending(path: "medication-doses.json").path(percentEncoded: false)))
     try storage.saveState(nil)
     #expect(try storage.loadState() == nil)
+    // Signing out removes everything.
+    #expect(try storage.loadFile(HealthBackfill.medicationDosesFile) == nil)
   }
 
   @Test
@@ -1406,6 +1471,93 @@ struct HealthBackfillTests {
       !lines.value.contains {
         $0.contains(#""op":"delete""#) && $0.contains(older.id)
       })
+  }
+
+  @Test
+  func medicationsAndTheirDosesFollowWhatHealthShares() async throws {
+    let health = FakeMedications()
+    let lines = LockIsolated<[String]>([])
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = withDependencies {
+      $0.healthReader = health.reader
+      $0.healthMedicationsReader = health.medicationsReader
+      $0.healthBatchUploader = HealthBatchUploader { _, file in
+        let text = String(decoding: try Gzip.decompress(file), as: UTF8.self)
+        lines.withValue { $0 += text.split(separator: "\n").map(String.init) }
+      }
+      $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [medicationDoses])
+    }
+    func uploaded(_ op: String, _ id: String) -> Bool {
+      lines.value.contains { $0.contains(#""op":"\#(op)""#) && $0.contains(#""id":"\#(id)""#) }
+    }
+    func run() async throws {
+      lines.setValue([])
+      health.reads.setValue([])
+      try await backfill.run()
+    }
+
+    // Only the shared medication's doses can be read.
+    health.shared.setValue(["med-a"])
+    health.log.setValue([.logged("dose-1", "med-a"), .logged("dose-2", "med-b")])
+    try await run()
+    #expect(uploaded("upsert", "med-a"))
+    #expect(uploaded("upsert", "dose-1"))
+    #expect(!uploaded("upsert", "dose-2"))
+    #expect(health.reads.value == [nil])
+
+    // Nothing changed: the medications don't go up again, and doses are read from their anchor.
+    try await run()
+    #expect(lines.value.isEmpty)
+    #expect(health.reads.value == [2])
+
+    // A medication shared since: its doses from before the anchor go up, read from the start.
+    health.shared.setValue(["med-a", "med-b"])
+    try await run()
+    #expect(uploaded("upsert", "med-b"))
+    #expect(uploaded("upsert", "dose-2"))
+    #expect(health.reads.value == [nil])
+    // Counted once, not again for being read again.
+    let state = try #require(try storage.loadState())
+    #expect(state.uploadedByType[medicationDoses.id] == 2)
+
+    // A dose logged and one deleted in Health.
+    health.log.withValue { $0 += [.logged("dose-3", "med-a"), .deleted("dose-1")] }
+    try await run()
+    #expect(uploaded("upsert", "dose-3"))
+    #expect(uploaded("delete", "dose-1"))
+    #expect(health.reads.value == [2])
+
+    // A medication no longer shared is deleted with its doses: those left, not dose-1 again.
+    health.shared.setValue(["med-b"])
+    try await run()
+    #expect(uploaded("delete", "med-a"))
+    #expect(uploaded("delete", "dose-3"))
+    #expect(!uploaded("delete", "dose-1"))
+    #expect(!uploaded("delete", "dose-2"))
+    // Only sharing more reads the doses again.
+    #expect(health.reads.value == [4])
+
+    // Uploading everything again keeps the doses to delete, as the medications' IDs.
+    try await backfill.uploadAgain()
+    try await run()
+    #expect(uploaded("upsert", "dose-2"))
+    health.shared.setValue([])
+    try await run()
+    #expect(uploaded("delete", "med-b"))
+    #expect(uploaded("delete", "dose-2"))
+
+    // Signing out forgets them.
+    health.shared.setValue(["med-b"])
+    try await run()
+    #expect(try storage.loadFile(HealthBackfill.medicationDosesFile) != nil)
+    await backfill.reset()
+    #expect(try storage.loadFile(HealthBackfill.medicationDosesFile) == nil)
   }
 
   @Test

@@ -312,6 +312,87 @@ public struct HealthVisionPrescription: Equatable, Identifiable, Sendable {
   }
 }
 
+/// A medication the person shares (`health_medication`, 851-2571), keyed by its concept's ID,
+/// which its doses refer to. `codings` is JSON, as the server documents it.
+@Table
+public struct HealthMedication: Equatable, Identifiable, Sendable {
+  public let id: String
+  /// Its name, as Health shows it.
+  public var name: String
+  /// The name the person gave it, if any.
+  public var nickname: String?
+  /// `HKMedicationGeneralForm`'s raw value, e.g. `tablet`.
+  public var generalForm: String
+  public var isArchived: Bool
+  public var hasSchedule: Bool
+  public var codings: String
+
+  public init(
+    id: String, name: String, nickname: String? = nil, generalForm: String,
+    isArchived: Bool = false, hasSchedule: Bool = false, codings: String = "[]"
+  ) {
+    self.id = id
+    self.name = name
+    self.nickname = nickname
+    self.generalForm = generalForm
+    self.isArchived = isArchived
+    self.hasSchedule = hasSchedule
+    self.codings = codings
+  }
+}
+
+/// A medication dose event (`health_medication_dose`, 851-2571): taken, skipped, or a scheduled
+/// dose that wasn't logged.
+@Table
+public struct HealthMedicationDose: Equatable, Identifiable, Sendable {
+  public let id: String
+  public var startDate: Int
+  public var endDate: Int
+  /// The ``HealthMedication`` it's a dose of.
+  public var medication: String
+  /// `HKMedicationDoseEvent.LogStatus`'s raw value, e.g. 4 taken, 5 skipped.
+  public var logStatus: Int
+  /// `HKMedicationDoseEvent.ScheduleType`'s raw value: 1 as needed, 2 scheduled.
+  public var scheduleType: Int
+  public var scheduledDate: Int?
+  public var scheduledDoseQuantity: Double?
+  public var doseQuantity: Double?
+  /// The quantities' unit, as an `HKUnit` string.
+  public var unit: String
+  public var sourceName: String
+  public var sourceBundleID: String
+  public var sourceRevision: String?
+  public var device: String?
+  public var metadata: String?
+  /// The ``HealthProvenance`` with its source revision and device.
+  public var provenance: String?
+
+  public init(
+    id: String, startDate: Int, endDate: Int, medication: String, logStatus: Int,
+    scheduleType: Int, scheduledDate: Int? = nil, scheduledDoseQuantity: Double? = nil,
+    doseQuantity: Double? = nil, unit: String, sourceName: String, sourceBundleID: String,
+    sourceRevision: String? = nil, device: String? = nil, metadata: String? = nil,
+    provenance: String? = nil
+  ) {
+    self.id = id
+    self.startDate = startDate
+    self.endDate = endDate
+    self.medication = medication
+    self.logStatus = logStatus
+    self.scheduleType = scheduleType
+    self.scheduledDate = scheduledDate
+    self.scheduledDoseQuantity = scheduledDoseQuantity
+    self.doseQuantity = doseQuantity
+    self.unit = unit
+    self.sourceName = sourceName
+    self.sourceBundleID = sourceBundleID
+    self.sourceRevision = sourceRevision
+    self.device = device
+    self.metadata = metadata
+    self.provenance = provenance
+  }
+}
+
 /// The Activity rings for one day, keyed by the day (`YYYY-MM-DD` in the iPhone's calendar).
 @Table
 public struct HealthActivitySummary: Equatable, Identifiable, Sendable {

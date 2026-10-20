@@ -37,6 +37,10 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   /// A hash of the vision prescriptions last uploaded, and their IDs, as for characteristics.
   public var visionPrescriptionsHash: String?
   public var visionPrescriptionIDs: Set<String> = []
+  /// A hash of the medications last uploaded, and their concept IDs, as for characteristics. The
+  /// doses uploaded for each are in a file of their own (`HealthBackfill.medicationDosesFile`).
+  public var medicationsHash: String?
+  public var medicationIDs: Set<String> = []
   /// When the Activity summaries were last read and uploaded; `nil` before the first time,
   /// which reads them all.
   public var activitySummariesUploadedAt: Date?
@@ -69,6 +73,9 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
       String.self, forKey: .visionPrescriptionsHash)
     visionPrescriptionIDs =
       try container.decodeIfPresent(Set<String>.self, forKey: .visionPrescriptionIDs) ?? []
+    medicationsHash = try container.decodeIfPresent(String.self, forKey: .medicationsHash)
+    medicationIDs =
+      try container.decodeIfPresent(Set<String>.self, forKey: .medicationIDs) ?? []
     activitySummariesUploadedAt = try container.decodeIfPresent(
       Date.self, forKey: .activitySummariesUploadedAt)
     seriesFailures =
@@ -257,6 +264,7 @@ public actor HealthBackfill {
   private let statisticsReader: HealthStatisticsReader
   private let characteristicsReader: HealthCharacteristicsReader
   private let visionPrescriptionsReader: HealthVisionPrescriptionsReader
+  private let medicationsReader: HealthMedicationsReader
   private let activitySummaryReader: HealthActivitySummaryReader
   private let counter: HealthRecordCounter
   /// Each type's records as counted (`HealthRecordCounter`): those uploaded when it was counted,
@@ -296,6 +304,7 @@ public actor HealthBackfill {
     @Dependency(\.healthStatisticsReader) var statisticsReader
     @Dependency(\.healthCharacteristicsReader) var characteristicsReader
     @Dependency(\.healthVisionPrescriptionsReader) var visionPrescriptionsReader
+    @Dependency(\.healthMedicationsReader) var medicationsReader
     @Dependency(\.healthActivitySummaryReader) var activitySummaryReader
     @Dependency(\.healthRecordCounter) var counter
     @Dependency(\.date) var date
@@ -309,6 +318,7 @@ public actor HealthBackfill {
     self.statisticsReader = statisticsReader
     self.characteristicsReader = characteristicsReader
     self.visionPrescriptionsReader = visionPrescriptionsReader
+    self.medicationsReader = medicationsReader
     self.activitySummaryReader = activitySummaryReader
     self.counter = counter
     self.uuid = uuid
@@ -375,9 +385,9 @@ public actor HealthBackfill {
   /// Reads every type's history again from the start, for what the server is missing (851-2662),
   /// e.g. once Health shares more of it. It first catches up from where each type got to, so
   /// deletions since go up, then forgets only that, the counts (which the new pass makes again)
-  /// and when Activity summaries were read. What it needs to delete records no longer readable,
-  /// and the account's limits, stay. The next run reads from the start. Throws if catching up
-  /// fails, changing nothing.
+  /// and when Activity summaries were read. What it needs to delete records no longer readable
+  /// (including the doses uploaded for each medication), and the account's limits, stay. The next
+  /// run reads from the start. Throws if catching up fails, changing nothing.
   public func uploadAgain() async throws {
     try await run()
     // A run for changes that started meanwhile finishes first: it saves the state as it goes.
@@ -410,6 +420,7 @@ public actor HealthBackfill {
       if let pending = (try? storage.loadState())??.pending {
         for file in pending.files { try? storage.removeFile(file) }
       }
+      try? storage.removeFile(Self.medicationDosesFile)
       withErrorReporting { try storage.saveState(nil) }
       counting?.cancel()
       counting = nil
@@ -474,16 +485,20 @@ public actor HealthBackfill {
       repeat {
         while syncAllRequested || !requestedTypes.isEmpty {
           let wanted: Set<String>
+          var medicationsDue = false
           if syncAllRequested {
             syncAllRequested = false
             syncedAll = true
             extrasDue = true
+            medicationsDue = true
             wanted = Set(types.map(\.id))
           } else {
             wanted = requestedTypes
           }
           requestedTypes = []
           unreached.formUnion(wanted)
+          // Before the types, so doses a medication shared since needs are read in this run.
+          if medicationsDue { try await uploadMedications(&state) }
           for type in types where wanted.contains(type.id) && failures[type.id] == nil {
             do {
               try await sync(type, &state)
@@ -640,6 +655,9 @@ public actor HealthBackfill {
         // Read while this page is encoded, saved and uploaded.
         if page.hasMore { next = Self.readAhead(type, after: page.anchor, limit, reader) }
         markStatistics(of: type, changedBy: page.mutations, &state)
+        if type.entity == HealthEncoder.medicationDoseEntity {
+          try recordDoses(page.mutations)
+        }
         let (pending, files, blobs) = try write(page, of: type)
         // The page is saved before its files, so a kill in between leaves no orphans: the
         // missing files make the next run read the page again.
@@ -758,19 +776,134 @@ public actor HealthBackfill {
     }
   }
 
+  /// The doses uploaded for each medication: a JSON object of medication concept IDs to their
+  /// doses' IDs. A file rather than part of the state, which is saved after every step, since
+  /// there may be thousands.
+  static let medicationDosesFile = "medication-doses.json"
+
+  /// Uploads the medications, if they changed since they last went up, before a run of
+  /// everything reads the types (851-2571). Health shares them one by one and may share one
+  /// added long ago, or stop sharing one, at any time, like vision prescriptions:
+  /// - One no longer shared is deleted, and so is every dose uploaded for it (its doses can't be
+  ///   read anymore, so their deletions never come through the dose type's anchor).
+  /// - One shared since comes with doses from before the dose type's anchor, which reading on
+  ///   from it would miss, so the dose type is read again from the start, in this run. The
+  ///   server skips the doses it already has unchanged. Otherwise doses are only read from their
+  ///   anchor, so thousands of them don't go up again every run.
+  ///
+  /// A failure is kept for the next run.
+  private func uploadMedications(_ state: inout HealthBackfillState) async throws {
+    do {
+      let medications = try await medicationsReader.read()
+      let before = state.medicationIDs
+      var doses = try loadMedicationDoses()
+      // In the state the upload saves, so the app being killed after it can't lose it. If the
+      // upload fails, the next run finds the same medications new and forgets it again.
+      if !Set(medications.map(\.id)).isSubset(of: before) { readDosesAgain(&state) }
+      try await uploadWhole(
+        medications, as: HealthEncoder.medicationEntity, hash: \.medicationsHash,
+        ids: \.medicationIDs, &state
+      ) { removed in
+        removed.flatMap { medication in
+          (doses[medication] ?? []).sorted().map {
+            HealthMutation.delete(HealthEncoder.medicationDoseEntity, id: $0)
+          }
+        }
+      }
+      let removed = before.subtracting(state.medicationIDs)
+      if !removed.isEmpty {
+        for medication in removed { doses[medication] = nil }
+        try saveMedicationDoses(doses)
+      }
+    } catch {
+      try stopIfRunEnds(error)
+      reportIssue(error, "Uploading medications; trying again next run")
+    }
+  }
+
+  /// Forgets how far the dose type was read, so it's read from the start: what it uploaded is
+  /// counted again as it goes up again.
+  private func readDosesAgain(_ state: inout HealthBackfillState) {
+    for type in types
+    where type.entity == HealthEncoder.medicationDoseEntity && state.anchors[type.id] != nil {
+      state.anchors[type.id] = nil
+      state.finished.remove(type.id)
+      state.uploadedRecords = max(
+        0, state.uploadedRecords - state.uploadedByType[type.id, default: 0])
+      state.uploadedByType[type.id] = nil
+      BackfillLog.write("reading \(BackfillLog.name(type.id)) again: medications shared since")
+    }
+  }
+
+  /// Notes a page of doses in each medication's doses (`medicationDosesFile`), before the page
+  /// goes up, so a medication no longer shared can have its doses deleted. A page that doesn't go
+  /// up is read again, so the file may name doses the server doesn't have, which are harmless to
+  /// delete. Deleted doses are taken out.
+  private func recordDoses(_ mutations: [HealthMutation]) throws {
+    var doses = try loadMedicationDoses()
+    var medicationOf: [String: String] = [:]
+    for (medication, ids) in doses {
+      for id in ids { medicationOf[id] = medication }
+    }
+    var changed = false
+    // In order: a page's deletions come after its additions, as the server applies them.
+    for mutation in mutations {
+      let medication: String?
+      switch mutation.op {
+      case .upsert:
+        guard case .string(let id)? = mutation.row?["medication"] else { continue }
+        medication = id
+      case .delete:
+        medication = nil
+      }
+      let previous = medicationOf[mutation.id]
+      guard previous != medication else { continue }
+      if let previous {
+        doses[previous]?.remove(mutation.id)
+        if doses[previous]?.isEmpty == true { doses[previous] = nil }
+      }
+      if let medication { doses[medication, default: []].insert(mutation.id) }
+      medicationOf[mutation.id] = medication
+      changed = true
+    }
+    if changed { try saveMedicationDoses(doses) }
+  }
+
+  /// The doses uploaded for each medication. One that can't be read is reported and started
+  /// over: medications no longer shared then keep their doses on the server.
+  private func loadMedicationDoses() throws -> [String: Set<String>] {
+    guard let data = try storage.loadFile(Self.medicationDosesFile) else { return [:] }
+    do {
+      return try JSONDecoder().decode([String: Set<String>].self, from: data)
+    } catch {
+      reportIssue(error, "Reading the doses uploaded for each medication; starting over")
+      return [:]
+    }
+  }
+
+  private func saveMedicationDoses(_ doses: [String: Set<String>]) throws {
+    if doses.isEmpty {
+      try storage.removeFile(Self.medicationDosesFile)
+    } else {
+      try storage.saveFile(Self.medicationDosesFile, try JSONEncoder().encode(doses))
+    }
+  }
+
   /// Uploads records read whole each run, if they changed since they last went up (`hash`).
-  /// One that's no longer readable (access was turned off, or it was deleted) is deleted.
+  /// One that's no longer readable (access was turned off, or it was deleted) is deleted, with
+  /// what `alsoDeleting` gives for those IDs, in the same upload.
   private func uploadWhole(
     _ records: [HealthMutation], as entity: String,
     hash: WritableKeyPath<HealthBackfillState, String?>,
-    ids: WritableKeyPath<HealthBackfillState, Set<String>>, _ state: inout HealthBackfillState
+    ids: WritableKeyPath<HealthBackfillState, Set<String>>, _ state: inout HealthBackfillState,
+    alsoDeleting: (_ removed: [String]) -> [HealthMutation] = { _ in [] }
   ) async throws {
     let current = try Self.hash(records)
     guard current != state[keyPath: hash] else { return }
     let read = Set(records.map(\.id))
-    let removed = state[keyPath: ids].subtracting(read).sorted().map {
-      HealthMutation.delete(entity, id: $0)
-    }
+    let removedIDs = state[keyPath: ids].subtracting(read).sorted()
+    let removed =
+      removedIDs.map { HealthMutation.delete(entity, id: $0) } + alsoDeleting(removedIDs)
     try await uploadMutations(records + removed)
     state[keyPath: hash] = current
     state[keyPath: ids] = read
