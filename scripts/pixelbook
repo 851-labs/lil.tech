@@ -243,6 +243,17 @@ if [ "$command" = "check" ]; then
   echo "==> All $total images render the same twice."
   exit 0
 fi
+# One render at a time on a Mac (851-2805): the simulator is shared, so another render installing
+# its test host kills this one's runs, and two Mac test runs at once hang. The render runs again
+# holding a lock that the kernel lets go of when it ends, however it ends; another waits, for 30
+# minutes at most (then it fails, which the pre-push hook skips on).
+lock="/tmp/pixelbook-render-$(id -u).lock"
+if [ -z "${PIXELBOOK_RENDER_LOCKED:-}" ]; then
+  lockf -s -t 0 "$lock" true 2>/dev/null || echo "==> Waiting for another render on this Mac to finish"
+  # From where it was started, so a relative folder means the same.
+  cd "$caller"
+  PIXELBOOK_RENDER_LOCKED=1 exec lockf -k -t 1800 "$lock" "$root/scripts/pixelbook" "$@"
+fi
 out=${2:-$root/build/pixelbook/$(git rev-parse --short HEAD)}
 [[ "$out" = /* ]] || out="$caller/$out"
 if [ -e "$out" ] && [[ "$out" != "$root/build/"* ]] && [ -n "$(ls -A "$out" 2>/dev/null)" ]; then
@@ -355,12 +366,32 @@ mac_runs() {
   done
   return 0
 }
+# The simulator's test runner sometimes never connects: it times out preparing, or hangs
+# (851-2805), with nothing rendered. Such a run is tried again, twice at most, in a simulator
+# started afresh, keeping each failed try's log. A test host that crashes at launch isn't: that's
+# the code's doing.
+runner_started() {
+  ! grep -qE "hung before establishing connection|timed out while preparing to run tests" "$1"
+}
+restart_simulator() {
+  xcrun simctl shutdown "$device" 2>/dev/null || true
+  xcrun simctl boot "$device" 2>/dev/null || true
+  xcrun simctl bootstatus "$device" -b >/dev/null && xcrun simctl ui "$device" appearance "$1"
+}
 iphone_runs() {
-  local appearance entry
+  local appearance entry try
   for appearance in light dark; do
     xcrun simctl ui "$device" appearance "$appearance" || return 1
     for entry in "${iphone_apps[@]}"; do
-      run "${entry%%:*}" "$appearance" -scheme "${entry#*:}" -destination "id=$device" || return 1
+      for try in 1 2 3; do
+        run "${entry%%:*}" "$appearance" -scheme "${entry#*:}" -destination "id=$device" || return 1
+        runner_started "$out/${entry%%:*}/$appearance.log" && break
+        cp "$out/${entry%%:*}/$appearance.log" "$out/${entry%%:*}/$appearance.try$try.log"
+        if [ "$try" -lt 3 ]; then
+          echo "    ${entry%%:*}/$appearance: the test runner didn't start; trying again" >&2
+          restart_simulator "$appearance" || return 1
+        fi
+      done
     done
   done
   return 0
