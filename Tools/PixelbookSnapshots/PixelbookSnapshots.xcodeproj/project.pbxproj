@@ -513,7 +513,7 @@
 			repositoryURL = "https://github.com/851-labs/SnapshotPreviews";
 			requirement = {
 				kind = exactVersion;
-				version = "0.20.0-lil.8";
+				version = "0.20.0-lil.9";
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

@@ -179,8 +179,9 @@ if [ "$command" = "publish" ]; then
     # Every preview: a published key is complete.
     PIXELBOOK_STRICT=1 PIXELBOOK_PREVIEWS= "$root/scripts/pixelbook" render "$render" || status=$?
     if [ "$status" -ne 0 ]; then
-      # In the hook, a preview reporting an issue (2) blocks the push, as a failing check would;
-      # anything else (no simulator, a failed build) is the machine's, so it skips.
+      # In the hook, a preview reporting an issue or a broken pinned SnapshotPreviews (2) blocks the
+      # push, as a failing check would; anything else (no simulator, a failed build) is the
+      # machine's, so it skips.
       if $hook && [ "$status" -ne 2 ]; then skip "rendering failed (see above)"; fi
       exit "$status"
     fi
@@ -267,20 +268,22 @@ echo "==> Resolving packages"
 xcodebuild -resolvePackageDependencies -project "$project" -scheme HealthMacSnapshots \
   -derivedDataPath "$derived" -onlyUsePackageVersionsFromResolvedFile -quiet
 
-# SnapshotPreviews ships PreviewsSupport.framework's macOS slice with a broken signature, which
-# macOS refuses to load and may move to the Trash as malware
-# (github.com/getsentry/SnapshotPreviews/issues/236). It's re-signed here, in this build's own
-# package checkout, for this machine only.
-frameworks=$(find "$derived/SourcePackages/checkouts/SnapshotPreviews" \
-  -path "*PreviewsSupport.xcframework/macos-*/PreviewsSupport.framework" -maxdepth 4 -type d || true)
-if [ "$(echo "$frameworks" | grep -c .)" -ne 1 ]; then
-  echo "Expected one macOS PreviewsSupport.framework in SnapshotPreviews, found:" >&2
-  echo "${frameworks:-(none)}" >&2
-  exit 1
+# Our SnapshotPreviews fork signs PreviewsSupport.framework's macOS slice, whose signature upstream
+# is broken (github.com/getsentry/SnapshotPreviews/issues/236): macOS refuses to load it, and may
+# move it to the Trash as malware. Checked here, so a fork update that brings the broken one back
+# says so rather than failing to load. That's the pinned code's fault, not the machine's, so it
+# exits 2, which blocks a push as a preview's issue does.
+framework="$derived/SourcePackages/checkouts/SnapshotPreviews/PreviewsSupport/PreviewsSupport.xcframework/macos-arm64_x86_64/PreviewsSupport.framework"
+if [ ! -d "$framework" ]; then
+  echo "SnapshotPreviews has no macOS PreviewsSupport.framework at $framework." >&2
+  echo "Did the fork's layout change? Update the path here." >&2
+  exit 2
 fi
-if ! codesign --verify --strict "$frameworks" 2>/dev/null; then
-  chmod -R u+w "$frameworks"
-  codesign --force --sign - "$frameworks"
+if ! verified=$(codesign --verify --strict "$framework" 2>&1); then
+  echo "$verified" >&2
+  echo "SnapshotPreviews' macOS PreviewsSupport.framework isn't signed properly." >&2
+  echo "Sign it ad hoc in the fork (codesign --force --sign -) and tag a new version." >&2
+  exit 2
 fi
 
 echo "==> Building for macOS and the iPhone simulator"
