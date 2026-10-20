@@ -56,6 +56,7 @@ private struct PreviewData {
     try insertWorkouts(db)
     try insertCharacteristics(db)
     try insertVisionPrescriptions(db)
+    try insertMedications(db)
     try insertActivitySummaries(db)
   }
 
@@ -259,6 +260,52 @@ private struct PreviewData {
         sourceName: "Health", sourceBundleID: "com.apple.Health")
     }
     .execute(db)
+  }
+
+  /// A tablet scheduled morning and evening, mostly taken; a spray taken as needed; and an
+  /// archived capsule. Made-up names.
+  private func insertMedications(_ db: Database) throws {
+    let tablet = String(repeating: "a", count: 64)
+    let spray = String(repeating: "b", count: 64)
+    try HealthMedication.insert {
+      HealthMedication(
+        id: tablet, name: "Synthetic Tablet A 10 mg", nickname: "Morning Tablet",
+        generalForm: "tablet", hasSchedule: true)
+      HealthMedication(id: spray, name: "Synthetic Spray B", generalForm: "spray")
+      HealthMedication(
+        id: String(repeating: "c", count: 64), name: "Synthetic Capsule C",
+        generalForm: "capsule", isArchived: true, hasSchedule: true)
+    }
+    .execute(db)
+    var random = SplitMix64(seed: "HKMedicationDoseEvent")
+    var doses: [HealthMedicationDose] = []
+    for (index, day) in dayStarts.enumerated() {
+      for hour in [8.0, 20.0] {
+        let due = day.addingTimeInterval(hour * 3600)
+        guard due < now else { continue }
+        // Taken a few minutes late, but skipped or left unanswered now and then.
+        let roll = random.next(in: 0...1)
+        let status = roll < 0.82 ? 4 : roll < 0.92 ? 5 : 1
+        let logged = status == 4 ? due.addingTimeInterval(random.next(in: 0...40) * 60) : due
+        doses.append(
+          HealthMedicationDose(
+            id: random.uuid(), startDate: logged.unixMilliseconds,
+            endDate: logged.unixMilliseconds, medication: tablet, logStatus: status,
+            scheduleType: 2, scheduledDate: due.unixMilliseconds, scheduledDoseQuantity: 1,
+            doseQuantity: status == 4 ? 1 : nil, unit: "count", sourceName: "iPhone",
+            sourceBundleID: "com.apple.Health"))
+      }
+      if index.isMultiple(of: 4) {
+        let taken = day.addingTimeInterval(13.5 * 3600)
+        guard taken < now else { continue }
+        doses.append(
+          HealthMedicationDose(
+            id: random.uuid(), startDate: taken.unixMilliseconds, endDate: taken.unixMilliseconds,
+            medication: spray, logStatus: 4, scheduleType: 1, doseQuantity: 2, unit: "count",
+            sourceName: "iPhone", sourceBundleID: "com.apple.Health"))
+      }
+    }
+    if !doses.isEmpty { try HealthMedicationDose.insert { doses }.execute(db) }
   }
 
   private func insertActivitySummaries(_ db: Database) throws {

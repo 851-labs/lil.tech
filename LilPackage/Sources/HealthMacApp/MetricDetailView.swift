@@ -35,6 +35,8 @@ struct MetricDetailView: View {
         AudiogramsView()
       } else if type.kind == .visionPrescription {
         VisionPrescriptionsView()
+      } else if type.kind == .medication || type.kind == .medicationDoseEvent {
+        MedicationsView()
       } else if type.kind == .heartbeatSeries {
         HeartbeatSeriesView()
       } else if type.kind == .stateOfMind {

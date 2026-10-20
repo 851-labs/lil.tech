@@ -427,6 +427,24 @@ struct BrowseQueriesTests {
   }
 
   @Test
+  func medicationsWithoutDosesHaveData() throws {
+    let medications = "HKDataTypeUserAnnotatedMedicationConcept"
+    let doses = "HKMedicationDoseEventTypeIdentifierMedicationDoseEvent"
+    #expect(try !summary(medications).hasData)
+    try database.write { db in
+      try HealthMedication.insert {
+        HealthMedication(id: "m1", name: "Synthetic Spray A", generalForm: "spray")
+      }
+      .execute(db)
+    }
+    // Shared, as needed and never logged: there, but undated.
+    #expect(try summary(medications).hasData)
+    #expect(try summary(medications).latestDate == nil)
+    // Doses aren't, until one is logged.
+    #expect(try !summary(doses).hasData)
+  }
+
+  @Test
   func typesWithoutDataHaveNone() throws {
     let summaries = try database.read { db in
       try HealthDatabase.metricSummaries(in: .heart, now: now, calendar: utcCalendar, db)
