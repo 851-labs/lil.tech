@@ -35,6 +35,20 @@ private func previewSummaries(_ category: HealthCategory) -> [MetricSummary] {
   metrics(.respiratory, .loaded(previewSummaries(.respiratory)))
 }
 
+#Preview("Medications") {
+  metrics(.medications, .loaded(previewSummaries(.medications)))
+}
+
+#Preview("Medications, none logged") {
+  // Shared medications without doses yet: Medications has data, without a date.
+  metrics(
+    .medications,
+    .loaded([
+      MetricSummary(id: "HKDataTypeUserAnnotatedMedicationConcept", hasUndatedData: true),
+      MetricSummary(id: "HKMedicationDoseEventTypeIdentifierMedicationDoseEvent"),
+    ]))
+}
+
 #Preview("No data") {
   metrics(.mobility, .loaded(HealthCatalog.types(in: .mobility).map { MetricSummary(id: $0.id) }))
 }

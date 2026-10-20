@@ -18,10 +18,13 @@ public struct MetricSummary: Equatable, Identifiable, Sendable {
   /// One value a day for the week ending on the latest day, oldest first: totals for cumulative
   /// types, averages for discrete ones. Days without data are left out.
   public var days: [DailyValue]
+  /// Whether it has data without a date: medications shared before any of their doses are
+  /// logged, since a medication's date is its latest dose's.
+  public var hasUndatedData: Bool
 
   public init(
     id: String, latestDate: Date? = nil, latestValue: Double? = nil, unit: String? = nil,
-    isDailyTotal: Bool = false, days: [DailyValue] = []
+    isDailyTotal: Bool = false, days: [DailyValue] = [], hasUndatedData: Bool = false
   ) {
     self.id = id
     self.latestDate = latestDate
@@ -29,9 +32,10 @@ public struct MetricSummary: Equatable, Identifiable, Sendable {
     self.unit = unit
     self.isDailyTotal = isDailyTotal
     self.days = days
+    self.hasUndatedData = hasUndatedData
   }
 
-  public var hasData: Bool { latestDate != nil }
+  public var hasData: Bool { latestDate != nil || hasUndatedData }
 }
 
 public struct DailyValue: Equatable, Sendable {
@@ -66,6 +70,12 @@ extension HealthDatabase {
       return try cumulativeSummary(of: type, now: now, calendar: calendar, db)
     case .quantity:
       return try discreteSummary(of: type, calendar: calendar, db)
+    case .medication:
+      // A medication without doses is still data, an as-needed one never logged included.
+      let latestDate = try latestDate(of: type, calendar: calendar, db)
+      let hasMedications =
+        try latestDate == nil && HealthMedication.select(\.id).limit(1).fetchOne(db) != nil
+      return MetricSummary(id: type.id, latestDate: latestDate, hasUndatedData: hasMedications)
     default:
       return MetricSummary(
         id: type.id, latestDate: try latestDate(of: type, calendar: calendar, db),
