@@ -85,7 +85,9 @@ const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
 
 /** A small control in the toolbar, as Linear's: zoom, Show all, and a filter's chips. */
 const pillButton =
-  "flex h-6 cursor-pointer items-center rounded-[6px] border px-2 text-mini font-medium hover:bg-hover";
+  "flex h-6 cursor-pointer items-center rounded-chip border px-2 text-mini font-medium";
+/** One that isn't on: the zoom buttons, Show all, a chip that's off. */
+const plainButton = `${pillButton} border-border text-muted hover:bg-hover`;
 
 function Grid() {
   const { book, base, missingBase } = Route.useLoaderData();
@@ -174,7 +176,7 @@ function Grid() {
             no snapshots of {missingBase.slice(0, 7)} to compare with
             <button
               type="button"
-              className={`${pillButton} border-border text-muted`}
+              className={plainButton}
               onClick={() => setSearch({ base: undefined })}
             >
               Show all
@@ -192,7 +194,7 @@ function Grid() {
             </ExternalLink>
             <button
               type="button"
-              className={`${pillButton} border-border text-muted`}
+              className={plainButton}
               onClick={() => setSearch({ base: undefined, tile: undefined })}
             >
               Show all
@@ -209,7 +211,7 @@ function Grid() {
               <button
                 key={value}
                 type="button"
-                className={`h-6 cursor-pointer rounded-[6px] px-2.5 text-mini font-medium ${mode === value ? "bg-selected text-foreground" : "text-secondary hover:bg-hover hover:text-muted"}`}
+                className={`h-6 cursor-pointer rounded-chip px-2.5 text-mini font-medium ${mode === value ? "bg-selected text-foreground" : "text-secondary hover:bg-hover hover:text-muted"}`}
                 aria-pressed={mode === value}
                 // A tile from one mode may not be in the other.
                 onClick={() =>
@@ -247,7 +249,7 @@ function Grid() {
         <div className="ml-auto flex items-center gap-1" role="group" aria-label="Zoom">
           <button
             type="button"
-            className={`${pillButton} border-border text-muted`}
+            className={plainButton}
             onClick={() => canvas.current?.zoomBy(1 / 1.5)}
             title="Zoom out"
           >
@@ -258,7 +260,7 @@ function Grid() {
           </span>
           <button
             type="button"
-            className={`${pillButton} border-border text-muted`}
+            className={plainButton}
             onClick={() => canvas.current?.zoomBy(1.5)}
             title="Zoom in"
           >
@@ -266,7 +268,7 @@ function Grid() {
           </button>
           <button
             type="button"
-            className={`${pillButton} border-border text-muted`}
+            className={plainButton}
             onClick={() => canvas.current?.fit()}
             title="Show everything"
           >
@@ -335,7 +337,11 @@ function Chips<A extends string>({
           <button
             key={value}
             type="button"
-            className={`${pillButton} ${on ? "border-border bg-selected text-foreground" : "border-dashed border-border text-secondary hover:bg-hover"}`}
+            className={
+              on
+                ? `${pillButton} border-border bg-selected text-foreground`
+                : `${pillButton} border-dashed border-border text-secondary hover:bg-hover`
+            }
             aria-pressed={on}
             onClick={() => onToggle(value)}
           >
