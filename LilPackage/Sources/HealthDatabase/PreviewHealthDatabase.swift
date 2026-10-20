@@ -55,6 +55,7 @@ private struct PreviewData {
     try insertBloodPressure(db)
     try insertWorkouts(db)
     try insertCharacteristics(db)
+    try insertVisionPrescriptions(db)
     try insertActivitySummaries(db)
   }
 
@@ -227,6 +228,35 @@ private struct PreviewData {
         id: "HKCharacteristicTypeIdentifierDateOfBirth", value: #"{"day":2,"month":4,"year":1990}"#)
       HealthCharacteristic(id: "HKCharacteristicTypeIdentifierBiologicalSex", value: #""female""#)
       HealthCharacteristic(id: "HKCharacteristicTypeIdentifierBloodType", value: #""aPositive""#)
+    }
+    .execute(db)
+  }
+
+  /// Current glasses, and contacts that have expired.
+  private func insertVisionPrescriptions(_ db: Database) throws {
+    let day = 86_400.0
+    let glassesIssued = calendar.startOfDay(for: now).addingTimeInterval(-120 * day)
+    let contactsIssued = calendar.startOfDay(for: now).addingTimeInterval(-800 * day)
+    try HealthVisionPrescription.insert {
+      HealthVisionPrescription(
+        id: "3d2b6a10-0000-4000-8000-000000000001", startDate: glassesIssued.unixMilliseconds,
+        endDate: glassesIssued.unixMilliseconds, prescriptionType: 1,
+        expirationDate: glassesIssued.addingTimeInterval(730 * day).unixMilliseconds,
+        rightEye:
+          #"{"sphere":-1.75,"cylinder":-0.5,"axis":90,"addPower":null,"vertexDistance":12,"farPupillaryDistance":31.5,"nearPupillaryDistance":29.5,"prism":null}"#,
+        leftEye:
+          #"{"sphere":-2.25,"cylinder":-0.75,"axis":85,"addPower":null,"vertexDistance":12,"farPupillaryDistance":32,"nearPupillaryDistance":30,"prism":null}"#,
+        sourceName: "Health", sourceBundleID: "com.apple.Health")
+      HealthVisionPrescription(
+        id: "3d2b6a10-0000-4000-8000-000000000002", startDate: contactsIssued.unixMilliseconds,
+        endDate: contactsIssued.unixMilliseconds, prescriptionType: 2,
+        expirationDate: contactsIssued.addingTimeInterval(365 * day).unixMilliseconds,
+        brand: "Daily Comfort",
+        rightEye:
+          #"{"sphere":-1.5,"cylinder":null,"axis":null,"addPower":null,"baseCurve":8.6,"diameter":14.2}"#,
+        leftEye:
+          #"{"sphere":-2,"cylinder":null,"axis":null,"addPower":null,"baseCurve":8.6,"diameter":14.2}"#,
+        sourceName: "Health", sourceBundleID: "com.apple.Health")
     }
     .execute(db)
   }

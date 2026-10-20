@@ -33,6 +33,8 @@ struct MetricDetailView: View {
         ElectrocardiogramsView()
       } else if type.kind == .audiogram {
         AudiogramsView()
+      } else if type.kind == .visionPrescription {
+        VisionPrescriptionsView()
       } else if type.kind == .heartbeatSeries {
         HeartbeatSeriesView()
       } else if type.kind == .stateOfMind {
