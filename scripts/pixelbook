@@ -267,20 +267,17 @@ echo "==> Resolving packages"
 xcodebuild -resolvePackageDependencies -project "$project" -scheme HealthMacSnapshots \
   -derivedDataPath "$derived" -onlyUsePackageVersionsFromResolvedFile -quiet
 
-# SnapshotPreviews ships PreviewsSupport.framework's macOS slice with a broken signature, which
-# macOS refuses to load and may move to the Trash as malware
-# (github.com/getsentry/SnapshotPreviews/issues/236). It's re-signed here, in this build's own
-# package checkout, for this machine only.
+# Our SnapshotPreviews fork signs PreviewsSupport.framework's macOS slice, whose signature upstream
+# is broken (github.com/getsentry/SnapshotPreviews/issues/236): macOS refuses to load it, and may
+# move it to the Trash as malware. Checked here, so a fork update that brings the broken one back
+# says so rather than failing to load.
 frameworks=$(find "$derived/SourcePackages/checkouts/SnapshotPreviews" \
   -path "*PreviewsSupport.xcframework/macos-*/PreviewsSupport.framework" -maxdepth 4 -type d || true)
-if [ "$(echo "$frameworks" | grep -c .)" -ne 1 ]; then
-  echo "Expected one macOS PreviewsSupport.framework in SnapshotPreviews, found:" >&2
-  echo "${frameworks:-(none)}" >&2
-  exit 1
-fi
 if ! codesign --verify --strict "$frameworks" 2>/dev/null; then
-  chmod -R u+w "$frameworks"
-  codesign --force --sign - "$frameworks"
+  echo "SnapshotPreviews' macOS PreviewsSupport.framework isn't signed properly:" >&2
+  echo "${frameworks:-(not found)}" >&2
+  echo "Sign it ad hoc in the fork (codesign --force --sign -) and tag a new version." >&2
+  exit 1
 fi
 
 echo "==> Building for macOS and the iPhone simulator"
