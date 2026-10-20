@@ -31,7 +31,7 @@ struct HealthDetailsTests {
       details
         == HealthDetails(
           dateOfBirth: BirthDate(year: 1990, month: 4, day: 2), sex: .female,
-          bloodType: .abNegative, skinType: .typeIV, wheelchairUse: .no))
+          bloodType: .abNegative, skinType: .typeIV, wheelchairUse: .no, hasSynced: true))
     #expect(details.bloodType?.name == "AB−")
     #expect(details.skinType?.name == "Type IV")
   }
@@ -45,7 +45,17 @@ struct HealthDetailsTests {
       characteristic("FitzpatrickSkinType", "oops"),
     ])
     #expect(details == HealthDetails(hasSynced: true))
-    #expect(HealthDetails(characteristics: []) == HealthDetails(hasSynced: false))
+    #expect(HealthDetails(characteristics: []) == HealthDetails())
+  }
+
+  @Test
+  func onlyHealthDetailsOwnCharacteristicsCountAsSynced() {
+    let details = HealthDetails(characteristics: [
+      characteristic("ActivityMoveMode", #""activeEnergy""#)
+    ])
+    #expect(!details.hasSynced)
+    #expect(
+      HealthDetails(characteristics: [characteristic("WheelchairUse", #""notSet""#)]).hasSynced)
   }
 
   @Test
@@ -103,6 +113,14 @@ struct VisionPrescriptionTests {
     #expect(all.map(\.kind) == [.contacts, .glasses, .glasses])
     let newest = try database.read { db in try HealthDatabase.visionPrescriptions(limit: 1, db) }
     #expect(newest.map(\.id) == ["b"])
+    let (found, missing) = try database.read { db in
+      (
+        try HealthDatabase.visionPrescription(id: "c", db),
+        try HealthDatabase.visionPrescription(id: "z", db)
+      )
+    }
+    #expect(found?.startDate == 2_000)
+    #expect(missing == nil)
   }
 
   @Test
@@ -128,11 +146,25 @@ struct VisionPrescriptionTests {
   }
 
   @Test
-  func expiresOnItsExpirationDate() {
-    let expiring = prescription("a", start: 0, expires: 10_000)
-    #expect(!expiring.isExpired(at: Date(unixMilliseconds: 9_999)))
-    #expect(expiring.isExpired(at: Date(unixMilliseconds: 10_000)))
-    #expect(!prescription("b", start: 0).isExpired(at: .distantFuture))
-    #expect(prescription("c", start: 0, type: 3).kind == nil)
+  func isGoodThroughItsExpirationDay() {
+    let calendar = utcCalendar()
+    let today = calendar.date(from: DateComponents(year: 2025, month: 10, day: 14, hour: 9))!
+    let lastThing = calendar.date(from: DateComponents(year: 2025, month: 10, day: 14, hour: 23))!
+    let tomorrow = calendar.date(from: DateComponents(year: 2025, month: 10, day: 15))!
+    // Expiring today, at any time of day: still good today, expired tomorrow.
+    let expiring = prescription("a", start: 0, expires: today.unixMilliseconds)
+    #expect(!expiring.isExpired(at: lastThing.addingTimeInterval(3_599), calendar: calendar))
+    #expect(expiring.isExpired(at: tomorrow, calendar: calendar))
+    let expiredYesterday = prescription(
+      "b", start: 0, expires: today.addingTimeInterval(-86_400).unixMilliseconds)
+    #expect(expiredYesterday.isExpired(at: today, calendar: calendar))
+    #expect(!prescription("c", start: 0).isExpired(at: .distantFuture, calendar: calendar))
+  }
+
+  @Test
+  func kindsFromANewerIOSAreNamedGenerically() {
+    #expect(prescription("a", start: 0, type: 2).kindName == "Contacts")
+    #expect(prescription("b", start: 0, type: 3).kind == nil)
+    #expect(prescription("b", start: 0, type: 3).kindName == "Vision Prescription")
   }
 }

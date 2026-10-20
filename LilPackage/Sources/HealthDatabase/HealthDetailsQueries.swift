@@ -17,14 +17,19 @@ public struct HealthDetails: Equatable, Sendable {
   public var bloodType: BloodType?
   public var skinType: FitzpatrickSkinType?
   public var wheelchairUse: WheelchairUse?
-  /// Whether any characteristic has synced, even one Not Set: if not, the iPhone hasn't shared
-  /// them.
+  /// Whether any of these five characteristics has synced, even one Not Set: if not, the iPhone
+  /// hasn't shared them.
   public var hasSynced: Bool
+
+  /// The characteristics Health Details shows, by type identifier.
+  public static let characteristicIDs: Set<String> = [
+    "DateOfBirth", "BiologicalSex", "BloodType", "FitzpatrickSkinType", "WheelchairUse",
+  ].reduce(into: []) { $0.insert("HKCharacteristicTypeIdentifier\($1)") }
 
   public init(
     dateOfBirth: BirthDate? = nil, sex: BiologicalSex? = nil, bloodType: BloodType? = nil,
     skinType: FitzpatrickSkinType? = nil, wheelchairUse: WheelchairUse? = nil,
-    hasSynced: Bool = true
+    hasSynced: Bool = false
   ) {
     self.dateOfBirth = dateOfBirth
     self.sex = sex
@@ -38,18 +43,19 @@ public struct HealthDetails: Equatable, Sendable {
   public init(characteristics: [HealthCharacteristic]) {
     let values = Dictionary(
       characteristics.map { ($0.id, Data($0.value.utf8)) }, uniquingKeysWith: { first, _ in first })
-    func decoded<Value: Decodable>(_ id: String, as type: Value.Type = Value.self) -> Value? {
+    func decoded<Value: Decodable>(_ id: String) -> Value? {
       values["HKCharacteristicTypeIdentifier\(id)"].flatMap {
         try? JSONDecoder().decode(Value.self, from: $0)
       }
     }
     func named<Value: RawRepresentable<String>>(_ id: String) -> Value? {
-      decoded(id, as: String.self).flatMap(Value.init(rawValue:))
+      (decoded(id) as String?).flatMap(Value.init(rawValue:))
     }
     self.init(
       dateOfBirth: decoded("DateOfBirth"), sex: named("BiologicalSex"),
       bloodType: named("BloodType"), skinType: named("FitzpatrickSkinType"),
-      wheelchairUse: named("WheelchairUse"), hasSynced: !characteristics.isEmpty)
+      wheelchairUse: named("WheelchairUse"),
+      hasSynced: characteristics.contains { Self.characteristicIDs.contains($0.id) })
   }
 }
 

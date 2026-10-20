@@ -51,9 +51,9 @@ private func list(_ state: VisionPrescriptionsContent.State, limit: Int = 200) -
 }
 
 @MainActor
-private func detail(_ prescription: HealthVisionPrescription) -> some View {
+private func detail(_ prescription: HealthVisionPrescription?) -> some View {
   NavigationStack {
-    VisionPrescriptionDetailView(prescription: prescription, now: now)
+    VisionPrescriptionDetailContent(prescription: prescription, now: now)
   }
   .previewFrame(width: 760, height: 640)
 }
@@ -88,4 +88,8 @@ private func detail(_ prescription: HealthVisionPrescription) -> some View {
 
 #Preview("One eye only") {
   detail(oneEye)
+}
+
+#Preview("Prescription no longer shared") {
+  detail(nil)
 }

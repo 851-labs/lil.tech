@@ -64,6 +64,22 @@ struct VisionFormatTests {
   }
 
   @Test
+  func aPrismWithABaseItCantReadIsntShownInPart() throws {
+    // The horizontal base is from a newer iOS: its amount and angle instead, or nothing.
+    let json = Data(
+      #"{"amount":1.5,"angle":20,"verticalAmount":1,"verticalBase":1,"horizontalAmount":0.5,"horizontalBase":9}"#
+        .utf8)
+    var prism = try JSONDecoder().decode(VisionPrism.self, from: json)
+    #expect(prism.horizontalBase == nil)
+    #expect(VisionFormat.prism(prism, locale: locale) == "1.5 Δ at 20°")
+    prism.amount = nil
+    #expect(VisionFormat.prism(prism, locale: locale) == nil)
+    #expect(
+      VisionFormat.rows(right: VisionLens(sphere: 1, prism: prism), left: nil, locale: locale)
+        .first { $0.name == "Prism" } == nil)
+  }
+
+  @Test
   func rowsLeaveOutWhatNeitherEyeHas() {
     let right = VisionLens(
       sphere: -3.5, cylinder: -1.25, axis: 90, baseCurve: 8.6, diameter: 14.2)

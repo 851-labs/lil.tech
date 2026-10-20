@@ -11,6 +11,13 @@ extension HealthDatabase {
       .limit(limit)
       .fetchAll(db)
   }
+
+  /// The prescription with this ID, or `nil` once it's no longer shared.
+  public static func visionPrescription(id: String, _ db: Database) throws
+    -> HealthVisionPrescription?
+  {
+    try HealthVisionPrescription.find(id).fetchOne(db)
+  }
 }
 
 /// What a vision prescription is for (`HKVisionPrescriptionType`).
@@ -101,7 +108,7 @@ public struct VisionPrism: Equatable, Sendable, Decodable {
     case amount, angle, verticalAmount, verticalBase, horizontalAmount, horizontalBase
   }
 
-  /// Each value on its own, like a lens's. A base from a newer iOS is missing.
+  /// Each value on its own, like a lens's. No base (0), or one from a newer iOS, is missing.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     func value<T: Decodable>(_ key: CodingKeys) -> T? {
@@ -118,9 +125,9 @@ public struct VisionPrism: Equatable, Sendable, Decodable {
 }
 
 /// Which way a prism's base points (`HKPrismBase`, by raw value): up or down vertically, in
-/// toward the nose or out away from it horizontally.
+/// toward the nose or out away from it horizontally. HealthKit's `none` (0) isn't a direction, so
+/// it decodes as no base.
 public enum PrismBase: Int, Sendable {
-  case none = 0
   case up = 1
   case down = 2
   case inward = 3
@@ -128,7 +135,6 @@ public enum PrismBase: Int, Sendable {
 
   public var name: String {
     switch self {
-    case .none: "None"
     case .up: "Up"
     case .down: "Down"
     case .inward: "In"
@@ -141,14 +147,22 @@ extension HealthVisionPrescription {
   /// Glasses or contacts, or `nil` for a kind from a newer iOS.
   public var kind: VisionPrescriptionKind? { VisionPrescriptionKind(rawValue: prescriptionType) }
 
+  /// "Glasses" or "Contacts", or "Vision Prescription" for a kind from a newer iOS.
+  public var kindName: String { kind?.name ?? "Vision Prescription" }
+
   /// When it was issued.
   public var issued: Date { Date(unixMilliseconds: startDate) }
 
   /// When it expires, if it says.
   public var expires: Date? { expirationDate.map(Date.init(unixMilliseconds:)) }
 
-  /// Whether it had expired by `now`.
-  public func isExpired(at now: Date) -> Bool { expires.map { $0 <= now } ?? false }
+  /// Whether it had expired by `now`: it's good through its expiration day in `calendar`.
+  public func isExpired(at now: Date, calendar: Calendar) -> Bool {
+    guard let expires else { return false }
+    let end =
+      calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: expires)) ?? expires
+    return now >= end
+  }
 
   /// The right eye's lens (OD), or `nil` if it has none or it can't be read.
   public var decodedRightEye: VisionLens? { Self.lens(rightEye) }

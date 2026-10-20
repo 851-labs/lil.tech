@@ -42,6 +42,7 @@ struct VisionPrescriptionsContent: View {
   /// How many the list holds at most (`RecentVisionPrescriptions.limit`), to say when it's full.
   var limit = RecentVisionPrescriptions.limit
   var now = Date.now
+  var calendar = Calendar.current
 
   var body: some View {
     Group {
@@ -75,9 +76,9 @@ struct VisionPrescriptionsContent: View {
           ForEach(Array(prescriptions.enumerated()), id: \.element.id) { index, prescription in
             if index > 0 { Divider().padding(.leading, 62) }
             NavigationLink {
-              VisionPrescriptionDetailView(prescription: prescription, now: now)
+              VisionPrescriptionDetailView(prescription: prescription)
             } label: {
-              VisionPrescriptionRow(prescription: prescription, now: now)
+              VisionPrescriptionRow(prescription: prescription, now: now, calendar: calendar)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -102,6 +103,7 @@ struct VisionPrescriptionsContent: View {
 struct VisionPrescriptionRow: View {
   let prescription: HealthVisionPrescription
   let now: Date
+  let calendar: Calendar
 
   var body: some View {
     HStack(spacing: 12) {
@@ -114,7 +116,7 @@ struct VisionPrescriptionRow: View {
           .foregroundStyle(.secondary)
       }
       Spacer()
-      if prescription.isExpired(at: now) {
+      if prescription.isExpired(at: now, calendar: calendar) {
         Text("Expired")
           .foregroundStyle(.orange)
       } else if let expires = prescription.expires {
@@ -143,20 +145,64 @@ struct VisionPrescriptionIcon: View {
   }
 }
 
-/// A prescription, as in Health: what it's for, when it was issued and expires, and each eye's
-/// lens side by side, right (OD) then left (OS), as prescriptions are written.
+/// A prescription, following the local database as sync changes it: edits show, and one no
+/// longer shared says so rather than showing what it was.
 struct VisionPrescriptionDetailView: View {
-  let prescription: HealthVisionPrescription
-  var now = Date.now
+  @Fetch private var prescription: HealthVisionPrescription?
+
+  /// Opens with `prescription` while its row is read.
+  init(prescription: HealthVisionPrescription) {
+    _prescription = Fetch(
+      wrappedValue: prescription, VisionPrescriptionRequest(id: prescription.id),
+      scheduler: MainQueueScheduler())
+  }
 
   var body: some View {
+    VisionPrescriptionDetailContent(prescription: prescription)
+  }
+}
+
+/// A prescription's row, or `nil` once it's no longer shared.
+struct VisionPrescriptionRequest: FetchKeyRequest {
+  let id: String
+
+  func fetch(_ db: Database) throws -> HealthVisionPrescription? {
+    try HealthDatabase.visionPrescription(id: id, db)
+  }
+}
+
+/// A prescription, as in Health: what it's for, when it was issued and expires, and each eye's
+/// lens side by side, right (OD) then left (OS), as prescriptions are written. `nil` once it's
+/// no longer shared.
+struct VisionPrescriptionDetailContent: View {
+  let prescription: HealthVisionPrescription?
+  var now = Date.now
+  var calendar = Calendar.current
+
+  var body: some View {
+    Group {
+      if let prescription {
+        page(prescription)
+      } else {
+        ContentUnavailableView(
+          "No Longer Shared", systemImage: "eyeglasses",
+          description: Text("This prescription was deleted or is no longer shared with lil health.")
+        )
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color.pageBackground)
+    .navigationTitle(prescription?.kindName ?? "Vision Prescription")
+  }
+
+  private func page(_ prescription: HealthVisionPrescription) -> some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 10) {
-        summary
+        summary(prescription)
         Text("Prescription")
           .font(.title3.bold())
           .padding(.top, 14)
-        lenses
+        lenses(prescription)
         VStack(spacing: 0) {
           row("Source", prescription.sourceName)
         }
@@ -167,17 +213,14 @@ struct VisionPrescriptionDetailView: View {
       .frame(maxWidth: 760)
       .frame(maxWidth: .infinity)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.pageBackground)
-    .navigationTitle(prescription.kind?.name ?? "Vision Prescription")
   }
 
-  private var summary: some View {
+  private func summary(_ prescription: HealthVisionPrescription) -> some View {
     VStack(spacing: 0) {
       HStack(spacing: 12) {
         VisionPrescriptionIcon(kind: prescription.kind)
         VStack(alignment: .leading, spacing: 2) {
-          Text(prescription.kind?.name ?? "Vision Prescription")
+          Text(prescription.kindName)
             .font(.title2.bold())
           if let brand = prescription.brand, !brand.isEmpty {
             Text(brand)
@@ -191,10 +234,8 @@ struct VisionPrescriptionDetailView: View {
       row("Date Issued", prescription.issued.formatted(date: .long, time: .omitted))
       if let expires = prescription.expires {
         Divider().padding(.leading, 14)
-        HStack {
-          Text("Expiration Date")
-          Spacer()
-          if prescription.isExpired(at: now) {
+        row("Expiration Date", expires.formatted(date: .long, time: .omitted)) {
+          if prescription.isExpired(at: now, calendar: calendar) {
             Text("Expired")
               .font(.caption.bold())
               .foregroundStyle(.white)
@@ -202,17 +243,13 @@ struct VisionPrescriptionDetailView: View {
               .padding(.vertical, 2)
               .background(.orange, in: Capsule())
           }
-          Text(expires.formatted(date: .long, time: .omitted))
-            .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
       }
     }
     .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
   }
 
-  private var lenses: some View {
+  private func lenses(_ prescription: HealthVisionPrescription) -> some View {
     let rows = VisionFormat.rows(
       right: prescription.decodedRightEye, left: prescription.decodedLeftEye)
     return Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 0) {
@@ -246,9 +283,17 @@ struct VisionPrescriptionDetailView: View {
   }
 
   private func row(_ name: String, _ value: String) -> some View {
+    row(name, value) { EmptyView() }
+  }
+
+  /// A name and its value, with `accessory` before the value.
+  private func row(
+    _ name: String, _ value: String, @ViewBuilder accessory: () -> some View
+  ) -> some View {
     HStack {
       Text(name)
       Spacer()
+      accessory()
       Text(value)
         .foregroundStyle(.secondary)
     }
@@ -271,9 +316,8 @@ enum VisionFormat {
 
   /// The list's title: "Glasses", or contacts with their brand.
   static func title(_ prescription: HealthVisionPrescription) -> String {
-    let kind = prescription.kind?.name ?? "Vision Prescription"
-    guard let brand = prescription.brand, !brand.isEmpty else { return kind }
-    return "\(kind) · \(brand)"
+    guard let brand = prescription.brand, !brand.isEmpty else { return prescription.kindName }
+    return "\(prescription.kindName) · \(brand)"
   }
 
   /// Sphere, cylinder, axis and add, then glasses' prism, vertex and pupillary distances or
@@ -322,7 +366,8 @@ enum VisionFormat {
   }
 
   /// Its vertical and horizontal parts toward their bases, "1 Δ Base Up, 0.5 Δ Base In", or its
-  /// amount at its angle, "2 Δ at 45°", for one given only that way. `nil` without either.
+  /// amount at its angle, "2 Δ at 45°", for one given only that way or with a part whose base
+  /// can't be read (rather than showing part of it). `nil` without either.
   static func prism(_ prism: VisionPrism, locale: Locale = .autoupdatingCurrent) -> String? {
     func amount(_ value: Double) -> String {
       "\(value.formatted(.number.precision(.fractionLength(0...2)).locale(locale))) Δ"
@@ -330,11 +375,14 @@ enum VisionFormat {
     let parts = [
       (prism.verticalAmount, prism.verticalBase), (prism.horizontalAmount, prism.horizontalBase),
     ]
-    .compactMap { value, base -> String? in
-      guard let value, value != 0, let base, base != .none else { return nil }
-      return "\(amount(value)) Base \(base.name)"
+    .compactMap { value, base -> String?? in
+      guard let value, value != 0 else { return nil }
+      // A part without a base we know: unreadable, so the whole prism falls back.
+      return .some(base.map { "\(amount(value)) Base \($0.name)" })
     }
-    if !parts.isEmpty { return parts.joined(separator: ", ") }
+    if !parts.isEmpty, parts.allSatisfy({ $0 != nil }) {
+      return parts.compactMap { $0 }.joined(separator: ", ")
+    }
     guard let value = prism.amount, value != 0 else { return nil }
     guard let angle = prism.angle else { return amount(value) }
     return "\(amount(value)) at \(degrees(angle, locale: locale))"

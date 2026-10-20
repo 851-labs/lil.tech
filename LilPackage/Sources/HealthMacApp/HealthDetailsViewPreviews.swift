@@ -20,14 +20,15 @@ private func details(_ state: HealthDetailsContent.State) -> some View {
     .loaded(
       HealthDetails(
         dateOfBirth: BirthDate(year: 1990, month: 4, day: 2), sex: .female, bloodType: .aPositive,
-        skinType: .typeIII, wheelchairUse: .no)))
+        skinType: .typeIII, wheelchairUse: .no, hasSynced: true)))
 }
 
 #Preview("Health Details, partly set") {
   details(
     .loaded(
-      HealthDetails(dateOfBirth: BirthDate(year: 1984, month: 11, day: 23), bloodType: .oNegative)
-    ))
+      HealthDetails(
+        dateOfBirth: BirthDate(year: 1984, month: 11, day: 23), bloodType: .oNegative,
+        hasSynced: true)))
 }
 
 #Preview("Health Details, nothing synced") {
