@@ -1,6 +1,7 @@
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, type CanvasHandle, type Insets } from "../Canvas.tsx";
+import { ExternalLink, plainButton, Segmented } from "../Controls.tsx";
 import { flowNodes, gridNodes, withSteps } from "../Elements.ts";
 import {
   type Direction,
@@ -19,13 +20,15 @@ import {
   withChange,
 } from "../Filters.ts";
 import { layoutFlowchart } from "../Flow.ts";
+import { Inspector, type Summary } from "../Inspector.tsx";
 import { RoutesNodeView, ScreenNodeView, StepContext, useSteps } from "../FlowNodes.tsx";
 import { graphs } from "../graphs.ts";
 import { layoutGrid, type Tile, tileId } from "../Grid.ts";
 import {
   appName,
   type Book,
-  imageUrl,
+  commitUrl,
+  compareUrl,
   tileDensity,
   loadBook,
   NotPublished,
@@ -33,16 +36,15 @@ import {
   platforms,
   schemes,
   sourceOf,
-  sourceUrl,
 } from "../Snapshots.ts";
-import { describeChanges, diffBooks, layoutDiff, summarize } from "../Diff.ts";
+import { describeChanges, diffBooks, layoutDiff, shownChanges, summarize } from "../Diff.ts";
 import {
   DensityContext,
   LabelNodeView,
+  platformNames,
   schemeNames,
   SelectContext,
   SelectedContext,
-  snapshotBackground,
   TileNodeView,
 } from "../Tiles.tsx";
 
@@ -93,23 +95,12 @@ function Message({ children }: { readonly children: React.ReactNode }) {
   );
 }
 
-/** A link out of Pixelbook, such as to GitHub. It opens in a new tab, keeping the canvas where it is. */
-function ExternalLink(props: Omit<React.ComponentProps<"a">, "target" | "rel">) {
-  return <a {...props} target="_blank" rel="noreferrer" />;
-}
-
-const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
-
 const nodeTypes = {
   tile: TileNodeView,
   label: LabelNodeView,
   screen: ScreenNodeView,
   routes: RoutesNodeView,
 };
-
-/** A small button in the header, as Linear's: zoom, Show all and the like. */
-const plainButton =
-  "flex h-6 cursor-pointer items-center rounded-chip border border-border px-2 text-mini font-medium text-muted hover:bg-hover";
 
 function Grid() {
   const { book, base, missingBase } = Route.useLoaderData();
@@ -215,10 +206,48 @@ function Grid() {
     return () => cancelAnimationFrame(next);
   }, [search.tile, covered]);
 
+  const zoomToSelection = useCallback(() => {
+    if (selectedFrame !== undefined) canvas.current?.zoomTo(selectedFrame.box, covered());
+  }, [selectedFrame, covered]);
+
+  // What the canvas shows, for the header and the inspector.
+  const counts = useMemo(
+    () => (changes === undefined ? undefined : summarize(shownChanges(changes, filters))),
+    [changes, filters],
+  );
+  const shown =
+    counts !== undefined
+      ? describeChanges(counts)
+      : flow === undefined
+        ? `${tiles.length} snapshots`
+        : `${flow.nodes.length + flow.unlinked.length} screens`;
+  const summary = useMemo(
+    (): Summary => ({
+      commit: book.commit,
+      ref: search.commit === undefined ? (search.ref ?? "main") : undefined,
+      shown,
+      // Those on the canvas, in its order.
+      apps: [...new Set(tiles.map((tile) => appName(tile.app, tile.platform)))],
+      comparison:
+        base === undefined || counts === undefined
+          ? undefined
+          : {
+              base: base.commit,
+              changes: [
+                ["Changed", counts.changed],
+                ["New", counts.added],
+                ["Removed", counts.removed],
+                ["Screens", counts.screens],
+              ],
+            },
+    }),
+    [book, base, counts, search.commit, search.ref, shown, tiles],
+  );
+
   const [helpShown, setHelpShown] = useState(false);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || isTyping(event.target) || inPanel(event.target)) return;
+      if (event.defaultPrevented || isTyping(event.target)) return;
       const view = canvas.current;
       const direction = arrowDirections[event.key];
       // Shortcuts with other modifiers are the browser's or the system's.
@@ -233,6 +262,8 @@ function Grid() {
         // The rest wait until the list is closed.
         return;
       } else if (direction !== undefined && plain && !event.shiftKey) {
+        // In the sidebar or inspector, they scroll it.
+        if (inPanel(event.target)) return;
         // With nothing selected, the first frame.
         const next =
           selectedFrame === undefined ? frames[0] : neighbor(frames, selectedFrame, direction);
@@ -246,8 +277,7 @@ function Grid() {
       } else if (plain && event.shiftKey && event.code === "Digit1") {
         view?.fit();
       } else if (plain && event.shiftKey && event.code === "Digit2") {
-        if (selectedFrame === undefined) return;
-        view?.zoomTo(selectedFrame.box, covered());
+        zoomToSelection();
       } else if ((event.key === "+" || event.key === "=") && !event.altKey) {
         // With ⌘ too, rather than the browser zooming the page.
         view?.zoomBy(1.5);
@@ -260,7 +290,7 @@ function Grid() {
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [frames, selectedFrame, search.tile, select, deselect, helpShown, covered]);
+  }, [frames, selectedFrame, search.tile, select, deselect, helpShown, zoomToSelection]);
 
   // Stepping the selected flowchart screen selects the state it steps to, which it shows.
   const stepScreen = useCallback(
@@ -295,7 +325,7 @@ function Grid() {
         <h1 className="mr-1 text-small font-semibold text-foreground">Pixelbook</h1>
         <ExternalLink
           className="font-mono text-mini text-secondary"
-          href={`https://github.com/851-labs/lil.tech/commit/${book.commit}`}
+          href={commitUrl(book.commit)}
           title={`Snapshots from ${book.commit}`}
         >
           {search.commit === undefined ? `${search.ref ?? "main"} · ` : ""}
@@ -318,7 +348,7 @@ function Grid() {
             changes since{" "}
             <ExternalLink
               className="font-mono text-mini"
-              href={`https://github.com/851-labs/lil.tech/compare/${base.commit}...${book.commit}`}
+              href={compareUrl(base.commit, book.commit)}
             >
               {base.commit.slice(0, 7)}
             </ExternalLink>
@@ -332,34 +362,17 @@ function Grid() {
           </span>
         )}
         {changes === undefined && (
-          <div
-            className="flex rounded-control border border-border p-0.5"
-            role="group"
-            aria-label="Mode"
-          >
-            {(["grid", "flow"] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                className={`h-6 cursor-pointer rounded-chip px-2.5 text-mini font-medium ${mode === value ? "bg-selected text-foreground" : "text-secondary hover:bg-hover hover:text-muted"}`}
-                aria-pressed={mode === value}
-                // A tile from one mode may not be in the other.
-                onClick={() =>
-                  setSearch({ mode: value === "grid" ? undefined : value, tile: undefined })
-                }
-              >
-                {value === "grid" ? "Grid" : "Flow"}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            label="Mode"
+            options={modes}
+            value={mode}
+            // A tile from one mode may not be in the other.
+            onChange={(value) =>
+              setSearch({ mode: value === "grid" ? undefined : value, tile: undefined })
+            }
+          />
         )}
-        <span className="ml-auto truncate text-mini text-secondary max-sm:hidden">
-          {changes !== undefined
-            ? describeChanges(summarize(changes))
-            : flow === undefined
-              ? `${tiles.length} snapshots`
-              : `${flow.nodes.length + flow.unlinked.length} screens`}
-        </span>
+        <span className="ml-auto truncate text-mini text-secondary max-sm:hidden">{shown}</span>
         <div className="flex items-center gap-1 max-sm:ml-auto" role="group" aria-label="Zoom">
           <button
             type="button"
@@ -465,24 +478,29 @@ function Grid() {
             </p>
           )}
         </main>
-        {selected !== undefined && (
-          <Detail
-            tile={selected}
-            // A base-side tile's file and line are the base's.
-            commit={
-              base !== undefined &&
-              (selected.change?.label === "Before" || selected.change?.label === "Removed")
-                ? base.commit
-                : book.commit
-            }
-            onClose={deselect}
-          />
-        )}
+        <Inspector
+          tile={selected}
+          // A base-side tile's file and line are the base's.
+          commit={
+            base !== undefined &&
+            (selected?.change?.label === "Before" || selected?.change?.label === "Removed")
+              ? base.commit
+              : book.commit
+          }
+          summary={summary}
+          onClose={deselect}
+          onZoomTo={zoomToSelection}
+        />
       </div>
       {helpShown && <ShortcutsHelp onClose={() => setHelpShown(false)} />}
     </div>
   );
 }
+
+const modes = [
+  { value: "grid", name: "Grid" },
+  { value: "flow", name: "Flow" },
+] as const;
 
 const arrowDirections: Partial<Record<string, Direction>> = {
   ArrowLeft: "left",
@@ -491,7 +509,7 @@ const arrowDirections: Partial<Record<string, Direction>> = {
   ArrowDown: "down",
 };
 
-/** Whether a key goes to a panel beside the canvas, such as the inspector, to scroll it. */
+/** Whether a key goes to a panel beside the canvas, such as the inspector, which it may scroll. */
 const inPanel = (target: EventTarget | null) =>
   target instanceof Element && target.closest("aside") !== null;
 
@@ -719,83 +737,4 @@ function useDevicePixelRatio() {
     return () => query?.removeEventListener("change", watch);
   }, []);
   return ratio;
-}
-
-function Detail({
-  tile,
-  commit,
-  onClose,
-}: {
-  readonly tile: Tile;
-  readonly commit: string;
-  readonly onClose: () => void;
-}) {
-  const { snapshot, variant } = tile;
-  return (
-    <aside
-      className="flex w-[400px] max-w-full shrink-0 flex-col gap-3 overflow-auto border-l border-border bg-surface p-4 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-3 max-lg:shadow-popover"
-      aria-label={`${snapshot.screen}: ${snapshot.state}`}
-    >
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-regular font-semibold text-foreground">{snapshot.state}</h2>
-          <p className="mt-0.5 text-secondary">
-            {snapshot.screen} · {appName(tile.app, tile.platform)} · {schemeNames[tile.scheme]}
-          </p>
-        </div>
-        <button
-          type="button"
-          className="flex size-7 cursor-pointer items-center justify-center rounded-control text-large leading-none text-secondary hover:bg-hover hover:text-foreground"
-          onClick={onClose}
-          title="Close (Esc)"
-        >
-          ×
-        </button>
-      </header>
-      {/* A changed snapshot shows both sides, before first. */}
-      {(tile.change?.other === undefined
-        ? [{ label: tile.change?.label, image: variant }]
-        : tile.change.label === "Before"
-          ? [
-              { label: "Before", image: variant },
-              { label: "After", image: tile.change.other },
-            ]
-          : [
-              { label: "Before", image: tile.change.other },
-              { label: "After", image: variant },
-            ]
-      ).map(({ label, image }) => (
-        <figure key={label ?? "image"} className="flex flex-col gap-1.5">
-          {label !== undefined && (
-            <figcaption className="text-mini font-medium text-secondary">{label}</figcaption>
-          )}
-          <div
-            className={`max-w-full self-center overflow-hidden rounded-control shadow-[0_0_0_1px_var(--color-border)] ${snapshotBackground(tile.platform, tile.scheme)}`}
-          >
-            <img
-              src={imageUrl(image)}
-              alt={`${snapshot.screen}: ${snapshot.state}${label === undefined ? "" : `, ${label}`}`}
-              style={{
-                width: image.width / image.scale,
-                aspectRatio: `${image.width} / ${image.height}`,
-              }}
-            />
-          </div>
-        </figure>
-      ))}
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-        <dt className="text-secondary">Source</dt>
-        <dd className="[overflow-wrap:anywhere]">
-          <ExternalLink href={sourceUrl(snapshot, commit)}>
-            {snapshot.module}/{snapshot.file}
-            {snapshot.line === null ? "" : `:${snapshot.line}`}
-          </ExternalLink>
-        </dd>
-        <dt className="text-secondary">Size</dt>
-        <dd className="[overflow-wrap:anywhere]">
-          {tile.width} × {tile.height} pt @{variant.scale}x
-        </dd>
-      </dl>
-    </aside>
-  );
 }
