@@ -3,6 +3,7 @@ import {
   fitView,
   intersects,
   maxZoom,
+  needsRender,
   near,
   renderRegion,
   startView,
@@ -49,5 +50,17 @@ describe("canvas", () => {
     ];
     expect(near(region, items, (item) => item)).toEqual([items[0]]);
     expect(near(undefined, items, (item) => item)).toEqual(items);
+  });
+
+  it("renders a moved view when it zooms or reaches another region", () => {
+    const viewport = { width: 1000, height: 800 };
+    const view = { x: 0, y: 0, zoom: 0.5 };
+    // Panning within a cell only moves the canvas.
+    expect(needsRender({ ...view, x: -20 }, view, viewport)).toBe(false);
+    // Past one, the region changes.
+    expect(needsRender({ ...view, x: -400 }, view, viewport)).toBe(true);
+    expect(needsRender({ ...view, zoom: 0.6 }, view, viewport)).toBe(true);
+    // Without a viewport's size, only zooming does.
+    expect(needsRender({ ...view, x: -400 }, view, undefined)).toBe(false);
   });
 });
