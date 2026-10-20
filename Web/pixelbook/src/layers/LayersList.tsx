@@ -1,8 +1,16 @@
 // The sidebar's layers list (851-2763): apps, their screens and each screen's states, collapsible
 // and searchable. Choosing a state selects it and zooms to it; selecting on the canvas shows it here.
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { badgeLabel, type LayerApp, type LayerState, layerOf, searchLayers } from "./Layers.ts";
-import { badgeColors } from "./Tiles.tsx";
+import { badgeColors } from "../canvas/Tile.tsx";
+import { ChevronIcon } from "../comps/Icons.tsx";
+import { SectionTitle } from "../comps/SectionTitle.tsx";
+import {
+  badgeLabel,
+  type LayerApp,
+  type LayerState,
+  layerOf,
+  searchLayers,
+} from "../lib/Layers.ts";
 
 /** A row: each level indents it further. */
 const row =
@@ -54,7 +62,7 @@ export const LayersList = memo(function LayersList({
 
   return (
     <section className="flex flex-col gap-1" aria-label="Layers">
-      <h2 className="px-2 pb-1 text-mini font-medium text-secondary">Layers</h2>
+      <SectionTitle in="sidebar">Layers</SectionTitle>
       <input
         className="mx-1 mb-1 h-7 rounded-chip border border-border bg-background px-2 text-small placeholder:text-secondary focus:border-accent focus:outline-none"
         type="search"
@@ -86,7 +94,7 @@ export const LayersList = memo(function LayersList({
                   setClosedApps((closed) => toggled(closed, app.key));
                 }}
               >
-                <Chevron open={appOpen} />
+                <ChevronIcon open={appOpen} />
                 <span className="truncate">{app.name}</span>
               </button>
               {appOpen &&
@@ -103,7 +111,7 @@ export const LayersList = memo(function LayersList({
                           setOpenScreens((open) => toggled(open, screen.key));
                         }}
                       >
-                        <Chevron open={screenOpen} />
+                        <ChevronIcon open={screenOpen} />
                         <span className="truncate">{screen.name}</span>
                         <span className="ml-auto text-mini text-secondary tabular-nums">
                           {screen.states.length}
@@ -150,19 +158,6 @@ export const LayersList = memo(function LayersList({
     </section>
   );
 });
-
-function Chevron({ open }: { readonly open: boolean }) {
-  return (
-    <svg
-      className={`size-3 shrink-0 text-secondary transition-transform ${open ? "rotate-90" : ""}`}
-      viewBox="0 0 12 12"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path d="M4.5 3 7.5 6l-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 /**
  * After a click, rather than a key, gives the keys back to the canvas, so the arrow keys move the

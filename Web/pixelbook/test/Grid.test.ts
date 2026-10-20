@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import { layoutGrid, noFilters, spacing } from "../src/Grid.ts";
-import type { Manifest, Snapshot, Variant } from "../src/Snapshots.ts";
+import { layoutGrid, noFilters, spacing } from "../src/lib/Grid.ts";
+import type { Manifest, Snapshot, Variant } from "../src/lib/Snapshots.ts";
 
 const variant = (image: string, width: number, height: number, scale: number): Variant => ({
   image: `images/${image}.png`,

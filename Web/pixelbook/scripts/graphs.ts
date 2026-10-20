@@ -5,7 +5,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Graph, graphProblems, parseGraph, type Previews } from "../src/Graph.ts";
+import { type Graph, graphProblems, parseGraph, type Previews } from "../src/lib/Graph.ts";
 
 const root = fileURLToPath(new URL("../../..", import.meta.url));
 export const graphsDirectory = fileURLToPath(new URL("../graphs", import.meta.url));

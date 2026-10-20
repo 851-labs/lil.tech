@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { fitView, maxZoom, startView, zoomAround } from "../src/Canvas.tsx";
+import { fitView, maxZoom, startView, zoomAround } from "../src/lib/View.ts";
 
 describe("canvas", () => {
   it("zooms around the pointer, within limits", () => {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { FlowLayout, FlowNode } from "../src/Flow.ts";
-import type { ChangeLabel, Tile } from "../src/Grid.ts";
-import { flowLayers, gridLayers, layerOf, searchLayers } from "../src/Layers.ts";
-import type { Scheme, Snapshot } from "../src/Snapshots.ts";
+import type { FlowLayout, FlowNode } from "../src/lib/Flow.ts";
+import type { ChangeLabel, Tile } from "../src/lib/Grid.ts";
+import { flowLayers, gridLayers, layerOf, searchLayers } from "../src/lib/Layers.ts";
+import type { Scheme, Snapshot } from "../src/lib/Snapshots.ts";
 
 const tile = (
   app: string,

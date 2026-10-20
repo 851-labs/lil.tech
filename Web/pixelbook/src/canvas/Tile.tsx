@@ -1,13 +1,9 @@
-// What the canvas shows in both modes: snapshot tiles and text labels.
+// The canvas's snapshot tiles, in both modes: the grid's, and the flowchart's screens'.
 import type { NodeProps } from "@xyflow/react";
 import { createContext, useContext } from "react";
-import type { LabelNode, TileNode } from "./Elements.ts";
-import { type ChangeLabel, type Label, type Tile, tileId } from "./Grid.ts";
-import { type Platform, type Scheme, tileImageUrl } from "./Snapshots.ts";
-
-export const schemeNames: Record<Scheme, string> = { light: "Light", dark: "Dark" };
-
-export const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
+import type { TileNode } from "../lib/Elements.ts";
+import { type ChangeLabel, type Tile, tileId } from "../lib/Grid.ts";
+import { type Platform, type Scheme, schemeNames, tileImageUrl } from "../lib/Snapshots.ts";
 
 const snapshotBackgrounds = {
   macos: { light: "bg-mac-light", dark: "bg-mac-dark" },
@@ -98,15 +94,4 @@ export function TileButton({
 /** A tile on the canvas: its node is at its position. */
 export function TileNodeView({ data }: NodeProps<TileNode>) {
   return <TileButton tile={{ ...data.tile, x: 0, y: 0 }} />;
-}
-
-/** A label's type, by its kind: sized to read on the zoomed-out canvas. */
-const labelStyles: Record<Label["kind"], string> = {
-  app: "text-[112px] leading-none font-bold",
-  screen: "text-[56px] leading-none font-semibold text-secondary",
-  caption: "text-[28px] font-semibold text-secondary",
-};
-
-export function LabelNodeView({ data: { label } }: NodeProps<LabelNode>) {
-  return <div className={`whitespace-nowrap ${labelStyles[label.kind]}`}>{label.text}</div>;
 }

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
-import { flowNodes, gridNodes, labelExtent, withSteps } from "../src/Elements.ts";
-import type { FlowLayout, FlowNode } from "../src/Flow.ts";
-import type { Tile } from "../src/Grid.ts";
-import type { Snapshot } from "../src/Snapshots.ts";
+import { flowNodes, gridNodes, labelExtent, withSteps } from "../src/lib/Elements.ts";
+import type { FlowLayout, FlowNode } from "../src/lib/Flow.ts";
+import type { Tile } from "../src/lib/Grid.ts";
+import type { Snapshot } from "../src/lib/Snapshots.ts";
 
 const tile = (id: string, x: number, y: number, width = 400, height = 300): Tile => {
   const variant = { image: `images/${id}.png`, width: width * 2, height: height * 2, scale: 2 };

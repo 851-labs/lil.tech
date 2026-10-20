@@ -6,10 +6,10 @@ import {
   nodeHeader,
   placeholder,
   unlinkedRowWidth,
-} from "../src/Flow.ts";
-import type { Graph } from "../src/Graph.ts";
-import { noFilters, spacing } from "../src/Grid.ts";
-import type { Manifest, Snapshot } from "../src/Snapshots.ts";
+} from "../src/lib/Flow.ts";
+import type { Graph } from "../src/lib/Graph.ts";
+import { noFilters, spacing } from "../src/lib/Grid.ts";
+import type { Manifest, Snapshot } from "../src/lib/Snapshots.ts";
 
 const snapshot = (file: string, state: string, line: number, dark = true): Snapshot => ({
   id: `${file}_${state}`,

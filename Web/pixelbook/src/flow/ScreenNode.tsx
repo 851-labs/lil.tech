@@ -1,75 +1,10 @@
-// Flowchart mode's nodes: a node per screen that steps through its states, and the routes between
-// them, with their labels.
+// Flowchart mode's screens: a node per screen that steps through its states.
 import type { NodeProps } from "@xyflow/react";
-import { createContext, useCallback, useContext, useState } from "react";
-import type { RoutesNode, ScreenNode } from "./Elements.ts";
-import { nodeHeader } from "./Flow.ts";
-import { TileButton } from "./Tiles.tsx";
-
-/**
- * How far each screen was stepped through its states, by its key, and a function that steps one.
- * Kept above the canvas, so a node that leaves the view and comes back keeps its state.
- */
-export function useSteps() {
-  const [steps, setSteps] = useState<ReadonlyMap<string, number>>(new Map());
-  const step = useCallback(
-    (key: string, to: number) => setSteps((steps) => new Map(steps).set(key, to)),
-    [],
-  );
-  return [steps, step] as const;
-}
-
-/** `useSteps`'s function, for the screens' nodes. */
-export const StepContext = createContext<(key: string, steps: number) => void>(() => {});
-
-/** The routes: dagre's points, each ending in an arrowhead, and their labels at their centers. */
-export function RoutesNodeView({
-  data: { edges },
-  positionAbsoluteX: left,
-  positionAbsoluteY: top,
-}: NodeProps<RoutesNode>) {
-  return (
-    <>
-      {/* In canvas points, from the node's corner: sized to read when zoomed out. */}
-      <svg className="absolute inset-0 size-full overflow-visible" aria-hidden="true">
-        <defs>
-          <marker
-            id="route-arrow"
-            viewBox="0 0 10 10"
-            refX="9"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path className="fill-secondary" d="M 0 0 L 10 5 L 0 10 z" />
-          </marker>
-        </defs>
-        {edges.map((edge, index) => (
-          <polyline
-            className="fill-none stroke-secondary stroke-6 [stroke-linejoin:round]"
-            key={`${edge.from}/${edge.to}/${index}`}
-            points={edge.points.map(({ x, y }) => `${x - left},${y - top}`).join(" ")}
-            markerEnd="url(#route-arrow)"
-          />
-        ))}
-      </svg>
-      {edges.map(
-        ({ from, to, label, labelAt }, index) =>
-          label !== undefined &&
-          labelAt !== undefined && (
-            <div
-              key={`${from}/${to}/${index}`}
-              className="absolute w-max max-w-[280px] -translate-1/2 rounded-2xl border-2 border-border bg-background px-3.5 py-1.5 text-center text-[26px] leading-[1.2] font-semibold"
-              style={{ left: labelAt.x - left, top: labelAt.y - top }}
-            >
-              {label}
-            </div>
-          ),
-      )}
-    </>
-  );
-}
+import { useContext } from "react";
+import { TileButton } from "../canvas/Tile.tsx";
+import type { ScreenNode } from "../lib/Elements.ts";
+import { nodeHeader } from "../lib/Flow.ts";
+import { StepContext } from "./StepContext.ts";
 
 /** The ‹ and › buttons that step through a node's states. */
 const stepButton =

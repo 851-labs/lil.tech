@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { filtersFrom, toggle, validateSearch, withChange } from "../src/Filters.ts";
+import { filtersFrom, toggle, validateSearch, withChange } from "../src/lib/Filters.ts";
 
 describe("filters", () => {
   const all = ["light", "dark"] as const;
