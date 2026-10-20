@@ -157,7 +157,13 @@ private struct CategoryRow: View {
 
   var body: some View {
     HStack {
-      Label(category.category.name, systemImage: category.category.symbolName)
+      Label {
+        Text(category.category.name)
+      } icon: {
+        // In its color, as in the Mac's sidebar and Health.
+        Image(systemName: category.category.symbolName)
+          .foregroundStyle(category.category.color)
+      }
       Spacer()
       Text(category.records.formatted())
         .foregroundStyle(.secondary)
