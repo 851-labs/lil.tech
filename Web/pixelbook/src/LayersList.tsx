@@ -1,6 +1,6 @@
 // The sidebar's layers list (851-2763): apps, their screens and each screen's states, collapsible
 // and searchable. Choosing a state selects it and zooms to it; selecting on the canvas shows it here.
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { badgeLabel, type LayerApp, type LayerState, layerOf, searchLayers } from "./Layers.ts";
 import { badgeColors } from "./Tiles.tsx";
 
@@ -27,29 +27,30 @@ export const LayersList = memo(function LayersList({
   const shown = useMemo(() => searchLayers(apps, query), [apps, query]);
 
   // A frame selected on the canvas opens its screen here, even if closed since, and scrolls to it
-  // once it's open; opening and closing others leaves the list where it is. Only once per
+  // once its row is shown; opening and closing others leaves the list where it is. Once per
   // selection: a filter gives the list new apps, which mustn't scroll it again (851-2789).
   const list = useRef<HTMLDivElement>(null);
   const place = useMemo(() => layerOf(apps, selected), [apps, selected]);
-  const revealed = useRef<string | undefined>(undefined);
+  const [revealed, setRevealed] = useState<string | undefined>(undefined);
+  // Deselecting forgets it, so selecting the same frame again shows it again.
+  if (selected === undefined && revealed !== undefined) setRevealed(undefined);
+  const pending = revealed === selected ? undefined : place;
+  const pendingApp = pending?.app;
+  const pendingScreen = pending?.screen;
+  const pendingState = pending?.state;
   useEffect(() => {
-    if (place === undefined || revealed.current === selected) return;
-    setClosedApps((closed) => without(closed, place.app));
-    setOpenScreens((open) => (open.has(place.screen) ? open : new Set(open).add(place.screen)));
-    // Once its row is shown: a screen just opened may take a few frames. Noted once it scrolls,
-    // so a filter changed before then doesn't lose it.
-    let frames = 0;
-    let next = requestAnimationFrame(function reveal() {
-      const row = list.current?.querySelector(`[data-layer="${CSS.escape(place.state)}"]`);
-      if (row === null || row === undefined) {
-        if (++frames < 30) next = requestAnimationFrame(reveal);
-        return;
-      }
-      revealed.current = selected;
-      row.scrollIntoView({ block: "nearest" });
-    });
-    return () => cancelAnimationFrame(next);
-  }, [place, selected]);
+    if (pendingApp === undefined || pendingScreen === undefined) return;
+    setClosedApps((closed) => without(closed, pendingApp));
+    setOpenScreens((open) => (open.has(pendingScreen) ? open : new Set(open).add(pendingScreen)));
+  }, [pendingApp, pendingScreen]);
+  // After each render while it's pending: once its row is shown, scroll to it.
+  useLayoutEffect(() => {
+    if (pendingState === undefined) return;
+    const row = list.current?.querySelector(`[data-layer="${CSS.escape(pendingState)}"]`);
+    if (row === null || row === undefined) return;
+    row.scrollIntoView({ block: "nearest" });
+    setRevealed(selected);
+  });
 
   return (
     <section className="flex flex-col gap-1" aria-label="Layers">
