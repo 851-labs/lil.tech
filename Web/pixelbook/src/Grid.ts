@@ -15,6 +15,9 @@ export const noFilters: Filters = { apps: [], platforms: [], schemes: [] };
 export const shows = <A>(chosen: ReadonlyArray<A>, value: A) =>
   chosen.length === 0 || chosen.includes(value);
 
+/** What an image is in a comparison: one side of a change, or added, or removed. */
+export type ChangeLabel = "Before" | "After" | "New" | "Removed";
+
 /** A snapshot in one color scheme, placed on the canvas. */
 export interface Tile {
   readonly app: string;
@@ -28,7 +31,7 @@ export interface Tile {
   readonly width: number;
   readonly height: number;
   /** In a comparison (`Diff.ts`): what this image is, e.g. "Before", and the other side's. */
-  readonly change?: { readonly label: string; readonly other?: Variant };
+  readonly change?: { readonly label: ChangeLabel; readonly other?: Variant };
 }
 
 /** A label on the canvas: an app's title or a screen's name. */

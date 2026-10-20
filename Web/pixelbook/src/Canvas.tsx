@@ -367,7 +367,7 @@ export function Canvas({
   return (
     <div
       ref={viewport}
-      className={dragging ? "canvas dragging" : "canvas"}
+      className={`absolute inset-0 touch-none overflow-hidden select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -376,7 +376,8 @@ export function Canvas({
     >
       <div
         ref={content}
-        className="canvas-content"
+        // Its own layer from the start, so the first pan doesn't promote it (851-2714).
+        className="absolute top-0 left-0 origin-top-left will-change-transform"
         style={{ width, height, transform: transformOf(view) }}
       >
         <RegionContext value={stableRegion}>{children}</RegionContext>
