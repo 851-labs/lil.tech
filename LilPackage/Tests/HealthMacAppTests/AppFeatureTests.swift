@@ -51,19 +51,24 @@ struct AppFeatureTests {
     await store.finish()
   }
 
-  @Test
-  func signingOutStopsAnExportAndForgetsTheAccount() async {
+  @Test(.timeLimit(.minutes(1)))
+  func signingOutStopsTheAccountsWorkAndForgetsIt() async {
     let (updates, session) = AsyncStream<Bool>.makeStream()
+    // Never advanced: both requests are still waiting when the account signs out.
+    let clock = ManualClock()
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     } withDependencies: {
       $0.auth.signedInUpdates = { updates }
       $0.sync = .constant(.idle)
-      $0.continuousClock = ManualClock()
-      // Still preparing when the account signs out.
+      $0.continuousClock = clock
       $0.dataExports.request = { () throws(DataExportError) in
-        try? await Task.sleep(for: .seconds(3600))
+        try? await clock.sleep(for: .seconds(3600))
         return DataExport(requestedAt: Date(timeIntervalSince1970: 0), url: nil)
+      }
+      $0.signInMethods.list = { () throws(SignInMethodError) in
+        try? await clock.sleep(for: .seconds(3600))
+        return []
       }
     }
 
@@ -73,7 +78,9 @@ struct AppFeatureTests {
       $0.isSignedIn = true
     }
     await store.receive(\.syncStatusChanged)
-    // The Settings window's export, which carries on if the window closes.
+    // The Settings window loads the sign-in methods and starts an export, which carries on if
+    // the window closes.
+    await store.send(\.account.signInMethods.task)
     await store.send(\.account.dataExport.exportButtonTapped) {
       $0.account.dataExport.status = .preparing
     }
@@ -84,8 +91,31 @@ struct AppFeatureTests {
     }
     await store.receive(\.signIn.readyToSignIn)
     await task.cancel()
-    // The export was cancelled with the account, so nothing is left running.
+    // Both were cancelled with the account, so nothing is left running.
     await store.finish()
+  }
+
+  @Test
+  func theAccountPaneForgetsPastResultsWhenItOpens() async {
+    var state = AppFeature.State(isSignedIn: true)
+    state.account.dataExport.status = .failed("Exporting isn't possible right now.")
+    state.account.signInMethods.failure = "Linking didn't work."
+    let store = TestStore(initialState: state) {
+      AppFeature()
+    }
+
+    await store.send(\.account.appeared) {
+      $0.account.dataExport.status = .idle
+      $0.account.signInMethods.failure = nil
+    }
+
+    // An export in progress carries on.
+    var exporting = AppFeature.State(isSignedIn: true)
+    exporting.account.dataExport.status = .downloading(0.5)
+    let busy = TestStore(initialState: exporting) {
+      AppFeature()
+    }
+    await busy.send(\.account.appeared)
   }
 
   @Test(.timeLimit(.minutes(1)))

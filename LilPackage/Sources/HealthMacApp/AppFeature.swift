@@ -133,8 +133,8 @@ public struct AppFeature {
           .cancel(id: CancelID.pull),
           .cancel(id: CancelID.sync),
           .cancel(id: SummaryFeature.CancelID.write),
-          // An export of the account's data stops with it.
-          .cancel(id: DataExportFeature.CancelID.export),
+          // What the Settings window started for the account stops with it.
+          AccountFeature.cancel(),
           .run { [sync, blobCache] send in
             // First, so it's done even if the database can't be.
             await blobCache.removeAll()

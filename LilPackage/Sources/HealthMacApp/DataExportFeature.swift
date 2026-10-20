@@ -125,6 +125,7 @@ public struct DataExportFeature {
         return .run { [archiveSaver] send in
           await send(.saved(await archiveSaver.save(file, name)))
         }
+        .cancellable(id: CancelID.export)
 
       case .saved(let url):
         state.status = url.map(State.Status.saved) ?? .idle
@@ -214,9 +215,16 @@ public struct AccountFeature {
   public enum Action {
     case signInMethods(SignInMethodsFeature.Action)
     case dataExport(DataExportFeature.Action)
+    case appeared
   }
 
   public init() {}
+
+  /// Stops what the account's pane started, its sign-in methods' requests and an export: their
+  /// answers would be the last account's.
+  static func cancel<Action>() -> Effect<Action> {
+    .merge(SignInMethodsFeature.cancel(), .cancel(id: DataExportFeature.CancelID.export))
+  }
 
   public var body: some ReducerOf<Self> {
     Scope(\.signInMethods, action: \.signInMethods) {
@@ -224,6 +232,18 @@ public struct AccountFeature {
     }
     Scope(\.dataExport, action: \.dataExport) {
       DataExportFeature()
+    }
+    Reduce { state, action in
+      switch action {
+      case .appeared:
+        // The pane's state outlives the window, but a past result (an export saved or failed, a
+        // link that failed) isn't news the next time it opens.
+        if !state.dataExport.isBusy { state.dataExport.status = .idle }
+        state.signInMethods.failure = nil
+        return .none
+      case .signInMethods, .dataExport:
+        return .none
+      }
     }
   }
 }

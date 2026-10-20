@@ -14,7 +14,7 @@ private func settings(
     SignInMethod(id: "idt_apple", provider: .apple, email: "x7y2@privaterelay.appleid.com")
   ]),
   export: DataExportFeature.State.Status = .idle,
-  isSignedIn: Bool = true
+  isSignedIn: Bool? = true
 ) -> some View {
   var state = AppFeature.State(isSignedIn: isSignedIn)
   state.account.signInMethods = SignInMethodsFeature.State(methods: methods)
@@ -23,7 +23,7 @@ private func settings(
   state.account.dataExport.status = export
   // `EmptyReducer`, so the sections' tasks don't replace the state shown.
   return AccountSettingsView(store: Store(initialState: state) { EmptyReducer() })
-    .frame(width: SettingsView.width)
+    .previewFrame(width: SettingsView.width, height: SettingsView.height)
 }
 
 #Preview("Account") {
@@ -60,4 +60,8 @@ private func settings(
 
 #Preview("Signed out") {
   settings(isSignedIn: false)
+}
+
+#Preview("Checking the session") {
+  settings(isSignedIn: nil)
 }

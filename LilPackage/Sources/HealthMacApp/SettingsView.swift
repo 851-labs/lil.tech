@@ -12,15 +12,16 @@ public struct SettingsView: View {
     self.store = store
   }
 
-  /// The window's width, which every pane shares.
+  /// The window's size, which every pane shares.
   static let width: CGFloat = 480
+  static let height: CGFloat = 380
 
   public var body: some View {
     TabView {
       AccountSettingsView(store: store)
         .tabItem { Label("Account", systemImage: "person.crop.circle") }
     }
-    .frame(width: Self.width)
+    .frame(width: Self.width, height: Self.height)
   }
 }
 
@@ -30,22 +31,28 @@ struct AccountSettingsView: View {
   let store: StoreOf<AppFeature>
 
   var body: some View {
-    if store.isSignedIn == true {
-      let account = store.scope(\.account, action: \.account)
-      Form {
-        SignInMethodsSection(store: account.scope(\.signInMethods, action: \.signInMethods))
-        DataExportSection(store: account.scope(\.dataExport, action: \.dataExport))
+    Group {
+      switch store.isSignedIn {
+      case nil:
+        // The stored session isn't checked yet.
+        ProgressView()
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      case false:
+        ContentUnavailableView {
+          Label("Not Signed In", systemImage: "person.crop.circle")
+        } description: {
+          Text("Sign in to lil health to see how you sign in and to export your data.")
+        }
+      case true:
+        let account = store.scope(\.account, action: \.account)
+        Form {
+          SignInMethodsSection(store: account.scope(\.signInMethods, action: \.signInMethods))
+          DataExportSection(store: account.scope(\.dataExport, action: \.dataExport))
+        }
+        .formStyle(.grouped)
       }
-      .formStyle(.grouped)
-      .frame(height: 380)
-    } else {
-      ContentUnavailableView {
-        Label("Not Signed In", systemImage: "person.crop.circle")
-      } description: {
-        Text("Sign in to lil health to see how you sign in and to export your data.")
-      }
-      .frame(height: 260)
     }
+    .onAppear { store.send(.account(.appeared)) }
   }
 }
 

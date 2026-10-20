@@ -3,6 +3,8 @@ import HealthCatalog
 import LilAuth
 public import SwiftUI
 
+/// The main window. The app starts the store's `task`, rather than this view, so the session is
+/// followed while the window is closed too, for the Settings window.
 public struct AppView: View {
   @Bindable var store: StoreOf<AppFeature>
 
@@ -32,7 +34,6 @@ public struct AppView: View {
       }
     }
     .frame(minWidth: 720, minHeight: 480)
-    .task { await store.send(.task).finish() }
   }
 }
 
