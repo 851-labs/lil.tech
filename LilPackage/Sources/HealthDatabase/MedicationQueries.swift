@@ -17,27 +17,30 @@ extension HealthDatabase {
     id: String, now: Date, calendar: Calendar, limit: Int, _ db: Database
   ) throws -> MedicationDetail? {
     guard let medication = try HealthMedication.find(id).fetchOne(db) else { return nil }
-    let doses =
+    // One more than shown, to know whether there are more.
+    let latest =
       try HealthMedicationDose
       .where { $0.medication.eq(id) }
       .order { ($0.startDate.desc(), $0.id.desc()) }
-      .limit(limit)
+      .limit(limit + 1)
       .fetchAll(db)
-    // A dose counts on its scheduled day, and can be logged a while before or after it, so the
-    // window's doses are read with a day either side.
+    let isLimited = latest.count > limit
+    var days = MedicationDoseDay.days(Array(latest.prefix(limit)), calendar: calendar)
+    // Cut by when doses were logged, the oldest day shown may be missing some: it's left out.
+    if isLimited, days.count > 1 { days.removeLast() }
+    // A dose counts on its scheduled day, however long before or after it was logged.
     let windowStart = MedicationAdherence.start(days: 30, now: now, calendar: calendar)
-    let lower = windowStart.unixMilliseconds - 86_400_000
+      .unixMilliseconds
     let recent =
       try HealthMedicationDose
-      .where { $0.medication.eq(id) && $0.startDate >= lower }
+      .where { $0.medication.eq(id) && ($0.scheduledDate ?? $0.startDate) >= windowStart }
       .fetchAll(db)
     return MedicationDetail(
       medication: medication,
       adherence: [7, 30].map {
         MedicationAdherence(days: $0, doses: recent, now: now, calendar: calendar)
       },
-      days: MedicationDoseDay.days(doses, calendar: calendar),
-      isLimited: doses.count >= limit)
+      days: days, isLimited: isLimited)
   }
 }
 
@@ -202,7 +205,7 @@ extension HealthMedicationDose {
 extension HealthMedication {
   /// The name the person gave it, or Health's.
   public var displayName: String {
-    guard let nickname, !nickname.trimmingCharacters(in: .whitespaces).isEmpty else {
+    guard let nickname, !nickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       return name
     }
     return nickname

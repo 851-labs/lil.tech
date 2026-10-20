@@ -70,15 +70,17 @@ extension HealthDatabase {
       return try cumulativeSummary(of: type, now: now, calendar: calendar, db)
     case .quantity:
       return try discreteSummary(of: type, calendar: calendar, db)
-    default:
+    case .medication:
       // A medication without doses is still data, an as-needed one never logged included.
+      let latestDate = try latestDate(of: type, calendar: calendar, db)
       let hasMedications =
-        type.kind == .medication
-        ? try HealthMedication.select(\.id).limit(1).fetchOne(db) != nil : false
+        try latestDate == nil && HealthMedication.select(\.id).limit(1).fetchOne(db) != nil
+      return MetricSummary(id: type.id, latestDate: latestDate, hasUndatedData: hasMedications)
+    default:
       return MetricSummary(
         id: type.id, latestDate: try latestDate(of: type, calendar: calendar, db),
         // Activity rings are a day's.
-        isDailyTotal: type.kind == .activitySummary, hasUndatedData: hasMedications)
+        isDailyTotal: type.kind == .activitySummary)
     }
   }
 

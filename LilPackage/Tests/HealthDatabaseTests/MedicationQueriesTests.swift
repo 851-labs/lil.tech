@@ -155,6 +155,27 @@ struct MedicationQueriesTests {
   }
 
   @Test
+  func detailCountsADoseLoggedLongBeforeItWasDue() throws {
+    let calendar = calendar("UTC")
+    let now = date(14, 12, in: calendar)
+    // The 30 days' first day, logged three days ahead.
+    let start = MedicationAdherence.start(days: 30, now: now, calendar: calendar)
+    let due = start.addingTimeInterval(8 * 3600)
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthMedication.insert { medication("m1", "Synthetic Tablet A") }.execute(db)
+      try HealthMedicationDose.insert {
+        scheduled("ahead", due: due, status: .taken, late: -3 * 86_400)
+      }
+      .execute(db)
+    }
+    let detail = try database.read { db in
+      try HealthDatabase.medicationDetail(id: "m1", now: now, calendar: calendar, limit: 10, db)
+    }
+    #expect(detail?.adherence.last == MedicationAdherence(days: 30, scheduled: 1, taken: 1))
+  }
+
+  @Test
   func detailReadsTheMedicationsOwnDosesUpToTheLimit() throws {
     let calendar = calendar("UTC")
     let now = date(14, 12, in: calendar)
@@ -177,8 +198,15 @@ struct MedicationQueriesTests {
       try HealthDatabase.medicationDetail(id: "m1", now: now, calendar: calendar, limit: 2, db)
     }
     #expect(detail?.medication.name == "Synthetic Tablet A")
-    #expect(detail?.days.map { $0.doses.map(\.id) } == [["a"], ["b"]])
+    // The oldest day read may be missing doses, so it's left out.
+    #expect(detail?.days.map { $0.doses.map(\.id) } == [["a"]])
     #expect(detail?.isLimited == true)
+    // Exactly as many as the limit: all of them.
+    let exactly = try database.read { db in
+      try HealthDatabase.medicationDetail(id: "m1", now: now, calendar: calendar, limit: 3, db)
+    }
+    #expect(exactly?.days.count == 3)
+    #expect(exactly?.isLimited == false)
     // Adherence counts every dose in the window, not only the log's.
     #expect(
       detail?.adherence == [

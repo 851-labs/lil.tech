@@ -554,6 +554,7 @@ enum MedicationFormat {
       case "inhaler": ("puff", "puffs")
       default: ("dose", "doses")
       }
-    return "\(number) \(value == 1 ? one : many)"
+    // As shown: 1.0001 is "1 tablet".
+    return "\(number) \((value * 100).rounded() == 100 ? one : many)"
   }
 }

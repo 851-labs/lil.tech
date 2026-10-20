@@ -106,6 +106,8 @@ struct MedicationFormatTests {
     }
     #expect(quantity(dose(status: 4, logged: logged, taken: 1, scheduled: 2)) == "1 tablet")
     #expect(quantity(dose(status: 4, logged: logged, taken: 1.5)) == "1.5 tablets")
+    // Singular as shown, after rounding.
+    #expect(quantity(dose(status: 4, logged: logged, taken: 1.0001)) == "1 tablet")
     // A dose that wasn't taken shows what was due.
     #expect(quantity(dose(status: 5, logged: logged, due: logged, scheduled: 2)) == "2 tablets")
     #expect(quantity(dose(status: 4, logged: logged, taken: 5, unit: "mL")) == "5 mL")
