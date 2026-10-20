@@ -146,7 +146,8 @@ struct SyncStatusFeatureTests {
     }
 
     // Health's picker, then the app uploads what's newly shared.
-    await store.send(.chooseButtonTapped(.medications))
+    await store.send(.chooseButtonTapped(.medications)) { $0.isChoosing = true }
+    await store.receive(\.chooseFinished) { $0.isChoosing = false }
     await store.receive(\.delegate.retry)
     #expect(chosen.value == [.medications])
     await store.send(.signOutButtonTapped).finish()
@@ -311,6 +312,23 @@ struct SyncStatusFeatureTests {
     }
     await store.send(.signOutButtonTapped) {
       $0.isUploadingAgain = false
+    }
+  }
+
+  @Test
+  func choosingFailsWithAnAlert() async {
+    struct Unavailable: LocalizedError {
+      var errorDescription: String? { "Health data is unavailable on this device." }
+    }
+    let store = TestStore(initialState: SyncStatusFeature.State()) {
+      SyncStatusFeature()
+    } withDependencies: {
+      $0.healthAuthorization.requestPerObject = { _ in throw Unavailable() }
+    }
+    await store.send(.chooseButtonTapped(.visionPrescriptions)) { $0.isChoosing = true }
+    await store.receive(\.chooseFailed) {
+      $0.isChoosing = false
+      $0.alert = .chooseFailed("Health data is unavailable on this device.")
     }
   }
 }

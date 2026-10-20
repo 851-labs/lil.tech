@@ -39,18 +39,21 @@ struct SettingsSheet: View {
           }
         }
         // Health doesn't let apps open its access settings, so the sheet says where they are, and
-        // offers its pickers for what's shared one by one (851-2775).
-        Section {
-          Button("Choose Medications…") { store.send(.chooseButtonTapped(.medications)) }
-          Button("Choose Vision Prescriptions…") {
-            store.send(.chooseButtonTapped(.visionPrescriptions))
+        // offers its pickers for what's shared one by one (851-2775), once there's consent to
+        // upload what they share.
+        if store.hasConsent {
+          Section {
+            ForEach(PerObjectHealthType.allCases, id: \.self) { type in
+              Button(type.chooseTitle) { store.send(.chooseButtonTapped(type)) }
+            }
+            .disabled(store.isChoosing || store.isUploadingAgain)
+          } header: {
+            Text("Health Access")
+          } footer: {
+            Text(
+              "To change what else lil health can read, go to Settings › Privacy & Security › Health › lil health."
+            )
           }
-        } header: {
-          Text("Health Access")
-        } footer: {
-          Text(
-            "To change what else lil health can read, go to Settings › Privacy & Security › Health › lil health."
-          )
         }
         Section {
           Link("Privacy Policy", destination: privacyPolicy)
@@ -92,5 +95,15 @@ struct SettingsSheet: View {
       .alert($store.scope(\.alert, action: \.alert))
     }
     .interactiveDismissDisabled(store.isSettingsBusy)
+  }
+}
+
+extension PerObjectHealthType {
+  /// Its button, here and in the Health access setup.
+  var chooseTitle: String {
+    switch self {
+    case .medications: "Choose Medications…"
+    case .visionPrescriptions: "Choose Vision Prescriptions…"
+    }
   }
 }

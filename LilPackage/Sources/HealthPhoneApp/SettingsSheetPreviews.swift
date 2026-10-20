@@ -77,6 +77,16 @@ private func settings(
       alert: .uploadAgainFailed("The Internet connection appears to be offline.")))
 }
 
+#Preview("Choosing medications") {
+  settings(SyncStatusFeature.State(isChoosing: true))
+}
+
+#Preview("Choosing failed") {
+  settings(
+    SyncStatusFeature.State(
+      alert: .chooseFailed("Health data is unavailable on this device.")))
+}
+
 #Preview("Delete account?") {
   settings(SyncStatusFeature.State(alert: .confirmDeletion))
 }

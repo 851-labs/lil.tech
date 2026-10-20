@@ -21,6 +21,8 @@ public struct SyncStatusFeature {
     public var isDeletingAccount = false
     /// Catching up before reading everything again (Upload Everything Again).
     public var isUploadingAgain = false
+    /// Health's picker for medications or vision prescriptions is up.
+    public var isChoosing = false
     @Presents public var alert: AlertState<Action.Alert>?
     public var signInMethods = SignInMethodsFeature.State()
     /// Whether the Settings sheet is open: the account's sign-in methods, consent, signing out
@@ -30,7 +32,7 @@ public struct SyncStatusFeature {
     public init(
       progress: HealthBackfill.Progress? = nil, needsHealthAccess: Bool? = nil,
       isWithdrawingConsent: Bool = false,
-      isDeletingAccount: Bool = false, isUploadingAgain: Bool = false,
+      isDeletingAccount: Bool = false, isUploadingAgain: Bool = false, isChoosing: Bool = false,
       alert: AlertState<Action.Alert>? = nil,
       isShowingSettings: Bool = false
     ) {
@@ -39,6 +41,7 @@ public struct SyncStatusFeature {
       self.isWithdrawingConsent = isWithdrawingConsent
       self.isDeletingAccount = isDeletingAccount
       self.isUploadingAgain = isUploadingAgain
+      self.isChoosing = isChoosing
       self.alert = alert
       self.isShowingSettings = isShowingSettings
     }
@@ -135,6 +138,8 @@ public struct SyncStatusFeature {
     case consentWithdrawalFailed(String)
     /// Choose Medications… or Choose Vision Prescriptions…: Health's picker for sharing them.
     case chooseButtonTapped(PerObjectHealthType)
+    case chooseFinished
+    case chooseFailed(String)
     case uploadEverythingAgainButtonTapped
     case uploadAgainStarted
     case uploadAgainFailed(String)
@@ -168,7 +173,7 @@ public struct SyncStatusFeature {
     }
   }
 
-  private enum CancelID { case uploadAgain }
+  private enum CancelID { case uploadAgain, choose }
 
   @Dependency(\.auth) var auth
   @Dependency(\.healthAuthorization) var healthAuthorization
@@ -249,11 +254,12 @@ public struct SyncStatusFeature {
       case .alert(.presented(.confirmWithdrawal)):
         state.isWithdrawingConsent = true
         state.isUploadingAgain = false
+        state.isChoosing = false
         // Nothing more goes up from here, even before the server is told: without it, nothing
         // starts uploading, including in the background.
         state.$consentedPolicyVersion.withLock { $0 = nil }
         return .merge(
-          .cancel(id: CancelID.uploadAgain),
+          .cancel(id: CancelID.uploadAgain), .cancel(id: CancelID.choose),
           .run { [healthBackfill, healthConsent] send in
             await healthBackfill.pause()
             do {
@@ -278,11 +284,26 @@ public struct SyncStatusFeature {
         return .none
 
       case .chooseButtonTapped(let type):
+        // One at a time, and not while Upload Everything Again catches up, which runs anyway.
+        guard !state.isChoosing, !state.isUploadingAgain else { return .none }
+        state.isChoosing = true
         // Health's own picker; what's shared since goes up with the next run, now.
         return .run { [healthAuthorization] send in
-          try? await healthAuthorization.requestPerObject(type)
-          await send(.delegate(.retry))
+          try await healthAuthorization.requestPerObject(type)
+          await send(.chooseFinished)
+        } catch: { error, send in
+          await send(.chooseFailed(error.localizedDescription))
         }
+        .cancellable(id: CancelID.choose, cancelInFlight: true)
+
+      case .chooseFinished:
+        state.isChoosing = false
+        return .send(.delegate(.retry))
+
+      case .chooseFailed(let reason):
+        state.isChoosing = false
+        state.alert = .chooseFailed(reason)
+        return .none
 
       case .settingsPresented(let presented):
         // Not closed while what it started is in progress: its answers show in it.
@@ -292,8 +313,10 @@ public struct SyncStatusFeature {
 
       case .signOutButtonTapped:
         state.isUploadingAgain = false
+        state.isChoosing = false
         return .merge(
-          .cancel(id: CancelID.uploadAgain), .run { [auth] _ in await auth.signOut() })
+          .cancel(id: CancelID.uploadAgain), .cancel(id: CancelID.choose),
+          .run { [auth] _ in await auth.signOut() })
 
       case .deleteAccountButtonTapped:
         state.alert = .confirmDeletion
@@ -302,8 +325,9 @@ public struct SyncStatusFeature {
       case .alert(.presented(.confirmDeletion)):
         state.isDeletingAccount = true
         state.isUploadingAgain = false
+        state.isChoosing = false
         return .merge(
-          .cancel(id: CancelID.uploadAgain),
+          .cancel(id: CancelID.uploadAgain), .cancel(id: CancelID.choose),
           .run { [auth, healthBackfill] send in
             // No uploads racing the deletion.
             await healthBackfill.pause()
@@ -368,6 +392,18 @@ extension AlertState where Action == SyncStatusFeature.Action.Alert {
       TextState(
         "lil health sends all the Health data you share again, so your account gets what it's missing. It keeps one copy of each record. This can take a while and use a lot of data, so Wi-Fi is best."
       )
+    }
+  }
+
+  public static func chooseFailed(_ reason: String) -> Self {
+    Self {
+      TextState("Couldn't Open Health's Picker")
+    } actions: {
+      ButtonState(role: .cancel) {
+        TextState("OK")
+      }
+    } message: {
+      TextState(reason)
     }
   }
 
