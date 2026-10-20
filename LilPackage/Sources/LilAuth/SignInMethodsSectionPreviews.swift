@@ -26,6 +26,11 @@ private func section(_ configure: (inout SignInMethodsFeature.State) -> Void) ->
   section { _ in }
 }
 
+#Preview("Google linked") {
+  // On the Mac, Link Apple Account… shows the Apple logo in a button.
+  section { $0.methods = .loaded([google]) }
+}
+
 #Preview("Both linked") {
   section { $0.methods = .loaded([apple, google]) }
 }

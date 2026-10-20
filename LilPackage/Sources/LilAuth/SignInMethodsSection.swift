@@ -152,13 +152,16 @@ private struct LinkButton: View {
 /// The provider's mark: the Apple logo, or Google's G.
 private struct ProviderIcon: View {
   let provider: SignInMethod.Provider
+  @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     switch provider {
     case .apple:
-      // Apple's logo is black, or white in dark mode, never a tint (its guidelines).
+      // Apple's logo is solid black, or white in dark mode, never a tint (its guidelines), as on
+      // the sign-in screen's button. Not `.primary`, which a button's tint can take over, and
+      // which is translucent on the Mac.
       Image(systemName: "apple.logo")
-        .foregroundStyle(.primary)
+        .foregroundStyle(colorScheme == .dark ? Color.white : Color.black)
     case .google:
       Image("GoogleG", bundle: .module)
         .resizable()
