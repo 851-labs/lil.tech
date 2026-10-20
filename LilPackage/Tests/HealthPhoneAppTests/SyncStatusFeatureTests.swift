@@ -252,7 +252,7 @@ struct SyncStatusFeatureTests {
   }
 
   @Test
-  func uploadingEverythingAgainForgetsWhatWentUpButNotTheAccountOrConsent() async throws {
+  func uploadingEverythingAgainCatchesUpThenReadsFromTheStart() async throws {
     @Shared(.healthConsentPolicyVersion) var consented
     $consented.withLock { $0 = HealthConsentClient.policyVersion }
     // A backfill that's uploaded a type's history up to an anchor.
@@ -262,10 +262,16 @@ struct SyncStatusFeatureTests {
     uploaded.finished = [steps]
     uploaded.uploadedRecords = 1_200
     try storage.saveState(uploaded)
-    // The backfill reads its storage when it's made.
+    // The backfill reads its dependencies when it's made.
     let backfill = withDependencies {
       $0.healthBackfillStorage = storage
+      $0.healthReader = HealthReader { _, _, _ in
+        HealthPage(mutations: [], blobs: [], anchor: Data([1, 2, 3]), hasMore: false)
+      }
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
       $0.uuid = .incrementing
+      $0.date.now = lastUpload
     } operation: {
       HealthBackfill(types: [])
     }
@@ -281,10 +287,31 @@ struct SyncStatusFeatureTests {
     }
     await store.send(.alert(.presented(.confirmUploadEverythingAgain))) {
       $0.alert = nil
+      $0.isUploadingAgain = true
+    }
+    await store.receive(\.uploadAgainStarted) {
+      $0.isUploadingAgain = false
     }
     // Then the app runs the backfill, from the start.
     await store.receive(\.delegate.retry)
-    #expect(try storage.loadState() == nil)
+    let state = try #require(try storage.loadState())
+    #expect(state.anchors.isEmpty)
+    #expect(state.finished.isEmpty)
+    #expect(state.uploadedRecords == 0)
     #expect(consented == HealthConsentClient.policyVersion)
+  }
+
+  @Test
+  func signingOutStopsUploadingEverythingAgain() async {
+    let store = TestStore(
+      initialState: SyncStatusFeature.State(isUploadingAgain: true)
+    ) {
+      SyncStatusFeature()
+    } withDependencies: {
+      $0.auth.signOut = {}
+    }
+    await store.send(.signOutButtonTapped) {
+      $0.isUploadingAgain = false
+    }
   }
 }

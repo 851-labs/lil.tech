@@ -19,6 +19,8 @@ public struct SyncStatusFeature {
     @Shared(.healthConsentPolicyVersion) public var consentedPolicyVersion: String?
     public var isWithdrawingConsent = false
     public var isDeletingAccount = false
+    /// Catching up before reading everything again (Upload Everything Again).
+    public var isUploadingAgain = false
     @Presents public var alert: AlertState<Action.Alert>?
     public var signInMethods = SignInMethodsFeature.State()
     /// Whether the Settings sheet is open: the account's sign-in methods, consent, signing out
@@ -28,13 +30,15 @@ public struct SyncStatusFeature {
     public init(
       progress: HealthBackfill.Progress? = nil, needsHealthAccess: Bool? = nil,
       isWithdrawingConsent: Bool = false,
-      isDeletingAccount: Bool = false, alert: AlertState<Action.Alert>? = nil,
+      isDeletingAccount: Bool = false, isUploadingAgain: Bool = false,
+      alert: AlertState<Action.Alert>? = nil,
       isShowingSettings: Bool = false
     ) {
       self.progress = progress
       self.needsHealthAccess = needsHealthAccess
       self.isWithdrawingConsent = isWithdrawingConsent
       self.isDeletingAccount = isDeletingAccount
+      self.isUploadingAgain = isUploadingAgain
       self.alert = alert
       self.isShowingSettings = isShowingSettings
     }
@@ -131,6 +135,8 @@ public struct SyncStatusFeature {
     case consentWithdrawalFailed(String)
     case openSettingsButtonTapped
     case uploadEverythingAgainButtonTapped
+    case uploadAgainStarted
+    case uploadAgainFailed(String)
     /// The gear button opened the Settings sheet, or Done or a swipe closed it.
     case settingsPresented(Bool)
     case signOutButtonTapped
@@ -160,6 +166,8 @@ public struct SyncStatusFeature {
       case retry
     }
   }
+
+  private enum CancelID { case uploadAgain }
 
   @Dependency(\.auth) var auth
   @Dependency(\.healthAuthorization) var healthAuthorization
@@ -221,28 +229,44 @@ public struct SyncStatusFeature {
         return .none
 
       case .alert(.presented(.confirmUploadEverythingAgain)):
-        // Forgets what went up, not the account or consent, and runs again from the start: older
-        // records Health shares since (iOS 27's history setting, 851-2662) go up, and the server
-        // keeps what it has, changing nothing for identical records.
+        // Catches up, then forgets how far each type was read, not the account or consent, and
+        // the app runs again from the start: older records Health shares since (iOS 27's history
+        // setting, 851-2662) go up, and the server keeps one copy of each.
+        state.isUploadingAgain = true
         return .run { [healthBackfill] send in
-          await healthBackfill.reset()
-          await send(.delegate(.retry))
+          try await healthBackfill.uploadAgain()
+          await send(.uploadAgainStarted)
+        } catch: { error, send in
+          await send(.uploadAgainFailed(error.localizedDescription))
         }
+        .cancellable(id: CancelID.uploadAgain, cancelInFlight: true)
+
+      case .uploadAgainStarted:
+        state.isUploadingAgain = false
+        return .send(.delegate(.retry))
+
+      case .uploadAgainFailed(let reason):
+        state.isUploadingAgain = false
+        state.alert = .uploadAgainFailed(reason)
+        return .none
 
       case .alert(.presented(.confirmWithdrawal)):
         state.isWithdrawingConsent = true
+        state.isUploadingAgain = false
         // Nothing more goes up from here, even before the server is told: without it, nothing
         // starts uploading, including in the background.
         state.$consentedPolicyVersion.withLock { $0 = nil }
-        return .run { [healthBackfill, healthConsent] send in
-          await healthBackfill.pause()
-          do {
-            try await healthConsent.withdraw()
-            await send(.consentWithdrawn)
-          } catch {
-            await send(.consentWithdrawalFailed(error.localizedDescription))
-          }
-        }
+        return .merge(
+          .cancel(id: CancelID.uploadAgain),
+          .run { [healthBackfill, healthConsent] send in
+            await healthBackfill.pause()
+            do {
+              try await healthConsent.withdraw()
+              await send(.consentWithdrawn)
+            } catch {
+              await send(.consentWithdrawalFailed(error.localizedDescription))
+            }
+          })
 
       case .consentWithdrawn:
         state.isWithdrawingConsent = false
@@ -267,7 +291,9 @@ public struct SyncStatusFeature {
         return .none
 
       case .signOutButtonTapped:
-        return .run { [auth] _ in await auth.signOut() }
+        state.isUploadingAgain = false
+        return .merge(
+          .cancel(id: CancelID.uploadAgain), .run { [auth] _ in await auth.signOut() })
 
       case .deleteAccountButtonTapped:
         state.alert = .confirmDeletion
@@ -275,17 +301,20 @@ public struct SyncStatusFeature {
 
       case .alert(.presented(.confirmDeletion)):
         state.isDeletingAccount = true
-        return .run { [auth, healthBackfill] send in
-          // No uploads racing the deletion.
-          await healthBackfill.pause()
-          do throws(AccountDeletionError) {
-            // Once deleted, the session ends, and the app signs out and clears what's here.
-            try await auth.deleteAccount()
-            await send(.accountDeleted)
-          } catch {
-            await send(.accountDeletionFailed(error.message))
-          }
-        }
+        state.isUploadingAgain = false
+        return .merge(
+          .cancel(id: CancelID.uploadAgain),
+          .run { [auth, healthBackfill] send in
+            // No uploads racing the deletion.
+            await healthBackfill.pause()
+            do throws(AccountDeletionError) {
+              // Once deleted, the session ends, and the app signs out and clears what's here.
+              try await auth.deleteAccount()
+              await send(.accountDeleted)
+            } catch {
+              await send(.accountDeletionFailed(error.message))
+            }
+          })
 
       case .accountDeleted:
         state.isDeletingAccount = false
@@ -337,8 +366,20 @@ extension AlertState where Action == SyncStatusFeature.Action.Alert {
       }
     } message: {
       TextState(
-        "lil health reads all the Health data you share again, and uploads what isn't in your account yet. Nothing is uploaded twice. It can take a while."
+        "lil health sends all the Health data you share again, so your account gets what it's missing. It keeps one copy of each record. This can take a while and use a lot of data, so Wi-Fi is best."
       )
+    }
+  }
+
+  public static func uploadAgainFailed(_ reason: String) -> Self {
+    Self {
+      TextState("Couldn't Upload Everything Again")
+    } actions: {
+      ButtonState(role: .cancel) {
+        TextState("OK")
+      }
+    } message: {
+      TextState("\(reason) Nothing changed; try again later.")
     }
   }
 

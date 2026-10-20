@@ -1409,6 +1409,46 @@ struct HealthBackfillTests {
   }
 
   @Test
+  func uploadingAgainForgetsHowFarItReadButNotWhatItNeedsToDelete() async throws {
+    let storage = HealthBackfillStorage.inMemory()
+    let sex = HealthEncoder.characteristic(.biologicalSex, value: "female")
+    var before = HealthBackfillState()
+    before.anchors[temperature.id] = Data([1])
+    before.finished = [temperature.id]
+    before.uploadedRecords = 10
+    before.uploadedByType = [temperature.id: 10]
+    before.lastUploadAt = Date(timeIntervalSince1970: 1_760_000_000)
+    before.characteristicsHash = try HealthBackfill.hash([sex])
+    before.characteristicIDs = [sex.id]
+    try storage.saveState(before)
+    let backfill = withDependencies {
+      $0.healthReader = FakeHealth(pages: [:]).reader
+      $0.healthBatchUploader = FakeServer().uploader
+      $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [sex] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [])
+    }
+
+    try await backfill.uploadAgain()
+    let after = try #require(try storage.loadState())
+    // Read again from the start, and counted again.
+    #expect(after.anchors.isEmpty)
+    #expect(after.finished.isEmpty)
+    #expect(after.uploadedRecords == 0)
+    #expect(after.uploadedByType.isEmpty)
+    // Older Activity summaries too.
+    #expect(after.activitySummariesUploadedAt == nil)
+    // What deletes a characteristic that stops being readable stays, and so does the last upload.
+    #expect(after.characteristicIDs == [sex.id])
+    #expect(after.characteristicsHash == before.characteristicsHash)
+    #expect(after.lastUploadAt == before.lastUploadAt)
+  }
+
+  @Test
   func deletesACharacteristicThatStopsBeingReadable() async throws {
     let server = FakeServer()
     let readable = LockIsolated(true)
