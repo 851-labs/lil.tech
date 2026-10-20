@@ -259,6 +259,15 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CREATE INDEX pushed_mutations_at ON pushed_mutations (at);
     `,
   },
+  {
+    version: 21,
+    name: "health_vision_prescription",
+    // `HealthVisionPrescription` in `src/health/HealthEntities.ts` (851-2572).
+    sql: `
+      CREATE TABLE "health_vision_prescription" (id TEXT PRIMARY KEY, "start_date" INTEGER NOT NULL, "end_date" INTEGER NOT NULL, "prescription_type" INTEGER NOT NULL, "expiration_date" INTEGER, "brand" TEXT, "right_eye" TEXT, "left_eye" TEXT, "source_name" TEXT NOT NULL, "source_bundle_id" TEXT NOT NULL, "source_revision" TEXT, "device" TEXT, "metadata" TEXT, "provenance" TEXT) STRICT;
+      CREATE INDEX health_vision_prescription_start ON health_vision_prescription (start_date);
+    `,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

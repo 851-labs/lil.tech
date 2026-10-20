@@ -23,7 +23,8 @@ public struct HealthBackfillType: Hashable, Sendable {
 
   /// Every quantity and category type the app can read, workouts and their routes, State of
   /// Mind, scored assessments, audiograms, ECGs, heartbeat series, and the correlations, which are
-  /// read through their component types.
+  /// read through their component types. Vision prescriptions are read whole each run instead
+  /// (``HealthVisionPrescriptionsReader``).
   public static func all(availableOn version: IOSVersion) -> [Self] {
     HealthCatalog.types(availableOn: version).compactMap { type in
       switch (type.kind, type.readAuthorization) {

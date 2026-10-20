@@ -222,6 +222,33 @@ public enum HealthDatabase {
       )
       .execute(db)
     }
+    migrator.registerMigration("Create vision prescriptions") { db in
+      try #sql(
+        """
+        CREATE TABLE "healthVisionPrescriptions" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "startDate" INTEGER NOT NULL,
+          "endDate" INTEGER NOT NULL,
+          "prescriptionType" INTEGER NOT NULL,
+          "expirationDate" INTEGER,
+          "brand" TEXT,
+          "rightEye" TEXT,
+          "leftEye" TEXT,
+          "sourceName" TEXT NOT NULL,
+          "sourceBundleID" TEXT NOT NULL,
+          "sourceRevision" TEXT,
+          "device" TEXT,
+          "metadata" TEXT,
+          "provenance" TEXT
+        ) STRICT
+        """
+      )
+      .execute(db)
+      try #sql(
+        #"CREATE INDEX "healthVisionPrescriptions_startDate" ON "healthVisionPrescriptions" ("startDate")"#
+      )
+      .execute(db)
+    }
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
@@ -426,6 +453,16 @@ public enum HealthDatabase {
       HealthHeartbeatSeries(
         id: row.id, startDate: row.startDate, endDate: row.endDate,
         beats: try json(row.beats) ?? "[]", gaps: try json(row.gaps) ?? "[]",
+        sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
+        sourceRevision: try json(row.sourceRevision), device: try json(row.device),
+        metadata: try json(row.metadata), provenance: row.provenance)
+    },
+    entity("health_vision_prescription", Components.Schemas.HealthVisionPrescription.self) {
+      row in
+      HealthVisionPrescription(
+        id: row.id, startDate: row.startDate, endDate: row.endDate,
+        prescriptionType: row.prescriptionType, expirationDate: row.expirationDate,
+        brand: row.brand, rightEye: try json(row.rightEye), leftEye: try json(row.leftEye),
         sourceName: row.sourceName, sourceBundleID: row.sourceBundleId,
         sourceRevision: try json(row.sourceRevision), device: try json(row.device),
         metadata: try json(row.metadata), provenance: row.provenance)

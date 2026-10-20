@@ -12,6 +12,11 @@ extension DependencyValues {
     set { self[HealthCharacteristicsReader.self] = newValue }
   }
 
+  public var healthVisionPrescriptionsReader: HealthVisionPrescriptionsReader {
+    get { self[HealthVisionPrescriptionsReader.self] }
+    set { self[HealthVisionPrescriptionsReader.self] = newValue }
+  }
+
   public var healthActivitySummaryReader: HealthActivitySummaryReader {
     get { self[HealthActivitySummaryReader.self] }
     set { self[HealthActivitySummaryReader.self] = newValue }
@@ -83,6 +88,39 @@ extension HealthCharacteristicsReader: DependencyKey {
       return []
     }
   }
+}
+
+/// Reads every vision prescription Health shares with the app (851-2572). Health shares them one
+/// by one, and may share one recorded long ago at any time or stop sharing one, which anchored
+/// queries don't see, so they're all read every run, as characteristics are. There are a few.
+public struct HealthVisionPrescriptionsReader: Sendable {
+  public var read: @Sendable () async throws -> [HealthMutation]
+
+  public init(read: @escaping @Sendable () async throws -> [HealthMutation]) {
+    self.read = read
+  }
+}
+
+extension HealthVisionPrescriptionsReader: DependencyKey {
+  public static var liveValue: Self {
+    let store = HKHealthStore()
+    return Self {
+      let prescriptions: [HKVisionPrescription]
+      do {
+        prescriptions = try await HKSampleQueryDescriptor(
+          predicates: [.sample(type: HKObjectType.visionPrescriptionType())], sortDescriptors: []
+        )
+        .result(for: store)
+        .compactMap { $0 as? HKVisionPrescription }
+      } catch {
+        throw HealthReader.Locked.mapped(error)
+      }
+      return prescriptions.compactMap(HealthEncoder.visionPrescription)
+    }
+  }
+
+  /// None shared, unless a test says otherwise: most tests aren't about them.
+  public static var testValue: Self { Self { [] } }
 }
 
 /// Reads Activity summaries, one per day.

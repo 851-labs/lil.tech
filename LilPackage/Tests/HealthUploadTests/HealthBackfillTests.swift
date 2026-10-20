@@ -1349,6 +1349,66 @@ struct HealthBackfillTests {
   }
 
   @Test
+  func uploadsVisionPrescriptionsWhenTheyChangeAndDeletesThoseNoLongerShared() async throws {
+    let server = FakeServer()
+    let lines = LockIsolated<[String]>([])
+    let issued = Date(timeIntervalSince1970: 1_760_400_000)
+    let prescription = { (sphere: Double) -> HKGlassesPrescription in
+      HKGlassesPrescription(
+        rightEyeSpecification: HKGlassesLensSpecification(
+          sphere: HKQuantity(unit: .diopter(), doubleValue: sphere), cylinder: nil, axis: nil,
+          addPower: nil, vertexDistance: nil, prism: nil, farPupillaryDistance: nil,
+          nearPupillaryDistance: nil),
+        leftEyeSpecification: nil, dateIssued: issued, expirationDate: nil, device: nil,
+        metadata: nil)
+    }
+    // Encoded once: an object never saved to Health reads a different source revision each time,
+    // where a real one's stays the same.
+    let older = try #require(HealthEncoder.visionPrescription(prescription(-1.5)))
+    let newer = try #require(HealthEncoder.visionPrescription(prescription(-2)))
+    let shared = LockIsolated([newer])
+    let backfill = withDependencies {
+      $0.healthReader = FakeHealth(pages: [:]).reader
+      $0.healthBatchUploader = HealthBatchUploader { id, file in
+        let text = String(decoding: try Gzip.decompress(file), as: UTF8.self)
+        lines.withValue { $0 += text.split(separator: "\n").map(String.init) }
+        try await server.uploader.upload(id, file)
+      }
+      $0.healthBackfillStorage = .inMemory()
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthVisionPrescriptionsReader = HealthVisionPrescriptionsReader { shared.value }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [])
+    }
+
+    try await backfill.run()
+    #expect(lines.value.filter { $0.contains("health_vision_prescription") }.count == 1)
+    // Unchanged: nothing goes up.
+    lines.setValue([])
+    try await backfill.run()
+    #expect(!lines.value.contains { $0.contains("health_vision_prescription") })
+    // An older one shared since goes up too, which an anchor past it would miss.
+    shared.withValue { $0.append(older) }
+    try await backfill.run()
+    #expect(
+      lines.value.contains {
+        $0.contains(#""op":"upsert""#) && $0.contains(older.id)
+      })
+    // One no longer shared is deleted.
+    lines.setValue([])
+    shared.setValue([older])
+    try await backfill.run()
+    #expect(lines.value.contains { $0.contains(#""op":"delete""#) && $0.contains("vision") })
+    #expect(
+      !lines.value.contains {
+        $0.contains(#""op":"delete""#) && $0.contains(older.id)
+      })
+  }
+
+  @Test
   func deletesACharacteristicThatStopsBeingReadable() async throws {
     let server = FakeServer()
     let readable = LockIsolated(true)

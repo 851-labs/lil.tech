@@ -4114,6 +4114,241 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription`.
+        public struct HealthVisionPrescription: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/startDate`.
+            public var startDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/endDate`.
+            public var endDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/prescriptionType`.
+            public var prescriptionType: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/expirationDate`.
+            public var expirationDate: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/brand`.
+            public var brand: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/rightEye`.
+            public var rightEye: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/leftEye`.
+            public var leftEye: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/sourceName`.
+            public var sourceName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/sourceBundleId`.
+            public var sourceBundleId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/sourceRevision`.
+            public var sourceRevision: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/device`.
+            public var device: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/metadata`.
+            public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescription/provenance`.
+            public var provenance: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthVisionPrescription`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - startDate:
+            ///   - endDate:
+            ///   - prescriptionType:
+            ///   - expirationDate:
+            ///   - brand:
+            ///   - rightEye:
+            ///   - leftEye:
+            ///   - sourceName:
+            ///   - sourceBundleId:
+            ///   - sourceRevision:
+            ///   - device:
+            ///   - metadata:
+            ///   - provenance:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                startDate: Swift.Int,
+                endDate: Swift.Int,
+                prescriptionType: Swift.Int,
+                expirationDate: Swift.Int? = nil,
+                brand: Swift.String? = nil,
+                rightEye: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                leftEye: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                sourceName: Swift.String,
+                sourceBundleId: Swift.String,
+                sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                provenance: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.startDate = startDate
+                self.endDate = endDate
+                self.prescriptionType = prescriptionType
+                self.expirationDate = expirationDate
+                self.brand = brand
+                self.rightEye = rightEye
+                self.leftEye = leftEye
+                self.sourceName = sourceName
+                self.sourceBundleId = sourceBundleId
+                self.sourceRevision = sourceRevision
+                self.device = device
+                self.metadata = metadata
+                self.provenance = provenance
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case startDate
+                case endDate
+                case prescriptionType
+                case expirationDate
+                case brand
+                case rightEye
+                case leftEye
+                case sourceName
+                case sourceBundleId
+                case sourceRevision
+                case device
+                case metadata
+                case provenance
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.startDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .startDate
+                )
+                self.endDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .endDate
+                )
+                self.prescriptionType = try container.decode(
+                    Swift.Int.self,
+                    forKey: .prescriptionType
+                )
+                self.expirationDate = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .expirationDate
+                )
+                self.brand = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .brand
+                )
+                self.rightEye = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .rightEye
+                )
+                self.leftEye = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .leftEye
+                )
+                self.sourceName = try container.decode(
+                    Swift.String.self,
+                    forKey: .sourceName
+                )
+                self.sourceBundleId = try container.decode(
+                    Swift.String.self,
+                    forKey: .sourceBundleId
+                )
+                self.sourceRevision = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .sourceRevision
+                )
+                self.device = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .device
+                )
+                self.metadata = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .metadata
+                )
+                self.provenance = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .provenance
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "startDate",
+                    "endDate",
+                    "prescriptionType",
+                    "expirationDate",
+                    "brand",
+                    "rightEye",
+                    "leftEye",
+                    "sourceName",
+                    "sourceBundleId",
+                    "sourceRevision",
+                    "device",
+                    "metadata",
+                    "provenance"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.startDate,
+                    forKey: .startDate
+                )
+                try container.encode(
+                    self.endDate,
+                    forKey: .endDate
+                )
+                try container.encode(
+                    self.prescriptionType,
+                    forKey: .prescriptionType
+                )
+                try container.encodeIfPresent(
+                    self.expirationDate,
+                    forKey: .expirationDate
+                )
+                try container.encodeIfPresent(
+                    self.brand,
+                    forKey: .brand
+                )
+                try container.encodeIfPresent(
+                    self.rightEye,
+                    forKey: .rightEye
+                )
+                try container.encodeIfPresent(
+                    self.leftEye,
+                    forKey: .leftEye
+                )
+                try container.encode(
+                    self.sourceName,
+                    forKey: .sourceName
+                )
+                try container.encode(
+                    self.sourceBundleId,
+                    forKey: .sourceBundleId
+                )
+                try container.encodeIfPresent(
+                    self.sourceRevision,
+                    forKey: .sourceRevision
+                )
+                try container.encodeIfPresent(
+                    self.device,
+                    forKey: .device
+                )
+                try container.encodeIfPresent(
+                    self.metadata,
+                    forKey: .metadata
+                )
+                try container.encodeIfPresent(
+                    self.provenance,
+                    forKey: .provenance
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthPin`.
         public struct HealthPin: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthPin/id`.

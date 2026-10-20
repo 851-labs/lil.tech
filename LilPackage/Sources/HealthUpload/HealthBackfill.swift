@@ -34,6 +34,9 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   public var characteristicsHash: String?
   /// The characteristics last uploaded, so one that stops being readable is deleted.
   public var characteristicIDs: Set<String> = []
+  /// A hash of the vision prescriptions last uploaded, and their IDs, as for characteristics.
+  public var visionPrescriptionsHash: String?
+  public var visionPrescriptionIDs: Set<String> = []
   /// When the Activity summaries were last read and uploaded; `nil` before the first time,
   /// which reads them all.
   public var activitySummariesUploadedAt: Date?
@@ -62,6 +65,10 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
     characteristicsHash = try container.decodeIfPresent(String.self, forKey: .characteristicsHash)
     characteristicIDs =
       try container.decodeIfPresent(Set<String>.self, forKey: .characteristicIDs) ?? []
+    visionPrescriptionsHash = try container.decodeIfPresent(
+      String.self, forKey: .visionPrescriptionsHash)
+    visionPrescriptionIDs =
+      try container.decodeIfPresent(Set<String>.self, forKey: .visionPrescriptionIDs) ?? []
     activitySummariesUploadedAt = try container.decodeIfPresent(
       Date.self, forKey: .activitySummariesUploadedAt)
     seriesFailures =
@@ -249,6 +256,7 @@ public actor HealthBackfill {
   private let blobUploader: HealthBlobUploader
   private let statisticsReader: HealthStatisticsReader
   private let characteristicsReader: HealthCharacteristicsReader
+  private let visionPrescriptionsReader: HealthVisionPrescriptionsReader
   private let activitySummaryReader: HealthActivitySummaryReader
   private let counter: HealthRecordCounter
   /// Each type's records as counted (`HealthRecordCounter`): those uploaded when it was counted,
@@ -287,6 +295,7 @@ public actor HealthBackfill {
     @Dependency(\.uuid) var uuid
     @Dependency(\.healthStatisticsReader) var statisticsReader
     @Dependency(\.healthCharacteristicsReader) var characteristicsReader
+    @Dependency(\.healthVisionPrescriptionsReader) var visionPrescriptionsReader
     @Dependency(\.healthActivitySummaryReader) var activitySummaryReader
     @Dependency(\.healthRecordCounter) var counter
     @Dependency(\.date) var date
@@ -299,6 +308,7 @@ public actor HealthBackfill {
     self.blobUploader = blobUploader
     self.statisticsReader = statisticsReader
     self.characteristicsReader = characteristicsReader
+    self.visionPrescriptionsReader = visionPrescriptionsReader
     self.activitySummaryReader = activitySummaryReader
     self.counter = counter
     self.uuid = uuid
@@ -690,29 +700,25 @@ public actor HealthBackfill {
   /// still change, e.g. when a Watch that was away for a while syncs.
   static let activitySummaryWindow: TimeInterval = 30 * 24 * 60 * 60
 
-  /// Uploads what has no anchors: the characteristics, if they changed since they last went up,
-  /// and the Activity summaries, all of them the first time and the last 30 days' after that. A
-  /// failure is kept for the next run.
+  /// Uploads what has no anchors: the characteristics and vision prescriptions, if they changed
+  /// since they last went up, and the Activity summaries, all of them the first time and the last
+  /// 30 days' after that. A failure is kept for the next run.
   private func uploadExtras(_ state: inout HealthBackfillState) async throws {
     do {
-      let characteristics = try await characteristicsReader.read()
-      let hash = try Self.hash(characteristics)
-      if hash != state.characteristicsHash {
-        // One that's no longer readable (access was turned off, or it was cleared) is deleted.
-        let ids = Set(characteristics.map(\.id))
-        let removed = state.characteristicIDs.subtracting(ids).sorted().map {
-          HealthMutation.delete(HealthEncoder.characteristicEntity, id: $0)
-        }
-        try await uploadMutations(characteristics + removed)
-        state.characteristicsHash = hash
-        state.characteristicIDs = ids
-        if !characteristics.isEmpty || !removed.isEmpty { state.lastUploadAt = now() }
-        try storage.saveState(state)
-        updateCounts(state)
-      }
+      try await uploadWhole(
+        try await characteristicsReader.read(), as: HealthEncoder.characteristicEntity,
+        hash: \.characteristicsHash, ids: \.characteristicIDs, &state)
     } catch {
       try stopIfRunEnds(error)
       reportIssue(error, "Uploading characteristics; trying again next run")
+    }
+    do {
+      try await uploadWhole(
+        try await visionPrescriptionsReader.read(), as: HealthEncoder.visionPrescriptionEntity,
+        hash: \.visionPrescriptionsHash, ids: \.visionPrescriptionIDs, &state)
+    } catch {
+      try stopIfRunEnds(error)
+      reportIssue(error, "Uploading vision prescriptions; trying again next run")
     }
     do {
       let readAt = now()
@@ -728,6 +734,27 @@ public actor HealthBackfill {
       try stopIfRunEnds(error)
       reportIssue(error, "Uploading Activity summaries; trying again next run")
     }
+  }
+
+  /// Uploads records read whole each run, if they changed since they last went up (`hash`).
+  /// One that's no longer readable (access was turned off, or it was deleted) is deleted.
+  private func uploadWhole(
+    _ records: [HealthMutation], as entity: String,
+    hash: WritableKeyPath<HealthBackfillState, String?>,
+    ids: WritableKeyPath<HealthBackfillState, Set<String>>, _ state: inout HealthBackfillState
+  ) async throws {
+    let current = try Self.hash(records)
+    guard current != state[keyPath: hash] else { return }
+    let read = Set(records.map(\.id))
+    let removed = state[keyPath: ids].subtracting(read).sorted().map {
+      HealthMutation.delete(entity, id: $0)
+    }
+    try await uploadMutations(records + removed)
+    state[keyPath: hash] = current
+    state[keyPath: ids] = read
+    if !records.isEmpty || !removed.isEmpty { state.lastUploadAt = now() }
+    try storage.saveState(state)
+    updateCounts(state)
   }
 
   /// Uploads mutations in as many batch files as they need. One too long for the server is
