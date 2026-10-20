@@ -75,6 +75,11 @@ function Message({ children }: { readonly children: React.ReactNode }) {
   );
 }
 
+/** A link out of Pixelbook, such as to GitHub. It opens in a new tab, keeping the canvas where it is. */
+function ExternalLink(props: Omit<React.ComponentProps<"a">, "target" | "rel">) {
+  return <a {...props} target="_blank" rel="noreferrer" />;
+}
+
 const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
 
 function Grid() {
@@ -148,14 +153,14 @@ function Grid() {
     <div className="app">
       <header className="toolbar">
         <h1>Pixelbook</h1>
-        <a
+        <ExternalLink
           className="commit"
           href={`https://github.com/851-labs/lil.tech/commit/${book.commit}`}
           title={`Snapshots from ${book.commit}`}
         >
           {search.commit === undefined ? `${search.ref ?? "main"} · ` : ""}
           {book.commit.slice(0, 7)}
-        </a>
+        </ExternalLink>
         {missingBase !== undefined && (
           <span className="comparing">
             no snapshots of {missingBase.slice(0, 7)} to compare with
@@ -167,11 +172,11 @@ function Grid() {
         {base !== undefined && (
           <span className="comparing">
             changes since{" "}
-            <a
+            <ExternalLink
               href={`https://github.com/851-labs/lil.tech/compare/${base.commit}...${book.commit}`}
             >
               {base.commit.slice(0, 7)}
-            </a>
+            </ExternalLink>
             <button type="button" onClick={() => setSearch({ base: undefined, tile: undefined })}>
               Show all
             </button>
@@ -375,10 +380,10 @@ function Detail({
       <dl>
         <dt>Source</dt>
         <dd>
-          <a href={sourceUrl(snapshot, commit)}>
+          <ExternalLink href={sourceUrl(snapshot, commit)}>
             {snapshot.module}/{snapshot.file}
             {snapshot.line === null ? "" : `:${snapshot.line}`}
-          </a>
+          </ExternalLink>
         </dd>
         <dt>Size</dt>
         <dd>
