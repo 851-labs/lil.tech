@@ -292,12 +292,6 @@ xcodebuild build-for-testing -project "$project" -scheme HealthPhoneSnapshots \
   -destination "id=$device" -derivedDataPath "$derived" -onlyUsePackageVersionsFromResolvedFile \
   -skipMacroValidation -quiet
 
-# render <app> <appearance> <xcodebuild arguments…>: one app's previews into $out/<app>/<appearance>.
-# A preview that reports an issue fails its test but still renders, so that's a warning; a run
-# that renders nothing fails the script.
-warnings=0
-empty=0
-total=0
 # Mac previews that fill a window are captured with ScreenCaptureKit (our fork of SnapshotPreviews,
 # 851-2711), which needs Xcode to have Screen Recording access: the test runner is Xcode's. A capture
 # that fails is the machine's doing (no access, a locked screen), so render stops with exit 1, which
@@ -315,12 +309,16 @@ check_window_captures() {
     exit 1
   fi
 }
-render() {
+
+# run <app> <appearance> <xcodebuild arguments…>: one app's previews into $out/<app>/<appearance>,
+# with the test run's log and exit status next to the folder.
+run() {
   local app=$1 appearance=$2
   shift 2
   local dir="$out/$app/$appearance"
   mkdir -p "$dir"
   echo "==> Rendering $app ($appearance)"
+  local status=0
   TEST_RUNNER_SNAPSHOTS_EXPORT_DIR="$dir" \
     TEST_RUNNER_PIXELBOOK=1 \
     TEST_RUNNER_PIXELBOOK_APPEARANCE="$appearance" \
@@ -328,31 +326,60 @@ render() {
     TEST_RUNNER_TZ=America/Los_Angeles \
     TEST_RUNNER_PIXELBOOK_PREVIEWS="${PIXELBOOK_PREVIEWS:-}" \
     xcodebuild test-without-building -project "$project" "$@" -derivedDataPath "$derived" \
-    -collect-test-diagnostics never -quiet >"$dir.log" 2>&1 || warnings=$((warnings + 1))
-  local count
-  count=$(find "$dir" -name '*.png' | wc -l | tr -d ' ')
-  echo "    $count images"
-  total=$((total + count))
-  check_window_captures "$dir.log"
-  # With PIXELBOOK_PREVIEWS, an app may have none of them.
-  [ "$count" -gt 0 ] || [ -n "${PIXELBOOK_PREVIEWS:-}" ] || empty=$((empty + 1))
+    -collect-test-diagnostics never -quiet >"$dir.log" 2>&1 || status=$?
+  echo "$status" >"$dir.status"
 }
 
-for appearance in light dark; do
-  render health-mac "$appearance" -scheme HealthMacSnapshots -destination "$mac"
-  render messages-mac "$appearance" -scheme MessagesMacSnapshots -destination "$mac"
-done
+# The Mac's runs and the iPhone's go side by side (851-2749): the iPhone's run in the simulator,
+# apart from the screen the Mac's windows are captured on. Within each, runs go one after another:
+# two Mac test runs at once hang, and the iPhone's appearance is the simulator's, for every app on
+# it.
+mac_runs() {
+  local appearance app
+  for appearance in light dark; do
+    for app in health-mac messages-mac; do
+      local scheme=HealthMacSnapshots
+      [ "$app" = messages-mac ] && scheme=MessagesMacSnapshots
+      run "$app" "$appearance" -scheme "$scheme" -destination "$mac"
+      # A window capture that failed would fail the rest too; the summary below says why.
+      grep -qE "SCStreamErrorDomain Code=-3801|screenCaptureFailed" "$out/$app/$appearance.log" &&
+        return 0
+    done
+  done
+}
+iphone_runs() {
+  for appearance in light dark; do
+    xcrun simctl ui "$device" appearance "$appearance"
+    run health-iphone "$appearance" -scheme HealthPhoneSnapshots -destination "id=$device"
+  done
+}
 
 # The simulator is shared with everyday use, so its appearance is put back afterwards.
 xcrun simctl boot "$device" 2>/dev/null || true
 xcrun simctl bootstatus "$device" -b >/dev/null
 original=$(xcrun simctl ui "$device" appearance)
 trap 'xcrun simctl ui "$device" appearance "$original" 2>/dev/null || true' EXIT
-for appearance in light dark; do
-  xcrun simctl ui "$device" appearance "$appearance"
-  render health-iphone "$appearance" -scheme HealthPhoneSnapshots -destination "id=$device"
-done
+mac_runs &
+iphone_runs &
+wait
 
+# A preview that reports an issue fails its test but still renders, so that's a warning; a run
+# that renders nothing fails the script.
+warnings=0
+empty=0
+total=0
+for run_dir in health-mac/light messages-mac/light health-mac/dark messages-mac/dark \
+  health-iphone/light health-iphone/dark; do
+  dir="$out/$run_dir"
+  [ -f "$dir.log" ] || continue
+  check_window_captures "$dir.log"
+  count=$(find "$dir" -name '*.png' | wc -l | tr -d ' ')
+  echo "    $run_dir: $count images"
+  total=$((total + count))
+  [ "$(cat "$dir.status" 2>/dev/null || echo 1)" -eq 0 ] || warnings=$((warnings + 1))
+  # With PIXELBOOK_PREVIEWS, an app may have none of them.
+  [ "$count" -gt 0 ] || [ -n "${PIXELBOOK_PREVIEWS:-}" ] || empty=$((empty + 1))
+done
 echo "==> $out"
 if [ "$total" -eq 0 ]; then
   echo "Nothing rendered: does PIXELBOOK_PREVIEWS match any previews? See the .log files." >&2
