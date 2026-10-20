@@ -43,6 +43,10 @@ private func appView(_ state: AppFeature.State) -> some View {
   appView(AppFeature.State(isSignedIn: true, selection: .category(.heart)))
 }
 
+#Preview("Health Details") {
+  appView(AppFeature.State(isSignedIn: true, selection: .healthDetails))
+}
+
 #Preview("Search results") {
   appView(AppFeature.State(isSignedIn: true, searchText: "heart"))
 }
