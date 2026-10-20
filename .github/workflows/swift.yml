@@ -3,34 +3,25 @@ name: Swift
 # Lints and tests the Swift code, and builds the apps (`scripts/check --swift`), on our Mac minis
 # (851-2787): they keep their builds between runs, so a run takes minutes, where GitHub's macOS
 # runners took 6–11 restoring caches. Moved here from the pre-commit hook (`docs/DECISIONS.md`).
+#
+# The minis are self-hosted and this repo is public. What keeps a fork's code off them is that a
+# fork's pull request runs no workflow until a maintainer approves it (the repo's policy for every
+# outside contributor): a fork's PR runs its own copy of this file, so the `if:` below only keeps
+# an unchanged copy off them. Never approve a fork's run that changes `.github/`.
 
 on:
+  # No paths filter, so `check` always reports and can be a required check: the `changes` job
+  # decides whether it runs. A skipped job counts as passed.
   pull_request:
-    paths:
-      - "LilPackage/**"
-      - "Apps/**"
-      - "Tools/**"
-      - "Lil.xcworkspace/**"
-      - ".swift-format"
-      - "scripts/format"
-      - "scripts/check"
-      - ".github/workflows/swift.yml"
   push:
     branches: [main]
-    paths:
-      - "LilPackage/**"
-      - "Apps/**"
-      - "Tools/**"
-      - "Lil.xcworkspace/**"
-      - ".swift-format"
-      - "scripts/format"
-      - "scripts/check"
-      - ".github/workflows/swift.yml"
   workflow_dispatch:
 
+# One run per PR at a time, cancelling a superseded one. Runs on main are never cancelled, so every
+# merge is checked.
 concurrency:
-  group: swift-${{ github.ref }}
-  cancel-in-progress: true
+  group: swift-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -40,32 +31,58 @@ defaults:
     shell: bash
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      swift: ${{ steps.diff.outputs.swift }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # The paths `scripts/check --swift` checks.
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] ||
+            ! git cat-file -e "$BASE^{commit}" 2>/dev/null ||
+            git diff --name-only "$BASE" HEAD |
+              grep -qE '^(LilPackage/|Apps/|Tools/|Lil\.xcworkspace/|\.swift-format$|scripts/(format|check)$|\.github/workflows/swift\.yml$)'; then
+            echo "swift=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "swift=false" >> "$GITHUB_OUTPUT"
+          fi
+
   check:
-    # The runners are ours, and the repo is public: never run code from a fork's pull request on
-    # them. Fork PRs also need approval from a maintainer before any workflow runs.
+    needs: changes
     if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      needs.changes.outputs.swift == 'true' &&
+      (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     # Shared with Codevisor, in the "Mac minis" runner group.
     runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
     timeout-minutes: 60
     env:
-      # Outside the checkout, which is cleaned each run, so the builds stay warm.
-      LIL_CHECK_SCRATCH: ${{ github.workspace }}/../lil.tech-check
+      # Outside the checkout, which is cleaned each run, so the builds stay warm. Main's apart from
+      # pull requests', so a branch's leftovers never reach main's check.
+      LIL_CHECK_SCRATCH: ${{ github.workspace }}/../lil.tech-check-${{ github.event_name == 'pull_request' && 'pr' || 'main' }}
     steps:
       - uses: actions/checkout@v7
         with:
-          clean: true
           # Native self-hosted runners own their checkouts; no global trust entry is needed.
           set-safe-directory: false
 
       # Not `xcode-select`, which would change the machine for Codevisor's jobs too. The packages
-      # need Swift 6.4, so Xcode 27.
+      # need Swift 6.4 or later.
       - name: Select Xcode
         run: |
-          for developer_dir in /Applications/Xcode.app/Contents/Developer /Applications/Xcode*.app/Contents/Developer; do
-            if [[ -x "$developer_dir/usr/bin/xcodebuild" ]] &&
-              DEVELOPER_DIR="$developer_dir" xcrun swift --version 2>/dev/null | grep -q "Swift version 6\.[4-9]"; then
+          for developer_dir in /Applications/Xcode*.app/Contents/Developer; do
+            [[ -x "$developer_dir/usr/bin/xcodebuild" ]] || continue
+            version=$(DEVELOPER_DIR="$developer_dir" xcrun swift --version 2>/dev/null |
+              grep -oE 'Swift version [0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+' || true)
+            major=${version%%.*}
+            minor=${version#*.}
+            if [[ -n "$version" ]] && { ((major > 6)) || { ((major == 6)) && ((minor >= 4)); }; }; then
               echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
               DEVELOPER_DIR="$developer_dir" xcodebuild -version
               exit 0
@@ -73,6 +90,16 @@ jobs:
           done
           echo "Needs an Xcode with Swift 6.4 or later under /Applications." >&2
           exit 1
+
+      # The minis' disks are shared with Codevisor: builds kept from older Xcodes and branches are
+      # started over once they pass 40 GB.
+      - name: Limit the kept builds
+        run: |
+          if [ -d "$LIL_CHECK_SCRATCH" ] &&
+            [ "$(du -sk "$LIL_CHECK_SCRATCH" | cut -f1)" -gt $((40 * 1024 * 1024)) ]; then
+            echo "Starting over: $LIL_CHECK_SCRATCH is over 40 GB"
+            rm -rf "$LIL_CHECK_SCRATCH"
+          fi
 
       # The same checks as before every commit used to run, with warnings as errors (`CI=1`).
       - name: Check
