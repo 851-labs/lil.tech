@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import HealthKitAccess
 import LilAuth
 import SwiftUI
 
@@ -37,8 +38,21 @@ struct SettingsSheet: View {
             )
           }
         }
+        // Health doesn't let apps open its access settings, so the sheet says where they are, and
+        // offers its pickers for what's shared one by one (851-2775).
         Section {
-          Button("Health Access in Settings") { store.send(.openSettingsButtonTapped) }
+          Button("Choose Medications…") { store.send(.chooseButtonTapped(.medications)) }
+          Button("Choose Vision Prescriptions…") {
+            store.send(.chooseButtonTapped(.visionPrescriptions))
+          }
+        } header: {
+          Text("Health Access")
+        } footer: {
+          Text(
+            "To change what else lil health can read, go to Settings › Privacy & Security › Health › lil health."
+          )
+        }
+        Section {
           Link("Privacy Policy", destination: privacyPolicy)
           if store.hasConsent {
             Button("Withdraw Consent") { store.send(.withdrawConsentButtonTapped) }

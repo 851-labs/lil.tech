@@ -1,7 +1,7 @@
 public import ComposableArchitecture
 public import Foundation
 public import HealthCatalog
-import HealthKitAccess
+public import HealthKitAccess
 public import HealthUpload
 public import LilAuth
 
@@ -133,7 +133,8 @@ public struct SyncStatusFeature {
     /// The server recorded the withdrawal.
     case consentWithdrawn
     case consentWithdrawalFailed(String)
-    case openSettingsButtonTapped
+    /// Choose Medications… or Choose Vision Prescriptions…: Health's picker for sharing them.
+    case chooseButtonTapped(PerObjectHealthType)
     case uploadEverythingAgainButtonTapped
     case uploadAgainStarted
     case uploadAgainFailed(String)
@@ -173,11 +174,6 @@ public struct SyncStatusFeature {
   @Dependency(\.healthAuthorization) var healthAuthorization
   @Dependency(\.healthBackfill) var healthBackfill
   @Dependency(\.healthConsent) var healthConsent
-  @Dependency(\.openURL) var openURL
-
-  /// The app's page in Settings, where its Health access is.
-  static let settingsURL = URL(string: "app-settings:")!
-
   public init() {}
 
   public var body: some ReducerOf<Self> {
@@ -281,8 +277,12 @@ public struct SyncStatusFeature {
         state.alert = .withdrawalFailed(reason)
         return .none
 
-      case .openSettingsButtonTapped:
-        return .run { [openURL] _ in await openURL(Self.settingsURL) }
+      case .chooseButtonTapped(let type):
+        // Health's own picker; what's shared since goes up with the next run, now.
+        return .run { [healthAuthorization] send in
+          try? await healthAuthorization.requestPerObject(type)
+          await send(.delegate(.retry))
+        }
 
       case .settingsPresented(let presented):
         // Not closed while what it started is in progress: its answers show in it.
