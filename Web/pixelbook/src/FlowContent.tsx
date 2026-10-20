@@ -39,7 +39,13 @@ export const FlowContent = memo(function FlowContent({
   );
   return (
     <>
-      <svg className="edges" width={layout.width} height={layout.height} aria-hidden="true">
+      {/* In canvas points: sized to read when zoomed out. */}
+      <svg
+        className="pointer-events-none absolute top-0 left-0 overflow-visible"
+        width={layout.width}
+        height={layout.height}
+        aria-hidden="true"
+      >
         <defs>
           <marker
             id="arrow"
@@ -50,11 +56,12 @@ export const FlowContent = memo(function FlowContent({
             markerHeight="6"
             orient="auto-start-reverse"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" />
+            <path className="fill-secondary" d="M 0 0 L 10 5 L 0 10 z" />
           </marker>
         </defs>
         {layout.edges.map((edge, index) => (
           <polyline
+            className="fill-none stroke-secondary stroke-6 [stroke-linejoin:round]"
             key={`${edge.from}/${edge.to}/${index}`}
             points={edge.points.map(({ x, y }) => `${x},${y}`).join(" ")}
             markerEnd="url(#arrow)"
@@ -62,7 +69,11 @@ export const FlowContent = memo(function FlowContent({
         ))}
       </svg>
       {edgeLabels.map((label) => (
-        <div key={label.key} className="edge-label" style={{ left: label.at.x, top: label.at.y }}>
+        <div
+          key={label.key}
+          className="absolute max-w-[280px] -translate-1/2 rounded-2xl border-2 border-border bg-background px-3.5 py-1.5 text-center text-[26px] leading-[1.2] font-semibold"
+          style={{ left: label.at.x, top: label.at.y }}
+        >
           {label.text}
         </div>
       ))}
@@ -82,6 +93,10 @@ export const FlowContent = memo(function FlowContent({
     </>
   );
 });
+
+/** The ‹ and › buttons that step through a node's states. */
+const stepButton =
+  "min-w-11 cursor-pointer rounded-xl border-2 border-border px-2.5 text-[28px] leading-[1.3]";
 
 /** A screen: its name, then one state at a time, with the others stacked behind it. */
 function Node({
@@ -104,24 +119,39 @@ function Node({
   return (
     <div
       // Raised once stepped, since another state can be larger than the first and overlap.
-      className={["node", count > 1 ? "stacked" : "", index > 0 ? "raised" : ""].join(" ")}
+      className={index > 0 ? "absolute z-1" : "absolute"}
       style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
     >
-      <header className="node-header" style={{ height: nodeHeader }}>
-        <div className="node-title">{node.title}</div>
-        <div className="node-state">
+      <header
+        className="flex flex-col justify-end gap-1.5 pb-4 whitespace-nowrap"
+        style={{ height: nodeHeader }}
+      >
+        <div className="overflow-hidden text-[44px] font-bold text-ellipsis">{node.title}</div>
+        <div className="flex items-center gap-3 text-[28px] text-secondary">
           {count > 1 && (
-            <button type="button" onClick={() => step(-1)} aria-label="Previous state">
+            <button
+              type="button"
+              className={stepButton}
+              onClick={() => step(-1)}
+              aria-label="Previous state"
+            >
               ‹
             </button>
           )}
-          <span className="node-state-name">{tile?.snapshot.state ?? "No snapshots"}</span>
+          <span className="overflow-hidden text-ellipsis">
+            {tile?.snapshot.state ?? "No snapshots"}
+          </span>
           {count > 1 && (
             <>
-              <span className="node-count">
+              <span className="tabular-nums">
                 {index + 1}/{count}
               </span>
-              <button type="button" onClick={() => step(1)} aria-label="Next state">
+              <button
+                type="button"
+                className={stepButton}
+                onClick={() => step(1)}
+                aria-label="Next state"
+              >
                 ›
               </button>
             </>
@@ -131,11 +161,19 @@ function Node({
       {tile === undefined ? (
         // The graph names a screen with no snapshots here: not rendered for this app, or none in
         // this appearance.
-        <div className="placeholder" style={{ top: nodeHeader, height: node.height - nodeHeader }}>
+        <div
+          className="absolute right-0 left-0 flex items-center justify-center rounded-[10px] border-4 border-dashed border-border p-6 text-center text-[28px] text-secondary"
+          style={{ top: nodeHeader, height: node.height - nodeHeader }}
+        >
           No snapshots of {node.title} for this app in this appearance
         </div>
       ) : (
-        <TileButton tile={{ ...tile, x: 0, y: nodeHeader }} onSelect={onSelect} />
+        // A screen with more states shows them stacked behind the current one.
+        <TileButton
+          tile={{ ...tile, x: 0, y: nodeHeader }}
+          onSelect={onSelect}
+          stacked={count > 1}
+        />
       )}
     </div>
   );
