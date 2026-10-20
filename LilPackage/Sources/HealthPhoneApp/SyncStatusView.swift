@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 import HealthCatalog
+import HealthUI
 import HealthUpload
 import LilAuth
 public import SwiftUI
@@ -157,7 +158,7 @@ private struct CategoryRow: View {
 
   var body: some View {
     HStack {
-      Label(category.category.name, systemImage: category.category.symbolName)
+      HealthCategoryLabel(category.category)
       Spacer()
       Text(category.records.formatted())
         .foregroundStyle(.secondary)

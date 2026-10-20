@@ -89,6 +89,10 @@ let package = Package(
     .target(
       name: "HealthCatalog"
     ),
+    .target(
+      name: "HealthUI",
+      dependencies: ["HealthCatalog"]
+    ),
     .testTarget(
       name: "HealthCatalogTests",
       dependencies: [
@@ -132,6 +136,7 @@ let package = Package(
       dependencies: [
         "HealthCatalog",
         "HealthDatabase",
+        "HealthUI",
         "LilAuth",
         "LilSync",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
@@ -153,7 +158,9 @@ let package = Package(
     .target(
       name: "HealthPhoneApp",
       dependencies: [
+        "HealthCatalog",
         "HealthKitAccess",
+        "HealthUI",
         "HealthUpload",
         "LilAuth",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
