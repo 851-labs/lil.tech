@@ -72,7 +72,7 @@ struct MetricsView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.groupedBackground)
+    .background(Color.pageBackground)
     .navigationTitle(category.name)
   }
 
@@ -203,18 +203,4 @@ struct MetricDetail: View {
       ContentUnavailableView("Unknown Data Type", systemImage: "questionmark")
     }
   }
-}
-
-extension Color {
-  /// The page behind cards: the window's background, as Mac apps' content is (white, or dark
-  /// gray), rather than iPhone Health's gray or black (851-2755).
-  static let groupedBackground = Color(nsColor: .windowBackgroundColor)
-
-  /// A card on `groupedBackground`: a light fill over it, as a grouped form's sections are in
-  /// System Settings, so it stands out in both appearances.
-  static let cardBackground = Color(
-    nsColor: NSColor(name: nil) { appearance in
-      appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        ? NSColor(white: 1, alpha: 0.08) : NSColor(white: 0, alpha: 0.03)
-    })
 }

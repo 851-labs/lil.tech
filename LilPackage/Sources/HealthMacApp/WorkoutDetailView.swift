@@ -96,7 +96,7 @@ struct WorkoutDetailContent: View {
       .frame(maxWidth: 760)
       .frame(maxWidth: .infinity)
     }
-    .background(Color.groupedBackground)
+    .background(Color.pageBackground)
     .navigationTitle(WorkoutActivity.name(workout.activityType))
   }
 
