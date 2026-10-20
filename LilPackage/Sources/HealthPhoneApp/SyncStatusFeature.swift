@@ -130,6 +130,7 @@ public struct SyncStatusFeature {
     case consentWithdrawn
     case consentWithdrawalFailed(String)
     case openSettingsButtonTapped
+    case uploadEverythingAgainButtonTapped
     /// The gear button opened the Settings sheet, or Done or a swipe closed it.
     case settingsPresented(Bool)
     case signOutButtonTapped
@@ -144,6 +145,7 @@ public struct SyncStatusFeature {
     public enum Alert: Equatable {
       case confirmDeletion
       case confirmWithdrawal
+      case confirmUploadEverythingAgain
     }
 
     @CasePathable
@@ -213,6 +215,19 @@ public struct SyncStatusFeature {
       case .withdrawConsentButtonTapped:
         state.alert = .confirmWithdrawal
         return .none
+
+      case .uploadEverythingAgainButtonTapped:
+        state.alert = .confirmUploadEverythingAgain
+        return .none
+
+      case .alert(.presented(.confirmUploadEverythingAgain)):
+        // Forgets what went up, not the account or consent, and runs again from the start: older
+        // records Health shares since (iOS 27's history setting, 851-2662) go up, and the server
+        // keeps what it has, changing nothing for identical records.
+        return .run { [healthBackfill] send in
+          await healthBackfill.reset()
+          await send(.delegate(.retry))
+        }
 
       case .alert(.presented(.confirmWithdrawal)):
         state.isWithdrawingConsent = true
@@ -306,6 +321,23 @@ extension AlertState where Action == SyncStatusFeature.Action.Alert {
     } message: {
       TextState(
         "This deletes your lil health account and everything uploaded to it, on every device. The data in Health on this iPhone stays."
+      )
+    }
+  }
+
+  public static var confirmUploadEverythingAgain: Self {
+    Self {
+      TextState("Upload Everything Again?")
+    } actions: {
+      ButtonState(action: .confirmUploadEverythingAgain) {
+        TextState("Upload Everything")
+      }
+      ButtonState(role: .cancel) {
+        TextState("Cancel")
+      }
+    } message: {
+      TextState(
+        "lil health reads all the Health data you share again, and uploads what isn't in your account yet. Nothing is uploaded twice. It can take a while."
       )
     }
   }

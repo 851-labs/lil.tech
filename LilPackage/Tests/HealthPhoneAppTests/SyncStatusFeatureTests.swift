@@ -250,4 +250,41 @@ struct SyncStatusFeatureTests {
       $0.alert = .withdrawalFailed("The Internet connection appears to be offline.")
     }
   }
+
+  @Test
+  func uploadingEverythingAgainForgetsWhatWentUpButNotTheAccountOrConsent() async throws {
+    @Shared(.healthConsentPolicyVersion) var consented
+    $consented.withLock { $0 = HealthConsentClient.policyVersion }
+    // A backfill that's uploaded a type's history up to an anchor.
+    let storage = HealthBackfillStorage.inMemory()
+    var uploaded = HealthBackfillState()
+    uploaded.anchors[steps] = Data([1, 2, 3])
+    uploaded.finished = [steps]
+    uploaded.uploadedRecords = 1_200
+    try storage.saveState(uploaded)
+    // The backfill reads its storage when it's made.
+    let backfill = withDependencies {
+      $0.healthBackfillStorage = storage
+      $0.uuid = .incrementing
+    } operation: {
+      HealthBackfill(types: [])
+    }
+    // No auth dependency: signing out or deleting the account would fail the test.
+    let store = TestStore(initialState: SyncStatusFeature.State()) {
+      SyncStatusFeature()
+    } withDependencies: {
+      $0.healthBackfill = backfill
+    }
+
+    await store.send(.uploadEverythingAgainButtonTapped) {
+      $0.alert = .confirmUploadEverythingAgain
+    }
+    await store.send(.alert(.presented(.confirmUploadEverythingAgain))) {
+      $0.alert = nil
+    }
+    // Then the app runs the backfill, from the start.
+    await store.receive(\.delegate.retry)
+    #expect(try storage.loadState() == nil)
+    #expect(consented == HealthConsentClient.policyVersion)
+  }
 }
