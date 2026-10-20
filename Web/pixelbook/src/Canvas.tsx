@@ -1,9 +1,12 @@
 // An infinite canvas: drag or scroll to pan, pinch (or ⌘/Ctrl-scroll) to zoom around the pointer.
 import {
+  createContext,
   type ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -54,6 +57,68 @@ export const startView = (width: number, viewportWidth: number, minimumZoom = 0.
   return { zoom, x: Math.max(0, (viewportWidth - width * zoom) / 2), y: toolbarHeight };
 };
 
+/** A rectangle on the canvas, in canvas points: from (x0, y0) to (x1, y1). */
+export interface Region {
+  readonly x0: number;
+  readonly y0: number;
+  readonly x1: number;
+  readonly y1: number;
+}
+
+/**
+ * The part of the canvas worth rendering (851-2713): what's in view, with half a screen around it
+ * so panning at normal speed finds it rendered. It's snapped outward to cells a quarter of a
+ * screen, rounded up to a power of two, so it only changes every quarter screen of panning, or as
+ * zooming doubles or halves.
+ */
+export const renderRegion = (view: View, viewportWidth: number, viewportHeight: number): Region => {
+  const width = viewportWidth / view.zoom;
+  const height = viewportHeight / view.zoom;
+  const cell = 2 ** Math.ceil(Math.log2(Math.max(width, height) / 4));
+  const left = -view.x / view.zoom;
+  const top = -view.y / view.zoom;
+  return {
+    x0: Math.floor((left - width / 2) / cell) * cell,
+    y0: Math.floor((top - height / 2) / cell) * cell,
+    x1: Math.ceil((left + width * 1.5) / cell) * cell,
+    y1: Math.ceil((top + height * 1.5) / cell) * cell,
+  };
+};
+
+/** A rectangle on the canvas, in canvas points. */
+export interface Box {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** Whether `box` reaches into `region`. */
+export const intersects = (region: Region, { x, y, width, height }: Box) =>
+  x < region.x1 && x + width > region.x0 && y < region.y1 && y + height > region.y0;
+
+/**
+ * The canvas's `renderRegion`, for its content to render only what's in it. `undefined` until the
+ * viewport's size is known (on the server, say): everything.
+ */
+export const RegionContext = createContext<Region | undefined>(undefined);
+
+/** The items whose `box` reaches into `region`: all of them without one. */
+export const near = <A,>(
+  region: Region | undefined,
+  items: ReadonlyArray<A>,
+  box: (item: A) => Box,
+): ReadonlyArray<A> =>
+  region === undefined ? items : items.filter((item) => intersects(region, box(item)));
+
+/**
+ * The items near the canvas's view, for content to render only those. Off-screen content is then
+ * out of the DOM: out of tab order and the browser's find, which the canvas's size makes the
+ * better trade.
+ */
+export const useNear = <A,>(items: ReadonlyArray<A>, box: (item: A) => Box) =>
+  near(useContext(RegionContext), items, box);
+
 export interface CanvasHandle {
   readonly zoomBy: (factor: number) => void;
   readonly fit: () => void;
@@ -83,6 +148,30 @@ export function Canvas({
   const [dragging, setDragging] = useState(false);
   // Whether the view is the browser's, from the viewport's size, rather than the server's guess.
   const [measured, setMeasured] = useState(false);
+  const [viewportSize, setViewportSize] = useState<{ width: number; height: number }>();
+  useEffect(() => {
+    const element = viewport.current;
+    if (element === null) return;
+    const observer = new ResizeObserver(() =>
+      setViewportSize({ width: element.clientWidth, height: element.clientHeight }),
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  // A viewport with no size (hidden, say) shows nothing anyway, and its region would be NaN.
+  const region =
+    viewportSize === undefined || viewportSize.width === 0 || viewportSize.height === 0
+      ? undefined
+      : renderRegion(view, viewportSize.width, viewportSize.height);
+  // The same object while the snapped bounds are, so content re-renders only when they change.
+  const { x0, y0, x1, y1 } = region ?? {};
+  const stableRegion = useMemo(
+    () =>
+      x0 === undefined || y0 === undefined || x1 === undefined || y1 === undefined
+        ? undefined
+        : { x0, y0, x1, y1 },
+    [x0, y0, x1, y1],
+  );
 
   useEffect(() => {
     if (measured) onViewChange(view);
@@ -223,7 +312,7 @@ export function Canvas({
           transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`,
         }}
       >
-        {children}
+        <RegionContext value={stableRegion}>{children}</RegionContext>
       </div>
     </div>
   );

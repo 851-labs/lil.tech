@@ -1,7 +1,8 @@
 // Flowchart mode's canvas: edges with their labels, and a node per screen that steps through its
 // states.
-import { memo, useState } from "react";
-import { type FlowLayout, type FlowNode, nodeHeader } from "./Flow.ts";
+import { memo, useCallback, useState } from "react";
+import { useNear } from "./Canvas.tsx";
+import { type FlowLayout, type FlowNode, flowSpacing, nodeExtent, nodeHeader } from "./Flow.ts";
 import type { Tile } from "./Grid.ts";
 import { Labels, TileButton } from "./Tiles.tsx";
 
@@ -13,6 +14,29 @@ export const FlowContent = memo(function FlowContent({
   readonly layout: FlowLayout;
   readonly onSelect: (tile: Tile) => void;
 }) {
+  // Only what's near the view; the edges stay one drawing.
+  const nodes = useNear(layout.nodes, nodeExtent);
+  const unlinked = useNear(layout.unlinked, (tile) => tile);
+  // Placed at their centers, with the room the layout gave them.
+  const edgeLabels = useNear(
+    layout.edges.flatMap((edge, index) =>
+      edge.label === undefined || edge.labelAt === undefined
+        ? []
+        : [{ key: `${edge.from}/${edge.to}/${index}`, text: edge.label, at: edge.labelAt }],
+    ),
+    ({ at }) => ({
+      x: at.x - flowSpacing.label.width / 2,
+      y: at.y - flowSpacing.label.height / 2,
+      ...flowSpacing.label,
+    }),
+  );
+  // How far each node was stepped, kept here so a node that leaves the view and comes back keeps
+  // its state.
+  const [steps, setSteps] = useState<ReadonlyMap<string, number>>(new Map());
+  const step = useCallback(
+    (key: string, to: number) => setSteps((steps) => new Map(steps).set(key, to)),
+    [],
+  );
   return (
     <>
       <svg className="edges" width={layout.width} height={layout.height} aria-hidden="true">
@@ -37,22 +61,22 @@ export const FlowContent = memo(function FlowContent({
           />
         ))}
       </svg>
-      {layout.edges.map((edge, index) =>
-        edge.label === undefined || edge.labelAt === undefined ? null : (
-          <div
-            key={`${edge.from}/${edge.to}/${index}`}
-            className="edge-label"
-            style={{ left: edge.labelAt.x, top: edge.labelAt.y }}
-          >
-            {edge.label}
-          </div>
-        ),
-      )}
-      <Labels labels={layout.labels} />
-      {layout.nodes.map((node) => (
-        <Node key={node.key} node={node} onSelect={onSelect} />
+      {edgeLabels.map((label) => (
+        <div key={label.key} className="edge-label" style={{ left: label.at.x, top: label.at.y }}>
+          {label.text}
+        </div>
       ))}
-      {layout.unlinked.map((tile) => (
+      <Labels labels={layout.labels} />
+      {nodes.map((node) => (
+        <Node
+          key={node.key}
+          node={node}
+          steps={steps.get(node.key) ?? 0}
+          onStep={step}
+          onSelect={onSelect}
+        />
+      ))}
+      {unlinked.map((tile) => (
         <TileButton key={`${tile.app}/${tile.snapshot.id}`} tile={tile} onSelect={onSelect} />
       ))}
     </>
@@ -62,17 +86,21 @@ export const FlowContent = memo(function FlowContent({
 /** A screen: its name, then one state at a time, with the others stacked behind it. */
 function Node({
   node,
+  steps,
+  onStep,
   onSelect,
 }: {
   readonly node: FlowNode;
+  /** How far it was stepped through its states. */
+  readonly steps: number;
+  readonly onStep: (key: string, steps: number) => void;
   readonly onSelect: (tile: Tile) => void;
 }) {
-  const [steps, setSteps] = useState(0);
   const count = node.tiles.length;
   // Wrapped here, since filters can leave a node fewer states than it was stepped through.
   const index = count === 0 ? 0 : steps % count;
   const tile = node.tiles[index];
-  const step = (by: number) => setSteps(index + by + count);
+  const step = (by: number) => onStep(node.key, index + by + count);
   return (
     <div
       // Raised once stepped, since another state can be larger than the first and overlap.

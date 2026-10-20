@@ -206,6 +206,17 @@ export interface PlacedEdge {
 export const flowSpacing = { rank: 320, node: 120, label: { width: 320, height: 96 } };
 
 /**
+ * Where a node can draw: its layout box is sized for its first state, and a state stepped to can
+ * be larger, so it reaches as far as its largest state.
+ */
+export const nodeExtent = (node: FlowNode) => ({
+  x: node.x,
+  y: node.y,
+  width: Math.max(node.width, ...node.tiles.map((tile) => tile.width)),
+  height: Math.max(node.height, ...node.tiles.map((tile) => nodeHeader + tile.height)),
+});
+
+/**
  * Lays a graph out left to right with dagre, given each screen's size, then applies nudges. Edges
  * that a nudge moved an end of are drawn straight between the screens.
  */
