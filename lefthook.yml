@@ -1,6 +1,7 @@
-# Checks before every commit, in place of GitHub's (`docs/DECISIONS.md`): each job runs when the
-# commit touches its part of the repo. Set up once per clone with `lefthook install`; skip in an
-# emergency with `LEFTHOOK=0 git commit …` (or `git push`).
+# Checks before every commit (`docs/DECISIONS.md`): each job runs when the commit touches its part of
+# the repo. The Swift checks run on GitHub instead, on our Mac minis (`.github/workflows/swift.yml`).
+# Set up once per clone with `lefthook install`; skip in an emergency with `LEFTHOOK=0 git commit …`
+# (or `git push`).
 
 # Before a push: publishes the pushed commit's Pixelbook snapshots, rendering them (a few minutes)
 # unless a commit with the same inputs already did (`scripts/pixelbook publish --hook`). It skips
@@ -17,17 +18,6 @@ pre-push:
 pre-commit:
   parallel: true
   jobs:
-    - name: swift
-      run: scripts/check --hook --swift
-      glob:
-        - "LilPackage/**"
-        - "Apps/**"
-        - "Tools/**"
-        - "Lil.xcworkspace/**"
-        - ".swift-format"
-        - "scripts/format"
-        - "scripts/check"
-        - "lefthook.yml"
     # Pixelbook's graph files name previews, so renaming one in Swift is checked against them.
     - name: pixelbook
       run: scripts/check --hook --pixelbook

@@ -63,10 +63,11 @@
 
 ### Everywhere
 
-- **CI:** for now, checks run locally, before every commit, in a lefthook pre-commit hook (`lefthook.yml`, `scripts/check`), only for the parts a commit touches. GitHub only deploys (`services.yml`: PR previews, then staging and prod on merge to `main`).
-  - Why: GitHub's Swift workflow took 6–11 minutes, mostly a cold runner restoring caches, while the same checks take about 70 seconds on a warm Mac.
-  - The Swift workflow (`swift.yml`, GitHub's `xcode-27` image with Xcode 27.0) is kept, but only runs by hand. Turning it back on means restoring its `pull_request` and `push` triggers.
-  - The trade-off: nothing re-checks a commit made with the hook skipped, or merges that combine changes. Keep commits passing, and merge only branches that are up to date with `main`.
+- **CI:** the TypeScript and Pixelbook checks run locally, before every commit, in a lefthook pre-commit hook (`lefthook.yml`, `scripts/check`), only for the parts a commit touches. The Swift checks run on GitHub, on our own Mac minis (851-2787). GitHub also deploys (`services.yml`: PR previews, then staging and prod on merge to `main`).
+  - Why local at first: GitHub's Swift workflow took 6–11 minutes, mostly a cold runner restoring caches, while the same checks take about 70 seconds on a warm Mac. But the Swift checks took 2–10 minutes per commit in the hook as the package grew, longer with two worktrees checking at once.
+  - **The Swift workflow** (`swift.yml`) runs `scripts/check --swift` for pull requests and pushes to `main` that touch Swift, on the self-hosted Mac minis Codevisor builds on (label `codevisor-macos-arm64`, in the "Mac minis" runner group, which allows only listed repositories and workflows). They keep their builds between runs, outside the checkout (`LIL_CHECK_SCRATCH`), so a run takes minutes. It picks an Xcode with Swift 6.4 through `DEVELOPER_DIR`, never `xcode-select`, which would change the machine for Codevisor's jobs too.
+  - **The repo is public:** a fork's pull request never runs on the minis (the job checks the head repository), and fork PRs from any outside contributor need a maintainer's approval before a workflow runs.
+  - The trade-off: nothing re-checks the TypeScript of a commit made with the hook skipped, or merges that combine changes. Keep commits passing, and merge only branches that are up to date with `main`.
 - **No analytics or crash reporting** in the apps. The server uses Cloudflare's Workers Logs and Effect tracing, with no third-party observability.
 
 ## Server

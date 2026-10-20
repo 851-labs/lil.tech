@@ -40,7 +40,8 @@ cd "$(dirname "$0")/.."
 # As on GitHub: our targets treat warnings as errors (`LilPackage/Package.swift`).
 export CI=1
 # Builds of their own, so they neither invalidate nor wait on Xcode's and everyday `swift test`'s.
-scratch="$PWD/.build-check"
+# CI keeps them outside its checkout, which it cleans (`LIL_CHECK_SCRATCH`, `swift.yml`).
+scratch="${LIL_CHECK_SCRATCH:-$PWD/.build-check}"
 
 status=0
 step() {
