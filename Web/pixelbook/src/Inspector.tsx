@@ -1,5 +1,5 @@
-// The inspector, on the canvas's right (851-2764): the selected frame's image, details and
-// changes, and what to do with it; with nothing selected, a summary of what the canvas shows.
+// The inspector, on the canvas's right (851-2764): the selected frame's details, a change's before
+// and after, and what to do with it; with nothing selected, a summary of what the canvas shows.
 import { useEffect, useState } from "react";
 import { ExternalLink, plainButton, Segmented } from "./Controls.tsx";
 import { type Tile, tileId } from "./Grid.ts";
@@ -8,7 +8,6 @@ import {
   commitUrl,
   compareUrl,
   imageUrl,
-  type Scheme,
   schemes,
   sourceUrl,
   type Variant,
@@ -59,7 +58,7 @@ export function Inspector({
   }
   return (
     <aside className={panel} aria-label={`${tile.snapshot.screen}: ${tile.snapshot.state}`}>
-      {/* Keyed, so its state, such as the appearance shown, starts over with each frame. */}
+      {/* Keyed, so its state, such as the comparison mode, starts over with each frame. */}
       <FrameView
         key={tileId(tile)}
         tile={tile}
@@ -132,13 +131,14 @@ function FrameView({
   readonly onZoomTo: () => void;
 }) {
   const { snapshot, variant, change } = tile;
-  // Which appearance the image shows: the frame's, until switched. A comparison's frame is one
-  // appearance's change, so it shows only that one.
-  const [scheme, setScheme] = useState<Scheme>(tile.scheme);
-  const appearances = change === undefined ? schemes.filter((s) => snapshot.variants[s]) : [];
-  const shownScheme = appearances.includes(scheme) ? scheme : tile.scheme;
-  const shown = snapshot.variants[shownScheme] ?? variant;
-  const background = snapshotBackground(tile.platform, shownScheme);
+  // The snapshot's other appearance, if it has one; a comparison's frame is one appearance's change.
+  const otherScheme = schemes.find((scheme) => scheme !== tile.scheme);
+  const otherVariant = otherScheme === undefined ? undefined : snapshot.variants[otherScheme];
+  const other =
+    change === undefined && otherScheme !== undefined && otherVariant !== undefined
+      ? { scheme: otherScheme, variant: otherVariant }
+      : undefined;
+  const background = snapshotBackground(tile.platform, tile.scheme);
   const alt = `${snapshot.screen}: ${snapshot.state}`;
   return (
     <>
@@ -159,31 +159,20 @@ function FrameView({
         </button>
       </header>
 
-      <section className="flex flex-col gap-2">
-        {change?.other !== undefined ? (
+      {/* The canvas shows the frame itself (851-2788); only a change's before and after are shown
+          here, since nowhere else compares them. */}
+      {change?.other !== undefined && (
+        <section className="flex flex-col gap-2">
           <Compare
             before={change.label === "Before" ? variant : change.other}
             after={change.label === "Before" ? change.other : variant}
             background={background}
             alt={alt}
           />
-        ) : (
-          <>
-            {appearances.length > 1 && (
-              <Segmented
-                label="Appearance"
-                options={appearances.map((value) => ({ value, name: schemeNames[value] }))}
-                value={shownScheme}
-                onChange={setScheme}
-              />
-            )}
-            {change !== undefined && <h3 className={sectionTitle}>{change.label}</h3>}
-            <SnapshotImage variant={shown} background={background} alt={alt} />
-          </>
-        )}
-      </section>
+        </section>
+      )}
 
-      <Actions image={shown} onZoomTo={onZoomTo} />
+      <Actions image={variant} onZoomTo={onZoomTo} />
 
       <section className="flex flex-col gap-1.5">
         <h3 className={sectionTitle}>Details</h3>
@@ -192,7 +181,18 @@ function FrameView({
           <Detail name="Platform">{platformNames[tile.platform]}</Detail>
           <Detail name="Screen">{snapshot.screen}</Detail>
           <Detail name="State">{snapshot.state}</Detail>
-          <Detail name="Appearance">{schemeNames[shownScheme]}</Detail>
+          <Detail name="Appearance">
+            {schemeNames[tile.scheme]}
+            {/* The flowchart shows one appearance per state, so the other is a link here. */}
+            {other !== undefined && (
+              <>
+                {" · "}
+                <ExternalLink href={imageUrl(other.variant)}>
+                  Open {schemeNames[other.scheme]}
+                </ExternalLink>
+              </>
+            )}
+          </Detail>
           {change !== undefined && (
             <Detail name="Change">
               {change.other === undefined
@@ -201,7 +201,7 @@ function FrameView({
             </Detail>
           )}
           <Detail name="Size">
-            {shown.width / shown.scale} × {shown.height / shown.scale} pt @{shown.scale}x
+            {variant.width / variant.scale} × {variant.height / variant.scale} pt @{variant.scale}x
           </Detail>
           <Detail name="Source">
             <ExternalLink href={sourceUrl(snapshot, commit)}>
