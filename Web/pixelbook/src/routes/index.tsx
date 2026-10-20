@@ -17,6 +17,7 @@ import {
   appName,
   type Book,
   imageUrl,
+  thumbnailsSuffice,
   loadBook,
   NotPublished,
   type Platform,
@@ -26,7 +27,7 @@ import {
   sourceUrl,
 } from "../Snapshots.ts";
 import { describeChanges, diffBooks, layoutDiff, summarize } from "../Diff.ts";
-import { Labels, schemeNames, TileButton } from "../Tiles.tsx";
+import { Labels, schemeNames, ThumbnailsContext, TileButton } from "../Tiles.tsx";
 
 export const Route = createFileRoute("/")({
   validateSearch,
@@ -148,6 +149,11 @@ function Grid() {
   const canvas = useRef<CanvasHandle>(null);
   const [zoom, setZoom] = useState(0.1);
   const onViewChange = useCallback((view: View) => setZoom(view.zoom), []);
+  // Not known while rendering on the server, where the zoom is the initial one anyway.
+  const thumbnails = thumbnailsSuffice(
+    zoom,
+    typeof window === "undefined" ? 1 : window.devicePixelRatio,
+  );
 
   return (
     <div className="app">
@@ -244,10 +250,12 @@ function Grid() {
         </span>
       </header>
       <Canvas width={size.width} height={size.height} handle={canvas} onViewChange={onViewChange}>
-        {grid !== undefined && (
-          <Content tiles={grid.tiles} labels={grid.labels} onSelect={select} />
-        )}
-        {flow !== undefined && <FlowContent layout={flow} onSelect={select} />}
+        <ThumbnailsContext value={thumbnails}>
+          {grid !== undefined && (
+            <Content tiles={grid.tiles} labels={grid.labels} onSelect={select} />
+          )}
+          {flow !== undefined && <FlowContent layout={flow} onSelect={select} />}
+        </ThumbnailsContext>
       </Canvas>
       {tiles.length === 0 && (
         <p className="empty">

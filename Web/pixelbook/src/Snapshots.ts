@@ -14,6 +14,11 @@ export const platforms: ReadonlyArray<Platform> = ["macos", "ios"];
 export interface Variant {
   /** The object key of its image, under `images/`. */
   readonly image: string;
+  /**
+   * Its thumbnail's, under `thumbnails/`: a quarter of its width and height. Snapshots published
+   * before thumbnails (851-2712) have none.
+   */
+  readonly thumbnail?: string;
   /** In pixels. */
   readonly width: number;
   readonly height: number;
@@ -105,6 +110,17 @@ export const loadBook = async (source: Source): Promise<Book> => {
 
 /** The URL of a variant's image. */
 export const imageUrl = (variant: Variant) => `${assetsUrl}/${variant.image}`;
+
+/** The URL of a variant's thumbnail, or of its image if it has none. */
+export const thumbnailUrl = (variant: Variant) =>
+  `${assetsUrl}/${variant.thumbnail ?? variant.image}`;
+
+/**
+ * Whether tiles drawn at `zoom` look the same from thumbnails: they hold half a pixel per point
+ * on a Mac (2x) and more on an iPhone (3x), so up to that many screen pixels per point.
+ */
+export const thumbnailsSuffice = (zoom: number, devicePixelRatio: number) =>
+  zoom * devicePixelRatio <= 0.5;
 
 /** Where a snapshot's preview is, on GitHub, at the commit it was rendered from. */
 export const sourceUrl = (snapshot: Snapshot, commit: string) =>
