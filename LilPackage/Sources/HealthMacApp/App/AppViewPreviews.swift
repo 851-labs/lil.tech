@@ -39,12 +39,12 @@ private func appView(_ state: AppFeature.State) -> some View {
       isSignedIn: true, syncStatus: .bootstrapping(downloadedParts: 12, totalParts: 80)))
 }
 
-#Preview("A category") {
-  appView(AppFeature.State(isSignedIn: true, selection: .category(.heart)))
-}
-
 #Preview("Health Details") {
   appView(AppFeature.State(isSignedIn: true, selection: .healthDetails))
+}
+
+#Preview("A category") {
+  appView(AppFeature.State(isSignedIn: true, selection: .category(.heart)))
 }
 
 #Preview("Search results") {
