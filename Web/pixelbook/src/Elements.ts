@@ -1,20 +1,25 @@
-// What the canvas shows, as React Flow's nodes and edges (851-2766): snapshot tiles and labels in
-// both modes, and the flowchart's screens with the routes between them. The layouts are ours.
-import { type Edge, type Node, Position } from "@xyflow/react";
-import { type FlowLayout, type FlowNode, nodeExtent, type PlacedEdge } from "./Flow.ts";
+// What the canvas shows, as React Flow's nodes (851-2766): snapshot tiles and labels in both modes,
+// and the flowchart's screens and the routes between them. The layouts are ours.
+import type { Node } from "@xyflow/react";
+import {
+  type FlowLayout,
+  type FlowNode,
+  flowSpacing,
+  nodeExtent,
+  type PlacedEdge,
+} from "./Flow.ts";
 import { type Label, type Tile, tileId } from "./Grid.ts";
 
 export type TileNode = Node<{ readonly tile: Tile }, "tile">;
 export type LabelNode = Node<{ readonly label: Label }, "label">;
 /** A flowchart screen, stepped `steps` times through its states. */
 export type ScreenNode = Node<{ readonly node: FlowNode; readonly steps: number }, "screen">;
-export type CanvasNode = TileNode | LabelNode | ScreenNode;
-export type RouteEdge = Edge<{ readonly edge: PlacedEdge }, "route">;
-
-export interface Elements {
-  readonly nodes: CanvasNode[];
-  readonly edges: RouteEdge[];
-}
+/**
+ * The flowchart's routes and their labels, as one node: React Flow culls an edge by the box of the
+ * nodes at its ends, and dagre routes some, such as those back to an earlier screen, around them.
+ */
+export type RoutesNode = Node<{ readonly edges: ReadonlyArray<PlacedEdge> }, "routes">;
+export type CanvasNode = TileNode | LabelNode | ScreenNode | RoutesNode;
 
 /**
  * Room for a label's text, which isn't measured, in points: an app's title (`.label.app`, 112
@@ -22,8 +27,8 @@ export interface Elements {
  */
 export const labelExtent = { width: 2000, height: 120 };
 
-// Every node comes with its size and its handles, so React Flow renders only those in view from
-// the start, rather than every node once to measure it.
+// Every node comes with its size, and no handles, so React Flow renders only those in view from the
+// start, rather than every node once to measure it.
 
 const tileNode = (tile: Tile): TileNode => ({
   id: `tile/${tileId(tile)}`,
@@ -44,53 +49,80 @@ const labelNode = (label: Label): LabelNode => ({
   data: { label },
 });
 
-const screenId = (key: string) => `screen/${key}`;
-
 /** Its size reaches as far as its largest state (`nodeExtent`), so it shows while any is in view. */
 const screenNode = (node: FlowNode, steps: number): ScreenNode => {
   const { width, height } = nodeExtent(node);
   const stepped = node.tiles.length > 0 && steps % node.tiles.length > 0;
   return {
-    id: screenId(node.key),
+    id: `screen/${node.key}`,
     type: "screen",
     position: { x: node.x, y: node.y },
     width,
     height,
     // Raised once stepped, since another state can be larger than the first and overlap.
     zIndex: stepped ? 1 : 0,
-    // Where routes start and end, for React Flow, which draws an edge only between handles. The
-    // routes themselves are dagre's.
-    handles: [
-      { type: "target", position: Position.Left, x: 0, y: node.height / 2 },
-      { type: "source", position: Position.Right, x: node.width, y: node.height / 2 },
-    ],
+    handles: [],
     data: { node, steps },
   };
 };
 
-const routeEdge = (edge: PlacedEdge, index: number): RouteEdge => ({
-  id: `route/${edge.from}/${edge.to}/${index}`,
-  type: "route",
-  source: screenId(edge.from),
-  target: screenId(edge.to),
-  data: { edge },
-});
+/** Room around the routes for their lines and arrowheads, in points. */
+const routeMargin = 40;
+
+const routesNode = (edges: ReadonlyArray<PlacedEdge>): RoutesNode[] => {
+  const label = flowSpacing.label;
+  const boxes = edges.flatMap((edge) => [
+    ...edge.points.map(({ x, y }) => ({ x0: x, y0: y, x1: x, y1: y })),
+    ...(edge.labelAt === undefined
+      ? []
+      : [
+          {
+            x0: edge.labelAt.x - label.width / 2,
+            y0: edge.labelAt.y - label.height / 2,
+            x1: edge.labelAt.x + label.width / 2,
+            y1: edge.labelAt.y + label.height / 2,
+          },
+        ]),
+  ]);
+  if (boxes.length === 0) return [];
+  const x = Math.min(...boxes.map((box) => box.x0)) - routeMargin;
+  const y = Math.min(...boxes.map((box) => box.y0)) - routeMargin;
+  return [
+    {
+      id: "routes",
+      type: "routes",
+      position: { x, y },
+      width: Math.max(...boxes.map((box) => box.x1)) + routeMargin - x,
+      height: Math.max(...boxes.map((box) => box.y1)) + routeMargin - y,
+      handles: [],
+      data: { edges },
+    },
+  ];
+};
 
 /** The grid's, or a comparison's: labels, then tiles. */
-export const gridElements = (layout: {
+export const gridNodes = (layout: {
   readonly tiles: ReadonlyArray<Tile>;
   readonly labels: ReadonlyArray<Label>;
-}): Elements => ({
-  nodes: [...layout.labels.map(labelNode), ...layout.tiles.map(tileNode)],
-  edges: [],
-});
+}): CanvasNode[] => [...layout.labels.map(labelNode), ...layout.tiles.map(tileNode)];
 
-/** The flowchart's, with each screen stepped as far as `steps` has it, by its key. */
-export const flowElements = (layout: FlowLayout, steps: ReadonlyMap<string, number>): Elements => ({
-  nodes: [
-    ...layout.labels.map(labelNode),
-    ...layout.nodes.map((node) => screenNode(node, steps.get(node.key) ?? 0)),
-    ...layout.unlinked.map(tileNode),
-  ],
-  edges: layout.edges.map(routeEdge),
-});
+/** The flowchart's: labels, the routes under the screens, the screens, then those not in a graph. */
+export const flowNodes = (layout: FlowLayout): CanvasNode[] => [
+  ...layout.labels.map(labelNode),
+  ...routesNode(layout.edges),
+  ...layout.nodes.map((node) => screenNode(node, 0)),
+  ...layout.unlinked.map(tileNode),
+];
+
+/**
+ * The nodes with each screen stepped as far as `steps` has it, by its key. The rest stay the same
+ * objects, so React Flow updates only the stepped screens.
+ */
+export const withSteps = (nodes: CanvasNode[], steps: ReadonlyMap<string, number>): CanvasNode[] =>
+  steps.size === 0
+    ? nodes
+    : nodes.map((node) => {
+        if (node.type !== "screen") return node;
+        const stepped = steps.get(node.data.node.key);
+        return stepped === undefined ? node : screenNode(node.data.node, stepped);
+      });

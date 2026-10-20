@@ -1,8 +1,6 @@
 // An infinite canvas on React Flow (851-2766): drag or scroll to pan, pinch (or ⌘/Ctrl-scroll) to
 // zoom around the pointer. It renders only the nodes in view.
 import {
-  type Edge,
-  type EdgeTypes,
   type Node,
   type NodeTypes,
   ReactFlow,
@@ -10,7 +8,7 @@ import {
   useReactFlow,
   useStore,
 } from "@xyflow/react";
-import { useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 export interface View {
   readonly x: number;
@@ -65,49 +63,51 @@ export interface CanvasHandle {
 /** Further than this, in screen points, a press is a drag, not a click. */
 const dragThreshold = 4;
 
-interface CanvasProps<N extends Node, E extends Edge> {
+/** React Flow's light and dark colors are for its own nodes; Pixelbook's theme colors the rest. */
+const flowStyle = { "--xy-attribution-background-color": "transparent" } as React.CSSProperties;
+
+interface CanvasProps<N extends Node> {
   /** The content's size, in canvas points. */
   readonly width: number;
   readonly height: number;
   readonly nodes: N[];
-  readonly edges: E[];
   /** Stable: React Flow warns when they change. */
   readonly nodeTypes: NodeTypes;
-  readonly edgeTypes: EdgeTypes;
   readonly handle: React.Ref<CanvasHandle>;
   /** With each zoom it moves to, once it's shown its start view. */
   readonly onZoomChange: (zoom: number) => void;
 }
 
-export function Canvas<N extends Node, E extends Edge>(props: CanvasProps<N, E>) {
+/** Memoized: its page re-renders with each zoom it reports, and the canvas needn't. */
+export const Canvas = memo(function Canvas<N extends Node>(props: CanvasProps<N>) {
   return (
     <ReactFlowProvider>
       <Flow {...props} />
     </ReactFlowProvider>
   );
-}
+}) as <N extends Node>(props: CanvasProps<N>) => React.ReactNode;
 
-function Flow<N extends Node, E extends Edge>({
+function Flow<N extends Node>({
   width,
   height,
   nodes,
-  edges,
   nodeTypes,
-  edgeTypes,
   handle,
   onZoomChange,
-}: CanvasProps<N, E>) {
-  const flow = useReactFlow<N, E>();
-  const { viewportInitialized, getViewport, setViewport } = flow;
+}: CanvasProps<N>) {
+  const { viewportInitialized, getViewport, setViewport } = useReactFlow<N>();
   const viewportWidth = useStore((state) => state.width);
   const viewportHeight = useStore((state) => state.height);
   const element = useRef<HTMLDivElement>(null);
+  // Until the viewport's measured, the start view of a canvas wider than it, the usual case. The
+  // server renders no nodes, since none are in a view without a size.
+  const [defaultViewport] = useState(() => startView(width, 0));
 
   // Whether the view has moved since it started: until then, a viewport that changes size (a
   // sidebar shown, hidden or resized) starts it over, so it stays as wide as the viewport.
   const touched = useRef(false);
   const show = useCallback((view: View) => void setViewport(view), [setViewport]);
-  // Whether it's shown its start view, rather than the server's guess.
+  // Whether it's shown its start view, rather than the default.
   const [started, setStarted] = useState(false);
   // Starts over when the content changes, e.g. with a filter.
   useEffect(() => {
@@ -134,10 +134,29 @@ function Flow<N extends Node, E extends Edge>({
     [width, height, viewportWidth, viewportHeight, getViewport, show],
   );
 
-  // Safari's pinch, which arrives as gesture events rather than React Flow's Ctrl-wheel.
+  // What React Flow's own input handling leaves out.
   useEffect(() => {
     const wrapper = element.current;
     if (wrapper === null) return;
+    // A wheel that scrolls by pages, which React Flow takes as points: a page is a screen. Heard
+    // first, on the way down to React Flow's listener.
+    const wheel = (event: WheelEvent) => {
+      if (event.deltaMode !== WheelEvent.DOM_DELTA_PAGE || event.ctrlKey || event.metaKey) return;
+      event.preventDefault();
+      event.stopPropagation();
+      touched.current = true;
+      const view = getViewport();
+      show({
+        ...view,
+        x: view.x - event.deltaX * wrapper.clientWidth,
+        y: view.y - event.deltaY * wrapper.clientHeight,
+      });
+    };
+    // A trackpad's pinch in Safari on the Mac, which arrives as gesture events rather than as a
+    // Ctrl-wheel. On a touch screen, React Flow zooms with the touches themselves, so the gesture
+    // events that come with them are only kept from zooming the page.
+    let touches = 0;
+    const touch = (event: TouchEvent) => (touches = event.touches.length);
     let scale = 1;
     const start = (event: Event) => {
       event.preventDefault();
@@ -145,6 +164,7 @@ function Flow<N extends Node, E extends Edge>({
     };
     const change = (event: Event) => {
       event.preventDefault();
+      if (touches > 0) return;
       const gesture = event as Event & { scale: number; clientX: number; clientY: number };
       const bounds = wrapper.getBoundingClientRect();
       const factor = gesture.scale / scale;
@@ -159,9 +179,14 @@ function Flow<N extends Node, E extends Edge>({
         ),
       );
     };
+    const touchEvents = ["touchstart", "touchend", "touchcancel"] as const;
+    wrapper.addEventListener("wheel", wheel, { capture: true, passive: false });
+    for (const type of touchEvents) wrapper.addEventListener(type, touch, { capture: true });
     wrapper.addEventListener("gesturestart", start);
     wrapper.addEventListener("gesturechange", change);
     return () => {
+      wrapper.removeEventListener("wheel", wheel, { capture: true });
+      for (const type of touchEvents) wrapper.removeEventListener(type, touch, { capture: true });
       wrapper.removeEventListener("gesturestart", start);
       wrapper.removeEventListener("gesturechange", change);
     };
@@ -172,11 +197,8 @@ function Flow<N extends Node, E extends Edge>({
       ref={element}
       className="absolute! inset-0"
       nodes={nodes}
-      edges={edges}
       nodeTypes={nodeTypes}
-      edgeTypes={edgeTypes}
-      // The server's guess, for a canvas wider than the viewport, the usual case.
-      defaultViewport={startView(width, 0)}
+      defaultViewport={defaultViewport}
       minZoom={minZoom}
       maxZoom={maxZoom}
       // Only the nodes in view are in the DOM. Its own culling (851-2713's render region) costs more:
@@ -188,21 +210,26 @@ function Flow<N extends Node, E extends Edge>({
       zoomOnScroll={false}
       zoomOnDoubleClick={false}
       paneClickDistance={dragThreshold}
-      // A canvas to look at, not to edit.
+      // A canvas to look at, not to edit: nothing to select or delete, so Shift-dragging pans too.
       nodesDraggable={false}
       nodesConnectable={false}
       nodesFocusable={false}
       edgesFocusable={false}
       elementsSelectable={false}
+      selectionKeyCode={null}
+      multiSelectionKeyCode={null}
+      deleteKeyCode={null}
+      // Moved by input, rather than set: the event's `null` when it was set. A press starts a move
+      // that only a drag continues, and one wheel event only starts one.
       onMoveStart={(event) => {
-        // `null` when the view was set, rather than moved by input.
+        if (event?.type === "wheel") touched.current = true;
+      }}
+      onMove={(event) => {
         if (event !== null) touched.current = true;
       }}
       attributionPosition="bottom-left"
-      // React Flow's light and dark colors are for its own nodes; Pixelbook's theme colors the rest.
-      style={{ "--xy-attribution-background-color": "transparent" } as React.CSSProperties}
+      style={flowStyle}
     >
-      <ArrowMarker />
       {started && <ZoomReporter onZoomChange={onZoomChange} />}
     </ReactFlow>
   );
@@ -213,25 +240,4 @@ function ZoomReporter({ onZoomChange }: { readonly onZoomChange: (zoom: number) 
   const zoom = useStore((state) => state.transform[2]);
   useEffect(() => onZoomChange(zoom), [zoom, onZoomChange]);
   return null;
-}
-
-/** The arrowhead at the end of a flowchart route (`markerEnd="url(#route-arrow)"`). */
-function ArrowMarker() {
-  return (
-    <svg className="absolute size-0" aria-hidden="true">
-      <defs>
-        <marker
-          id="route-arrow"
-          viewBox="0 0 10 10"
-          refX="9"
-          refY="5"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto-start-reverse"
-        >
-          <path className="fill-secondary" d="M 0 0 L 10 5 L 0 10 z" />
-        </marker>
-      </defs>
-    </svg>
-  );
 }

@@ -1,8 +1,8 @@
-// Flowchart mode's nodes and edges: a node per screen that steps through its states, and the routes
-// between them, with their labels.
-import { EdgeLabelRenderer, type EdgeProps, Handle, type NodeProps, Position } from "@xyflow/react";
+// Flowchart mode's nodes: a node per screen that steps through its states, and the routes between
+// them, with their labels.
+import type { NodeProps } from "@xyflow/react";
 import { createContext, useCallback, useContext, useState } from "react";
-import type { RouteEdge, ScreenNode } from "./Elements.ts";
+import type { RoutesNode, ScreenNode } from "./Elements.ts";
 import { nodeHeader } from "./Flow.ts";
 import { TileButton } from "./Tiles.tsx";
 
@@ -22,27 +22,50 @@ export function useSteps() {
 /** `useSteps`'s function, for the screens' nodes. */
 export const StepContext = createContext<(key: string, steps: number) => void>(() => {});
 
-/** A route: dagre's points, then an arrowhead, and its label at its center. */
-export function RouteEdgeView({ data }: EdgeProps<RouteEdge>) {
-  if (data === undefined) return null;
-  const { points, label, labelAt } = data.edge;
+/** The routes: dagre's points, each ending in an arrowhead, and their labels at their centers. */
+export function RoutesNodeView({
+  data: { edges },
+  positionAbsoluteX: left,
+  positionAbsoluteY: top,
+}: NodeProps<RoutesNode>) {
   return (
     <>
-      {/* In canvas points: sized to read when zoomed out. */}
-      <path
-        className="pointer-events-none fill-none stroke-secondary stroke-6 [stroke-linejoin:round]"
-        d={points.map(({ x, y }, index) => `${index === 0 ? "M" : "L"}${x} ${y}`).join(" ")}
-        markerEnd="url(#route-arrow)"
-      />
-      {label !== undefined && labelAt !== undefined && (
-        <EdgeLabelRenderer>
-          <div
-            className="absolute w-max max-w-[280px] -translate-1/2 rounded-2xl border-2 border-border bg-background px-3.5 py-1.5 text-center text-[26px] leading-[1.2] font-semibold"
-            style={{ left: labelAt.x, top: labelAt.y }}
+      {/* In canvas points, from the node's corner: sized to read when zoomed out. */}
+      <svg className="absolute inset-0 size-full overflow-visible" aria-hidden="true">
+        <defs>
+          <marker
+            id="route-arrow"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="6"
+            markerHeight="6"
+            orient="auto-start-reverse"
           >
-            {label}
-          </div>
-        </EdgeLabelRenderer>
+            <path className="fill-secondary" d="M 0 0 L 10 5 L 0 10 z" />
+          </marker>
+        </defs>
+        {edges.map((edge, index) => (
+          <polyline
+            className="fill-none stroke-secondary stroke-6 [stroke-linejoin:round]"
+            key={`${edge.from}/${edge.to}/${index}`}
+            points={edge.points.map(({ x, y }) => `${x - left},${y - top}`).join(" ")}
+            markerEnd="url(#route-arrow)"
+          />
+        ))}
+      </svg>
+      {edges.map(
+        ({ from, to, label, labelAt }, index) =>
+          label !== undefined &&
+          labelAt !== undefined && (
+            <div
+              key={`${from}/${to}/${index}`}
+              className="absolute w-max max-w-[280px] -translate-1/2 rounded-2xl border-2 border-border bg-background px-3.5 py-1.5 text-center text-[26px] leading-[1.2] font-semibold"
+              style={{ left: labelAt.x - left, top: labelAt.y - top }}
+            >
+              {label}
+            </div>
+          ),
       )}
     </>
   );
@@ -62,9 +85,6 @@ export function ScreenNodeView({ data: { node, steps } }: NodeProps<ScreenNode>)
   const step = (by: number) => onStep(node.key, index + by + count);
   return (
     <div className="relative" style={{ width: node.width, height: node.height }}>
-      {/* Where its routes meet it, which React Flow needs to draw them; they're invisible. */}
-      <Handle type="target" position={Position.Left} isConnectable={false} className="invisible" />
-      <Handle type="source" position={Position.Right} isConnectable={false} className="invisible" />
       <header
         className="flex flex-col justify-end gap-1.5 pb-4 whitespace-nowrap"
         style={{ height: nodeHeader }}

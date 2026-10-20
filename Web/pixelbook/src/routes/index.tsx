@@ -1,7 +1,7 @@
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, type CanvasHandle } from "../Canvas.tsx";
-import { flowElements, gridElements } from "../Elements.ts";
+import { flowNodes, gridNodes, withSteps } from "../Elements.ts";
 import {
   filtersFrom,
   modeFrom,
@@ -11,7 +11,7 @@ import {
   withChange,
 } from "../Filters.ts";
 import { layoutFlowchart } from "../Flow.ts";
-import { RouteEdgeView, ScreenNodeView, StepContext, useSteps } from "../FlowNodes.tsx";
+import { RoutesNodeView, ScreenNodeView, StepContext, useSteps } from "../FlowNodes.tsx";
 import { graphs } from "../graphs.ts";
 import { layoutGrid, type Tile, tileId } from "../Grid.ts";
 import {
@@ -91,8 +91,12 @@ function ExternalLink(props: Omit<React.ComponentProps<"a">, "target" | "rel">) 
 
 const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
 
-const nodeTypes = { tile: TileNodeView, label: LabelNodeView, screen: ScreenNodeView };
-const edgeTypes = { route: RouteEdgeView };
+const nodeTypes = {
+  tile: TileNodeView,
+  label: LabelNodeView,
+  screen: ScreenNodeView,
+  routes: RoutesNodeView,
+};
 
 /** A small button in the header, as Linear's: zoom, Show all and the like. */
 const plainButton =
@@ -143,15 +147,11 @@ function Grid() {
   );
   const size = grid ?? flow ?? { width: 0, height: 0 };
   const [steps, step] = useSteps();
-  const elements = useMemo(
-    () =>
-      grid !== undefined
-        ? gridElements(grid)
-        : flow !== undefined
-          ? flowElements(flow, steps)
-          : { nodes: [], edges: [] },
-    [grid, flow, steps],
+  const laidOut = useMemo(
+    () => (grid !== undefined ? gridNodes(grid) : flow !== undefined ? flowNodes(flow) : []),
+    [grid, flow],
   );
+  const nodes = useMemo(() => withSteps(laidOut, steps), [laidOut, steps]);
   const selected = tiles.find((tile) => tileId(tile) === search.tile);
 
   const setSearch = useCallback(
@@ -332,10 +332,8 @@ function Grid() {
                 <Canvas
                   width={size.width}
                   height={size.height}
-                  nodes={elements.nodes}
-                  edges={elements.edges}
+                  nodes={nodes}
                   nodeTypes={nodeTypes}
-                  edgeTypes={edgeTypes}
                   handle={canvas}
                   onZoomChange={setZoom}
                 />
