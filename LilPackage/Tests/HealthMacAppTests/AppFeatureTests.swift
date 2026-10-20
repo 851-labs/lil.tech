@@ -51,6 +51,43 @@ struct AppFeatureTests {
     await store.finish()
   }
 
+  @Test
+  func signingOutStopsAnExportAndForgetsTheAccount() async {
+    let (updates, session) = AsyncStream<Bool>.makeStream()
+    let store = TestStore(initialState: AppFeature.State()) {
+      AppFeature()
+    } withDependencies: {
+      $0.auth.signedInUpdates = { updates }
+      $0.sync = .constant(.idle)
+      $0.continuousClock = ManualClock()
+      // Still preparing when the account signs out.
+      $0.dataExports.request = { () throws(DataExportError) in
+        try? await Task.sleep(for: .seconds(3600))
+        return DataExport(requestedAt: Date(timeIntervalSince1970: 0), url: nil)
+      }
+    }
+
+    let task = await store.send(.task)
+    session.yield(true)
+    await store.receive(\.signedInChanged) {
+      $0.isSignedIn = true
+    }
+    await store.receive(\.syncStatusChanged)
+    // The Settings window's export, which carries on if the window closes.
+    await store.send(\.account.dataExport.exportButtonTapped) {
+      $0.account.dataExport.status = .preparing
+    }
+    session.yield(false)
+    await store.receive(\.signedInChanged) {
+      $0.isSignedIn = false
+      $0.account = AccountFeature.State()
+    }
+    await store.receive(\.signIn.readyToSignIn)
+    await task.cancel()
+    // The export was cancelled with the account, so nothing is left running.
+    await store.finish()
+  }
+
   @Test(.timeLimit(.minutes(1)))
   func syncsWhileSignedInAndDeletesTheLocalDataOnSigningOut() async throws {
     let (updates, session) = AsyncStream<Bool>.makeStream()

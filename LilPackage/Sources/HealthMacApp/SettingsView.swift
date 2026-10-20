@@ -1,33 +1,51 @@
-import ComposableArchitecture
+public import ComposableArchitecture
 import LilAuth
-import SwiftUI
+public import SwiftUI
 
-/// Account settings, in a sheet from the account menu: sign-in methods and exporting data.
-struct AccountSheet: View {
-  let store: StoreOf<AccountFeature>
-  @Environment(\.dismiss) private var dismiss
+/// The app's Settings window (⌘, or the account menu's Account Settings…), a tab per pane: the
+/// account's, for now (851-2717). It reads the app's store, so it works whether or not the main
+/// window is open, and an export keeps going when it closes.
+public struct SettingsView: View {
+  let store: StoreOf<AppFeature>
+
+  public init(store: StoreOf<AppFeature>) {
+    self.store = store
+  }
+
+  /// The window's width, which every pane shares.
+  static let width: CGFloat = 480
+
+  public var body: some View {
+    TabView {
+      AccountSettingsView(store: store)
+        .tabItem { Label("Account", systemImage: "person.crop.circle") }
+    }
+    .frame(width: Self.width)
+  }
+}
+
+/// The account's pane: its sign-in methods and exporting its data, or, signed out, how to get
+/// them.
+struct AccountSettingsView: View {
+  let store: StoreOf<AppFeature>
 
   var body: some View {
-    VStack(spacing: 0) {
+    if store.isSignedIn == true {
+      let account = store.scope(\.account, action: \.account)
       Form {
-        SignInMethodsSection(store: store.scope(\.signInMethods, action: \.signInMethods))
-        DataExportSection(store: store.scope(\.dataExport, action: \.dataExport))
+        SignInMethodsSection(store: account.scope(\.signInMethods, action: \.signInMethods))
+        DataExportSection(store: account.scope(\.dataExport, action: \.dataExport))
       }
       .formStyle(.grouped)
-      Divider()
-      HStack {
-        if store.dataExport.isBusy {
-          Text("Closing stops the export.")
-            .font(.callout)
-            .foregroundStyle(.secondary)
-        }
-        Spacer()
-        Button("Done") { dismiss() }
-          .keyboardShortcut(.defaultAction)
+      .frame(height: 380)
+    } else {
+      ContentUnavailableView {
+        Label("Not Signed In", systemImage: "person.crop.circle")
+      } description: {
+        Text("Sign in to lil health to see how you sign in and to export your data.")
       }
-      .padding()
+      .frame(height: 260)
     }
-    .frame(width: 460, height: 480)
   }
 }
 

@@ -24,8 +24,9 @@
       "screen": "HealthMacApp/SyncFooterView.swift"
     },
     {
-      "id": "account",
-      "screen": "HealthMacApp/AccountSheetPreviews.swift"
+      "id": "settings",
+      "screen": "HealthMacApp/SettingsViewPreviews.swift",
+      "title": "Settings"
     },
     {
       "id": "sign-in-methods",
@@ -231,8 +232,8 @@
     },
     {
       "from": "sync-footer",
-      "to": "account",
-      "label": "Account › Account Settings…"
+      "to": "settings",
+      "label": "Account › Account Settings…, or ⌘,"
     },
     {
       "from": "sync-footer",
@@ -240,9 +241,9 @@
       "label": "Account › Sign Out"
     },
     {
-      "from": "account",
+      "from": "settings",
       "to": "sign-in-methods",
-      "label": "Its first section"
+      "label": "The Account tab's first section"
     },
     {
       "from": "summary",

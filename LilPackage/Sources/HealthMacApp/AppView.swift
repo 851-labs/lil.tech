@@ -32,9 +32,6 @@ public struct AppView: View {
       }
     }
     .frame(minWidth: 720, minHeight: 480)
-    .sheet(item: $store.scope(\.account, action: \.account)) { store in
-      AccountSheet(store: store)
-    }
     .task { await store.send(.task).finish() }
   }
 }
@@ -42,6 +39,7 @@ public struct AppView: View {
 /// iPad Health's sidebar: Summary, then the Health categories, and a search for data types.
 struct SidebarView: View {
   @Bindable var store: StoreOf<AppFeature>
+  @Environment(\.openSettings) private var openSettings
 
   var body: some View {
     List(selection: $store.selection) {
@@ -84,7 +82,7 @@ struct SidebarView: View {
         Divider()
         SyncFooterView(
           status: store.syncStatus, retry: { store.send(.retrySyncButtonTapped) },
-          showAccount: { store.send(.accountButtonTapped) },
+          showAccount: { openSettings() },
           signOut: { store.send(.signOutButtonTapped) })
       }
     }
