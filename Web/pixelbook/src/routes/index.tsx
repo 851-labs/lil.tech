@@ -83,7 +83,7 @@ function ExternalLink(props: Omit<React.ComponentProps<"a">, "target" | "rel">) 
 
 const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
 
-/** A small control in the toolbar, as Linear's: zoom, Show all, and a filter's chips. */
+/** A small control in the header, as Linear's: zoom, Show all and the like. */
 const pillButton =
   "flex h-6 cursor-pointer items-center rounded-chip border px-2 text-mini font-medium";
 /** One that isn't on: the zoom buttons, Show all, a chip that's off. */
@@ -159,9 +159,20 @@ function Grid() {
   const devicePixelRatio = useDevicePixelRatio();
   const density = zoom === undefined ? undefined : tileDensity(zoom, devicePixelRatio);
 
+  const sidebar = useSidebar();
+
   return (
-    <div className="fixed inset-0">
-      <header className="absolute top-3 right-3 left-3 z-2 flex flex-wrap items-center gap-2 rounded-control border border-border bg-surface px-3 py-1.5 shadow-panel">
+    <div className="fixed inset-0 flex flex-col">
+      <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-surface px-3">
+        <button
+          type="button"
+          className={`${plainButton} border-transparent px-1.5`}
+          onClick={sidebar.toggle}
+          aria-pressed={sidebar.open}
+          title={sidebar.open ? "Hide the sidebar" : "Show the sidebar"}
+        >
+          <SidebarIcon />
+        </button>
         <h1 className="mr-1 text-small font-semibold text-foreground">Pixelbook</h1>
         <ExternalLink
           className="font-mono text-mini text-secondary"
@@ -172,7 +183,7 @@ function Grid() {
           {book.commit.slice(0, 7)}
         </ExternalLink>
         {missingBase !== undefined && (
-          <span className="flex items-center gap-1.5 text-secondary">
+          <span className="flex min-w-0 items-center gap-1.5 truncate text-mini text-secondary">
             no snapshots of {missingBase.slice(0, 7)} to compare with
             <button
               type="button"
@@ -184,7 +195,7 @@ function Grid() {
           </span>
         )}
         {base !== undefined && (
-          <span className="flex items-center gap-1.5 text-secondary">
+          <span className="flex min-w-0 items-center gap-1.5 text-mini text-secondary">
             changes since{" "}
             <ExternalLink
               className="font-mono text-mini"
@@ -223,30 +234,14 @@ function Grid() {
             ))}
           </div>
         )}
-        <Chips
-          label="App"
-          values={apps}
-          chosen={filters.apps}
-          name={(app) => appName(app, manifestPlatform(book, app))}
-          onToggle={(app) => setSearch({ apps: toggle(apps, filters.apps, app) })}
-        />
-        <Chips
-          label="Platform"
-          values={platforms}
-          chosen={filters.platforms}
-          name={(platform) => platformNames[platform]}
-          onToggle={(platform) =>
-            setSearch({ platforms: toggle(platforms, filters.platforms, platform) })
-          }
-        />
-        <Chips
-          label="Appearance"
-          values={schemes}
-          chosen={filters.schemes}
-          name={(scheme) => schemeNames[scheme]}
-          onToggle={(scheme) => setSearch({ schemes: toggle(schemes, filters.schemes, scheme) })}
-        />
-        <div className="ml-auto flex items-center gap-1" role="group" aria-label="Zoom">
+        <span className="ml-auto truncate text-mini text-secondary max-sm:hidden">
+          {changes !== undefined
+            ? describeChanges(summarize(changes))
+            : flow === undefined
+              ? `${tiles.length} snapshots`
+              : `${flow.nodes.length + flow.unlinked.length} screens`}
+        </span>
+        <div className="flex items-center gap-1 max-sm:ml-auto" role="group" aria-label="Zoom">
           <button
             type="button"
             className={plainButton}
@@ -275,48 +270,159 @@ function Grid() {
             Fit
           </button>
         </div>
-        <span className="text-mini text-secondary">
-          {changes !== undefined
-            ? describeChanges(summarize(changes))
-            : flow === undefined
-              ? `${tiles.length} snapshots`
-              : `${flow.nodes.length + flow.unlinked.length} screens`}
-        </span>
       </header>
-      <Canvas width={size.width} height={size.height} handle={canvas} onViewChange={onViewChange}>
-        <DensityContext value={density}>
-          {grid !== undefined && (
-            <Content tiles={grid.tiles} labels={grid.labels} onSelect={select} />
+      <div className="relative flex min-h-0 flex-1">
+        {sidebar.open && (
+          <Sidebar width={sidebar.width} onResize={sidebar.resize}>
+            <FilterList
+              label="Apps"
+              values={apps}
+              chosen={filters.apps}
+              name={(app) => appName(app, manifestPlatform(book, app))}
+              onToggle={(app) => setSearch({ apps: toggle(apps, filters.apps, app) })}
+            />
+            <FilterList
+              label="Platforms"
+              values={platforms}
+              chosen={filters.platforms}
+              name={(platform) => platformNames[platform]}
+              onToggle={(platform) =>
+                setSearch({ platforms: toggle(platforms, filters.platforms, platform) })
+              }
+            />
+            <FilterList
+              label="Appearances"
+              values={schemes}
+              chosen={filters.schemes}
+              name={(scheme) => schemeNames[scheme]}
+              onToggle={(scheme) =>
+                setSearch({ schemes: toggle(schemes, filters.schemes, scheme) })
+              }
+            />
+          </Sidebar>
+        )}
+        <main className="relative min-w-0 flex-1 bg-background">
+          <Canvas
+            width={size.width}
+            height={size.height}
+            handle={canvas}
+            onViewChange={onViewChange}
+          >
+            <DensityContext value={density}>
+              {grid !== undefined && (
+                <Content tiles={grid.tiles} labels={grid.labels} onSelect={select} />
+              )}
+              {flow !== undefined && <FlowContent layout={flow} onSelect={select} />}
+            </DensityContext>
+          </Canvas>
+          {tiles.length === 0 && (
+            <p className="pointer-events-none absolute top-1/2 right-0 left-0 text-center text-secondary">
+              {changes?.length === 0
+                ? "No snapshots changed."
+                : "No snapshots match these filters."}
+            </p>
           )}
-          {flow !== undefined && <FlowContent layout={flow} onSelect={select} />}
-        </DensityContext>
-      </Canvas>
-      {tiles.length === 0 && (
-        <p className="pointer-events-none absolute top-1/2 right-0 left-0 text-center text-secondary">
-          {changes?.length === 0 ? "No snapshots changed." : "No snapshots match these filters."}
-        </p>
-      )}
-      {selected !== undefined && (
-        <Detail
-          tile={selected}
-          // A base-side tile's file and line are the base's.
-          commit={
-            base !== undefined &&
-            (selected.change?.label === "Before" || selected.change?.label === "Removed")
-              ? base.commit
-              : book.commit
-          }
-          onClose={() => select(undefined)}
-        />
-      )}
+        </main>
+        {selected !== undefined && (
+          <Detail
+            tile={selected}
+            // A base-side tile's file and line are the base's.
+            commit={
+              base !== undefined &&
+              (selected.change?.label === "Before" || selected.change?.label === "Removed")
+                ? base.commit
+                : book.commit
+            }
+            onClose={() => select(undefined)}
+          />
+        )}
+      </div>
     </div>
+  );
+}
+
+/** The sidebar's width, in CSS pixels: as Linear's, and how far it can be dragged. */
+const sidebarWidth = { initial: 244, min: 200, max: 400 };
+/** Narrower than this, the sidebar starts hidden, so the canvas has the room. */
+const narrowQuery = "(max-width: 899px)";
+
+/**
+ * Whether the sidebar shows, and how wide it is. Hidden while the window is narrow, and shown again
+ * when it widens, unless toggled since. The width is remembered across visits.
+ */
+function useSidebar() {
+  const [open, setOpen] = useState(true);
+  const [width, setWidth] = useState(sidebarWidth.initial);
+  useEffect(() => {
+    const stored = Number(localStorage.getItem("pixelbook.sidebarWidth"));
+    if (stored >= sidebarWidth.min && stored <= sidebarWidth.max) setWidth(stored);
+    const narrow = window.matchMedia(narrowQuery);
+    setOpen(!narrow.matches);
+    const follow = (event: MediaQueryListEvent) => setOpen(!event.matches);
+    narrow.addEventListener("change", follow);
+    return () => narrow.removeEventListener("change", follow);
+  }, []);
+  const resize = useCallback((to: number) => {
+    const clamped = Math.round(Math.min(sidebarWidth.max, Math.max(sidebarWidth.min, to)));
+    setWidth(clamped);
+    localStorage.setItem("pixelbook.sidebarWidth", String(clamped));
+  }, []);
+  const toggle = useCallback(() => setOpen((open) => !open), []);
+  return { open, width, resize, toggle };
+}
+
+/** The left sidebar: what to show on the canvas. Its right edge drags to resize it. */
+function Sidebar({
+  width,
+  onResize,
+  children,
+}: {
+  readonly width: number;
+  readonly onResize: (width: number) => void;
+  readonly children: React.ReactNode;
+}) {
+  const start = useRef<{ x: number; width: number } | null>(null);
+  return (
+    <aside
+      className="relative flex shrink-0 flex-col gap-4 overflow-auto border-r border-border bg-surface px-2 py-3 max-[899px]:absolute max-[899px]:inset-y-0 max-[899px]:left-0 max-[899px]:z-3 max-[899px]:shadow-popover"
+      style={{ width }}
+      aria-label="Filters"
+    >
+      {children}
+      <div
+        className="absolute inset-y-0 -right-1 w-2 cursor-col-resize hover:bg-accent/20"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize the sidebar"
+        onPointerDown={(event) => {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          start.current = { x: event.clientX, width };
+        }}
+        onPointerMove={(event) => {
+          if (start.current === null) return;
+          onResize(start.current.width + event.clientX - start.current.x);
+        }}
+        onPointerUp={() => (start.current = null)}
+        onPointerCancel={() => (start.current = null)}
+      />
+    </aside>
+  );
+}
+
+function SidebarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" />
+      <path d="M6 2.5v11" stroke="currentColor" />
+    </svg>
   );
 }
 
 const manifestPlatform = (book: Book, app: string): Platform =>
   book.manifests.find((manifest) => manifest.app === app)?.platform ?? "ios";
 
-function Chips<A extends string>({
+/** A filter's choices, as a list in the sidebar: each one on unless chosen otherwise. */
+function FilterList<A extends string>({
   label,
   values,
   chosen,
@@ -330,26 +436,33 @@ function Chips<A extends string>({
   readonly onToggle: (value: A) => void;
 }) {
   return (
-    <div className="flex items-center gap-1" role="group" aria-label={label}>
+    <section className="flex flex-col gap-0.5" aria-label={label}>
+      <h2 className="px-2 pb-1 text-mini font-medium text-secondary">{label}</h2>
       {values.map((value) => {
         const on = chosen.length === 0 || chosen.includes(value);
         return (
           <button
             key={value}
             type="button"
-            className={
-              on
-                ? `${pillButton} border-border bg-selected text-foreground`
-                : `${pillButton} border-dashed border-border text-secondary hover:bg-hover`
-            }
+            className={`flex h-7 cursor-pointer items-center gap-2 rounded-chip px-2 text-left text-small hover:bg-hover ${on ? "text-foreground" : "text-secondary"}`}
             aria-pressed={on}
             onClick={() => onToggle(value)}
           >
-            {name(value)}
+            <span
+              className={`flex size-3.5 shrink-0 items-center justify-center rounded-[4px] border ${on ? "border-accent bg-accent text-white" : "border-border"}`}
+              aria-hidden="true"
+            >
+              {on && (
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M2 5.2 4.1 7.3 8 2.8" stroke="currentColor" strokeWidth="1.6" />
+                </svg>
+              )}
+            </span>
+            <span className="truncate">{name(value)}</span>
           </button>
         );
       })}
-    </div>
+    </section>
   );
 }
 
@@ -404,7 +517,7 @@ function Detail({
   const { snapshot, variant } = tile;
   return (
     <aside
-      className="absolute top-[64px] right-3 bottom-3 z-3 flex w-[min(560px,calc(100%-24px))] flex-col gap-3 overflow-auto rounded-xl border border-border bg-surface p-4 shadow-popover"
+      className="flex w-[400px] max-w-full shrink-0 flex-col gap-3 overflow-auto border-l border-border bg-surface p-4 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-3 max-lg:shadow-popover"
       aria-label={`${snapshot.screen}: ${snapshot.state}`}
     >
       <header className="flex items-start justify-between gap-3">

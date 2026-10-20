@@ -30,22 +30,21 @@ export const zoomAround = (view: View, factor: number, px: number, py: number): 
   return { zoom, x: px - (px - view.x) * applied, y: py - (py - view.y) * applied };
 };
 
-/** The space the toolbar covers at the top of the viewport, in screen points. */
-const toolbarHeight = 64;
-
-/** The view that shows a `width` × `height` canvas whole in a viewport, at most at 100%. */
+/**
+ * The view that shows a `width` × `height` canvas whole in a viewport, at most at 100%. The
+ * viewport is the canvas's own, between the header and the sidebars, so nothing covers it.
+ */
 export const fitView = (
   width: number,
   height: number,
   viewportWidth: number,
   viewportHeight: number,
 ): View => {
-  const visibleHeight = viewportHeight - toolbarHeight;
-  const zoom = clampZoom(Math.min(viewportWidth / width, visibleHeight / height, 1));
+  const zoom = clampZoom(Math.min(viewportWidth / width, viewportHeight / height, 1));
   return {
     zoom,
     x: (viewportWidth - width * zoom) / 2,
-    y: toolbarHeight + Math.max(0, (visibleHeight - height * zoom) / 2),
+    y: Math.max(0, (viewportHeight - height * zoom) / 2),
   };
 };
 
@@ -55,7 +54,7 @@ export const fitView = (
  */
 export const startView = (width: number, viewportWidth: number, minimumZoom = 0.2): View => {
   const zoom = clampZoom(Math.min(Math.max(viewportWidth / width, minimumZoom), 1));
-  return { zoom, x: Math.max(0, (viewportWidth - width * zoom) / 2), y: toolbarHeight };
+  return { zoom, x: Math.max(0, (viewportWidth - width * zoom) / 2), y: 0 };
 };
 
 /** A rectangle on the canvas, in canvas points: from (x0, y0) to (x1, y1). */
@@ -337,7 +336,7 @@ export function Canvas({
   const onPointerMove = (event: React.PointerEvent) => {
     const current = press.current;
     if (current === null || event.pointerId !== current.pointer) return;
-    // Released where the canvas didn't hear it, e.g. over the toolbar.
+    // Released where the canvas didn't hear it, e.g. over the header or a sidebar.
     if (event.buttons === 0) {
       press.current = null;
       setDragging(false);
