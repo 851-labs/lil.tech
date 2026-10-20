@@ -421,6 +421,7 @@ public actor HealthBackfill {
         for file in pending.files { try? storage.removeFile(file) }
       }
       try? storage.removeFile(Self.medicationDosesFile)
+      medicationDoses = nil
       withErrorReporting { try storage.saveState(nil) }
       counting?.cancel()
       counting = nil
@@ -780,6 +781,8 @@ public actor HealthBackfill {
   /// doses' IDs. A file rather than part of the state, which is saved after every step, since
   /// there may be thousands.
   static let medicationDosesFile = "medication-doses.json"
+  /// Its contents, once read, so each page of doses doesn't read it again.
+  private var medicationDoses: [String: Set<String>]?
 
   /// Uploads the medications, if they changed since they last went up, before a run of
   /// everything reads the types (851-2571). Health shares them one by one and may share one
@@ -791,15 +794,18 @@ public actor HealthBackfill {
   ///   server skips the doses it already has unchanged. Otherwise doses are only read from their
   ///   anchor, so thousands of them don't go up again every run.
   ///
-  /// A failure is kept for the next run.
+  /// A failure is kept for the next run, and so is how far the doses were read: until the
+  /// medications go up, reading every dose again would repeat each run.
   private func uploadMedications(_ state: inout HealthBackfillState) async throws {
+    let before = state
     do {
       let medications = try await medicationsReader.read()
-      let before = state.medicationIDs
-      var doses = try loadMedicationDoses()
-      // In the state the upload saves, so the app being killed after it can't lose it. If the
-      // upload fails, the next run finds the same medications new and forgets it again.
-      if !Set(medications.map(\.id)).isSubset(of: before) { readDosesAgain(&state) }
+      let read = Set(medications.map(\.id))
+      let removed = before.medicationIDs.subtracting(read)
+      // Only needed to delete a medication no longer shared with its doses.
+      var doses = removed.isEmpty ? [:] : try loadMedicationDoses()
+      // In the state the upload saves, so the app being killed after it can't lose it.
+      if !read.isSubset(of: before.medicationIDs) { readDosesAgain(&state) }
       try await uploadWhole(
         medications, as: HealthEncoder.medicationEntity, hash: \.medicationsHash,
         ids: \.medicationIDs, &state
@@ -810,12 +816,12 @@ public actor HealthBackfill {
           }
         }
       }
-      let removed = before.subtracting(state.medicationIDs)
       if !removed.isEmpty {
         for medication in removed { doses[medication] = nil }
         try saveMedicationDoses(doses)
       }
     } catch {
+      keepDoseProgress(from: before, &state)
       try stopIfRunEnds(error)
       reportIssue(error, "Uploading medications; trying again next run")
     }
@@ -833,6 +839,18 @@ public actor HealthBackfill {
       state.uploadedByType[type.id] = nil
       BackfillLog.write("reading \(BackfillLog.name(type.id)) again: medications shared since")
     }
+  }
+
+  /// Undoes `readDosesAgain` since `before`, if the medications didn't go up after it.
+  private func keepDoseProgress(
+    from before: HealthBackfillState, _ state: inout HealthBackfillState
+  ) {
+    for type in types where type.entity == HealthEncoder.medicationDoseEntity {
+      state.anchors[type.id] = before.anchors[type.id]
+      if before.finished.contains(type.id) { state.finished.insert(type.id) }
+      state.uploadedByType[type.id] = before.uploadedByType[type.id]
+    }
+    state.uploadedRecords = before.uploadedRecords
   }
 
   /// Notes a page of doses in each medication's doses (`medicationDosesFile`), before the page
@@ -872,13 +890,17 @@ public actor HealthBackfill {
   /// The doses uploaded for each medication. One that can't be read is reported and started
   /// over: medications no longer shared then keep their doses on the server.
   private func loadMedicationDoses() throws -> [String: Set<String>] {
-    guard let data = try storage.loadFile(Self.medicationDosesFile) else { return [:] }
-    do {
-      return try JSONDecoder().decode([String: Set<String>].self, from: data)
-    } catch {
-      reportIssue(error, "Reading the doses uploaded for each medication; starting over")
-      return [:]
+    if let medicationDoses { return medicationDoses }
+    var doses: [String: Set<String>] = [:]
+    if let data = try storage.loadFile(Self.medicationDosesFile) {
+      do {
+        doses = try JSONDecoder().decode([String: Set<String>].self, from: data)
+      } catch {
+        reportIssue(error, "Reading the doses uploaded for each medication; starting over")
+      }
     }
+    medicationDoses = doses
+    return doses
   }
 
   private func saveMedicationDoses(_ doses: [String: Set<String>]) throws {
@@ -887,6 +909,7 @@ public actor HealthBackfill {
     } else {
       try storage.saveFile(Self.medicationDosesFile, try JSONEncoder().encode(doses))
     }
+    medicationDoses = doses
   }
 
   /// Uploads records read whole each run, if they changed since they last went up (`hash`).

@@ -1561,6 +1561,51 @@ struct HealthBackfillTests {
   }
 
   @Test
+  func dosesAreReadOnFromTheirAnchorWhileMedicationsFailToGoUp() async throws {
+    let health = FakeMedications()
+    let refusing = LockIsolated(false)
+    let lines = LockIsolated<[String]>([])
+    let backfill = withDependencies {
+      $0.healthReader = health.reader
+      $0.healthMedicationsReader = health.medicationsReader
+      $0.healthBatchUploader = HealthBatchUploader { _, file in
+        let text = String(decoding: try Gzip.decompress(file), as: UTF8.self)
+        if refusing.value && text.contains(#""entity":"health_medication""#) {
+          throw HealthBatchUploader.Rejected(statusCode: 400)
+        }
+        lines.withValue { $0 += text.split(separator: "\n").map(String.init) }
+      }
+      $0.healthBackfillStorage = .inMemory()
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [medicationDoses])
+    }
+    health.shared.setValue(["med-a"])
+    health.log.setValue([.logged("dose-1", "med-a"), .logged("dose-2", "med-b")])
+    try await backfill.run()
+
+    // A medication shared since, which the server refuses: the doses aren't all read again on
+    // every run while it does.
+    refusing.setValue(true)
+    health.shared.setValue(["med-a", "med-b"])
+    health.reads.setValue([])
+    await withKnownIssue { try await backfill.run() }
+    await withKnownIssue { try await backfill.run() }
+    #expect(health.reads.value == [2, 2])
+
+    // Once it goes up, they are, for its doses from before the anchor.
+    refusing.setValue(false)
+    health.reads.setValue([])
+    lines.setValue([])
+    try await backfill.run()
+    #expect(health.reads.value == [nil])
+    #expect(lines.value.contains { $0.contains(#""id":"dose-2""#) })
+  }
+
+  @Test
   func uploadingAgainForgetsHowFarItReadButNotWhatItNeedsToDelete() async throws {
     let storage = HealthBackfillStorage.inMemory()
     let sex = HealthEncoder.characteristic(.biologicalSex, value: "female")

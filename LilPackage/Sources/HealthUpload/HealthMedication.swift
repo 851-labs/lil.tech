@@ -133,11 +133,14 @@ extension HealthEncoder {
   }
 
   /// Every medication shared, one per concept: its doses only say which concept they're of. If
-  /// Health has a concept twice, a current one wins over an archived one, then the first by name.
+  /// Health has a concept twice, a current one wins over an archived one, then a scheduled one,
+  /// then the first by nickname and name, so the same medications always keep the same one.
   public static func medications(_ medications: [MedicationRecord]) -> [HealthMutation] {
     let ordered = medications.sorted {
-      ($0.isArchived ? 1 : 0, $0.nickname ?? "", $0.name)
-        < ($1.isArchived ? 1 : 0, $1.nickname ?? "", $1.name)
+      ($0.isArchived ? 1 : 0, $0.hasSchedule ? 0 : 1, $0.nickname ?? "", $0.name, $0.generalForm)
+        < (
+          $1.isArchived ? 1 : 0, $1.hasSchedule ? 0 : 1, $1.nickname ?? "", $1.name, $1.generalForm
+        )
     }
     var seen: Set<String> = []
     return ordered.filter { seen.insert($0.id).inserted }.map(medication)
