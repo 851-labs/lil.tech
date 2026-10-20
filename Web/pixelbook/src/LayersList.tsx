@@ -1,19 +1,15 @@
 // The sidebar's layers list (851-2763): apps, their screens and each screen's states, collapsible
 // and searchable. Choosing a state selects it and zooms to it; selecting on the canvas shows it here.
-import { useEffect, useRef, useState } from "react";
-import { type Badge, type LayerApp, type LayerState, layerOf, searchLayers } from "./Layers.ts";
-
-const badgeColors: Record<Badge, string> = {
-  Changed: "text-accent",
-  New: "text-added",
-  Removed: "text-removed",
-};
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { badgeLabel, type LayerApp, type LayerState, layerOf, searchLayers } from "./Layers.ts";
+import { badgeColors } from "./Tiles.tsx";
 
 /** A row: each level indents it further. */
 const row =
   "flex h-7 w-full cursor-pointer items-center gap-1.5 rounded-chip pr-2 text-left text-small hover:bg-hover";
 
-export function LayersList({
+/** Memoized: its page re-renders with each zoom. */
+export const LayersList = memo(function LayersList({
   apps,
   selected,
   onChoose,
@@ -28,22 +24,23 @@ export function LayersList({
   const [closedApps, setClosedApps] = useState<ReadonlySet<string>>(new Set());
   const [openScreens, setOpenScreens] = useState<ReadonlySet<string>>(new Set());
   const searching = query.trim() !== "";
-  const shown = searchLayers(apps, query);
+  const shown = useMemo(() => searchLayers(apps, query), [apps, query]);
 
-  // A frame selected on the canvas opens its screen here, and scrolls to it.
+  // A frame selected on the canvas opens its screen here, even if closed since, and scrolls to it
+  // once it's open; opening and closing others leaves the list where it is.
   const list = useRef<HTMLDivElement>(null);
-  const place = layerOf(apps, selected);
-  const [placeApp, placeScreen, placeState] = [place?.app, place?.screen, place?.state];
+  const place = useMemo(() => layerOf(apps, selected), [apps, selected]);
   useEffect(() => {
-    if (placeApp === undefined || placeScreen === undefined) return;
-    setClosedApps((closed) => without(closed, placeApp));
-    setOpenScreens((open) => (open.has(placeScreen) ? open : new Set(open).add(placeScreen)));
-  }, [placeApp, placeScreen]);
-  useEffect(() => {
-    if (placeState === undefined) return;
-    const element = list.current?.querySelector(`[data-layer="${CSS.escape(placeState)}"]`);
-    element?.scrollIntoView({ block: "nearest" });
-  }, [placeState, openScreens, closedApps]);
+    if (place === undefined) return;
+    setClosedApps((closed) => without(closed, place.app));
+    setOpenScreens((open) => (open.has(place.screen) ? open : new Set(open).add(place.screen)));
+    const next = requestAnimationFrame(() =>
+      list.current
+        ?.querySelector(`[data-layer="${CSS.escape(place.state)}"]`)
+        ?.scrollIntoView({ block: "nearest" }),
+    );
+    return () => cancelAnimationFrame(next);
+  }, [place]);
 
   return (
     <section className="flex flex-col gap-1" aria-label="Layers">
@@ -74,7 +71,10 @@ export function LayersList({
                 type="button"
                 className={`${row} pl-1 font-medium text-foreground`}
                 aria-expanded={appOpen}
-                onClick={() => setClosedApps((closed) => toggled(closed, app.key))}
+                onClick={(event) => {
+                  handBack(event);
+                  setClosedApps((closed) => toggled(closed, app.key));
+                }}
               >
                 <Chevron open={appOpen} />
                 <span className="truncate">{app.name}</span>
@@ -88,7 +88,10 @@ export function LayersList({
                         type="button"
                         className={`${row} pl-5 text-foreground`}
                         aria-expanded={screenOpen}
-                        onClick={() => setOpenScreens((open) => toggled(open, screen.key))}
+                        onClick={(event) => {
+                          handBack(event);
+                          setOpenScreens((open) => toggled(open, screen.key));
+                        }}
                       >
                         <Chevron open={screenOpen} />
                         <span className="truncate">{screen.name}</span>
@@ -106,7 +109,10 @@ export function LayersList({
                               aria-current={current ? "true" : undefined}
                               data-layer={state.key}
                               className={`${row} pl-[42px] ${current ? "bg-selected text-foreground" : "text-muted"}`}
-                              onClick={() => onChoose(state)}
+                              onClick={(event) => {
+                                handBack(event);
+                                onChoose(state);
+                              }}
                             >
                               <span className="truncate">{state.name}</span>
                               {state.detail !== undefined && (
@@ -116,7 +122,7 @@ export function LayersList({
                               )}
                               {state.badge !== undefined && (
                                 <span
-                                  className={`ml-auto shrink-0 text-mini font-medium ${badgeColors[state.badge]}`}
+                                  className={`ml-auto shrink-0 rounded-full px-1.5 text-[11px] leading-4 font-semibold text-white ${badgeColors[badgeLabel[state.badge]]}`}
                                 >
                                   {state.badge}
                                 </span>
@@ -133,7 +139,7 @@ export function LayersList({
       </div>
     </section>
   );
-}
+});
 
 function Chevron({ open }: { readonly open: boolean }) {
   return (
@@ -147,6 +153,14 @@ function Chevron({ open }: { readonly open: boolean }) {
     </svg>
   );
 }
+
+/**
+ * After a click, rather than a key, gives the keys back to the canvas, so the arrow keys move the
+ * selection rather than scrolling the sidebar.
+ */
+const handBack = (event: React.MouseEvent<HTMLElement>) => {
+  if (event.detail > 0) event.currentTarget.blur();
+};
 
 const toggled = (set: ReadonlySet<string>, key: string) =>
   set.has(key) ? without(set, key) : new Set(set).add(key);

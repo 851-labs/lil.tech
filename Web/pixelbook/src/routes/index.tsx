@@ -194,29 +194,43 @@ function Grid() {
   // A frame to show once the selection, and the inspector it opens, are laid out: panned to when
   // the arrow keys select it, or zoomed to when the layers list does. `shows` counts requests, so
   // choosing the selected frame again zooms to it too.
-  const toShow = useRef<{ readonly id: string; readonly zoom: boolean } | undefined>(undefined);
+  const toShow = useRef<
+    | {
+        readonly id: string;
+        readonly zoom: boolean;
+        /** What was selected when it was asked for, until the selection catches up. */
+        readonly from: string | undefined;
+      }
+    | undefined
+  >(undefined);
   const [shows, setShows] = useState(0);
   const show = useCallback(
     (tile: Tile, zoom: boolean) => {
-      toShow.current = { id: tileId(tile), zoom };
+      toShow.current = { id: tileId(tile), zoom, from: selectedId };
       select(tile);
       setShows((count) => count + 1);
     },
-    [select],
+    [select, selectedId],
   );
   useEffect(() => {
     const target = toShow.current;
-    // A stepped flowchart screen's frame is there once its step is.
-    const frame = target === undefined ? undefined : frameOf(frames, target.id);
-    if (target === undefined || frame === undefined) return;
+    if (target === undefined) return;
+    if (selectedId !== target.id) {
+      // Not selected yet; or selected, then something else was, so it's dropped.
+      if (selectedId !== target.from) toShow.current = undefined;
+      return;
+    }
     toShow.current = undefined;
+    // A stepped flowchart screen's frame shows the state it was stepped to.
+    const frame = frameOf(frames, target.id);
+    if (frame === undefined) return;
     const next = requestAnimationFrame(() =>
       target.zoom
         ? canvas.current?.zoomTo(frame.box, covered())
         : canvas.current?.reveal(frame.box, covered()),
     );
     return () => cancelAnimationFrame(next);
-  }, [shows, frames, covered]);
+  }, [shows, selectedId, frames, covered]);
 
   const zoomToSelection = useCallback(() => {
     if (selectedFrame !== undefined) canvas.current?.zoomTo(selectedFrame.box, covered());
@@ -662,7 +676,7 @@ function Sidebar({
     <aside
       className={`relative flex max-w-[calc(100vw-48px)] shrink-0 border-r border-border bg-surface max-[899px]:absolute max-[899px]:inset-y-0 max-[899px]:left-0 max-[899px]:z-3 max-[899px]:shadow-popover ${hiddenWhenNarrow ? "max-[899px]:hidden" : ""}`}
       style={{ width }}
-      aria-label="Filters"
+      aria-label="Filters and layers"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto px-2 py-3">{children}</div>
       <div

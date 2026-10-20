@@ -1,12 +1,19 @@
 // The sidebar's layers list (851-2763): what's on the canvas, as apps, their screens and each
 // screen's states, in the canvas's order, built from the same layouts.
 import type { FlowLayout } from "./Flow.ts";
-import { type Tile, tileId } from "./Grid.ts";
+import { type ChangeLabel, type Tile, tileId } from "./Grid.ts";
 import { appName } from "./Snapshots.ts";
 import { schemeNames } from "./Tiles.tsx";
 
 /** In a comparison: how a state changed. */
 export type Badge = "Changed" | "New" | "Removed";
+
+/** The canvas's label whose color a badge shares: a change's is its after's. */
+export const badgeLabel: Record<Badge, ChangeLabel> = {
+  Changed: "After",
+  New: "New",
+  Removed: "Removed",
+};
 
 /** A state of a screen: choosing it selects `tile`. */
 export interface LayerState {
@@ -80,27 +87,37 @@ export const gridLayers = (tiles: ReadonlyArray<Tile>): LayerApp[] =>
     ),
   }));
 
-/** The flowchart's: each screen in a graph with its states, then those not in one. */
+/**
+ * The flowchart's: each app's screens in its graph with their states, then those not in it. Apps
+ * are in the canvas's order, top to bottom.
+ */
 export const flowLayers = (layout: FlowLayout): LayerApp[] => {
   const screens = [
     ...layout.nodes.map((node) => ({
       app: node.tiles[0]?.app,
       platform: node.tiles[0]?.platform,
-      key: node.key,
+      y: node.y,
+      key: `graph/${node.key}`,
       name: node.title,
       states: node.tiles.map((tile, index) => ({ tile, step: { key: node.key, index } })),
     })),
     ...layout.unlinked.map((tile) => ({
       app: tile.app,
       platform: tile.platform,
-      key: `${tile.app}/${tile.snapshot.screen}`,
+      y: tile.y,
+      key: `unlinked/${tile.app}/${tile.snapshot.screen}`,
       name: tile.snapshot.screen,
       states: [{ tile, step: undefined }],
     })),
   ];
   // A screen the graph names without snapshots has nothing to select.
   const shown = screens.filter((screen) => screen.states.length > 0);
-  return groupInOrder(shown, (screen) => screen.app ?? "").map(([app, appScreens]) => ({
+  const top = (group: ReadonlyArray<{ readonly y: number }>) =>
+    Math.min(...group.map((screen) => screen.y));
+  const apps = groupInOrder(shown, (screen) => screen.app ?? "").toSorted(
+    ([, a], [, b]) => top(a) - top(b),
+  );
+  return apps.map(([app, appScreens]) => ({
     key: app,
     name: appName(app, appScreens[0]?.platform ?? "ios"),
     screens: appScreens.map((screen) => ({

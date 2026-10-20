@@ -122,6 +122,32 @@ describe("layers", () => {
     expect(layers[0]?.screens[1]?.states[0]?.step).toBeUndefined();
   });
 
+  it("orders the flowchart's apps as the canvas does, even one with no graph", () => {
+    const graphed: FlowNode = {
+      key: "health-mac/summary",
+      title: "Summary",
+      tiles: [tile("health-mac", "Summary", "Loading")],
+      x: 0,
+      y: 900,
+      width: 400,
+      height: 412,
+    };
+    // The iPhone app has no graph, and is above the Mac app on the canvas.
+    const unlinked = { ...tile("health-iphone", "Sync Status", "Checking"), y: 200 };
+    const layout: FlowLayout = {
+      nodes: [graphed],
+      edges: [],
+      labels: [],
+      unlinked: [unlinked],
+      width: 1000,
+      height: 1400,
+    };
+    expect(flowLayers(layout).map((app) => app.name)).toEqual([
+      "lil health for iPhone",
+      "lil health for Mac",
+    ]);
+  });
+
   it("searches screen and state names, keeping a matching screen's states", () => {
     const layers = gridLayers([
       tile("health-mac", "Summary", "Loading"),
