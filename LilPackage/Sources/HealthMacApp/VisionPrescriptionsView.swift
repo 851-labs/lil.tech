@@ -148,17 +148,23 @@ struct VisionPrescriptionIcon: View {
 /// A prescription, following the local database as sync changes it: edits show, and one no
 /// longer shared says so rather than showing what it was.
 struct VisionPrescriptionDetailView: View {
-  @Fetch private var prescription: HealthVisionPrescription?
+  let opened: HealthVisionPrescription
+  /// Read by the view's task, not in its initializer: a list's links make their destinations
+  /// as they show, so reading then would touch the database for every row, previews included.
+  @Fetch private var prescription: HealthVisionPrescription?? = nil
 
   /// Opens with `prescription` while its row is read.
   init(prescription: HealthVisionPrescription) {
-    _prescription = Fetch(
-      wrappedValue: prescription, VisionPrescriptionRequest(id: prescription.id),
-      scheduler: MainQueueScheduler())
+    opened = prescription
   }
 
   var body: some View {
-    VisionPrescriptionDetailContent(prescription: prescription)
+    // `nil` until read; then the row, or `nil` inside once it's no longer shared.
+    VisionPrescriptionDetailContent(prescription: prescription ?? opened)
+      .task {
+        _ = try? await $prescription.load(
+          VisionPrescriptionRequest(id: opened.id), scheduler: MainQueueScheduler())
+      }
   }
 }
 
@@ -166,8 +172,8 @@ struct VisionPrescriptionDetailView: View {
 struct VisionPrescriptionRequest: FetchKeyRequest {
   let id: String
 
-  func fetch(_ db: Database) throws -> HealthVisionPrescription? {
-    try HealthDatabase.visionPrescription(id: id, db)
+  func fetch(_ db: Database) throws -> HealthVisionPrescription?? {
+    .some(try HealthDatabase.visionPrescription(id: id, db))
   }
 }
 
