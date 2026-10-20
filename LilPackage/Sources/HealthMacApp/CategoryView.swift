@@ -72,7 +72,7 @@ struct MetricsView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.groupedBackground)
+    .background(Color.pageBackground)
     .navigationTitle(category.name)
   }
 
@@ -203,20 +203,4 @@ struct MetricDetail: View {
       ContentUnavailableView("Unknown Data Type", systemImage: "questionmark")
     }
   }
-}
-
-extension Color {
-  /// Health's page behind cards: light gray, or black in dark mode.
-  static let groupedBackground = Color(
-    nsColor: NSColor(name: nil) { appearance in
-      appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        ? NSColor(white: 0, alpha: 1) : NSColor(white: 0.95, alpha: 1)
-    })
-
-  /// A card on `groupedBackground`.
-  static let cardBackground = Color(
-    nsColor: NSColor(name: nil) { appearance in
-      appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        ? NSColor(white: 0.11, alpha: 1) : .white
-    })
 }

@@ -133,6 +133,7 @@ struct CycleTrackingContent: View {
         }
       }
     }
+    .background(Color.pageBackground)
     .navigationTitle("Cycle Tracking")
   }
 
