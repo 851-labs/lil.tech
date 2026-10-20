@@ -7,6 +7,8 @@ import { type Platform, type Scheme, tileImageUrl } from "./Snapshots.ts";
 
 export const schemeNames: Record<Scheme, string> = { light: "Light", dark: "Dark" };
 
+export const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
+
 const snapshotBackgrounds = {
   macos: { light: "bg-mac-light", dark: "bg-mac-dark" },
   ios: { light: "bg-iphone-light", dark: "bg-iphone-dark" },
