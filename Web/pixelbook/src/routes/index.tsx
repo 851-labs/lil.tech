@@ -1,6 +1,7 @@
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, type CanvasHandle, useNear, type View } from "../Canvas.tsx";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Canvas, type CanvasHandle } from "../Canvas.tsx";
+import { flowElements, gridElements } from "../Elements.ts";
 import {
   filtersFrom,
   modeFrom,
@@ -10,9 +11,9 @@ import {
   withChange,
 } from "../Filters.ts";
 import { layoutFlowchart } from "../Flow.ts";
-import { FlowContent } from "../FlowContent.tsx";
+import { RouteEdgeView, ScreenNodeView, StepContext, useSteps } from "../FlowNodes.tsx";
 import { graphs } from "../graphs.ts";
-import { type Label, layoutGrid, type Tile, tileId } from "../Grid.ts";
+import { layoutGrid, type Tile, tileId } from "../Grid.ts";
 import {
   appName,
   type Book,
@@ -27,7 +28,14 @@ import {
   sourceUrl,
 } from "../Snapshots.ts";
 import { describeChanges, diffBooks, layoutDiff, summarize } from "../Diff.ts";
-import { DensityContext, Labels, schemeNames, snapshotBackground, TileButton } from "../Tiles.tsx";
+import {
+  DensityContext,
+  LabelNodeView,
+  schemeNames,
+  SelectContext,
+  snapshotBackground,
+  TileNodeView,
+} from "../Tiles.tsx";
 
 export const Route = createFileRoute("/")({
   validateSearch,
@@ -83,6 +91,9 @@ function ExternalLink(props: Omit<React.ComponentProps<"a">, "target" | "rel">) 
 
 const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
 
+const nodeTypes = { tile: TileNodeView, label: LabelNodeView, screen: ScreenNodeView };
+const edgeTypes = { route: RouteEdgeView };
+
 /** A small button in the header, as Linear's: zoom, Show all and the like. */
 const plainButton =
   "flex h-6 cursor-pointer items-center rounded-chip border border-border px-2 text-mini font-medium text-muted hover:bg-hover";
@@ -131,6 +142,16 @@ function Grid() {
     [grid, flow],
   );
   const size = grid ?? flow ?? { width: 0, height: 0 };
+  const [steps, step] = useSteps();
+  const elements = useMemo(
+    () =>
+      grid !== undefined
+        ? gridElements(grid)
+        : flow !== undefined
+          ? flowElements(flow, steps)
+          : { nodes: [], edges: [] },
+    [grid, flow, steps],
+  );
   const selected = tiles.find((tile) => tileId(tile) === search.tile);
 
   const setSearch = useCallback(
@@ -153,7 +174,7 @@ function Grid() {
   const canvas = useRef<CanvasHandle>(null);
   // Unknown until the canvas has measured itself.
   const [zoom, setZoom] = useState<number>();
-  const onViewChange = useCallback((view: View) => setZoom(view.zoom), []);
+
   const devicePixelRatio = useDevicePixelRatio();
   const density = zoom === undefined ? undefined : tileDensity(zoom, devicePixelRatio);
 
@@ -305,19 +326,22 @@ function Grid() {
           </Sidebar>
         )}
         <main className="relative min-w-0 flex-1 bg-background">
-          <Canvas
-            width={size.width}
-            height={size.height}
-            handle={canvas}
-            onViewChange={onViewChange}
-          >
-            <DensityContext value={density}>
-              {grid !== undefined && (
-                <Content tiles={grid.tiles} labels={grid.labels} onSelect={select} />
-              )}
-              {flow !== undefined && <FlowContent layout={flow} onSelect={select} />}
-            </DensityContext>
-          </Canvas>
+          <DensityContext value={density}>
+            <SelectContext value={select}>
+              <StepContext value={step}>
+                <Canvas
+                  width={size.width}
+                  height={size.height}
+                  nodes={elements.nodes}
+                  edges={elements.edges}
+                  nodeTypes={nodeTypes}
+                  edgeTypes={edgeTypes}
+                  handle={canvas}
+                  onZoomChange={setZoom}
+                />
+              </StepContext>
+            </SelectContext>
+          </DensityContext>
           {tiles.length === 0 && (
             <p className="pointer-events-none absolute top-1/2 right-0 left-0 text-center text-secondary">
               {changes?.length === 0
@@ -519,28 +543,6 @@ function useDevicePixelRatio() {
   }, []);
   return ratio;
 }
-
-/** The grid's tiles and labels. Memoized: panning and zooming don't change them. */
-const Content = memo(function Content({
-  tiles,
-  labels,
-  onSelect,
-}: {
-  readonly tiles: ReadonlyArray<Tile>;
-  readonly labels: ReadonlyArray<Label>;
-  readonly onSelect: (tile: Tile) => void;
-}) {
-  // Only what's near the view: re-rendered as that changes, not on every pan.
-  const shown = useNear(tiles, (tile) => tile);
-  return (
-    <>
-      <Labels labels={labels} />
-      {shown.map((tile) => (
-        <TileButton key={tileId(tile)} tile={tile} onSelect={onSelect} />
-      ))}
-    </>
-  );
-});
 
 function Detail({
   tile,

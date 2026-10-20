@@ -1,16 +1,16 @@
-// An infinite canvas: drag or scroll to pan, pinch (or ⌘/Ctrl-scroll) to zoom around the pointer.
+// An infinite canvas on React Flow (851-2766): drag or scroll to pan, pinch (or ⌘/Ctrl-scroll) to
+// zoom around the pointer. It renders only the nodes in view.
 import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useImperativeHandle,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+  type Edge,
+  type EdgeTypes,
+  type Node,
+  type NodeTypes,
+  ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
+  useStore,
+} from "@xyflow/react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 export interface View {
   readonly x: number;
@@ -57,344 +57,181 @@ export const startView = (width: number, viewportWidth: number, minimumZoom = 0.
   return { zoom, x: Math.max(0, (viewportWidth - width * zoom) / 2), y: 0 };
 };
 
-/** A rectangle on the canvas, in canvas points: from (x0, y0) to (x1, y1). */
-export interface Region {
-  readonly x0: number;
-  readonly y0: number;
-  readonly x1: number;
-  readonly y1: number;
-}
-
-/**
- * The part of the canvas worth rendering (851-2713): what's in view, with half a screen around it
- * so panning at normal speed finds it rendered. It's snapped outward to cells a quarter of a
- * screen, rounded up to a power of two, so it only changes every quarter screen of panning, or as
- * zooming doubles or halves.
- */
-export const renderRegion = (view: View, viewportWidth: number, viewportHeight: number): Region => {
-  const width = viewportWidth / view.zoom;
-  const height = viewportHeight / view.zoom;
-  const cell = 2 ** Math.ceil(Math.log2(Math.max(width, height) / 4));
-  const left = -view.x / view.zoom;
-  const top = -view.y / view.zoom;
-  return {
-    x0: Math.floor((left - width / 2) / cell) * cell,
-    y0: Math.floor((top - height / 2) / cell) * cell,
-    x1: Math.ceil((left + width * 1.5) / cell) * cell,
-    y1: Math.ceil((top + height * 1.5) / cell) * cell,
-  };
-};
-
-/** A rectangle on the canvas, in canvas points. */
-export interface Box {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-}
-
-/** Whether `box` reaches into `region`. */
-export const intersects = (region: Region, { x, y, width, height }: Box) =>
-  x < region.x1 && x + width > region.x0 && y < region.y1 && y + height > region.y0;
-
-/**
- * The canvas's `renderRegion`, for its content to render only what's in it. `undefined` until the
- * viewport's size is known (on the server, say): everything.
- */
-export const RegionContext = createContext<Region | undefined>(undefined);
-
-/** The items whose `box` reaches into `region`: all of them without one. */
-export const near = <A,>(
-  region: Region | undefined,
-  items: ReadonlyArray<A>,
-  box: (item: A) => Box,
-): ReadonlyArray<A> =>
-  region === undefined ? items : items.filter((item) => intersects(region, box(item)));
-
-/**
- * The items near the canvas's view, for content to render only those. Off-screen content is then
- * out of the DOM: out of tab order and the browser's find, which the canvas's size makes the
- * better trade.
- */
-export const useNear = <A,>(items: ReadonlyArray<A>, box: (item: A) => Box) =>
-  near(useContext(RegionContext), items, box);
-
-/** The canvas content's CSS transform for a view. */
-const transformOf = (view: View) => `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
-
-const sameRegion = (a: Region, b: Region) =>
-  a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1;
-
-/**
- * Whether a view that input moved to needs React to render it, rather than only moving the
- * canvas (851-2714): when it zooms (the zoom shown, and which images tiles load) or reaches another
- * render region. Panning within one only moves the canvas, and renders once input stops.
- */
-export const needsRender = (
-  live: View,
-  rendered: View,
-  viewport: { readonly width: number; readonly height: number } | undefined,
-) => {
-  if (live.zoom !== rendered.zoom) return true;
-  if (viewport === undefined || viewport.width === 0 || viewport.height === 0) return false;
-  return !sameRegion(
-    renderRegion(live, viewport.width, viewport.height),
-    renderRegion(rendered, viewport.width, viewport.height),
-  );
-};
-
-/** After input stops for this long, the view it moved to renders. */
-const settleDelay = 150;
-
 export interface CanvasHandle {
   readonly zoomBy: (factor: number) => void;
   readonly fit: () => void;
 }
 
-/** Further than this, a press is a drag, not a click. */
+/** Further than this, in screen points, a press is a drag, not a click. */
 const dragThreshold = 4;
 
-export function Canvas({
-  width,
-  height,
-  handle,
-  onViewChange,
-  children,
-}: {
+interface CanvasProps<N extends Node, E extends Edge> {
   /** The content's size, in canvas points. */
   readonly width: number;
   readonly height: number;
+  readonly nodes: N[];
+  readonly edges: E[];
+  /** Stable: React Flow warns when they change. */
+  readonly nodeTypes: NodeTypes;
+  readonly edgeTypes: EdgeTypes;
   readonly handle: React.Ref<CanvasHandle>;
-  readonly onViewChange: (view: View) => void;
-  readonly children: ReactNode;
-}) {
-  const viewport = useRef<HTMLDivElement>(null);
-  const content = useRef<HTMLDivElement>(null);
-  // The start view for a canvas wider than the viewport, the usual case, so the server renders
-  // what the browser starts with. This is the view React renders.
-  const [view, setView] = useState<View>(() => startView(width, 0));
-  const [dragging, setDragging] = useState(false);
-  // Whether the view is the browser's, from the viewport's size, rather than the server's guess.
-  const [measured, setMeasured] = useState(false);
-  const [viewportSize, setViewportSize] = useState<{ width: number; height: number }>();
-  const size = useRef(viewportSize);
-  useEffect(() => {
-    const element = viewport.current;
-    if (element === null) return;
-    const observer = new ResizeObserver(() => {
-      size.current = { width: element.clientWidth, height: element.clientHeight };
-      setViewportSize(size.current);
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+  /** With each zoom it moves to, once it's shown its start view. */
+  readonly onZoomChange: (zoom: number) => void;
+}
 
-  // Wheel, pinch and drag events come faster than the screen refreshes, so they move `live`,
-  // and once a frame the canvas moves to it directly, before that frame paints. React renders it
-  // only when what it shows depends on it (`needsRender`), or once input stops (851-2714).
-  const live = useRef(view);
-  const rendered = useRef(view);
-  const frame = useRef<number | undefined>(undefined);
-  const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const stopMoving = useCallback(() => {
-    if (frame.current !== undefined) cancelAnimationFrame(frame.current);
-    frame.current = undefined;
-    clearTimeout(settle.current);
-  }, []);
-  /** Shows a view at once, dropping any input not yet shown: Fit, the zoom buttons, a reset. */
-  const show = useCallback(
-    (next: View) => {
-      stopMoving();
-      live.current = next;
-      setView(next);
-    },
-    [stopMoving],
+export function Canvas<N extends Node, E extends Edge>(props: CanvasProps<N, E>) {
+  return (
+    <ReactFlowProvider>
+      <Flow {...props} />
+    </ReactFlowProvider>
   );
+}
+
+function Flow<N extends Node, E extends Edge>({
+  width,
+  height,
+  nodes,
+  edges,
+  nodeTypes,
+  edgeTypes,
+  handle,
+  onZoomChange,
+}: CanvasProps<N, E>) {
+  const flow = useReactFlow<N, E>();
+  const { viewportInitialized, getViewport, setViewport } = flow;
+  const viewportWidth = useStore((state) => state.width);
+  const viewportHeight = useStore((state) => state.height);
+  const element = useRef<HTMLDivElement>(null);
+
   // Whether the view has moved since it started: until then, a viewport that changes size (a
   // sidebar shown, hidden or resized) starts it over, so it stays as wide as the viewport.
   const touched = useRef(false);
-  const change = useCallback((update: (view: View) => View) => {
-    touched.current = true;
-    live.current = update(live.current);
-    if (frame.current !== undefined) return;
-    frame.current = requestAnimationFrame(() => {
-      frame.current = undefined;
-      const next = live.current;
-      if (content.current !== null) content.current.style.transform = transformOf(next);
-      clearTimeout(settle.current);
-      if (needsRender(next, rendered.current, size.current)) setView(next);
-      else settle.current = setTimeout(() => setView(live.current), settleDelay);
-    });
-  }, []);
-  useEffect(() => stopMoving, [stopMoving]);
-  // React writes the view it rendered, which input may have moved past since: put the canvas
-  // back where input has it, before the frame paints.
-  useLayoutEffect(() => {
-    rendered.current = view;
-    if (content.current !== null) content.current.style.transform = transformOf(live.current);
-  }, [view]);
-  // A viewport with no size (hidden, say) shows nothing anyway, and its region would be NaN.
-  const region =
-    viewportSize === undefined || viewportSize.width === 0 || viewportSize.height === 0
-      ? undefined
-      : renderRegion(view, viewportSize.width, viewportSize.height);
-  // The same object while the snapped bounds are, so content re-renders only when they change.
-  const { x0, y0, x1, y1 } = region ?? {};
-  const stableRegion = useMemo(
-    () =>
-      x0 === undefined || y0 === undefined || x1 === undefined || y1 === undefined
-        ? undefined
-        : { x0, y0, x1, y1 },
-    [x0, y0, x1, y1],
-  );
-
-  useEffect(() => {
-    if (measured) onViewChange(view);
-  }, [view, measured, onViewChange]);
-
-  const fit = useCallback(() => {
-    const element = viewport.current;
-    if (element === null) return;
-    show(fitView(width, height, element.clientWidth, element.clientHeight));
-  }, [width, height, show]);
+  const show = useCallback((view: View) => void setViewport(view), [setViewport]);
+  // Whether it's shown its start view, rather than the server's guess.
+  const [started, setStarted] = useState(false);
   // Starts over when the content changes, e.g. with a filter.
   useEffect(() => {
-    const element = viewport.current;
-    if (element === null) return;
     touched.current = false;
-    show(startView(width, element.clientWidth));
-    setMeasured(true);
-  }, [width, height, show]);
-  const viewportWidth = viewportSize?.width;
+  }, [width, height]);
   useEffect(() => {
-    if (viewportWidth === undefined || viewportWidth === 0 || touched.current) return;
+    if (!viewportInitialized || viewportWidth === 0 || touched.current) return;
     show(startView(width, viewportWidth));
-  }, [viewportWidth, width, show]);
+    setStarted(true);
+  }, [viewportInitialized, viewportWidth, width, height, show]);
 
   useImperativeHandle(
     handle,
     () => ({
       fit: () => {
         touched.current = true;
-        fit();
+        show(fitView(width, height, viewportWidth, viewportHeight));
       },
       zoomBy: (factor) => {
         touched.current = true;
-        const element = viewport.current;
-        if (element === null) return;
-        show(zoomAround(live.current, factor, element.clientWidth / 2, element.clientHeight / 2));
+        show(zoomAround(getViewport(), factor, viewportWidth / 2, viewportHeight / 2));
       },
     }),
-    [fit, show],
+    [width, height, viewportWidth, viewportHeight, getViewport, show],
   );
 
-  // Wheel and Safari's gesture events, which React only listens to passively.
+  // Safari's pinch, which arrives as gesture events rather than React Flow's Ctrl-wheel.
   useEffect(() => {
-    const element = viewport.current;
-    if (element === null) return;
-    const point = (event: { clientX: number; clientY: number }) => {
-      const bounds = element.getBoundingClientRect();
-      return [event.clientX - bounds.left, event.clientY - bounds.top] as const;
-    };
-    const wheel = (event: WheelEvent) => {
+    const wrapper = element.current;
+    if (wrapper === null) return;
+    let scale = 1;
+    const start = (event: Event) => {
       event.preventDefault();
-      // Some mice scroll by lines or pages (Firefox's do), not points.
-      const unit =
-        event.deltaMode === WheelEvent.DOM_DELTA_LINE
-          ? 16
-          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-            ? element.clientHeight
-            : 1;
-      const dx = event.deltaX * unit;
-      const dy = event.deltaY * unit;
-      // A trackpad pinch arrives as a wheel event with Ctrl held.
-      if (event.ctrlKey || event.metaKey) {
-        const [px, py] = point(event);
-        change((view) => zoomAround(view, Math.exp(-dy * 0.01), px, py));
-      } else {
-        change((view) => ({ ...view, x: view.x - dx, y: view.y - dy }));
-      }
+      scale = 1;
     };
-    let gestureScale = 1;
-    const gestureStart = (event: Event) => {
-      event.preventDefault();
-      gestureScale = 1;
-    };
-    const gestureChange = (event: Event) => {
+    const change = (event: Event) => {
       event.preventDefault();
       const gesture = event as Event & { scale: number; clientX: number; clientY: number };
-      const [px, py] = point(gesture);
-      const factor = gesture.scale / gestureScale;
-      gestureScale = gesture.scale;
-      change((view) => zoomAround(view, factor, px, py));
+      const bounds = wrapper.getBoundingClientRect();
+      const factor = gesture.scale / scale;
+      scale = gesture.scale;
+      touched.current = true;
+      show(
+        zoomAround(
+          getViewport(),
+          factor,
+          gesture.clientX - bounds.left,
+          gesture.clientY - bounds.top,
+        ),
+      );
     };
-    element.addEventListener("wheel", wheel, { passive: false });
-    element.addEventListener("gesturestart", gestureStart);
-    element.addEventListener("gesturechange", gestureChange);
+    wrapper.addEventListener("gesturestart", start);
+    wrapper.addEventListener("gesturechange", change);
     return () => {
-      element.removeEventListener("wheel", wheel);
-      element.removeEventListener("gesturestart", gestureStart);
-      element.removeEventListener("gesturechange", gestureChange);
+      wrapper.removeEventListener("gesturestart", start);
+      wrapper.removeEventListener("gesturechange", change);
     };
-  }, [change]);
-
-  // Dragging with one pointer pans; others are ignored. A drag that started on a tile doesn't also
-  // select it.
-  const press = useRef<{ pointer: number; x: number; y: number; moved: boolean } | null>(null);
-  const onPointerDown = (event: React.PointerEvent) => {
-    // A second finger isn't primary.
-    if (event.button !== 0 || !event.isPrimary) return;
-    const pointer = event.pointerId;
-    press.current = { pointer, x: event.clientX, y: event.clientY, moved: false };
-  };
-  const onPointerMove = (event: React.PointerEvent) => {
-    const current = press.current;
-    if (current === null || event.pointerId !== current.pointer) return;
-    // Released where the canvas didn't hear it, e.g. over the header or a sidebar.
-    if (event.buttons === 0) {
-      press.current = null;
-      setDragging(false);
-      return;
-    }
-    const dx = event.clientX - current.x;
-    const dy = event.clientY - current.y;
-    if (!current.moved && Math.hypot(dx, dy) < dragThreshold) return;
-    if (!current.moved) {
-      current.moved = true;
-      setDragging(true);
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
-    press.current = { ...current, x: event.clientX, y: event.clientY };
-    change((view) => ({ ...view, x: view.x + dx, y: view.y + dy }));
-  };
-  const onPointerUp = (event: React.PointerEvent) => {
-    if (event.pointerId !== press.current?.pointer) return;
-    setDragging(false);
-    // Cleared after the click that follows, which checks it.
-    setTimeout(() => (press.current = null));
-  };
-  const onClickCapture = (event: React.MouseEvent) => {
-    if (press.current?.moved === true) event.stopPropagation();
-  };
+  }, [getViewport, show]);
 
   return (
-    <div
-      ref={viewport}
-      className={`absolute inset-0 touch-none overflow-hidden select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-      onClickCapture={onClickCapture}
+    <ReactFlow
+      ref={element}
+      className="absolute! inset-0"
+      nodes={nodes}
+      edges={edges}
+      nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
+      // The server's guess, for a canvas wider than the viewport, the usual case.
+      defaultViewport={startView(width, 0)}
+      minZoom={minZoom}
+      maxZoom={maxZoom}
+      // Only the nodes in view are in the DOM. Its own culling (851-2713's render region) costs more:
+      // every node React Flow mounts, even hidden, reads its store on every frame of panning.
+      onlyRenderVisibleElements
+      // Scrolling pans, as in Figma; pinching or ⌘-scrolling zooms.
+      panOnScroll
+      panOnScrollSpeed={1}
+      zoomOnScroll={false}
+      zoomOnDoubleClick={false}
+      paneClickDistance={dragThreshold}
+      // A canvas to look at, not to edit.
+      nodesDraggable={false}
+      nodesConnectable={false}
+      nodesFocusable={false}
+      edgesFocusable={false}
+      elementsSelectable={false}
+      onMoveStart={(event) => {
+        // `null` when the view was set, rather than moved by input.
+        if (event !== null) touched.current = true;
+      }}
+      attributionPosition="bottom-left"
+      // React Flow's light and dark colors are for its own nodes; Pixelbook's theme colors the rest.
+      style={{ "--xy-attribution-background-color": "transparent" } as React.CSSProperties}
     >
-      <div
-        ref={content}
-        // Its own layer from the start, so the first pan doesn't promote it (851-2714).
-        className="absolute top-0 left-0 origin-top-left will-change-transform"
-        style={{ width, height, transform: transformOf(view) }}
-      >
-        <RegionContext value={stableRegion}>{children}</RegionContext>
-      </div>
-    </div>
+      <ArrowMarker />
+      {started && <ZoomReporter onZoomChange={onZoomChange} />}
+    </ReactFlow>
+  );
+}
+
+/** Reports the zoom as it changes: its own component, so the canvas doesn't re-render with it. */
+function ZoomReporter({ onZoomChange }: { readonly onZoomChange: (zoom: number) => void }) {
+  const zoom = useStore((state) => state.transform[2]);
+  useEffect(() => onZoomChange(zoom), [zoom, onZoomChange]);
+  return null;
+}
+
+/** The arrowhead at the end of a flowchart route (`markerEnd="url(#route-arrow)"`). */
+function ArrowMarker() {
+  return (
+    <svg className="absolute size-0" aria-hidden="true">
+      <defs>
+        <marker
+          id="route-arrow"
+          viewBox="0 0 10 10"
+          refX="9"
+          refY="5"
+          markerWidth="6"
+          markerHeight="6"
+          orient="auto-start-reverse"
+        >
+          <path className="fill-secondary" d="M 0 0 L 10 5 L 0 10 z" />
+        </marker>
+      </defs>
+    </svg>
   );
 }

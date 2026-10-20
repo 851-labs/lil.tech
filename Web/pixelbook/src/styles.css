@@ -1,5 +1,8 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter";
+/* React Flow's own styles, for the canvas (851-2766), in the base layer so utilities override
+   them. */
+@import "@xyflow/react/dist/base.css" layer(base);
 
 /* Pixelbook's colors, in light and dark, and fonts, as the theme's tokens: utilities such as
    `bg-surface` and `text-secondary` use them. Tailwind turns `light-dark()` into the system's
