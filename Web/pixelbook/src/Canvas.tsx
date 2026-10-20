@@ -210,7 +210,11 @@ export function Canvas({
     },
     [stopMoving],
   );
+  // Whether the view has moved since it started: until then, a viewport that changes size (a
+  // sidebar shown, hidden or resized) starts it over, so it stays as wide as the viewport.
+  const touched = useRef(false);
   const change = useCallback((update: (view: View) => View) => {
+    touched.current = true;
     live.current = update(live.current);
     if (frame.current !== undefined) return;
     frame.current = requestAnimationFrame(() => {
@@ -257,15 +261,25 @@ export function Canvas({
   useEffect(() => {
     const element = viewport.current;
     if (element === null) return;
+    touched.current = false;
     show(startView(width, element.clientWidth));
     setMeasured(true);
   }, [width, height, show]);
+  const viewportWidth = viewportSize?.width;
+  useEffect(() => {
+    if (viewportWidth === undefined || viewportWidth === 0 || touched.current) return;
+    show(startView(width, viewportWidth));
+  }, [viewportWidth, width, show]);
 
   useImperativeHandle(
     handle,
     () => ({
-      fit,
+      fit: () => {
+        touched.current = true;
+        fit();
+      },
       zoomBy: (factor) => {
+        touched.current = true;
         const element = viewport.current;
         if (element === null) return;
         show(zoomAround(live.current, factor, element.clientWidth / 2, element.clientHeight / 2));

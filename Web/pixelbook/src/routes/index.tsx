@@ -83,11 +83,9 @@ function ExternalLink(props: Omit<React.ComponentProps<"a">, "target" | "rel">) 
 
 const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
 
-/** A small control in the header, as Linear's: zoom, Show all and the like. */
-const pillButton =
-  "flex h-6 cursor-pointer items-center rounded-chip border px-2 text-mini font-medium";
-/** One that isn't on: the zoom buttons, Show all, a chip that's off. */
-const plainButton = `${pillButton} border-border text-muted hover:bg-hover`;
+/** A small button in the header, as Linear's: zoom, Show all and the like. */
+const plainButton =
+  "flex h-6 cursor-pointer items-center rounded-chip border border-border px-2 text-mini font-medium text-muted hover:bg-hover";
 
 function Grid() {
   const { book, base, missingBase } = Route.useLoaderData();
@@ -163,13 +161,12 @@ function Grid() {
 
   return (
     <div className="fixed inset-0 flex flex-col">
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-surface px-3">
+      <header className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-surface px-3 py-1.5">
         <button
           type="button"
           className={`${plainButton} border-transparent px-1.5`}
           onClick={sidebar.toggle}
-          aria-pressed={sidebar.open}
-          title={sidebar.open ? "Hide the sidebar" : "Show the sidebar"}
+          title="Show or hide the sidebar"
         >
           <SidebarIcon />
         </button>
@@ -183,7 +180,7 @@ function Grid() {
           {book.commit.slice(0, 7)}
         </ExternalLink>
         {missingBase !== undefined && (
-          <span className="flex min-w-0 items-center gap-1.5 truncate text-mini text-secondary">
+          <span className="flex flex-wrap items-center gap-1.5 text-mini text-secondary">
             no snapshots of {missingBase.slice(0, 7)} to compare with
             <button
               type="button"
@@ -195,7 +192,7 @@ function Grid() {
           </span>
         )}
         {base !== undefined && (
-          <span className="flex min-w-0 items-center gap-1.5 text-mini text-secondary">
+          <span className="flex flex-wrap items-center gap-1.5 text-mini text-secondary">
             changes since{" "}
             <ExternalLink
               className="font-mono text-mini"
@@ -272,8 +269,14 @@ function Grid() {
         </div>
       </header>
       <div className="relative flex min-h-0 flex-1">
-        {sidebar.open && (
-          <Sidebar width={sidebar.width} onResize={sidebar.resize}>
+        {sidebar.open !== false && (
+          <Sidebar
+            width={sidebar.width}
+            onResize={sidebar.resize}
+            onResized={sidebar.remember}
+            // Until toggled, it shows only in wide windows.
+            hiddenWhenNarrow={sidebar.open === undefined}
+          >
             <FilterList
               label="Apps"
               values={apps}
@@ -345,56 +348,86 @@ function Grid() {
 const sidebarWidth = { initial: 244, min: 200, max: 400 };
 /** Narrower than this, the sidebar starts hidden, so the canvas has the room. */
 const narrowQuery = "(max-width: 899px)";
+const widthKey = "pixelbook.sidebarWidth";
+
+/** `localStorage`, which may be unavailable (blocked, or a sandbox): then nothing is remembered. */
+const storage = {
+  get: (key: string) => {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set: (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // Not remembered.
+    }
+  },
+};
 
 /**
- * Whether the sidebar shows, and how wide it is. Hidden while the window is narrow, and shown again
- * when it widens, unless toggled since. The width is remembered across visits.
+ * Whether the sidebar shows, and how wide it is. `open` is `undefined` until it's toggled: then it
+ * shows only in wide windows, by CSS, so it doesn't flash before the page knows the window's
+ * width. Its width is remembered across visits.
  */
 function useSidebar() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState<boolean>();
   const [width, setWidth] = useState(sidebarWidth.initial);
   useEffect(() => {
-    const stored = Number(localStorage.getItem("pixelbook.sidebarWidth"));
+    const stored = Number(storage.get(widthKey));
     if (stored >= sidebarWidth.min && stored <= sidebarWidth.max) setWidth(stored);
-    const narrow = window.matchMedia(narrowQuery);
-    setOpen(!narrow.matches);
-    const follow = (event: MediaQueryListEvent) => setOpen(!event.matches);
-    narrow.addEventListener("change", follow);
-    return () => narrow.removeEventListener("change", follow);
   }, []);
   const resize = useCallback((to: number) => {
-    const clamped = Math.round(Math.min(sidebarWidth.max, Math.max(sidebarWidth.min, to)));
-    setWidth(clamped);
-    localStorage.setItem("pixelbook.sidebarWidth", String(clamped));
+    setWidth(Math.round(Math.min(sidebarWidth.max, Math.max(sidebarWidth.min, to))));
   }, []);
-  const toggle = useCallback(() => setOpen((open) => !open), []);
-  return { open, width, resize, toggle };
+  const remember = useCallback((width: number) => storage.set(widthKey, String(width)), []);
+  const toggle = useCallback(
+    () => setOpen((open) => !(open ?? !window.matchMedia(narrowQuery).matches)),
+    [],
+  );
+  return { open, width, resize, remember, toggle };
 }
 
-/** The left sidebar: what to show on the canvas. Its right edge drags to resize it. */
+/**
+ * The left sidebar: what to show on the canvas. Its right edge drags to resize it. Narrow windows
+ * show it over the canvas.
+ */
 function Sidebar({
   width,
   onResize,
+  onResized,
+  hiddenWhenNarrow,
   children,
 }: {
   readonly width: number;
   readonly onResize: (width: number) => void;
+  /** Once a drag ends, with the width it ended at. */
+  readonly onResized: (width: number) => void;
+  readonly hiddenWhenNarrow: boolean;
   readonly children: React.ReactNode;
 }) {
   const start = useRef<{ x: number; width: number } | null>(null);
+  const latest = useRef(width);
+  latest.current = width;
   return (
     <aside
-      className="relative flex shrink-0 flex-col gap-4 overflow-auto border-r border-border bg-surface px-2 py-3 max-[899px]:absolute max-[899px]:inset-y-0 max-[899px]:left-0 max-[899px]:z-3 max-[899px]:shadow-popover"
+      className={`relative flex max-w-[calc(100vw-48px)] shrink-0 border-r border-border bg-surface max-[899px]:absolute max-[899px]:inset-y-0 max-[899px]:left-0 max-[899px]:z-3 max-[899px]:shadow-popover ${hiddenWhenNarrow ? "max-[899px]:hidden" : ""}`}
       style={{ width }}
       aria-label="Filters"
     >
-      {children}
+      <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto px-2 py-3">{children}</div>
       <div
-        className="absolute inset-y-0 -right-1 w-2 cursor-col-resize hover:bg-accent/20"
+        className="absolute inset-y-0 right-0 w-1.5 cursor-col-resize hover:bg-accent/20"
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize the sidebar"
         onPointerDown={(event) => {
+          if (event.button !== 0 || !event.isPrimary) return;
+          // Not a text selection across the sidebar.
+          event.preventDefault();
           event.currentTarget.setPointerCapture(event.pointerId);
           start.current = { x: event.clientX, width };
         }}
@@ -402,7 +435,11 @@ function Sidebar({
           if (start.current === null) return;
           onResize(start.current.width + event.clientX - start.current.x);
         }}
-        onPointerUp={() => (start.current = null)}
+        onPointerUp={() => {
+          if (start.current === null) return;
+          start.current = null;
+          onResized(latest.current);
+        }}
         onPointerCancel={() => (start.current = null)}
       />
     </aside>
