@@ -3,14 +3,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { Canvas, type CanvasHandle, type Insets } from "../Canvas.tsx";
 import { ExternalLink, plainButton, Segmented } from "../Controls.tsx";
 import { flowNodes, gridNodes, withSteps } from "../Elements.ts";
-import {
-  type Direction,
-  type Frame,
-  flowFrames,
-  frameOf,
-  gridFrames,
-  neighbor,
-} from "../Selection.ts";
+import { type Direction, flowFrames, frameOf, gridFrames, neighbor } from "../Selection.ts";
 import {
   filtersFrom,
   modeFrom,
@@ -21,6 +14,8 @@ import {
 } from "../Filters.ts";
 import { layoutFlowchart } from "../Flow.ts";
 import { Inspector, type Summary } from "../Inspector.tsx";
+import { flowLayers, gridLayers, type LayerState } from "../Layers.ts";
+import { LayersList } from "../LayersList.tsx";
 import { RoutesNodeView, ScreenNodeView, StepContext, useSteps } from "../FlowNodes.tsx";
 import { graphs } from "../graphs.ts";
 import { layoutGrid, type Tile, tileId } from "../Grid.ts";
@@ -196,15 +191,46 @@ function Grid() {
     }
     return insets;
   }, []);
-  // A frame the arrow keys selected, shown once the inspector the selection opens is laid out.
-  const toReveal = useRef<Frame | undefined>(undefined);
+  // A frame to show once the selection, and the inspector it opens, are laid out: panned to when
+  // the arrow keys select it, or zoomed to when the layers list does. `shows` counts requests, so
+  // choosing the selected frame again zooms to it too.
+  const toShow = useRef<
+    | {
+        readonly id: string;
+        readonly zoom: boolean;
+        /** What was selected when it was asked for, until the selection catches up. */
+        readonly from: string | undefined;
+      }
+    | undefined
+  >(undefined);
+  const [shows, setShows] = useState(0);
+  const show = useCallback(
+    (tile: Tile, zoom: boolean) => {
+      toShow.current = { id: tileId(tile), zoom, from: selectedId };
+      select(tile);
+      setShows((count) => count + 1);
+    },
+    [select, selectedId],
+  );
   useEffect(() => {
-    const frame = toReveal.current;
+    const target = toShow.current;
+    if (target === undefined) return;
+    if (selectedId !== target.id) {
+      // Not selected yet; or selected, then something else was, so it's dropped.
+      if (selectedId !== target.from) toShow.current = undefined;
+      return;
+    }
+    toShow.current = undefined;
+    // A stepped flowchart screen's frame shows the state it was stepped to.
+    const frame = frameOf(frames, target.id);
     if (frame === undefined) return;
-    toReveal.current = undefined;
-    const next = requestAnimationFrame(() => canvas.current?.reveal(frame.box, covered()));
+    const next = requestAnimationFrame(() =>
+      target.zoom
+        ? canvas.current?.zoomTo(frame.box, covered())
+        : canvas.current?.reveal(frame.box, covered()),
+    );
     return () => cancelAnimationFrame(next);
-  }, [search.tile, covered]);
+  }, [shows, selectedId, frames, covered]);
 
   const zoomToSelection = useCallback(() => {
     if (selectedFrame !== undefined) canvas.current?.zoomTo(selectedFrame.box, covered());
@@ -244,6 +270,21 @@ function Grid() {
     [book, base, counts, search.commit, search.ref, shown, tiles],
   );
 
+  // The sidebar's list of what's on the canvas. Choosing a state steps its flowchart screen to it,
+  // selects it and zooms to it.
+  const layers = useMemo(
+    () =>
+      grid !== undefined ? gridLayers(grid.tiles) : flow !== undefined ? flowLayers(flow) : [],
+    [grid, flow],
+  );
+  const choose = useCallback(
+    (state: LayerState) => {
+      if (state.step !== undefined) step(state.step.key, state.step.index);
+      show(state.tile, true);
+    },
+    [step, show],
+  );
+
   const [helpShown, setHelpShown] = useState(false);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -272,8 +313,7 @@ function Grid() {
         const focused = document.activeElement;
         if (focused instanceof HTMLElement && focused.closest(".react-flow") !== null)
           focused.blur();
-        toReveal.current = next;
-        select(next.tile);
+        show(next.tile, false);
       } else if (plain && event.shiftKey && event.code === "Digit1") {
         view?.fit();
       } else if (plain && event.shiftKey && event.code === "Digit2") {
@@ -290,7 +330,7 @@ function Grid() {
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [frames, selectedFrame, search.tile, select, deselect, helpShown, zoomToSelection]);
+  }, [frames, selectedFrame, search.tile, show, deselect, helpShown, zoomToSelection]);
 
   // Stepping the selected flowchart screen selects the state it steps to, which it shows.
   const stepScreen = useCallback(
@@ -446,6 +486,7 @@ function Grid() {
                 setSearch({ schemes: toggle(schemes, filters.schemes, scheme) })
               }
             />
+            <LayersList apps={layers} selected={search.tile} onChoose={choose} />
           </Sidebar>
         )}
         <main
@@ -635,7 +676,7 @@ function Sidebar({
     <aside
       className={`relative flex max-w-[calc(100vw-48px)] shrink-0 border-r border-border bg-surface max-[899px]:absolute max-[899px]:inset-y-0 max-[899px]:left-0 max-[899px]:z-3 max-[899px]:shadow-popover ${hiddenWhenNarrow ? "max-[899px]:hidden" : ""}`}
       style={{ width }}
-      aria-label="Filters"
+      aria-label="Filters and layers"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto px-2 py-3">{children}</div>
       <div

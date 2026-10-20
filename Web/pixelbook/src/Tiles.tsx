@@ -18,8 +18,8 @@ const snapshotBackgrounds = {
 export const snapshotBackground = (platform: Platform, scheme: Scheme) =>
   snapshotBackgrounds[platform][scheme];
 
-/** A comparison's badge colors, by its label. */
-const badgeColors: Record<ChangeLabel, string> = {
+/** A comparison's badge colors, by its label: the canvas's, and the layers list's. */
+export const badgeColors: Record<ChangeLabel, string> = {
   Before: "bg-secondary",
   After: "bg-added",
   New: "bg-added",
