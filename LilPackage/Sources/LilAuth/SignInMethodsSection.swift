@@ -156,7 +156,9 @@ private struct ProviderIcon: View {
   var body: some View {
     switch provider {
     case .apple:
+      // Apple's logo is black, or white in dark mode, never a tint (its guidelines).
       Image(systemName: "apple.logo")
+        .foregroundStyle(.primary)
     case .google:
       Image("GoogleG", bundle: .module)
         .resizable()
