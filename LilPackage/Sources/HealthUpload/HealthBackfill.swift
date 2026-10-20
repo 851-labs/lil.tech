@@ -372,6 +372,28 @@ public actor HealthBackfill {
     _ = try? await running.task.value
   }
 
+  /// Reads every type's history again from the start, for what the server is missing (851-2662),
+  /// e.g. once Health shares more of it. It first catches up from where each type got to, so
+  /// deletions since go up, then forgets only that, the counts (which the new pass makes again)
+  /// and when Activity summaries were read. What it needs to delete records no longer readable,
+  /// and the account's limits, stay. The next run reads from the start. Throws if catching up
+  /// fails, changing nothing.
+  public func uploadAgain() async throws {
+    try await run()
+    // A run for changes that started meanwhile finishes first: it saves the state as it goes.
+    while let running { _ = try? await running.task.value }
+    var state = try storage.loadState() ?? HealthBackfillState()
+    state.anchors = [:]
+    state.finished = []
+    state.empty = []
+    state.uploadedRecords = 0
+    state.uploadedByType = [:]
+    state.activitySummariesUploadedAt = nil
+    try storage.saveState(state)
+    countedRecords = [:]
+    updateCounts(state)
+  }
+
   /// Forgets everything, e.g. on signing out: the next account starts from the beginning.
   public func reset() async {
     if let resetting { return await resetting.value }

@@ -18,6 +18,25 @@ struct SettingsSheet: View {
     NavigationStack {
       List {
         SignInMethodsSection(store: store.scope(\.signInMethods, action: \.signInMethods))
+        if store.hasConsent {
+          Section {
+            Button {
+              store.send(.uploadEverythingAgainButtonTapped)
+            } label: {
+              if store.isUploadingAgain {
+                // Catching up first.
+                LabeledContent("Checking for Changes…") { ProgressView() }
+              } else {
+                Text("Upload Everything Again")
+              }
+            }
+            .disabled(store.isUploadingAgain)
+          } footer: {
+            Text(
+              "If you let Health share more of your history, such as All Recorded Data rather than the past 30 days, this uploads the older data too."
+            )
+          }
+        }
         Section {
           Button("Health Access in Settings") { store.send(.openSettingsButtonTapped) }
           Link("Privacy Policy", destination: privacyPolicy)

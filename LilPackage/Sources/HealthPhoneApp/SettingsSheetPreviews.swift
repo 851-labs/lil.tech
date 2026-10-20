@@ -63,6 +63,20 @@ private func settings(
       alert: .withdrawalFailed("It isn't possible right now. Please try again later.")))
 }
 
+#Preview("Upload everything again?") {
+  settings(SyncStatusFeature.State(alert: .confirmUploadEverythingAgain))
+}
+
+#Preview("Uploading everything again") {
+  settings(SyncStatusFeature.State(isUploadingAgain: true))
+}
+
+#Preview("Upload everything again failed") {
+  settings(
+    SyncStatusFeature.State(
+      alert: .uploadAgainFailed("The Internet connection appears to be offline.")))
+}
+
 #Preview("Delete account?") {
   settings(SyncStatusFeature.State(alert: .confirmDeletion))
 }
