@@ -111,16 +111,28 @@ export const loadBook = async (source: Source): Promise<Book> => {
 /** The URL of a variant's image. */
 export const imageUrl = (variant: Variant) => `${assetsUrl}/${variant.image}`;
 
-/** The URL of a variant's thumbnail, or of its image if it has none. */
-export const thumbnailUrl = (variant: Variant) =>
-  `${assetsUrl}/${variant.thumbnail ?? variant.image}`;
+/**
+ * How much smaller a thumbnail is than its image, in each dimension, as publishing makes them
+ * (`Services/api/scripts/pixelbook.ts`).
+ */
+const thumbnailDivisor = 4;
 
 /**
- * Whether tiles drawn at `zoom` look the same from thumbnails: they hold half a pixel per point
- * on a Mac (2x) and more on an iPhone (3x), so up to that many screen pixels per point.
+ * Screen pixels per point that tiles are drawn at, rounded up to a quarter: a thumbnail holds
+ * `scale / 4` pixels per point, so tiles only need to re-render when this crosses a quarter. Past
+ * 1, every image (up to 4x) needs its original.
  */
-export const thumbnailsSuffice = (zoom: number, devicePixelRatio: number) =>
-  zoom * devicePixelRatio <= 0.5;
+export const tileDensity = (zoom: number, devicePixelRatio: number) =>
+  Math.min(1, Math.ceil(zoom * devicePixelRatio * 4) / 4);
+
+/**
+ * The URL to show a variant at `density` screen pixels per point: its thumbnail while that holds
+ * enough pixels, otherwise its image.
+ */
+export const tileImageUrl = (variant: Variant, density: number) =>
+  variant.thumbnail !== undefined && density <= variant.scale / thumbnailDivisor
+    ? `${assetsUrl}/${variant.thumbnail}`
+    : imageUrl(variant);
 
 /** Where a snapshot's preview is, on GitHub, at the commit it was rendered from. */
 export const sourceUrl = (snapshot: Snapshot, commit: string) =>

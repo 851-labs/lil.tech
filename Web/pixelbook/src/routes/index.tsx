@@ -17,7 +17,7 @@ import {
   appName,
   type Book,
   imageUrl,
-  thumbnailsSuffice,
+  tileDensity,
   loadBook,
   NotPublished,
   type Platform,
@@ -27,7 +27,7 @@ import {
   sourceUrl,
 } from "../Snapshots.ts";
 import { describeChanges, diffBooks, layoutDiff, summarize } from "../Diff.ts";
-import { Labels, schemeNames, ThumbnailsContext, TileButton } from "../Tiles.tsx";
+import { DensityContext, Labels, schemeNames, TileButton } from "../Tiles.tsx";
 
 export const Route = createFileRoute("/")({
   validateSearch,
@@ -147,13 +147,11 @@ function Grid() {
   }, [open, select]);
 
   const canvas = useRef<CanvasHandle>(null);
-  const [zoom, setZoom] = useState(0.1);
+  // Unknown until the canvas has measured itself.
+  const [zoom, setZoom] = useState<number>();
   const onViewChange = useCallback((view: View) => setZoom(view.zoom), []);
-  // Not known while rendering on the server, where the zoom is the initial one anyway.
-  const thumbnails = thumbnailsSuffice(
-    zoom,
-    typeof window === "undefined" ? 1 : window.devicePixelRatio,
-  );
+  const devicePixelRatio = useDevicePixelRatio();
+  const density = zoom === undefined ? undefined : tileDensity(zoom, devicePixelRatio);
 
   return (
     <div className="app">
@@ -233,7 +231,7 @@ function Grid() {
           <button type="button" onClick={() => canvas.current?.zoomBy(1 / 1.5)} title="Zoom out">
             −
           </button>
-          <span>{Math.round(zoom * 100)}%</span>
+          <span>{zoom === undefined ? "" : `${Math.round(zoom * 100)}%`}</span>
           <button type="button" onClick={() => canvas.current?.zoomBy(1.5)} title="Zoom in">
             +
           </button>
@@ -250,12 +248,12 @@ function Grid() {
         </span>
       </header>
       <Canvas width={size.width} height={size.height} handle={canvas} onViewChange={onViewChange}>
-        <ThumbnailsContext value={thumbnails}>
+        <DensityContext value={density}>
           {grid !== undefined && (
             <Content tiles={grid.tiles} labels={grid.labels} onSelect={select} />
           )}
           {flow !== undefined && <FlowContent layout={flow} onSelect={select} />}
-        </ThumbnailsContext>
+        </DensityContext>
       </Canvas>
       {tiles.length === 0 && (
         <p className="empty">
@@ -313,6 +311,23 @@ function Chips<A extends string>({
       })}
     </div>
   );
+}
+
+/** The display's pixels per CSS pixel, kept up to date as the window moves between displays. */
+function useDevicePixelRatio() {
+  const [ratio, setRatio] = useState(1);
+  useEffect(() => {
+    let query: MediaQueryList | undefined;
+    const watch = () => {
+      setRatio(window.devicePixelRatio);
+      // Matches until the ratio changes, then is replaced.
+      query = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      query.addEventListener("change", watch, { once: true });
+    };
+    watch();
+    return () => query?.removeEventListener("change", watch);
+  }, []);
+  return ratio;
 }
 
 /** The grid's tiles and labels. Memoized: panning and zooming don't change them. */

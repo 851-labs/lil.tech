@@ -1,16 +1,17 @@
 // What the canvas shows in both modes: snapshot tiles and text labels.
 import { createContext, useContext } from "react";
 import type { Label, Tile } from "./Grid.ts";
-import { imageUrl, type Scheme, thumbnailUrl } from "./Snapshots.ts";
+import { type Scheme, tileImageUrl } from "./Snapshots.ts";
 
 export const schemeNames: Record<Scheme, string> = { light: "Light", dark: "Dark" };
 
 /**
- * Whether tiles show thumbnails rather than full images: zoomed out, so the canvas doesn't load
- * and decode every image at full size (851-2712). A context, so crossing the threshold re-renders
- * the tiles but not the memoized layouts around them.
+ * Screen pixels per point tiles are drawn at (`tileDensity`), so that zoomed out they show
+ * thumbnails rather than load and decode every image at full size (851-2712). `undefined` until
+ * the canvas knows its view, so tiles don't load a thumbnail and then the image. A context, so a
+ * change re-renders the tiles but not the memoized layouts around them. Outside one, full images.
  */
-export const ThumbnailsContext = createContext(true);
+export const DensityContext = createContext<number | undefined>(Number.POSITIVE_INFINITY);
 
 /** A snapshot, at `tile`'s position in its container; clicking it opens it full size. */
 export function TileButton({
@@ -20,7 +21,7 @@ export function TileButton({
   readonly tile: Tile;
   readonly onSelect: (tile: Tile) => void;
 }) {
-  const thumbnails = useContext(ThumbnailsContext);
+  const density = useContext(DensityContext);
   return (
     <button
       type="button"
@@ -33,7 +34,7 @@ export function TileButton({
         <span className={`badge ${tile.change.label.toLowerCase()}`}>{tile.change.label}</span>
       )}
       <img
-        src={thumbnails ? thumbnailUrl(tile.variant) : imageUrl(tile.variant)}
+        src={density === undefined ? undefined : tileImageUrl(tile.variant, density)}
         alt={`${tile.snapshot.screen}: ${tile.snapshot.state}`}
         width={tile.width}
         height={tile.height}

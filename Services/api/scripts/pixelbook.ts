@@ -161,13 +161,16 @@ export const pngInfo = (bytes: Buffer) => {
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20), scale };
 };
 
-/** How much smaller a thumbnail is than its image, in each dimension. */
-export const thumbnailDivisor = 4;
+/**
+ * How much smaller a thumbnail is than its image, in each dimension. Pixelbook's viewer
+ * (`thumbnailDivisor` in `Web/pixelbook/src/Snapshots.ts`) relies on it.
+ */
+const thumbnailDivisor = 4;
 
-/** A quarter-size copy of a PNG, made with `sips`. */
-const thumbnail = async (png: string, width: number, scratch: string) => {
-  const out = join(scratch, `${createHash("sha256").update(png).digest("hex")}.thumbnail.png`);
-  const thumbnailWidth = Math.max(1, Math.round(width / thumbnailDivisor));
+/** A copy of a variant's PNG, `thumbnailDivisor` times smaller, made with `sips`. */
+const thumbnail = async (png: string, variant: Variant, scratch: string) => {
+  const out = join(scratch, basename(variant.thumbnail));
+  const thumbnailWidth = Math.max(1, Math.round(variant.width / thumbnailDivisor));
   await run("sips", ["--resampleWidth", String(thumbnailWidth), png, "--out", out]);
   const bytes = await readFile(out);
   await rm(out);
@@ -380,7 +383,8 @@ const main = async () => {
       process.exit(3);
     }
     const render = await readRender(dir);
-    const existing = new Set([...(await list("images/")), ...(await list("thumbnails/"))]);
+    const listed = await Promise.all([list("images/"), list("thumbnails/")]);
+    const existing = new Set(listed.flatMap((keys) => [...keys]));
     const images = new Map<string, { variant: Variant; path: string }>();
     for (const { images: appImages } of render) {
       for (const { image, path } of appImages) {
@@ -398,7 +402,10 @@ const main = async () => {
     const scratch = await mkdtemp(join(tmpdir(), "pixelbook-"));
     try {
       await inParallel(missingThumbnails, 8, async ({ variant, path }) =>
-        put(variant.thumbnail, await thumbnail(path, variant.width, scratch), "image/png"),
+        // A dry run only says what it would upload, so it doesn't make them.
+        dryRun
+          ? put(variant.thumbnail, "", "image/png")
+          : put(variant.thumbnail, await thumbnail(path, variant, scratch), "image/png"),
       );
     } finally {
       await rm(scratch, { recursive: true, force: true });
