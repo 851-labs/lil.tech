@@ -23,10 +23,12 @@ import { layoutFlowchart } from "../Flow.ts";
 import { Inspector, type Summary } from "../Inspector.tsx";
 import { RoutesNodeView, ScreenNodeView, StepContext, useSteps } from "../FlowNodes.tsx";
 import { graphs } from "../graphs.ts";
-import { layoutGrid, shows, type Tile, tileId } from "../Grid.ts";
+import { layoutGrid, type Tile, tileId } from "../Grid.ts";
 import {
   appName,
   type Book,
+  commitUrl,
+  compareUrl,
   tileDensity,
   loadBook,
   NotPublished,
@@ -35,7 +37,7 @@ import {
   schemes,
   sourceOf,
 } from "../Snapshots.ts";
-import { describeChanges, diffBooks, layoutDiff, summarize } from "../Diff.ts";
+import { describeChanges, diffBooks, layoutDiff, shownChanges, summarize } from "../Diff.ts";
 import {
   DensityContext,
   LabelNodeView,
@@ -209,21 +211,23 @@ function Grid() {
   }, [selectedFrame, covered]);
 
   // What the canvas shows, for the header and the inspector.
+  const counts = useMemo(
+    () => (changes === undefined ? undefined : summarize(shownChanges(changes, filters))),
+    [changes, filters],
+  );
   const shown =
-    changes !== undefined
-      ? describeChanges(summarize(changes))
+    counts !== undefined
+      ? describeChanges(counts)
       : flow === undefined
         ? `${tiles.length} snapshots`
         : `${flow.nodes.length + flow.unlinked.length} screens`;
-  const summary = useMemo((): Summary => {
-    const counts = changes === undefined ? undefined : summarize(changes);
-    return {
+  const summary = useMemo(
+    (): Summary => ({
       commit: book.commit,
       ref: search.commit === undefined ? (search.ref ?? "main") : undefined,
       shown,
-      apps: apps
-        .filter((app) => shows(filters.apps, app))
-        .map((app) => appName(app, manifestPlatform(book, app))),
+      // Those on the canvas, in its order.
+      apps: [...new Set(tiles.map((tile) => appName(tile.app, tile.platform)))],
       comparison:
         base === undefined || counts === undefined
           ? undefined
@@ -236,13 +240,14 @@ function Grid() {
                 ["Screens", counts.screens],
               ],
             },
-    };
-  }, [book, base, changes, search.commit, search.ref, shown, apps, filters.apps]);
+    }),
+    [book, base, counts, search.commit, search.ref, shown, tiles],
+  );
 
   const [helpShown, setHelpShown] = useState(false);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || isTyping(event.target) || inPanel(event.target)) return;
+      if (event.defaultPrevented || isTyping(event.target)) return;
       const view = canvas.current;
       const direction = arrowDirections[event.key];
       // Shortcuts with other modifiers are the browser's or the system's.
@@ -257,6 +262,8 @@ function Grid() {
         // The rest wait until the list is closed.
         return;
       } else if (direction !== undefined && plain && !event.shiftKey) {
+        // In the sidebar or inspector, they scroll it.
+        if (inPanel(event.target)) return;
         // With nothing selected, the first frame.
         const next =
           selectedFrame === undefined ? frames[0] : neighbor(frames, selectedFrame, direction);
@@ -318,7 +325,7 @@ function Grid() {
         <h1 className="mr-1 text-small font-semibold text-foreground">Pixelbook</h1>
         <ExternalLink
           className="font-mono text-mini text-secondary"
-          href={`https://github.com/851-labs/lil.tech/commit/${book.commit}`}
+          href={commitUrl(book.commit)}
           title={`Snapshots from ${book.commit}`}
         >
           {search.commit === undefined ? `${search.ref ?? "main"} · ` : ""}
@@ -341,7 +348,7 @@ function Grid() {
             changes since{" "}
             <ExternalLink
               className="font-mono text-mini"
-              href={`https://github.com/851-labs/lil.tech/compare/${base.commit}...${book.commit}`}
+              href={compareUrl(base.commit, book.commit)}
             >
               {base.commit.slice(0, 7)}
             </ExternalLink>
@@ -502,7 +509,7 @@ const arrowDirections: Partial<Record<string, Direction>> = {
   ArrowDown: "down",
 };
 
-/** Whether a key goes to a panel beside the canvas, such as the inspector, to scroll it. */
+/** Whether a key goes to a panel beside the canvas, such as the inspector, which it may scroll. */
 const inPanel = (target: EventTarget | null) =>
   target instanceof Element && target.closest("aside") !== null;
 

@@ -135,8 +135,17 @@ export const tileImageUrl = (variant: Variant, density: number) =>
     : imageUrl(variant);
 
 /** Where a snapshot's preview is, on GitHub, at the commit it was rendered from. */
+const repositoryUrl = "https://github.com/851-labs/lil.tech";
+
+/** A commit on GitHub. */
+export const commitUrl = (commit: string) => `${repositoryUrl}/commit/${commit}`;
+
+/** What changed from `base` to `head`, on GitHub. */
+export const compareUrl = (base: string, head: string) =>
+  `${repositoryUrl}/compare/${base}...${head}`;
+
 export const sourceUrl = (snapshot: Snapshot, commit: string) =>
-  `https://github.com/851-labs/lil.tech/blob/${commit}/LilPackage/Sources/${snapshot.module}/${snapshot.file}` +
+  `${repositoryUrl}/blob/${commit}/LilPackage/Sources/${snapshot.module}/${snapshot.file}` +
   (snapshot.line === null ? "" : `#L${snapshot.line}`);
 
 /** "health-mac" → "lil health for Mac". */

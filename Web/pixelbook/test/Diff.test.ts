@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { comment, marker } from "../scripts/diff.ts";
-import { diffBooks, layoutDiff, summarize } from "../src/Diff.ts";
+import { diffBooks, layoutDiff, shownChanges, summarize } from "../src/Diff.ts";
 import { noFilters, spacing } from "../src/Grid.ts";
 import type { Book, Manifest, Snapshot } from "../src/Snapshots.ts";
 
@@ -54,6 +54,15 @@ describe("comparing snapshots", () => {
       ["changed", "Summary_Pinned", ["dark"]],
     ]);
     expect(summarize(changes)).toEqual({ changed: 1, added: 1, removed: 1, screens: 3 });
+  });
+
+  it("counts only the changes the filters show", () => {
+    const changes = diffBooks(base, head);
+    // Only the changed snapshot differs in dark.
+    const dark = shownChanges(changes, { ...noFilters, schemes: ["dark"] });
+    expect(summarize(dark)).toEqual({ changed: 1, added: 0, removed: 0, screens: 1 });
+    expect(shownChanges(changes, { ...noFilters, platforms: ["ios"] })).toEqual([]);
+    expect(shownChanges(changes, noFilters)).toEqual(changes);
   });
 
   it("finds nothing when nothing changed", () => {

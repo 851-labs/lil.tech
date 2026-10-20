@@ -2,8 +2,17 @@
 // changes, and what to do with it; with nothing selected, a summary of what the canvas shows.
 import { useEffect, useState } from "react";
 import { ExternalLink, plainButton, Segmented } from "./Controls.tsx";
-import type { Tile } from "./Grid.ts";
-import { appName, imageUrl, type Scheme, schemes, sourceUrl, type Variant } from "./Snapshots.ts";
+import { type Tile, tileId } from "./Grid.ts";
+import {
+  appName,
+  commitUrl,
+  compareUrl,
+  imageUrl,
+  type Scheme,
+  schemes,
+  sourceUrl,
+  type Variant,
+} from "./Snapshots.ts";
 import { platformNames, schemeNames, snapshotBackground } from "./Tiles.tsx";
 
 /** What the canvas shows, for the inspector to sum up when nothing is selected. */
@@ -50,7 +59,14 @@ export function Inspector({
   }
   return (
     <aside className={panel} aria-label={`${tile.snapshot.screen}: ${tile.snapshot.state}`}>
-      <FrameView tile={tile} commit={commit} onClose={onClose} onZoomTo={onZoomTo} />
+      {/* Keyed, so its state, such as the appearance shown, starts over with each frame. */}
+      <FrameView
+        key={tileId(tile)}
+        tile={tile}
+        commit={commit}
+        onClose={onClose}
+        onZoomTo={onZoomTo}
+      />
     </aside>
   );
 }
@@ -64,10 +80,7 @@ function SummaryView({ summary }: { readonly summary: Summary }) {
         </h2>
         <p className="mt-0.5 text-secondary">
           {summary.shown} from{" "}
-          <ExternalLink
-            className="font-mono text-mini"
-            href={`https://github.com/851-labs/lil.tech/commit/${summary.commit}`}
-          >
+          <ExternalLink className="font-mono text-mini" href={commitUrl(summary.commit)}>
             {summary.commit.slice(0, 7)}
           </ExternalLink>
         </p>
@@ -78,14 +91,16 @@ function SummaryView({ summary }: { readonly summary: Summary }) {
             Changes since{" "}
             <ExternalLink
               className="font-mono"
-              href={`https://github.com/851-labs/lil.tech/compare/${summary.comparison.base}...${summary.commit}`}
+              href={compareUrl(summary.comparison.base, summary.commit)}
             >
               {summary.comparison.base.slice(0, 7)}
             </ExternalLink>
           </h3>
           <dl className="grid grid-cols-[1fr_auto] gap-y-1">
             {summary.comparison.changes.map(([name, count]) => (
-              <Row key={name} name={name} value={count} />
+              <Detail key={name} name={name} numeric>
+                {count}
+              </Detail>
             ))}
           </dl>
         </section>
@@ -105,16 +120,6 @@ function SummaryView({ summary }: { readonly summary: Summary }) {
   );
 }
 
-/** A row of a two-column list, its value to the right. */
-function Row({ name, value }: { readonly name: string; readonly value: React.ReactNode }) {
-  return (
-    <>
-      <dt className="text-secondary">{name}</dt>
-      <dd className="text-right tabular-nums [overflow-wrap:anywhere]">{value}</dd>
-    </>
-  );
-}
-
 function FrameView({
   tile,
   commit,
@@ -127,13 +132,12 @@ function FrameView({
   readonly onZoomTo: () => void;
 }) {
   const { snapshot, variant, change } = tile;
-  // Which appearance the image shows: the frame's, until switched.
+  // Which appearance the image shows: the frame's, until switched. A comparison's frame is one
+  // appearance's change, so it shows only that one.
   const [scheme, setScheme] = useState<Scheme>(tile.scheme);
-  useEffect(() => setScheme(tile.scheme), [tile]);
-  // A comparison's frame is one appearance's change, so it shows only that one.
   const appearances = change === undefined ? schemes.filter((s) => snapshot.variants[s]) : [];
-  const shown = (change === undefined ? snapshot.variants[scheme] : undefined) ?? variant;
-  const shownScheme = shown === variant ? tile.scheme : scheme;
+  const shownScheme = appearances.includes(scheme) ? scheme : tile.scheme;
+  const shown = snapshot.variants[shownScheme] ?? variant;
   const background = snapshotBackground(tile.platform, shownScheme);
   const alt = `${snapshot.screen}: ${snapshot.state}`;
   return (
@@ -211,14 +215,31 @@ function FrameView({
   );
 }
 
-function Detail({ name, children }: { readonly name: string; readonly children: React.ReactNode }) {
+/** A row of a two-column list: a count's value aligns right. */
+function Detail({
+  name,
+  numeric = false,
+  children,
+}: {
+  readonly name: string;
+  readonly numeric?: boolean;
+  readonly children: React.ReactNode;
+}) {
   return (
     <>
       <dt className="text-secondary">{name}</dt>
-      <dd className="[overflow-wrap:anywhere]">{children}</dd>
+      <dd className={numeric ? "text-right tabular-nums" : "[overflow-wrap:anywhere]"}>
+        {children}
+      </dd>
     </>
   );
 }
+
+/** A variant's size in points. */
+const points = (variant: Variant) => ({
+  width: variant.width / variant.scale,
+  height: variant.height / variant.scale,
+});
 
 /** A snapshot at its size in points, or the panel's width if that's smaller. */
 function SnapshotImage({
@@ -241,7 +262,7 @@ function SnapshotImage({
       alt={alt}
       draggable={false}
       style={{
-        width: variant.width / variant.scale,
+        width: points(variant).width,
         aspectRatio: `${variant.width} / ${variant.height}`,
         ...style,
       }}
@@ -273,6 +294,10 @@ function Compare({
   readonly alt: string;
 }) {
   const [mode, setMode] = useState<CompareMode>("sides");
+  const box = {
+    width: Math.max(points(before).width, points(after).width),
+    height: Math.max(points(before).height, points(after).height),
+  };
   // The after's opacity, or where the divider is, in percent.
   const [amount, setAmount] = useState(50);
   return (
@@ -300,23 +325,36 @@ function Compare({
             />
             After
           </label>
-          <div className="relative self-start">
-            <SnapshotImage variant={before} background={background} alt={`${alt}, before`} />
+          {/* Both in one box as large as the larger, at the same scale, from its top left. */}
+          <div
+            className="relative w-full"
+            style={{ maxWidth: box.width, aspectRatio: `${box.width} / ${box.height}` }}
+          >
+            <SnapshotImage
+              variant={before}
+              background={background}
+              alt={`${alt}, before`}
+              className="absolute top-0 left-0"
+              style={{ width: `${(points(before).width / box.width) * 100}%` }}
+            />
             <SnapshotImage
               variant={after}
               background={background}
               alt={`${alt}, after`}
               className="absolute top-0 left-0"
-              style={
-                mode === "overlay"
+              style={{
+                width: `${(points(after).width / box.width) * 100}%`,
+                // The divider shows the after to its left and the before to its right.
+                ...(mode === "overlay"
                   ? { opacity: amount / 100 }
-                  : { clipPath: `inset(0 0 0 ${amount}%)` }
-              }
+                  : { clipPath: `inset(0 ${100 - amount}% 0 0)` }),
+              }}
             />
             {mode === "slider" && (
               <div
                 className="pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 bg-accent"
-                style={{ left: `${amount}%` }}
+                // Where the after's clip ends, in the box.
+                style={{ left: `${(amount * points(after).width) / box.width}%` }}
               />
             )}
           </div>
@@ -328,12 +366,23 @@ function Compare({
 
 /** Zoom to the frame, open its image full size, or copy a link to it. */
 function Actions({ image, onZoomTo }: { readonly image: Variant; readonly onZoomTo: () => void }) {
-  const [copied, setCopied] = useState(false);
+  // How copying the link went, said for a moment.
+  const [copied, setCopied] = useState<"Copied" | "Couldn't copy">();
   useEffect(() => {
-    if (!copied) return;
-    const timeout = setTimeout(() => setCopied(false), 1500);
+    if (copied === undefined) return;
+    const timeout = setTimeout(() => setCopied(undefined), 1500);
     return () => clearTimeout(timeout);
   }, [copied]);
+  const copy = async () => {
+    try {
+      // Missing outside secure contexts, such as a dev server on another machine's address.
+      if (navigator.clipboard === undefined) throw new Error("No clipboard");
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied("Copied");
+    } catch {
+      setCopied("Couldn't copy");
+    }
+  };
   return (
     <div className="flex flex-wrap gap-1.5">
       <button type="button" className={plainButton} onClick={onZoomTo} title="Zoom to it (⇧2)">
@@ -342,14 +391,8 @@ function Actions({ image, onZoomTo }: { readonly image: Variant; readonly onZoom
       <ExternalLink className={`${plainButton} hover:no-underline`} href={imageUrl(image)}>
         Open image
       </ExternalLink>
-      <button
-        type="button"
-        className={plainButton}
-        onClick={() =>
-          void navigator.clipboard.writeText(window.location.href).then(() => setCopied(true))
-        }
-      >
-        {copied ? "Copied" : "Copy link"}
+      <button type="button" className={plainButton} onClick={() => void copy()}>
+        {copied ?? "Copy link"}
       </button>
     </div>
   );

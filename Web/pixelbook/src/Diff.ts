@@ -132,15 +132,24 @@ export const describeChanges = (summary: ReturnType<typeof summarize>) => {
  * Lays a comparison out like the grid: an app per section, a screen per row. A changed state shows
  * each differing appearance before and after; an added or removed one shows its own side.
  */
+/** The changes the filters show: in a shown app and platform, and differing in a shown appearance. */
+export const shownChanges = (changes: ReadonlyArray<SnapshotChange>, filters: Filters) =>
+  changes.filter(
+    (change) =>
+      shows(filters.apps, change.app) &&
+      shows(filters.platforms, change.platform) &&
+      change.schemes.some((scheme) => shows(filters.schemes, scheme)),
+  );
+
 export const layoutDiff = (changes: ReadonlyArray<SnapshotChange>, filters: Filters) => {
   const tiles: Tile[] = [];
   const labels: Label[] = [];
   let y = spacing.margin;
   let width = 0;
-  const shown = changes
-    .filter((change) => shows(filters.apps, change.app))
-    .filter((change) => shows(filters.platforms, change.platform));
-  for (const [app, appChanges] of Map.groupBy(shown, (change) => change.app)) {
+  for (const [app, appChanges] of Map.groupBy(
+    shownChanges(changes, filters),
+    (change) => change.app,
+  )) {
     const rows = [...Map.groupBy(appChanges, (change) => snapshotOf(change).screen)].flatMap(
       ([screen, screenChanges]) => {
         const row = layoutChanges(screenChanges, filters);
