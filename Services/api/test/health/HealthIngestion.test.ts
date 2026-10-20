@@ -646,6 +646,84 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
     }),
   );
 
+  it.effect("applies vision prescriptions, glasses and contacts", () =>
+    Effect.gen(function* () {
+      const lens = { sphere: -2.25, cylinder: -0.5, axis: 90, addPower: null };
+      const glasses = {
+        entity: "health_vision_prescription",
+        op: "upsert",
+        id: uuid(4650),
+        row: {
+          startDate: 1760400000000,
+          endDate: 1760400000000,
+          prescriptionType: 1,
+          expirationDate: 1823472000000,
+          brand: null,
+          rightEye: {
+            ...lens,
+            vertexDistance: 12,
+            prism: {
+              amount: 1,
+              angle: 90,
+              verticalAmount: 1,
+              verticalBase: 1,
+              horizontalAmount: 0,
+              horizontalBase: 0,
+            },
+            farPupillaryDistance: 32,
+            nearPupillaryDistance: 30,
+          },
+          leftEye: null,
+          sourceName: "Test iPhone",
+          sourceBundleId: "com.apple.health.00000000",
+        },
+      };
+      const contacts = {
+        ...glasses,
+        id: uuid(4651),
+        row: {
+          ...glasses.row,
+          prescriptionType: 2,
+          expirationDate: null,
+          brand: "Synthetic Lenses",
+          rightEye: { ...lens, baseCurve: 8.6, diameter: 14.2 },
+          leftEye: { ...lens, sphere: -2, baseCurve: 8.6, diameter: 14.2 },
+        },
+      };
+      const { batch } = yield* ingest([
+        glasses,
+        contacts,
+        // Neither glasses nor contacts.
+        { ...glasses, id: uuid(4652), row: { ...glasses.row, prescriptionType: 3 } },
+        // A lens without its sphere.
+        { ...glasses, id: uuid(4653), row: { ...glasses.row, leftEye: { cylinder: -1 } } },
+        // A prism that isn't numbers.
+        {
+          ...glasses,
+          id: uuid(4654),
+          row: { ...glasses.row, rightEye: { ...lens, prism: "base up" } },
+        },
+      ]);
+      assert.deepInclude(batch, { status: "applied", applied: 2, rejected: 3 });
+      const sql = (yield* TestStores).sqlFor(userId);
+      assert.deepStrictEqual(
+        sql?.exec(
+          "SELECT prescription_type, expiration_date, brand, left_eye FROM health_vision_prescription ORDER BY id",
+        ),
+        [
+          { prescription_type: 1, expiration_date: 1823472000000, brand: null, left_eye: null },
+          {
+            prescription_type: 2,
+            expiration_date: null,
+            brand: "Synthetic Lenses",
+            left_eye:
+              '{"addPower":null,"axis":90,"baseCurve":8.6,"cylinder":-0.5,"diameter":14.2,"sphere":-2}',
+          },
+        ],
+      );
+    }),
+  );
+
   it.effect("applies ECGs, which refer to their voltages blob", () =>
     Effect.gen(function* () {
       const ecg = {

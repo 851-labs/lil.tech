@@ -289,6 +289,79 @@ struct HealthEncoderTests {
   }
 
   @Test
+  func glassesPrescription() throws {
+    let diopters = HKUnit.diopter()
+    let millimeters = HKUnit.meterUnit(with: .milli)
+    let prism = HKVisionPrism(
+      verticalAmount: HKQuantity(unit: .prismDiopter(), doubleValue: 1), verticalBase: .up,
+      horizontalAmount: HKQuantity(unit: .prismDiopter(), doubleValue: 0.5),
+      horizontalBase: .in, eye: .right)
+    let right = HKGlassesLensSpecification(
+      sphere: HKQuantity(unit: diopters, doubleValue: -2.25),
+      cylinder: HKQuantity(unit: diopters, doubleValue: -0.5),
+      axis: HKQuantity(unit: .degreeAngle(), doubleValue: 90), addPower: nil,
+      vertexDistance: HKQuantity(unit: millimeters, doubleValue: 12), prism: prism,
+      farPupillaryDistance: HKQuantity(unit: millimeters, doubleValue: 32),
+      nearPupillaryDistance: nil)
+    let expires = start.addingTimeInterval(2 * 365 * 86_400)
+    let prescription = HKGlassesPrescription(
+      rightEyeSpecification: right, leftEyeSpecification: nil, dateIssued: start,
+      expirationDate: expires, device: nil, metadata: nil)
+    let mutation = HealthEncoder.visionPrescription(prescription)
+    #expect(mutation.entity == "health_vision_prescription")
+    _ = try row(mutation, as: Components.Schemas.HealthVisionPrescription.self)
+    let encoded = try #require(try line(mutation)["row"] as? [String: Any])
+    #expect(encoded["prescriptionType"] as? Int == 1)
+    #expect(encoded["startDate"] as? Double == HealthEncoder.milliseconds(start))
+    #expect(encoded["expirationDate"] as? Double == HealthEncoder.milliseconds(expires))
+    #expect(encoded["brand"] is NSNull)
+    #expect(encoded["leftEye"] is NSNull)
+    let eye = try #require(encoded["rightEye"] as? [String: Any])
+    #expect(eye["sphere"] as? Double == -2.25)
+    #expect(eye["axis"] as? Double == 90)
+    #expect(eye["addPower"] is NSNull)
+    #expect(eye["vertexDistance"] as? Double == 12)
+    #expect(eye["nearPupillaryDistance"] is NSNull)
+    let encodedPrism = try #require(eye["prism"] as? [String: Any])
+    #expect(encodedPrism["verticalAmount"] as? Double == 1)
+    #expect(encodedPrism["verticalBase"] as? Int == HKPrismBase.up.rawValue)
+    #expect(encodedPrism["horizontalBase"] as? Int == HKPrismBase.in.rawValue)
+  }
+
+  @Test
+  func contactsPrescription() throws {
+    let diopters = HKUnit.diopter()
+    let millimeters = HKUnit.meterUnit(with: .milli)
+    let lens = { (sphere: Double) in
+      HKContactsLensSpecification(
+        sphere: HKQuantity(unit: diopters, doubleValue: sphere), cylinder: nil, axis: nil,
+        addPower: nil, baseCurve: HKQuantity(unit: millimeters, doubleValue: 8.6),
+        diameter: HKQuantity(unit: millimeters, doubleValue: 14.2))
+    }
+    let prescription = HKContactsPrescription(
+      rightEyeSpecification: lens(-2.25), leftEyeSpecification: lens(-2), brand: "Synthetic",
+      dateIssued: start, expirationDate: nil, device: nil, metadata: nil)
+    let mutation = HealthEncoder.visionPrescription(prescription)
+    _ = try row(mutation, as: Components.Schemas.HealthVisionPrescription.self)
+    let encoded = try #require(try line(mutation)["row"] as? [String: Any])
+    #expect(encoded["prescriptionType"] as? Int == 2)
+    #expect(encoded["brand"] as? String == "Synthetic")
+    #expect(encoded["expirationDate"] is NSNull)
+    let left = try #require(encoded["leftEye"] as? [String: Any])
+    #expect(left["sphere"] as? Double == -2)
+    #expect(left["baseCurve"] as? Double == 8.6)
+    #expect(left["diameter"] as? Double == 14.2)
+    #expect(left["prism"] == nil)
+  }
+
+  @Test
+  func visionPrescriptionsAreBackfilledOnceShared() {
+    let types = HealthBackfillType.all(availableOn: .ios(26))
+    let prescriptions = types.first { $0.id == "HKVisionPrescriptionTypeIdentifier" }
+    #expect(prescriptions?.entity == "health_vision_prescription")
+  }
+
+  @Test
   func workoutsAreBackfilledAndDeletedAsWorkouts() {
     let types = HealthBackfillType.all(availableOn: .ios(26))
     let workout = types.first { $0.id == "HKWorkoutTypeIdentifier" }

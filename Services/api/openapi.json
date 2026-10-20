@@ -3424,6 +3424,69 @@
         ],
         "additionalProperties": true
       },
+      "HealthVisionPrescription": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "endDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "prescriptionType": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "expirationDate": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "brand": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rightEye": {},
+          "leftEye": {},
+          "sourceName": {
+            "type": "string"
+          },
+          "sourceBundleId": {
+            "type": "string"
+          },
+          "sourceRevision": {},
+          "device": {},
+          "metadata": {},
+          "provenance": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "startDate",
+          "endDate",
+          "prescriptionType",
+          "sourceName",
+          "sourceBundleId"
+        ],
+        "additionalProperties": true
+      },
       "HealthPin": {
         "type": "object",
         "properties": {

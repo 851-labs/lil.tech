@@ -172,6 +172,10 @@ extension HealthDatabase {
       milliseconds =
         try HealthAudiogram.order { $0.startDate.desc() }.select(\.startDate).limit(1)
         .fetchOne(db)
+    case .visionPrescription:
+      milliseconds =
+        try HealthVisionPrescription.order { $0.startDate.desc() }.select(\.startDate).limit(1)
+        .fetchOne(db)
     case .electrocardiogram:
       milliseconds =
         try HealthElectrocardiogram.order { $0.startDate.desc() }.select(\.startDate).limit(1)
@@ -185,8 +189,7 @@ extension HealthDatabase {
       let day = try HealthActivitySummary.order { $0.id.desc() }.select(\.id).limit(1)
         .fetchOne(db)
       return day.flatMap { gregorianDay($0, calendar: calendar) }
-    case .quantity, .characteristic, .medication, .medicationDoseEvent, .visionPrescription,
-      .document:
+    case .quantity, .characteristic, .medication, .medicationDoseEvent, .document:
       milliseconds = nil
     }
     return milliseconds.map(Date.init(unixMilliseconds:))

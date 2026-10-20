@@ -178,6 +178,63 @@ const checkAudiogramPoints = (points: unknown): string | undefined => {
   return undefined;
 };
 
+/**
+ * Glasses and contact lens prescriptions (`HKVisionPrescription`, 851-2572). Health shares them one
+ * by one, as the person picks them (per-object read authorization).
+ */
+export const HealthVisionPrescription = defineEntity("health_vision_prescription", {
+  clientWritable: false,
+  id: healthKitUUID,
+  fields: {
+    /** When it was issued, as both the sample's start and end. */
+    startDate: Column.integer,
+    endDate: Column.integer,
+    /** `HKVisionPrescriptionType`'s raw value: 1 glasses, 2 contacts. */
+    prescriptionType: Column.integer,
+    expirationDate: Column.nullable(Column.integer),
+    /** A contacts prescription's lens brand. */
+    brand: Column.nullable(Column.text),
+    /**
+     * Each eye's lens, or null for an eye it doesn't cover: `sphere`, `cylinder`, `axis` and
+     * `addPower` (diopters, the axis in degrees) for both kinds. Glasses add `vertexDistance`,
+     * `farPupillaryDistance` and `nearPupillaryDistance` (mm) and `prism` (`{ amount, angle,
+     * verticalAmount, verticalBase, horizontalAmount, horizontalBase }`, prism diopters and
+     * degrees, the bases `HKPrismBase` raw values); contacts add `baseCurve` and `diameter` (mm).
+     * Values a prescription doesn't give are null.
+     */
+    rightEye: Column.nullable(Column.json),
+    leftEye: Column.nullable(Column.json),
+    ...provenance,
+  },
+  checkRow: (_, row) => checkVisionPrescription(row.prescriptionType, [row.rightEye, row.leftEye]),
+});
+
+/** Whether every value of an object is a number or null. */
+const numbersOrNull = (value: Record<string, unknown>) =>
+  Object.values(value).every((field) => field === null || typeof field === "number");
+
+/** Checks a vision prescription has the shape `HealthVisionPrescription` documents. */
+const checkVisionPrescription = (
+  prescriptionType: unknown,
+  eyes: ReadonlyArray<unknown>,
+): string | undefined => {
+  if (prescriptionType !== 1 && prescriptionType !== 2) {
+    return "prescriptionType must be 1 (glasses) or 2 (contacts)";
+  }
+  for (const eye of eyes) {
+    if (eye === null) continue;
+    if (!isObject(eye) || typeof eye.sphere !== "number") {
+      return "each eye must be null or a lens with its sphere";
+    }
+    const { prism, ...values } = eye;
+    if (!numbersOrNull(values)) return "a lens's values must be numbers or null";
+    if (prism !== undefined && prism !== null && !(isObject(prism) && numbersOrNull(prism))) {
+      return "a lens's prism must be null or numbers";
+    }
+  }
+  return undefined;
+};
+
 /** Whether a field is a list of HealthKit enum raw values. */
 const isRawValues = (value: unknown) =>
   Array.isArray(value) && value.every((element) => Number.isInteger(element));
@@ -459,4 +516,5 @@ export const healthEntities = [
   HealthElectrocardiogram,
   HealthHeartbeatSeries,
   HealthWorkoutRoute,
+  HealthVisionPrescription,
 ] as const;

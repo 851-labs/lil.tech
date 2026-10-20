@@ -268,6 +268,50 @@ public struct HealthAudiogram: Equatable, Identifiable, Sendable {
   }
 }
 
+/// A glasses or contacts prescription (`health_vision_prescription`, 851-2572). Its start and end
+/// are the date it was issued; `rightEye` and `leftEye` are JSON, as the server documents them.
+@Table
+public struct HealthVisionPrescription: Equatable, Identifiable, Sendable {
+  public let id: String
+  public var startDate: Int
+  public var endDate: Int
+  /// `HKVisionPrescriptionType`'s raw value: 1 glasses, 2 contacts.
+  public var prescriptionType: Int
+  public var expirationDate: Int?
+  public var brand: String?
+  public var rightEye: String?
+  public var leftEye: String?
+  public var sourceName: String
+  public var sourceBundleID: String
+  public var sourceRevision: String?
+  public var device: String?
+  public var metadata: String?
+  /// The ``HealthProvenance`` with its source revision and device.
+  public var provenance: String?
+
+  public init(
+    id: String, startDate: Int, endDate: Int, prescriptionType: Int, expirationDate: Int? = nil,
+    brand: String? = nil, rightEye: String? = nil, leftEye: String? = nil, sourceName: String,
+    sourceBundleID: String, sourceRevision: String? = nil, device: String? = nil,
+    metadata: String? = nil, provenance: String? = nil
+  ) {
+    self.id = id
+    self.startDate = startDate
+    self.endDate = endDate
+    self.prescriptionType = prescriptionType
+    self.expirationDate = expirationDate
+    self.brand = brand
+    self.rightEye = rightEye
+    self.leftEye = leftEye
+    self.sourceName = sourceName
+    self.sourceBundleID = sourceBundleID
+    self.sourceRevision = sourceRevision
+    self.device = device
+    self.metadata = metadata
+    self.provenance = provenance
+  }
+}
+
 /// The Activity rings for one day, keyed by the day (`YYYY-MM-DD` in the iPhone's calendar).
 @Table
 public struct HealthActivitySummary: Equatable, Identifiable, Sendable {

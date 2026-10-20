@@ -1106,6 +1106,13 @@ struct HealthSyncTests {
         """
         "sourceRevision": {"version": "11.0"}, "device": {"name": "Apple Watch"}
         """),
+      upsert(
+        16, "health_vision_prescription", "6f1c2a40-0000-4000-8000-00000000000a",
+        """
+        "startDate": 1760400000000, "endDate": 1760400000000, "prescriptionType": 2,
+        "expirationDate": null, "brand": "Synthetic", "rightEye": {"sphere": -2.25},
+        "leftEye": null, "sourceName": "Test iPhone", "sourceBundleId": "com.example"
+        """),
     ]
     let api = Client.mock { request, _ in
       #expect(request.path?.hasPrefix("/v1/sync/changes") == true)
@@ -1114,7 +1121,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 15, head: 15, hasMore: false)))
+              epoch: 1, changes: changes, next: 16, head: 16, hasMore: false)))
       )
     }
     let engine = withDependencies {
@@ -1171,6 +1178,12 @@ struct HealthSyncTests {
     let series = try await database.read { db in try HealthHeartbeatSeries.fetchAll(db) }
     #expect(series.map(\.beats) == ["[0,0.82,1.65]"])
     #expect(series.map(\.gaps) == ["[2]"])
+    let prescriptions = try await database.read { db in
+      try HealthVisionPrescription.fetchAll(db)
+    }
+    #expect(prescriptions.map(\.brand) == ["Synthetic"])
+    #expect(prescriptions.map(\.rightEye) == [#"{"sphere":-2.25}"#])
+    #expect(prescriptions.map(\.leftEye) == [nil])
     let routes = try await database.read { db in try HealthWorkoutRoute.fetchAll(db) }
     #expect(routes.map(\.locationCount) == [3600])
     #expect(routes.map(\.workout) == ["6f1c2a40-0000-4000-8000-000000000004"])
@@ -1201,7 +1214,7 @@ struct HealthSyncTests {
       writable(HealthStateOfMind.self), writable(HealthScoredAssessment.self),
       writable(HealthAudiogram.self), writable(HealthElectrocardiogram.self),
       writable(HealthWorkoutRoute.self), writable(HealthHeartbeatSeries.self),
-      writable(HealthStatisticsDevice.self),
+      writable(HealthStatisticsDevice.self), writable(HealthVisionPrescription.self),
     ]
     #expect(Set(tables.map(\.0)).count == HealthDatabase.syncEntities.count)
     for (table, written) in tables {
