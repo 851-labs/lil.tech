@@ -355,16 +355,44 @@ mac_runs() {
   done
   return 0
 }
+# The simulator's test runner sometimes never connects: it timed out preparing, hung, or was
+# killed first (851-2805), with nothing rendered. Such a run is tried again, twice at most.
+runner_started() {
+  ! grep -qE "before establishing connection|timed out while preparing to run tests" "$1"
+}
 iphone_runs() {
-  local appearance entry
+  local appearance entry try
   for appearance in light dark; do
     xcrun simctl ui "$device" appearance "$appearance" || return 1
     for entry in "${iphone_apps[@]}"; do
-      run "${entry%%:*}" "$appearance" -scheme "${entry#*:}" -destination "id=$device" || return 1
+      for try in 1 2 3; do
+        run "${entry%%:*}" "$appearance" -scheme "${entry#*:}" -destination "id=$device" || return 1
+        runner_started "$out/${entry%%:*}/$appearance.log" && break
+        if [ "$try" -lt 3 ]; then
+          echo "    ${entry%%:*}/$appearance: the test runner didn't start; trying again" >&2
+        fi
+      done
     done
   done
   return 0
 }
+
+# One render at a time on a Mac (851-2805): the simulator is shared, so another render installing
+# its test host kills this one's runs, and two Mac test runs at once hang. Another waits here; a
+# lock whose render is gone is taken over.
+lock="${TMPDIR:-/tmp}/pixelbook-render.lock"
+waiting=false
+until mkdir "$lock" 2>/dev/null; do
+  holder=$(cat "$lock/pid" 2>/dev/null || true)
+  if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
+    rm -rf "$lock"
+    continue
+  fi
+  $waiting || echo "==> Waiting for another render on this Mac to finish"
+  waiting=true
+  sleep 5
+done
+echo $$ >"$lock/pid"
 
 # The simulator is shared with everyday use, so its appearance is put back afterwards, once
 # nothing is changing it. Interrupted, the lanes and their test runs stop too.
@@ -380,7 +408,7 @@ stop_lanes() {
   done
   wait 2>/dev/null || true
 }
-trap 'stop_lanes; xcrun simctl ui "$device" appearance "$original" 2>/dev/null || true' EXIT
+trap 'stop_lanes; xcrun simctl ui "$device" appearance "$original" 2>/dev/null || true; rm -rf "$lock"' EXIT
 trap 'exit 130' INT TERM
 mac_runs &
 mac_lane=$!
