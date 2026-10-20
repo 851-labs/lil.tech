@@ -9,6 +9,7 @@ import {
   useStore,
 } from "@xyflow/react";
 import { memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import type { Box } from "./Selection.ts";
 
 export interface View {
   readonly x: number;
@@ -58,7 +59,14 @@ export const startView = (width: number, viewportWidth: number, minimumZoom = 0.
 export interface CanvasHandle {
   readonly zoomBy: (factor: number) => void;
   readonly fit: () => void;
+  /** Zooms to show `box` filling the view, animated. */
+  readonly zoomTo: (box: Box) => void;
+  /** Pans to show `box` whole, at the same zoom, unless it already is. */
+  readonly reveal: (box: Box) => void;
 }
+
+/** How long zooming or panning to a frame takes, in milliseconds. */
+const moveDuration = 250;
 
 /** Further than this, in screen points, a press is a drag, not a click. */
 const dragThreshold = 4;
@@ -76,6 +84,8 @@ interface CanvasProps<N extends Node> {
   readonly handle: React.Ref<CanvasHandle>;
   /** With each zoom it moves to, once it's shown its start view. */
   readonly onZoomChange: (zoom: number) => void;
+  /** A click on the canvas outside any node. */
+  readonly onPaneClick: () => void;
 }
 
 /** Memoized: its page re-renders with each zoom it reports, and the canvas needn't. */
@@ -94,8 +104,9 @@ function Flow<N extends Node>({
   nodeTypes,
   handle,
   onZoomChange,
+  onPaneClick,
 }: CanvasProps<N>) {
-  const { viewportInitialized, getViewport, setViewport } = useReactFlow<N>();
+  const { viewportInitialized, getViewport, setViewport, fitBounds, setCenter } = useReactFlow<N>();
   const viewportWidth = useStore((state) => state.width);
   const viewportHeight = useStore((state) => state.height);
   const element = useRef<HTMLDivElement>(null);
@@ -130,8 +141,28 @@ function Flow<N extends Node>({
         touched.current = true;
         show(zoomAround(getViewport(), factor, viewportWidth / 2, viewportHeight / 2));
       },
+      zoomTo: (box) => {
+        touched.current = true;
+        void fitBounds(box, { padding: 0.1, duration: moveDuration });
+      },
+      reveal: (box) => {
+        const { x, y, zoom } = getViewport();
+        const left = box.x * zoom + x;
+        const top = box.y * zoom + y;
+        const shown =
+          left >= 0 &&
+          top >= 0 &&
+          left + box.width * zoom <= viewportWidth &&
+          top + box.height * zoom <= viewportHeight;
+        if (shown) return;
+        touched.current = true;
+        void setCenter(box.x + box.width / 2, box.y + box.height / 2, {
+          zoom,
+          duration: moveDuration,
+        });
+      },
     }),
-    [width, height, viewportWidth, viewportHeight, getViewport, show],
+    [width, height, viewportWidth, viewportHeight, getViewport, show, fitBounds, setCenter],
   );
 
   // What React Flow's own input handling leaves out.
@@ -227,6 +258,7 @@ function Flow<N extends Node>({
       onMove={(event) => {
         if (event !== null) touched.current = true;
       }}
+      onPaneClick={onPaneClick}
       attributionPosition="bottom-left"
       style={flowStyle}
     >
