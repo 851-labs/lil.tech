@@ -22,6 +22,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { pixelbookBucketName } from "../src/Deployment.ts";
 import { credentials } from "./cloudflare.ts";
@@ -46,6 +47,12 @@ export interface Snapshot {
   readonly module: string;
   /** The file the preview is in, e.g. `SyncStatusViewPreviews.swift`. */
   readonly file: string;
+  /**
+   * The file's path in the repository, e.g.
+   * `LilPackage/Sources/HealthMacApp/Pages/SyncStatusViewPreviews.swift`, since modules have
+   * folders (851-2790). Missing from manifests published before, or if it wasn't found.
+   */
+  readonly path?: string;
   readonly line: number | null;
   /** The screen, from the file's name: `SyncStatusViewPreviews.swift` → "Sync Status". */
   readonly screen: string;
@@ -88,6 +95,25 @@ export const screenName = (file: string): string => {
 export const platformOf = (app: string): Manifest["platform"] =>
   app.endsWith("-mac") ? "macos" : "ios";
 
+/**
+ * Each Swift file's path under `sources` (`LilPackage/Sources` in `root`), by `Module/File.swift`,
+ * as SnapshotPreviews names a preview's file: Swift's `#fileID` leaves out a module's folders. A
+ * name used twice in a module, which Swift doesn't allow, has none.
+ */
+export const sourcePaths = async (root: string, sources = "LilPackage/Sources") => {
+  const paths = new Map<string, string | undefined>();
+  for (const module of await readdir(join(root, sources), { withFileTypes: true })) {
+    if (!module.isDirectory()) continue;
+    const files = await readdir(join(root, sources, module.name), { recursive: true });
+    for (const file of files) {
+      if (!file.endsWith(".swift")) continue;
+      const id = `${module.name}/${basename(file)}`;
+      paths.set(id, paths.has(id) ? undefined : join(sources, module.name, file));
+    }
+  }
+  return (module: string, file: string) => paths.get(`${module}/${file}`);
+};
+
 /** A rendered image, read from a render's folder. */
 export interface RenderedImage {
   /** Its file name without `.png`, the same in every appearance's folder. */
@@ -97,12 +123,13 @@ export interface RenderedImage {
   readonly variant: Variant;
 }
 
-/** An app's manifest from its rendered images, in a stable order. */
+/** An app's manifest from its rendered images, in a stable order. `pathOf` finds a file's path. */
 export const buildManifest = (
   app: string,
   key: string,
   commit: string,
   images: ReadonlyArray<RenderedImage>,
+  pathOf: (module: string, file: string) => string | undefined = () => undefined,
 ): Manifest => {
   const byName = new Map<string, RenderedImage[]>();
   for (const image of images) byName.set(image.name, [...(byName.get(image.name) ?? []), image]);
@@ -114,10 +141,12 @@ export const buildManifest = (
       const [module = "", file = ""] = group.split("/");
       const variants: { light?: Variant; dark?: Variant } = {};
       for (const image of rendered) variants[image.appearance] = image.variant;
+      const path = pathOf(module, file);
       return {
         id: name,
         module,
         file,
+        ...(path === undefined ? {} : { path }),
         line: sidecar.context?.preview?.line ?? null,
         screen: screenName(file),
         state: sidecar.display_name ?? name,
@@ -410,12 +439,15 @@ const main = async () => {
     } finally {
       await rm(scratch, { recursive: true, force: true });
     }
+    // The render is of the working tree, which matches the commit: its inputs are committed.
+    const pathOf = await sourcePaths(fileURLToPath(new URL("../../..", import.meta.url)));
     const manifests = render.map(({ app, images: appImages }) =>
       buildManifest(
         app,
         key,
         commit,
         appImages.map(({ image }) => image),
+        pathOf,
       ),
     );
     for (const manifest of manifests) {

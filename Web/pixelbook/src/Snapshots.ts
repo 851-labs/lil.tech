@@ -31,6 +31,8 @@ export interface Snapshot {
   readonly id: string;
   readonly module: string;
   readonly file: string;
+  /** The file's path in the repository; missing from manifests published before 851-2790. */
+  readonly path?: string;
   readonly line: number | null;
   readonly screen: string;
   readonly state: string;
@@ -145,7 +147,9 @@ export const compareUrl = (base: string, head: string) =>
   `${repositoryUrl}/compare/${base}...${head}`;
 
 export const sourceUrl = (snapshot: Snapshot, commit: string) =>
-  `${repositoryUrl}/blob/${commit}/LilPackage/Sources/${snapshot.module}/${snapshot.file}` +
+  `${repositoryUrl}/blob/${commit}/` +
+  // Older manifests have no path: their modules had no folders.
+  (snapshot.path ?? `LilPackage/Sources/${snapshot.module}/${snapshot.file}`) +
   (snapshot.line === null ? "" : `#L${snapshot.line}`);
 
 /** "health-mac" → "lil health for Mac". */

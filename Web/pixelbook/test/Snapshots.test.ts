@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
-import { assetsUrl, tileDensity, tileImageUrl } from "../src/Snapshots.ts";
+import {
+  assetsUrl,
+  type Snapshot,
+  sourceUrl,
+  tileDensity,
+  tileImageUrl,
+} from "../src/Snapshots.ts";
 
 describe("tile images", () => {
   const variant = (scale: number, thumbnail?: string) => ({
@@ -34,5 +40,24 @@ describe("tile images", () => {
     expect(tileImageUrl(variant(2, "thumbnails/a.png"), Number.POSITIVE_INFINITY)).toBe(
       `${assetsUrl}/images/a.png`,
     );
+  });
+
+  it("links a preview to its file, in a module's folders if the manifest has its path", () => {
+    const snapshot: Snapshot = {
+      id: "HealthMacApp_SleepDetailViewPreviews.swift_Night",
+      module: "HealthMacApp",
+      file: "SleepDetailViewPreviews.swift",
+      line: 12,
+      screen: "Sleep Detail",
+      state: "Night",
+      variants: {},
+    };
+    const blob = "https://github.com/851-labs/lil.tech/blob/c";
+    // Published before 851-2790: no path, so a flat module.
+    expect(sourceUrl(snapshot, "c")).toBe(
+      `${blob}/LilPackage/Sources/HealthMacApp/SleepDetailViewPreviews.swift#L12`,
+    );
+    const path = "LilPackage/Sources/HealthMacApp/Pages/Sleep/SleepDetailViewPreviews.swift";
+    expect(sourceUrl({ ...snapshot, path, line: null }, "c")).toBe(`${blob}/${path}`);
   });
 });
