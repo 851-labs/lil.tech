@@ -146,6 +146,26 @@ export function Canvas({
   // what the browser starts with.
   const [view, setView] = useState<View>(() => startView(width, 0));
   const [dragging, setDragging] = useState(false);
+  // Changes from wheel, pinch and drag events, applied together once per frame: a trackpad sends
+  // them faster than the screen refreshes, and each would otherwise render (851-2714).
+  const pending = useRef<Array<(view: View) => View>>([]);
+  const frame = useRef<number | undefined>(undefined);
+  const change = useCallback((update: (view: View) => View) => {
+    pending.current.push(update);
+    if (frame.current !== undefined) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = undefined;
+      const updates = pending.current;
+      pending.current = [];
+      setView((view) => updates.reduce((changed, next) => next(changed), view));
+    });
+  }, []);
+  useEffect(
+    () => () => {
+      if (frame.current !== undefined) cancelAnimationFrame(frame.current);
+    },
+    [],
+  );
   // Whether the view is the browser's, from the viewport's size, rather than the server's guess.
   const [measured, setMeasured] = useState(false);
   const [viewportSize, setViewportSize] = useState<{ width: number; height: number }>();
@@ -227,9 +247,9 @@ export function Canvas({
       // A trackpad pinch arrives as a wheel event with Ctrl held.
       if (event.ctrlKey || event.metaKey) {
         const [px, py] = point(event);
-        setView((view) => zoomAround(view, Math.exp(-dy * 0.01), px, py));
+        change((view) => zoomAround(view, Math.exp(-dy * 0.01), px, py));
       } else {
-        setView((view) => ({ ...view, x: view.x - dx, y: view.y - dy }));
+        change((view) => ({ ...view, x: view.x - dx, y: view.y - dy }));
       }
     };
     let gestureScale = 1;
@@ -243,7 +263,7 @@ export function Canvas({
       const [px, py] = point(gesture);
       const factor = gesture.scale / gestureScale;
       gestureScale = gesture.scale;
-      setView((view) => zoomAround(view, factor, px, py));
+      change((view) => zoomAround(view, factor, px, py));
     };
     element.addEventListener("wheel", wheel, { passive: false });
     element.addEventListener("gesturestart", gestureStart);
@@ -253,7 +273,7 @@ export function Canvas({
       element.removeEventListener("gesturestart", gestureStart);
       element.removeEventListener("gesturechange", gestureChange);
     };
-  }, []);
+  }, [change]);
 
   // Dragging with one pointer pans; others are ignored. A drag that started on a tile doesn't also
   // select it.
@@ -282,7 +302,7 @@ export function Canvas({
       event.currentTarget.setPointerCapture(event.pointerId);
     }
     press.current = { ...current, x: event.clientX, y: event.clientY };
-    setView((view) => ({ ...view, x: view.x + dx, y: view.y + dy }));
+    change((view) => ({ ...view, x: view.x + dx, y: view.y + dy }));
   };
   const onPointerUp = (event: React.PointerEvent) => {
     if (event.pointerId !== press.current?.pointer) return;

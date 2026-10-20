@@ -133,6 +133,8 @@ a:hover {
   top: 0;
   left: 0;
   transform-origin: 0 0;
+  /* Its own layer from the start, so the first pan doesn't promote it (851-2714). */
+  will-change: transform;
 }
 
 .label {
