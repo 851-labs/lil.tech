@@ -96,20 +96,18 @@ export const platformOf = (app: string): Manifest["platform"] =>
   app.endsWith("-mac") ? "macos" : "ios";
 
 /**
- * Each Swift file's path under `sources` (`LilPackage/Sources` in `root`), by `Module/File.swift`,
- * as SnapshotPreviews names a preview's file: Swift's `#fileID` leaves out a module's folders. A
- * name used twice in a module, which Swift doesn't allow, has none.
+ * Finds a preview's file by its module and name, as SnapshotPreviews names it (`Module/File.swift`,
+ * like Swift's `#fileID`, which leaves out a module's folders), among `files`: the repository's
+ * paths. A name used twice in a module, which Swift doesn't allow, has none.
  */
-export const sourcePaths = async (root: string, sources = "LilPackage/Sources") => {
+export const sourcePaths = (files: ReadonlyArray<string>, sources = "LilPackage/Sources") => {
   const paths = new Map<string, string | undefined>();
-  for (const module of await readdir(join(root, sources), { withFileTypes: true })) {
-    if (!module.isDirectory()) continue;
-    const files = await readdir(join(root, sources, module.name), { recursive: true });
-    for (const file of files) {
-      if (!file.endsWith(".swift")) continue;
-      const id = `${module.name}/${basename(file)}`;
-      paths.set(id, paths.has(id) ? undefined : join(sources, module.name, file));
-    }
+  for (const file of files) {
+    if (!file.startsWith(`${sources}/`) || !file.endsWith(".swift")) continue;
+    const module = file.slice(sources.length + 1).split("/")[0];
+    if (module === undefined || module === basename(file)) continue;
+    const id = `${module}/${basename(file)}`;
+    paths.set(id, paths.has(id) ? undefined : file);
   }
   return (module: string, file: string) => paths.get(`${module}/${file}`);
 };
@@ -129,7 +127,7 @@ export const buildManifest = (
   key: string,
   commit: string,
   images: ReadonlyArray<RenderedImage>,
-  pathOf: (module: string, file: string) => string | undefined = () => undefined,
+  pathOf: (module: string, file: string) => string | undefined,
 ): Manifest => {
   const byName = new Map<string, RenderedImage[]>();
   for (const image of images) byName.set(image.name, [...(byName.get(image.name) ?? []), image]);
@@ -439,8 +437,13 @@ const main = async () => {
     } finally {
       await rm(scratch, { recursive: true, force: true });
     }
-    // The render is of the working tree, which matches the commit: its inputs are committed.
-    const pathOf = await sourcePaths(fileURLToPath(new URL("../../..", import.meta.url)));
+    // From the commit itself, not the working tree, which can change while it uploads.
+    const { stdout: files } = await run(
+      "git",
+      ["ls-tree", "-r", "--name-only", commit, "--", "LilPackage/Sources"],
+      { cwd: fileURLToPath(new URL("../../..", import.meta.url)), maxBuffer: 16 * 1024 * 1024 },
+    );
+    const pathOf = sourcePaths(files.split("\n"));
     const manifests = render.map(({ app, images: appImages }) =>
       buildManifest(
         app,
@@ -450,6 +453,15 @@ const main = async () => {
         pathOf,
       ),
     );
+    const unfound = manifests.flatMap(({ snapshots }) =>
+      snapshots.filter((s) => s.path === undefined),
+    );
+    if (unfound.length > 0) {
+      console.warn(
+        `Couldn't find the files of ${unfound.length} previews, so their source links assume ` +
+          `flat modules: ${[...new Set(unfound.map((s) => `${s.module}/${s.file}`))].join(", ")}`,
+      );
+    }
     for (const manifest of manifests) {
       await put(`snapshots/${key}/${manifest.app}.json`, json(manifest), "application/json");
     }

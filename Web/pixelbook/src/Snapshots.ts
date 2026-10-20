@@ -146,10 +146,15 @@ export const commitUrl = (commit: string) => `${repositoryUrl}/commit/${commit}`
 export const compareUrl = (base: string, head: string) =>
   `${repositoryUrl}/compare/${base}...${head}`;
 
+/** A preview's file in the repository. */
+export const sourcePath = (snapshot: Snapshot) =>
+  snapshot.path ?? `LilPackage/Sources/${snapshot.module}/${snapshot.file}`;
+
+/** A preview's file and line on GitHub, at a commit. */
 export const sourceUrl = (snapshot: Snapshot, commit: string) =>
   `${repositoryUrl}/blob/${commit}/` +
   // Older manifests have no path: their modules had no folders.
-  (snapshot.path ?? `LilPackage/Sources/${snapshot.module}/${snapshot.file}`) +
+  sourcePath(snapshot).split("/").map(encodeURIComponent).join("/") +
   (snapshot.line === null ? "" : `#L${snapshot.line}`);
 
 /** "health-mac" → "lil health for Mac". */
