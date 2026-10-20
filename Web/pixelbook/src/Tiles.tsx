@@ -1,5 +1,6 @@
 // What the canvas shows in both modes: snapshot tiles and text labels.
 import { createContext, useContext } from "react";
+import { intersects, RegionContext } from "./Canvas.tsx";
 import type { Label, Tile } from "./Grid.ts";
 import { type Scheme, tileImageUrl } from "./Snapshots.ts";
 
@@ -46,8 +47,16 @@ export function TileButton({
   );
 }
 
+/** Room for a label's text, which isn't measured, in points. */
+const labelExtent = { width: 2000, height: 120 };
+
 export function Labels({ labels }: { readonly labels: ReadonlyArray<Label> }) {
-  return labels.map((label) => (
+  const region = useContext(RegionContext);
+  const shown =
+    region === undefined
+      ? labels
+      : labels.filter((label) => intersects(region, { x: label.x, y: label.y, ...labelExtent }));
+  return shown.map((label) => (
     <div
       key={`${label.kind}/${label.x}/${label.y}`}
       className={`label ${label.kind}`}
