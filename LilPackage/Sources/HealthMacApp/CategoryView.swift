@@ -206,17 +206,15 @@ struct MetricDetail: View {
 }
 
 extension Color {
-  /// Health's page behind cards: light gray, or black in dark mode.
-  static let groupedBackground = Color(
-    nsColor: NSColor(name: nil) { appearance in
-      appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        ? NSColor(white: 0, alpha: 1) : NSColor(white: 0.95, alpha: 1)
-    })
+  /// The page behind cards: the window's background, as Mac apps' content is (white, or dark
+  /// gray), rather than iPhone Health's gray or black (851-2755).
+  static let groupedBackground = Color(nsColor: .windowBackgroundColor)
 
-  /// A card on `groupedBackground`.
+  /// A card on `groupedBackground`: a light fill over it, as a grouped form's sections are in
+  /// System Settings, so it stands out in both appearances.
   static let cardBackground = Color(
     nsColor: NSColor(name: nil) { appearance in
       appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        ? NSColor(white: 0.11, alpha: 1) : .white
+        ? NSColor(white: 1, alpha: 0.08) : NSColor(white: 0, alpha: 0.03)
     })
 }
