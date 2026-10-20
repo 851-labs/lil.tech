@@ -1,20 +1,23 @@
 // What the canvas shows in both modes: snapshot tiles and text labels.
 import { createContext, useContext } from "react";
 import { useNear } from "./Canvas.tsx";
-import type { Label, Tile } from "./Grid.ts";
+import type { ChangeLabel, Label, Tile } from "./Grid.ts";
 import { type Platform, type Scheme, tileImageUrl } from "./Snapshots.ts";
 
 export const schemeNames: Record<Scheme, string> = { light: "Light", dark: "Dark" };
 
+const snapshotBackgrounds = {
+  macos: { light: "bg-mac-light", dark: "bg-mac-dark" },
+  ios: { light: "bg-iphone-light", dark: "bg-iphone-dark" },
+} as const;
+
 /** What a snapshot is shown over: its platform's background in its appearance (the theme's). */
 export const snapshotBackground = (platform: Platform, scheme: Scheme) =>
-  ({
-    macos: { light: "bg-mac-light", dark: "bg-mac-dark" },
-    ios: { light: "bg-iphone-light", dark: "bg-iphone-dark" },
-  })[platform][scheme];
+  snapshotBackgrounds[platform][scheme];
 
 /** A comparison's badge colors, by its label. */
-const badgeColors: Record<string, string> = {
+const badgeColors: Record<ChangeLabel, string> = {
+  Before: "bg-secondary",
   After: "bg-added",
   New: "bg-added",
   Removed: "bg-removed",
@@ -57,13 +60,13 @@ export function TileButton({
     >
       {tile.change !== undefined && (
         <span
-          className={`absolute top-3 left-3 z-1 rounded-full px-3.5 py-1 text-[28px] font-bold text-white ${badgeColors[tile.change.label] ?? "bg-secondary"}`}
+          className={`absolute top-3 left-3 z-1 rounded-full px-3.5 py-1 text-[28px] font-bold text-white ${badgeColors[tile.change.label]}`}
         >
           {tile.change.label}
         </span>
       )}
       <img
-        className="block h-full w-full"
+        className="h-full w-full"
         src={density === undefined ? undefined : tileImageUrl(tile.variant, density)}
         alt={`${tile.snapshot.screen}: ${tile.snapshot.state}`}
         width={tile.width}

@@ -1,7 +1,15 @@
 // What changed between two commits' snapshots: images are named by a hash of their pixels, so a
 // snapshot changed exactly when an appearance's image did. Added and removed snapshots are
 // matched by ID (module, file and preview name), so a renamed preview shows as both.
-import { byText, type Filters, type Label, shows, spacing, type Tile } from "./Grid.ts";
+import {
+  byText,
+  type ChangeLabel,
+  type Filters,
+  type Label,
+  shows,
+  spacing,
+  type Tile,
+} from "./Grid.ts";
 import {
   appName,
   type Book,
@@ -165,7 +173,7 @@ const layoutChanges = (changes: ReadonlyArray<SnapshotChange>, filters: Filters)
     change: SnapshotChange,
     snapshot: Snapshot,
     scheme: Scheme,
-    label: string,
+    label: ChangeLabel,
     other: Snapshot | undefined,
     gap: number,
   ) => {

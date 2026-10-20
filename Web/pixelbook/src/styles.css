@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* Pixelbook's colors, in light and dark (the system's), and fonts, as the theme's tokens: utilities
-   such as `bg-surface` and `text-secondary` use them. */
+/* Pixelbook's colors, in light and dark, and fonts, as the theme's tokens: utilities such as
+   `bg-surface` and `text-secondary` use them. Tailwind turns `light-dark()` into the system's
+   appearance (`prefers-color-scheme`). */
 @theme {
   --color-background: light-dark(#f2f2f4, #121214);
   --color-surface: light-dark(rgb(255 255 255 / 0.85), rgb(36 36 40 / 0.85));
@@ -38,7 +39,6 @@
     line-height: normal;
   }
 
-  /* 13 points, as macOS apps' text. The root stays at 16, so Tailwind's spacing keeps its sizes. */
   html,
   body {
     height: 100%;
@@ -46,6 +46,8 @@
   }
 
   body {
+    /* 13 points, as macOS apps' text. The root stays at 16, so Tailwind's spacing keeps its
+       sizes. */
     font-size: 13px;
     color: var(--color-foreground);
     background: var(--color-background);
