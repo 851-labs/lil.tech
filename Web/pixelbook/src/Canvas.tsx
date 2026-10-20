@@ -81,8 +81,12 @@ export function Canvas({
   // what the browser starts with.
   const [view, setView] = useState<View>(() => startView(width, 0));
   const [dragging, setDragging] = useState(false);
+  // Whether the view is the browser's, from the viewport's size, rather than the server's guess.
+  const [measured, setMeasured] = useState(false);
 
-  useEffect(() => onViewChange(view), [view, onViewChange]);
+  useEffect(() => {
+    if (measured) onViewChange(view);
+  }, [view, measured, onViewChange]);
 
   const fit = useCallback(() => {
     const element = viewport.current;
@@ -92,7 +96,9 @@ export function Canvas({
   // Starts over when the content changes, e.g. with a filter.
   useEffect(() => {
     const element = viewport.current;
-    if (element !== null) setView(startView(width, element.clientWidth));
+    if (element === null) return;
+    setView(startView(width, element.clientWidth));
+    setMeasured(true);
   }, [width, height]);
 
   useImperativeHandle(

@@ -8,6 +8,7 @@
 //
 // The bucket (prod's, `pixelbookBucketName`) holds:
 //   images/<sha256 of the pixels>.png  every image, once: an unchanged screen isn't uploaded again
+//   thumbnails/<the same sha256>.png    the image at a quarter of its size, for zoomed-out views
 //   snapshots/<key>/<app>.json          an app's manifest: its screens, states and variants
 //   snapshots/<key>/index.json          the apps rendered for that key, written last
 //   commits/<sha>.json                  which key a commit's snapshots are under
@@ -29,6 +30,8 @@ import { credentials } from "./cloudflare.ts";
 export interface Variant {
   /** The object key of its image, under `images/`. */
   readonly image: string;
+  /** Its thumbnail's, under `thumbnails/`: a quarter of its width and height. */
+  readonly thumbnail: string;
   /** In pixels. */
   readonly width: number;
   readonly height: number;
@@ -158,6 +161,22 @@ export const pngInfo = (bytes: Buffer) => {
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20), scale };
 };
 
+/**
+ * How much smaller a thumbnail is than its image, in each dimension. Pixelbook's viewer
+ * (`thumbnailDivisor` in `Web/pixelbook/src/Snapshots.ts`) relies on it.
+ */
+const thumbnailDivisor = 4;
+
+/** A copy of a variant's PNG, `thumbnailDivisor` times smaller, made with `sips`. */
+const thumbnail = async (png: string, variant: Variant, scratch: string) => {
+  const out = join(scratch, basename(variant.thumbnail));
+  const thumbnailWidth = Math.max(1, Math.round(variant.width / thumbnailDivisor));
+  await run("sips", ["--resampleWidth", String(thumbnailWidth), png, "--out", out]);
+  const bytes = await readFile(out);
+  await rm(out);
+  return bytes;
+};
+
 /** Runs `work` over `items`, `limit` at a time. */
 const inParallel = async <A, B>(
   items: ReadonlyArray<A>,
@@ -207,7 +226,11 @@ const readRender = async (dir: string) => {
               name: basename(path, ".png"),
               appearance,
               sidecar,
-              variant: { image: `images/${hash}.png`, ...pngInfo(bytes) },
+              variant: {
+                image: `images/${hash}.png`,
+                thumbnail: `thumbnails/${hash}.png`,
+                ...pngInfo(bytes),
+              },
             } satisfies RenderedImage,
             path,
           };
@@ -360,15 +383,33 @@ const main = async () => {
       process.exit(3);
     }
     const render = await readRender(dir);
-    const existing = await list("images/");
-    const images = new Map<string, string>();
+    const listed = await Promise.all([list("images/"), list("thumbnails/")]);
+    const existing = new Set(listed.flatMap((keys) => [...keys]));
+    const images = new Map<string, { variant: Variant; path: string }>();
     for (const { images: appImages } of render) {
-      for (const { image, path } of appImages) images.set(image.variant.image, path);
+      for (const { image, path } of appImages) {
+        images.set(image.variant.image, { variant: image.variant, path });
+      }
     }
-    const missing = [...images].filter(([objectKey]) => !existing.has(objectKey));
-    await inParallel(missing, 8, async ([objectKey, path]) =>
-      put(objectKey, await readFile(path), "image/png"),
+    const missing = [...images.values()].filter(({ variant }) => !existing.has(variant.image));
+    await inParallel(missing, 8, async ({ variant, path }) =>
+      put(variant.image, await readFile(path), "image/png"),
     );
+    // Images published before thumbnails existed get theirs the next time they're rendered.
+    const missingThumbnails = [...images.values()].filter(
+      ({ variant }) => !existing.has(variant.thumbnail),
+    );
+    const scratch = await mkdtemp(join(tmpdir(), "pixelbook-"));
+    try {
+      await inParallel(missingThumbnails, 8, async ({ variant, path }) =>
+        // A dry run only says what it would upload, so it doesn't make them.
+        dryRun
+          ? put(variant.thumbnail, "", "image/png")
+          : put(variant.thumbnail, await thumbnail(path, variant, scratch), "image/png"),
+      );
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
     const manifests = render.map(({ app, images: appImages }) =>
       buildManifest(
         app,
@@ -394,7 +435,10 @@ const main = async () => {
       }),
       "application/json",
     );
-    console.log(`${images.size} images, ${missing.length} new; ${manifests.length} manifests`);
+    console.log(
+      `${images.size} images, ${missing.length} new, ${missingThumbnails.length} thumbnails; ` +
+        `${manifests.length} manifests`,
+    );
   } else {
     console.log(`Snapshots for ${key} are already published.`);
   }

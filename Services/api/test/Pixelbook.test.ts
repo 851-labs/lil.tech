@@ -25,7 +25,13 @@ describe("Pixelbook manifests", () => {
         group: "HealthMacApp/SyncStatusViewPreviews.swift",
         context: { preview: { line } },
       },
-      variant: { image: `images/${hash}.png`, width: 400, height: 300, scale: 2 },
+      variant: {
+        image: `images/${hash}.png`,
+        thumbnail: `thumbnails/${hash}.png`,
+        width: 400,
+        height: 300,
+        scale: 2,
+      },
     });
     const manifest = buildManifest("health-mac", "k", "c", [
       image("HealthMacApp_SyncStatusViewPreviews.swift_Syncing", "dark", "2"),
@@ -39,10 +45,23 @@ describe("Pixelbook manifests", () => {
         line,
         light: variants.light?.image,
         dark: variants.dark?.image,
+        darkThumbnail: variants.dark?.thumbnail,
       })),
       [
-        { state: "Failed", line: 30, light: "images/3.png", dark: undefined },
-        { state: "Syncing", line: 12, light: "images/1.png", dark: "images/2.png" },
+        {
+          state: "Failed",
+          line: 30,
+          light: "images/3.png",
+          dark: undefined,
+          darkThumbnail: undefined,
+        },
+        {
+          state: "Syncing",
+          line: 12,
+          light: "images/1.png",
+          dark: "images/2.png",
+          darkThumbnail: "thumbnails/2.png",
+        },
       ],
     );
     const [first] = manifest.snapshots;
