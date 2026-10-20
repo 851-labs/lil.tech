@@ -32,6 +32,11 @@
       "screen": "HealthPhoneApp/SyncStatusViewPreviews.swift"
     },
     {
+      "id": "settings",
+      "screen": "HealthPhoneApp/SettingsSheetPreviews.swift",
+      "title": "Settings"
+    },
+    {
       "id": "sign-in-methods",
       "screen": "LilAuth/SignInMethodsSectionPreviews.swift",
       "title": "Sign-In Methods"
@@ -95,11 +100,16 @@
     },
     {
       "from": "sync",
-      "to": "sign-in-methods",
-      "label": "Its Sign-In Methods section"
+      "to": "settings",
+      "label": "The gear button"
     },
     {
-      "from": "sync",
+      "from": "settings",
+      "to": "sign-in-methods",
+      "label": "Its first section"
+    },
+    {
+      "from": "settings",
       "to": "sign-in",
       "label": "Sign Out, or Delete Account"
     }

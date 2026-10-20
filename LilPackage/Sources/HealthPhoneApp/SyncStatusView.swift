@@ -8,10 +8,6 @@ public import SwiftUI
 public struct SyncStatusView: View {
   @Bindable var store: StoreOf<SyncStatusFeature>
 
-  /// Whether this is a preview, which uses preview dependencies (`SWIFT_DEPENDENCIES_CONTEXT`).
-  @Dependency(\.context) private var context
-  private var isPreview: Bool { context == .preview }
-
   public init(store: StoreOf<SyncStatusFeature>) {
     self.store = store
   }
@@ -24,47 +20,32 @@ public struct SyncStatusView: View {
         }
         let categories = store.categories
         if !categories.isEmpty {
-          Section("Categories") {
+          Section {
             ForEach(categories) { category in
               CategoryRow(category: category)
             }
+          } header: {
+            Text("Categories")
+          } footer: {
+            Text(
+              "Health doesn't tell apps what you turned off. If a category stays empty, check its access in Settings."
+            )
           }
         }
-        SignInMethodsSection(store: store.scope(\.signInMethods, action: \.signInMethods))
-        Section {
-          Button("Health Access in Settings") { store.send(.openSettingsButtonTapped) }
-          Link("Privacy Policy", destination: privacyPolicy)
-          if store.hasConsent {
-            Button("Withdraw Consent") { store.send(.withdrawConsentButtonTapped) }
-          }
-          Button("Sign Out") { store.send(.signOutButtonTapped) }
-          Button("Delete Account", role: .destructive) {
-            store.send(.deleteAccountButtonTapped)
-          }
-        } footer: {
-          Text(
-            "Health doesn't tell apps what you turned off. If a category stays empty, check its access in Settings."
-          )
-        }
-        #if targetEnvironment(simulator)
-          // Not in previews (Xcode's or Pixelbook's), which also run in the simulator.
-          if !isPreview {
-            SyntheticHealthSection()
-          }
-        #endif
       }
       .navigationTitle("lil health")
-      .disabled(store.isDeletingAccount || store.isWithdrawingConsent)
-      .overlay {
-        if store.isDeletingAccount || store.isWithdrawingConsent {
-          ZStack {
-            Rectangle().fill(.regularMaterial).ignoresSafeArea()
-            ProgressView(
-              store.isDeletingAccount ? "Deleting your account…" : "Withdrawing your consent…")
+      .toolbar {
+        ToolbarItem(placement: .primaryAction) {
+          Button {
+            store.send(.settingsPresented(true))
+          } label: {
+            Label("Settings", systemImage: "gearshape")
           }
         }
       }
-      .alert($store.scope(\.alert, action: \.alert))
+      .sheet(isPresented: $store.isShowingSettings.sending(\.settingsPresented)) {
+        SettingsSheet(store: store)
+      }
     }
     .task { await store.send(.task).finish() }
   }

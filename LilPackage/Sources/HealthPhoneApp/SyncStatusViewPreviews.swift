@@ -121,34 +121,3 @@ private func statusView(_ state: SyncStatusFeature.State, consented: Bool = true
 #Preview("Not uploading without consent") {
   statusView(SyncStatusFeature.State(progress: progress(done: 70)), consented: false)
 }
-
-#Preview("Withdraw consent?") {
-  statusView(
-    SyncStatusFeature.State(progress: progress(done: .max), alert: .confirmWithdrawal))
-}
-
-#Preview("Withdrawing consent") {
-  statusView(SyncStatusFeature.State(progress: progress(done: .max), isWithdrawingConsent: true))
-}
-
-#Preview("Consent withdrawn") {
-  statusView(
-    SyncStatusFeature.State(progress: progress(done: 70), alert: .consentWithdrawn),
-    consented: false)
-}
-
-#Preview("Delete account?") {
-  statusView(
-    SyncStatusFeature.State(progress: progress(done: .max), alert: .confirmDeletion))
-}
-
-#Preview("Deleting account") {
-  statusView(SyncStatusFeature.State(progress: progress(done: .max), isDeletingAccount: true))
-}
-
-#Preview("Deleting failed") {
-  statusView(
-    SyncStatusFeature.State(
-      progress: progress(done: .max),
-      alert: .deletionFailed("It isn't possible right now. Please try again later.")))
-}

@@ -109,6 +109,20 @@ struct SyncStatusFeatureTests {
   }
 
   @Test
+  func theGearOpensSettingsAndDoneClosesThem() async {
+    let store = TestStore(initialState: SyncStatusFeature.State()) {
+      SyncStatusFeature()
+    }
+
+    await store.send(.settingsPresented(true)) {
+      $0.isShowingSettings = true
+    }
+    await store.send(.settingsPresented(false)) {
+      $0.isShowingSettings = false
+    }
+  }
+
+  @Test
   func buttons() async {
     let opened = LockIsolated<[URL]>([])
     let signedOut = LockIsolated(false)
