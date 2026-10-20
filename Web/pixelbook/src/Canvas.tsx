@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -119,6 +120,33 @@ export const near = <A,>(
 export const useNear = <A,>(items: ReadonlyArray<A>, box: (item: A) => Box) =>
   near(useContext(RegionContext), items, box);
 
+/** The canvas content's CSS transform for a view. */
+const transformOf = (view: View) => `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
+
+const sameRegion = (a: Region, b: Region) =>
+  a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1;
+
+/**
+ * Whether a view that input moved to needs React to render it, rather than only moving the
+ * canvas (851-2714): when it zooms (the zoom shown, and which images tiles load) or reaches another
+ * render region. Panning within one only moves the canvas, and renders once input stops.
+ */
+export const needsRender = (
+  live: View,
+  rendered: View,
+  viewport: { readonly width: number; readonly height: number } | undefined,
+) => {
+  if (live.zoom !== rendered.zoom) return true;
+  if (viewport === undefined || viewport.width === 0 || viewport.height === 0) return false;
+  return !sameRegion(
+    renderRegion(live, viewport.width, viewport.height),
+    renderRegion(rendered, viewport.width, viewport.height),
+  );
+};
+
+/** After input stops for this long, the view it moved to renders. */
+const settleDelay = 150;
+
 export interface CanvasHandle {
   readonly zoomBy: (factor: number) => void;
   readonly fit: () => void;
@@ -142,22 +170,66 @@ export function Canvas({
   readonly children: ReactNode;
 }) {
   const viewport = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
   // The start view for a canvas wider than the viewport, the usual case, so the server renders
-  // what the browser starts with.
+  // what the browser starts with. This is the view React renders.
   const [view, setView] = useState<View>(() => startView(width, 0));
   const [dragging, setDragging] = useState(false);
   // Whether the view is the browser's, from the viewport's size, rather than the server's guess.
   const [measured, setMeasured] = useState(false);
   const [viewportSize, setViewportSize] = useState<{ width: number; height: number }>();
+  const size = useRef(viewportSize);
   useEffect(() => {
     const element = viewport.current;
     if (element === null) return;
-    const observer = new ResizeObserver(() =>
-      setViewportSize({ width: element.clientWidth, height: element.clientHeight }),
-    );
+    const observer = new ResizeObserver(() => {
+      size.current = { width: element.clientWidth, height: element.clientHeight };
+      setViewportSize(size.current);
+    });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+
+  // Wheel, pinch and drag events come faster than the screen refreshes, so they move `live`,
+  // and once a frame the canvas moves to it directly, before that frame paints. React renders it
+  // only when what it shows depends on it (`needsRender`), or once input stops (851-2714).
+  const live = useRef(view);
+  const rendered = useRef(view);
+  const frame = useRef<number | undefined>(undefined);
+  const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const stopMoving = useCallback(() => {
+    if (frame.current !== undefined) cancelAnimationFrame(frame.current);
+    frame.current = undefined;
+    clearTimeout(settle.current);
+  }, []);
+  /** Shows a view at once, dropping any input not yet shown: Fit, the zoom buttons, a reset. */
+  const show = useCallback(
+    (next: View) => {
+      stopMoving();
+      live.current = next;
+      setView(next);
+    },
+    [stopMoving],
+  );
+  const change = useCallback((update: (view: View) => View) => {
+    live.current = update(live.current);
+    if (frame.current !== undefined) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = undefined;
+      const next = live.current;
+      if (content.current !== null) content.current.style.transform = transformOf(next);
+      clearTimeout(settle.current);
+      if (needsRender(next, rendered.current, size.current)) setView(next);
+      else settle.current = setTimeout(() => setView(live.current), settleDelay);
+    });
+  }, []);
+  useEffect(() => stopMoving, [stopMoving]);
+  // React writes the view it rendered, which input may have moved past since: put the canvas
+  // back where input has it, before the frame paints.
+  useLayoutEffect(() => {
+    rendered.current = view;
+    if (content.current !== null) content.current.style.transform = transformOf(live.current);
+  }, [view]);
   // A viewport with no size (hidden, say) shows nothing anyway, and its region would be NaN.
   const region =
     viewportSize === undefined || viewportSize.width === 0 || viewportSize.height === 0
@@ -180,15 +252,15 @@ export function Canvas({
   const fit = useCallback(() => {
     const element = viewport.current;
     if (element === null) return;
-    setView(fitView(width, height, element.clientWidth, element.clientHeight));
-  }, [width, height]);
+    show(fitView(width, height, element.clientWidth, element.clientHeight));
+  }, [width, height, show]);
   // Starts over when the content changes, e.g. with a filter.
   useEffect(() => {
     const element = viewport.current;
     if (element === null) return;
-    setView(startView(width, element.clientWidth));
+    show(startView(width, element.clientWidth));
     setMeasured(true);
-  }, [width, height]);
+  }, [width, height, show]);
 
   useImperativeHandle(
     handle,
@@ -197,12 +269,10 @@ export function Canvas({
       zoomBy: (factor) => {
         const element = viewport.current;
         if (element === null) return;
-        setView((view) =>
-          zoomAround(view, factor, element.clientWidth / 2, element.clientHeight / 2),
-        );
+        show(zoomAround(live.current, factor, element.clientWidth / 2, element.clientHeight / 2));
       },
     }),
-    [fit],
+    [fit, show],
   );
 
   // Wheel and Safari's gesture events, which React only listens to passively.
@@ -227,9 +297,9 @@ export function Canvas({
       // A trackpad pinch arrives as a wheel event with Ctrl held.
       if (event.ctrlKey || event.metaKey) {
         const [px, py] = point(event);
-        setView((view) => zoomAround(view, Math.exp(-dy * 0.01), px, py));
+        change((view) => zoomAround(view, Math.exp(-dy * 0.01), px, py));
       } else {
-        setView((view) => ({ ...view, x: view.x - dx, y: view.y - dy }));
+        change((view) => ({ ...view, x: view.x - dx, y: view.y - dy }));
       }
     };
     let gestureScale = 1;
@@ -243,7 +313,7 @@ export function Canvas({
       const [px, py] = point(gesture);
       const factor = gesture.scale / gestureScale;
       gestureScale = gesture.scale;
-      setView((view) => zoomAround(view, factor, px, py));
+      change((view) => zoomAround(view, factor, px, py));
     };
     element.addEventListener("wheel", wheel, { passive: false });
     element.addEventListener("gesturestart", gestureStart);
@@ -253,7 +323,7 @@ export function Canvas({
       element.removeEventListener("gesturestart", gestureStart);
       element.removeEventListener("gesturechange", gestureChange);
     };
-  }, []);
+  }, [change]);
 
   // Dragging with one pointer pans; others are ignored. A drag that started on a tile doesn't also
   // select it.
@@ -282,7 +352,7 @@ export function Canvas({
       event.currentTarget.setPointerCapture(event.pointerId);
     }
     press.current = { ...current, x: event.clientX, y: event.clientY };
-    setView((view) => ({ ...view, x: view.x + dx, y: view.y + dy }));
+    change((view) => ({ ...view, x: view.x + dx, y: view.y + dy }));
   };
   const onPointerUp = (event: React.PointerEvent) => {
     if (event.pointerId !== press.current?.pointer) return;
@@ -305,12 +375,9 @@ export function Canvas({
       onClickCapture={onClickCapture}
     >
       <div
+        ref={content}
         className="canvas-content"
-        style={{
-          width,
-          height,
-          transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`,
-        }}
+        style={{ width, height, transform: transformOf(view) }}
       >
         <RegionContext value={stableRegion}>{children}</RegionContext>
       </div>
