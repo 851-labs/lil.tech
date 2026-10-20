@@ -1,4 +1,5 @@
 import HealthCatalog
+import HealthUI
 import SwiftUI
 
 /// A data type's name with its category's icon, in the category's color.

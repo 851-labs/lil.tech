@@ -1,6 +1,7 @@
 import Charts
 import HealthCatalog
 import HealthDatabase
+import HealthUI
 import SwiftUI
 
 /// One highlight: what changed, in a sentence, and a chart of it.

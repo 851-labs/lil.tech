@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 import HealthCatalog
+import HealthUI
 import LilAuth
 public import SwiftUI
 
@@ -66,13 +67,8 @@ struct SidebarView: View {
           .tag(SidebarItem.summary)
         Section("Health Categories") {
           ForEach(HealthCategory.allCases) { category in
-            Label {
-              Text(category.name)
-            } icon: {
-              Image(systemName: category.symbolName)
-                .foregroundStyle(category.color)
-            }
-            .tag(SidebarItem.category(category))
+            HealthCategoryLabel(category)
+              .tag(SidebarItem.category(category))
           }
         }
       }

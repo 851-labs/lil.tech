@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 import HealthCatalog
+import HealthUI
 import HealthUpload
 import LilAuth
 public import SwiftUI
@@ -157,13 +158,7 @@ private struct CategoryRow: View {
 
   var body: some View {
     HStack {
-      Label {
-        Text(category.category.name)
-      } icon: {
-        // In its color, as in the Mac's sidebar and Health.
-        Image(systemName: category.category.symbolName)
-          .foregroundStyle(category.category.color)
-      }
+      HealthCategoryLabel(category.category)
       Spacer()
       Text(category.records.formatted())
         .foregroundStyle(.secondary)
