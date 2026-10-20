@@ -21,17 +21,22 @@ public struct SyncStatusFeature {
     public var isDeletingAccount = false
     @Presents public var alert: AlertState<Action.Alert>?
     public var signInMethods = SignInMethodsFeature.State()
+    /// Whether the Settings sheet is open: the account's sign-in methods, consent, signing out
+    /// and deleting it (851-2758).
+    public var isShowingSettings: Bool
 
     public init(
       progress: HealthBackfill.Progress? = nil, needsHealthAccess: Bool? = nil,
       isWithdrawingConsent: Bool = false,
-      isDeletingAccount: Bool = false, alert: AlertState<Action.Alert>? = nil
+      isDeletingAccount: Bool = false, alert: AlertState<Action.Alert>? = nil,
+      isShowingSettings: Bool = false
     ) {
       self.progress = progress
       self.needsHealthAccess = needsHealthAccess
       self.isWithdrawingConsent = isWithdrawingConsent
       self.isDeletingAccount = isDeletingAccount
       self.alert = alert
+      self.isShowingSettings = isShowingSettings
     }
 
     public enum Status: Equatable {
@@ -52,6 +57,12 @@ public struct SyncStatusFeature {
     }
 
     public var hasConsent: Bool { consentedPolicyVersion == HealthConsentClient.policyVersion }
+
+    /// Whether the Settings sheet has something in progress: withdrawing consent, deleting the
+    /// account, or linking or unlinking a sign-in method.
+    public var isSettingsBusy: Bool {
+      isWithdrawingConsent || isDeletingAccount || signInMethods.isBusy
+    }
 
     public var status: Status {
       if !hasConsent { return .needsConsent }
@@ -119,6 +130,8 @@ public struct SyncStatusFeature {
     case consentWithdrawn
     case consentWithdrawalFailed(String)
     case openSettingsButtonTapped
+    /// The gear button opened the Settings sheet, or Done or a swipe closed it.
+    case settingsPresented(Bool)
     case signOutButtonTapped
     case deleteAccountButtonTapped
     /// The request finished: the app signs out next.
@@ -231,6 +244,12 @@ public struct SyncStatusFeature {
 
       case .openSettingsButtonTapped:
         return .run { [openURL] _ in await openURL(Self.settingsURL) }
+
+      case .settingsPresented(let presented):
+        // Not closed while what it started is in progress: its answers show in it.
+        if !presented, state.isSettingsBusy { return .none }
+        state.isShowingSettings = presented
+        return .none
 
       case .signOutButtonTapped:
         return .run { [auth] _ in await auth.signOut() }
