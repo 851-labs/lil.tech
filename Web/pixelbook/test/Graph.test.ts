@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { checkGraphs, previewNames, scanPreviews } from "../scripts/graphs.ts";
-import { layoutFlow } from "../src/Flow.ts";
-import { type Graph, graphProblems, parseGraph } from "../src/Graph.ts";
+import { layoutFlow } from "../src/lib/Flow.ts";
+import { type Graph, graphProblems, parseGraph } from "../src/lib/Graph.ts";
 
 const graph: Graph = {
   app: "health-mac",

@@ -1,14 +1,3 @@
-// Controls shared by the header and the panels: links out, buttons and segmented controls.
-
-/** A link out of Pixelbook, such as to GitHub. It opens in a new tab, keeping the canvas where it is. */
-export function ExternalLink(props: Omit<React.ComponentProps<"a">, "target" | "rel">) {
-  return <a {...props} target="_blank" rel="noreferrer" />;
-}
-
-/** A small button, as Linear's: zoom, Show all and the like. */
-export const plainButton =
-  "flex h-6 cursor-pointer items-center rounded-chip border border-border px-2 text-mini font-medium text-muted hover:bg-hover";
-
 /** A choice of a few options, one of them on, as Linear's segmented controls. */
 export function Segmented<A extends string>({
   label,

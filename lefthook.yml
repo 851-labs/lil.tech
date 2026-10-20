@@ -24,7 +24,7 @@ pre-commit:
       glob:
         - "LilPackage/Sources/**/*.swift"
         - "Web/pixelbook/graphs/**"
-        - "Web/pixelbook/src/Graph.ts"
+        - "Web/pixelbook/src/lib/Graph.ts"
         - "Web/pixelbook/scripts/graphs.ts"
         - "scripts/check"
     - name: services

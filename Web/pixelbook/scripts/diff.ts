@@ -1,8 +1,8 @@
 // Pixelbook's comment on a pull request (`.github/workflows/pixelbook.yml`): how many snapshots
 // changed since the PR's base, linked to the comparison. Prints the comment's Markdown.
 //   node Web/pixelbook/scripts/diff.ts --base <sha> --head <sha>
-import { describeChanges, diffBooks, summarize } from "../src/Diff.ts";
-import { type Book, loadBook, NotPublished } from "../src/Snapshots.ts";
+import { describeChanges, diffBooks, summarize } from "../src/lib/Diff.ts";
+import { type Book, loadBook, NotPublished } from "../src/lib/Snapshots.ts";
 
 /** Where comments link to: prod's Pixelbook, which reads every commit's snapshots. */
 export const pixelbookUrl = "https://pixelbook.lil.tech";

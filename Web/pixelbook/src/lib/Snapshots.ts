@@ -7,8 +7,12 @@ export const assetsUrl = "https://pixelbook-assets.lil.tech";
 export type Scheme = "light" | "dark";
 export const schemes: ReadonlyArray<Scheme> = ["light", "dark"];
 
+export const schemeNames: Record<Scheme, string> = { light: "Light", dark: "Dark" };
+
 export type Platform = "macos" | "ios";
 export const platforms: ReadonlyArray<Platform> = ["macos", "ios"];
+
+export const platformNames: Record<Platform, string> = { macos: "Mac", ios: "iPhone" };
 
 /** One rendered image of a state. */
 export interface Variant {
@@ -160,5 +164,9 @@ export const sourceUrl = (snapshot: Snapshot, commit: string) =>
 /** "health-mac" → "lil health for Mac". */
 export const appName = (app: string, platform: Platform) => {
   const name = app.replace(/-(mac|iphone|ipad|ios)$/, "");
-  return `lil ${name} for ${platform === "macos" ? "Mac" : "iPhone"}`;
+  return `lil ${name} for ${platformNames[platform]}`;
 };
+
+/** The platform of a book's app, by its manifest. */
+export const manifestPlatform = (book: Book, app: string): Platform =>
+  book.manifests.find((manifest) => manifest.app === app)?.platform ?? "ios";

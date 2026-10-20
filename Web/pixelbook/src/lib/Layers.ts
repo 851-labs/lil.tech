@@ -2,8 +2,7 @@
 // screen's states, in the canvas's order, built from the same layouts.
 import type { FlowLayout } from "./Flow.ts";
 import { type ChangeLabel, type Tile, tileId } from "./Grid.ts";
-import { appName } from "./Snapshots.ts";
-import { schemeNames } from "./Tiles.tsx";
+import { appName, schemeNames } from "./Snapshots.ts";
 
 /** In a comparison: how a state changed. */
 export type Badge = "Changed" | "New" | "Removed";

@@ -5,7 +5,7 @@ import {
   sourceUrl,
   tileDensity,
   tileImageUrl,
-} from "../src/Snapshots.ts";
+} from "../src/lib/Snapshots.ts";
 
 describe("tile images", () => {
   const variant = (scale: number, thumbnail?: string) => ({

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 import { comment, marker } from "../scripts/diff.ts";
-import { diffBooks, layoutDiff, shownChanges, summarize } from "../src/Diff.ts";
-import { noFilters, spacing } from "../src/Grid.ts";
-import type { Book, Manifest, Snapshot } from "../src/Snapshots.ts";
+import { diffBooks, layoutDiff, shownChanges, summarize } from "../src/lib/Diff.ts";
+import { noFilters, spacing } from "../src/lib/Grid.ts";
+import type { Book, Manifest, Snapshot } from "../src/lib/Snapshots.ts";
 
 const snapshot = (screen: string, state: string, light: string, dark?: string): Snapshot => ({
   id: `${screen}_${state}`,
