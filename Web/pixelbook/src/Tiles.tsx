@@ -1,6 +1,7 @@
 // What the canvas shows in both modes: snapshot tiles and text labels.
+import type { NodeProps } from "@xyflow/react";
 import { createContext, useContext } from "react";
-import { useNear } from "./Canvas.tsx";
+import type { LabelNode, TileNode } from "./Elements.ts";
 import type { ChangeLabel, Label, Tile } from "./Grid.ts";
 import { type Platform, type Scheme, tileImageUrl } from "./Snapshots.ts";
 
@@ -31,23 +32,26 @@ const badgeColors: Record<ChangeLabel, string> = {
  */
 export const DensityContext = createContext<number | undefined>(Number.POSITIVE_INFINITY);
 
+/** What clicking a tile does: open it. A context, so the canvas's nodes don't carry it. */
+export const SelectContext = createContext<(tile: Tile) => void>(() => {});
+
 /** A snapshot, at `tile`'s position in its container; clicking it opens it full size. */
 export function TileButton({
   tile,
-  onSelect,
   stacked = false,
 }: {
   readonly tile: Tile;
-  readonly onSelect: (tile: Tile) => void;
   /** Whether more states are stacked behind it, as on a flowchart node with several. */
   readonly stacked?: boolean;
 }) {
   const density = useContext(DensityContext);
+  const onSelect = useContext(SelectContext);
   return (
     <button
       type="button"
       className={[
-        "absolute cursor-pointer overflow-hidden hover:outline-4 hover:outline-offset-4 hover:outline-accent focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-accent",
+        // React Flow's nodes don't take pointer events when they can't be selected or dragged.
+        "pointer-events-auto absolute cursor-pointer overflow-hidden hover:outline-4 hover:outline-offset-4 hover:outline-accent focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-accent",
         tile.platform === "ios" ? "rounded-[28px]" : "rounded-[10px]",
         stacked
           ? "shadow-[0_0_0_1px_var(--color-border),14px_14px_0_-2px_var(--color-stack-1),28px_28px_0_-4px_var(--color-stack-2)]"
@@ -79,11 +83,10 @@ export function TileButton({
   );
 }
 
-/**
- * Room for a label's text, which isn't measured, in points: an app's title (`.label.app`, 112
- * points) runs to about 1,500 points.
- */
-const labelExtent = { width: 2000, height: 120 };
+/** A tile on the canvas: its node is at its position. */
+export function TileNodeView({ data }: NodeProps<TileNode>) {
+  return <TileButton tile={{ ...data.tile, x: 0, y: 0 }} />;
+}
 
 /** A label's type, by its kind: sized to read on the zoomed-out canvas. */
 const labelStyles: Record<Label["kind"], string> = {
@@ -92,15 +95,6 @@ const labelStyles: Record<Label["kind"], string> = {
   caption: "text-[28px] font-semibold text-secondary",
 };
 
-export function Labels({ labels }: { readonly labels: ReadonlyArray<Label> }) {
-  const shown = useNear(labels, (label) => ({ x: label.x, y: label.y, ...labelExtent }));
-  return shown.map((label) => (
-    <div
-      key={`${label.kind}/${label.x}/${label.y}`}
-      className={`absolute whitespace-nowrap ${labelStyles[label.kind]}`}
-      style={{ left: label.x, top: label.y }}
-    >
-      {label.text}
-    </div>
-  ));
+export function LabelNodeView({ data: { label } }: NodeProps<LabelNode>) {
+  return <div className={`whitespace-nowrap ${labelStyles[label.kind]}`}>{label.text}</div>;
 }
