@@ -1,6 +1,6 @@
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
-import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, type CanvasHandle, intersects, RegionContext, type View } from "../Canvas.tsx";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Canvas, type CanvasHandle, useNear, type View } from "../Canvas.tsx";
 import {
   filtersFrom,
   modeFrom,
@@ -341,8 +341,7 @@ const Content = memo(function Content({
   readonly onSelect: (tile: Tile) => void;
 }) {
   // Only what's near the view: re-rendered as that changes, not on every pan.
-  const region = useContext(RegionContext);
-  const shown = region === undefined ? tiles : tiles.filter((tile) => intersects(region, tile));
+  const shown = useNear(tiles, (tile) => tile);
   return (
     <>
       <Labels labels={labels} />

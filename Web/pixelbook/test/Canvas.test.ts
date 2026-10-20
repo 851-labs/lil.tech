@@ -3,6 +3,7 @@ import {
   fitView,
   intersects,
   maxZoom,
+  near,
   renderRegion,
   startView,
   zoomAround,
@@ -38,5 +39,15 @@ describe("canvas", () => {
     expect(intersects(region, { x: 3000, y: 0, width: 100, height: 100 })).toBe(true);
     expect(intersects(region, { x: 3072, y: 0, width: 100, height: 100 })).toBe(false);
     expect(intersects(region, { x: -1200, y: -1200, width: 200, height: 200 })).toBe(true);
+  });
+
+  it("keeps the items that reach into the region, or all of them without one", () => {
+    const region = { x0: 0, y0: 0, x1: 100, y1: 100 };
+    const items = [
+      { x: 10, y: 10, width: 10, height: 10 },
+      { x: 200, y: 10, width: 10, height: 10 },
+    ];
+    expect(near(region, items, (item) => item)).toEqual([items[0]]);
+    expect(near(undefined, items, (item) => item)).toEqual(items);
   });
 });

@@ -1,8 +1,8 @@
 // Flowchart mode's canvas: edges with their labels, and a node per screen that steps through its
 // states.
-import { memo, useCallback, useContext, useState } from "react";
-import { intersects, RegionContext } from "./Canvas.tsx";
-import { type FlowLayout, type FlowNode, nodeHeader } from "./Flow.ts";
+import { memo, useCallback, useState } from "react";
+import { useNear } from "./Canvas.tsx";
+import { type FlowLayout, type FlowNode, flowSpacing, nodeExtent, nodeHeader } from "./Flow.ts";
 import type { Tile } from "./Grid.ts";
 import { Labels, TileButton } from "./Tiles.tsx";
 
@@ -15,10 +15,21 @@ export const FlowContent = memo(function FlowContent({
   readonly onSelect: (tile: Tile) => void;
 }) {
   // Only what's near the view; the edges stay one drawing.
-  const region = useContext(RegionContext);
-  const near = <A extends { x: number; y: number; width: number; height: number }>(
-    items: ReadonlyArray<A>,
-  ) => (region === undefined ? items : items.filter((item) => intersects(region, item)));
+  const nodes = useNear(layout.nodes, nodeExtent);
+  const unlinked = useNear(layout.unlinked, (tile) => tile);
+  // Placed at their centers, with the room the layout gave them.
+  const edgeLabels = useNear(
+    layout.edges.flatMap((edge, index) =>
+      edge.label === undefined || edge.labelAt === undefined
+        ? []
+        : [{ key: `${edge.from}/${edge.to}/${index}`, text: edge.label, at: edge.labelAt }],
+    ),
+    ({ at }) => ({
+      x: at.x - flowSpacing.label.width / 2,
+      y: at.y - flowSpacing.label.height / 2,
+      ...flowSpacing.label,
+    }),
+  );
   // How far each node was stepped, kept here so a node that leaves the view and comes back keeps
   // its state.
   const [steps, setSteps] = useState<ReadonlyMap<string, number>>(new Map());
@@ -50,19 +61,13 @@ export const FlowContent = memo(function FlowContent({
           />
         ))}
       </svg>
-      {layout.edges.map((edge, index) =>
-        edge.label === undefined || edge.labelAt === undefined ? null : (
-          <div
-            key={`${edge.from}/${edge.to}/${index}`}
-            className="edge-label"
-            style={{ left: edge.labelAt.x, top: edge.labelAt.y }}
-          >
-            {edge.label}
-          </div>
-        ),
-      )}
+      {edgeLabels.map((label) => (
+        <div key={label.key} className="edge-label" style={{ left: label.at.x, top: label.at.y }}>
+          {label.text}
+        </div>
+      ))}
       <Labels labels={layout.labels} />
-      {near(layout.nodes).map((node) => (
+      {nodes.map((node) => (
         <Node
           key={node.key}
           node={node}
@@ -71,7 +76,7 @@ export const FlowContent = memo(function FlowContent({
           onSelect={onSelect}
         />
       ))}
-      {near(layout.unlinked).map((tile) => (
+      {unlinked.map((tile) => (
         <TileButton key={`${tile.app}/${tile.snapshot.id}`} tile={tile} onSelect={onSelect} />
       ))}
     </>

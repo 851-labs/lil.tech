@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
-import { layoutFlowchart, nodeHeader, placeholder, unlinkedRowWidth } from "../src/Flow.ts";
+import {
+  type FlowNode,
+  layoutFlowchart,
+  nodeExtent,
+  nodeHeader,
+  placeholder,
+  unlinkedRowWidth,
+} from "../src/Flow.ts";
 import type { Graph } from "../src/Graph.ts";
 import { noFilters, spacing } from "../src/Grid.ts";
 import type { Manifest, Snapshot } from "../src/Snapshots.ts";
@@ -106,5 +113,18 @@ describe("flowchart layout", () => {
     const right = Math.max(...layout.unlinked.map((tile) => tile.x + tile.width));
     expect(right).toBeLessThanOrEqual(spacing.margin + unlinkedRowWidth);
     expect(new Set(layout.unlinked.map((tile) => tile.y)).size).toBeGreaterThan(1);
+  });
+
+  it("reaches as far as a node's largest state", () => {
+    const tile = (width: number, height: number) =>
+      ({ width, height }) as unknown as FlowNode["tiles"][number];
+    const node = {
+      x: 10,
+      y: 20,
+      width: 400,
+      height: nodeHeader + 800,
+      tiles: [tile(400, 800), tile(400, 3000), tile(500, 600)],
+    } as unknown as FlowNode;
+    expect(nodeExtent(node)).toEqual({ x: 10, y: 20, width: 500, height: nodeHeader + 3000 });
   });
 });

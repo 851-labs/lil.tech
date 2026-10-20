@@ -3,6 +3,7 @@ import {
   createContext,
   type ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -84,17 +85,39 @@ export const renderRegion = (view: View, viewportWidth: number, viewportHeight: 
   };
 };
 
-/** Whether a rectangle (x, y, width, height) reaches into `region`. */
-export const intersects = (
-  region: Region,
-  { x, y, width, height }: { x: number; y: number; width: number; height: number },
-) => x < region.x1 && x + width > region.x0 && y < region.y1 && y + height > region.y0;
+/** A rectangle on the canvas, in canvas points. */
+export interface Box {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** Whether `box` reaches into `region`. */
+export const intersects = (region: Region, { x, y, width, height }: Box) =>
+  x < region.x1 && x + width > region.x0 && y < region.y1 && y + height > region.y0;
 
 /**
  * The canvas's `renderRegion`, for its content to render only what's in it. `undefined` until the
  * viewport's size is known (on the server, say): everything.
  */
 export const RegionContext = createContext<Region | undefined>(undefined);
+
+/** The items whose `box` reaches into `region`: all of them without one. */
+export const near = <A,>(
+  region: Region | undefined,
+  items: ReadonlyArray<A>,
+  box: (item: A) => Box,
+): ReadonlyArray<A> =>
+  region === undefined ? items : items.filter((item) => intersects(region, box(item)));
+
+/**
+ * The items near the canvas's view, for content to render only those. Off-screen content is then
+ * out of the DOM: out of tab order and the browser's find, which the canvas's size makes the
+ * better trade.
+ */
+export const useNear = <A,>(items: ReadonlyArray<A>, box: (item: A) => Box) =>
+  near(useContext(RegionContext), items, box);
 
 export interface CanvasHandle {
   readonly zoomBy: (factor: number) => void;
@@ -135,8 +158,9 @@ export function Canvas({
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+  // A viewport with no size (hidden, say) shows nothing anyway, and its region would be NaN.
   const region =
-    viewportSize === undefined
+    viewportSize === undefined || viewportSize.width === 0 || viewportSize.height === 0
       ? undefined
       : renderRegion(view, viewportSize.width, viewportSize.height);
   // The same object while the snapped bounds are, so content re-renders only when they change.
