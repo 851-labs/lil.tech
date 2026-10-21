@@ -132,11 +132,12 @@ extension HealthDatabase {
       }
       .order { $0.startDate.desc() }
       .fetchAll(db)
-      .map { cycleFactor($0, ended: false) }
+      .map { cycleFactor($0, now: moment) }
   }
 
-  /// Pregnancy, lactation and contraceptives that ended by `now`, newest first, at most `limit`:
-  /// Health's past factors (Show All Factors), the ones `cycleFactors(at:)` leaves out.
+  /// Pregnancy, lactation and contraceptives that ended by `now`, the latest to end first, at
+  /// most `limit`: Health's past factors (Show All Factors), the ones `cycleFactors(at:)` leaves
+  /// out.
   public static func cycleFactorHistory(
     before now: Date, limit: Int, _ db: Database
   ) throws -> [CycleFactor] {
@@ -144,36 +145,73 @@ extension HealthDatabase {
     return
       try HealthSample
       .where { $0.type.in(factorTypes) && $0.endDate <= moment && $0.endDate > $0.startDate }
-      .order { ($0.startDate.desc(), $0.endDate.desc()) }
+      .order { ($0.endDate.desc(), $0.startDate.desc()) }
       .limit(limit)
       .fetchAll(db)
-      .map { cycleFactor($0, ended: true) }
+      .map { cycleFactor($0, now: moment) }
   }
 
-  private static func cycleFactor(_ sample: HealthSample, ended: Bool) -> CycleFactor {
+  /// A factor sample, with its end if it's over by `now`.
+  private static func cycleFactor(_ sample: HealthSample, now: Int) -> CycleFactor {
     CycleFactor(
       name: HealthCatalog.type(id: sample.type)?.name ?? sample.type,
       detail: sample.type == contraceptiveType
         ? categoryValueName(sample.categoryValue, typeID: sample.type) : nil,
       start: Date(unixMilliseconds: sample.startDate),
-      end: ended ? Date(unixMilliseconds: sample.endDate) : nil)
+      end: sample.endDate == sample.startDate || sample.endDate > now
+        ? nil : Date(unixMilliseconds: sample.endDate))
   }
 
-  /// The menopause stage logged last by `now` (`HKCategoryTypeIdentifierMenopausalState`, iOS 27),
-  /// and since when. Nil if none is.
+  /// HKCategoryValueMenopausalState's None: no stage to show.
+  static let noMenopausalStage = 3
+
+  /// The menopause stage going on at `now` (`HKCategoryTypeIdentifierMenopausalState`, iOS 27),
+  /// as factors are: the last logged by then, unless it's over (it ended by then) or says None.
+  /// Since the start of its latest unbroken run: the samples before it with the same value, each
+  /// going on until the next starts.
   public static func menopauseStage(at now: Date, _ db: Database) throws -> MenopauseStage? {
     let moment = now.unixMilliseconds
-    return
+    // A few samples in a lifetime.
+    let samples =
       try HealthSample
       .where { $0.type.eq(menopausalStateType) && $0.startDate <= moment }
-      .order { $0.startDate.desc() }
+      .order { ($0.startDate.desc(), $0.endDate.desc()) }
+      .fetchAll(db)
+    guard let latest = samples.first, latest.categoryValue != noMenopausalStage,
+      latest.endDate > moment || latest.endDate == latest.startDate
+    else { return nil }
+    var since = latest.startDate
+    for earlier in samples.dropFirst() {
+      let isOverBefore = earlier.endDate > earlier.startDate && earlier.endDate < since
+      guard earlier.categoryValue == latest.categoryValue, !isOverBefore else { break }
+      since = earlier.startDate
+    }
+    return MenopauseStage(
+      name: categoryValueName(latest.categoryValue, typeID: latest.type),
+      since: Date(unixMilliseconds: since))
+  }
+
+  /// When what `cycleFactors(at:)`, `cycleFactorHistory(before:limit:)` and
+  /// `menopauseStage(at:)` say next changes after `now`, without a sync: the first factor or
+  /// stage to start or end later. Nil if nothing does.
+  public static func nextCycleChange(after now: Date, _ db: Database) throws -> Date? {
+    let moment = now.unixMilliseconds
+    let types = factorTypes + [menopausalStateType]
+    let start =
+      try HealthSample
+      .where { $0.type.in(types) && $0.startDate > moment }
+      .order(by: \.startDate)
       .limit(1)
-      .fetchOne(db)
-      .map { sample in
-        MenopauseStage(
-          name: categoryValueName(sample.categoryValue, typeID: sample.type),
-          since: Date(unixMilliseconds: sample.startDate))
-      }
+      .fetchOne(db)?
+      .startDate
+    let end =
+      try HealthSample
+      .where { $0.type.in(types) && $0.endDate > moment && $0.endDate > $0.startDate }
+      .order(by: \.endDate)
+      .limit(1)
+      .fetchOne(db)?
+      .endDate
+    return [start, end].compactMap { $0 }.min().map { Date(unixMilliseconds: $0) }
   }
 }
 
@@ -281,8 +319,8 @@ public struct CycleFactor: Equatable, Sendable {
   }
 }
 
-/// The menopause stage last logged, as Health names it ("Perimenopause"), and since when. No
-/// name for a value Health doesn't have yet.
+/// The menopause stage going on, as Health names it ("Perimenopause"), and since when. No name
+/// for a value Health doesn't have yet.
 public struct MenopauseStage: Equatable, Sendable {
   public var name: String?
   public var since: Date

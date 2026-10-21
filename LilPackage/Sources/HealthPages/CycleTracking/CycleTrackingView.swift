@@ -6,28 +6,31 @@ public import SwiftUI
 
 /// Cycle Tracking, as in Health: a month's calendar of periods, spotting, ovulation tests,
 /// symptoms and sexual activity, the factors going on now and past ones, the menopause stage, and
-/// past cycles' lengths. Health's
-/// predictions stay on the iPhone (HealthKit doesn't share them), so there are none here.
-/// Follows the local database as sync changes it.
+/// past cycles' lengths. Health's predictions stay on the iPhone (HealthKit doesn't share them),
+/// so there are none here. Follows the local database as sync changes it, and the clock as
+/// factors and stages start and end.
 public struct CycleTrackingView: View {
   /// The type it was opened for, whose latest sample's month and day it opens on (851-2830).
   let typeID: String?
   @Dependency(\.defaultDatabase) private var database
+  @Dependency(\.continuousClock) private var clock
   @State private var monthOffset = 0
   @State private var selected: Date?
   /// Whether the month to open on is known, so the first month loaded is the right one.
   @State private var isPositioned: Bool
   /// Moves at midnight, so the months do even if nothing syncs.
   @State private var today = Date.now
+  /// When factors and the menopause stage are worked out for: moved on at midnight, and when one
+  /// starts or ends.
+  @State private var historyNow = Date.now
   @Fetch private var days: CycleMonth? = nil
-  /// Not tied to the month shown, so they load once.
+  /// Not tied to the month shown.
   @Fetch private var history: CycleHistory? = nil
 
   public init(typeID: String? = nil) {
     self.typeID = typeID
     // A period opens on today's month, as it always has: its latest sample may be "no flow".
     _isPositioned = State(initialValue: typeID == nil || typeID == HealthDatabase.menstrualFlowType)
-    _history = Fetch(wrappedValue: nil, CycleHistoryRequest(), scheduler: MainQueueScheduler())
   }
 
   public var body: some View {
@@ -58,8 +61,23 @@ public struct CycleTrackingView: View {
       let month = ChartRange.month.interval(offset: monthOffset, now: today, calendar: .current)
       _ = try? await $days.load(CycleMonthRequest(month: month), scheduler: MainQueueScheduler())
     }
+    .task(id: historyNow) {
+      _ = try? await $history.load(
+        CycleHistoryRequest(now: historyNow), scheduler: MainQueueScheduler())
+    }
+    // Waits for the next factor or stage to start or end, then works them out again.
+    .task(id: history?.nextChange) {
+      guard let next = history?.nextChange else { return }
+      do {
+        try await clock.sleep(for: .seconds(max(next.timeIntervalSinceNow, 0)))
+      } catch {
+        return
+      }
+      historyNow = .now
+    }
     .onReceive(calendarDayChanges()) {
       today = .now
+      historyNow = .now
     }
   }
 
@@ -87,7 +105,7 @@ struct CycleSnapshot: Equatable, Sendable {
   var periods: [Period]
   /// Going on now.
   var factors: [CycleFactor]
-  /// Over, newest first.
+  /// Over, the latest to end first.
   var pastFactors: [CycleFactor] = []
   var menopause: MenopauseStage?
 
@@ -115,16 +133,25 @@ struct CycleHistory: Equatable, Sendable {
   var factors: [CycleFactor]
   var pastFactors: [CycleFactor]
   var menopause: MenopauseStage?
+  /// When a factor or stage next starts or ends, to work them out again then.
+  var nextChange: Date?
 }
 
+/// Periods, and factors and the menopause stage as they are at `now`.
 struct CycleHistoryRequest: FetchKeyRequest {
+  /// Past factors shown at most: years of them.
+  static let pastFactorLimit = 20
+
+  let now: Date
+
   func fetch(_ db: Database) throws -> CycleHistory? {
-    let now = Date.now
-    return CycleHistory(
+    CycleHistory(
       periods: try HealthDatabase.periods(limit: 12, calendar: .current, db),
       factors: try HealthDatabase.cycleFactors(at: now, db),
-      pastFactors: try HealthDatabase.cycleFactorHistory(before: now, limit: 20, db),
-      menopause: try HealthDatabase.menopauseStage(at: now, db))
+      pastFactors: try HealthDatabase.cycleFactorHistory(
+        before: now, limit: Self.pastFactorLimit, db),
+      menopause: try HealthDatabase.menopauseStage(at: now, db),
+      nextChange: try HealthDatabase.nextCycleChange(after: now, db))
   }
 }
 
@@ -176,6 +203,13 @@ struct CycleTrackingContent: View {
               }
               if !snapshot.pastFactors.isEmpty {
                 factors("Past Factors", snapshot.pastFactors)
+                if snapshot.pastFactors.count >= CycleHistoryRequest.pastFactorLimit {
+                  Text(
+                    "Showing the \(CycleHistoryRequest.pastFactorLimit.formatted()) most recent past factors."
+                  )
+                  .font(.footnote)
+                  .foregroundStyle(.secondary)
+                }
               }
               history(snapshot.periods)
             }

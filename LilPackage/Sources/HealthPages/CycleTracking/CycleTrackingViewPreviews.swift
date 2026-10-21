@@ -77,7 +77,7 @@ private func monthsAgo(_ months: Int, day: Int = 1) -> Date {
   calendar.date(byAdding: DateComponents(month: -months, day: day - 1), to: month.start)!
 }
 
-// Factors going on now, then past ones with their dates, newest first (851-2870).
+// Factors going on now, then past ones with their dates, the latest to end first (851-2870).
 #Preview("With past factors") {
   cycle(
     .loaded(
@@ -100,7 +100,21 @@ private func monthsAgo(_ months: Int, day: Int = 1) -> Date {
     selected: day(4))
 }
 
-// The stage last logged, and since when (851-2870).
+// As many past factors as the page shows, with a note that there may be more.
+#Preview("Past factors at the limit") {
+  let kinds = ["Oral", "Patch", "Intravaginal Ring", "Injection"]
+  cycle(
+    .loaded(
+      CycleSnapshot(
+        month: month, days: [:], periods: periods, factors: [],
+        pastFactors: (0..<CycleHistoryRequest.pastFactorLimit).map { index in
+          CycleFactor(
+            name: "Contraceptives", detail: kinds[index % kinds.count],
+            start: monthsAgo(6 * index + 9, day: 4), end: monthsAgo(6 * index + 3, day: 20))
+        })))
+}
+
+// The stage going on, and since when its run of logs started (851-2870).
 #Preview("Menopause stage") {
   cycle(
     .loaded(
