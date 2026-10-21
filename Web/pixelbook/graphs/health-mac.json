@@ -96,6 +96,7 @@
       "screen": "HealthPages/AllDataViewPreviews.swift",
       "states": [
         "All data",
+        "All data, a long day",
         "All data, raw steps",
         "All data, empty",
         "All data, loading",

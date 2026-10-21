@@ -5,7 +5,7 @@ import HealthUI
 import SQLiteData
 public import SwiftUI
 
-/// Every sample of a type, newest first and grouped by day, a page at a time as the list
+/// Every sample of a type, newest first, in a card per day, a page at a time as the list
 /// scrolls. Each opens its details.
 public struct AllDataView: View {
   let type: HealthDataType
@@ -94,29 +94,53 @@ struct AllDataContent: View {
     .navigationTitle("All \(type.name) Data")
   }
 
+  /// One rounded card per day under its name, as Medications' log and the other pages' grouped
+  /// sections are (851-2820). A `LazyVStack` of rows, each drawing its part of its day's card, so
+  /// only the rows on screen are built: a grouped `Form` builds every row at once (a second for
+  /// 1,000, and 100,000 crash it), and a day can have hundreds.
   private func list(_ samples: [HealthSample], hasMore: Bool) -> some View {
-    List {
-      ForEach(days(samples), id: \.day) { section in
-        Section(MetricFormat.date(section.day, isDay: true, now: now, calendar: calendar)) {
+    let days = days(samples)
+    return ScrollView {
+      LazyVStack(alignment: .leading, spacing: 0) {
+        ForEach(days, id: \.day) { section in
+          Text(MetricFormat.date(section.day, isDay: true, now: now, calendar: calendar))
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .accessibilityAddTraits(.isHeader)
+            .padding(.horizontal, 14)
+            .padding(.top, section.day == days.first?.day ? 0 : 18)
+            .padding(.bottom, 6)
+          // The last day may go on in the next page, so its card stays open while that loads.
+          let isOpen = hasMore && !moreFailed && section.day == days.last?.day
           ForEach(section.samples) { sample in
             NavigationLink {
               SampleDetailView(type: type, sample: sample)
             } label: {
-              SampleRow(type: type, sample: sample, calendar: calendar)
+              SampleCardRow(
+                type: type, sample: sample, calendar: calendar,
+                isFirst: sample.id == section.samples.first?.id,
+                isLast: !isOpen && sample.id == section.samples.last?.id)
             }
+            .buttonStyle(.plain)
           }
         }
+        Group {
+          if moreFailed {
+            Button("Couldn't load more. Try Again", action: loadMore)
+          } else if hasMore {
+            // Loads the next page when the end of the list comes into view.
+            ProgressView()
+              .onAppear(perform: loadMore)
+          }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 12)
       }
-      if moreFailed {
-        Button("Couldn't load more. Try Again", action: loadMore)
-          .frame(maxWidth: .infinity)
-      } else if hasMore {
-        // Loads the next page when the end of the list comes into view.
-        ProgressView()
-          .frame(maxWidth: .infinity)
-          .onAppear(perform: loadMore)
-      }
+      .padding(20)
+      .frame(maxWidth: 760)
+      .frame(maxWidth: .infinity)
     }
+    .background(Color.pageBackground)
   }
 
   /// The samples (newest first) by day, asking the calendar only when a sample leaves the day
@@ -134,6 +158,39 @@ struct AllDataContent: View {
       }
     }
     return days
+  }
+}
+
+/// A sample as its part of its day's card: rounded at the card's top and bottom, with a line
+/// between rows, and a chevron, since it opens the sample.
+struct SampleCardRow: View {
+  let type: HealthDataType
+  let sample: HealthSample
+  var calendar = Calendar.current
+  let isFirst: Bool
+  let isLast: Bool
+
+  var body: some View {
+    let radius: CGFloat = 12
+    VStack(spacing: 0) {
+      if !isFirst {
+        Divider().padding(.leading, 14)
+      }
+      HStack(spacing: 10) {
+        SampleRow(type: type, sample: sample, calendar: calendar)
+        Image(systemName: "chevron.right")
+          .font(.caption.bold())
+          .foregroundStyle(.tertiary)
+      }
+      .padding(.horizontal, 14)
+      .padding(.vertical, 6)
+    }
+    .contentShape(Rectangle())
+    .background(
+      Color.cardBackground,
+      in: UnevenRoundedRectangle(
+        topLeadingRadius: isFirst ? radius : 0, bottomLeadingRadius: isLast ? radius : 0,
+        bottomTrailingRadius: isLast ? radius : 0, topTrailingRadius: isFirst ? radius : 0))
   }
 }
 

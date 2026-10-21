@@ -4,8 +4,8 @@ import HealthUI
 import SQLiteData
 import SwiftUI
 
-// In their own file: previewing a file with a `List` of `ForEach` rows trips an assertion in
-// SwiftUI's macOS `List` (AGENTS.md). Synthetic data only: `makePreviewHealthDatabase()`.
+// In their own file: previewing a file with a `List` (or a grouped `Form`, as Data Sources is) of
+// `ForEach` rows trips an assertion in SwiftUI's macOS `List` (AGENTS.md). Synthetic data only: `makePreviewHealthDatabase()`.
 
 private let heartRate = HealthCatalog.type(id: "HKQuantityTypeIdentifierHeartRate")!
 private let steps = HealthCatalog.type(id: "HKQuantityTypeIdentifierStepCount")!
@@ -27,6 +27,21 @@ private func allData(_ type: HealthDataType, _ state: AllDataContent.State) -> s
 
 #Preview("All data") {
   allData(heartRate, .loaded(previewSamples(heartRate), hasMore: true))
+}
+
+// A day with a reading every 5 minutes, as a Watch's heart rate during a workout can have: one
+// long card.
+#Preview("All data, a long day") {
+  // From 11:55 PM back to midnight.
+  let day = Calendar.current.startOfDay(for: .now).addingTimeInterval(24 * 3600 - 300)
+  let samples = (0..<288).map { index in
+    let start = Int(day.timeIntervalSince1970 * 1000) - index * 300_000
+    return HealthSample(
+      id: "synthetic-\(index)", type: heartRate.id, startDate: start, endDate: start,
+      value: Double(62 + (index * 7) % 45), unit: "count/min", sourceName: "Synthetic Watch",
+      sourceBundleID: "com.example.watch")
+  }
+  return allData(heartRate, .loaded(samples, hasMore: false))
 }
 
 #Preview("All data, raw steps") {
