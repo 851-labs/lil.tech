@@ -29,6 +29,20 @@ private func allData(_ type: HealthDataType, _ state: AllDataContent.State) -> s
   allData(heartRate, .loaded(previewSamples(heartRate), hasMore: true))
 }
 
+// A day with a reading every 5 minutes, as a Watch's heart rate during a workout can have: one
+// long card.
+#Preview("All data, a long day") {
+  let day = Calendar.current.startOfDay(for: .now).addingTimeInterval(23 * 3600)
+  let samples = (0..<288).map { index in
+    let start = Int(day.timeIntervalSince1970 * 1000) - index * 300_000
+    return HealthSample(
+      id: "synthetic-\(index)", type: heartRate.id, startDate: start, endDate: start,
+      value: Double(62 + (index * 7) % 45), unit: "count/min", sourceName: "Synthetic Watch",
+      sourceBundleID: "com.example.watch")
+  }
+  return allData(heartRate, .loaded(samples, hasMore: false))
+}
+
 #Preview("All data, raw steps") {
   allData(steps, .loaded(previewSamples(steps), hasMore: false))
 }
