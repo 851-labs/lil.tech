@@ -57,17 +57,25 @@ struct SidebarView: View {
             Label {
               Text(type.name)
             } icon: {
-              Image(systemName: type.category?.symbolName ?? "circle")
-                .foregroundStyle(type.category?.color ?? .secondary)
+              TintedIcon(
+                type.category?.symbolName ?? "circle", color: type.category?.color ?? .secondary)
             }
             .tag(SidebarItem.dataType(type.id))
           }
         }
       } else {
-        Label("Summary", systemImage: "heart.text.square.fill")
-          .tag(SidebarItem.summary)
-        Label("Health Details", systemImage: "person.text.rectangle.fill")
-          .tag(SidebarItem.healthDetails)
+        Label {
+          Text("Summary")
+        } icon: {
+          TintedIcon("heart.text.square.fill", color: .accentColor)
+        }
+        .tag(SidebarItem.summary)
+        Label {
+          Text("Health Details")
+        } icon: {
+          TintedIcon("person.text.rectangle.fill", color: .accentColor)
+        }
+        .tag(SidebarItem.healthDetails)
         Section("Health Categories") {
           ForEach(HealthCategory.allCases) { category in
             HealthCategoryLabel(category)

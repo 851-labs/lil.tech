@@ -47,6 +47,11 @@ private func appView(_ state: AppFeature.State) -> some View {
   appView(AppFeature.State(isSignedIn: true, selection: .category(.heart)))
 }
 
+// Its icon is two-tone, and goes wholly white on the key window's selection (851-2823).
+#Preview("A two-tone category") {
+  appView(AppFeature.State(isSignedIn: true, selection: .category(.medications)))
+}
+
 #Preview("Search results") {
   appView(AppFeature.State(isSignedIn: true, searchText: "heart"))
 }
