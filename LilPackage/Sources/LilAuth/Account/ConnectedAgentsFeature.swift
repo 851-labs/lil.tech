@@ -2,7 +2,7 @@ public import ComposableArchitecture
 import Foundation
 
 /// lil health's remote agents: those the person allowed to read its data through its MCP server
-/// (`mcp.lil.tech/health`), with when each connected and last read, revoking one or all of them,
+/// (`mcp.lil.tech/health`) or the combined one for every lil app (`mcp.lil.tech`, 851-2902), with when each connected and last read, revoking one or all of them,
 /// and the log of what they read. The Mac's Agents pane (851-2853) and the iPhone's Settings
 /// (851-2854) show it. Kept in the app's store, and read again each time its screen opens.
 @Reducer
@@ -87,7 +87,7 @@ public struct ConnectedAgentsFeature {
     case log
   }
 
-  /// lil health's agents: the API lists every app's.
+  /// lil health's agents: the API lists every app's. Combined agents name every app they read.
   public static let app = "health"
 
   @Dependency(\.connectedAgents) var connectedAgents
@@ -98,7 +98,7 @@ public struct ConnectedAgentsFeature {
     Reduce { state, action in
       switch action {
       case .agentsLoaded(.success(let agents)):
-        state.agents = .loaded(agents.filter { $0.app == Self.app })
+        state.agents = .loaded(agents.filter { $0.apps.contains(Self.app) })
         return .none
 
       case .agentsLoaded(.failure(let error)):
@@ -255,18 +255,26 @@ public struct ConnectedAgentsFeature {
 }
 
 extension AlertState where Action == ConnectedAgentsFeature.Action.Alert {
-  /// Revoke's confirmation, for one agent.
+  /// Revoke's confirmation, for one agent. Revoking a combined one disconnects it from every lil
+  /// app, which it says.
   public static func confirmRevoke(_ agent: ConnectedAgent) -> Self {
-    Self {
-      TextState("Revoke \(ConnectedAgentsFeature.name(agent))?")
+    let name = ConnectedAgentsFeature.name(agent)
+    let message =
+      agent.isCombined
+      ? TextState(
+        "Revoking it disconnects it from every lil app it's connected to, at once. To use it again, connect it again."
+      )
+      : TextState(
+        "It loses access to your Health data at once. To use it again, connect it again.")
+    return Self {
+      TextState("Revoke \(name)?")
     } actions: {
       ButtonState(role: .destructive, action: .confirmRevoke(id: agent.id)) {
         TextState("Revoke")
       }
       ButtonState(role: .cancel) { TextState("Cancel") }
     } message: {
-      TextState(
-        "It loses access to your Health data at once. To use it again, connect it again.")
+      message
     }
   }
 

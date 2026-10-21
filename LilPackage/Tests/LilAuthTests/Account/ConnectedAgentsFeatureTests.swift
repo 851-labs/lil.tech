@@ -24,6 +24,18 @@ struct ConnectedAgentsFeatureTests {
     connectedAt: Date(timeIntervalSince1970: 1_760_700_000),
     firstUsedAt: nil,
     lastUsedAt: Date(timeIntervalSince1970: 1_760_700_000))
+  /// Connected through the combined server (851-2902), to lil health and lil mail.
+  private let combined = ConnectedAgent(
+    id: "grant-4", name: "ChatGPT", domain: "chatgpt.com", app: nil, apps: ["health", "mail"],
+    connectedAt: Date(timeIntervalSince1970: 1_760_600_000),
+    firstUsedAt: nil,
+    lastUsedAt: Date(timeIntervalSince1970: 1_760_600_000))
+  /// A combined agent that lil health was taken away from (its Turn Off), which reads only mail.
+  private let combinedMailOnly = ConnectedAgent(
+    id: "grant-5", name: "Mail Digest", domain: "example.com", app: nil, apps: ["mail"],
+    connectedAt: Date(timeIntervalSince1970: 1_760_500_000),
+    firstUsedAt: nil,
+    lastUsedAt: Date(timeIntervalSince1970: 1_760_500_000))
 
   private nonisolated static func access(_ id: Int) -> RemoteAgentAccess {
     RemoteAgentAccess(
@@ -56,6 +68,62 @@ struct ConnectedAgentsFeatureTests {
       $0.log = [Self.access(1), Self.access(2)]
       $0.logNextBefore = 2
     }
+  }
+
+  @Test
+  func listsTheAgentsThatReadLilHealthIncludingCombinedOnes() async {
+    let store = TestStore(initialState: ConnectedAgentsFeature.State()) {
+      ConnectedAgentsFeature()
+    } withDependencies: { [claude, mailAgent, combined, combinedMailOnly] in
+      $0.connectedAgents.list = { () throws(ConnectedAgentsError) in
+        [claude, mailAgent, combined, combinedMailOnly]
+      }
+      $0.connectedAgents.accessLog = { _ throws(ConnectedAgentsError) in
+        RemoteAgentAccessPage(entries: [], nextBefore: nil)
+      }
+    }
+    store.exhaustivity = .off(showSkippedAssertions: false)
+
+    await store.send(.appeared)
+    // Not another app's own agent, nor a combined one that no longer reads lil health.
+    await store.receive(\.agentsLoaded) {
+      $0.agents = .loaded([claude, combined])
+    }
+    #expect(!claude.isCombined)
+    #expect(combined.isCombined)
+  }
+
+  @Test
+  func revokingACombinedAgentSaysItDisconnectsEveryApp() async {
+    let revoked = LockIsolated<[String]>([])
+    let store = TestStore(
+      initialState: ConnectedAgentsFeature.State(agents: .loaded([claude, combined]))
+    ) {
+      ConnectedAgentsFeature()
+    } withDependencies: {
+      $0.connectedAgents.revoke = { id throws(ConnectedAgentsError) in
+        revoked.withValue { $0.append(id) }
+      }
+    }
+    store.exhaustivity = .off(showSkippedAssertions: false)
+
+    await store.send(.revokeButtonTapped(combined)) {
+      $0.alert = .confirmRevoke(self.combined)
+    }
+    let message = store.state.alert.map { String(state: $0.message ?? TextState("")) }
+    #expect(message?.contains("disconnects it from every lil app") == true)
+    let perApp = AlertState.confirmRevoke(claude).message.map { String(state: $0) }
+    #expect(perApp?.contains("your Health data") == true)
+    await store.send(\.alert.confirmRevoke, "grant-4") {
+      $0.alert = nil
+      $0.revoking = ["grant-4"]
+    }
+    await store.receive(\.revoked) {
+      $0.revoking = []
+      $0.agents = .loaded([claude])
+    }
+    // The whole grant: the server ends it for every app.
+    #expect(revoked.value == ["grant-4"])
   }
 
   @Test

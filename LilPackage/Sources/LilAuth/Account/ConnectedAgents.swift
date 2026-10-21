@@ -3,8 +3,9 @@ public import Foundation
 import IssueReporting
 import LilAPI
 
-/// An agent connected to the account through an app's remote MCP server (851-2852): a grant the
-/// person allowed, until they revoke it.
+/// An agent connected to the account through an app's remote MCP server (851-2852), or through the
+/// combined server that serves every lil app (851-2900): a grant the person allowed, until they
+/// revoke it.
 public struct ConnectedAgent: Equatable, Identifiable, Sendable {
   public var id: String
   /// The name it registered with. Nil for an unnamed one.
@@ -12,8 +13,11 @@ public struct ConnectedAgent: Equatable, Identifiable, Sendable {
   /// A verified client's domain (its metadata document's). Nil for an unverified one, which
   /// registered itself (DCR) and could be called anything.
   public var domain: String?
-  /// Which app's data it reads: "health".
+  /// Whose server it connected to: "health" for lil health's own. Nil for the combined server's.
   public var app: String?
+  /// The apps whose data it can read now: `["health"]` for lil health's own server, and for the
+  /// combined server each app it still holds (851-2901). Each app lists those that name it.
+  public var apps: [String]
   public var connectedAt: Date
   /// When it first read anything (called a tool), recorded exactly. Nil until it does.
   public var firstUsedAt: Date?
@@ -21,14 +25,16 @@ public struct ConnectedAgent: Equatable, Identifiable, Sendable {
   /// connection time until it first does.
   public var lastUsedAt: Date
 
+  /// `apps` defaults to `app`'s alone, as an app's own server's grant reads.
   public init(
-    id: String, name: String?, domain: String?, app: String?, connectedAt: Date,
-    firstUsedAt: Date?, lastUsedAt: Date
+    id: String, name: String?, domain: String?, app: String?, apps: [String]? = nil,
+    connectedAt: Date, firstUsedAt: Date?, lastUsedAt: Date
   ) {
     self.id = id
     self.name = name
     self.domain = domain
     self.app = app
+    self.apps = apps ?? app.map { [$0] } ?? []
     self.connectedAt = connectedAt
     self.firstUsedAt = firstUsedAt
     self.lastUsedAt = lastUsedAt
@@ -36,11 +42,15 @@ public struct ConnectedAgent: Equatable, Identifiable, Sendable {
 
   init(_ agent: Components.Schemas.ConnectedAgent) {
     self.init(
-      id: agent.id, name: agent.name, domain: agent.domain, app: agent.app,
+      id: agent.id, name: agent.name, domain: agent.domain, app: agent.app, apps: agent.apps,
       connectedAt: Date(unixMilliseconds: agent.connectedAt),
       firstUsedAt: agent.firstUsedAt.map(Date.init(unixMilliseconds:)),
       lastUsedAt: Date(unixMilliseconds: agent.lastUsedAt))
   }
+
+  /// Whether it connected through the combined server, to every lil app at once (851-2902), rather
+  /// than to one app's own. Revoking it disconnects it from all of them.
+  public var isCombined: Bool { app == nil }
 
   /// Whether its name is its own claim: no verified domain backs it.
   public var isUnverified: Bool { domain == nil }
@@ -144,7 +154,7 @@ public enum ConnectedAgentsError: Error, Equatable, Sendable {
 /// The agents connected to the account, what they read, and revoking them
 /// (`/v1/me/agents`, `/v1/me/consents/agents/health`).
 public struct ConnectedAgentsClient: Sendable {
-  /// The connected agents, most recent first, every app's (filter on `app`).
+  /// The connected agents, most recent first, every app's (filter on `apps`).
   public var list: @Sendable () async throws(ConnectedAgentsError) -> [ConnectedAgent]
   /// Revokes one: it loses access at once. Revoking one already gone succeeds.
   public var revoke: @Sendable (_ id: String) async throws(ConnectedAgentsError) -> Void
@@ -224,11 +234,19 @@ extension ConnectedAgentsClient: DependencyKey {
     )
   }
 
-  /// None connected, and nothing read: previews give their state directly, and never reach the
-  /// network.
+  /// One agent connected through the combined server, and nothing read: previews give their state
+  /// directly, and never reach the network. Synthetic.
   public static var previewValue: Self {
     Self(
-      list: { () throws(ConnectedAgentsError) in [] },
+      list: { () throws(ConnectedAgentsError) in
+        [
+          ConnectedAgent(
+            id: "agr_preview", name: "Claude", domain: "claude.ai", app: nil, apps: ["health"],
+            connectedAt: Date(timeIntervalSince1970: 1_760_900_000),
+            firstUsedAt: Date(timeIntervalSince1970: 1_760_900_060),
+            lastUsedAt: Date(timeIntervalSince1970: 1_760_960_000))
+        ]
+      },
       revoke: { _ throws(ConnectedAgentsError) in },
       accessLog: { _ throws(ConnectedAgentsError) in
         RemoteAgentAccessPage(entries: [], nextBefore: nil)

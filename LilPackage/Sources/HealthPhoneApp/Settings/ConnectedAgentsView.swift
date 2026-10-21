@@ -11,7 +11,7 @@ import SwiftUI
 #endif
 
 /// Settings › Connected Agents (851-2854): the remote agents allowed to read the account's Health
-/// data through lil health's MCP server, each revoked with a swipe; Recent Access, what they read;
+/// data through lil health's MCP server or the combined one (851-2902), each revoked with a swipe; Recent Access, what they read;
 /// how to connect one; and Turn Off Agent Access. Revoking and turning off ask first. It reads the
 /// agents and the log again each time it opens.
 struct ConnectedAgentsView: View {
@@ -108,8 +108,8 @@ struct ConnectedAgentsView: View {
   }
 }
 
-/// A connected agent: its name (marked when unverified), domain, and when it connected and last
-/// read, with progress while it's revoked.
+/// A connected agent: its name (marked when unverified, or connected to all lil apps), domain, and
+/// when it connected and last read, with progress while it's revoked.
 struct ConnectedAgentRow: View {
   let agent: ConnectedAgent
   let isRevoking: Bool
@@ -130,6 +130,15 @@ struct ConnectedAgentRow: View {
               .padding(.horizontal, 6)
               .padding(.vertical, 1)
               .background(.orange.opacity(0.15), in: Capsule())
+              .fixedSize()
+          }
+          if agent.isCombined {
+            Text("All lil apps")
+              .font(.caption.weight(.medium))
+              .foregroundStyle(.blue)
+              .padding(.horizontal, 6)
+              .padding(.vertical, 1)
+              .background(.blue.opacity(0.15), in: Capsule())
               .fixedSize()
           }
         }
