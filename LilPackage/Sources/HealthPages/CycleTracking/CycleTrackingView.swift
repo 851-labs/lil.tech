@@ -5,7 +5,8 @@ import SQLiteData
 public import SwiftUI
 
 /// Cycle Tracking, as in Health: a month's calendar of periods, spotting, ovulation tests,
-/// symptoms and sexual activity, the factors going on now, and past cycles' lengths. Health's
+/// symptoms and sexual activity, the factors going on now and past ones, the menopause stage, and
+/// past cycles' lengths. Health's
 /// predictions stay on the iPhone (HealthKit doesn't share them), so there are none here.
 /// Follows the local database as sync changes it.
 public struct CycleTrackingView: View {
@@ -40,7 +41,8 @@ public struct CycleTrackingView: View {
           return .loaded(
             CycleSnapshot(
               month: month, days: days.days, periods: history.periods,
-              factors: history.factors))
+              factors: history.factors, pastFactors: history.pastFactors,
+              menopause: history.menopause))
         }(),
       previous: { monthOffset -= 1 }, next: { monthOffset += 1 },
       isLatest: monthOffset >= 0
@@ -78,15 +80,21 @@ public struct CycleTrackingView: View {
   }
 }
 
-/// A month's days, with the periods and factors around it.
+/// A month's days, with the periods, factors and menopause stage around it.
 struct CycleSnapshot: Equatable, Sendable {
   var month: DateInterval
   var days: [Date: CycleDay]
   var periods: [Period]
+  /// Going on now.
   var factors: [CycleFactor]
+  /// Over, newest first.
+  var pastFactors: [CycleFactor] = []
+  var menopause: MenopauseStage?
 
   /// Whether there's nothing to show at all, not just this month.
-  var isEmpty: Bool { days.isEmpty && periods.isEmpty && factors.isEmpty }
+  var isEmpty: Bool {
+    days.isEmpty && periods.isEmpty && factors.isEmpty && pastFactors.isEmpty && menopause == nil
+  }
 }
 
 struct CycleMonth: Equatable, Sendable {
@@ -105,13 +113,18 @@ struct CycleMonthRequest: FetchKeyRequest {
 struct CycleHistory: Equatable, Sendable {
   var periods: [Period]
   var factors: [CycleFactor]
+  var pastFactors: [CycleFactor]
+  var menopause: MenopauseStage?
 }
 
 struct CycleHistoryRequest: FetchKeyRequest {
   func fetch(_ db: Database) throws -> CycleHistory? {
-    CycleHistory(
+    let now = Date.now
+    return CycleHistory(
       periods: try HealthDatabase.periods(limit: 12, calendar: .current, db),
-      factors: try HealthDatabase.cycleFactors(at: .now, db))
+      factors: try HealthDatabase.cycleFactors(at: now, db),
+      pastFactors: try HealthDatabase.cycleFactorHistory(before: now, limit: 20, db),
+      menopause: try HealthDatabase.menopauseStage(at: now, db))
   }
 }
 
@@ -156,7 +169,13 @@ struct CycleTrackingContent: View {
             } else {
               dayDetail(snapshot)
               if !snapshot.factors.isEmpty {
-                factors(snapshot.factors)
+                factors("Factors", snapshot.factors)
+              }
+              if let stage = snapshot.menopause {
+                menopause(stage)
+              }
+              if !snapshot.pastFactors.isEmpty {
+                factors("Past Factors", snapshot.pastFactors)
               }
               history(snapshot.periods)
             }
@@ -297,18 +316,41 @@ struct CycleTrackingContent: View {
     .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
   }
 
-  private func factors(_ factors: [CycleFactor]) -> some View {
+  /// Factors going on now, since when, or past ones, from when to when.
+  private func factors(_ title: String, _ factors: [CycleFactor]) -> some View {
+    section(title) {
+      ForEach(Array(factors.enumerated()), id: \.offset) { _, factor in
+        LabeledContent {
+          if let end = factor.end {
+            Text((factor.start..<end).formatted(.interval.month(.abbreviated).day().year()))
+          } else {
+            Text("Since \(factor.start.formatted(date: .abbreviated, time: .omitted))")
+          }
+        } label: {
+          Text([factor.name, factor.detail].compactMap { $0 }.joined(separator: ": "))
+        }
+      }
+    }
+  }
+
+  /// The stage last logged, and since when.
+  private func menopause(_ stage: MenopauseStage) -> some View {
+    section("Menopause") {
+      LabeledContent {
+        Text("Since \(stage.since.formatted(.dateTime.month(.abbreviated).year()))")
+      } label: {
+        Text(stage.name ?? "Stage Logged")
+      }
+    }
+  }
+
+  /// A titled card of rows.
+  private func section(_ title: String, @ViewBuilder rows: () -> some View) -> some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text("Factors")
+      Text(title)
         .font(.title3.bold())
       VStack(alignment: .leading, spacing: 8) {
-        ForEach(Array(factors.enumerated()), id: \.offset) { _, factor in
-          LabeledContent {
-            Text("Since \(factor.since.formatted(date: .abbreviated, time: .omitted))")
-          } label: {
-            Text([factor.name, factor.detail].compactMap { $0 }.joined(separator: ": "))
-          }
-        }
+        rows()
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(16)

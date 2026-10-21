@@ -8,6 +8,7 @@ extension HealthDatabase {
   static let ovulationTestType = "HKCategoryTypeIdentifierOvulationTestResult"
   static let sexualActivityType = "HKCategoryTypeIdentifierSexualActivity"
   static let contraceptiveType = "HKCategoryTypeIdentifierContraceptive"
+  static let menopausalStateType = "HKCategoryTypeIdentifierMenopausalState"
   static let factorTypes = [
     "HKCategoryTypeIdentifierPregnancy", "HKCategoryTypeIdentifierLactation", contraceptiveType,
   ]
@@ -19,8 +20,8 @@ extension HealthDatabase {
   ]
   /// What a day's log lists by name and value, on the day each starts: every Cycle Tracking
   /// category type but flow, spotting and sexual activity, which have their own marks (851-2830).
-  /// Factors, menopause and cycle deviations go on for months; until they get sections of their
-  /// own (851-2870, 851-2871), the day they start says so.
+  /// Factors, menopause and cycle deviations go on for months: the day they start says so, though
+  /// factors and menopause have sections of their own (851-2870) and deviations will (851-2871).
   static let cycleLogTypes = HealthCatalog.all
     .filter { $0.category == .cycleTracking && $0.kind == .category }
     .map(\.id)
@@ -120,7 +121,7 @@ extension HealthDatabase {
   }
 
   /// Pregnancy, lactation and contraceptives logged as going on at `now`: ending after it, or
-  /// with no end yet (ending as they start).
+  /// with no end yet (ending as they start). Newest first.
   public static func cycleFactors(at now: Date, _ db: Database) throws -> [CycleFactor] {
     let moment = now.unixMilliseconds
     return
@@ -131,11 +132,46 @@ extension HealthDatabase {
       }
       .order { $0.startDate.desc() }
       .fetchAll(db)
+      .map { cycleFactor($0, ended: false) }
+  }
+
+  /// Pregnancy, lactation and contraceptives that ended by `now`, newest first, at most `limit`:
+  /// Health's past factors (Show All Factors), the ones `cycleFactors(at:)` leaves out.
+  public static func cycleFactorHistory(
+    before now: Date, limit: Int, _ db: Database
+  ) throws -> [CycleFactor] {
+    let moment = now.unixMilliseconds
+    return
+      try HealthSample
+      .where { $0.type.in(factorTypes) && $0.endDate <= moment && $0.endDate > $0.startDate }
+      .order { ($0.startDate.desc(), $0.endDate.desc()) }
+      .limit(limit)
+      .fetchAll(db)
+      .map { cycleFactor($0, ended: true) }
+  }
+
+  private static func cycleFactor(_ sample: HealthSample, ended: Bool) -> CycleFactor {
+    CycleFactor(
+      name: HealthCatalog.type(id: sample.type)?.name ?? sample.type,
+      detail: sample.type == contraceptiveType
+        ? categoryValueName(sample.categoryValue, typeID: sample.type) : nil,
+      start: Date(unixMilliseconds: sample.startDate),
+      end: ended ? Date(unixMilliseconds: sample.endDate) : nil)
+  }
+
+  /// The menopause stage logged last by `now` (`HKCategoryTypeIdentifierMenopausalState`, iOS 27),
+  /// and since when. Nil if none is.
+  public static func menopauseStage(at now: Date, _ db: Database) throws -> MenopauseStage? {
+    let moment = now.unixMilliseconds
+    return
+      try HealthSample
+      .where { $0.type.eq(menopausalStateType) && $0.startDate <= moment }
+      .order { $0.startDate.desc() }
+      .limit(1)
+      .fetchOne(db)
       .map { sample in
-        CycleFactor(
-          name: HealthCatalog.type(id: sample.type)?.name ?? sample.type,
-          detail: sample.type == contraceptiveType
-            ? categoryValueName(sample.categoryValue, typeID: sample.type) : nil,
+        MenopauseStage(
+          name: categoryValueName(sample.categoryValue, typeID: sample.type),
           since: Date(unixMilliseconds: sample.startDate))
       }
   }
@@ -227,16 +263,32 @@ public struct Period: Equatable, Sendable {
   }
 }
 
-/// Something that affects cycles, going on now.
+/// Something that affects cycles: pregnancy, lactation or a contraceptive, going on since
+/// `start`, or over between `start` and `end`.
 public struct CycleFactor: Equatable, Sendable {
   public var name: String
   /// For contraceptives, which kind.
   public var detail: String?
-  public var since: Date
+  public var start: Date
+  /// When it ended, for a past one. Nil while it goes on.
+  public var end: Date?
 
-  public init(name: String, detail: String?, since: Date) {
+  public init(name: String, detail: String?, start: Date, end: Date? = nil) {
     self.name = name
     self.detail = detail
+    self.start = start
+    self.end = end
+  }
+}
+
+/// The menopause stage last logged, as Health names it ("Perimenopause"), and since when. No
+/// name for a value Health doesn't have yet.
+public struct MenopauseStage: Equatable, Sendable {
+  public var name: String?
+  public var since: Date
+
+  public init(name: String?, since: Date) {
+    self.name = name
     self.since = since
   }
 }

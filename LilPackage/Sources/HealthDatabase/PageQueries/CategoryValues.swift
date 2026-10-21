@@ -39,6 +39,9 @@ extension HealthDatabase {
       // HKCategoryValueAppleWalkingSteadinessEvent: the first notification of a low or very low
       // level (1, 2), or a repeat one (3, 4).
       return [1: "Low", 2: "Very Low", 3: "Still Low", 4: "Still Very Low"][value]
+    case menopausalStateType:
+      // HKCategoryValueMenopausalState (iOS 27): HKCategoryValues.h numbers None last.
+      return [1: "Menopause", 2: "Perimenopause", 3: "None"][value]
     default:
       return nil
     }

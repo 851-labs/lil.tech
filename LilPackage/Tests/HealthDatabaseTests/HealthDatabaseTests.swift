@@ -1948,6 +1948,8 @@ struct CycleQueriesTests {
       sample("f", "HKCategoryTypeIdentifierContraceptive", day: 8, value: 6, endDay: 30),
       // Spans months: its first day says so, until it has a section (851-2871).
       sample("g", "HKCategoryTypeIdentifierIrregularMenstrualCycles", day: 9, value: 0),
+      // Menopause has a section, and its first day still says so (851-2870).
+      sample("h", "HKCategoryTypeIdentifierMenopausalState", day: 10, value: 2),
     ])
     let october = calendar.dateInterval(of: .month, for: day(1))!
     let days = try database.read { db in
@@ -1969,6 +1971,7 @@ struct CycleQueriesTests {
     #expect(days[start(7)]?.log == [.init(name: "Bleeding After Menopause", value: "None")])
     #expect(days[start(8)]?.log == [.init(name: "Contraceptives", value: "Oral")])
     #expect(days[start(9)]?.log == [.init(name: "Irregular Cycles", value: nil)])
+    #expect(days[start(10)]?.log == [.init(name: "Menopause", value: "Perimenopause")])
   }
 
   @Test
@@ -1980,6 +1983,10 @@ struct CycleQueriesTests {
     #expect(name(1, "HKCategoryTypeIdentifierCervicalMucusQuality") == "Dry")
     #expect(name(4, HealthDatabase.menstrualFlowType) == "Heavy Flow")
     #expect(name(4, "HKCategoryTypeIdentifierBleedingAfterPregnancy") == "Heavy")
+    // HKCategoryValueMenopausalState numbers None last (iOS 27).
+    #expect(name(1, "HKCategoryTypeIdentifierMenopausalState") == "Menopause")
+    #expect(name(2, "HKCategoryTypeIdentifierMenopausalState") == "Perimenopause")
+    #expect(name(3, "HKCategoryTypeIdentifierMenopausalState") == "None")
     // Unspecified, or nothing to name.
     #expect(name(1, "HKCategoryTypeIdentifierBleedingAfterPregnancy") == nil)
     #expect(name(1, "HKCategoryTypeIdentifierContraceptive") == nil)
@@ -2050,6 +2057,63 @@ struct CycleQueriesTests {
     let factors = try database.read { db in try HealthDatabase.cycleFactors(at: day(10), db) }
     #expect(factors.map(\.name) == ["Pregnancy", "Contraceptives"])
     #expect(factors.last?.detail == "Oral")
+    #expect(factors.allSatisfy { $0.end == nil })
+  }
+
+  @Test
+  func pastFactorsAreThoseThatEndedNewestFirst() throws {
+    let contraceptive = "HKCategoryTypeIdentifierContraceptive"
+    let database = try database([
+      sample("a", contraceptive, day: 1, value: 6, endDay: 4),
+      sample("b", "HKCategoryTypeIdentifierPregnancy", day: 5, value: 0, endDay: 8),
+      sample("c", "HKCategoryTypeIdentifierLactation", day: 2, value: 0, endDay: 9),
+      // Going on now: one that ends later, and one with no end yet.
+      sample("d", contraceptive, day: 9, value: 4, endDay: 30),
+      sample("e", "HKCategoryTypeIdentifierLactation", day: 3, value: 0),
+      // Not a factor.
+      sample("f", "HKCategoryTypeIdentifierIrregularMenstrualCycles", day: 1, value: 0, endDay: 3),
+    ])
+    let past = try database.read { db in
+      try HealthDatabase.cycleFactorHistory(before: day(10), limit: 10, db)
+    }
+    #expect(
+      past == [
+        CycleFactor(name: "Pregnancy", detail: nil, start: day(5), end: day(8)),
+        CycleFactor(name: "Lactation", detail: nil, start: day(2), end: day(9)),
+        CycleFactor(name: "Contraceptives", detail: "Oral", start: day(1), end: day(4)),
+      ])
+    let current = try database.read { db in try HealthDatabase.cycleFactors(at: day(10), db) }
+    #expect(current.map(\.name) == ["Contraceptives", "Lactation"])
+    #expect(current.first?.detail == "Intrauterine Device")
+
+    let latest = try database.read { db in
+      try HealthDatabase.cycleFactorHistory(before: day(10), limit: 1, db)
+    }
+    #expect(latest.map(\.name) == ["Pregnancy"])
+  }
+
+  @Test
+  func menopauseIsTheStageLoggedLast() throws {
+    let menopause = "HKCategoryTypeIdentifierMenopausalState"
+    let none = try database([]).read { db in try HealthDatabase.menopauseStage(at: day(10), db) }
+    #expect(none == nil)
+
+    let database = try database([
+      sample("a", menopause, day: 2, value: 2),
+      sample("b", menopause, day: 6, value: 1),
+      // Not logged by then.
+      sample("c", menopause, day: 20, value: 3),
+    ])
+    let stage = try database.read { db in try HealthDatabase.menopauseStage(at: day(10), db) }
+    #expect(stage == MenopauseStage(name: "Menopause", since: day(6)))
+    let earlier = try database.read { db in try HealthDatabase.menopauseStage(at: day(3), db) }
+    #expect(earlier == MenopauseStage(name: "Perimenopause", since: day(2)))
+    // A value Health doesn't have yet keeps its date, without a name.
+    try database.write { db in
+      try HealthSample.insert { sample("d", menopause, day: 8, value: 9) }.execute(db)
+    }
+    let unknown = try database.read { db in try HealthDatabase.menopauseStage(at: day(10), db) }
+    #expect(unknown == MenopauseStage(name: nil, since: day(8)))
   }
 }
 

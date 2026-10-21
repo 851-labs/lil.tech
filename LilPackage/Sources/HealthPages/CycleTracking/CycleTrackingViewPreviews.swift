@@ -68,9 +68,47 @@ private func cycle(_ state: CycleTrackingContent.State, selected: Date? = nil) -
         factors: [
           CycleFactor(
             name: "Contraceptives", detail: "Oral",
-            since: calendar.date(byAdding: .month, value: -8, to: month.start)!)
+            start: calendar.date(byAdding: .month, value: -8, to: month.start)!)
         ])),
     selected: day(16))
+}
+
+private func monthsAgo(_ months: Int, day: Int = 1) -> Date {
+  calendar.date(byAdding: DateComponents(month: -months, day: day - 1), to: month.start)!
+}
+
+// Factors going on now, then past ones with their dates, newest first (851-2870).
+#Preview("With past factors") {
+  cycle(
+    .loaded(
+      CycleSnapshot(
+        month: month, days: days, periods: periods,
+        factors: [
+          CycleFactor(name: "Contraceptives", detail: "Intrauterine Device", start: monthsAgo(5))
+        ],
+        pastFactors: [
+          CycleFactor(
+            name: "Lactation", detail: nil, start: monthsAgo(19, day: 12),
+            end: monthsAgo(9, day: 3)),
+          CycleFactor(
+            name: "Pregnancy", detail: nil, start: monthsAgo(28, day: 20),
+            end: monthsAgo(19, day: 12)),
+          CycleFactor(
+            name: "Contraceptives", detail: "Oral", start: monthsAgo(40, day: 2),
+            end: monthsAgo(29, day: 15)),
+        ])),
+    selected: day(4))
+}
+
+// The stage last logged, and since when (851-2870).
+#Preview("Menopause stage") {
+  cycle(
+    .loaded(
+      CycleSnapshot(
+        month: month, days: [day(9): CycleDay(symptoms: ["Hot Flashes", "Sleep Changes"])],
+        periods: Array(periods.dropFirst()), factors: [],
+        menopause: MenopauseStage(name: "Perimenopause", since: monthsAgo(7, day: 14)))),
+    selected: day(9))
 }
 
 // A day's tests and other logs, each value as Health names it (851-2830).
