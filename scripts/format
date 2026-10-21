@@ -1,13 +1,15 @@
 #!/bin/sh
 # Formats every Swift file with swift-format, and the TypeScript workspace (Services/, Web/)
-# with Vite+ (Oxfmt), and regenerates the API's OpenAPI spec and Swift client.
+# with Vite+ (Oxfmt), and regenerates the API's OpenAPI spec, its MCP tool definitions and the
+# Swift client.
 # Usage: scripts/format [--lint] [--swift | --services]
 #   --lint   Check without changing files: swift-format lint, plus `vp check`
 #            (format, lint and type check) for the workspace, plus a check that
-#            Services/api/openapi.json, the core D1 migrations and the generated
-#            Swift client are up to date. Runs every check and exits non-zero if any fails.
+#            Services/api/openapi.json, Services/api/mcp-tools.json, the core D1
+#            migrations and the generated Swift client are up to date. Runs every check
+#            and exits non-zero if any fails.
 #   --swift     Only the Swift part.
-#   --services  Only the TypeScript workspace, with the spec and client.
+#   --services  Only the TypeScript workspace, with the spec, tools and client.
 set -u
 
 lint=false
@@ -72,11 +74,13 @@ fi
 if $lint; then
   vp check || status=1
   (cd Services/api && node scripts/openapi.ts --check) || status=1
+  (cd Services/api && node scripts/mcp-tools.ts --check) || status=1
   (cd Services/api && node scripts/migrations.ts --check) || status=1
   scripts/generate-api-client --check-stamp || status=1
 else
   vp fmt || status=1
   (cd Services/api && node scripts/openapi.ts) || status=1
+  (cd Services/api && node scripts/mcp-tools.ts) || status=1
   (cd Services/api && node scripts/migrations.ts) || status=1
   scripts/generate-api-client || status=1
 fi
