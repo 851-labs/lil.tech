@@ -227,6 +227,25 @@ export const typeDates = (
   return first === null || last === null ? null : { first, last };
 };
 
+/** Whether a type has any records, as `typeDates` would find (a cheaper check of the same). */
+export const hasTypeData = (sql: StoreSql, type: HealthCatalogType): boolean => {
+  if (type.kind === "quantity" || type.kind === "category") {
+    return (
+      sql.exec(`SELECT 1 FROM health_sample s WHERE type = ? AND ${liveSample} LIMIT 1`, type.id)
+        .length > 0
+    );
+  }
+  if (type.kind === "activitySummary") {
+    return sql.exec("SELECT 1 FROM health_activity_summary LIMIT 1").length > 0;
+  }
+  const table = kindTables[type.kind];
+  if (table === undefined) return false;
+  const [name, typed] = table;
+  return typed
+    ? sql.exec(`SELECT 1 FROM ${name} WHERE type = ? LIMIT 1`, type.id).length > 0
+    : sql.exec(`SELECT 1 FROM ${name} LIMIT 1`).length > 0;
+};
+
 /**
  * When the most recent sample of any quantity or category type that has started by `now`
  * starts, or null without any. A seek of the (type, start) key per type, as the table has no
@@ -298,23 +317,36 @@ const sampleRow = (row: SqlRow): SampleRow => ({
   sourceBundleId: row["source_bundle_id"] as string,
 });
 
-/** A type's samples that start in `[from, to)`, oldest first (then by ID). */
-export const samplesStarting = (
+/**
+ * A quantity type's values that start in `[from, to)`, oldest first, with only what statistics
+ * need: a year of heart rate is hundreds of thousands of samples.
+ */
+export const sampleValues = (
   sql: StoreSql,
   type: string,
   from: number,
   to: number,
-): ReadonlyArray<SampleRow> =>
+): ReadonlyArray<{
+  readonly start: number;
+  readonly end: number;
+  readonly value: number | null;
+  readonly source: string;
+}> =>
   sql
     .exec(
-      `SELECT ${sampleColumns} FROM health_sample s
+      `SELECT start_date, end_date, value, source_bundle_id FROM health_sample s
       WHERE type = ? AND start_date >= ? AND start_date < ? AND ${liveSample}
       ORDER BY start_date, id`,
       type,
       from,
       to,
     )
-    .map(sampleRow);
+    .map((row) => ({
+      start: Number(row["start_date"]),
+      end: Number(row["end_date"]),
+      value: numberOrNull(row["value"]),
+      source: row["source_bundle_id"] as string,
+    }));
 
 /** Where a page of samples ended: its last sample's start and ID, which breaks ties. */
 export interface SampleCursor {

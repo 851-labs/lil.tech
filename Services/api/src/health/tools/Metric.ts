@@ -1,9 +1,9 @@
 import { Clock, type DateTime, Effect } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import type { HealthAggregation } from "../HealthCatalog.ts";
+import { statisticsBucketMillis } from "../HealthEntities.ts";
 import {
-  type SampleRow,
-  samplesStarting,
+  sampleValues,
   statisticBuckets,
   statisticsDevices,
   statisticsSource,
@@ -11,6 +11,7 @@ import {
 import { HealthToolError, type HealthToolkit } from "./HealthToolkit.ts";
 import {
   bucketIndex,
+  hourMillis,
   localTime,
   startOfDay,
   startOfHour,
@@ -27,10 +28,8 @@ type Statistic = "sum" | "average" | "minimum" | "maximum";
 // `metric`'s statistics as the Mac computes them (`HealthTools.metric`), with the queries of its
 // charts, so both MCP servers give the same numbers.
 
-const statisticsBucketMillis = 30 * 60 * 1000;
-
 /** The longest a sample counts for in a time-weighted average. */
-const maxSampleWeightMillis = 60 * 60 * 1000;
+const maxSampleWeightMillis = hourMillis;
 
 /** A cumulative type's total over one hour or day. */
 interface Total {
@@ -68,8 +67,8 @@ const cumulativeTotals = (
   const lastBucket = buckets.at(-1);
   const covered =
     lastBucket === undefined ? period.start : lastBucket.bucketStart + statisticsBucketMillis;
-  for (const sample of samplesStarting(sql, type, covered, period.end)) {
-    add(sample.startDate, sample.value ?? 0);
+  for (const sample of sampleValues(sql, type, covered, period.end)) {
+    add(sample.start, sample.value ?? 0);
   }
   return [...sums.entries()]
     .map(([start, sum]) => ({ start, sum }))
@@ -97,7 +96,7 @@ const combine = (values: ReadonlyArray<number>, statistic: Statistic): number | 
   }
 };
 
-/** A reading of a discrete type: a sample with a value. */
+/** A reading of a discrete type: a sample with a value, and its source's bundle ID. */
 interface Reading {
   readonly start: number;
   readonly end: number;
@@ -188,18 +187,6 @@ const firstStarting = (readings: ReadonlyArray<Reading>, millis: number) => {
   return low;
 };
 
-const reading = (sample: SampleRow): ReadonlyArray<Reading> =>
-  sample.value === null
-    ? []
-    : [
-        {
-          start: sample.startDate,
-          end: sample.endDate,
-          value: sample.value,
-          source: sample.sourceBundleId,
-        },
-      ];
-
 /**
  * The `metric` tool from the user's store: a quantity type's statistic over the period, overall
  * and per bucket.
@@ -261,12 +248,13 @@ export const healthMetric = Effect.fn("healthMetric")(function* (
         message: `${type.name} doesn't add up, so it has no sum. Use average, minimum or maximum.`,
       });
     }
-    const readings = samplesStarting(
+    // An hour past the end, for time-weighted readings near it.
+    const readings = sampleValues(
       sql,
       type.id,
       period.start,
       period.end + maxSampleWeightMillis,
-    ).flatMap(reading);
+    ).filter((sample): sample is Reading => sample.value !== null);
     buckets = period.buckets.map((start, index) =>
       discreteStatistic(
         readings,

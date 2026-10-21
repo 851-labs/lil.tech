@@ -65,12 +65,20 @@ const birthDay = ({ year, month, day }: typeof BirthDate.Type) =>
 
 /**
  * How old someone born on `birth` is at `now` in `zone`, in whole years, or null if `now` is
- * before it.
+ * before it. As Foundation counts years: a birthday on a day the year doesn't have (29 February)
+ * falls on its month's last day (28 February).
  */
-const age = (birth: typeof BirthDate.Type, now: number, zone: DateTime.TimeZone) => {
+export const age = (
+  birth: { readonly year: number; readonly month: number; readonly day: number },
+  now: number,
+  zone: DateTime.TimeZone,
+) => {
   const today = DateTime.toParts(DateTime.makeZonedUnsafe(now, { timeZone: zone }));
+  // The day after the month's last is the next month's first, in UTC (no time zone involved).
+  const monthLength = new Date(Date.UTC(today.year, birth.month, 0)).getUTCDate();
+  const birthday = Math.min(birth.day, monthLength);
   const hadBirthday =
-    today.month > birth.month || (today.month === birth.month && today.day >= birth.day);
+    today.month > birth.month || (today.month === birth.month && today.day >= birthday);
   const years = today.year - birth.year - (hadBirthday ? 0 : 1);
   return years < 0 ? null : years;
 };
@@ -85,9 +93,7 @@ export const healthDetails = Effect.fn("healthDetails")(function* (
 ) {
   const { zone, name } = yield* toolTimeZone(input.timeZone);
   const now = yield* Clock.currentTimeMillis;
-  // The first of each, in ID order.
-  const values = new Map<string, string>();
-  for (const [id, value] of characteristicValues(sql)) if (!values.has(id)) values.set(id, value);
+  const values = new Map(characteristicValues(sql));
   const characteristic = <S extends Schema.Top & { readonly DecodingServices: never }>(
     id: string,
     schema: S,

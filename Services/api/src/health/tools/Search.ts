@@ -5,10 +5,9 @@ import {
   healthCatalogTypes,
   healthCategoryName,
 } from "../HealthCatalog.ts";
-import { characteristicValues, typeDates } from "./HealthQueries.ts";
+import { characteristicValues, hasTypeData } from "./HealthQueries.ts";
 import { HealthToolError, type HealthToolkit } from "./HealthToolkit.ts";
 import { sortedMedications } from "./Medications.ts";
-import { defaultToolTimeZone, toolTimeZone } from "./ToolTime.ts";
 import { byCategoryThenName, shortTypeId } from "./ToolTypes.ts";
 
 type SearchResult = (typeof HealthToolkit.tools.search.successSchema)["Type"];
@@ -35,8 +34,6 @@ export const healthSearch = Effect.fn("healthSearch")(function* (
     const lowercased = text.toLowerCase();
     return words.every((word) => lowercased.includes(word));
   };
-  // Only whether there's data, which doesn't depend on a time zone.
-  const { zone } = yield* toolTimeZone(defaultToolTimeZone);
   const medications = sortedMedications(sql);
   // Characteristics have no dates: those that are set count, not Not Set (`null`).
   const characteristics = new Set(
@@ -45,7 +42,7 @@ export const healthSearch = Effect.fn("healthSearch")(function* (
       .map(([id]) => id),
   );
   const hasData = (type: HealthCatalogType) =>
-    typeDates(sql, type, zone) !== null ||
+    hasTypeData(sql, type) ||
     (type.kind === "medication" && medications.length > 0) ||
     characteristics.has(type.id);
   const types = healthCatalogTypes

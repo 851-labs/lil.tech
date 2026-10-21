@@ -13,16 +13,18 @@ export const samplesDefaultLimit = 100;
 /** A page's cursor: where its last sample starts, and its ID, which breaks ties. */
 const cursorAfter = (sample: SampleCursor) => `${sample.startDate}_${sample.id}`;
 
+/** A cursor's start and ID, both there: `123_` and `_abc` aren't cursors, as on the Mac. */
 const parseCursor = (text: string) => {
   const separator = text.indexOf("_");
   const start = text.slice(0, separator);
-  return separator === -1 || !/^[+-]?\d+$/.test(start)
+  const id = text.slice(separator + 1);
+  return separator === -1 || !/^[+-]?\d+$/.test(start) || id === ""
     ? Effect.fail(
         new HealthToolError({
           message: `Invalid cursor: ${text}. Pass the previous page's nextCursor.`,
         }),
       )
-    : Effect.succeed<SampleCursor>({ startDate: Number(start), id: text.slice(separator + 1) });
+    : Effect.succeed<SampleCursor>({ startDate: Number(start), id });
 };
 
 /**

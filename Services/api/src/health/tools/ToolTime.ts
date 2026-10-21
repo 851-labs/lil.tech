@@ -54,7 +54,7 @@ export const startOfDay = (millis: number, zone: DateTime.TimeZone, days = 0): n
     DateTime.startOf(DateTime.add(DateTime.startOf(zoned(millis, zone), "day"), { days }), "day"),
   );
 
-const hourMillis = 60 * 60 * 1000;
+export const hourMillis = 60 * 60 * 1000;
 
 /** When the hour `millis` falls in starts in `zone`: its local hour, in half-hour zones too. */
 export const startOfHour = (millis: number, zone: DateTime.TimeZone): number => {
@@ -71,7 +71,10 @@ const startOfMonth = (millis: number, zone: DateTime.TimeZone, months = 0): numb
     ),
   );
 
-/** The start of a `YYYY-MM-DD` day in `zone`. The toolkit's schema has checked the day exists. */
+/**
+ * The start of a `YYYY-MM-DD` day in `zone`. A day that doesn't exist (2026-02-30) rolls over
+ * into the next month, as Foundation's calendars do.
+ */
 export const startOfLocalDay = (day: string, zone: DateTime.TimeZone): number => {
   const [year, month, date] = day.split("-").map(Number) as [number, number, number];
   // Noon is never skipped by a change of offset, unlike midnight in some zones.

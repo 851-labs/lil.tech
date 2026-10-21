@@ -3,6 +3,7 @@ import type { StoreSql } from "../../store/StoreSql.ts";
 import { samplesOverlapping } from "./HealthQueries.ts";
 import type { HealthToolkit } from "./HealthToolkit.ts";
 import {
+  hourMillis,
   localDate,
   localTime,
   startOfDay,
@@ -25,8 +26,6 @@ const isStage = (value: number | null): value is Stage =>
   value !== null && Number.isInteger(value) && value >= 0 && value <= 5;
 /** Time asleep: every stage but in bed and awake. */
 const isAsleep = (stage: Stage) => stage !== stages.inBed && stage !== stages.awake;
-
-const hourMillis = 60 * 60 * 1000;
 
 /**
  * How far before midnight a night can start: sleep from 6 PM counts toward the next day, as in
@@ -115,7 +114,9 @@ const sleepNights = (sql: StoreSql, firstDay: number, lastDay: number, zone: Dat
   for (const record of records) {
     if (record.segment.stage === stages.inBed || record.segment.start < lower) continue;
     const day = startOfDay(record.segment.start + nightStartOffset, zone);
-    byNight.set(day, [...(byNight.get(day) ?? []), record]);
+    const night = byNight.get(day);
+    if (night === undefined) byNight.set(day, [record]);
+    else night.push(record);
   }
   return [...byNight.entries()]
     .flatMap(([day, records]) => {

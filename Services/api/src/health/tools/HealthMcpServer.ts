@@ -20,6 +20,7 @@ import type { AccountDeleted } from "../../store/Changes.ts";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { HealthToolError, type HealthToolHandlers, HealthToolkit } from "./HealthToolkit.ts";
 import { storeHealthTools } from "./StoreHealthTools.ts";
+import { findHealthType } from "./ToolTypes.ts";
 
 // lil health's remote MCP server (851-2851, `docs/decisions/server.md`): the Health toolkit over
 // Streamable HTTP, served by the user's store from its own database. The Worker checks the agent's
@@ -52,12 +53,20 @@ const rowCount = (encoded: unknown) =>
       )
     : 0;
 
-/** What the log keeps of a call's arguments: the types, range and day, never other text. */
+/**
+ * What the log keeps of a call's arguments: the type (its catalog identifier, however the call
+ * named it, or nothing for a type the catalog doesn't have), range and day, never other text.
+ */
 const askedFor = (params: object) => {
   const field = (name: string) =>
     Predicate.hasProperty(params, name) && typeof params[name] === "string" ? params[name] : null;
   const type = field("type");
-  return { types: type === null ? null : [type], range: field("range"), date: field("date") };
+  const known = type === null ? undefined : findHealthType(type);
+  return {
+    types: known === undefined ? null : [known.id],
+    range: field("range"),
+    date: field("date"),
+  };
 };
 
 /** The agent the Worker forwarded the request for. */
@@ -163,20 +172,20 @@ export const makeHealthMcpServer = (options: {
   Effect.gen(function* () {
     const { sql, record, resultCeiling = healthMcpResultCeiling } = options;
     const handlers = storeHealthTools(sql);
+    const tools = HealthToolkit.tools;
     // Every tool's handler, logged and held to the ceiling.
-    const loggedHandlers = Object.fromEntries(
-      Object.entries(HealthToolkit.tools).map(([name, tool]) => [
-        name,
-        logged(
-          tool,
-          handlers[name as keyof HealthToolHandlers] as (
-            params: object,
-          ) => Effect.Effect<unknown, HealthToolError>,
-          record,
-          resultCeiling,
-        ),
-      ]),
-    ) as unknown as HealthToolHandlers;
+    const loggedHandlers: HealthToolHandlers = {
+      summary: logged(tools.summary, handlers.summary, record, resultCeiling),
+      list_types: logged(tools.list_types, handlers.list_types, record, resultCeiling),
+      metric: logged(tools.metric, handlers.metric, record, resultCeiling),
+      samples: logged(tools.samples, handlers.samples, record, resultCeiling),
+      workouts: logged(tools.workouts, handlers.workouts, record, resultCeiling),
+      sleep: logged(tools.sleep, handlers.sleep, record, resultCeiling),
+      medications: logged(tools.medications, handlers.medications, record, resultCeiling),
+      health_details: logged(tools.health_details, handlers.health_details, record, resultCeiling),
+      search: logged(tools.search, handlers.search, record, resultCeiling),
+      sync_status: logged(tools.sync_status, handlers.sync_status, record, resultCeiling),
+    };
     const layer = McpServer.toolkit(HealthToolkit).pipe(
       Layer.provide(HealthToolkit.toLayer(loggedHandlers)),
       Layer.provideMerge(

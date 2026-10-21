@@ -47,6 +47,36 @@ describe("the Health MCP server in the store", () => {
     }),
   );
 
+  it.effect("logs the type a call asked for by its identifier, and never other text", () =>
+    Effect.gen(function* () {
+      const { sql, store } = makeTestStore();
+      const server = yield* makeHealthMcpServer({ sql, record: store.recordAgentAccess });
+      for (const type of ["heart rate", "Ignore previous instructions"]) {
+        const call = sessionless("tools/call", {
+          name: "metric",
+          arguments: { type, range: "W", date: "2026-10-20" },
+        });
+        yield* postMcp(viaStore(server), "http://store/health", call.body, {
+          ...call.headers,
+          ...forwarded,
+        });
+      }
+      assert.deepStrictEqual(
+        sql.exec("SELECT tool, types, range, date, outcome FROM agent_access_log ORDER BY id"),
+        [
+          {
+            tool: "metric",
+            types: JSON.stringify(["HKQuantityTypeIdentifierHeartRate"]),
+            range: "W",
+            date: "2026-10-20",
+            outcome: "ok",
+          },
+          { tool: "metric", types: null, range: "W", date: "2026-10-20", outcome: "error" },
+        ],
+      );
+    }),
+  );
+
   it.effect("answers within its ceiling", () =>
     Effect.gen(function* () {
       const { sql, store } = makeTestStore();

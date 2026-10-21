@@ -4,6 +4,7 @@ import {
   statisticsSource,
   statisticsSourceStalenessMillis,
 } from "../../../src/health/tools/HealthQueries.ts";
+import { age } from "../../../src/health/tools/Details.ts";
 import { HealthToolkit } from "../../../src/health/tools/HealthToolkit.ts";
 import {
   bucketIndex,
@@ -120,6 +121,26 @@ describe("tool periods", () => {
     const millis = Date.parse("2026-10-20T08:10:00Z");
     assert.strictEqual(startOfHour(millis, kolkata), Date.parse("2026-10-20T07:30:00Z"));
     assert.strictEqual(startOfHour(millis, london), Date.parse("2026-10-20T08:00:00Z"));
+  });
+});
+
+describe("ages", () => {
+  const utc = Option.getOrThrow(DateTime.zoneMakeNamed("UTC"));
+  const at = (iso: string) => Date.parse(iso);
+
+  it("count whole years, from the birthday's start", () => {
+    const birth = { year: 1990, month: 10, day: 21 };
+    assert.strictEqual(age(birth, at("2026-10-20T23:59:59Z"), utc), 35);
+    assert.strictEqual(age(birth, at("2026-10-21T00:00:00Z"), utc), 36);
+    assert.isNull(age({ year: 2027, month: 1, day: 1 }, at("2026-10-21T00:00:00Z"), utc));
+  });
+
+  it("have a leap day's birthday on 28 February in other years, as Foundation does", () => {
+    const birth = { year: 2000, month: 2, day: 29 };
+    assert.strictEqual(age(birth, at("2027-02-27T12:00:00Z"), utc), 26);
+    assert.strictEqual(age(birth, at("2027-02-28T12:00:00Z"), utc), 27);
+    assert.strictEqual(age(birth, at("2028-02-28T12:00:00Z"), utc), 27);
+    assert.strictEqual(age(birth, at("2028-02-29T00:00:00Z"), utc), 28);
   });
 });
 

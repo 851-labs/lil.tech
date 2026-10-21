@@ -18,18 +18,24 @@ export const shortTypeId = (id: string): string => {
 /**
  * The type a call names: by its HealthKit identifier, as the toolkit's tools take it, or by the
  * name Health shows (`Steps`, `heart rate`) or the identifier without its prefix (`StepCount`),
- * in any case, as the Mac's commands take it too.
+ * in any case, as the Mac's commands take it too. Undefined if the catalog has no such type.
  */
+export const findHealthType = (name: string): HealthCatalogType | undefined => {
+  const exact = healthCatalogType(name);
+  if (exact !== undefined) return exact;
+  const wanted = name.trim().toLowerCase();
+  return (
+    healthCatalogTypes.find((type) => type.name.toLowerCase() === wanted) ??
+    healthCatalogTypes.find((type) => shortTypeId(type.id).toLowerCase() === wanted)
+  );
+};
+
+/** `findHealthType`, failing with the tool's error for a type the catalog doesn't have. */
 export const resolveHealthType = (
   name: string,
 ): Effect.Effect<HealthCatalogType, HealthToolError> => {
-  const exact = healthCatalogType(name);
-  if (exact !== undefined) return Effect.succeed(exact);
-  const wanted = name.trim().toLowerCase();
-  const match =
-    healthCatalogTypes.find((type) => type.name.toLowerCase() === wanted) ??
-    healthCatalogTypes.find((type) => shortTypeId(type.id).toLowerCase() === wanted);
-  return match === undefined
+  const type = findHealthType(name);
+  return type === undefined
     ? Effect.fail(
         new HealthToolError({
           message:
@@ -37,7 +43,7 @@ export const resolveHealthType = (
             "HKQuantityTypeIdentifierStepCount; search finds them.",
         }),
       )
-    : Effect.succeed(match);
+    : Effect.succeed(type);
 };
 
 /** Where a type's category is in Browse's order, with characteristics (no category) last. */
