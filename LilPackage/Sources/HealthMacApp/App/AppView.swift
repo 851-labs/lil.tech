@@ -35,7 +35,9 @@ public struct AppView: View {
         }
       }
     }
-    .frame(minWidth: 720, minHeight: 480)
+    // Wide enough for a metric's toolbar beside the sidebar: its title, range and periods
+    // (851-2821).
+    .frame(minWidth: 800, minHeight: 480)
   }
 }
 

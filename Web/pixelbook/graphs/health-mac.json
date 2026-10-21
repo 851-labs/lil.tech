@@ -12,6 +12,8 @@
       "states": [
         "Summary",
         "A category",
+        "A metric",
+        "A metric, smallest window",
         "Search results",
         "Search without results",
         "First sync",
@@ -53,6 +55,7 @@
       "screen": "HealthMacApp/MetricDetailViewPreviews.swift",
       "states": [
         "Steps, week",
+        "Steps, the week before",
         "Steps, day",
         "Heart rate, month",
         "Heart rate, day",

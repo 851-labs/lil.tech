@@ -7,8 +7,8 @@ import SQLiteData
 import SwiftUI
 
 /// One metric over a chosen period, as in Health: D, W, M, 6M or Y, earlier periods with the
-/// arrows, the period's summary, and a chart whose bars show their value on hover. Follows the
-/// local database as sync changes it.
+/// arrows (both in the toolbar, as in Calendar), the period's summary, and a chart whose bars show
+/// their value on hover. Follows the local database as sync changes it.
 struct MetricDetailView: View {
   let type: HealthDataType
   @State private var range = ChartRange.week
@@ -155,15 +155,6 @@ struct MetricDetailContent: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
-        // A new range starts at its current period, in the same change, so it loads once.
-        Picker("Range", selection: Binding(get: { range }, set: { (range, offset) = ($0, 0) })) {
-          ForEach(ChartRange.allCases, id: \.self) { range in
-            Text(range.rawValue).tag(range)
-          }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-
         VStack(alignment: .leading, spacing: 12) {
           header
           chartArea
@@ -218,6 +209,38 @@ struct MetricDetailContent: View {
     }
     .background(Color.pageBackground)
     .navigationTitle(type.name)
+    .toolbar { periodToolbar }
+    // For the View menu's commands and their shortcuts (`MetricPeriodCommands`).
+    .focusedSceneValue(\.metricPeriod, MetricPeriod(range: $range, offset: $offset))
+  }
+
+  // MARK: Toolbar
+
+  /// The range in the middle, and earlier and later periods on the trailing side, as Calendar
+  /// has them (851-2821). Only on this page: the other pages' toolbars stay as they are.
+  @ToolbarContentBuilder private var periodToolbar: some ToolbarContent {
+    let period = MetricPeriod(range: $range, offset: $offset)
+    ToolbarItem(placement: .principal) {
+      Picker("Range", selection: period.rangeSelection) {
+        ForEach(ChartRange.allCases, id: \.self) { range in
+          Text(range.rawValue).tag(range)
+        }
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
+      .help("Show a day, a week, a month, 6 months or a year (⌘1 to ⌘5)")
+    }
+    // One group, so they share a background, as Calendar's ‹ Today › do.
+    ToolbarItemGroup(placement: .primaryAction) {
+      Button("Previous \(range.periodName)", systemImage: "chevron.left") { offset -= 1 }
+        .help("Show the previous \(range.periodName.lowercased()) (⌘←)")
+      Button("Today") { offset = 0 }
+        .disabled(offset == 0)
+        .help("Show the current \(range.periodName.lowercased()) (⌘T)")
+      Button("Next \(range.periodName)", systemImage: "chevron.right") { offset += 1 }
+        .disabled(offset >= 0)
+        .help("Show the next \(range.periodName.lowercased()) (⌘→)")
+    }
   }
 
   // MARK: Header
@@ -240,13 +263,6 @@ struct MetricDetailContent: View {
         .foregroundStyle(.secondary)
       }
       Spacer()
-      HStack(spacing: 4) {
-        Button("Earlier", systemImage: "chevron.left") { offset -= 1 }
-        Button("Later", systemImage: "chevron.right") { offset += 1 }
-          .disabled(offset >= 0)
-      }
-      .labelStyle(.iconOnly)
-      .buttonStyle(.borderless)
     }
   }
 

@@ -10,14 +10,16 @@ import SwiftUI
 // SwiftUI's macOS `List` (AGENTS.md).
 
 @MainActor
-private func appView(_ state: AppFeature.State) -> some View {
+private func appView(
+  _ state: AppFeature.State, width: CGFloat = 960, height: CGFloat = 640
+) -> some View {
   preparePreviewDatabase()
   var state = state
   // No pins, read: `EmptyReducer` never runs Summary's task to read them.
   state.summary = SummaryFeature.State(pins: [])
   // `EmptyReducer`: the view's task would replace the state with the real session's.
   return AppView(store: Store(initialState: state) { EmptyReducer() })
-    .previewFrame(width: 960, height: 640)
+    .previewFrame(width: width, height: height)
 }
 
 #Preview("Launching") {
@@ -50,6 +52,21 @@ private func appView(_ state: AppFeature.State) -> some View {
 // Its icon is two-tone, and goes wholly white on the key window's selection (851-2823).
 #Preview("A two-tone category") {
   appView(AppFeature.State(isSignedIn: true, selection: .category(.medications)))
+}
+
+// A metric's range and periods are in the toolbar (851-2821).
+#Preview("A metric") {
+  appView(
+    AppFeature.State(isSignedIn: true, selection: .dataType("HKQuantityTypeIdentifierStepCount")))
+}
+
+// The window at its smallest, where the toolbar is most crowded.
+#Preview("A metric, smallest window") {
+  appView(
+    AppFeature.State(
+      isSignedIn: true,
+      selection: .dataType("HKQuantityTypeIdentifierDistanceWalkingRunning")),
+    width: 800, height: 480)
 }
 
 #Preview("Search results") {
