@@ -7,9 +7,13 @@
 # unless a commit with the same inputs already did (`scripts/pixelbook publish --hook`). It skips
 # with a note when it can't publish (offline, uncommitted changes, pushing something other than
 # HEAD); a preview that fails to render blocks the push, like a failing check.
+#
+# Paused (851-2816): the iPhone simulator kept hanging renders, and the render lock queued pushes
+# behind each other. Remove `skip` to turn it back on.
 pre-push:
   jobs:
     - name: pixelbook
+      skip: true
       # Git gives the hook the remote's name and URL ({1}, {2}).
       run: scripts/pixelbook publish --hook {2}
       # Git lists the pushed refs on stdin.
