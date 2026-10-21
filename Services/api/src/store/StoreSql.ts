@@ -8,6 +8,11 @@ export type SqlRow = Record<string, SqlValue>;
 export interface StoreSql {
   /** Runs one statement and returns its rows. */
   readonly exec: (query: string, ...bindings: Array<SqlValue>) => Array<SqlRow>;
+  /**
+   * Runs one statement and returns its rows as arrays of their values, in the order of its
+   * columns: cheaper than `exec` for many rows, such as a year of samples (851-2906).
+   */
+  readonly rows: (query: string, ...bindings: Array<SqlValue>) => Array<Array<SqlValue>>;
   /** Runs several statements, e.g. a migration. */
   readonly script: (sql: string) => void;
   /** Runs `body` in one transaction, rolled back if it throws. `body` must not await. */
@@ -25,7 +30,10 @@ export interface StoreSql {
 /** The parts of workerd's `DurableObjectStorage` the store uses. */
 interface DurableObjectStorageLike {
   readonly sql: {
-    exec(query: string, ...bindings: Array<unknown>): { toArray(): Array<SqlRow> };
+    exec(
+      query: string,
+      ...bindings: Array<unknown>
+    ): { toArray(): Array<SqlRow>; raw(): IterableIterator<Array<SqlValue>> };
     readonly databaseSize: number;
   };
   transactionSync<T>(body: () => T): T;
@@ -37,6 +45,7 @@ interface DurableObjectStorageLike {
 
 export const fromDurableObjectStorage = (storage: DurableObjectStorageLike): StoreSql => ({
   exec: (query, ...bindings) => storage.sql.exec(query, ...bindings).toArray(),
+  rows: (query, ...bindings) => Array.from(storage.sql.exec(query, ...bindings).raw()),
   script: (sql) => {
     storage.sql.exec(sql);
   },

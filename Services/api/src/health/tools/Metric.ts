@@ -3,6 +3,7 @@ import type { StoreSql } from "../../store/StoreSql.ts";
 import type { HealthAggregation } from "../HealthCatalog.ts";
 import { statisticsBucketMillis } from "../HealthEntities.ts";
 import {
+  sampleSums,
   sampleValues,
   statisticBuckets,
   statisticsDevices,
@@ -11,9 +12,9 @@ import {
 import { HealthToolError, type HealthToolkit } from "./HealthToolkit.ts";
 import {
   bucketIndex,
+  dayStarts,
   hourMillis,
   localTime,
-  startOfDay,
   startOfHour,
   type ToolPeriod,
   type ToolRange,
@@ -52,8 +53,9 @@ const cumulativeTotals = (
   now: number,
   zone: DateTime.TimeZone,
 ): ReadonlyArray<Total> => {
-  const startOf = (millis: number) =>
-    by === "hour" ? startOfHour(millis, zone) : startOfDay(millis, zone);
+  // Days from their bounds, worked out once a day, as rows come in order (851-2906). A D range's
+  // hours are a day of rows at most.
+  const startOf = by === "hour" ? (millis: number) => startOfHour(millis, zone) : dayStarts(zone);
   const source = statisticsSource(statisticsDevices(sql), now);
   const buckets =
     source === null ? [] : statisticBuckets(sql, source, type, period.start, period.end);
@@ -67,7 +69,7 @@ const cumulativeTotals = (
   const lastBucket = buckets.at(-1);
   const covered =
     lastBucket === undefined ? period.start : lastBucket.bucketStart + statisticsBucketMillis;
-  for (const sample of sampleValues(sql, type, covered, period.end)) {
+  for (const sample of sampleSums(sql, type, covered, period.end)) {
     add(sample.start, sample.value ?? 0);
   }
   return [...sums.entries()]
@@ -104,87 +106,105 @@ interface Reading {
   readonly source: string;
 }
 
+/** One statistic's running totals, added to a reading at a time, in order. */
+class Accumulator {
+  count = 0;
+  least = Infinity;
+  most = -Infinity;
+  totalWeight = 0;
+  weighted = 0;
+
+  constructor(readonly aggregation: HealthAggregation) {}
+
+  add(value: number, weight: number) {
+    this.count++;
+    this.least = Math.min(this.least, value);
+    this.most = Math.max(this.most, value);
+    this.totalWeight += weight;
+    this.weighted +=
+      this.aggregation === "discreteEquivalentContinuousLevel"
+        ? weight * 10 ** (value / 10)
+        : value * weight;
+  }
+
+  /** The statistic, or null without any readings. */
+  result(statistic: Exclude<Statistic, "sum">): number | null {
+    if (this.count === 0) return null;
+    if (statistic === "minimum") return this.least;
+    if (statistic === "maximum") return this.most;
+    if (this.totalWeight <= 0) return 0;
+    if (this.aggregation === "discreteEquivalentContinuousLevel") {
+      return 10 * Math.log10(this.weighted / this.totalWeight);
+    }
+    return this.weighted / this.totalWeight;
+  }
+}
+
 /**
- * Each reading's weight in an average, in seconds (`readings` by start), as the Mac's
- * `HealthDatabase.discreteStatistics`:
+ * A discrete type's statistic over the period and each of its buckets, from the readings that
+ * start in them (`readings` by start, reaching an hour past the period's end), weighted by the
+ * type's aggregation style, as the Mac's `HealthDatabase.discreteStatistic` weighs each bucket on
+ * its own:
  * - Time-weighted: each counts until its source's next reading, up to an hour, and a source's
  *   last one for its own duration. Sources are weighted separately, so a second device's readings
- *   don't cut the first's short.
+ *   don't cut the first's short. The Mac reads a bucket's readings up to an hour past its end, so
+ *   a reading counts until its source's next one only if that starts by then.
  * - Equivalent continuous level (sound): by duration.
  * - Arithmetic: all the same.
- * At least a second each.
+ * At least a second each. In one pass over the readings, adding each to its bucket's totals and
+ * the period's in the Mac's order, so the sums come out the same (851-2906).
  */
-const weights = (readings: ReadonlyArray<Reading>, aggregation: HealthAggregation) => {
-  switch (aggregation) {
-    case "discreteTemporallyWeighted": {
-      const result = readings.map(() => 1);
-      const nextStart = new Map<string, number>();
-      for (let index = readings.length - 1; index >= 0; index--) {
-        const reading = readings[index]!;
-        const until = nextStart.get(reading.source) ?? reading.end;
-        result[index] = Math.min(
-          Math.max((until - reading.start) / 1000, 1),
-          maxSampleWeightMillis / 1000,
-        );
-        nextStart.set(reading.source, reading.start);
-      }
-      return result;
-    }
-    case "discreteEquivalentContinuousLevel":
-      return readings.map((reading) => Math.max((reading.end - reading.start) / 1000, 1));
-    default:
-      return readings.map(() => 1);
-  }
-};
-
-/**
- * A discrete type's statistic over `[from, to)`, from the readings that start in it, weighted by
- * the type's aggregation style, or null without any. `readings` are sorted by start and reach
- * an hour past `to`, so a time-weighted reading near the end is weighted by its source's next one,
- * as the Mac weighs each bucket on its own.
- */
-const discreteStatistic = (
+const discreteStatistics = (
   readings: ReadonlyArray<Reading>,
-  from: number,
-  to: number,
+  period: ToolPeriod,
   aggregation: HealthAggregation,
   statistic: Exclude<Statistic, "sum">,
-): number | null => {
-  const reach = aggregation === "discreteTemporallyWeighted" ? to + maxSampleWeightMillis : to;
-  const window = readings.slice(firstStarting(readings, from), firstStarting(readings, reach));
-  const weighted = weights(window, aggregation);
-  const values: Array<number> = [];
-  const valueWeights: Array<number> = [];
-  window.forEach((reading, index) => {
-    if (reading.start >= to) return;
-    values.push(reading.value);
-    valueWeights.push(weighted[index]!);
-  });
-  if (values.length === 0) return null;
-  if (statistic === "minimum") return minimum(values);
-  if (statistic === "maximum") return maximum(values);
-  const total = valueWeights.reduce((sum, weight) => sum + weight, 0);
-  if (total <= 0) return 0;
-  if (aggregation === "discreteEquivalentContinuousLevel") {
-    const energy = values.reduce(
-      (sum, value, index) => sum + valueWeights[index]! * 10 ** (value / 10),
-      0,
-    );
-    return 10 * Math.log10(energy / total);
+): { readonly value: number | null; readonly buckets: ReadonlyArray<number | null> } => {
+  const timeWeighted = aggregation === "discreteTemporallyWeighted";
+  // When each reading's source has its next one (NaN for its last).
+  const nextStarts = new Float64Array(readings.length).fill(Number.NaN);
+  if (timeWeighted) {
+    const nextStart = new Map<string, number>();
+    for (let index = readings.length - 1; index >= 0; index--) {
+      const reading = readings[index]!;
+      nextStarts[index] = nextStart.get(reading.source) ?? Number.NaN;
+      nextStart.set(reading.source, reading.start);
+    }
   }
-  return values.reduce((sum, value, index) => sum + value * valueWeights[index]!, 0) / total;
-};
-
-/** The index of the first of `readings` (by start) that starts at `millis` or later. */
-const firstStarting = (readings: ReadonlyArray<Reading>, millis: number) => {
-  let low = 0;
-  let high = readings.length;
-  while (low < high) {
-    const middle = (low + high) >> 1;
-    if (readings[middle]!.start < millis) low = middle + 1;
-    else high = middle;
+  /** A reading's weight among the readings read up to `reach`. */
+  const weight = (index: number, reach: number) => {
+    const reading = readings[index]!;
+    if (timeWeighted) {
+      const next = nextStarts[index]!;
+      const until = next < reach ? next : reading.end;
+      return Math.min(Math.max((until - reading.start) / 1000, 1), maxSampleWeightMillis / 1000);
+    }
+    if (aggregation === "discreteEquivalentContinuousLevel") {
+      return Math.max((reading.end - reading.start) / 1000, 1);
+    }
+    return 1;
+  };
+  const reach = (end: number) => (timeWeighted ? end + maxSampleWeightMillis : end);
+  const whole = new Accumulator(aggregation);
+  const wholeReach = reach(period.end);
+  const buckets = period.buckets.map(() => new Accumulator(aggregation));
+  let bucket = 0;
+  let bucketReach = reach(period.buckets[1] ?? period.end);
+  for (let index = 0; index < readings.length; index++) {
+    const reading = readings[index]!;
+    if (reading.start < period.start) continue;
+    if (reading.start >= period.end) break;
+    while (bucket + 1 < period.buckets.length && reading.start >= period.buckets[bucket + 1]!) {
+      bucket++;
+      bucketReach = reach(period.buckets[bucket + 1] ?? period.end);
+    }
+    buckets[bucket]!.add(reading.value, weight(index, bucketReach));
+    whole.add(reading.value, weight(index, wholeReach));
   }
-  return low;
+  return {
+    value: whole.result(statistic),
+    buckets: buckets.map((totals) => totals.result(statistic)),
+  };
 };
 
 /**
@@ -255,16 +275,7 @@ export const healthMetric = Effect.fn("healthMetric")(function* (
       period.start,
       period.end + maxSampleWeightMillis,
     ).filter((sample): sample is Reading => sample.value !== null);
-    buckets = period.buckets.map((start, index) =>
-      discreteStatistic(
-        readings,
-        start,
-        period.buckets[index + 1] ?? period.end,
-        aggregation,
-        statistic,
-      ),
-    );
-    value = discreteStatistic(readings, period.start, period.end, aggregation, statistic);
+    ({ value, buckets } = discreteStatistics(readings, period, aggregation, statistic));
   }
   const result: MetricResult = {
     timeZone: name,

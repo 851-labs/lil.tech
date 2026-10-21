@@ -31,6 +31,13 @@ export const makeTestStoreSql = (): TestStoreSql => {
             Object.entries(row).map(([key, value]) => [key, fromNode(value)]),
           ) as SqlRow,
       ),
+    rows: (query, ...bindings) => {
+      const statement = db.prepare(query);
+      statement.setReturnArrays(true);
+      return (statement.all(...bindings.map(toNode)) as unknown as Array<Array<unknown>>).map(
+        (row) => row.map(fromNode),
+      );
+    },
     script: (sql) => db.exec(sql),
     transaction: (body) => {
       const savepoint = `transaction_${depth++}`;

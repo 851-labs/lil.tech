@@ -54,6 +54,24 @@ export const startOfDay = (millis: number, zone: DateTime.TimeZone, days = 0): n
     DateTime.startOf(DateTime.add(DateTime.startOf(zoned(millis, zone), "day"), { days }), "day"),
   );
 
+/**
+ * `startOfDay` for many times, such as a query's rows (851-2906). Time-zone math costs tens of
+ * microseconds a call, seconds for a year of samples, so it works out a day's start and end once
+ * and answers from them until a time falls outside: once a day for times in order.
+ */
+export const dayStarts = (zone: DateTime.TimeZone): ((millis: number) => number) => {
+  let start = Number.NaN;
+  let next = Number.NaN;
+  return (millis) => {
+    // Days don't overlap, so every time from a day's start until the next day's is in it.
+    if (!(millis >= start && millis < next)) {
+      start = startOfDay(millis, zone);
+      next = startOfDay(start, zone, 1);
+    }
+    return start;
+  };
+};
+
 export const hourMillis = 60 * 60 * 1000;
 
 /** When the hour `millis` falls in starts in `zone`: its local hour, in half-hour zones too. */

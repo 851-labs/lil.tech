@@ -8,6 +8,7 @@ import { age } from "../../../src/health/tools/Details.ts";
 import { HealthToolkit } from "../../../src/health/tools/HealthToolkit.ts";
 import {
   bucketIndex,
+  dayStarts,
   localDate,
   localTime,
   startOfDay,
@@ -78,6 +79,34 @@ describe("tool times", () => {
     assert.strictEqual(startOfDay(sunday, london), Date.parse("2026-10-24T23:00:00Z"));
     assert.strictEqual(startOfDay(sunday, london, 1), Date.parse("2026-10-26T00:00:00Z"));
     assert.strictEqual(startOfDay(sunday, london, -6), Date.parse("2026-10-18T23:00:00Z"));
+  });
+
+  it("start days from each day's bounds as startOfDay does, across changes of offset", () => {
+    // Changes in spring and autumn, a half-hour one (Lord Howe), and one at midnight (Santiago,
+    // whose 6 September 2026 starts at 01:00).
+    const changes = [
+      ["Europe/London", "2026-03-29T01:00:00Z"],
+      ["Europe/London", "2026-10-25T01:00:00Z"],
+      ["America/Los_Angeles", "2026-11-01T09:00:00Z"],
+      ["Australia/Lord_Howe", "2026-04-04T15:00:00Z"],
+      ["America/Santiago", "2026-09-06T04:00:00Z"],
+      ["Asia/Kolkata", "2026-10-20T00:00:00Z"],
+    ] as const;
+    for (const [name, change] of changes) {
+      const zone = Option.getOrThrow(DateTime.zoneMakeNamed(name));
+      const times: Array<number> = [];
+      for (let millis = Date.parse(change) - 2 * day; millis < Date.parse(change) + 2 * day;) {
+        times.push(millis);
+        millis += 7 * 60 * 1000;
+      }
+      // In order, as rows come, and out of order.
+      for (const order of [times, [...times].reverse()]) {
+        const startOf = dayStarts(zone);
+        for (const millis of order) {
+          assert.strictEqual(startOf(millis), startOfDay(millis, zone), `${name} ${millis}`);
+        }
+      }
+    }
   });
 });
 

@@ -333,7 +333,7 @@ export const sampleValues = (
   readonly source: string;
 }> =>
   sql
-    .exec(
+    .rows(
       `SELECT start_date, end_date, value, source_bundle_id FROM health_sample s
       WHERE type = ? AND start_date >= ? AND start_date < ? AND ${liveSample}
       ORDER BY start_date, id`,
@@ -341,12 +341,33 @@ export const sampleValues = (
       from,
       to,
     )
-    .map((row) => ({
-      start: Number(row["start_date"]),
-      end: Number(row["end_date"]),
-      value: numberOrNull(row["value"]),
-      source: row["source_bundle_id"] as string,
+    .map(([start, end, value, source]) => ({
+      start: Number(start),
+      end: Number(end),
+      value: numberOrNull(value),
+      source: source as string,
     }));
+
+/**
+ * A cumulative type's values that start in `[from, to)`, oldest first: only when each starts and
+ * its value, which is all its totals need (851-2906).
+ */
+export const sampleSums = (
+  sql: StoreSql,
+  type: string,
+  from: number,
+  to: number,
+): ReadonlyArray<{ readonly start: number; readonly value: number | null }> =>
+  sql
+    .rows(
+      `SELECT start_date, value FROM health_sample s
+      WHERE type = ? AND start_date >= ? AND start_date < ? AND ${liveSample}
+      ORDER BY start_date, id`,
+      type,
+      from,
+      to,
+    )
+    .map(([start, value]) => ({ start: Number(start), value: numberOrNull(value) }));
 
 /** Where a page of samples ended: its last sample's start and ID, which breaks ties. */
 export interface SampleCursor {
