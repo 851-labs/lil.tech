@@ -840,7 +840,7 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
             consents.current(userId, "health"),
             consents.current(userId, "agents:health"),
             connections.listForUser(userId),
-            agentGrants.listForUser(userId),
+            agentGrants.listForUser(userId, yield* Clock.currentTimeMillis),
             // All of it, in one call: it's at most `agentAccessLogPolicy.maxRows` short rows.
             stores.forUser(userId).agentAccessLog(null, agentAccessLogPolicy.maxRows),
           ],

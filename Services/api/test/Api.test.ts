@@ -1492,6 +1492,15 @@ describe("data exports", () => {
             lastUsedAt: 2000,
           }),
         );
+        yield* (yield* AgentGrants).createTokens(grantId, [
+          {
+            tokenHash: "ab".repeat(32),
+            kind: "refresh",
+            replaces: null,
+            refreshTokenHash: null,
+            expiresAt: Date.now() + 60_000,
+          },
+        ]);
         appendAgentAccess(
           sql,
           {

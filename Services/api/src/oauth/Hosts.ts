@@ -88,6 +88,25 @@ export const resourceFor = (hosts: AgentHosts, resource: string): Option.Option<
     ),
   );
 
+/**
+ * The app whose MCP server a stored grant's or authorization's `resource` is, by its path alone.
+ * Authorizing already checked the whole URL, and the apps' requests may come to another origin
+ * than the agent's (`alchemy dev` behind a tunnel), so the path is what's left to tell apps apart.
+ */
+export const appOfResource = (resource: string): Option.Option<AgentResource> => {
+  let path: string;
+  try {
+    path = new URL(resource).pathname;
+  } catch {
+    return Option.none();
+  }
+  return Option.fromNullishOr(
+    (Object.keys(agentResources) as Array<AgentResource>).find(
+      (key) => agentResources[key].path === path,
+    ),
+  );
+};
+
 /** Whether `path` belongs on the MCP host: an app's MCP server, or its metadata. */
 export const isMcpPath = (path: string) =>
   Object.values(agentResources).some(

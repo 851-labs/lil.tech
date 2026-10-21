@@ -61,7 +61,10 @@ export class AgentAccessEntry extends Schema.Class<AgentAccessEntry>(
   at: Schema.Int,
   /** The agent's grant (`ConnectedAgent.id`), which may have been revoked since. */
   agentId: Schema.String,
-  /** The agent's name as it was when it made the call. */
+  /**
+   * The agent's name when it made the call, or its client ID if it gave none (a registered client,
+   * whose `ConnectedAgent.name` is `null`).
+   */
   agentName: Schema.String,
   /** The tool it called, e.g. `summary` or `metric`. */
   tool: Schema.String,

@@ -1,11 +1,10 @@
-import { Effect, Option } from "effect";
-import { HttpServerRequest } from "effect/http";
+import { Clock, Effect, Option } from "effect";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "../Api.ts";
 import { CurrentSession, Unauthorized } from "../auth/AuthApi.ts";
 import { AgentGrants } from "../core/AgentGrants.ts";
 import { Consents } from "../core/Consents.ts";
-import { Deployment } from "../Deployment.ts";
+import type { UserId } from "../core/Ids.ts";
 import { UserStores } from "../store/UserStores.ts";
 import {
   AgentAccessEntry,
@@ -15,14 +14,7 @@ import {
   ConnectedAgent,
   ConnectedAgents,
 } from "./AgentsApi.ts";
-import {
-  agentHosts,
-  type AgentResource,
-  agentResources,
-  resourceFor,
-  resourceUrl,
-} from "./Hosts.ts";
-import { requestOrigin } from "./Requests.ts";
+import { type AgentResource, agentResources, appOfResource } from "./Hosts.ts";
 
 // The apps' endpoints for connected agents (851-2852, `AgentsApi.ts`). They exist in every
 // environment, prod included, so the apps can ship before agents can connect there (851-2855):
@@ -35,28 +27,32 @@ export const AgentsHandlers = HttpApiBuilder.group(
     const grants = yield* AgentGrants;
     const consents = yield* Consents;
     const stores = yield* UserStores;
-    const { environment } = yield* Deployment;
-    /** The hosts agents use, as seen from the app's request. */
-    const requestHosts = HttpServerRequest.HttpServerRequest.use((request) =>
-      Effect.succeed(agentHosts(environment, requestOrigin(request))),
-    );
+    /** Revokes the user's agents of one app, and its requests to connect one. */
+    const revokeApp = (userId: UserId, key: AgentResource) =>
+      grants.resourcesForUser(userId).pipe(
+        Effect.map((resources) =>
+          resources.filter((resource) => Option.contains(appOfResource(resource), key)),
+        ),
+        Effect.flatMap((resources) => grants.deleteForResources(userId, resources)),
+      );
     /**
-     * Turn Off Agent Access for one app: its agents are revoked first, so if anything fails the
-     * consent stands and the app asks again, rather than agents reading without it.
+     * Turn Off Agent Access for one app. Its agents are revoked first, so if that fails the consent
+     * stands and the app asks again, rather than agents reading without it. Then again once the
+     * consent is withdrawn, for an agent the user allowed in a browser meanwhile: one allowed after
+     * that gives consent again, as a new connection.
      */
     const turnOff = (key: AgentResource) =>
       Effect.gen(function* () {
         const { userId } = yield* CurrentSession;
-        const hosts = yield* requestHosts;
-        yield* grants.deleteForResource(userId, resourceUrl(hosts, key));
+        yield* revokeApp(userId, key);
         yield* consents.withdraw(userId, agentResources[key].consent);
+        yield* revokeApp(userId, key);
       }).pipe(Effect.orDie);
     return handlers
       .handle("connectedAgents", () =>
         Effect.gen(function* () {
           const { userId } = yield* CurrentSession;
-          const hosts = yield* requestHosts;
-          const found = yield* grants.listForUser(userId);
+          const found = yield* grants.listForUser(userId, yield* Clock.currentTimeMillis);
           return new ConnectedAgents({
             agents: found.map(
               (grant) =>
@@ -66,7 +62,7 @@ export const AgentsHandlers = HttpApiBuilder.group(
                   domain: grant.clientDomain,
                   redirectHost: grant.redirectHost,
                   resource: grant.resource,
-                  app: Option.getOrNull(resourceFor(hosts, grant.resource)),
+                  app: Option.getOrNull(appOfResource(grant.resource)),
                   connectedAt: grant.createdAt,
                   lastUsedAt: grant.lastUsedAt,
                 }),

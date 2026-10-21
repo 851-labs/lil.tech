@@ -2,6 +2,8 @@ import { assert, describe, it } from "@effect/vitest";
 import { Effect, Option } from "effect";
 import { Auth } from "../../src/auth/Auth.ts";
 import { Consents } from "../../src/core/Consents.ts";
+import { CoreDb } from "../../src/core/CoreDb.ts";
+import { agentTokens } from "../../src/core/Schema.ts";
 import { Devices } from "../../src/core/Devices.ts";
 import type { UserId } from "../../src/core/Ids.ts";
 import { Users } from "../../src/core/Users.ts";
@@ -126,6 +128,23 @@ describe("GET /v1/me/agents", () => {
             connectedAt,
             lastUsedAt,
           } as AgentBody);
+        }),
+      preview,
+    ),
+  );
+
+  it.live("leaves out an agent whose access ended", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const ada = yield* signIn;
+          yield* connect(handler, ada.userId);
+          // Its refresh token expired (90 days unused); the daily cleanup deletes it later.
+          yield* (yield* CoreDb).update(agentTokens).set({ expiresAt: 1 }).pipe(Effect.orDie);
+          assert.deepStrictEqual(
+            (yield* app(handler, ada.accessToken, "GET", "/v1/me/agents")).body,
+            { agents: [] },
+          );
         }),
       preview,
     ),
@@ -346,6 +365,19 @@ describe("/v1/me/consents/agents/health", () => {
 
           const health = yield* connect(handler, ada.userId);
           const mail = yield* connect(handler, ada.userId, mailResource);
+          // lil health's, connected through another origin than the app's requests come to
+          // (`alchemy dev` behind a tunnel): it's still lil health's.
+          yield* connect(handler, ada.userId, "https://tunnel.example/health");
+          assert.sameDeepMembers(
+            agentsOf((yield* app(handler, ada.accessToken, "GET", "/v1/me/agents")).body).map(
+              (agent) => [agent.resource, agent.app],
+            ),
+            [
+              [healthResource, "health"],
+              [mailResource, null],
+              ["https://tunnel.example/health", "health"],
+            ],
+          );
           // A code allowed but not yet redeemed, which mustn't become a grant afterwards.
           const pending = yield* approve({ userId: ada.userId, resource: healthResource });
 
