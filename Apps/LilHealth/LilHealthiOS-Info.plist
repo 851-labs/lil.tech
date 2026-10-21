@@ -9,6 +9,8 @@
 	</array>
 	<key>GIDClientID</key>
 	<string>43230766631-5mdd1j3o2dlugafcl2jj2ci39i4a8ski.apps.googleusercontent.com</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

@@ -1,26 +1,44 @@
 #!/bin/bash
-# Builds a signed, notarized DMG for one of the lil apps.
-# Usage: scripts/release <app> <version> [--skip-notarize]
-#   app      Which app to release: messages or health (the Mac app).
-#   version  Marketing version, e.g. 0.1.0.
+# Builds a signed, notarized DMG for one of the lil Mac apps, or uploads lil health for iOS to
+# App Store Connect.
+# Usage: scripts/release <app> <version> [--skip-notarize | --skip-upload]
+#   app      Which app to release: messages, health (the Mac app) or health-ios.
+#   version  Marketing version, e.g. 0.1.0. An app's platforms share it.
 #
 # The build number (CFBundleVersion) is the number of commits on HEAD, so it always increases,
 # which Sparkle relies on to order updates.
 #
-# Requires the "Developer ID Application" certificate and a notarytool keychain profile named
-# lil-notary, and the app's Sparkle key in the keychain (see docs/RELEASING.md). Output goes to
-# build/releases/<app>/<version>/, with the appcast enclosure's signature and length in
+# Mac apps require the "Developer ID Application" certificate and a notarytool keychain profile
+# named lil-notary, and the app's Sparkle key in the keychain (see docs/RELEASING.md). Output goes
+# to build/releases/<app>/<version>/, with the appcast enclosure's signature and length in
 # enclosure.txt.
+#
+# health-ios archives and uploads with the Apple account signed in to Xcode, from a clean tree.
+# --skip-upload stops after the archive (build/releases/health-ios/<version>/LilHealthiOS.xcarchive).
 set -euo pipefail
 
-if [ $# -lt 2 ]; then
-  echo "usage: scripts/release <app> <version> [--skip-notarize]" >&2
+usage="usage: scripts/release <app> <version> [--skip-notarize | --skip-upload]"
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+  echo "$usage" >&2
   exit 64
 fi
 app=$1
 version=$2
+if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "version must look like 0.1.0: $version" >&2
+  exit 64
+fi
 notarize=true
-[ "${3:-}" = "--skip-notarize" ] && notarize=false
+upload=true
+case "${3:-}" in
+  "") ;;
+  --skip-notarize) notarize=false ;;
+  --skip-upload) upload=false ;;
+  *)
+    echo "$usage" >&2
+    exit 64
+    ;;
+esac
 
 case "$app" in
   messages)
@@ -28,6 +46,7 @@ case "$app" in
     product="lil messages"
     dmg_name=lil-messages
     info_plist=Apps/LilMessages/Info.plist
+    destination='generic/platform=macOS'
     # Signed with the Developer ID certificate alone: it claims no entitlements.
     provisioned=false
     ;;
@@ -36,8 +55,17 @@ case "$app" in
     product="lil health"
     dmg_name=lil-health
     info_plist=Apps/LilHealth/LilHealth-Info.plist
+    destination='generic/platform=macOS'
     # Its keychain access group (the data protection Keychain holds the session) needs a
     # Developer ID provisioning profile, which Xcode makes and renews.
+    provisioned=true
+    ;;
+  health-ios)
+    scheme=LilHealthiOS
+    product="lil health for iOS"
+    destination='generic/platform=iOS'
+    # Exported with Apple Distribution through Xcode's account: cloud signing needs permissions
+    # an App Store Connect API key doesn't have.
     provisioned=true
     ;;
   *)
@@ -47,6 +75,29 @@ case "$app" in
 esac
 
 cd "$(dirname "$0")/.."
+ios=false
+[ "$app" = health-ios ] && ios=true
+if $ios && ! $notarize; then
+  echo "--skip-notarize is for the Mac apps; health-ios takes --skip-upload" >&2
+  exit 64
+fi
+if ! $ios && ! $upload; then
+  echo "--skip-upload is for health-ios; the Mac apps take --skip-notarize" >&2
+  exit 64
+fi
+# An upload is numbered after HEAD's commit count, so it must be built from that commit alone,
+# and from main: pull requests are squashed, so a branch's count is a number main reaches later
+# with other code, and App Store Connect takes each build number once per version.
+if $ios && $upload; then
+  if [ -n "$(git status --porcelain)" ]; then
+    echo "uncommitted changes: upload from a clean tree, or pass --skip-upload" >&2
+    exit 1
+  fi
+  if ! git merge-base --is-ancestor HEAD origin/main; then
+    echo "HEAD isn't on origin/main: upload a commit on main, or pass --skip-upload" >&2
+    exit 1
+  fi
+fi
 signing_style=manual
 provisioning=()
 if $provisioned; then
@@ -58,7 +109,6 @@ build_number=$(git rev-list --count HEAD)
 out="build/releases/$app/$version"
 archive="$out/$scheme.xcarchive"
 export_dir="$out/export"
-dmg="$out/$dmg_name-$version.dmg"
 
 rm -rf "$out"
 mkdir -p "$out"
@@ -82,11 +132,15 @@ check_sparkle_key() {
   fi
 }
 
-echo "==> Resolving packages and checking the Sparkle key"
+if $ios; then
+  echo "==> Resolving packages"
+else
+  echo "==> Resolving packages and checking the Sparkle key"
+fi
 xcodebuild -resolvePackageDependencies -workspace Lil.xcworkspace -scheme "$scheme" \
   -derivedDataPath "$out/DerivedData" -clonedSourcePackagesDirPath "$packages" \
   -onlyUsePackageVersionsFromResolvedFile -quiet
-check_sparkle_key "$info_plist"
+$ios || check_sparkle_key "$info_plist"
 
 # In its own derived data: a release builds from scratch, so nothing stale from Xcode's builds
 # (such as a package graph it has cached) can break or end up in it. Package checkouts are kept
@@ -96,7 +150,7 @@ xcodebuild archive \
   -workspace Lil.xcworkspace \
   -scheme "$scheme" \
   -configuration Release \
-  -destination 'generic/platform=macOS' \
+  -destination "$destination" \
   -archivePath "$archive" \
   -derivedDataPath "$out/DerivedData" \
   -clonedSourcePackagesDirPath "$packages" \
@@ -105,6 +159,24 @@ xcodebuild archive \
   MARKETING_VERSION="$version" \
   CURRENT_PROJECT_VERSION="$build_number" \
   -quiet
+
+if $ios; then
+  if ! $upload; then
+    echo "==> Skipping the upload: $archive"
+    exit 0
+  fi
+  # The export options upload the build and keep its version and build number. No API key: with
+  # one, the export fails on cloud signing permissions.
+  echo "==> Uploading to App Store Connect"
+  xcodebuild -exportArchive \
+    -archivePath "$archive" \
+    -exportPath "$export_dir" \
+    -exportOptionsPlist Apps/LilHealth/LilHealthiOS-ExportOptions.plist \
+    -allowProvisioningUpdates \
+    -quiet
+  echo "==> Uploaded $product $version (build $build_number)"
+  exit 0
+fi
 
 echo "==> Exporting with Developer ID"
 cat > "$out/ExportOptions.plist" <<PLIST
@@ -134,6 +206,7 @@ xcodebuild -exportArchive \
 check_sparkle_key "$export_dir/$product.app/Contents/Info.plist"
 
 echo "==> Building DMG"
+dmg="$out/$dmg_name-$version.dmg"
 staging="$out/dmg"
 mkdir -p "$staging"
 cp -R "$export_dir/$product.app" "$staging/"
