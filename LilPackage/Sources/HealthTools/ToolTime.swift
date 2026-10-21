@@ -52,23 +52,20 @@ public struct ToolTime: Sendable {
 
   /// `date` as a local time with its offset, e.g. `2026-10-20T08:15:00+01:00`.
   public func localTime(_ date: Date) -> String {
-    format(date, "yyyy-MM-dd'T'HH:mm:ssxxx")
+    // Rounded down to the second, as the remote server does.
+    let date = Date(timeIntervalSince1970: date.timeIntervalSince1970.rounded(.down))
+    let parts = calendar.dateComponents([.hour, .minute, .second], from: date)
+    let offset = timeZone.secondsFromGMT(for: date) / 60
+    return localDate(date)
+      + String(
+        format: "T%02d:%02d:%02d%@%02d:%02d", parts.hour ?? 0, parts.minute ?? 0,
+        parts.second ?? 0, offset < 0 ? "-" : "+", abs(offset) / 60, abs(offset) % 60)
   }
 
   /// The day `date` falls on, as `YYYY-MM-DD`.
   public func localDate(_ date: Date) -> String {
-    format(date, "yyyy-MM-dd")
-  }
-
-  private func format(_ date: Date, _ pattern: String) -> String {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.calendar = calendar
-    formatter.timeZone = calendar.timeZone
-    formatter.dateFormat = pattern
-    // Rounded down to the second, before the offset's minutes are taken.
-    return formatter.string(
-      from: Date(timeIntervalSince1970: date.timeIntervalSince1970.rounded(.down)))
+    let parts = calendar.dateComponents([.year, .month, .day], from: date)
+    return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
   }
 
   /// The start of the day `date` falls on, moved by `days` days.

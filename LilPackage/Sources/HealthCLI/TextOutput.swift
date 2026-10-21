@@ -191,9 +191,9 @@ extension HealthSearchResult: TextOutput {
     var lines: [String] = []
     let width = types.map(\.name.count).max() ?? 0
     for type in types {
-      let category = type.category.map { "\($0), " } ?? ""
-      let data = type.hasData ? "" : ", no data"
-      lines.append(row(type.name, width, "\(type.type) (\(category.dropLast(2))\(data))"))
+      let notes = [type.category, type.hasData ? nil : "no data"].compactMap(\.self)
+      let suffix = notes.isEmpty ? "" : " (\(notes.joined(separator: ", ")))"
+      lines.append(row(type.name, width, type.type + suffix))
     }
     if !medications.isEmpty {
       if !lines.isEmpty { lines.append("") }

@@ -132,20 +132,21 @@ extension HealthDatabase {
     of type: String, in range: Range<Date>? = nil, after cursor: SampleCursor?, limit: Int,
     _ db: Database
   ) throws -> [HealthSample] {
-    let lower = range?.lowerBound.unixMilliseconds ?? .min
-    let upper = range?.upperBound.unixMilliseconds ?? .max
-    return
-      try HealthSample
-      .where { sample in
-        if let cursor {
-          // The plain bound first, so SQLite can seek the (type, startDate) index to it.
-          sample.type.eq(type) && sample.startDate <= cursor.startDate
-            && (sample.startDate < cursor.startDate || sample.id < cursor.id)
-            && sample.startDate >= lower && sample.startDate < upper
-        } else {
-          sample.type.eq(type) && sample.startDate >= lower && sample.startDate < upper
-        }
+    var page = HealthSample.where { sample in
+      if let cursor {
+        // The plain bound first, so SQLite can seek the (type, startDate) index to it.
+        sample.type.eq(type) && sample.startDate <= cursor.startDate
+          && (sample.startDate < cursor.startDate || sample.id < cursor.id)
+      } else {
+        sample.type.eq(type)
       }
+    }
+    if let range {
+      let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+      page = page.where { $0.startDate >= lower && $0.startDate < upper }
+    }
+    return
+      try page
       .order { ($0.startDate.desc(), $0.id.desc()) }
       .limit(limit)
       .fetchAll(db)

@@ -112,7 +112,8 @@ public enum HealthCLI {
     }
     switch error {
     case is AgentAccessError: return message(Status.noPermission)
-    case is HealthDatabase.ReadError: return message(Status.unavailable)
+    // Including SQLite's: a damaged database, or one the app kept locked past the timeout.
+    case is HealthDatabase.ReadError, is DatabaseError: return message(Status.unavailable)
     case is HealthToolError: return message(Status.dataError)
     default:
       let text = LilHealthCommand.fullMessage(for: error) + "\n"

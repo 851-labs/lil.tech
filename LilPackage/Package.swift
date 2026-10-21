@@ -232,7 +232,7 @@ let package = Package(
       dependencies: [
         "HealthCatalog",
         "HealthDatabase",
-        .product(name: "GRDB", package: "GRDB.swift"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
       ]
     ),
     .testTarget(

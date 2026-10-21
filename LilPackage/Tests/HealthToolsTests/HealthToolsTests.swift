@@ -240,8 +240,13 @@ struct HealthToolsTests {
     let metric = try database.read {
       try tools.metric(type: steps, range: .day, statistic: .average, timeZone: "UTC", $0)
     }
-    #expect(metric.value == 350)
+    // The average hour with steps.
+    #expect(metric.value == 175)
     #expect(metric.buckets.count == 24 && metric.buckets[9].value == 150)
+    let total = try database.read {
+      try tools.metric(type: steps, range: .day, timeZone: "UTC", $0)
+    }
+    #expect(total.value == 350)
     #expect(metric.buckets[14].start == "2026-10-20T14:00:00+00:00")
   }
 
@@ -436,6 +441,9 @@ struct HealthToolsTests {
           rightEye: HealthLens(sphere: -1.25, cylinder: -0.5, axis: 90, addPower: nil),
           leftEye: nil)
       ])
+    // Set characteristics are data, though they have no dates.
+    let search = try database.read { try tools.search(query: "blood type", $0) }
+    #expect(search.types.map(\.hasData) == [true])
   }
 
   // MARK: - types, search, sync status

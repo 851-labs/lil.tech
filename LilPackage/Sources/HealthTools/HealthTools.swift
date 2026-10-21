@@ -96,8 +96,8 @@ public struct HealthTools: Sendable {
   ///
   /// - Types that add up (steps): totals come from the statistics source's buckets, and the
   ///   samples' own past them, as the app's charts. `sum` is the total; `average`, `minimum` and
-  ///   `maximum` are of the days' totals (days with data), as Health's Daily Average, except for
-  ///   a D range's hours, which are each hour's total.
+  ///   `maximum` are of the days' totals (days with data), as Health's Daily Average, or of a D
+  ///   range's hours' totals.
   /// - Other types (heart rate): from the samples, weighted by the type's aggregation style, as
   ///   the app's charts. They don't add up, so `sum` is an error.
   public func metric(
@@ -126,7 +126,7 @@ public struct HealthTools: Sendable {
         if let index = period.bucket(of: total.start) { grouped[index].append(total.sum) }
       }
       buckets = grouped.map { Self.combine($0, statistic) }
-      value = Self.combine(totals.map(\.sum), range == .day ? .sum : statistic)
+      value = Self.combine(totals.map(\.sum), statistic)
     } else {
       guard statistic != .sum else {
         throw HealthToolError(
@@ -354,8 +354,12 @@ public struct HealthTools: Sendable {
     }
     let dates = try HealthDatabase.typeDates(calendar: Calendar(identifier: .gregorian), db)
     let hasMedications = try HealthMedication.select(\.id).limit(1).fetchOne(db) != nil
+    // Characteristics have no dates: those set, not Not Set (`null`).
+    let characteristics = Set(
+      try HealthDatabase.characteristics(db).filter { $0.value != "null" }.map(\.id))
     func hasData(_ type: HealthDataType) -> Bool {
       dates[type.id] != nil || (type.kind == .medication && hasMedications)
+        || characteristics.contains(type.id)
     }
     let types = HealthCatalog.all
       .filter { matches("\($0.name) \($0.category?.name ?? "") \(Self.shortID($0.id))") }
