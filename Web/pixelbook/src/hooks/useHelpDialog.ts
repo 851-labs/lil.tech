@@ -16,6 +16,8 @@ export function useHelpDialog() {
   }, []);
   const finalFocus: DialogFinalFocus = useCallback(() => {
     const from = opener.current;
+    // Forgotten once used, so it doesn't keep an element the page has since removed.
+    opener.current = null;
     return from instanceof HTMLElement && from !== document.body ? from : false;
   }, []);
   return { open, change, finalFocus };

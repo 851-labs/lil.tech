@@ -23,15 +23,9 @@ export const isTyping = (target: EventTarget | null) =>
   (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
 
 /** A key press, as the shortcuts go by it: a `KeyboardEvent`'s fields. */
-export interface KeyPress {
-  readonly key: string;
-  readonly code: string;
-  readonly shiftKey: boolean;
-  readonly metaKey: boolean;
-  readonly ctrlKey: boolean;
-  readonly altKey: boolean;
-  readonly repeat: boolean;
-}
+export type KeyPress = Readonly<
+  Pick<KeyboardEvent, "key" | "code" | "shiftKey" | "metaKey" | "ctrlKey" | "altKey" | "repeat">
+>;
 
 /** What a shortcut does. */
 export type Shortcut =
