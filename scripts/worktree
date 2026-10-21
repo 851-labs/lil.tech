@@ -1,0 +1,262 @@
+#!/bin/sh
+# Creates and removes a ticket's worktree next to the main checkout (`../lil.tech-<number>`), with
+# the build data Xcode keeps for it outside the worktree, so none is left behind (851-2884).
+# Usage:
+#   scripts/worktree new <ticket-number> <branch>
+#       Adds `../lil.tech-<number>` on a new branch from a freshly fetched origin/main, then warms
+#       it: resolves the Swift package, installs the TypeScript workspace, and checks the
+#       generated API client.
+#   scripts/worktree remove <ticket-number> [--stash]
+#       Refuses while the worktree has uncommitted changes, unless `--stash` stashes them (in the
+#       main repo, with a message naming the ticket). Deletes its Xcode DerivedData, removes the
+#       worktree, and deletes its branch if that's merged (into origin/main, or its PR is) or its
+#       remote branch is gone.
+#   scripts/worktree prune [--apply]
+#       Lists every `lil.tech-*` worktree with its PR's state and whether it has uncommitted
+#       changes, and Xcode DerivedData left by worktrees that no longer exist. `--apply` removes
+#       the worktrees whose PR is merged or closed and that have no uncommitted changes, and
+#       deletes that DerivedData. Never touches the main checkout.
+# A ticket number is `2884` or `851-2884`.
+set -eu
+
+usage() {
+  echo "usage: scripts/worktree new <ticket-number> <branch>" >&2
+  echo "       scripts/worktree remove <ticket-number> [--stash]" >&2
+  echo "       scripts/worktree prune [--apply]" >&2
+  exit 2
+}
+
+# The main checkout, wherever this runs from (it may be a worktree's copy of the script).
+main=$(cd "$(dirname "$0")" && git rev-parse --path-format=absolute --git-common-dir)
+main=$(dirname "$main")
+cd "$main"
+# Worktrees are `<main>-<number>`: `lil.tech-2884` next to `lil.tech`.
+prefix="$main-"
+derived_data="$HOME/Library/Developer/Xcode/DerivedData"
+
+number() {
+  n=${1#851-}
+  case "$n" in
+    '' | *[!0-9]*)
+      echo "error: '$1' isn't a ticket number, like 2884 or 851-2884." >&2
+      exit 2
+      ;;
+  esac
+  echo "$n"
+}
+
+# The workspace or project an Xcode DerivedData folder was built for.
+workspace_path() {
+  [ -f "$1/info.plist" ] || return 0
+  plutil -extract WorkspacePath raw -o - "$1/info.plist" 2>/dev/null || true
+}
+
+# The branch checked out in a worktree, empty when it's detached or not a worktree.
+worktree_branch() {
+  git worktree list --porcelain | awk -v path="$1" '
+    $1 == "worktree" { current = substr($0, 10) }
+    $1 == "branch" && current == path { sub("refs/heads/", "", $2); print $2 }'
+}
+
+# MERGED, CLOSED or OPEN for the branch's latest PR, NONE without one, or UNKNOWN if GitHub
+# can't be asked.
+pr_state() {
+  gh pr list --head "$1" --state all --limit 1 --json state --jq '.[0].state // "NONE"' \
+    2>/dev/null || echo UNKNOWN
+}
+
+delete_derived_data() {
+  for dir in "$derived_data"/*/; do
+    dir=${dir%/}
+    case "$(workspace_path "$dir")" in
+      "$1"/*)
+        echo "Deleting Xcode's build data for it: $dir ($(du -sh "$dir" | cut -f1))"
+        rm -rf "$dir"
+        ;;
+    esac
+  done
+}
+
+delete_branch_if_done() {
+  branch=$1
+  git show-ref --verify --quiet "refs/heads/$branch" || return 0
+  reason=""
+  if git merge-base --is-ancestor "$branch" origin/main; then
+    reason="it's in origin/main"
+  elif [ "$(git for-each-ref --format='%(upstream:track)' "refs/heads/$branch")" = "[gone]" ]; then
+    reason="its remote branch is gone"
+  elif [ "$(pr_state "$branch")" = MERGED ]; then
+    reason="its PR is merged"
+  fi
+  if [ -n "$reason" ]; then
+    echo "Deleting branch $branch, since $reason:"
+    git branch -D "$branch"
+  else
+    echo "Keeping branch $branch: it isn't merged, and its remote branch isn't gone."
+  fi
+}
+
+cmd_new() {
+  [ $# -eq 2 ] || usage
+  n=$(number "$1")
+  branch=$2
+  path="$prefix$n"
+  if [ -e "$path" ]; then
+    echo "error: $path already exists." >&2
+    exit 1
+  fi
+  git fetch -q origin main
+  # No upstream yet: the first `git push -u origin HEAD` sets it to the branch's own.
+  git worktree add --no-track -b "$branch" "$path" origin/main
+  cd "$path"
+  echo "Resolving the Swift package…"
+  (cd LilPackage && swift package resolve --scratch-path ../.build-check/package >/dev/null)
+  echo "Installing the TypeScript workspace…"
+  vp install --frozen-lockfile --silent
+  if ! output=$(scripts/generate-api-client --check 2>&1); then
+    echo "$output" >&2
+    exit 1
+  fi
+  echo "Ready: $path"
+}
+
+# Removes worktree `$1` (a path), stashing its changes first if `$2` is true.
+remove_worktree() {
+  path=$1
+  stash=$2
+  n=${path#"$prefix"}
+  branch=$(worktree_branch "$path")
+  if [ -d "$path" ]; then
+    if ! git worktree list --porcelain | grep -qxF "worktree $path"; then
+      echo "error: $path isn't one of this repo's worktrees." >&2
+      exit 1
+    fi
+    if [ -n "$(git -C "$path" status --porcelain --untracked-files=all)" ]; then
+      if ! $stash; then
+        echo "error: $path has uncommitted changes. Commit them, or stash them with --stash:" >&2
+        git -C "$path" status --short >&2
+        exit 1
+      fi
+      git -C "$path" stash push -q -u -m "851-$n leftover: scripts/worktree remove --stash"
+      echo "Stashed its changes in the main repo: $(git stash list -n 1)"
+    fi
+  else
+    echo "$path is already gone."
+  fi
+  # Xcode's build data lives outside the worktree, so removing the worktree leaves it behind.
+  delete_derived_data "$path"
+  if [ -d "$path" ]; then
+    # Clean, as checked above, apart from ignored files: builds and node_modules.
+    git worktree remove --force "$path"
+    echo "Removed $path"
+  fi
+  git worktree prune
+  if [ -z "$branch" ]; then
+    # `gh pr merge --delete-branch` can remove the worktree first, so look the branch up by name.
+    branch=$(git for-each-ref --format='%(refname:short)' refs/heads | grep -m 1 "851-$n-" || true)
+  fi
+  if [ -n "$branch" ]; then
+    git fetch -q --prune origin
+    delete_branch_if_done "$branch"
+  fi
+}
+
+cmd_remove() {
+  [ $# -ge 1 ] || usage
+  n=$(number "$1")
+  shift
+  stash=false
+  for arg in "$@"; do
+    case "$arg" in
+      --stash) stash=true ;;
+      *) usage ;;
+    esac
+  done
+  remove_worktree "$prefix$n" "$stash"
+}
+
+cmd_prune() {
+  apply=false
+  for arg in "$@"; do
+    case "$arg" in
+      --apply) apply=true ;;
+      *) usage ;;
+    esac
+  done
+  git worktree prune
+  removable=""
+  found=false
+  for path in $(git worktree list --porcelain | sed -n 's/^worktree //p'); do
+    case "$path" in
+      "$prefix"*) ;;
+      *) continue ;;
+    esac
+    found=true
+    branch=$(worktree_branch "$path")
+    if [ -n "$branch" ]; then
+      state=$(pr_state "$branch")
+    else
+      branch="(detached)"
+      state=NONE
+    fi
+    case "$state" in
+      MERGED) pr="PR merged" ;;
+      CLOSED) pr="PR closed" ;;
+      OPEN) pr="PR open" ;;
+      NONE) pr="no PR" ;;
+      *) pr="PR unknown (gh failed)" ;;
+    esac
+    if [ -n "$(git -C "$path" status --porcelain --untracked-files=all)" ]; then
+      changes="uncommitted changes"
+    else
+      changes="clean"
+    fi
+    echo "$(basename "$path")  $branch  $pr, $changes"
+    case "$state,$changes" in
+      MERGED,clean | CLOSED,clean) removable="$removable $path" ;;
+    esac
+  done
+  $found || echo "No $(basename "$main")-* worktrees."
+
+  # DerivedData built for a worktree that no longer exists.
+  stale=""
+  for dir in "$derived_data"/*/; do
+    dir=${dir%/}
+    workspace=$(workspace_path "$dir")
+    case "$workspace" in
+      "$prefix"*) ;;
+      *) continue ;;
+    esac
+    root=${workspace#"$prefix"}
+    root="$prefix${root%%/*}"
+    [ -d "$root" ] && continue
+    echo "Xcode build data for $(basename "$root"), which is gone: $dir ($(du -sh "$dir" | cut -f1))"
+    stale="$stale $dir"
+  done
+
+  if ! $apply; then
+    if [ -n "$removable$stale" ]; then
+      echo "Run 'scripts/worktree prune --apply' to remove the merged or closed, clean worktrees" \
+        "and the build data of worktrees that are gone."
+    fi
+    return 0
+  fi
+  for path in $removable; do
+    echo "== $(basename "$path")"
+    remove_worktree "$path" false
+  done
+  for dir in $stale; do
+    echo "Deleting $dir"
+    rm -rf "$dir"
+  done
+}
+
+[ $# -ge 1 ] || usage
+command=$1
+shift
+case "$command" in
+  new) cmd_new "$@" ;;
+  remove) cmd_remove "$@" ;;
+  prune) cmd_prune "$@" ;;
+  *) usage ;;
+esac
