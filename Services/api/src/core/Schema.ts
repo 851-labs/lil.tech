@@ -229,8 +229,9 @@ export const agentAuthorizations = sqliteTable(
     browserHash: text("browser_hash").notNull(),
     createdAt: integer("created_at").notNull(),
     expiresAt: integer("expires_at").notNull(),
-    // Set when the user allows it.
+    // Set when the user signs in on the authorization page.
     userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+    // Set when they allow it.
     grantedScopes: text("granted_scopes", { mode: "json" }).$type<ReadonlyArray<string>>(),
     codeHash: text("code_hash").unique(), // SHA-256 hex of the authorization code
     codeExpiresAt: integer("code_expires_at"),

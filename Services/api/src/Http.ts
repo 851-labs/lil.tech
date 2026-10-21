@@ -817,15 +817,17 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
         const snapshot =
           snapshotId === "-" ? null : yield* stores.forUser(userId).snapshot(snapshotId);
         if (snapshotId !== "-" && snapshot === null) return gone;
-        const [userIdentities, userDevices, healthConsent, userConnections] = yield* Effect.all(
-          [
-            identities.listForUser(userId),
-            devices.listForUser(userId),
-            consents.current(userId, "health"),
-            connections.listForUser(userId),
-          ],
-          { concurrency: "unbounded" },
-        );
+        const [userIdentities, userDevices, healthConsent, agentsConsent, userConnections] =
+          yield* Effect.all(
+            [
+              identities.listForUser(userId),
+              devices.listForUser(userId),
+              consents.current(userId, "health"),
+              consents.current(userId, "agents:health"),
+              connections.listForUser(userId),
+            ],
+            { concurrency: "unbounded" },
+          );
         const now = yield* Clock.currentTimeMillis;
         const json = (value: unknown) => new TextEncoder().encode(JSON.stringify(value, null, 2));
         const account = json({
@@ -844,7 +846,10 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
             createdAt,
             lastSeenAt,
           })),
-          consents: { health: Option.getOrNull(healthConsent) },
+          consents: {
+            health: Option.getOrNull(healthConsent),
+            "agents:health": Option.getOrNull(agentsConsent),
+          },
           // Without credentials, which are only good to the server.
           connections: userConnections.map(
             ({ kind, accountRef, displayName, scopes, status, createdAt, updatedAt }) => ({

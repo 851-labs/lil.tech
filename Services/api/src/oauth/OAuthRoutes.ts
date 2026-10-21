@@ -1,11 +1,13 @@
-import { Effect, Option, Schema, Stream } from "effect";
+import { Effect, Option } from "effect";
 import { HttpMiddleware, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import type { SqlError } from "effect/sql";
 import { OAuthClients } from "../core/OAuthClients.ts";
 import { Deployment } from "../Deployment.ts";
 import { checkAddressRateLimit, RateLimits, tooManyRequests } from "../RateLimits.ts";
 import { type AgentTokenPair, AgentTokens, TokenRequestError } from "./AgentTokens.ts";
+import { addAuthorizationPage } from "./AuthorizationPage.ts";
 import { checkRegistration, InvalidClient, supportedGrantTypes } from "./ClientMetadata.ts";
+import { InvalidForm, readAtMost, readForm, requestOrigin, requestPath } from "./Requests.ts";
 import {
   agentAccessEnvironments,
   agentHosts,
@@ -19,29 +21,17 @@ import {
   resourceUrl,
 } from "./Hosts.ts";
 
-// The agents' authorization server's public endpoints: its metadata (RFC 8414), each app's
-// Protected Resource Metadata (RFC 9728), dynamic client registration (RFC 7591) (851-2847), and
-// the token and revocation endpoints (RFC 6749, RFC 7009) (851-2848). They follow their own RFCs,
-// so they're left out of the OpenAPI spec, like `/v1/auth/dev`.
+// The agents' authorization server's endpoints: its metadata (RFC 8414), each app's Protected
+// Resource Metadata (RFC 9728), dynamic client registration (RFC 7591) (851-2847), the token and
+// revocation endpoints (RFC 6749, RFC 7009) (851-2848), and the authorization page
+// (`AuthorizationPage.ts`, 851-2849). They follow their own RFCs, so they're left out of the
+// OpenAPI spec, like `/v1/auth/dev`.
 
 /** The largest registration body `POST /oauth/register` reads. */
 export const maxRegistrationBytes = 8 * 1024;
 
 /** The largest form `POST /oauth/token` and `POST /oauth/revoke` read. */
 export const maxTokenRequestBytes = 8 * 1024;
-
-/** The request's origin, as the client used it. */
-const requestOrigin = (request: HttpServerRequest.HttpServerRequest) => {
-  try {
-    return new URL(request.originalUrl).origin;
-  } catch {
-    return `https://${request.headers["host"] ?? "api.lil.tech"}`;
-  }
-};
-
-/** The request's path, without its query. */
-const requestPath = (request: HttpServerRequest.HttpServerRequest) =>
-  request.url.split("?", 1)[0] ?? "/";
 
 const notFound = HttpServerResponse.empty({ status: 404 });
 
@@ -94,32 +84,6 @@ const addPublic = <E, R>(
     yield* router.add("OPTIONS", path, cors(method)(handler));
   });
 
-/**
- * Reads a body of at most `limit` bytes, stopping as soon as it's longer, so a chunked body without
- * a `Content-Length` can't make us hold all of it. `None` if it's too long.
- */
-const readAtMost = <E>(body: Stream.Stream<Uint8Array, E>, limit: number) =>
-  Effect.gen(function* () {
-    const chunks: Array<Uint8Array> = [];
-    let size = 0;
-    yield* Stream.runForEachWhile(body, (chunk) =>
-      Effect.sync(() => {
-        size += chunk.byteLength;
-        if (size > limit) return false;
-        chunks.push(chunk);
-        return true;
-      }),
-    );
-    if (size > limit) return Option.none();
-    const bytes = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return Option.some(new TextDecoder().decode(bytes));
-  });
-
 /** A metadata document, which clients may cache for a while. */
 const document = (body: object) =>
   HttpServerResponse.jsonUnsafe(body, { headers: { "cache-control": "public, max-age=300" } });
@@ -137,54 +101,21 @@ const tokenResponse = (body: object) =>
     headers: { "cache-control": "no-store", pragma: "no-cache" },
   });
 
-/** A form a token or revocation request couldn't be read as. */
-class InvalidForm extends Schema.TaggedError<InvalidForm>()("InvalidForm", {
-  description: Schema.String,
-}) {}
-
 /**
- * The request's `application/x-www-form-urlencoded` parameters (RFC 6749 §3.2). A parameter
- * without a value counts as absent, and one sent twice is refused (§3.1).
+ * The token or revocation request's form (RFC 6749 §3.2), with `require` for its parameters that
+ * must be there.
  */
-const readForm = Effect.gen(function* () {
-  const request = yield* HttpServerRequest.HttpServerRequest;
-  const contentType = (request.headers["content-type"] ?? "").split(";", 1)[0]?.trim();
-  if (contentType?.toLowerCase() !== "application/x-www-form-urlencoded") {
-    return yield* new InvalidForm({
-      description: "The request must be application/x-www-form-urlencoded",
-    });
-  }
-  const tooLarge = new InvalidForm({
-    description: `The request is larger than ${maxTokenRequestBytes} bytes`,
-  });
-  if (Number(request.headers["content-length"] ?? 0) > maxTokenRequestBytes) {
-    return yield* tooLarge;
-  }
-  const body = yield* readAtMost(request.stream, maxTokenRequestBytes).pipe(
-    Effect.mapError(() => new InvalidForm({ description: "The request couldn't be read" })),
-  );
-  if (Option.isNone(body)) return yield* tooLarge;
-  const params = new Map<string, string>();
-  const seen = new Set<string>();
-  for (const [name, value] of new URLSearchParams(body.value)) {
-    if (seen.has(name)) {
-      return yield* new InvalidForm({ description: `${name} is given more than once` });
-    }
-    seen.add(name);
-    if (value !== "") params.set(name, value);
-  }
-  return {
-    get: (name: string) => Option.fromNullishOr(params.get(name)),
-    require: (name: string) =>
-      Option.match(Option.fromNullishOr(params.get(name)), {
-        onNone: () =>
-          Effect.fail(
-            new TokenRequestError({ error: "invalid_request", description: `${name} is missing` }),
-          ),
-        onSome: Effect.succeed,
-      }),
-  };
-});
+const readTokenForm = Effect.map(readForm(maxTokenRequestBytes), (params) => ({
+  get: (name: string) => Option.fromNullishOr(params.get(name)),
+  require: (name: string) =>
+    Option.match(Option.fromNullishOr(params.get(name)), {
+      onNone: () =>
+        Effect.fail(
+          new TokenRequestError({ error: "invalid_request", description: `${name} is missing` }),
+        ),
+      onSome: Effect.succeed,
+    }),
+}));
 
 /** Answers a token or revocation request's errors as RFC 6749 §5.2 does. Others are defects. */
 const catchOAuthErrors = <R>(
@@ -207,7 +138,7 @@ const catchOAuthErrors = <R>(
 /** `POST /oauth/token`: a code exchange or a refresh, for public clients (no authentication). */
 const tokenEndpoint = (tokens: AgentTokens["Service"]) =>
   Effect.gen(function* () {
-    const form = yield* readForm;
+    const form = yield* readTokenForm;
     const grantType = yield* form.require("grant_type");
     const clientId = yield* form.require("client_id");
     const resource = form.get("resource");
@@ -256,14 +187,12 @@ const pairBody = (pair: AgentTokenPair) => ({
  */
 const revocationEndpoint = (tokens: AgentTokens["Service"]) =>
   Effect.gen(function* () {
-    const form = yield* readForm;
+    const form = yield* readTokenForm;
     yield* tokens.revoke(yield* form.require("token"), form.get("client_id"));
     return HttpServerResponse.empty({ status: 200, headers: { "cache-control": "no-store" } });
   }).pipe(catchOAuthErrors);
 
-/**
- * The authorization server's metadata, on the API's host. `/oauth/authorize` comes in 851-2849.
- */
+/** The authorization server's metadata, on the API's host. */
 const authorizationServerMetadata = (issuer: string) => ({
   issuer,
   authorization_endpoint: `${issuer}/oauth/authorize`,
@@ -282,8 +211,9 @@ const authorizationServerMetadata = (issuer: string) => ({
 });
 
 /**
- * The agents' metadata documents, `POST /oauth/register`, `/oauth/token` and `/oauth/revoke`, only
- * where agents may connect (`agentAccessEnvironments`); elsewhere they're a 404.
+ * The agents' metadata documents, `POST /oauth/register`, `/oauth/token`, `/oauth/revoke` and the
+ * authorization page (`/oauth/authorize`), only where agents may connect (`agentAccessEnvironments`);
+ * elsewhere they're a 404.
  */
 export const AgentOAuthRoutes = HttpRouter.use((router) =>
   Effect.gen(function* () {
@@ -373,5 +303,8 @@ export const AgentOAuthRoutes = HttpRouter.use((router) =>
 
     yield* addPublic(router, "POST", "/oauth/token", tokenEndpoint(tokens));
     yield* addPublic(router, "POST", "/oauth/revoke", revocationEndpoint(tokens));
+
+    // Not public: the page uses a cookie, so it has no CORS.
+    yield* addAuthorizationPage(router, environment);
   }),
 );

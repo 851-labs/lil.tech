@@ -1518,6 +1518,11 @@ describe("data exports", () => {
             createdAt: (yield* (yield* Identities).listForUser(user.id))[0]?.createdAt,
           },
         ]);
+        // Each consent, given or not: Health's, and the agents' of each app.
+        assert.deepStrictEqual(Object.keys(account["consents"] as Record<string, unknown>), [
+          "health",
+          "agents:health",
+        ]);
 
         // Every entity's record, in its own files.
         const exported = new Map<string, Array<Record<string, unknown>>>();
