@@ -205,6 +205,29 @@ xcodebuild -exportArchive \
 # Again on what was built, in case anything changed the key on the way.
 check_sparkle_key "$export_dir/$product.app/Contents/Info.plist"
 
+# The lil command the app bundles (Contents/MacOS/lil, 851-2842) is signed inside out: Xcode signs
+# it as it copies it into the app, which it signs after, and the export re-signs both with
+# Developer ID. Notarizing the DMG covers it, as long as it's signed with Developer ID, the
+# hardened runtime and a secure timestamp, which is checked here, before notarization would fail.
+check_tool_signature() {
+  local signature
+  signature=$(codesign --display --verbose=4 "$1" 2>&1)
+  if ! grep -q "^Authority=Developer ID Application: .*($team)$" <<<"$signature" ||
+    ! grep -q "^CodeDirectory .*flags=.*runtime" <<<"$signature" ||
+    ! grep -q "^Timestamp=" <<<"$signature"; then
+    echo "$1 isn't signed with Developer ID, the hardened runtime and a secure timestamp:" >&2
+    echo "$signature" >&2
+    exit 1
+  fi
+}
+if [ "$app" = health ]; then
+  tool="$export_dir/$product.app/Contents/MacOS/lil"
+  [ -x "$tool" ] || { echo "$product doesn't bundle lil: $tool" >&2; exit 1; }
+  check_tool_signature "$tool"
+  echo "==> Bundled $("$tool" --version)"
+fi
+codesign --verify --deep --strict "$export_dir/$product.app"
+
 echo "==> Building DMG"
 dmg="$out/$dmg_name-$version.dmg"
 staging="$out/dmg"

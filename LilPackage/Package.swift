@@ -19,6 +19,8 @@ let package = Package(
     .library(name: "HealthUpload", targets: ["HealthUpload"]),
     .library(name: "LilAPI", targets: ["LilAPI"]),
     .library(name: "LilAuth", targets: ["LilAuth"]),
+    .library(name: "LilCLI", targets: ["LilCLI"]),
+    .library(name: "LilCLIInstaller", targets: ["LilCLIInstaller"]),
     .library(name: "LilSync", targets: ["LilSync"]),
     .library(name: "LilUpdates", targets: ["LilUpdates"]),
     .library(name: "MessagesContacts", targets: ["MessagesContacts"]),
@@ -254,6 +256,37 @@ let package = Package(
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         .product(name: "HTTPTypes", package: "swift-http-types"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+      ]
+    ),
+    // `lil`, the command that runs each app's own (`lil health …` runs `lil-health …`), like git.
+    .target(
+      name: "LilCLI"
+    ),
+    // `lil` for `swift run lil-dev` and LilCLITests. The apps bundle the same main.swift, built
+    // by an Xcode tool target of their own (`lil` in LilHealth.xcodeproj). Named apart from it,
+    // so the two don't build the same file in a workspace's shared products folder.
+    .executableTarget(
+      name: "lil-dev",
+      dependencies: ["LilCLI"],
+      path: "Sources/lil"
+    ),
+    .testTarget(
+      name: "LilCLITests",
+      dependencies: [
+        "LilCLI",
+        "lil-dev",
+      ]
+    ),
+    // An app's Install Command Line Tool… menu item, which installs the `lil` it bundles.
+    .target(
+      name: "LilCLIInstaller",
+      dependencies: ["LilCLI"]
+    ),
+    .testTarget(
+      name: "LilCLIInstallerTests",
+      dependencies: [
+        "LilCLI",
+        "LilCLIInstaller",
       ]
     ),
     .target(
