@@ -11,7 +11,7 @@ public import SwiftUI
 /// database as sync changes it.
 public struct HealthNotificationsView: View {
   let kind: HealthNotificationKind
-  @Fetch private var notifications: [HealthSample]
+  @Fetch private var notifications: [HealthNotification]
 
   public init(kind: HealthNotificationKind) {
     self.kind = kind
@@ -33,7 +33,7 @@ struct RecentNotifications: FetchKeyRequest {
   static let limit = 1_000
   let kind: HealthNotificationKind
 
-  func fetch(_ db: Database) throws -> [HealthSample] {
+  func fetch(_ db: Database) throws -> [HealthNotification] {
     try HealthDatabase.notifications(of: kind, limit: Self.limit, db)
   }
 }
@@ -42,7 +42,8 @@ struct RecentNotifications: FetchKeyRequest {
 struct HealthNotificationsContent: View {
   enum State {
     case loading
-    case loaded([HealthSample])
+    /// Newest first by the date each is listed under (`HealthNotificationKind.listedDate`).
+    case loaded([HealthNotification])
     case failed(String)
   }
 
@@ -66,9 +67,12 @@ struct HealthNotificationsContent: View {
       case .loaded(let notifications):
         List {
           ForEach(
-            monthSections(notifications, calendar: calendar, startDate: \.startDate), id: \.month
+            monthSections(
+              notifications, calendar: calendar,
+              startDate: { kind.listedDate(of: $0.sample).unixMilliseconds }),
+            id: \.month
           ) { section in
-            Section(section.month.formatted(.dateTime.month(.wide).year())) {
+            Section(section.month.formatted(NotificationFormat.month(calendar))) {
               ForEach(section.records) { notification in
                 NavigationLink {
                   NotificationDetailView(kind: kind, notification: notification)
@@ -93,7 +97,7 @@ struct HealthNotificationsContent: View {
 /// A notification in the list: when, and what it said, if the notification says.
 struct NotificationRow: View {
   let kind: HealthNotificationKind
-  let notification: HealthSample
+  let notification: HealthNotification
   var calendar = Calendar.current
 
   var body: some View {
@@ -104,9 +108,9 @@ struct NotificationRow: View {
         .frame(width: 36, height: 36)
         .background(kind.color.opacity(0.15), in: Circle())
       VStack(alignment: .leading, spacing: 2) {
-        Text(notification.start.formatted(date: .abbreviated, time: .shortened))
+        Text(kind.listedDate(of: notification.sample).formatted(NotificationFormat.date(calendar)))
           .font(.headline)
-        if let summary = HealthDatabase.notificationSummary(notification) {
+        if let summary = notification.summary {
           Text(summary.line(calendar: calendar))
             .foregroundStyle(.secondary)
         }
@@ -117,26 +121,52 @@ struct NotificationRow: View {
   }
 }
 
+/// How notifications' dates read, in the page's calendar (its time zone and locale).
+enum NotificationFormat {
+  /// "October 2025", a section's.
+  static func month(_ calendar: Calendar) -> Date.FormatStyle {
+    style(calendar).month(.wide).year()
+  }
+
+  /// "Oct 14, 2025 at 9:41 AM".
+  static func date(_ calendar: Calendar) -> Date.FormatStyle {
+    Date.FormatStyle(
+      date: .abbreviated, time: .shortened, locale: calendar.locale ?? .current,
+      calendar: calendar, timeZone: calendar.timeZone)
+  }
+
+  /// "9:41 AM", a chart's.
+  static func time(_ calendar: Calendar) -> Date.FormatStyle {
+    style(calendar).hour().minute()
+  }
+
+  private static func style(_ calendar: Calendar) -> Date.FormatStyle {
+    Date.FormatStyle(
+      locale: calendar.locale ?? .current, calendar: calendar, timeZone: calendar.timeZone)
+  }
+}
+
 /// A notification's detail, with the heart rate around it for heart rate notifications.
 struct NotificationDetailView: View {
   let kind: HealthNotificationKind
-  let notification: HealthSample
+  let notification: HealthNotification
   @Dependency(\.defaultDatabase) private var database
-  @State private var heartRates: [HealthSample]?
+  @State private var heartRates = NotificationDetailContent.HeartRates.loading
 
   var body: some View {
     NotificationDetailContent(kind: kind, notification: notification, heartRates: heartRates)
       .task(id: notification.id) {
         guard kind.chartsHeartRate else { return }
-        let notification = notification
-        let samples = try? await database.read { db in
-          try HealthDatabase.samples(
-            of: HealthDatabase.heartRateType,
-            in: notification
-              .start..<max(notification.end, notification.start.addingTimeInterval(1)),
-            db)
+        let window = NotificationDetailContent.heartRateWindow(notification.sample)
+        do {
+          let samples = try await database.read { db in
+            try HealthDatabase.samples(
+              of: HealthDatabase.heartRateType, in: window.start..<window.end, db)
+          }
+          heartRates = .loaded(WorkoutDetailView.mainSource(samples))
+        } catch {
+          heartRates = .failed(error.localizedDescription)
         }
-        heartRates = WorkoutDetailView.mainSource(samples ?? [])
       }
   }
 }
@@ -144,14 +174,47 @@ struct NotificationDetailView: View {
 /// What a notification's detail shows: when, what it said, the heart rate or beat-to-beat
 /// measurements behind it where it has them, where it came from, and its metadata as recorded.
 struct NotificationDetailContent: View {
+  /// Heart rate around a heart rate notification.
+  enum HeartRates {
+    case loading
+    case loaded([HealthSample])
+    case failed(String)
+  }
+
   let kind: HealthNotificationKind
-  let notification: HealthSample
-  /// Heart rate over the notification's period, for heart rate notifications: nil while loading.
-  var heartRates: [HealthSample]?
+  let notification: HealthNotification
+  var heartRates: HeartRates = .loading
   var calendar = Calendar.current
+  /// Parsed once, not on every render.
+  private let metadata: [(key: String, value: String)]
+
+  init(
+    kind: HealthNotificationKind, notification: HealthNotification,
+    heartRates: HeartRates = .loading, calendar: Calendar = .current
+  ) {
+    self.kind = kind
+    self.notification = notification
+    self.heartRates = heartRates
+    self.calendar = calendar
+    metadata = notification.sample.metadataEntries
+  }
+
+  /// How long before and after a heart rate notification its chart reaches, so a short (or
+  /// instant) one shows the readings around it.
+  nonisolated static let heartRatePadding: TimeInterval = 10 * 60
+
+  /// The time a heart rate notification's chart covers: its span, padded either side.
+  nonisolated static func heartRateWindow(_ sample: HealthSample) -> DateInterval {
+    DateInterval(
+      start: sample.start.addingTimeInterval(-heartRatePadding),
+      end: max(sample.end, sample.start).addingTimeInterval(heartRatePadding))
+  }
+
+  private var sample: HealthSample { notification.sample }
 
   var body: some View {
-    let summary = HealthDatabase.notificationSummary(notification)
+    let summary = notification.summary
+    let dateStyle = NotificationFormat.date(calendar)
     Form {
       Section {
         if let summary {
@@ -159,17 +222,21 @@ struct NotificationDetailContent: View {
             .font(.title2.weight(.semibold))
             .foregroundStyle(kind.color)
         }
-        if notification.endDate > notification.startDate {
-          LabeledContent("Start", value: notification.start, format: .dateTime)
-          LabeledContent("End", value: notification.end, format: .dateTime)
+        if sample.endDate > sample.startDate {
+          LabeledContent("Start", value: sample.start.formatted(dateStyle))
+          LabeledContent("End", value: sample.end.formatted(dateStyle))
         } else {
-          LabeledContent("Date", value: notification.start, format: .dateTime)
+          LabeledContent("Date", value: sample.start.formatted(dateStyle))
         }
         figures(summary)
       }
       if kind.chartsHeartRate {
-        Section("Heart Rate") {
-          heartRateChart(threshold: summary)
+        Section {
+          heartRateChart(summary)
+        } header: {
+          Text("Heart Rate")
+        } footer: {
+          Text("The shaded band is the notification's time, with 10 minutes either side.")
         }
       }
       if kind == .irregularRhythm {
@@ -182,12 +249,11 @@ struct NotificationDetailContent: View {
         }
       }
       Section("Source") {
-        LabeledContent("App", value: notification.sourceName)
-        if let device = notification.decodedDevice?.name {
+        LabeledContent("App", value: sample.sourceName)
+        if let device = sample.decodedDevice?.name {
           LabeledContent("Device", value: device)
         }
       }
-      let metadata = notification.metadataEntries
       if !metadata.isEmpty {
         Section("Metadata") {
           ForEach(metadata, id: \.key) { entry in
@@ -202,17 +268,19 @@ struct NotificationDetailContent: View {
 
   /// The figures the notification recorded, one to a line.
   @ViewBuilder private func figures(_ summary: HealthNotificationSummary?) -> some View {
+    let locale = calendar.locale ?? .current
     switch summary {
     case .cardioFitness(let vo2Max, let threshold):
-      if let vo2Max { LabeledContent("VO₂ Max", value: "\(vo2Max.formatted()) mL/kg·min") }
-      if let threshold {
-        LabeledContent("Threshold", value: "\(threshold.formatted()) mL/kg·min")
-      }
+      vo2MaxFigure("VO₂ Max", vo2Max)
+      if let threshold { vo2MaxFigure("Threshold", threshold) }
+    case .cardioFitnessThreshold(let threshold):
+      vo2MaxFigure("Threshold", threshold)
     case .soundExposure(let level, let duration):
-      if let level { LabeledContent("Level", value: "\(Int(level.rounded())) dB") }
-      if let duration {
-        LabeledContent("Duration", value: HealthNotificationSummary.duration(duration))
-      }
+      LabeledContent(
+        "Level", value: "\(HealthNotificationSummary.whole(level, locale: locale)) dB")
+      if let duration { durationFigure(duration) }
+    case .soundDuration(let duration):
+      durationFigure(duration)
     case .walkingSteadiness(let name):
       LabeledContent("Walking Steadiness", value: name)
     default:
@@ -220,28 +288,54 @@ struct NotificationDetailContent: View {
     }
   }
 
-  @ViewBuilder private func heartRateChart(threshold summary: HealthNotificationSummary?)
-    -> some View
-  {
+  private func vo2MaxFigure(_ title: String, _ value: Double) -> some View {
+    LabeledContent(
+      title,
+      value:
+        "\(HealthNotificationSummary.number(value, locale: calendar.locale ?? .current)) mL/kg·min"
+    )
+  }
+
+  private func durationFigure(_ seconds: TimeInterval) -> some View {
+    LabeledContent(
+      "Duration",
+      value: HealthNotificationSummary.duration(seconds, locale: calendar.locale ?? .current))
+  }
+
+  @ViewBuilder private func heartRateChart(_ summary: HealthNotificationSummary?) -> some View {
     switch heartRates {
-    case nil:
+    case .loading:
       ProgressView()
         .frame(maxWidth: .infinity, minHeight: 160)
-    case let samples? where samples.isEmpty:
-      Text("No heart rate readings during this notification.")
+    case .failed(let reason):
+      Label("Couldn't load heart rate: \(reason)", systemImage: "exclamationmark.triangle")
         .foregroundStyle(.secondary)
-    case let samples?:
+    case .loaded(let samples) where samples.isEmpty:
+      Text("No heart rate readings around this notification.")
+        .foregroundStyle(.secondary)
+    case .loaded(let samples):
       let threshold: Double? =
         switch summary {
         case .heartRateAbove(let value), .heartRateBelow(let value): value
         default: nil
         }
+      let window = Self.heartRateWindow(sample)
       Chart {
-        ForEach(samples) { sample in
-          if let value = sample.value {
-            LineMark(x: .value("Time", sample.start), y: .value("BPM", value))
+        // The notification's own span, or a line at its moment if it has none.
+        if sample.endDate > sample.startDate {
+          RectangleMark(
+            xStart: .value("Start", sample.start), xEnd: .value("End", sample.end)
+          )
+          .foregroundStyle(kind.color.opacity(0.12))
+        } else {
+          RuleMark(x: .value("Notification", sample.start))
+            .foregroundStyle(kind.color.opacity(0.4))
+        }
+        ForEach(samples) { reading in
+          if let value = reading.value {
+            LineMark(x: .value("Time", reading.start), y: .value("BPM", value))
               .foregroundStyle(.red)
-            PointMark(x: .value("Time", sample.start), y: .value("BPM", value))
+            PointMark(x: .value("Time", reading.start), y: .value("BPM", value))
               .foregroundStyle(.red)
               .symbolSize(20)
           }
@@ -252,11 +346,12 @@ struct NotificationDetailContent: View {
             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
         }
       }
+      .chartXScale(domain: window.start...window.end)
       .chartYScale(domain: .automatic(includesZero: false))
       .chartXAxis {
         AxisMarks { _ in
           AxisGridLine()
-          AxisValueLabel(format: .dateTime.hour().minute())
+          AxisValueLabel(format: NotificationFormat.time(calendar))
         }
       }
       .frame(height: 160)

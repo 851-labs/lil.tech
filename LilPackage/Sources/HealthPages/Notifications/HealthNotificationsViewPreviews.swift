@@ -12,9 +12,9 @@ private let base = Date(timeIntervalSince1970: 1_760_400_000)
 private func notification(
   _ kind: HealthNotificationKind, daysAgo: Double, hour: Double = 14, minutes: Double = 10,
   value: Int = 0, metadata: String? = nil, device: String? = "Apple Watch"
-) -> HealthSample {
+) -> HealthNotification {
   let start = base.addingTimeInterval(-daysAgo * 86_400 + hour * 3600)
-  return HealthSample(
+  let sample = HealthSample(
     id: "notification-\(kind)-\(daysAgo)", type: kind.rawValue,
     startDate: start.unixMilliseconds,
     endDate: start.addingTimeInterval(minutes * 60).unixMilliseconds, categoryValue: value,
@@ -22,6 +22,7 @@ private func notification(
     sourceBundleID: "com.apple.health.preview",
     device: device.map { #"{"name":"\#($0)","manufacturer":"Apple Inc."}"# },
     metadata: metadata)
+  return HealthNotification(sample)
 }
 
 private let highHeartRate = [
@@ -121,11 +122,15 @@ private func list(_ kind: HealthNotificationKind, _ state: HealthNotificationsCo
   list(.highHeartRate, .failed("The database couldn't be read."))
 }
 
-/// Heart rate climbing past 120 BPM over the notification's 10 minutes, every 30 seconds.
-private func previewHeartRates(during notification: HealthSample) -> [HealthSample] {
-  (0..<20).map { index in
-    let start = notification.start.addingTimeInterval(Double(index) * 30)
-    let value = 124 + 10 * sin(Double(index) / 3) + Double(index % 3)
+/// Heart rate every 30 seconds from 10 minutes before the notification to 10 minutes after,
+/// above 120 BPM during it.
+private func previewHeartRates(around notification: HealthNotification) -> [HealthSample] {
+  let window = NotificationDetailContent.heartRateWindow(notification.sample)
+  let count = Int(window.duration / 30)
+  return (0..<count).map { index in
+    let start = window.start.addingTimeInterval(Double(index) * 30)
+    let during = notification.sample.start...notification.sample.end ~= start
+    let value = (during ? 126 : 104) + 6 * sin(Double(index) / 3) + Double(index % 3)
     return HealthSample(
       id: "heart-rate-\(index)", type: HealthDatabase.heartRateType,
       startDate: start.unixMilliseconds, endDate: start.unixMilliseconds, value: value,
@@ -135,8 +140,8 @@ private func previewHeartRates(during notification: HealthSample) -> [HealthSamp
 
 @MainActor
 private func detail(
-  _ kind: HealthNotificationKind, _ notification: HealthSample,
-  heartRates: [HealthSample]? = nil
+  _ kind: HealthNotificationKind, _ notification: HealthNotification,
+  heartRates: NotificationDetailContent.HeartRates = .loading
 ) -> some View {
   NavigationStack {
     NotificationDetailContent(kind: kind, notification: notification, heartRates: heartRates)
@@ -145,7 +150,9 @@ private func detail(
 }
 
 #Preview("High heart rate notification") {
-  detail(.highHeartRate, highHeartRate[0], heartRates: previewHeartRates(during: highHeartRate[0]))
+  detail(
+    .highHeartRate, highHeartRate[0],
+    heartRates: .loaded(previewHeartRates(around: highHeartRate[0])))
 }
 
 #Preview("Heart rate loading") {
@@ -153,7 +160,11 @@ private func detail(
 }
 
 #Preview("No heart rate readings") {
-  detail(.highHeartRate, highHeartRate[2], heartRates: [])
+  detail(.highHeartRate, highHeartRate[2], heartRates: .loaded([]))
+}
+
+#Preview("Heart rate failed") {
+  detail(.highHeartRate, highHeartRate[3], heartRates: .failed("The database couldn't be read."))
 }
 
 #Preview("Noise notification") {

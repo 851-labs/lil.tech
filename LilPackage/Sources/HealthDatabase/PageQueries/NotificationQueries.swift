@@ -18,6 +18,29 @@ public enum HealthNotificationKind: String, CaseIterable, Sendable {
 
   /// Whether its detail charts heart rate over the notification's period.
   public var chartsHeartRate: Bool { self == .highHeartRate || self == .lowHeartRate }
+
+  /// Whether it's listed (and grouped, and dated) by its end rather than its start: sleep apnea
+  /// and hypertension, whose samples are the 30 days evaluated, and arrive at their end. A
+  /// judgment call: where Health itself places them isn't verified.
+  public var listedByEnd: Bool { self == .sleepApnea || self == .hypertension }
+
+  /// The date `sample` is listed under.
+  public func listedDate(of sample: HealthSample) -> Date {
+    listedByEnd ? sample.end : sample.start
+  }
+}
+
+/// A notification with what it said, worked out once rather than on every render.
+public struct HealthNotification: Equatable, Identifiable, Sendable {
+  public var sample: HealthSample
+  public var summary: HealthNotificationSummary?
+
+  public init(_ sample: HealthSample) {
+    self.sample = sample
+    summary = HealthDatabase.notificationSummary(sample)
+  }
+
+  public var id: String { sample.id }
 }
 
 extension HealthDatabase {
@@ -31,17 +54,17 @@ extension HealthDatabase {
     static let audioDuration = "HKAudioExposureDuration"
   }
 
-  /// A kind of notification, newest first, at most `limit`, with their provenance filled in so
-  /// each can say which device it came from.
+  /// A kind of notification, newest first by the date it's listed under (`listedByEnd`), at
+  /// most `limit`, with their provenance filled in so each can say which device it came from.
+  /// The limit takes the latest by start; kinds listed by their end are then put in that order.
   public static func notifications(
     of kind: HealthNotificationKind, limit: Int, _ db: Database
-  ) throws -> [HealthSample] {
-    try HealthSample
-      .where { $0.type.eq(kind.rawValue) }
-      .order { ($0.startDate.desc(), $0.id.desc()) }
-      .limit(limit)
-      .fetchAll(db)
-      .withProvenance(db)
+  ) throws -> [HealthNotification] {
+    var samples = try samplePage(of: kind.rawValue, after: nil, limit: limit, db)
+    if kind.listedByEnd {
+      samples.sort { ($0.endDate, $0.id) > ($1.endDate, $1.id) }
+    }
+    return samples.map(HealthNotification.init)
   }
 
   /// What a notification said, from its value and metadata: nil when it isn't a notification, or
@@ -56,15 +79,17 @@ extension HealthDatabase {
       else { return nil }
       return kind == .highHeartRate ? .heartRateAbove(threshold) : .heartRateBelow(threshold)
     case .lowCardioFitness:
-      let vo2Max = quantity(metadata[NotificationMetadataKey.vo2Max])?.number
       let threshold = quantity(metadata[NotificationMetadataKey.cardioFitnessThreshold])?.number
-      guard vo2Max != nil || threshold != nil else { return nil }
-      return .cardioFitness(vo2Max: vo2Max, threshold: threshold)
+      if let vo2Max = quantity(metadata[NotificationMetadataKey.vo2Max])?.number {
+        return .cardioFitness(vo2Max: vo2Max, threshold: threshold)
+      }
+      return threshold.map(HealthNotificationSummary.cardioFitnessThreshold)
     case .noise, .headphone:
-      let level = quantity(metadata[NotificationMetadataKey.audioLevel])?.number
       let duration = seconds(metadata[NotificationMetadataKey.audioDuration])
-      guard level != nil || duration != nil else { return nil }
-      return .soundExposure(level: level, duration: duration)
+      if let level = quantity(metadata[NotificationMetadataKey.audioLevel])?.number {
+        return .soundExposure(level: level, duration: duration)
+      }
+      return duration.map(HealthNotificationSummary.soundDuration)
     case .walkingSteadiness:
       return categoryValueName(sample.categoryValue, typeID: sample.type)
         .map(HealthNotificationSummary.walkingSteadiness)
@@ -75,20 +100,23 @@ extension HealthDatabase {
   }
 
   /// A metadata quantity, as the iPhone writes one (its description: `"120 count/min"`), or a
-  /// plain number: the number and its unit (empty for a plain number).
+  /// plain number: the number and its unit (empty for a plain number). Numbers no notification
+  /// could mean (not finite, or a billion or more either way) don't count.
   static func quantity(_ value: Any?) -> (number: Double, unit: String)? {
+    let number: Double
+    let unit: String
     switch value {
-    case let number as NSNumber where CFGetTypeID(number) != CFBooleanGetTypeID():
-      return number.doubleValue.isFinite ? (number.doubleValue, "") : nil
+    case let value as NSNumber where CFGetTypeID(value) != CFBooleanGetTypeID():
+      (number, unit) = (value.doubleValue, "")
     case let string as String:
       let parts = string.split(separator: " ", maxSplits: 1)
-      guard let first = parts.first, let number = Double(first), number.isFinite else {
-        return nil
-      }
-      return (number, parts.count > 1 ? String(parts[1]) : "")
+      guard let first = parts.first, let value = Double(first) else { return nil }
+      (number, unit) = (value, parts.count > 1 ? String(parts[1]) : "")
     default:
       return nil
     }
+    guard number.isFinite, abs(number) < 1e9 else { return nil }
+    return (number, unit)
   }
 
   /// A heart rate quantity in beats per minute. Nil in a unit that isn't a rate of beats.
@@ -115,10 +143,14 @@ public enum HealthNotificationSummary: Equatable, Sendable {
   case heartRateAbove(Double)
   /// Low heart rate: below this many BPM.
   case heartRateBelow(Double)
-  /// Low cardio fitness: the VO₂ max and the threshold it was below, in mL/kg·min.
-  case cardioFitness(vo2Max: Double?, threshold: Double?)
-  /// Noise or headphone audio: the level in dB, for how many seconds.
-  case soundExposure(level: Double?, duration: TimeInterval?)
+  /// Low cardio fitness: the VO₂ max, and the threshold it was below if known, in mL/kg·min.
+  case cardioFitness(vo2Max: Double, threshold: Double?)
+  /// Low cardio fitness without its VO₂ max: the threshold it was below.
+  case cardioFitnessThreshold(Double)
+  /// Noise or headphone audio: the level in dB, and for how many seconds if known.
+  case soundExposure(level: Double, duration: TimeInterval?)
+  /// Noise or headphone audio without its level: for how many seconds.
+  case soundDuration(TimeInterval)
   /// Walking steadiness, as Health names its value: "Low", "Still Very Low".
   case walkingSteadiness(String)
   /// Irregular rhythm, sleep apnea and hypertension: the period it was found in.
@@ -127,30 +159,25 @@ public enum HealthNotificationSummary: Equatable, Sendable {
   /// The line a notification's row shows: "Above 120 BPM", "92 dB for 4 min".
   public func line(calendar: Calendar) -> String {
     let locale = calendar.locale ?? .current
-    func number(_ value: Double) -> String {
-      value.formatted(.number.precision(.fractionLength(0...1)).locale(locale))
-    }
+    func number(_ value: Double) -> String { Self.number(value, locale: locale) }
+    func whole(_ value: Double) -> String { Self.whole(value, locale: locale) }
     switch self {
     case .heartRateAbove(let threshold):
-      return "Above \(Int(threshold.rounded())) BPM"
+      return "Above \(whole(threshold)) BPM"
     case .heartRateBelow(let threshold):
-      return "Below \(Int(threshold.rounded())) BPM"
-    case .cardioFitness(let vo2Max?, let threshold?):
+      return "Below \(whole(threshold)) BPM"
+    case .cardioFitness(let vo2Max, let threshold?):
       return "\(number(vo2Max)) VO₂ max, below \(number(threshold))"
-    case .cardioFitness(let vo2Max?, nil):
+    case .cardioFitness(let vo2Max, nil):
       return "\(number(vo2Max)) VO₂ max"
-    case .cardioFitness(nil, let threshold?):
+    case .cardioFitnessThreshold(let threshold):
       return "Below \(number(threshold)) VO₂ max"
-    case .cardioFitness(nil, nil):
-      return ""
-    case .soundExposure(let level?, let duration?):
-      return "\(Int(level.rounded())) dB for \(Self.duration(duration))"
-    case .soundExposure(let level?, nil):
-      return "\(Int(level.rounded())) dB"
-    case .soundExposure(nil, let duration?):
-      return "For \(Self.duration(duration))"
-    case .soundExposure(nil, nil):
-      return ""
+    case .soundExposure(let level, let duration?):
+      return "\(whole(level)) dB for \(Self.duration(duration, locale: locale))"
+    case .soundExposure(let level, nil):
+      return "\(whole(level)) dB"
+    case .soundDuration(let duration):
+      return "For \(Self.duration(duration, locale: locale))"
     case .walkingSteadiness(let name):
       return name
     case .period(let interval):
@@ -162,22 +189,25 @@ public enum HealthNotificationSummary: Equatable, Sendable {
     }
   }
 
-  /// "45 sec", "4 min", "1 hr 15 min".
-  public static func duration(_ seconds: TimeInterval) -> String {
+  /// A VO₂ max: "27.4", "30".
+  public static func number(_ value: Double, locale: Locale) -> String {
+    value.formatted(.number.precision(.fractionLength(0...1)).locale(locale))
+  }
+
+  /// A heart rate or sound level, to the nearest whole number: "120".
+  public static func whole(_ value: Double, locale: Locale) -> String {
+    value.formatted(.number.precision(.fractionLength(0)).locale(locale))
+  }
+
+  /// "45 sec", "4 min", "1 hr 15 min". Seconds too many to count in whole numbers stay seconds.
+  public static func duration(_ seconds: TimeInterval, locale: Locale) -> String {
+    guard seconds.isFinite, abs(seconds) < 1e15 else {
+      return "\(whole(seconds, locale: locale)) sec"
+    }
     let total = Int(seconds.rounded())
     guard total >= 60 else { return "\(total) sec" }
     let (hours, minutes) = (total / 3600, total % 3600 / 60)
     if hours == 0 { return "\(minutes) min" }
     return minutes == 0 ? "\(hours) hr" : "\(hours) hr \(minutes) min"
-  }
-}
-
-extension HealthSample {
-  /// Its metadata as an object, empty when it has none or it isn't one.
-  var metadataObject: [String: Any] {
-    guard let metadata,
-      let object = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any]
-    else { return [:] }
-    return object
   }
 }

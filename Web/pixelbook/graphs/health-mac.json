@@ -278,6 +278,7 @@
         "High heart rate notification",
         "Heart rate loading",
         "No heart rate readings",
+        "Heart rate failed",
         "Noise notification",
         "Irregular rhythm notification",
         "Notification, unknown metadata"

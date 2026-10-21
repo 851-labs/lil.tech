@@ -2662,8 +2662,10 @@ struct NotificationQueriesTests {
 
     let vo2Only = notification(.lowCardioFitness, metadata: #"{"HKVO2MaxValue":"27 ml/kg*min"}"#)
     #expect(summary(vo2Only)?.line(calendar: english) == "27 VO₂ max")
+    #expect(summary(vo2Only) == .cardioFitness(vo2Max: 27, threshold: nil))
     let thresholdOnly = notification(
       .lowCardioFitness, metadata: #"{"HKLowCardioFitnessEventThreshold":"30.1 ml/kg*min"}"#)
+    #expect(summary(thresholdOnly) == .cardioFitnessThreshold(30.1))
     #expect(summary(thresholdOnly)?.line(calendar: english) == "Below 30.1 VO₂ max")
 
     #expect(summary(notification(.lowCardioFitness)) == nil)
@@ -2685,6 +2687,7 @@ struct NotificationQueriesTests {
     let levelOnly = notification(.noise, metadata: #"{"HKAudioExposureLevel":"100 dBASPL"}"#)
     #expect(summary(levelOnly)?.line(calendar: english) == "100 dB")
     let durationOnly = notification(.noise, metadata: #"{"HKAudioExposureDuration":"45 s"}"#)
+    #expect(summary(durationOnly) == .soundDuration(45))
     #expect(summary(durationOnly)?.line(calendar: english) == "For 45 sec")
 
     // A duration in a unit that isn't time doesn't count.
@@ -2724,6 +2727,26 @@ struct NotificationQueriesTests {
   }
 
   @Test
+  func numbersNoNotificationCouldMeanDontCount() {
+    // Finite, but past what an Int holds: no line rather than a trap.
+    for metadata in [
+      #"{"HKHeartRateEventThreshold":"1e300 count/min"}"#,
+      #"{"HKHeartRateEventThreshold":1e300}"#,
+      #"{"HKHeartRateEventThreshold":"inf count/min"}"#,
+    ] {
+      #expect(summary(notification(.highHeartRate, metadata: metadata)) == nil)
+    }
+    #expect(
+      summary(notification(.noise, metadata: #"{"HKAudioExposureLevel":"1e20 dBASPL"}"#)) == nil)
+    // A duration given directly still reads, however long.
+    #expect(
+      HealthNotificationSummary.duration(1e300, locale: Locale(identifier: "en_US_POSIX"))
+        .hasSuffix(" sec"))
+    #expect(
+      HealthNotificationSummary.line(.heartRateAbove(1e300))(calendar: english).hasPrefix("Above"))
+  }
+
+  @Test
   func otherTypesAreNotNotifications() {
     #expect(
       HealthDatabase.notificationSummary(
@@ -2755,6 +2778,32 @@ struct NotificationQueriesTests {
       try HealthDatabase.notifications(of: .highHeartRate, limit: 3, db)
     }
     #expect(notifications.map(\.id) == ["c", "d", "b"])
-    #expect(notifications.first?.decodedDevice?.name == "Apple Watch")
+    #expect(notifications.first?.sample.decodedDevice?.name == "Apple Watch")
+    // Worked out with the query.
+    #expect(notifications.first?.summary == nil)
+  }
+
+  @Test
+  func sleepApneaAndHypertensionAreListedByTheirEnd() throws {
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthSample.insert {
+        // Starts later, but ends sooner.
+        notification(.sleepApnea, start: utc(0, day: 5), minutes: 24 * 60, id: "short")
+        notification(.sleepApnea, start: utc(0, day: 1), minutes: 30 * 24 * 60, id: "long")
+      }
+      .execute(db)
+    }
+    let notifications = try database.read { db in
+      try HealthDatabase.notifications(of: .sleepApnea, limit: 10, db)
+    }
+    #expect(notifications.map(\.id) == ["long", "short"])
+    let long = try #require(notifications.first)
+    #expect(HealthNotificationKind.sleepApnea.listedDate(of: long.sample) == long.sample.end)
+    #expect(HealthNotificationKind.hypertension.listedByEnd)
+    #expect(
+      HealthNotificationKind.allCases.filter(\.listedByEnd).sorted { $0.rawValue < $1.rawValue }
+        == [.hypertension, .sleepApnea])
+    #expect(HealthNotificationKind.highHeartRate.listedDate(of: long.sample) == long.sample.start)
   }
 }
