@@ -7,10 +7,42 @@ extension HealthDatabase {
   static let spottingType = "HKCategoryTypeIdentifierIntermenstrualBleeding"
   static let ovulationTestType = "HKCategoryTypeIdentifierOvulationTestResult"
   static let sexualActivityType = "HKCategoryTypeIdentifierSexualActivity"
+  static let contraceptiveType = "HKCategoryTypeIdentifierContraceptive"
   static let factorTypes = [
-    "HKCategoryTypeIdentifierPregnancy", "HKCategoryTypeIdentifierLactation",
-    "HKCategoryTypeIdentifierContraceptive",
+    "HKCategoryTypeIdentifierPregnancy", "HKCategoryTypeIdentifierLactation", contraceptiveType,
   ]
+  /// Bleeding other than a period or spotting, marked on the calendar like spotting.
+  static let bleedingTypes = [
+    "HKCategoryTypeIdentifierBleedingDuringPregnancy",
+    "HKCategoryTypeIdentifierBleedingAfterPregnancy",
+    "HKCategoryTypeIdentifierBleedingAfterMenopause",
+  ]
+  /// What a day's log lists by name and value, besides flow, spotting, sexual activity and
+  /// symptoms: tests, cervical mucus, factors and other bleeding (851-2830). Menopause and cycle
+  /// deviations, which span months, aren't a day's (851-2870, 851-2871).
+  static let cycleLogTypes =
+    [
+      "HKCategoryTypeIdentifierCervicalMucusQuality", ovulationTestType,
+      "HKCategoryTypeIdentifierPregnancyTestResult",
+      "HKCategoryTypeIdentifierProgesteroneTestResult",
+    ] + factorTypes + bleedingTypes
+
+  /// Whether `typeID` opens Cycle Tracking: Health's Cycle Tracking types, but Basal Body
+  /// Temperature, a quantity with its own chart.
+  public static func opensCycleTracking(_ typeID: String) -> Bool {
+    guard let type = HealthCatalog.type(id: typeID) else { return false }
+    return type.category == .cycleTracking && type.kind == .category
+  }
+
+  /// When `typeID`'s latest sample starts, for Cycle Tracking to open on its month.
+  public static func latestSampleStart(of typeID: String, _ db: Database) throws -> Date? {
+    try HealthSample
+      .where { $0.type.eq(typeID) }
+      .select { $0.startDate.max() }
+      .fetchOne(db)
+      .flatMap { $0 }
+      .map(Date.init(unixMilliseconds:))
+  }
   /// Symptoms (Health's Symptoms category), shown on the days they were logged.
   static let symptomTypes = HealthCatalog.all.filter { $0.category == .symptoms }.map(\.id)
 
@@ -20,8 +52,7 @@ extension HealthDatabase {
     in interval: DateInterval, calendar: Calendar, _ db: Database
   ) throws -> [Date: CycleDay] {
     let types =
-      [menstrualFlowType, spottingType, ovulationTestType, sexualActivityType]
-      + symptomTypes
+      [menstrualFlowType, spottingType, sexualActivityType] + cycleLogTypes + symptomTypes
     let (lower, upper) = (interval.start.unixMilliseconds, interval.end.unixMilliseconds)
     let samples =
       try HealthSample
@@ -38,10 +69,19 @@ extension HealthDatabase {
           entry.flow = max(entry.flow ?? flow, flow)
         }
       case spottingType: entry.spotting = true
-      case ovulationTestType:
-        // Positive (2) or estrogen surge (4), as Health marks the day.
-        if sample.categoryValue == 2 || sample.categoryValue == 4 { entry.ovulationPositive = true }
       case sexualActivityType: entry.sexualActivity = true
+      case _ where cycleLogTypes.contains(sample.type):
+        // Positive (2) or estrogen surge (4), as Health marks the day.
+        if sample.type == ovulationTestType, sample.categoryValue == 2 || sample.categoryValue == 4
+        {
+          entry.ovulationPositive = true
+        }
+        // No bleeding (5) isn't marked.
+        if bleedingTypes.contains(sample.type), sample.categoryValue != 5 { entry.bleeding = true }
+        entry.log.append(
+          CycleLogEntry(
+            name: HealthCatalog.type(id: sample.type)?.name ?? sample.type,
+            value: categoryValueName(sample.categoryValue, typeID: sample.type)))
       default:
         // 1 is "not present" (or "no change" for appetite): logged as absent.
         if sample.categoryValue != 1, let name = HealthCatalog.type(id: sample.type)?.name,
@@ -101,8 +141,8 @@ extension HealthDatabase {
       .map { sample in
         CycleFactor(
           name: HealthCatalog.type(id: sample.type)?.name ?? sample.type,
-          detail: sample.type == "HKCategoryTypeIdentifierContraceptive"
-            ? CycleFactor.contraceptive(sample.categoryValue) : nil,
+          detail: sample.type == contraceptiveType
+            ? categoryValueName(sample.categoryValue, typeID: sample.type) : nil,
           since: Date(unixMilliseconds: sample.startDate))
       }
   }
@@ -140,20 +180,38 @@ public enum MenstrualFlow: Int, Comparable, Sendable {
 public struct CycleDay: Equatable, Sendable {
   public var flow: MenstrualFlow?
   public var spotting = false
+  /// Bleeding during or after pregnancy, or after menopause, marked like spotting.
+  public var bleeding = false
   public var ovulationPositive = false
   public var sexualActivity = false
   /// Symptoms' names, as logged.
   public var symptoms: [String] = []
+  /// Everything else logged, in the order it was: tests, cervical mucus, factors, bleeding.
+  public var log: [CycleLogEntry] = []
 
   public init(
-    flow: MenstrualFlow? = nil, spotting: Bool = false, ovulationPositive: Bool = false,
-    sexualActivity: Bool = false, symptoms: [String] = []
+    flow: MenstrualFlow? = nil, spotting: Bool = false, bleeding: Bool = false,
+    ovulationPositive: Bool = false, sexualActivity: Bool = false, symptoms: [String] = [],
+    log: [CycleLogEntry] = []
   ) {
     self.flow = flow
     self.spotting = spotting
+    self.bleeding = bleeding
     self.ovulationPositive = ovulationPositive
     self.sexualActivity = sexualActivity
     self.symptoms = symptoms
+    self.log = log
+  }
+}
+
+/// Something logged on a day: its type's name, and its value as Health names it, if it has one.
+public struct CycleLogEntry: Equatable, Sendable {
+  public var name: String
+  public var value: String?
+
+  public init(name: String, value: String?) {
+    self.name = name
+    self.value = value
   }
 }
 
@@ -187,19 +245,6 @@ public struct CycleFactor: Equatable, Sendable {
     self.name = name
     self.detail = detail
     self.since = since
-  }
-
-  /// `HKCategoryValueContraceptive`'s names.
-  static func contraceptive(_ value: Int?) -> String? {
-    switch value {
-    case 2: "Implant"
-    case 3: "Injection"
-    case 4: "Intrauterine Device"
-    case 5: "Intravaginal Ring"
-    case 6: "Oral"
-    case 7: "Patch"
-    default: nil
-    }
   }
 }
 

@@ -1,3 +1,4 @@
+import Dependencies
 import HealthDatabase
 import HealthUI
 import SQLiteData
@@ -8,6 +9,9 @@ public import SwiftUI
 /// predictions stay on the iPhone (HealthKit doesn't share them), so there are none here.
 /// Follows the local database as sync changes it.
 public struct CycleTrackingView: View {
+  /// The type it was opened for, whose latest sample's month and day it opens on (851-2830).
+  let typeID: String?
+  @Dependency(\.defaultDatabase) private var database
   @State private var monthOffset = 0
   @State private var selected: Date?
   /// Moves at midnight, so the months do even if nothing syncs.
@@ -16,7 +20,8 @@ public struct CycleTrackingView: View {
   /// Not tied to the month shown, so they load once.
   @Fetch private var history: CycleHistory? = nil
 
-  public init() {
+  public init(typeID: String? = nil) {
+    self.typeID = typeID
     _history = Fetch(wrappedValue: nil, CycleHistoryRequest(), scheduler: MainQueueScheduler())
   }
 
@@ -39,9 +44,27 @@ public struct CycleTrackingView: View {
     .task(id: [String(monthOffset), today.formatted(.iso8601)]) {
       _ = try? await $days.load(CycleMonthRequest(month: month), scheduler: MainQueueScheduler())
     }
+    .task {
+      await openOnLatestSample()
+    }
     .onReceive(calendarDayChanges()) {
       today = .now
     }
+  }
+
+  /// Shows the month of the type's latest sample, with its day selected. Today's month if it has
+  /// none.
+  private func openOnLatestSample() async {
+    guard let typeID,
+      let latest = try? await database.read({ db in
+        try HealthDatabase.latestSampleStart(of: typeID, db)
+      })
+    else { return }
+    let calendar = Calendar.current
+    let thisMonth = calendar.dateInterval(of: .month, for: today)?.start ?? today
+    let month = calendar.dateInterval(of: .month, for: latest)?.start ?? latest
+    monthOffset = min(calendar.dateComponents([.month], from: thisMonth, to: month).month ?? 0, 0)
+    selected = calendar.startOfDay(for: latest)
   }
 }
 
@@ -203,7 +226,7 @@ struct CycleTrackingContent: View {
       legendItem("Period") { Circle().fill(.red) }
       legendItem("Spotting") { Circle().strokeBorder(.red, lineWidth: 1.5) }
       legendItem("Ovulation Test") { Circle().fill(.blue) }
-      legendItem("Symptoms") { Circle().fill(.purple) }
+      legendItem("Symptoms and Logs") { Circle().fill(.purple) }
       legendItem("Sexual Activity") { Circle().fill(.pink) }
     }
     .font(.caption)
@@ -238,8 +261,18 @@ struct CycleTrackingContent: View {
       if let entry, entry != CycleDay() {
         if let flow = entry.flow { Text(flow.name) }
         if entry.spotting { Text("Spotting") }
-        if entry.ovulationPositive { Text("Positive Ovulation Test") }
         if entry.sexualActivity { Text("Sexual Activity") }
+        // Each as Health names it: "Cervical Mucus Quality: Egg White".
+        ForEach(Array(entry.log.enumerated()), id: \.offset) { _, item in
+          HStack {
+            Text(item.name)
+            Spacer()
+            if let value = item.value {
+              Text(value)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
         if !entry.symptoms.isEmpty {
           Text(entry.symptoms.joined(separator: ", "))
             .foregroundStyle(.purple)
@@ -324,7 +357,7 @@ struct CycleDayCell: View {
         .background {
           if let flow = entry?.flow {
             Circle().fill(.red.opacity(opacity(flow)))
-          } else if entry?.spotting == true {
+          } else if entry?.spotting == true || entry?.bleeding == true {
             Circle().strokeBorder(.red, lineWidth: 1.5)
           }
         }
@@ -333,7 +366,8 @@ struct CycleDayCell: View {
         }
       HStack(spacing: 2) {
         if entry?.ovulationPositive == true { dot(.blue) }
-        if entry?.symptoms.isEmpty == false { dot(.purple) }
+        // Anything else logged, as Health's purple dot marks it.
+        if entry?.symptoms.isEmpty == false || entry?.log.isEmpty == false { dot(.purple) }
         if entry?.sexualActivity == true { dot(.pink) }
       }
       .frame(height: 5)
