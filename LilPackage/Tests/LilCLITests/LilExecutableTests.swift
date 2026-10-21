@@ -1,11 +1,12 @@
 import Foundation
 import Testing
 
-/// Runs the built `lil` (the package's `lil` product) against a fake `lil-test` on `PATH`, to check
+/// Runs the built `lil` (the package's `lil-dev` product) against a fake `lil-test` on `PATH`, to check
 /// that what reaches the tool, and what comes back, is untouched.
 struct LilExecutableTests {
   /// `swift test` builds every product next to the test bundle.
-  let lil = Bundle(for: Marker.self).bundleURL.deletingLastPathComponent().appending(path: "lil")
+  let lil = Bundle(for: Marker.self).bundleURL.deletingLastPathComponent().appending(
+    path: "lil-dev")
   let directory: URL
 
   init() throws {

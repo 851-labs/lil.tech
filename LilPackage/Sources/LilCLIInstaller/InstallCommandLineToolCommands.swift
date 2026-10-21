@@ -16,10 +16,16 @@
     }
   }
 
+  /// Whether an install is under way, so choosing the menu item again meanwhile does nothing.
+  @MainActor private var isInstalling = false
+
   /// Asks where to install `lil`, installs it, and says how that went. Alerts rather than SwiftUI
   /// presentation: a menu command has no view to present from.
   @MainActor
   private func installCommandLineTool() async {
+    guard !isInstalling else { return }
+    isInstalling = true
+    defer { isInstalling = false }
     let appName =
       Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
       ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "the app"

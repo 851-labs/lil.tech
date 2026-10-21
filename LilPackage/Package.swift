@@ -241,17 +241,19 @@ let package = Package(
     .target(
       name: "LilCLI"
     ),
-    // The executable for `swift run lil` and LilCLITests. The apps bundle the same main.swift,
-    // built by an Xcode target of their own (`lil` in LilHealth.xcodeproj).
+    // `lil` for `swift run lil-dev` and LilCLITests. The apps bundle the same main.swift, built
+    // by an Xcode tool target of their own (`lil` in LilHealth.xcodeproj). Named apart from it,
+    // so the two don't build the same file in a workspace's shared products folder.
     .executableTarget(
-      name: "lil",
-      dependencies: ["LilCLI"]
+      name: "lil-dev",
+      dependencies: ["LilCLI"],
+      path: "Sources/lil"
     ),
     .testTarget(
       name: "LilCLITests",
       dependencies: [
         "LilCLI",
-        "lil",
+        "lil-dev",
       ]
     ),
     // An app's Install Command Line Tool… menu item, which installs the `lil` it bundles.

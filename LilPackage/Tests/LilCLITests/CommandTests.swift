@@ -31,7 +31,8 @@ struct CommandTests {
 
   @Test(arguments: [
     ["--verbose"], ["-x", "health"], ["Health"], ["../health"], ["health.sh"], ["-"], ["a-"],
-    ["help", "health", "more"], ["help", "/bin"], ["--version", "health"],
+    ["help", "health", "more"], ["help", "/bin"], ["--version", "health"], ["b\u{20DD}"],
+    ["y\u{0331}"], ["héalth"],
   ])
   func rejectsWhatIsntAnAppOrOption(arguments: [String]) {
     guard case .usageError = Command(arguments: arguments) else {

@@ -14,7 +14,8 @@ public struct Dispatcher: Sendable {
   public var applicationURL: @Sendable (_ bundleIdentifier: String) -> URL?
   /// The directories of `PATH`, in order.
   public var searchPath: [URL]
-  /// A tool's one-line description, from `lil-<app> --describe`.
+  /// A tool's one-line description, from `lil-<app> --describe`. Only known apps' tools are
+  /// asked: another `lil-<something>` on `PATH` could do anything with an option it doesn't know.
   public var describe: @Sendable (_ tool: URL) -> String?
   /// This copy's version (`lil --version`).
   public var version: Int
@@ -134,12 +135,39 @@ public struct Dispatcher: Sendable {
     guard !apps.isEmpty else {
       return Self.usage + "\nNo installed lil app has a command line tool yet.\n"
     }
+    // All at once, so slow tools take as long as the slowest, not the sum.
+    let descriptions = Descriptions(count: apps.count)
+    DispatchQueue.concurrentPerform(iterations: apps.count) { index in
+      let (app, tool) = apps[index]
+      descriptions.set(index, knownApps.contains(app) ? describe(tool) : nil)
+    }
     let width = apps.map(\.app.count).max() ?? 0
-    let lines = apps.map { app, tool in
-      guard let description = describe(tool), !description.isEmpty else { return "  \(app)\n" }
+    let lines = apps.indices.map { index in
+      let app = apps[index].app
+      guard let description = descriptions[index], !description.isEmpty else {
+        return "  \(app)\n"
+      }
       return "  \(app.padding(toLength: width, withPad: " ", startingAt: 0))   \(description)\n"
     }
     return Self.usage + "\nInstalled apps:\n" + lines.joined()
+  }
+}
+
+/// The listing's descriptions, written from `concurrentPerform`'s threads.
+private final class Descriptions: @unchecked Sendable {
+  private let lock = NSLock()
+  private var values: [String?]
+
+  init(count: Int) {
+    values = Array(repeating: nil, count: count)
+  }
+
+  func set(_ index: Int, _ value: String?) {
+    lock.withLock { values[index] = value }
+  }
+
+  subscript(index: Int) -> String? {
+    lock.withLock { values[index] }
   }
 }
 

@@ -48,5 +48,7 @@ func isAppName(_ name: some StringProtocol) -> Bool {
   !name.isEmpty
     && !name.hasPrefix("-")
     && !name.hasSuffix("-")
-    && name.allSatisfy { ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "-" }
+    && name.unicodeScalars.allSatisfy {
+      ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "-"
+    }
 }

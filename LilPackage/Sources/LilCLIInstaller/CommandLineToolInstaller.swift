@@ -77,8 +77,18 @@ public enum CommandLineToolInstaller {
 
   /// Installs `bundled` as `lil` in `directory`, asking for an administrator's password if this
   /// account can't write there.
-  @concurrent
+  ///
+  /// On a dispatch queue: it waits on processes, the administrator prompt among them, which would
+  /// hold one of Swift concurrency's few threads for as long as the prompt stays open.
   public static func install(_ bundled: URL, into directory: URL) async throws -> Outcome {
+    try await withCheckedThrowingContinuation { continuation in
+      DispatchQueue.global(qos: .userInitiated).async {
+        continuation.resume(with: Result { try installNow(bundled, into: directory) })
+      }
+    }
+  }
+
+  private static func installNow(_ bundled: URL, into directory: URL) throws -> Outcome {
     guard let bundledVersion = LilCLI.version(of: bundled) else {
       throw Failure(errorDescription: "The command line tool at \(bundled.path) doesn't run.")
     }
@@ -121,15 +131,16 @@ public enum CommandLineToolInstaller {
     return .installed(destination, replacedVersion: replacedVersion)
   }
 
-  /// Copies `$2` to `$1/lil`, creating `$1` if needed. Through a temporary file, so the old `lil`
-  /// is replaced at once, and without extended attributes, so the copy isn't quarantined (the
-  /// signature is in the binary).
+  /// Copies `$2` to `$1/lil`, creating `$1` if needed. Through a temporary file of its own, so the
+  /// old `lil` is replaced at once, and without extended attributes, so the copy isn't quarantined
+  /// (the signature is in the binary).
   static let copyScript = """
     set -e
     mkdir -p "$1"
-    cp -X "$2" "$1/.lil.new"
-    chmod 755 "$1/.lil.new"
-    mv -f "$1/.lil.new" "$1/lil"
+    new="$1/.lil.new.$$"
+    cp -X "$2" "$new"
+    chmod 755 "$new"
+    mv -f "$new" "$1/lil"
     """
 
   /// Whether this account can write `directory`, or create it: true if its closest existing

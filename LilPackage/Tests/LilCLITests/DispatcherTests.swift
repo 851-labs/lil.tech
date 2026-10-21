@@ -131,8 +131,9 @@ struct DispatcherTests {
     // Not apps' tools.
     try writeScript("exit 0", to: secondPath.appending(path: "lil-Bad.sh"))
     try writeScript("exit 0", to: secondPath.appending(path: "lil-quiet"), executable: false)
+    // Only known apps' tools are asked to describe themselves.
     let dispatcher = dispatcher(describe: { tool in
-      tool.lastPathComponent == "lil-test" ? "Tests things" : nil
+      tool.lastPathComponent == "lil-test" ? "Tests things" : "Shouldn't be asked"
     })
 
     #expect(dispatcher.appsWithTools().map(\.app) == ["another-app", "test"])
