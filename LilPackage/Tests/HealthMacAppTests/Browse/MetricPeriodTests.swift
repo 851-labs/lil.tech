@@ -33,6 +33,28 @@ struct MetricPeriodTests {
   }
 
   @Test
+  func choosingTheRangeShownKeepsThePeriod() {
+    let box = Box()
+    period(box).select(.week)
+    #expect(box.offset == -3)
+  }
+
+  @Test
+  func movesBetweenPeriodsUpToTheCurrentOne() {
+    let box = Box()
+    let period = period(box)
+    period.previous()
+    #expect(box.offset == -4)
+    #expect(period.canGoForward)
+    period.today()
+    #expect(box.offset == 0)
+    #expect(period.isCurrent)
+    #expect(!period.canGoForward)
+    period.next()
+    #expect(box.offset == 0)
+  }
+
+  @Test
   func eachRangeNamesItsPeriod() {
     #expect(ChartRange.allCases.map(\.periodName) == ["Day", "Week", "Month", "6 Months", "Year"])
   }

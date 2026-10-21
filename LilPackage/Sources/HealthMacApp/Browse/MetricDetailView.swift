@@ -141,6 +141,7 @@ struct MetricDetailContent: View {
   var overlays: [MetricOverlay] = []
   var calendar = Calendar.current
   @SwiftUI.State private var hovered: Date?
+  @SwiftUI.State private var isShown = false
 
   private var color: Color { type.category?.color ?? .accentColor }
 
@@ -210,16 +211,20 @@ struct MetricDetailContent: View {
     .background(Color.pageBackground)
     .navigationTitle(type.name)
     .toolbar { periodToolbar }
-    // For the View menu's commands and their shortcuts (`MetricPeriodCommands`).
-    .focusedSceneValue(\.metricPeriod, MetricPeriod(range: $range, offset: $offset))
+    // For the View menu's commands and their shortcuts (`MetricPeriodCommands`), only while the
+    // page is on screen: not under a page pushed from it.
+    .focusedSceneValue(\.metricPeriod, isShown ? period : nil)
+    .onAppear { isShown = true }
+    .onDisappear { isShown = false }
   }
+
+  private var period: MetricPeriod { MetricPeriod(range: $range, offset: $offset) }
 
   // MARK: Toolbar
 
   /// The range in the middle, and earlier and later periods on the trailing side, as Calendar
   /// has them (851-2821). Only on this page: the other pages' toolbars stay as they are.
   @ToolbarContentBuilder private var periodToolbar: some ToolbarContent {
-    let period = MetricPeriod(range: $range, offset: $offset)
     ToolbarItem(placement: .principal) {
       Picker("Range", selection: period.rangeSelection) {
         ForEach(ChartRange.allCases, id: \.self) { range in
@@ -228,18 +233,19 @@ struct MetricDetailContent: View {
       }
       .pickerStyle(.segmented)
       .labelsHidden()
-      .help("Show a day, a week, a month, 6 months or a year (⌘1 to ⌘5)")
+      .help("Show a day, a week, a month, 6 months or a year")
     }
-    // One group, so they share a background, as Calendar's ‹ Today › do.
+    // One group, as Calendar's ‹ Today › are. The View menu lists their shortcuts.
     ToolbarItemGroup(placement: .primaryAction) {
-      Button("Previous \(range.periodName)", systemImage: "chevron.left") { offset -= 1 }
-        .help("Show the previous \(range.periodName.lowercased()) (⌘←)")
-      Button("Today") { offset = 0 }
-        .disabled(offset == 0)
-        .help("Show the current \(range.periodName.lowercased()) (⌘T)")
-      Button("Next \(range.periodName)", systemImage: "chevron.right") { offset += 1 }
-        .disabled(offset >= 0)
-        .help("Show the next \(range.periodName.lowercased()) (⌘→)")
+      let name = range.periodName.lowercased()
+      Button("Previous \(range.periodName)", systemImage: "chevron.left") { period.previous() }
+        .help("Show the previous \(name)")
+      Button("Today") { period.today() }
+        .disabled(period.isCurrent)
+        .help("Show the current \(name)")
+      Button("Next \(range.periodName)", systemImage: "chevron.right") { period.next() }
+        .disabled(!period.canGoForward)
+        .help("Show the next \(name)")
     }
   }
 
