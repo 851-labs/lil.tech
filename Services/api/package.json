@@ -13,7 +13,8 @@
     "openapi": "node scripts/openapi.ts",
     "openapi:check": "node scripts/openapi.ts --check",
     "migrations": "node scripts/migrations.ts",
-    "migrations:check": "node scripts/migrations.ts --check"
+    "migrations:check": "node scripts/migrations.ts --check",
+    "bench": "node scripts/bench-sync.ts"
   },
   "dependencies": {
     "@effect/sql-d1": "catalog:",

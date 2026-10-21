@@ -13,7 +13,7 @@ import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { arch, cpus, hostname, tmpdir } from "node:os";
+import { arch, cpus, release, tmpdir, totalmem, type } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
@@ -445,7 +445,15 @@ const waitForSnapshot = async (stage: Stage, seq: number, deadline: number) => {
   }
 };
 
+const usage = `Usage: scripts/bench-sync [--records <n>] [--concurrency <n>] [--url <stage>] [--keep]
+                          [--skip-mac] [--seed <n>] [--json <file>]
+See docs/BENCHMARK.md.`;
+
 const main = async () => {
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    console.log(usage);
+    return;
+  }
   const options = parseOptions(process.argv.slice(2), process.env);
   const url = (options.url ?? (await deployPersonalStage())).replace(/\/+$/, "");
   checkNotProd(url, undefined);
@@ -631,7 +639,7 @@ const main = async () => {
           : `first upload → ${runMac ? "Mac bootstrapped" : "snapshot published"}, ${number(wall - quietWait, 1)} s without the snapshot's wait for quiet`,
     });
 
-    const machine = `${cpus()[0]?.model ?? arch()} (${cpus().length} cores), ${hostname()}`;
+    const machine = `${cpus()[0]?.model ?? arch()}, ${cpus().length} cores, ${Math.round(totalmem() / 2 ** 30)} GB, ${type()} ${release()}`;
     console.log(
       `\nSync throughput, ${new Date().toISOString().slice(0, 10)}: ${number(options.records)} records, ${options.concurrency} uploads at once, seed ${options.seed}\nStage: ${status.environment} running ${status.version} (${url}); benchmark at ${commit.trim()}\nMachine: ${machine}\n\n${formatTable(rows)}\n`,
     );
