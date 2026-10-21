@@ -1490,6 +1490,7 @@ describe("data exports", () => {
             resource: "https://mcp.lil.tech/health",
             createdAt: 1000,
             lastUsedAt: 2000,
+            firstUsedAt: 1500,
           }),
         );
         yield* (yield* AgentGrants).createTokens(grantId, [
@@ -1577,6 +1578,7 @@ describe("data exports", () => {
             resource: "https://mcp.lil.tech/health",
             connectedAt: 1000,
             lastUsedAt: 2000,
+            firstUsedAt: 1500,
           },
         ]);
         assert.deepStrictEqual(

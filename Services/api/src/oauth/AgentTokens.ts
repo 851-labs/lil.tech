@@ -28,7 +28,10 @@ export const agentAuthorizationLifetime = 10 * 60 * 1000;
 /** How long an authorization code works once the user allowed it. */
 export const authorizationCodeLifetime = 60 * 1000;
 
-/** How often, at most, `verify` records that a grant was used, to save writes. */
+/**
+ * How often, at most, `verify` records that a grant was used, to save writes. Its first tool call
+ * is recorded exactly (`recordFirstUse`).
+ */
 export const grantLastUsedInterval = 5 * 60 * 1000;
 
 const accessTokenPrefix = "lma";
@@ -142,6 +145,12 @@ export class AgentTokens extends Context.Service<
       token: string,
       resource: string,
     ) => Effect.Effect<AgentGrant, InvalidAgentToken | SqlError.SqlError>;
+    /**
+     * Records a verified grant's first tool call, its first read, as its first and last use, so
+     * the apps can tell it has read something even within `grantLastUsedInterval` of connecting.
+     * Only the first is written; a failure is logged, and doesn't fail the call.
+     */
+    readonly recordFirstUse: (grant: AgentGrant) => Effect.Effect<void>;
   }
 >()("lil/api/oauth/AgentTokens") {
   static readonly layer = Layer.effect(
@@ -275,6 +284,7 @@ export class AgentTokens extends Context.Service<
               resource: authorization.resource,
               createdAt: now,
               lastUsedAt: now,
+              firstUsedAt: null,
             }),
           );
           const { pair } = yield* issue(grantId, authorization.grantedScopes, null);
@@ -376,6 +386,13 @@ export class AgentTokens extends Context.Service<
             { concurrency: "unbounded", discard: true },
           );
           return stored.grant;
+        }),
+
+        recordFirstUse: Effect.fn("AgentTokens.recordFirstUse")(function* (grant) {
+          if (grant.firstUsedAt !== null) return;
+          yield* grants
+            .recordFirstUse(grant.id, yield* Clock.currentTimeMillis)
+            .pipe(Effect.ignore({ log: true }));
         }),
       });
     }),

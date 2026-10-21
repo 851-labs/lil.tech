@@ -891,6 +891,7 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
               resource,
               createdAt,
               lastUsedAt,
+              firstUsedAt,
             }) => ({
               id,
               name: clientName,
@@ -900,6 +901,7 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
               resource,
               connectedAt: createdAt,
               lastUsedAt,
+              firstUsedAt,
             }),
           ),
         });

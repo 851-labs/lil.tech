@@ -65,6 +65,7 @@ export const AgentsHandlers = HttpApiBuilder.group(
                   app: Option.getOrNull(appOfResource(grant.resource)),
                   connectedAt: grant.createdAt,
                   lastUsedAt: grant.lastUsedAt,
+                  firstUsedAt: grant.firstUsedAt,
                 }),
             ),
           });

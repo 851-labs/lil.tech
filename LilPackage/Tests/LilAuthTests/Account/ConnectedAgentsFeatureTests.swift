@@ -11,15 +11,18 @@ struct ConnectedAgentsFeatureTests {
   private let claude = ConnectedAgent(
     id: "grant-1", name: "Claude", domain: "claude.ai", app: "health",
     connectedAt: Date(timeIntervalSince1970: 1_760_900_000),
+    firstUsedAt: Date(timeIntervalSince1970: 1_760_900_060),
     lastUsedAt: Date(timeIntervalSince1970: 1_760_960_000))
   private let unnamed = ConnectedAgent(
     id: "grant-2", name: nil, domain: nil, app: "health",
     connectedAt: Date(timeIntervalSince1970: 1_760_800_000),
+    firstUsedAt: nil,
     lastUsedAt: Date(timeIntervalSince1970: 1_760_800_000))
   /// Another app's agent, which lil health doesn't list.
   private let mailAgent = ConnectedAgent(
     id: "grant-3", name: "Mail Helper", domain: "example.com", app: "mail",
     connectedAt: Date(timeIntervalSince1970: 1_760_700_000),
+    firstUsedAt: nil,
     lastUsedAt: Date(timeIntervalSince1970: 1_760_700_000))
 
   private nonisolated static func access(_ id: Int) -> RemoteAgentAccess {
@@ -275,6 +278,20 @@ struct ConnectedAgentsFeatureTests {
     #expect(unnamed.lastUsedDescription == "Not used yet")
     #expect(!claude.isUnused)
     #expect(claude.lastUsedDescription.hasPrefix("Last used "))
+    // One that read only in its first minute, before the server's 5-minute throttle on
+    // `lastUsedAt` would have recorded it (851-2872).
+    let connectedAt = Date.now.addingTimeInterval(-90)
+    let readAtOnce = ConnectedAgent(
+      id: "grant-4", name: "Claude", domain: "claude.ai", app: "health",
+      connectedAt: connectedAt, firstUsedAt: connectedAt.addingTimeInterval(30),
+      lastUsedAt: connectedAt.addingTimeInterval(30))
+    #expect(!readAtOnce.isUnused)
+    #expect(readAtOnce.lastUsedDescription.hasPrefix("Last used "))
+    // Even in the millisecond it connected.
+    var sameMoment = readAtOnce
+    sameMoment.firstUsedAt = connectedAt
+    sameMoment.lastUsedAt = connectedAt
+    #expect(!sameMoment.isUnused)
     let read = Self.access(1)
     #expect(read.request() == "get_metric HKQuantityTypeIdentifierStepCount W")
     #expect(read.request { _ in "Steps" } == "get_metric Steps W")

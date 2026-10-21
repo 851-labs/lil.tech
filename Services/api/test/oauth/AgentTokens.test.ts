@@ -358,6 +358,25 @@ describe("AgentTokens.verify", () => {
     }).pipe(Effect.provide(TestAgents)),
   );
 
+  it.effect("records a grant's first tool call exactly, and only the first", () =>
+    Effect.gen(function* () {
+      const pair = yield* exchange(yield* approve());
+      const connected = yield* verify(pair);
+      assert.isNull(connected.firstUsedAt);
+      const recordFirstUse = AgentTokens.use((tokens) => tokens.recordFirstUse(connected));
+      // A minute in: well within the 5 minutes `lastUsedAt` waits.
+      yield* TestClock.adjust(minute);
+      yield* recordFirstUse;
+      const used = yield* verify(pair);
+      assert.strictEqual(used.firstUsedAt, connected.createdAt + minute);
+      assert.strictEqual(used.lastUsedAt, connected.createdAt + minute);
+      // A second, from a request verified before the first was recorded, changes nothing.
+      yield* TestClock.adjust(minute);
+      yield* recordFirstUse;
+      assert.deepStrictEqual(yield* verify(pair), used);
+    }).pipe(Effect.provide(TestAgents)),
+  );
+
   it.effect("never accepts the apps' access tokens", () =>
     Effect.gen(function* () {
       const user = yield* (yield* Users).create({ displayName: "Ada" });

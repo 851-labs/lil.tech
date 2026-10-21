@@ -109,7 +109,10 @@ export class AgentGrant extends Schema.Class<AgentGrant>("lil/api/core/AgentGran
   scopes: Schema.Array(Schema.String),
   resource: Schema.String,
   createdAt: Schema.Number,
+  /** Any request, recorded at most every 5 minutes; `createdAt` until then. */
   lastUsedAt: Schema.Number,
+  /** The first tool call, recorded exactly. `null` until it reads anything. */
+  firstUsedAt: Schema.NullOr(Schema.Number),
 }) {}
 
 export const AgentTokenKind = Schema.Literals(["access", "refresh"]);
@@ -229,6 +232,11 @@ export class AgentGrants extends Context.Service<
       id: AgentGrantId,
       now: number,
       before: number,
+    ) => Effect.Effect<void, SqlError.SqlError>;
+    /** Records a grant's first tool call, as its first and last use, unless one was recorded. */
+    readonly recordFirstUse: (
+      id: AgentGrantId,
+      now: number,
     ) => Effect.Effect<void, SqlError.SqlError>;
     /** Stores tokens. A pair's refresh token comes before the access token that names it. */
     readonly createTokens: (
@@ -426,6 +434,7 @@ export class AgentGrants extends Context.Service<
               resource: grant.resource,
               createdAt: grant.createdAt,
               lastUsedAt: grant.lastUsedAt,
+              firstUsedAt: grant.firstUsedAt,
             }),
           );
         }),
@@ -515,6 +524,14 @@ export class AgentGrants extends Context.Service<
               .where(and(eq(agentGrants.id, id), lte(agentGrants.lastUsedAt, before))),
           );
         }),
+        recordFirstUse: Effect.fn("AgentGrants.recordFirstUse")(function* (id, now) {
+          yield* query(
+            db
+              .update(agentGrants)
+              .set({ firstUsedAt: now, lastUsedAt: now })
+              .where(and(eq(agentGrants.id, id), isNull(agentGrants.firstUsedAt))),
+          );
+        }),
         createTokens: Effect.fn("AgentGrants.createTokens")(function* (grantId, tokens) {
           if (tokens.length === 0) return;
           yield* query(
@@ -542,6 +559,7 @@ export class AgentGrants extends Context.Service<
                   resource: agentGrants.resource,
                   createdAt: agentGrants.createdAt,
                   lastUsedAt: agentGrants.lastUsedAt,
+                  firstUsedAt: agentGrants.firstUsedAt,
                 },
               })
               .from(agentTokens)

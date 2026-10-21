@@ -1,4 +1,4 @@
-import { Effect, Option } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { Headers, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { Deployment } from "../Deployment.ts";
 import { AgentTokens, type InvalidAgentToken } from "../oauth/AgentTokens.ts";
@@ -40,6 +40,14 @@ const challenge = (
       ? []
       : [`error="${error.code}"`, `error_description="${error.description}"`]),
   ].join(", ");
+
+/**
+ * A request body that's a tool call: an agent reading. The protocols served have no JSON-RPC
+ * batches, so a body is one message.
+ */
+const decodeToolCall = Schema.decodeUnknownOption(
+  Schema.fromJsonString(Schema.Struct({ method: Schema.Literal("tools/call") })),
+);
 
 const tokenRefused = (reason: InvalidAgentToken["reason"]) => ({
   code: "invalid_token",
@@ -126,13 +134,19 @@ const mcpRoute = (key: AgentResource) =>
           : Option.some(Option.none<string>());
       if (Option.isNone(body)) return HttpServerResponse.empty({ status: 400 });
       if (request.method === "POST" && Option.isNone(body.value)) return tooLarge;
+      // Whether this is the agent's first read, which the apps show, even within minutes of
+      // connecting. Only decoded until one is recorded.
+      const firstRead =
+        grant.firstUsedAt === null &&
+        Option.isSome(body.value) &&
+        Option.isSome(decodeToolCall(body.value.value));
       // Set here, over any a client sent; the token itself stays with the Worker.
       const headers = Headers.setAll(Headers.remove(request.headers, "authorization"), {
         [agentGrantHeader]: grant.id,
         [agentClientHeader]: encodeURIComponent(grant.clientName ?? grant.clientId),
         [agentScopesHeader]: grant.scopes.join(" "),
       });
-      return yield* stores.mcp(
+      const response = yield* stores.mcp(
         grant.userId,
         HttpServerRequest.fromWeb(
           new Request(new URL(request.url, requestOrigin(request)), {
@@ -142,6 +156,12 @@ const mcpRoute = (key: AgentResource) =>
           }),
         ),
       );
+      // Once the server took the call (and logged it), not one it refused, such as a request in
+      // a session it forgot.
+      if (firstRead && response.status >= 200 && response.status < 300) {
+        yield* tokens.recordFirstUse(grant);
+      }
+      return response;
     }).pipe(Effect.catchTag("TooManyRequests", tooManyRequests));
   });
 

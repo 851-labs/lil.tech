@@ -2021,6 +2021,14 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "firstUsedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -2031,7 +2039,8 @@
           "resource",
           "app",
           "connectedAt",
-          "lastUsedAt"
+          "lastUsedAt",
+          "firstUsedAt"
         ]
       },
       "HealthBlobNotFound": {
