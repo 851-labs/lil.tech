@@ -43,6 +43,8 @@ extension HealthDatabase {
         range = try startRange(of: "healthHeartbeatSeries", db)
       case .visionPrescription:
         range = try startRange(of: "healthVisionPrescriptions", db)
+      case .document:
+        range = try startRange(of: "healthDocuments", db)
       case .medication, .medicationDoseEvent:
         // A medication's dates are its doses'.
         range = try startRange(of: "healthMedicationDoses", db)
@@ -59,7 +61,7 @@ extension HealthDatabase {
           dates[type.id] = TypeDates(first: first, last: last)
         }
         continue
-      case .characteristic, .document:
+      case .characteristic:
         continue
       }
       if let range {
