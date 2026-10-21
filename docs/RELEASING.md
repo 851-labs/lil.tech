@@ -39,6 +39,8 @@ scripts/release messages 0.1.0
 scripts/release health 0.1.0   # lil health for Mac
 ```
 
+lil health for iOS goes to TestFlight instead, with `scripts/release health-ios <version>` (see [below](#lil-health-on-ios-testflight)).
+
 This:
 
 1. checks that the app's `SUPublicEDKey` is the public half of its signing key (`lil-<app>`), before building anything and again on the exported app (851-2692);
@@ -82,24 +84,24 @@ The iOS app ships through App Store Connect. Testers get builds through TestFlig
 ### One-time setup
 
 1. **App ID and app record.** The App ID `tech.lil.health` needs HealthKit (with background delivery) and Sign in with Apple, which is 851-2538. Create the app in App Store Connect with that bundle ID.
-2. **Upload key.** Uploads use an App Store Connect API key with the App Manager role. Keep its `.p8` in `~/.appstoreconnect/private_keys/`.
+2. **Xcode account.** Sign in to Xcode (Settings › Accounts) with an Apple account in team `WH4QW9ND3J` that can upload, e.g. with the App Manager role. Uploads sign and upload through it, with Apple Distribution and cloud signing. Not with an App Store Connect API key: with one, the export fails on cloud signing permissions.
 
 ### Uploading a build
 
-From the repo root, with a clean tree:
+From a clean tree, at the commit to ship:
 
 ```
-xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS -configuration Release \
-  -destination 'generic/platform=iOS' -skipMacroValidation -allowProvisioningUpdates \
-  -archivePath build/LilHealthiOS.xcarchive \
-  CURRENT_PROJECT_VERSION=$(git rev-list --count HEAD) archive
-
-xcodebuild -exportArchive -archivePath build/LilHealthiOS.xcarchive \
-  -exportOptionsPlist Apps/LilHealth/LilHealthiOS-ExportOptions.plist -allowProvisioningUpdates \
-  -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_XXXXXXXXXX.p8 \
-  -authenticationKeyID XXXXXXXXXX -authenticationKeyIssuerID <issuer-uuid>
+scripts/release health-ios 0.2.0
 ```
 
-- The archive's build number is the commit count, as with the Mac apps. `LilHealthiOS-ExportOptions.plist` keeps Xcode from renumbering it.
-- `LilHealthiOS-ExportOptions.plist` also exports for App Store Connect and uploads in the same step.
+This:
+
+1. archives `LilHealthiOS` with that marketing version and a build number equal to the commit count, in its own derived data, like the Mac apps;
+2. exports it for App Store Connect and uploads it, with `LilHealthiOS-ExportOptions.plist` and `-allowProvisioningUpdates`.
+
+The archive goes to `build/releases/health-ios/<version>/`. Pass `--skip-upload` to stop after the archive, e.g. to check its version (`plutil -p build/releases/health-ios/<version>/LilHealthiOS.xcarchive/Products/Applications/lil\ health.app/Info.plist`). The script refuses to upload with uncommitted changes.
+
+- **Use the Mac's version.** lil health's platforms share one version (`health/v<version>`), so upload with the version of the Mac release cut from the same commit. The project's `MARKETING_VERSION` is only what local builds show: releases always set it on the command line. Builds 194, 195 and 236 were uploaded without it and went out as 0.1.0 (851-2817).
+- `LilHealthiOS-ExportOptions.plist` keeps Xcode from renumbering the build.
+- **Export compliance** is answered in `LilHealthiOS-Info.plist`: `ITSAppUsesNonExemptEncryption` is `NO`, since the app only uses exempt encryption (HTTPS, the Keychain, SHA-256 hashes through CryptoKit). Without it, every build waits in Missing Compliance until someone answers in App Store Connect. Revisit the key if the app ever encrypts data itself.
 - After App Store Connect processes the build, add it to a TestFlight group. Builds for external testers also need Beta App Review.
