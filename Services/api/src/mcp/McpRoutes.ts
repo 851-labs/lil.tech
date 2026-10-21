@@ -14,7 +14,6 @@ import {
   type AgentHosts,
   agentResources,
   appMetadataPath,
-  appsOfScopes,
   appUrl,
   combinedAgentEnvironments,
   combinedResourceMetadataPath,
@@ -98,9 +97,10 @@ const appServer = (app: AgentApp): McpServerRoute => ({
 });
 
 /**
- * The combined server (851-2900): the apps whose scopes the grant has, less those whose agents
- * consent (`agents:<app>`) was withdrawn since, read on every request. Turning off an app's agent
- * access then cuts the combined grants off from it too, though they keep its scope.
+ * The combined server (851-2900): the apps whose scopes the grant has, while the agents consent
+ * (`agents:<app>`) it was allowed under stands, read on every request. Turning off an app's agent
+ * access then cuts the combined grants off from it too, though they keep its scope, and connecting
+ * an agent again later (a new consent) doesn't bring them back.
  */
 const combinedServer = (
   registry: AgentAppRegistry,
@@ -112,15 +112,19 @@ const combinedServer = (
   scopes: scopesOf(registry),
   usable: (grant) =>
     Effect.gen(function* () {
-      const target = { resource: "", combined: true, apps: Object.keys(registry) };
-      const apps = appsOfScopes(registry, target, grant.scopes);
+      const scopesOfApp = (key: string): ReadonlyArray<string> => registry[key]?.scopes ?? [];
+      const apps = Object.keys(registry).filter((key) =>
+        scopesOfApp(key).some((scope) => grant.scopes.includes(scope)),
+      );
+      // Given when it was allowed, so by the time the grant was made.
       const given = yield* consents.inForce(
         grant.userId,
         apps.map((key) => registry[key]!.consent),
+        grant.createdAt,
       );
       const readable = apps.filter((key) => given.has(registry[key]!.consent));
       return grant.scopes.filter((scope) =>
-        readable.some((key) => (registry[key]!.scopes as ReadonlyArray<string>).includes(scope)),
+        readable.some((key) => scopesOfApp(key).includes(scope)),
       );
     }),
   insufficient: "This agent may no longer read any lil app. Connect it again to allow it.",
@@ -168,6 +172,8 @@ const mcpRoute = (server: McpServerRoute) =>
       if (token === undefined) return refuse(401);
       // Only this server's agent tokens: another server's, and the apps' own tokens, are invalid.
       const verified = yield* tokens.verify(token, server.resource(hosts)).pipe(
+        // Counted once the token is good, before anything else reads the database.
+        Effect.tap((grant) => limits.check("agent", grant.id)),
         Effect.flatMap((grant) =>
           Effect.map(server.usable(grant), (scopes) => ({ grant, scopes })),
         ),
@@ -193,7 +199,6 @@ const mcpRoute = (server: McpServerRoute) =>
       if (scopes.length === 0) {
         return refuse(403, { code: "insufficient_scope", description: server.insufficient });
       }
-      yield* limits.check("agent", grant.id);
       // MCP messages are small. The store holds a body in memory, so a large one is refused here.
       const tooLarge = HttpServerResponse.empty({ status: 413 });
       if (Number(request.headers["content-length"] ?? 0) > maxMcpRequestBytes) return tooLarge;

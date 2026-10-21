@@ -1,5 +1,5 @@
 import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lte } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
 import { CoreDb, query } from "./CoreDb.ts";
 import type { UserId } from "./Ids.ts";
@@ -49,12 +49,15 @@ export class Consents extends Context.Service<
       type: ConsentType,
     ) => Effect.Effect<Option.Option<GivenConsent>, SqlError.SqlError>;
     /**
-     * Which of `types` the user's consent is in force for, whatever its policy version: one read
-     * for several apps' agents consents (the combined MCP server, 851-2900).
+     * Which of `types` the user's consent is in force for, whatever its policy version, from a
+     * consent given at or before `givenBy` (Unix milliseconds): one read for several apps' agents
+     * consents (the combined MCP server, 851-2900). A consent given later, after one was
+     * withdrawn, doesn't count for what was allowed before it.
      */
     readonly inForce: (
       userId: UserId,
       types: ReadonlyArray<ConsentType>,
+      givenBy: number,
     ) => Effect.Effect<ReadonlySet<ConsentType>, SqlError.SqlError>;
     /** Records consent to `policyVersion`. Consenting again to the same version keeps the first. */
     readonly grant: (
@@ -92,7 +95,7 @@ export class Consents extends Context.Service<
       });
       return Consents.of({
         current,
-        inForce: Effect.fn("Consents.inForce")(function* (userId, types) {
+        inForce: Effect.fn("Consents.inForce")(function* (userId, types, givenBy) {
           if (types.length === 0) return new Set<ConsentType>();
           const rows = yield* query(
             db
@@ -103,6 +106,7 @@ export class Consents extends Context.Service<
                   eq(consents.userId, userId),
                   inArray(consents.type, [...types]),
                   isNull(consents.withdrawnAt),
+                  lte(consents.grantedAt, givenBy),
                 ),
               ),
           );

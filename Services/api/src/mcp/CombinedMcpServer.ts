@@ -1,4 +1,4 @@
-import { Cache, Clock, Effect } from "effect";
+import { Cache, Clock, Effect, Schema } from "effect";
 import { McpSchema, McpServer } from "effect/ai";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import type { AgentAppRegistry } from "../oauth/Hosts.ts";
@@ -23,6 +23,12 @@ export const toolNameSeparator = ".";
 /** `tool`'s name on the combined server. */
 export const combinedToolName = (app: string, tool: string) => `${app}${toolNameSeparator}${tool}`;
 
+const encodeTool = Schema.encodeSync(McpSchema.Tool);
+const decodeTool = Schema.decodeSync(McpSchema.Tool);
+
+/** `tool` under another name, with every other field as it is, whichever fields tools have. */
+const renamed = (tool: McpSchema.Tool, name: string) => decodeTool({ ...encodeTool(tool), name });
+
 /**
  * `server`, but registering each tool under `app`'s name: its schemas, annotations and handler
  * unchanged. Resources keep their URIs, which each app's scheme already sets apart, as in
@@ -37,16 +43,7 @@ const namespaced = (
     addTool: (options) =>
       server.addTool({
         ...options,
-        tool: new McpSchema.Tool({
-          name: combinedToolName(app, options.tool.name),
-          title: options.tool.title,
-          description: options.tool.description,
-          inputSchema: options.tool.inputSchema,
-          outputSchema: options.tool.outputSchema,
-          annotations: options.tool.annotations,
-          icons: options.tool.icons,
-          _meta: options.tool._meta,
-        }),
+        tool: renamed(options.tool, combinedToolName(app, options.tool.name)),
       }),
   });
 
@@ -80,7 +77,7 @@ export const makeCombinedMcpServer = (options: {
 }): Effect.Effect<StoreMcpHandler> =>
   Effect.gen(function* () {
     const { registry, apps } = options;
-    const keys = Object.keys(apps).filter((key) => registry[key] !== undefined);
+    const keys = Object.keys(registry).filter((key) => apps[key] !== undefined);
     const clock = yield* Clock.Clock;
     // One server per set of apps, by their keys in the registry's order. Never evicted: there are
     // at most 2^apps sets, each built once, and evicting one would end its sessions.

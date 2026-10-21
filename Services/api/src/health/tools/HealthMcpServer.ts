@@ -249,11 +249,14 @@ export const makeHealthMcpServer = (
 ) =>
   Effect.gen(function* () {
     const turns = options.turns ?? (yield* makeTurns(options.maxWaitMs));
-    const app = healthMcpApp({ ...options, turns });
-    return yield* serveStoreMcp({
-      name: "lil health",
-      instructions: app.instructions,
-      path: healthMcpPath,
-      register: app.register,
-    });
+    return yield* serveHealthMcp(healthMcpApp({ ...options, turns }));
+  });
+
+/** lil health's own server, serving `app` (`healthMcpApp`) at `healthMcpPath`. */
+export const serveHealthMcp = (app: StoreMcpApp) =>
+  serveStoreMcp({
+    name: "lil health",
+    instructions: app.instructions,
+    path: healthMcpPath,
+    register: app.register,
   });

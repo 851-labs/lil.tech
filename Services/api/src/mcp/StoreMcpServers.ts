@@ -2,8 +2,8 @@ import { Effect } from "effect";
 import {
   healthMcpApp,
   healthMcpPath,
-  makeHealthMcpServer,
   makeTurns,
+  serveHealthMcp,
 } from "../health/tools/HealthMcpServer.ts";
 import { type AgentAppRegistry, agentResources } from "../oauth/Hosts.ts";
 import type { AgentAccess } from "../store/AgentAccessLog.ts";
@@ -26,11 +26,12 @@ export const makeStoreMcpServers = (options: {
 }) =>
   Effect.gen(function* () {
     const { sql, record } = options;
-    const turns = yield* makeTurns();
-    const health = yield* makeHealthMcpServer({ sql, record, turns });
+    // lil health's tools, once: both servers register the same handlers, in the same queue.
+    const healthApp = healthMcpApp({ sql, record, turns: yield* makeTurns() });
+    const health = yield* serveHealthMcp(healthApp);
     const combined = yield* makeCombinedMcpServer({
       registry: options.registry ?? agentResources,
-      apps: { health: healthMcpApp({ sql, record, turns }), ...options.otherApps },
+      apps: { health: healthApp, ...options.otherApps },
     });
     return (path: string): StoreMcpHandler | undefined =>
       path === healthMcpPath ? health : path === combinedMcpPath ? combined : undefined;

@@ -312,6 +312,13 @@ describe("the combined MCP server", () => {
         assert.strictEqual(withdrawn.status, 403);
         assert.include(withdrawn.headers.get("www-authenticate"), 'error="insufficient_scope"');
         assert.include(withdrawn.headers.get("www-authenticate"), `scope="health:read"`);
+        // Connecting an agent again gives consent again, but not to this grant, made before.
+        yield* Effect.sleep("5 millis");
+        yield* (yield* Consents)
+          .grant(agent.userId, "agents:health", "2026-10-21")
+          .pipe(Effect.orDie);
+        const regranted = yield* call(handler, agent.accessToken, "tools/list");
+        assert.strictEqual(regranted.status, 403);
 
         const other = yield* connect(handler);
         yield* form(handler, `${previewOrigin}/oauth/revoke`, {
