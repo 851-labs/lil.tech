@@ -325,6 +325,12 @@ check_window_captures() {
     echo "Couldn't capture some Mac previews' windows (is the screen locked or asleep?); see $log." >&2
     exit 1
   fi
+  # SnapshotPreviews tries a capture whose stream failed to start again, and logs it (851-2769).
+  local retries
+  retries=$(grep -c "stream failed to start (-3811); trying again" "$log" || true)
+  if [ "$retries" -gt 0 ]; then
+    echo "Note: $retries window captures had to be tried again (ScreenCaptureKit -3811); see $log." >&2
+  fi
 }
 
 # run <app> <appearance> <xcodebuild arguments…>: one app's previews into $out/<app>/<appearance>,
