@@ -21,8 +21,9 @@ runs:
       shell: bash
       env:
         BASE: ${{ inputs.base }}
-        # The paths `scripts/check --swift` checks, and the CI files that run it.
-        SWIFT: '^(LilPackage/|Apps/|Tools/|Lil\.xcworkspace/|\.swift-format$|scripts/(format|check)$|\.github/workflows/(pr|main|swift-check)\.yml$|\.github/actions/changes/)'
+        # The paths `scripts/check --swift` checks (with the server's copy of the Health catalog,
+        # which it compares with the Swift one), and the CI files that run it.
+        SWIFT: '^(LilPackage/|Apps/|Tools/|Lil\.xcworkspace/|\.swift-format$|scripts/(format|check|generate-health-catalog)$|Services/api/health-catalog\.json$|\.github/workflows/(pr|main|swift-check)\.yml$|\.github/actions/changes/)'
         # The TypeScript workspace, the scripts and generated client the deploys use, and the CI
         # files that deploy it.
         SERVICES: '^(Services/|Web/|package\.json$|pnpm-workspace\.yaml$|pnpm-lock\.yaml$|\.node-version$|vite\.config\.ts$|tsconfig\.json$|tsconfig\.base\.json$|scripts/(check-deploy|generate-api-client)$|LilPackage/Sources/LilAPIGenerated/|\.github/workflows/(pr|main)\.yml$|\.github/actions/(setup-services|changes|comment)/)'

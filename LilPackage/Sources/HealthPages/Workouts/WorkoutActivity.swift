@@ -1,12 +1,14 @@
-/// How Health names and draws a workout's activity (`HKWorkoutActivityType`'s raw value).
-/// Types not listed read "Workout".
+import HealthCatalog
+
+/// How Health names and draws a workout's activity (`HKWorkoutActivityType`'s raw value). Names
+/// come from the catalog, which the server shares. Types not listed read "Workout".
 enum WorkoutActivity {
   static func name(_ activityType: Int) -> String {
-    entries[activityType]?.name ?? "Workout"
+    HealthCatalog.workoutActivityName(activityType)
   }
 
   static func symbol(_ activityType: Int) -> String {
-    entries[activityType]?.symbol ?? "figure.mixed.cardio"
+    symbols[activityType] ?? "figure.mixed.cardio"
   }
 
   /// Whether pace (time per kilometer) means something for it, rather than speed.
@@ -14,29 +16,30 @@ enum WorkoutActivity {
     [37, 52, 24, 70, 71].contains(activityType)
   }
 
-  private static let entries: [Int: (name: String, symbol: String)] = [
-    13: ("Cycling", "figure.outdoor.cycle"),
-    14: ("Dance", "figure.dance"),
-    16: ("Elliptical", "figure.elliptical"),
-    20: ("Functional Strength Training", "figure.strengthtraining.functional"),
-    24: ("Hiking", "figure.hiking"),
-    35: ("Rowing", "figure.rower"),
-    37: ("Running", "figure.run"),
-    44: ("Stair Stepper", "figure.stair.stepper"),
-    46: ("Swimming", "figure.pool.swim"),
-    50: ("Traditional Strength Training", "figure.strengthtraining.traditional"),
-    52: ("Walking", "figure.walk"),
-    57: ("Yoga", "figure.yoga"),
-    58: ("Barre", "figure.barre"),
-    59: ("Core Training", "figure.core.training"),
-    62: ("Flexibility", "figure.flexibility"),
-    63: ("High Intensity Interval Training", "figure.highintensity.intervaltraining"),
-    66: ("Pilates", "figure.pilates"),
-    70: ("Wheelchair Walk Pace", "figure.roll"),
-    71: ("Wheelchair Run Pace", "figure.roll.runningpace"),
-    73: ("Mixed Cardio", "figure.mixed.cardio"),
-    77: ("Cardio Dance", "figure.dance"),
-    80: ("Cooldown", "figure.cooldown"),
-    3000: ("Other", "figure.mixed.cardio"),
+  /// Every activity the catalog names, and only those (`WorkoutFormatTests`).
+  static let symbols: [Int: String] = [
+    13: "figure.outdoor.cycle",
+    14: "figure.dance",
+    16: "figure.elliptical",
+    20: "figure.strengthtraining.functional",
+    24: "figure.hiking",
+    35: "figure.rower",
+    37: "figure.run",
+    44: "figure.stair.stepper",
+    46: "figure.pool.swim",
+    50: "figure.strengthtraining.traditional",
+    52: "figure.walk",
+    57: "figure.yoga",
+    58: "figure.barre",
+    59: "figure.core.training",
+    62: "figure.flexibility",
+    63: "figure.highintensity.intervaltraining",
+    66: "figure.pilates",
+    70: "figure.roll",
+    71: "figure.roll.runningpace",
+    73: "figure.mixed.cardio",
+    77: "figure.dance",
+    80: "figure.cooldown",
+    3000: "figure.mixed.cardio",
   ]
 }

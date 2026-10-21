@@ -1,0 +1,42 @@
+#!/bin/sh
+# Writes the server's copy of the Health catalog (Services/api/health-catalog.json) from the Swift
+# one (LilPackage/Sources/HealthCatalog), its source of truth (851-2857). It compiles the module's
+# sources on their own with swiftc, which takes seconds, rather than building the package.
+#
+# Usage: scripts/generate-health-catalog [--check]
+#   (none)   Regenerate the file.
+#   --check  Exit non-zero if the committed file is out of date.
+set -eu
+
+cd "$(dirname "$0")/.."
+
+output=Services/api/health-catalog.json
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+cat > "$tmp/main.swift" << 'EOF'
+print(try HealthCatalog.json(), terminator: "")
+EOF
+# Every source file in the module, folders included, built as one module with the generator's
+# main.swift, so it can call the module's internal `HealthCatalog.json()`.
+find LilPackage/Sources/HealthCatalog -name '*.swift' -print0 |
+  xargs -0 xcrun swiftc -swift-version 6 -module-name HealthCatalogJSON -o "$tmp/health-catalog" \
+    "$tmp/main.swift"
+"$tmp/health-catalog" > "$tmp/health-catalog.json"
+
+case "${1:-}" in
+  --check)
+    if ! cmp -s "$tmp/health-catalog.json" "$output"; then
+      echo "error: $output is out of date. Run scripts/format to regenerate it." >&2
+      exit 1
+    fi
+    ;;
+  "")
+    cp "$tmp/health-catalog.json" "$output"
+    ;;
+  *)
+    echo "usage: scripts/generate-health-catalog [--check]" >&2
+    exit 2
+    ;;
+esac
