@@ -154,18 +154,26 @@ struct AgentAccessClient: Sendable {
   var entries: @Sendable (_ limit: Int) async throws -> [AgentAccessEntry]
   /// Turns access off and empties the log, when the account signs out.
   var reset: @Sendable () async throws -> Void
+  /// Before each app action (851-2892): throws `AgentAccessError.off` while access is off,
+  /// otherwise logs the action, as the command does before each query.
+  var authorize: @Sendable (_ command: String, _ process: String) async throws -> Void
   /// Where `lil` is installed, for how to connect an agent.
   var commandLineTool: @Sendable () async -> URL?
 }
 
 extension AgentAccessClient: DependencyKey {
   static var liveValue: Self {
-    let store = AgentAccessStore(directory: HealthDatabase.macDirectory)
-    return Self(
+    live(AgentAccessStore(directory: HealthDatabase.macDirectory))
+  }
+
+  /// The setting and log in `store`'s file: the app's, or a test's temporary one.
+  static func live(_ store: AgentAccessStore) -> Self {
+    Self(
       isEnabled: { try store.isEnabled() },
       setEnabled: { try store.setEnabled($0, at: $1) },
       entries: { try store.entries(limit: $0) },
       reset: { try store.reset() },
+      authorize: { try store.authorize(command: $0, process: $1) },
       commandLineTool: { CommandLineToolInstaller.installedLocation() }
     )
   }
@@ -176,6 +184,7 @@ extension AgentAccessClient: DependencyKey {
       setEnabled: unimplemented("AgentAccessClient.setEnabled"),
       entries: unimplemented("AgentAccessClient.entries"),
       reset: unimplemented("AgentAccessClient.reset"),
+      authorize: unimplemented("AgentAccessClient.authorize"),
       commandLineTool: unimplemented("AgentAccessClient.commandLineTool", placeholder: nil)
     )
   }

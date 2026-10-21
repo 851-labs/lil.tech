@@ -1,3 +1,4 @@
+import AppIntents
 import ComposableArchitecture
 import HealthMacApp
 import LilAuth
@@ -21,6 +22,8 @@ struct LilHealthApp: App {
     prepareDependencies {
       $0.authDevice = .current(app: "health-mac")
       $0.authenticateAPI()
+      // Now, so an intent that launched the app waits for sign-in from launch.
+      $0.healthAppActions = .live
       do {
         try $0.prepareHealthSync()
       } catch {
@@ -58,6 +61,29 @@ struct LilHealthApp: App {
     Settings {
       SettingsView(store: Self.store)
     }
+  }
+}
+
+/// The intents, entities and App Shortcuts `HealthMacApp` provides (851-2892): the app's App
+/// Intents metadata includes a package's only through the app's own `AppIntentsPackage`.
+struct LilHealthAppIntents: AppIntentsPackage {
+  static var includedPackages: [any AppIntentsPackage.Type] { [HealthMacAppIntents.self] }
+}
+
+/// Phrases Siri and Spotlight offer without any setup (851-2892). Here rather than in
+/// `HealthMacApp`, with the intent: the app's App Intents metadata leaves out a package's App
+/// Shortcuts.
+struct LilHealthAppShortcuts: AppShortcutsProvider {
+  static var appShortcuts: [AppShortcut] {
+    AppShortcut(
+      intent: OpenHealthPageIntent(),
+      phrases: [
+        "Open \(\.$target) in \(.applicationName)",
+        "Show \(\.$target) in \(.applicationName)",
+      ],
+      shortTitle: "Open Page",
+      systemImageName: "heart.text.square"
+    )
   }
 }
 

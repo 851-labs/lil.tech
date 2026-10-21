@@ -93,14 +93,15 @@ struct SidebarView: View {
 }
 
 /// What's selected: Summary's pins, Health Details, a category's metrics, or a metric found by
-/// search. A metric's card opens its detail.
+/// search. A metric's card opens its detail, in the store's `metricPath`, so an intent can open
+/// one too.
 struct DetailView: View {
-  let store: StoreOf<AppFeature>
+  @Bindable var store: StoreOf<AppFeature>
 
   var body: some View {
     switch store.selection {
     case .summary, nil:
-      NavigationStack {
+      NavigationStack(path: $store.metricPath) {
         SummaryView(store: store.scope(\.summary, action: \.summary))
           .navigationDestination(for: String.self) { MetricDetail(typeID: $0) }
       }
@@ -109,7 +110,7 @@ struct DetailView: View {
         HealthDetailsView()
       }
     case .category(let category):
-      NavigationStack {
+      NavigationStack(path: $store.metricPath) {
         CategoryView(category: category)
           .navigationDestination(for: String.self) { MetricDetail(typeID: $0) }
       }

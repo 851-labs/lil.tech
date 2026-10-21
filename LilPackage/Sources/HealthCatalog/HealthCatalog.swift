@@ -1,3 +1,5 @@
+import Foundation
+
 /// Every Apple Health data type lil health syncs.
 ///
 /// HealthKit has no API that lists its types, so this list is maintained by hand.
@@ -21,6 +23,23 @@ public enum HealthCatalog {
 
   public static func type(id: String) -> HealthDataType? {
     byID[id]
+  }
+
+  /// The type a person or agent names: by its HealthKit identifier, by the name Health shows
+  /// (`Steps`, `heart rate`), or by the identifier without its prefix (`StepCount`), in any case.
+  /// What `lil-health` and the app's intents (`HealthPage`) accept, so they find the same types.
+  public static func type(named name: String) -> HealthDataType? {
+    if let type = byID[name] { return type }
+    let wanted = name.trimmingCharacters(in: .whitespaces).lowercased()
+    return all.first { $0.name.lowercased() == wanted }
+      ?? all.first { shortID($0.id).lowercased() == wanted }
+  }
+
+  /// An identifier without HealthKit's prefix: `StepCount` for
+  /// `HKQuantityTypeIdentifierStepCount`.
+  public static func shortID(_ id: String) -> String {
+    guard let range = id.range(of: "TypeIdentifier") else { return id }
+    return String(id[range.upperBound...])
   }
 
   /// Types Browse lists under a category, including types whose own screen is elsewhere.
