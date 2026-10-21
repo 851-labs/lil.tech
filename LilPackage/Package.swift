@@ -330,9 +330,13 @@ let package = Package(
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
       ]
     ),
-    // `lil`, the command that runs each app's own (`lil health …` runs `lil-health …`), like git.
+    // `lil`, the command that runs each app's own (`lil health …` runs `lil-health …`), like git,
+    // and `lil mcp`, one MCP server combining each app's (851-2897).
     .target(
-      name: "LilCLI"
+      name: "LilCLI",
+      dependencies: [
+        .product(name: "MCP", package: "swift-sdk")
+      ]
     ),
     // `lil` for `swift run lil-dev` and LilCLITests. The apps bundle the same main.swift, built
     // by an Xcode tool target of their own (`lil` in LilHealth.xcodeproj). Named apart from it,
@@ -345,9 +349,25 @@ let package = Package(
     .testTarget(
       name: "LilCLITests",
       dependencies: [
+        "HealthAgentAccess",
+        "HealthDatabase",
         "LilCLI",
         "lil-dev",
+        "lil-example",
+        "lil-health-dev",
+        .product(name: "GRDB", package: "GRDB.swift"),
+        .product(name: "MCP", package: "swift-sdk"),
       ]
+    ),
+    // A stand-in for a second app's command line tool, for LilCLITests: `lil-example mcp` serves
+    // one tool and one resource, so `lil mcp` is tested with two apps while lil health is the only
+    // one with a server.
+    .executableTarget(
+      name: "lil-example",
+      dependencies: [
+        .product(name: "MCP", package: "swift-sdk")
+      ],
+      path: "Tests/lil-example"
     ),
     // An app's Install Command Line Tool… menu item, which installs the `lil` it bundles.
     .target(

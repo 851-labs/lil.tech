@@ -105,5 +105,20 @@ struct AgentAccessStoreTests {
       #expect(AgentAccessStore.callingProcess(of: getpid())?.isEmpty == false)
       #expect(AgentAccessStore.callingProcess(of: -1) == nil)
     }
+
+    /// `lil mcp` names the agent for the servers it starts, whose parent is `lil` (851-2897).
+    @Test
+    func takesTheCallingProcessFromLilMCP() {
+      #expect(
+        AgentAccessStore.callingProcess(environment: ["LIL_CALLING_PROCESS": "claude (via lil mcp)"]
+        )
+          == "claude (via lil mcp)")
+      #expect(
+        AgentAccessStore.callingProcess(environment: ["LIL_CALLING_PROCESS": ""])
+          == AgentAccessStore.callingProcess(of: getppid()))
+      #expect(
+        AgentAccessStore.callingProcess(environment: [:])
+          == AgentAccessStore.callingProcess(of: getppid()))
+    }
   #endif
 }

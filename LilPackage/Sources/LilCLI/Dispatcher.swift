@@ -19,7 +19,8 @@ public struct Dispatcher: Sendable {
   public var describe: @Sendable (_ tool: URL) -> String?
   /// This copy's version (`lil --version`).
   public var version: Int
-  /// The apps whose tools `lil help` looks for inside them, besides any `lil-<app>` on `PATH`.
+  /// The apps whose tools `lil help` looks for inside them, besides any `lil-<app>` on `PATH`,
+  /// and the only ones whose servers `lil mcp` starts.
   public var knownApps: [String]
 
   public init(
@@ -92,6 +93,8 @@ public struct Dispatcher: Sendable {
       return .print(listing(), status: 0)
     case .version:
       return .print("lil \(version)\n", status: 0)
+    case .mcp:
+      return .serveMCP
     case .help(let app):
       return run(app: app, arguments: ["--help"])
     case .run(let app, let arguments):
@@ -126,6 +129,8 @@ public struct Dispatcher: Sendable {
   static let usage = """
     usage: lil <app> [<arguments>…]   Runs the app's command line tool, lil-<app>.
            lil help <app>              Shows the app's help.
+           lil mcp                     Serves every app's tools to agents as one MCP server, on
+                                       standard input and output.
            lil --version
 
     """
@@ -179,6 +184,8 @@ public enum Action: Equatable, Sendable {
   case printError(String, status: Int32)
   /// Replaces `lil` with the tool, so its input, output, signals and exit status are the tool's.
   case exec(URL, arguments: [String])
+  /// Serves `lil mcp` on standard input and output until the client closes them.
+  case serveMCP
 
   /// `EX_USAGE`.
   static let usageStatus: Int32 = 64

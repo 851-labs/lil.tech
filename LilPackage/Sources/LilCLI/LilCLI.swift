@@ -6,11 +6,14 @@ public import Foundation
 public enum LilCLI {
   /// Runs `lil` with the process's arguments and environment.
   public static func main() -> Never {
-    perform(Dispatcher.live().action(for: Array(CommandLine.arguments.dropFirst())))
+    let dispatcher = Dispatcher.live()
+    perform(dispatcher.action(for: Array(CommandLine.arguments.dropFirst())), with: dispatcher)
   }
 
-  static func perform(_ action: Action) -> Never {
+  static func perform(_ action: Action, with dispatcher: Dispatcher) -> Never {
     switch action {
+    case .serveMCP:
+      LilMCPServer.serve(dispatcher: dispatcher)
     case .print(let text, let status):
       FileHandle.standardOutput.write(Data(text.utf8))
       exit(status)

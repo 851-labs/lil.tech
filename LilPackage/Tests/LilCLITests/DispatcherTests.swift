@@ -131,6 +131,9 @@ struct DispatcherTests {
     // Not apps' tools.
     try writeScript("exit 0", to: secondPath.appending(path: "lil-Bad.sh"))
     try writeScript("exit 0", to: secondPath.appending(path: "lil-quiet"), executable: false)
+    // `lil`'s own commands.
+    try writeScript("exit 0", to: secondPath.appending(path: "lil-help"))
+    try writeScript("exit 0", to: secondPath.appending(path: "lil-mcp"))
     // Only known apps' tools are asked to describe themselves.
     let dispatcher = dispatcher(describe: { tool in
       tool.lastPathComponent == "lil-test" ? "Tests things" : "Shouldn't be asked"
@@ -142,6 +145,7 @@ struct DispatcherTests {
       return
     }
     #expect(listing.hasPrefix("usage: lil <app>"))
+    #expect(listing.contains("\n       lil mcp "))
     #expect(listing.hasSuffix("Installed apps:\n  another-app\n  test          Tests things\n"))
   }
 
@@ -152,6 +156,18 @@ struct DispatcherTests {
       return
     }
     #expect(listing.hasSuffix("No installed lil app has a command line tool yet.\n"))
+  }
+
+  /// `lil mcp` is `lil`'s own, even with a `lil-mcp` on `PATH`.
+  @Test
+  func servesMCP() throws {
+    try writeScript("exit 0", to: firstPath.appending(path: "lil-mcp"))
+    #expect(dispatcher().action(for: ["mcp"]) == .serveMCP)
+    guard case .printError(let message, 64) = dispatcher().action(for: ["mcp", "health"]) else {
+      Issue.record("\(dispatcher().action(for: ["mcp", "health"]))")
+      return
+    }
+    #expect(message.hasPrefix("lil: mcp takes no arguments\n"))
   }
 
   @Test
