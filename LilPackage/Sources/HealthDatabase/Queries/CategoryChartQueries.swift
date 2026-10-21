@@ -29,82 +29,78 @@ extension HealthDatabase {
   /// total per hour (a day) or per day, and for six months or a year the average day of each week
   /// or month, with the day's total or the average day in the header. What's counted depends on
   /// the type:
-  /// - **Stand Hours:** hours stood (`categoryValue` 0; 1 is idle), one per hour-long sample.
+  /// - **Stand Hours:** hours stood (`categoryValue` 0; 1 is idle), each hour once, however many
+  ///   watches recorded it. Days with only idle hours count as days, with none stood.
   /// - **Mindful Minutes:** minutes in sessions, overlapping sessions (from different apps)
   ///   counted once.
-  /// - **Handwashing, Toothbrushing:** sessions, with their average length in the header.
+  /// - **Handwashing, Toothbrushing:** sessions, overlapping ones (the same session from a
+  ///   toothbrush and a watch) counted once, with their average length in the header.
   /// Days split in `calendar`'s time zone.
   public static func categoryChart(
     of typeID: String, range: ChartRange, offset: Int, now: Date, calendar: Calendar,
     _ db: Database
   ) throws -> MetricChart {
     let interval = range.interval(offset: offset, now: now, calendar: calendar)
+    let window = interval.start..<interval.end
     let (lower, upper) = (interval.start.unixMilliseconds, interval.end.unixMilliseconds)
     // Sessions that started before the period but run into it count for the part inside it.
+    // These are short (an hour at most for a stand hour, a session for the rest), so a day before
+    // is enough, and the type and start index bounds the read.
+    let earliest = lower - 86_400_000
     let samples =
       try HealthSample
-      .where { $0.type.eq(typeID) && $0.endDate > lower && $0.startDate < upper }
-      .order(by: \.startDate)
+      .where {
+        $0.type.eq(typeID) && $0.startDate >= earliest && $0.startDate < upper
+          && $0.endDate > lower
+      }
+      .select { ($0.startDate, $0.endDate, $0.categoryValue) }
       .fetchAll(db)
-    let byDay = range != .day
-    let unit: Calendar.Component = byDay ? .day : .hour
+      .map { (start: Date(unixMilliseconds: $0), end: Date(unixMilliseconds: $1), value: $2) }
+    let unit: Calendar.Component = range == .day ? .hour : .day
     var totals: [Date: Double] = [:]
-    func add(_ amount: Double, at date: Date) {
-      let start = calendar.dateInterval(of: unit, for: date)?.start ?? date
-      totals[start, default: 0] += amount
-    }
+    func bucket(_ date: Date) -> Date { calendar.dateInterval(of: unit, for: date)?.start ?? date }
+    var summary: MetricChart.Summary?
     switch typeID {
     case standHourType:
-      for sample in samples where sample.categoryValue == 0 && sample.startDate >= lower {
-        add(1, at: sample.start)
+      var stood: Set<Date> = []
+      for sample in samples where window.contains(sample.start) {
+        // An hour once, whichever watch recorded it.
+        let hour = calendar.dateInterval(of: .hour, for: sample.start)?.start ?? sample.start
+        if sample.value == 0 { stood.insert(hour) }
+        totals[bucket(hour), default: 0] += 0
       }
+      for hour in stood { totals[bucket(hour), default: 0] += 1 }
     case mindfulSessionType:
-      let window = interval.start..<interval.end
       for session in mergedIntervals(samples.map { $0.start..<max($0.start, $0.end) }) {
-        guard let clamped = session.clampedIfOverlapping(window) else { continue }
+        let clamped = session.clamped(to: window)
         // Split at each hour or day it crosses.
         var start = clamped.lowerBound
         while start < clamped.upperBound {
-          let bucketEnd = calendar.dateInterval(of: unit, for: start)?.end ?? clamped.upperBound
-          let end = min(bucketEnd, clamped.upperBound)
-          add(end.timeIntervalSince(start) / 60, at: start)
+          let end = min(
+            calendar.dateInterval(of: unit, for: start)?.end ?? clamped.upperBound,
+            clamped.upperBound)
+          totals[bucket(start), default: 0] += end.timeIntervalSince(start) / 60
           start = end
         }
       }
     default:
-      for sample in samples where sample.startDate >= lower { add(1, at: sample.start) }
+      // The same session from two sources is one.
+      let sessions = mergedIntervals(samples.map { $0.start..<max($0.start, $0.end) })
+        .filter { window.contains($0.lowerBound) }
+      for session in sessions { totals[bucket(session.lowerBound), default: 0] += 1 }
+      if !sessions.isEmpty {
+        let seconds = sessions.reduce(0) { $0 + $1.upperBound.timeIntervalSince($1.lowerBound) }
+        summary = .averageDuration(seconds / Double(sessions.count))
+      }
     }
-    let days = totals.sorted { $0.key < $1.key }
-    var points = days.map { ChartPoint(start: $0.key, value: $0.value) }
-    if range == .sixMonths || range == .year {
-      // The average day of each week or month, among days with any.
-      var groups: [(start: Date, sum: Double, days: Int)] = []
-      for (day, value) in days {
-        let start = calendar.dateInterval(of: range.bucket.component, for: day)?.start ?? day
-        if groups.last?.start == start {
-          groups[groups.count - 1].sum += value
-          groups[groups.count - 1].days += 1
-        } else {
-          groups.append((start, value, 1))
-        }
-      }
-      points = groups.map { ChartPoint(start: $0.start, value: $0.sum / Double($0.days)) }
-    }
-    let total = days.reduce(0) { $0 + $1.value }
-    var summary: MetricChart.Summary?
-    switch typeID {
-    case handwashingType, toothbrushingType:
-      let inPeriod = samples.filter { $0.startDate >= lower }
-      if !inPeriod.isEmpty {
-        let seconds = inPeriod.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) }
-        summary = .averageDuration(seconds / Double(inPeriod.count))
-      }
-    default:
-      if !days.isEmpty {
-        // A day's hours are one day.
-        let dayCount = byDay ? days.count : 1
-        summary = range == .day ? .total(total) : .dailyAverage(total / Double(dayCount))
-      }
+    let buckets = totals.sorted { $0.key < $1.key }.map { (start: $0.key, value: $0.value) }
+    let points =
+      range == .sixMonths || range == .year
+      ? averageDays(buckets, by: range, calendar: calendar)
+      : buckets.map { ChartPoint(start: $0.start, value: $0.value) }
+    if summary == nil, !buckets.isEmpty {
+      let total = buckets.reduce(0) { $0 + $1.value }
+      summary = range == .day ? .total(total) : .dailyAverage(total / Double(buckets.count))
     }
     return MetricChart(interval: interval, points: points, summary: summary)
   }
@@ -120,13 +116,5 @@ extension HealthDatabase {
       }
     }
     return merged
-  }
-}
-
-extension Range where Bound == Date {
-  /// The part inside `other`, if any.
-  fileprivate func clampedIfOverlapping(_ other: Range<Date>) -> Range<Date>? {
-    let clamped = clamped(to: other)
-    return clamped.isEmpty ? nil : clamped
   }
 }

@@ -2101,13 +2101,45 @@ struct CategoryChartTests {
       sample("d", stand, from: time(9, days: -1), to: time(10, days: -1)),
     ]
     let day = try chart(stand, .day, samples)
-    #expect(day.points.map(\.start) == [time(9), time(10)])
-    #expect(day.points.map(\.value) == [1, 1])
+    // The idle hour has a bar of none.
+    #expect(day.points.map(\.start) == [time(9), time(10), time(11)])
+    #expect(day.points.map(\.value) == [1, 1, 0])
     #expect(day.summary == .total(2))
 
     let week = try chart(stand, .week, samples)
     #expect(week.points.map(\.value) == [1, 2])
     #expect(week.summary == .dailyAverage(1.5))
+  }
+
+  @Test
+  func anHourStoodCountsOnceAndIdleDaysCount() throws {
+    let stand = HealthDatabase.standHourType
+    let samples = [
+      // Two watches recorded the same hour.
+      sample("a", stand, from: time(9), to: time(10), source: "Watch"),
+      sample("b", stand, from: time(9), to: time(10), source: "Other Watch"),
+      // A day with only idle hours.
+      sample("c", stand, from: time(9, days: -1), to: time(10, days: -1), value: 1),
+    ]
+    #expect(try chart(stand, .day, samples).summary == .total(1))
+    let week = try chart(stand, .week, samples)
+    #expect(week.points.map(\.value) == [0, 1])
+    #expect(week.summary == .dailyAverage(0.5))
+  }
+
+  @Test
+  func theSameToothbrushingSessionFromTwoSourcesCountsOnce() throws {
+    let toothbrushing = HealthDatabase.toothbrushingType
+    let samples = [
+      sample("a", toothbrushing, from: time(8), to: time(8, 2), source: "Toothbrush"),
+      sample(
+        "b", toothbrushing, from: time(8, 0).addingTimeInterval(10), to: time(8, 2), source: "Watch"
+      ),
+      sample("c", toothbrushing, from: time(21), to: time(21, 2)),
+    ]
+    let day = try chart(toothbrushing, .week, samples)
+    #expect(day.points.map(\.value) == [2])
+    #expect(day.summary == .averageDuration(120))
   }
 
   @Test

@@ -123,26 +123,32 @@ extension HealthDatabase {
     let total = totals.reduce(0) { $0 + $1.sum }
     var points = totals.map { ChartPoint(start: $0.start, value: $0.sum) }
     if byDay {
-      // The average day of each week or month.
-      var groups: [(start: Date, sum: Double, days: Int)] = []
-      for day in totals {
-        let start =
-          calendar.dateInterval(of: range.bucket.component, for: day.start)?.start
-          ?? day.start
-        if groups.last?.start == start {
-          groups[groups.count - 1].sum += day.sum
-          groups[groups.count - 1].days += 1
-        } else {
-          groups.append((start, day.sum, 1))
-        }
-      }
-      points = groups.map { ChartPoint(start: $0.start, value: $0.sum / Double($0.days)) }
+      points = averageDays(totals.map { ($0.start, $0.sum) }, by: range, calendar: calendar)
     }
     // Longer periods' totals are one a day.
     let summary: MetricChart.Summary? =
       totals.isEmpty
       ? nil : range == .day ? .total(total) : .dailyAverage(total / Double(totals.count))
     return MetricChart(interval: interval, points: points, summary: summary)
+  }
+
+  /// The average day of each of `range`'s buckets (a week for six months, a month for a year),
+  /// among `days` (in order) that have a value.
+  static func averageDays(
+    _ days: [(start: Date, value: Double)], by range: ChartRange, calendar: Calendar
+  ) -> [ChartPoint] {
+    var groups: [(start: Date, sum: Double, days: Int)] = []
+    for day in days {
+      let start =
+        calendar.dateInterval(of: range.bucket.component, for: day.start)?.start ?? day.start
+      if groups.last?.start == start {
+        groups[groups.count - 1].sum += day.value
+        groups[groups.count - 1].days += 1
+      } else {
+        groups.append((start, day.value, 1))
+      }
+    }
+    return groups.map { ChartPoint(start: $0.start, value: $0.sum / Double($0.days)) }
   }
 
   /// A cumulative type's totals per period, from the statistics source's 30-minute buckets and,

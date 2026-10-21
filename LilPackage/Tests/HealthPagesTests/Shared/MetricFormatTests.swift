@@ -60,4 +60,12 @@ struct MetricFormatTests {
       MetricFormat.date(date(400), isDay: true, now: now, calendar: utc)
         == date(400).formatted(style.month(.abbreviated).day().year()))
   }
+
+  @Test
+  func durationsReadAsSessionsDo() {
+    #expect(MetricFormat.duration(23.4) == ("23", "sec"))
+    // Rounded before choosing the unit.
+    #expect(MetricFormat.duration(59.7) == ("1", "min"))
+    #expect(MetricFormat.duration(150) == ("2.5", "min"))
+  }
 }

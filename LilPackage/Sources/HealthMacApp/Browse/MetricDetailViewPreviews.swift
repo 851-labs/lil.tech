@@ -153,15 +153,9 @@ private func categoryChart(
 ) -> some View {
   let calendar = Calendar.current
   let interval = range.interval(offset: 0, now: .now, calendar: calendar)
-  let unit: Calendar.Component =
-    switch range {
-    case .day: .hour
-    case .week, .month: .day
-    case .sixMonths: .weekOfYear
-    case .year: .month
-    }
   let points = values.enumerated().compactMap { index, value -> ChartPoint? in
-    guard value > 0, let start = calendar.date(byAdding: unit, value: index, to: interval.start)
+    guard value > 0,
+      let start = calendar.date(byAdding: range.barUnit, value: index, to: interval.start)
     else { return nil }
     return ChartPoint(start: start, value: value)
   }
