@@ -3,6 +3,21 @@
   <channel>
     <title>lil health</title>
     <item>
+      <title>0.2.0</title>
+      <pubDate>Wed, 21 Oct 2026 02:43:18 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.2.0</link>
+      <sparkle:version>252</sparkle:version>
+      <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<ul><li>Health Details: date of birth, sex, blood type, skin type and wheelchair use</li><li>Vision prescriptions for glasses and contacts</li><li>Medications: current and archived, with adherence and each day's doses</li><li>A Settings window (⌘,) for sign-in methods and exporting your data</li></ul>]]></description>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/health%2Fv0.2.0/lil-health-0.2.0.dmg"
+        length="15068157"
+        type="application/octet-stream"
+        sparkle:edSignature="hkzLbHvu2CuEYGaL0nFNnpclT7WcqdL4y7GGM6p9MyTWQWwVMAR4LoRF0n0AxDmZHUaP0zEptCcwvTRZJUI+AQ=="
+      />
+    </item>
+    <item>
       <title>0.1.2</title>
       <pubDate>Mon, 19 Oct 2026 02:36:47 +0000</pubDate>
       <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.1.2</link>
