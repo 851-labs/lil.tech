@@ -51,6 +51,9 @@ struct MetricDetailView: View {
         StateOfMindView()
       } else if type.kind == .scoredAssessment, let kind = AssessmentKind(rawValue: type.id) {
         ScoredAssessmentsView(kind: kind, name: type.name)
+      } else if let kind = HealthNotificationKind(rawValue: type.id) {
+        // High heart rate, noise, walking steadiness… notifications (851-2829).
+        HealthNotificationsView(kind: kind)
       } else if type.kind == .quantity || HealthDatabase.categoryChartTypes.contains(type.id) {
         MetricDetailContent(
           type: type, range: $range, offset: $offset,

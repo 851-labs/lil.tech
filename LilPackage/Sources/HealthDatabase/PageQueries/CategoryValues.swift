@@ -32,6 +32,10 @@ extension HealthDatabase {
         2: "Implant", 3: "Injection", 4: "Intrauterine Device", 5: "Intravaginal Ring", 6: "Oral",
         7: "Patch",
       ][value]
+    case HealthNotificationKind.walkingSteadiness.rawValue:
+      // HKCategoryValueAppleWalkingSteadinessEvent: the first notification of a low or very low
+      // level (1, 2), or a repeat one (3, 4).
+      return [1: "Low", 2: "Very Low", 3: "Still Low", 4: "Still Very Low"][value]
     default:
       return nil
     }
