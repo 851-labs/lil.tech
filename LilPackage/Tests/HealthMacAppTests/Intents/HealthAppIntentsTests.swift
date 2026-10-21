@@ -68,6 +68,23 @@ struct HealthAppIntentsTests {
     }
   }
 
+  @Test
+  func aStackGoingAwayCantEmptyTheNextOnesPath() async {
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
+      AppFeature()
+    }
+    await store.send(.pageOpened(steps)) {
+      $0.selection = .category(.activity)
+      $0.metricPath = ["HKQuantityTypeIdentifierStepCount"]
+    }
+    // Summary's stack, on its way out.
+    await store.send(.metricPathChanged([], selection: .summary))
+    // Activity's own Back.
+    await store.send(.metricPathChanged([], selection: .category(.activity))) {
+      $0.metricPath = []
+    }
+  }
+
   @Test(.timeLimit(.minutes(1)))
   func servesActionsWhileSignedInAndFailsThemOnceSignedOut() async throws {
     let actions = HealthAppActions(channel: HealthAppActionChannel(signInWait: .zero))

@@ -72,6 +72,10 @@ public struct AppFeature {
     case summary(SummaryFeature.Action)
     case syncStatusChanged(SyncStatus)
     case localPinsMovedUp([String])
+    /// A stack's navigation changed its metrics: a card clicked, or Back. The stack says which
+    /// selection it shows, so one that's going away (as the selection changes) can't empty the
+    /// path the next one opens with.
+    case metricPathChanged([String], selection: SidebarItem?)
     /// Shows a page, as the sidebar and a metric's card do: the window's part is the intent's.
     case pageOpened(HealthPage)
     case task
@@ -213,6 +217,11 @@ public struct AppFeature {
       case .localPinsMovedUp(let moved):
         // Only those moved: any pinned meanwhile on a Mac without sync stay for next time.
         state.$localPins.withLock { local in local.removeAll { moved.contains($0) } }
+        return .none
+
+      case .metricPathChanged(let path, let selection):
+        guard selection == state.selection else { return .none }
+        state.metricPath = path
         return .none
 
       case .pageOpened(let page):

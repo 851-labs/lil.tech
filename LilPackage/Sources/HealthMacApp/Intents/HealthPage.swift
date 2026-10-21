@@ -154,7 +154,7 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
     let key = "\(symbolName) \(color)"
     if let cached = icons.withLock({ $0[key] }) { return cached }
     let configuration = NSImage.SymbolConfiguration(pointSize: 64, weight: .regular)
-      .applying(NSImage.SymbolConfiguration(paletteColors: [NSColor(color)]))
+      .applying(NSImage.SymbolConfiguration(hierarchicalColor: NSColor(color)))
     guard
       let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
         .withSymbolConfiguration(configuration),
