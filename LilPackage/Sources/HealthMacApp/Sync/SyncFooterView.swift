@@ -1,12 +1,11 @@
 import LilSync
 import SwiftUI
 
-/// The sidebar's footer: how sync is doing, and the account menu.
+/// The sidebar's footer: how sync is doing. The account is in Settings (⌘,) and Sign Out in the
+/// app menu (851-2822).
 struct SyncFooterView: View {
   let status: SyncStatus
   let retry: () -> Void
-  let showAccount: () -> Void
-  let signOut: () -> Void
 
   var body: some View {
     HStack(alignment: .center, spacing: 8) {
@@ -34,17 +33,6 @@ struct SyncFooterView: View {
       default:
         EmptyView()
       }
-      Menu {
-        Button("Account Settings…", action: showAccount)
-        Divider()
-        Button("Sign Out", action: signOut)
-      } label: {
-        Image(systemName: "person.crop.circle")
-      }
-      .menuStyle(.borderlessButton)
-      .menuIndicator(.hidden)
-      .fixedSize()
-      .help("Account")
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
@@ -95,7 +83,7 @@ struct SyncFooterView: View {
 
 @MainActor
 private func footer(_ status: SyncStatus) -> some View {
-  SyncFooterView(status: status, retry: {}, showAccount: {}, signOut: {})
+  SyncFooterView(status: status, retry: {})
     .frame(width: 260)
     .background(.background)
 }

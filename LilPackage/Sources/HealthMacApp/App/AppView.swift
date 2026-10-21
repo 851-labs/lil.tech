@@ -43,7 +43,6 @@ public struct AppView: View {
 /// data types.
 struct SidebarView: View {
   @Bindable var store: StoreOf<AppFeature>
-  @Environment(\.openSettings) private var openSettings
 
   var body: some View {
     List(selection: $store.selection) {
@@ -81,10 +80,7 @@ struct SidebarView: View {
     .safeAreaInset(edge: .bottom, spacing: 0) {
       VStack(spacing: 0) {
         Divider()
-        SyncFooterView(
-          status: store.syncStatus, retry: { store.send(.retrySyncButtonTapped) },
-          showAccount: { openSettings() },
-          signOut: { store.send(.signOutButtonTapped) })
+        SyncFooterView(status: store.syncStatus, retry: { store.send(.retrySyncButtonTapped) })
       }
     }
     .navigationSplitViewColumnWidth(min: 200, ideal: 240)

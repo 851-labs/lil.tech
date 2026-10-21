@@ -48,7 +48,7 @@ struct LilHealthApp: App {
         SignOutCommand(store: Self.store)
       }
     }
-    // lil health › Settings… (⌘,), and the account menu's Account Settings….
+    // lil health › Settings… (⌘,).
     Settings {
       SettingsView(store: Self.store)
     }
