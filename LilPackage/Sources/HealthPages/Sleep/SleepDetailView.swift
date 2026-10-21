@@ -205,6 +205,20 @@ struct SleepDetailContent: View {
       .clipShape(RoundedRectangle(cornerRadius: 3))
     }
     .chartYScale(domain: rows.map(SleepFormat.name))
+    // The stages' names, which Charts drew white on the light card (851-2869), as did the
+    // secondary styles (`.secondary`, `Color.secondary`) set on them. The primary color, faded,
+    // follows the appearance.
+    .chartYAxis {
+      AxisMarks { value in
+        AxisGridLine()
+        AxisValueLabel {
+          if let name = value.as(String.self) {
+            Text(name)
+              .foregroundStyle(Color.primary.opacity(0.6))
+          }
+        }
+      }
+    }
     .chartXAxis {
       AxisMarks(values: .stride(by: .hour, count: 2)) { _ in
         AxisGridLine()
