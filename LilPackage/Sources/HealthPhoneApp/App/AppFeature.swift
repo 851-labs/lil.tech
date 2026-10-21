@@ -198,6 +198,7 @@ public struct AppFeature {
             .cancel(id: CancelID.signedInChecks),
             // Its answers are the last account's.
             SignInMethodsFeature.cancel(),
+            ConnectedAgentsFeature.cancel(),
             .run { [healthBackfill] send in
               await healthBackfill.reset()
               // Only now, so a scripted run's sign-in doesn't back up into a reset.

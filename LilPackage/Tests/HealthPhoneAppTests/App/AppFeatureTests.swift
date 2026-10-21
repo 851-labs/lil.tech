@@ -350,6 +350,53 @@ struct AppFeatureTests {
   }
 
   @Test
+  func signingOutCancelsAndResetsConnectedAgents() async {
+    // Never answered: every request is still waiting when the account signs out.
+    let (never, _) = AsyncStream<Void>.makeStream()
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
+      AppFeature()
+    } withDependencies: {
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+      $0.connectedAgents.list = { () throws(ConnectedAgentsError) in
+        for await _ in never {}
+        return []
+      }
+      $0.connectedAgents.accessLog = { _ throws(ConnectedAgentsError) in
+        for await _ in never {}
+        return RemoteAgentAccessPage(entries: [], nextBefore: nil)
+      }
+      $0.connectedAgents.revoke = { _ throws(ConnectedAgentsError) in
+        for await _ in never {}
+      }
+    }
+
+    // Settings › Connected Agents reads the agents and their log, and one is being revoked.
+    await store.send(\.syncStatus.connectedAgents.appeared) {
+      $0.syncStatus.connectedAgents.isLoadingLog = true
+    }
+    let agent = ConnectedAgent(
+      id: "grant-1", name: "Claude", domain: "claude.ai", app: "health",
+      connectedAt: Date(timeIntervalSince1970: 1_760_300_000),
+      lastUsedAt: Date(timeIntervalSince1970: 1_760_300_000))
+    await store.send(\.syncStatus.connectedAgents.revokeButtonTapped, agent) {
+      $0.syncStatus.connectedAgents.alert = .confirmRevoke(agent)
+    }
+    await store.send(\.syncStatus.connectedAgents.alert.presented.confirmRevoke, agent.id) {
+      $0.syncStatus.connectedAgents.alert = nil
+      $0.syncStatus.connectedAgents.revoking = [agent.id]
+    }
+    await store.send(.signedInChanged(false)) {
+      $0.isSignedIn = false
+      $0.syncStatus.connectedAgents = ConnectedAgentsFeature.State()
+    }
+    await store.receive(\.signIn.readyToSignIn)
+    // Cancelled with the account, so nothing is left running.
+    await store.finish()
+  }
+
+  @Test
   func reviewingHealthAccessReopensOnboarding() async {
     let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
       AppFeature()

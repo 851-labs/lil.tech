@@ -351,7 +351,7 @@ struct ConnectedAgentRow: View {
 extension ConnectedAgentRow {
   /// When it last read: the server gives the connection time until it first does.
   fileprivate var lastUsed: String {
-    abs(agent.lastUsedAt.timeIntervalSince(agent.connectedAt)) < 1
+    agent.isUnused
       ? "Not used yet"
       : "Last used \(agent.lastUsedAt.formatted(.relative(presentation: .named)))"
   }

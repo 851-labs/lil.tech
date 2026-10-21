@@ -1,10 +1,9 @@
 import ComposableArchitecture
 import Foundation
-import LilAuth
 import LilTestSupport
 import Testing
 
-@testable import HealthMacApp
+@testable import LilAuth
 
 // Synthetic data only (AGENTS.md).
 @MainActor

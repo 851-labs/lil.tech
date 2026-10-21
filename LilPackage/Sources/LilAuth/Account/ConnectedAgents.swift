@@ -39,6 +39,10 @@ public struct ConnectedAgent: Equatable, Identifiable, Sendable {
 
   /// Whether its name is its own claim: no verified domain backs it.
   public var isUnverified: Bool { domain == nil }
+
+  /// Whether it hasn't read anything yet: the server gives its connection time as its last use
+  /// until it first does.
+  public var isUnused: Bool { abs(lastUsedAt.timeIntervalSince(connectedAt)) < 1 }
 }
 
 /// A read a connected agent made, from the account's remote access log.

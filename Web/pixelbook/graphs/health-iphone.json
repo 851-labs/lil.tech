@@ -40,6 +40,16 @@
       "id": "sign-in-methods",
       "screen": "LilAuth/SignInMethodsSectionPreviews.swift",
       "title": "Sign-In Methods"
+    },
+    {
+      "id": "connected-agents",
+      "screen": "HealthPhoneApp/ConnectedAgentsViewPreviews.swift",
+      "title": "Connected Agents"
+    },
+    {
+      "id": "recent-access",
+      "screen": "HealthPhoneApp/RecentAccessViewPreviews.swift",
+      "title": "Recent Access"
     }
   ],
   "edges": [
@@ -112,6 +122,16 @@
       "from": "settings",
       "to": "sign-in",
       "label": "Sign Out, or Delete Account"
+    },
+    {
+      "from": "settings",
+      "to": "connected-agents",
+      "label": "Connected Agents"
+    },
+    {
+      "from": "connected-agents",
+      "to": "recent-access",
+      "label": "Recent Access"
     }
   ]
 }
