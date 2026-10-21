@@ -11,11 +11,11 @@ public import SQLiteData
 /// A call's days and local times are in its time zone, by default the Mac's.
 public struct HealthTools: Sendable {
   public var now: Date
-  /// The IANA name of the time zone for calls that don't give one: the Mac's, or UTC where the
-  /// conformance cases expect the remote server's default.
-  public var defaultTimeZone: String
+  /// The IANA name of the time zone for calls that don't give one, or `nil` for the Mac's (UTC
+  /// where the conformance cases expect the remote server's default).
+  public var defaultTimeZone: String?
 
-  public init(now: Date = Date(), defaultTimeZone: String = TimeZone.current.identifier) {
+  public init(now: Date = Date(), defaultTimeZone: String? = nil) {
     self.now = now
     self.defaultTimeZone = defaultTimeZone
   }

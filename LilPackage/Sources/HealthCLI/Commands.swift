@@ -273,6 +273,9 @@ struct MCPCommand: ParsableCommand {
 
         claude mcp add --scope user lil-health -- lil health mcp
 
+      Elsewhere (Codevisor, other agents), add a stdio server whose command is `lil`, by its \
+      full path (`which lil`: apps don't get your shell's PATH), with the arguments `health mcp`.
+
       Each tool call answers only while command-line and agent access is on, and is logged \
       there, like a command.
       """)

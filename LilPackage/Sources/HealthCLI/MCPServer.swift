@@ -25,6 +25,12 @@ enum HealthMCPServer {
     }
   }()
 
+  /// The tools' input properties by name: what a call's log entry keeps of its arguments.
+  static let toolArguments: [String: Set<String>] = Dictionary(
+    uniqueKeysWithValues: tools.map { tool in
+      (tool.name, Set((tool.inputSchema.objectValue?["properties"]?.objectValue ?? [:]).keys))
+    })
+
   /// The catalog of categories and types, with workout activities' names: what `list_types`
   /// and `search` name, as a file agents can read whole. Not the person's data, so it's served
   /// whether or not access is on.
@@ -36,6 +42,9 @@ enum HealthMCPServer {
       tools for that.
       """,
     mimeType: "application/json")
+
+  /// The catalog's contents, made once: it doesn't change while the server runs.
+  static let catalogJSON = Result { try HealthCatalog.json() }
 
   /// What the server tells agents when they connect.
   static let instructions = """
@@ -84,7 +93,7 @@ enum HealthMCPServer {
         throw MCPError.invalidParams("Unknown resource: \(parameters.uri)")
       }
       return ReadResource.Result(contents: [
-        .text(try HealthCatalog.json(), uri: catalog.uri, mimeType: catalog.mimeType)
+        .text(try catalogJSON.get(), uri: catalog.uri, mimeType: catalog.mimeType)
       ])
     }
     return server
@@ -100,14 +109,24 @@ enum HealthMCPServer {
     do {
       // Before every call, not once: turning access off stops the next one.
       try AgentAccessStore(directory: context.directory)
-        .authorize(command: logEntry(name, arguments), process: context.process)
+        .authorize(
+          command: logEntry(
+            name, arguments.filter { toolArguments[name]?.contains($0.key) == true }),
+          process: context.process)
+      // The Mac's time zone as it is now, not when the server started: it may run for days, and
+      // the Mac may move.
+      NSTimeZone.resetSystemTimeZone()
       // Opened for each call, so a server that has run since before an update reads the
       // database once the app has migrated it.
       let database = try HealthDatabase.openForReading(
         at: context.directory.appending(path: "Health.sqlite"))
       let tools = HealthTools(now: context.now(), defaultTimeZone: context.timeZone)
       let output = try database.read { db in try query(tools, db) }
-      let json = try JSONEncoder().encode(output)
+      // As the commands' `--json` and the remote server write it: `Europe/London`, not
+      // `Europe\/London`.
+      let encoder = JSONEncoder()
+      encoder.outputFormatting = .withoutEscapingSlashes
+      let json = try encoder.encode(output)
       let structured: Value? = try JSONDecoder().decode(Value.self, from: json)
       return CallTool.Result(
         content: [.text(text: String(decoding: json, as: UTF8.self), annotations: nil, _meta: nil)],
@@ -119,7 +138,7 @@ enum HealthMCPServer {
     }
   }
 
-  /// The access log's entry for a call: the tool and its arguments as JSON, e.g.
+  /// The access log's entry for a call: the tool and the arguments it takes as JSON, e.g.
   /// `metric {"range":"W","type":"Steps"}`.
   static func logEntry(_ name: String, _ arguments: [String: Value]) -> String {
     guard !arguments.isEmpty else { return name }
@@ -140,11 +159,14 @@ private struct ToolCall {
 
   init(name: String, arguments: [String: Value]) throws {
     let arguments = Arguments(values: arguments)
-    let timeZone = try arguments.string("timeZone")
+    // Every tool but `search` takes one.
+    let timeZone = { try arguments.string("timeZone") }
     switch name {
     case "summary":
+      let timeZone = try timeZone()
       query = { tools, db in try tools.summary(timeZone: timeZone, db) }
     case "list_types":
+      let timeZone = try timeZone()
       query = { tools, db in try tools.listTypes(timeZone: timeZone, db) }
     case "metric":
       let type = try arguments.required("type", arguments.string)
@@ -154,6 +176,7 @@ private struct ToolCall {
       )
       .flatMap(HealthTools.Statistic.init(rawValue:))
       let date = try arguments.string("date")
+      let timeZone = try timeZone()
       query = { tools, db in
         try tools.metric(
           type: type, range: range, statistic: statistic, date: date, timeZone: timeZone, db)
@@ -164,6 +187,7 @@ private struct ToolCall {
       let date = try arguments.string("date")
       let cursor = try arguments.string("cursor")
       let limit = try arguments.integer("limit", in: 1...HealthTools.samplesLimit)
+      let timeZone = try timeZone()
       query = { tools, db in
         try tools.samples(
           type: type, range: range, date: date, timeZone: timeZone, cursor: cursor, limit: limit,
@@ -172,14 +196,18 @@ private struct ToolCall {
     case "workouts":
       let range = try arguments.required("range", arguments.range)
       let date = try arguments.string("date")
+      let timeZone = try timeZone()
       query = { tools, db in try tools.workouts(range: range, date: date, timeZone: timeZone, db) }
     case "sleep":
       let range = try arguments.required("range", arguments.range)
       let date = try arguments.string("date")
+      let timeZone = try timeZone()
       query = { tools, db in try tools.sleep(range: range, date: date, timeZone: timeZone, db) }
     case "medications":
+      let timeZone = try timeZone()
       query = { tools, db in try tools.medications(timeZone: timeZone, db) }
     case "health_details":
+      let timeZone = try timeZone()
       query = { tools, db in try tools.healthDetails(timeZone: timeZone, db) }
     case "search":
       let text = try arguments.required("query", arguments.string)
@@ -188,6 +216,7 @@ private struct ToolCall {
       }
       query = { tools, db in try tools.search(query: text, db) }
     case "sync_status":
+      let timeZone = try timeZone()
       query = { tools, db in try tools.syncStatus(timeZone: timeZone, db) }
     default:
       throw MCPError.invalidParams("Unknown tool: \(name)")

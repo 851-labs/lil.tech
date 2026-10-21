@@ -65,10 +65,9 @@ struct HealthMCPServerTests {
     let folder = try AppFolder()
     let connection = try await MCPConnection(folder.directory)
     let listed = try await connection.client.listTools().tools
-    let encoder = JSONEncoder()
-    let roundTrip = try JSONSerialization.jsonObject(with: encoder.encode(listed)) as? NSArray
-    let original = try JSONSerialization.jsonObject(with: Data(committed.utf8)) as? NSArray
-    #expect(roundTrip != nil && roundTrip == original)
+    // As typed JSON, so a boolean that became a number shows.
+    let roundTrip = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(listed))
+    #expect(roundTrip == (try JSONDecoder().decode(JSONValue.self, from: Data(committed.utf8))))
     #expect(listed.map(\.name).count == 10)
     await connection.close()
   }
@@ -110,9 +109,10 @@ struct HealthMCPServerTests {
       try JSONDecoder().decode(HealthMetricResult.self, from: Data(metric.text.utf8)) == expected)
     #expect(metric.text.contains(#""value":null"#))
 
-    // Without a time zone, the Mac's.
+    // Without a time zone, the Mac's. Slashes aren't escaped, as in `--json`.
     let summary = try await connection.call("summary")
     #expect(summary.structuredContent?.objectValue?["timeZone"] == .string("Europe/London"))
+    #expect(summary.text.contains(#""timeZone":"Europe/London""#))
 
     #expect(
       try folder.access.entries().map(\.command) == [
@@ -150,10 +150,16 @@ struct HealthMCPServerTests {
         try await connection.call(name, arguments)
       }
     }
-    // Arguments a tool doesn't take are ignored, as the schemas allow.
+    // Arguments a tool doesn't take are ignored, as the schemas allow, and aren't logged.
     #expect(try await connection.call("summary", ["extra": true]).isError == false)
+    #expect(
+      try await connection.call("search", ["query": "steps", "timeZone": 0]).isError == false)
     // Only the calls that reached a tool were logged.
-    #expect(try folder.access.entries().count == 3)
+    #expect(
+      try folder.access.entries().map(\.command) == [
+        #"search {"query":"steps"}"#, "summary", #"summary {"timeZone":"europe/london"}"#,
+        #"metric {"range":"W","type":"Nope"}"#,
+      ])
     await connection.close()
   }
 

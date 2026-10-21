@@ -36,12 +36,12 @@ public enum HealthCLI {
     public var now: @Sendable () -> Date
     /// The process that ran it, for the access log: a shell, or an agent.
     public var process: String
-    /// The IANA time zone of queries that don't name one: the Mac's.
-    public var timeZone: String
+    /// The IANA time zone of queries that don't name one, or `nil` for the Mac's.
+    public var timeZone: String?
 
     public init(
       directory: URL, now: @escaping @Sendable () -> Date, process: String,
-      timeZone: String = TimeZone.current.identifier
+      timeZone: String? = nil
     ) {
       self.directory = directory
       self.now = now
