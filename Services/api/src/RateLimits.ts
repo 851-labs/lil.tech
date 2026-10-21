@@ -27,6 +27,11 @@ export const rateLimits = {
    * address (e.g. carrier NAT) refreshes about every 15 minutes.
    */
   refresh: { namespace: 3, limit: 600, periodSeconds: 60 },
+  /**
+   * Dynamic client registrations (`POST /oauth/register`) per IP address. High, because hosted
+   * agents register from shared egress ranges: Claude registers a client per connection.
+   */
+  clientRegistration: { namespace: 4, limit: 300, periodSeconds: 60 },
 } as const satisfies Record<
   string,
   { readonly namespace: number; readonly limit: number; readonly periodSeconds: 10 | 60 }
@@ -72,6 +77,7 @@ export class RateLimits extends Context.Service<
     signIn: () => Effect.succeed(true),
     user: () => Effect.succeed(true),
     refresh: () => Effect.succeed(true),
+    clientRegistration: () => Effect.succeed(true),
   });
 }
 

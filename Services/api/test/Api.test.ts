@@ -5,8 +5,7 @@ import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { assert, describe, it } from "@effect/vitest";
 import * as Alchemy from "alchemy";
-import { ConfigProvider, Effect, Exit, Layer, Option, Redacted, Schema } from "effect";
-import { HttpRouter } from "effect/http";
+import { ConfigProvider, Effect, Exit, Option, Redacted, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
@@ -25,7 +24,6 @@ import { storageQuotaBytes } from "../src/store/UserStore.ts";
 import { sessionExpiresHeader } from "../src/store/LiveNotices.ts";
 import { UserStores } from "../src/store/UserStores.ts";
 import { PartUrls } from "../src/sync/SnapshotParts.ts";
-import { WorkerHttpLayer } from "../src/Http.ts";
 import { makeOpenApiSpec } from "../src/OpenApiSpec.ts";
 import {
   addressKey,
@@ -36,78 +34,21 @@ import {
   rateLimits,
 } from "../src/RateLimits.ts";
 import { makeApiWorkerProps } from "../src/Worker.ts";
-import { appleIdentityToken, TestAppleKeys } from "./auth/TestApple.ts";
-import { googleIdToken, TestGoogleClients, TestGoogleKeys } from "./auth/TestGoogle.ts";
-import { TestAuth } from "./auth/TestAuth.ts";
+import { appleIdentityToken } from "./auth/TestApple.ts";
+import { googleIdToken } from "./auth/TestGoogle.ts";
 import { AppleTokens } from "../src/auth/AppleTokens.ts";
 import { AppleTokenRevocations } from "../src/core/AppleTokenRevocations.ts";
-import {
-  TestAppleEndpoint,
-  TestAppleTokens,
-  testAppleCode,
-  testAppleRefreshToken,
-} from "./auth/TestAppleTokens.ts";
-import { batchFile, TestHealthIngestion, TestHealthOutbox } from "./health/TestHealthIngestion.ts";
-import { TestHealthBlobBucket, TestHealthBlobs } from "./health/TestHealthBlobs.ts";
+import { TestAppleEndpoint, testAppleCode, testAppleRefreshToken } from "./auth/TestAppleTokens.ts";
+import { batchFile, TestHealthOutbox } from "./health/TestHealthIngestion.ts";
+import { TestHealthBlobBucket } from "./health/TestHealthBlobs.ts";
 import { healthBlobPrefix } from "../src/health/HealthBlobs.ts";
 import { maxArchiveFiles } from "../src/sync/ExportArchive.ts";
 import { entities } from "../src/store/Registry.ts";
-import {
-  TestStores,
-  TestUserStores,
-  testNoteMutation,
-  writeTestSnapshot,
-} from "./store/TestUserStores.ts";
+import { TestStores, testNoteMutation, writeTestSnapshot } from "./store/TestUserStores.ts";
+
+import { type Handler, send, withApi } from "./TestApi.ts";
 
 const committedSpec = readFileSync(new URL("../openapi.json", import.meta.url), "utf8");
-
-type Handler = (request: Request) => Promise<Response>;
-
-/**
- * Runs `use` with a handler for the same layer the Worker serves, driven with real Requests. The
- * handler and `use` share one test database, so `use` can seed it.
- */
-const withApi = <A, E>(
-  use: (handler: Handler) => Effect.Effect<A, E, Layer.Success<typeof TestServices>>,
-  deployment: Deployment["Service"] = { environment: "staging", version: "45aa829" },
-  limits: RateLimits["Service"] = RateLimits.unlimited,
-) =>
-  Effect.gen(function* () {
-    const services = Layer.mergeAll(
-      TestServices,
-      Layer.succeed(Deployment, deployment),
-      Layer.succeed(RateLimits, limits),
-    );
-    const memoMap = yield* Layer.makeMemoMap;
-    const context = yield* Layer.buildWithMemoMap(services, memoMap, yield* Effect.scope);
-    const { handler, dispose } = HttpRouter.toWebHandler(
-      WorkerHttpLayer.pipe(Layer.provide(services)),
-      { memoMap },
-    );
-    yield* Effect.addFinalizer(() => Effect.promise(() => dispose()));
-    return yield* use((request) => handler(request, context)).pipe(Effect.provide(context));
-  }).pipe(Effect.scoped);
-
-const TestServices = Layer.mergeAll(
-  TestAuth,
-  TestAppleKeys,
-  TestAppleTokens,
-  TestGoogleKeys,
-  TestGoogleClients,
-  TestUserStores,
-  TestHealthIngestion,
-  TestHealthBlobs,
-);
-
-const send = (handler: Handler, request: Request) =>
-  Effect.promise(async () => {
-    const response = await handler(request);
-    const text = await response.text();
-    return {
-      status: response.status,
-      body: text === "" ? undefined : (JSON.parse(text) as unknown),
-    };
-  });
 
 const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
 
@@ -2267,6 +2208,7 @@ describe("rate limits", () => {
       signIn: counter("signIn"),
       user: counter("user"),
       refresh: counter("refresh"),
+      clientRegistration: counter("clientRegistration"),
     });
   };
   const from = (address: string) => ({ "cf-connecting-ip": address });
@@ -2457,6 +2399,7 @@ describe("rate limits", () => {
         signIn: () => Effect.fail(new Error("binding unavailable")),
         user: () => Effect.fail(new Error("binding unavailable")),
         refresh: () => Effect.fail(new Error("binding unavailable")),
+        clientRegistration: () => Effect.fail(new Error("binding unavailable")),
       }),
     ),
   );
@@ -2549,7 +2492,7 @@ describe("apiWorkerProps", () => {
   it.effect("runs without a Stage, as it does inside the deployed Worker", () =>
     Effect.gen(function* () {
       const props = yield* apiWorkerProps;
-      assert.isUndefined((props as { domain?: string }).domain);
+      assert.isUndefined((props as { domain?: object }).domain);
     }),
   );
 
@@ -2563,7 +2506,15 @@ describe("apiWorkerProps", () => {
           LIL_APPLE_SIGN_IN_KEY: "apple-key",
         }),
       );
-      assert.strictEqual((props as { domain?: string }).domain, "api.staging.lil.tech");
+      // The MCP servers' host is the same Worker's (`src/oauth/Hosts.ts`).
+      assert.deepStrictEqual((props as { domain?: object }).domain, {
+        name: "api.staging.lil.tech",
+        aliases: ["mcp.staging.lil.tech"],
+      });
+      // So a Client ID Metadata Document's URL can't reach Cloudflare-internal addresses.
+      assert.deepStrictEqual((props as { compatibility?: object }).compatibility, {
+        flags: ["global_fetch_strictly_public"],
+      });
       assert.deepStrictEqual((props as { env?: object }).env, {
         LIL_SESSION_KEY: Redacted.make("SessionSigningKey"),
         LIL_TOKEN_KEY: Redacted.make("AppleTokenKey"),

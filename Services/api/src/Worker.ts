@@ -10,6 +10,7 @@ import { AppleTokenRevocations } from "./core/AppleTokenRevocations.ts";
 import { CoreDatabase, CoreRepositories, coreDatabase } from "./core/CoreDatabase.ts";
 import { retireSignedOutDevices } from "./core/DeviceCleanup.ts";
 import { Devices } from "./core/Devices.ts";
+import { OAuthClients } from "./core/OAuthClients.ts";
 import { Users } from "./core/Users.ts";
 import { Deployment, environmentForStage, stageDomains } from "./Deployment.ts";
 import {
@@ -31,8 +32,6 @@ import { listObjects, objectBody, provideRuntime } from "./Runtime.ts";
 import { HealthBlobBucket, SnapshotBucket, UserStore, UserStoreLive } from "./store/UserStore.ts";
 import { type OpenedPart, type PartRange, SnapshotParts } from "./sync/SnapshotParts.ts";
 import { UserStores } from "./store/UserStores.ts";
-
-/** Custom domains per stage. Other stages (PR previews, personal stages) use workers.dev. */
 
 /**
  * The Sign in with Apple key, if set. An empty one counts as unset: that's what CI gets for a
@@ -69,10 +68,14 @@ export const makeApiWorkerProps = <Key, E, R>(makeKey: (id: string) => Effect.Ef
     if (Option.isNone(appleSignInKey) && appleSignInKeyRequired.has(environment)) {
       return yield* Effect.die(`LIL_APPLE_SIGN_IN_KEY is needed to deploy ${environment}`);
     }
-    const domain = stageDomains[stage.value]?.api;
+    const domains = stageDomains[stage.value];
     return {
       main,
-      ...(domain === undefined ? {} : { domain }),
+      // The MCP servers' host is another custom domain of this Worker (`src/oauth/Hosts.ts`).
+      ...(domains === undefined ? {} : { domain: { name: domains.api, aliases: [domains.mcp] } }),
+      // Keeps `fetch` on the public internet, so a Client ID Metadata Document's URL can't reach
+      // Cloudflare-internal addresses (`src/oauth/ClientMetadata.ts`).
+      compatibility: { flags: ["global_fetch_strictly_public"] },
       env: {
         // Generated once per stage and kept in Alchemy's state, so redeploys don't sign everyone
         // out or lose the stored Apple tokens.
@@ -204,9 +207,17 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
           Effect.tap((done) => Effect.log(`Finished ${done} Apple token revocations`)),
           Effect.catchCause((cause) => Effect.logError("Revoking Apple tokens failed", cause)),
         ),
+        OAuthClients.use((clients) => clients.deleteUnused).pipe(
+          Effect.tap((deleted) => Effect.log(`Deleted ${deleted} unused OAuth clients`)),
+          Effect.catchCause((cause) =>
+            Effect.logError("Deleting unused OAuth clients failed", cause),
+          ),
+        ),
       ]).pipe(
         Effect.provide(
-          Layer.mergeAll(Devices.layer, AppleTokenRevocations.layer).pipe(Layer.provide(core)),
+          Layer.mergeAll(Devices.layer, AppleTokenRevocations.layer, OAuthClients.layer).pipe(
+            Layer.provide(core),
+          ),
         ),
         Effect.provideService(UserStores, userStores),
         Effect.provideService(AppleTokens, appleTokens),
@@ -217,6 +228,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       signIn: yield* bindRateLimit("SignInRateLimit", "signIn"),
       user: yield* bindRateLimit("UserRateLimit", "user"),
       refresh: yield* bindRateLimit("RefreshRateLimit", "refresh"),
+      clientRegistration: yield* bindRateLimit("ClientRegistrationRateLimit", "clientRegistration"),
     });
     const blobs = yield* Cloudflare.R2.ReadWriteBucket(yield* HealthBlobBucket);
     // Per request: the buckets' calls need the request's runtime context.

@@ -10,6 +10,7 @@ import { ProviderSignIn, type VerifiedIdentity } from "./auth/ProviderSignIn.ts"
 import { AppleTokens, revokeAppleTokens } from "./auth/AppleTokens.ts";
 import { appleWebCallbackPath, AppleWebCallbackRoute } from "./auth/AppleWebSignIn.ts";
 import { DevSignInRoute } from "./auth/DevSignIn.ts";
+import { AgentHostsMiddleware, AgentOAuthRoutes } from "./oauth/OAuthRoutes.ts";
 import {
   Authorization,
   ConsentOutdated,
@@ -1006,6 +1007,8 @@ export const WorkerHttpLayer = Layer.mergeAll(
   HealthBlobDownloadRoute,
   ExportDownloadRoute,
   LiveRoute,
+  AgentOAuthRoutes,
+  AgentHostsMiddleware,
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),
   Layer.provide([
