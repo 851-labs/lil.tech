@@ -15,7 +15,8 @@
     "mcp-tools": "node scripts/mcp-tools.ts",
     "mcp-tools:check": "node scripts/mcp-tools.ts --check",
     "migrations": "node scripts/migrations.ts",
-    "migrations:check": "node scripts/migrations.ts --check"
+    "migrations:check": "node scripts/migrations.ts --check",
+    "bench": "node scripts/bench-sync.ts"
   },
   "dependencies": {
     "@effect/sql-d1": "catalog:",

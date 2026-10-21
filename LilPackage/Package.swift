@@ -94,8 +94,12 @@ let package = Package(
       name: "HealthDatabaseTests",
       dependencies: [
         "HealthDatabase",
+        "LilAPI",
+        "LilSync",
         "LilTestSupport",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+        // `SyncBootstrapBenchmark` sends requests the way the app's client does.
+        .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
       ]
     ),
     .target(
