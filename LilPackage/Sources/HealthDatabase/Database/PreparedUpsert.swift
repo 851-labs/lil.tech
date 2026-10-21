@@ -8,6 +8,9 @@ import SQLiteData
 /// StructuredQueries binds specially (a date, an empty blob) is upserted its usual way instead.
 struct PreparedUpsert<Record: PrimaryKeyedTable>: Sendable where Record.QueryOutput == Record {
   let sql: String
+  /// The columns and placeholders of an `INSERT` into a table with `Record`'s columns.
+  private let columnList: String
+  private let placeholders: String
   /// Each column's value in a record, as StructuredQueries binds it, in the statement's order.
   private let bindings: [@Sendable (Record) -> QueryBinding]
 
@@ -19,9 +22,11 @@ struct PreparedUpsert<Record: PrimaryKeyedTable>: Sendable where Record.QueryOut
     let updates = names.filter { !primaryKey.contains($0) }.map {
       "\(quoted($0)) = excluded.\(quoted($0))"
     }
+    columnList = names.map(quoted).joined(separator: ", ")
+    placeholders = names.map { _ in "?" }.joined(separator: ", ")
     sql = """
-      INSERT INTO \(quoted(Record.tableName)) (\(names.map(quoted).joined(separator: ", ")))
-      VALUES (\(names.map { _ in "?" }.joined(separator: ", ")))
+      INSERT INTO \(quoted(Record.tableName)) (\(columnList))
+      VALUES (\(placeholders))
       ON CONFLICT (\(primaryKey.map(quoted).joined(separator: ", "))) DO \
       \(updates.isEmpty ? "NOTHING" : "UPDATE SET \(updates.joined(separator: ", "))")
       """
@@ -43,6 +48,18 @@ struct PreparedUpsert<Record: PrimaryKeyedTable>: Sendable where Record.QueryOut
     }
     let statement = try db.cachedStatement(sql: sql)
     // The arguments are the statement's columns, one each, so GRDB needn't count them.
+    statement.setUncheckedArguments(arguments)
+    try statement.execute()
+  }
+
+  /// Inserts `record` into `table`, a table with `Record`'s columns and no constraints, such as a
+  /// snapshot's staging table (851-2859). A record with a value StructuredQueries binds specially
+  /// is upserted into `Record`'s own table instead.
+  func insert(_ record: Record, into table: String, _ db: Database) throws {
+    guard let arguments = try arguments(record) else { return try execute(record, db) }
+    let quoted = table.replacingOccurrences(of: "\"", with: "\"\"")
+    let statement = try db.cachedStatement(
+      sql: "INSERT INTO \"\(quoted)\" (\(columnList)) VALUES (\(placeholders))")
     statement.setUncheckedArguments(arguments)
     try statement.execute()
   }

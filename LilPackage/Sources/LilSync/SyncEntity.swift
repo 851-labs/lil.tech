@@ -61,9 +61,47 @@ public struct SyncEntity: Sendable {
     return entity
   }
 
+  /// Like ``decoding(_:as:upsert:delete:clear:)``, for an entity kept in one table, `table`,
+  /// whose snapshots load faster (851-2859): their records go to a staging table without indexes
+  /// first, with `insert`, then into `table` all at once, in its primary key's order, with its
+  /// other indexes built afterwards. Loaded one at a time instead, records with random IDs land
+  /// all over the primary key's index, so each batch rewrote most of it, and loading slowed down
+  /// as the table grew.
+  ///
+  /// - Parameter insert: Inserts a row into the table named by its second argument, which has
+  ///   `table`'s columns and no constraints, or upserts it into `table` itself.
+  public static func decoding<Row: Decodable & SendableMetatype>(
+    _ name: String,
+    as _: Row.Type,
+    table: String,
+    insert: @escaping @Sendable (_ row: Row, _ staging: String, _ db: Database) throws -> Void,
+    upsert: @escaping @Sendable (_ row: Row, _ db: Database) throws -> Void,
+    delete: @escaping @Sendable (_ id: String, _ db: Database) throws -> Void,
+    clear: @escaping @Sendable (_ db: Database) throws -> Void
+  ) -> Self {
+    var entity = decoding(name, as: Row.self, upsert: upsert, delete: delete, clear: clear)
+    let decoder = JSONDecoder()
+    entity.table = table
+    entity.stageDecoding = { record, staging, db in
+      try insert(decoder.decode(Row.self, from: record), staging, db)
+    }
+    return entity
+  }
+
   private var loadDecoding: (@Sendable (_ record: Data, _ db: Database) throws -> Void)?
+
+  /// The entity's table, if its snapshots load through a staging table.
+  private(set) var table: String?
+  private var stageDecoding:
+    (@Sendable (_ record: Data, _ staging: String, _ db: Database) throws -> Void)?
 
   func loadRecord(_ record: Data, _ db: Database) throws {
     try (loadDecoding ?? load)(record, db)
+  }
+
+  /// Stores a snapshot record in `staging`, the entity's staging table.
+  func stageRecord(_ record: Data, in staging: String, _ db: Database) throws {
+    guard let stageDecoding else { return try loadRecord(record, db) }
+    try stageDecoding(record, staging, db)
   }
 }

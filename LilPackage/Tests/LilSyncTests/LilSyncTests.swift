@@ -37,6 +37,51 @@ private let notes = SyncEntity.decoding(
   }
 )
 
+/// Notes whose snapshots load through a staging table (851-2859), as apps' entities do.
+private let stagedNotes = makeStagedNotes { row, staging, db in try stage(row, in: staging, db) }
+
+private func makeStagedNotes(
+  insert: @escaping @Sendable (_ row: NoteRow, _ staging: String, _ db: Database) throws -> Void
+) -> SyncEntity {
+  SyncEntity.decoding(
+    "note", as: NoteRow.self, table: "note",
+    insert: insert,
+    upsert: { row, db in
+      try Note.upsert { Note(id: row.id, title: row.title) }.execute(db)
+    },
+    delete: { id, db in
+      try Note.find(id).delete().execute(db)
+    },
+    clear: { db in
+      try Note.delete().execute(db)
+    }
+  )
+}
+
+private func stage(_ row: NoteRow, title: String?? = nil, in staging: String, _ db: Database)
+  throws
+{
+  try db.execute(
+    sql: #"INSERT INTO "\#(staging)" ("id", "title") VALUES (?, ?)"#,
+    arguments: [row.id, title ?? row.title])
+}
+
+/// The database's schema: its tables and indexes, with their SQL.
+private func schema(_ database: any DatabaseWriter) throws -> [String] {
+  try database.read { db in
+    try String.fetchAll(
+      db,
+      sql: "SELECT type || ' ' || name || ': ' || ifnull(sql, '') FROM sqlite_master ORDER BY name")
+  }
+}
+
+/// Tables in the writer's temporary schema, where staging tables are.
+private func temporaryTables(_ database: any DatabaseWriter) throws -> [String] {
+  try database.write { db in
+    try String.fetchAll(db, sql: "SELECT name FROM temp.sqlite_master")
+  }
+}
+
 /// When the tests' pulls end.
 private let syncedAt = Date(timeIntervalSince1970: 1_760_400_000)
 
@@ -51,6 +96,8 @@ private func makeDatabase(bootstrapped: Bool = true, at path: String? = nil) thr
   migrator.registerMigration("Create note") { db in
     try #sql(#"CREATE TABLE "note" ("id" TEXT PRIMARY KEY, "title" TEXT NOT NULL) STRICT"#)
       .execute(db)
+    // An index besides the primary key's, which loading a snapshot drops and builds again.
+    try #sql(#"CREATE INDEX "note_title" ON "note" ("title")"#).execute(db)
   }
   try migrator.migrate(database)
   if bootstrapped {
@@ -679,7 +726,9 @@ struct LilSyncBootstrapTests {
   fileprivate let server = FakeServer()
   let partsDirectory = URL.temporaryDirectory.appending(path: "lilsync-\(UUID().uuidString)")
 
-  private func engine(database: any DatabaseWriter) -> LilSyncEngine {
+  private func engine(
+    database: any DatabaseWriter, entities: [SyncEntity] = [stagedNotes]
+  ) -> LilSyncEngine {
     withDependencies {
       $0.defaultDatabase = database
       $0.api = server.client
@@ -689,7 +738,7 @@ struct LilSyncBootstrapTests {
       $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
       $0.date.now = syncedAt
     } operation: {
-      LilSyncEngine(entities: [notes], syncSchema: 1, partsDirectory: partsDirectory)
+      LilSyncEngine(entities: entities, syncSchema: 1, partsDirectory: partsDirectory)
     }
   }
 
@@ -873,6 +922,117 @@ struct LilSyncBootstrapTests {
     try await engine.bootstrap()
     #expect(try storedNotes(database).map(\.id) == ["new"])
     #expect(try state(database) == [1, 2])
+  }
+
+  @Test
+  func aBootstrapReplacesTheLocalDataAndKeepsTheIndexes() async throws {
+    let database = try makeDatabase()
+    try await database.write { db in
+      try Note.insert { [Note(id: "a", title: "Old a"), Note(id: "z", title: "Gone")] }
+        .execute(db)
+    }
+    let before = try schema(database)
+    try server.publishSnapshot(
+      seq: 3,
+      notes: [Note(id: "c", title: "C"), Note(id: "a", title: "A"), Note(id: "b", title: "B")])
+
+    try await engine(database: database).bootstrap()
+    #expect(
+      try storedNotes(database) == [
+        Note(id: "a", title: "A"), Note(id: "b", title: "B"), Note(id: "c", title: "C"),
+      ])
+    #expect(try state(database) == [3, 1])
+    #expect(try schema(database) == before)
+    #expect(try temporaryTables(database).isEmpty)
+    // The indexes hold every row.
+    #expect(
+      try await database.read { try String.fetchAll($0, sql: "PRAGMA integrity_check") } == ["ok"])
+  }
+
+  @Test
+  func aRecordInTheSnapshotTwiceIsStoredOnceAsItWasLast() async throws {
+    try server.publishSnapshot(
+      seq: 3,
+      notes: [
+        Note(id: "a", title: "First"), Note(id: "b", title: "B"), Note(id: "a", title: "Last"),
+      ])
+    let database = try makeDatabase(bootstrapped: false)
+    try await engine(database: database).bootstrap()
+    #expect(
+      try storedNotes(database) == [Note(id: "a", title: "Last"), Note(id: "b", title: "B")])
+  }
+
+  @Test
+  func aBootstrapInterruptedWhileStagingKeepsTheIndexesAndStartsOver() async throws {
+    struct Interrupted: Error {}
+    let interrupting = LockIsolated(true)
+    let notes = makeStagedNotes { row, staging, db in
+      // In the third part, after two parts were staged.
+      if row.id == "n5", interrupting.value { throw Interrupted() }
+      try stage(row, in: staging, db)
+    }
+    let all = (1...6).map { Note(id: "n\($0)", title: "Note \($0)") }
+    try server.publishSnapshot(seq: 6, notes: all)
+    let database = try makeDatabase()
+    try await database.write { db in
+      try Note.insert { Note(id: "n1", title: "Old") }.execute(db)
+    }
+    let before = try schema(database)
+    let engine = engine(database: database, entities: [notes])
+
+    await #expect(throws: Interrupted.self) { try await engine.bootstrap() }
+    #expect(try storedNotes(database).isEmpty)
+    #expect(try state(database) == [nil, nil])
+    #expect(try schema(database) == before)
+    #expect(try temporaryTables(database).isEmpty)
+
+    interrupting.setValue(false)
+    try await engine.bootstrap()
+    #expect(try storedNotes(database) == all)
+    #expect(try schema(database) == before)
+    #expect(try temporaryTables(database).isEmpty)
+  }
+
+  @Test
+  func aBootstrapThatCantStoreAStagedRecordRollsBackWithTheIndexes() async throws {
+    // Staging tables have no constraints, so a record the table refuses fails at the end, when
+    // the staged records move into it: here, one without a title.
+    let notes = makeStagedNotes { row, staging, db in
+      try stage(row, title: row.id == "b" ? .some(nil) : nil, in: staging, db)
+    }
+    try server.publishSnapshot(
+      seq: 2, notes: [Note(id: "a", title: "A"), Note(id: "b", title: "B")])
+    let database = try makeDatabase()
+    let before = try schema(database)
+
+    await #expect(throws: DatabaseError.self) {
+      try await engine(database: database, entities: [notes]).bootstrap()
+    }
+    #expect(try storedNotes(database).isEmpty)
+    #expect(try state(database) == [nil, nil])
+    #expect(try schema(database) == before)
+    #expect(try temporaryTables(database).isEmpty)
+  }
+
+  @Test
+  func anEntityWithoutATableLoadsStraightIntoIt() async throws {
+    let all = (1...3).map { Note(id: "n\($0)", title: "Note \($0)") }
+    try server.publishSnapshot(seq: 3, notes: all)
+    let database = try makeDatabase(bootstrapped: false)
+    try await engine(database: database, entities: [notes]).bootstrap()
+    #expect(try storedNotes(database) == all)
+    #expect(try temporaryTables(database).isEmpty)
+  }
+
+  @Test
+  func signingOutDropsStagingTablesLeftBehind() async throws {
+    let database = try makeDatabase()
+    try await database.write { db in
+      try db.execute(sql: #"CREATE TEMP TABLE "lilSyncStaging_note" ("id", "title")"#)
+      try db.execute(sql: #"INSERT INTO "lilSyncStaging_note" VALUES ('a', 'Synthetic')"#)
+    }
+    try await engine(database: database).removeLocalData()
+    #expect(try temporaryTables(database).isEmpty)
   }
 
   @Test
@@ -1172,7 +1332,7 @@ struct LilSyncPushTests {
       $0.date.now = syncedAt
     } operation: {
       LilSyncEngine(
-        entities: [notes], syncSchema: 1,
+        entities: [stagedNotes], syncSchema: 1,
         partsDirectory: URL.temporaryDirectory.appending(path: "lilsync-\(UUID().uuidString)"))
     }
   }
@@ -1251,11 +1411,15 @@ struct LilSyncPushTests {
 
   @Test
   func unsentWritesSurviveABootstrap() async throws {
-    try server.publishSnapshot(seq: 0, notes: [Note(id: "a", title: "Note a")])
+    try server.publishSnapshot(
+      seq: 0, notes: [Note(id: "a", title: "Note a"), Note(id: "q", title: "Theirs")])
     let engine = engine()
-    try await engine.push([mine()])
+    try await engine.push([mine(), mine("q")])
     try await engine.bootstrap()
-    #expect(try storedNotes() == [Note(id: "a", title: "Note a"), Note(id: "p", title: "Mine")])
+    #expect(
+      try storedNotes() == [
+        Note(id: "a", title: "Note a"), Note(id: "p", title: "Mine"), Note(id: "q", title: "Mine"),
+      ])
     #expect(try pending().count == 1)
   }
 

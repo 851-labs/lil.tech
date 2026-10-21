@@ -654,13 +654,15 @@ public enum HealthDatabase {
   /// An entity stored in `Record`'s table, each row made from the server's `Row`. Rows are
   /// upserted through one cached statement per table (``PreparedUpsert``): building each row's
   /// query cost about 20 times as much as the insert itself (68 µs against 3 µs a sample,
-  /// 851-2649).
+  /// 851-2649). Snapshots load through a staging table, which keeps loading as fast for a million
+  /// records as for 200,000 (851-2859).
   private static func entity<Row: Decodable & SendableMetatype, Record: PrimaryKeyedTable>(
     _ name: String, _: Row.Type, record: @escaping @Sendable (Row) throws -> Record
   ) -> SyncEntity where Record.PrimaryKey == String, Record.QueryOutput == Record {
     let upsert = PreparedUpsert<Record>()
     return .decoding(
-      name, as: Row.self,
+      name, as: Row.self, table: Record.tableName,
+      insert: { row, staging, db in try upsert.insert(try record(row), into: staging, db) },
       upsert: { row, db in try upsert.execute(try record(row), db) },
       delete: delete(Record.self),
       clear: clear(Record.self)

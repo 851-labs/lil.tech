@@ -146,6 +146,8 @@ let package = Package(
       dependencies: [
         "HealthDatabase",
         "LilAPI",
+        // Snapshot parts for `TestSnapshot`.
+        "LilGzip",
         "LilSync",
         "LilTestSupport",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),

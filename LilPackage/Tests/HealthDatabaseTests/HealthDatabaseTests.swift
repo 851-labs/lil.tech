@@ -1043,141 +1043,7 @@ struct HealthSyncTests {
       .execute(db)
     }
     let sampleID = "6f1c2a40-0000-4000-8000-000000000001"
-    let changes: [Components.Schemas.Change] = try [
-      upsert(
-        1, "health_sample", sampleID,
-        """
-        "type": "HKQuantityTypeIdentifierStepCount", "startDate": 1760400000000,
-        "endDate": 1760400600000, "value": 412, "unit": "count",
-        "sourceName": "Test Watch", "sourceBundleId": "com.example.watch",
-        "metadata": {"HKWasUserEntered": false, "HKTimeZone": "Europe/Bucharest"},
-        "device": null, "provenance": "0123456789abcdef0123456789abcdef",
-        "fieldFromTheFuture": "ignored"
-        """),
-      upsert(
-        2, "health_statistic", "\(device)/HKQuantityTypeIdentifierStepCount@1760400000000",
-        """
-        "device": "\(device)", "type": "HKQuantityTypeIdentifierStepCount",
-        "bucketStart": 1760400000000, "sum": 1234, "unit": "count"
-        """),
-      upsert(
-        3, "health_statistics_device", device,
-        #""device": "\#(device)", "pairedWithWatch": true, "reportedAt": 1760400000000"#),
-      upsert(
-        4, "health_characteristic", "HKCharacteristicTypeIdentifierDateOfBirth",
-        #""value": {"year": 1990, "month": 4, "day": 2}"#),
-      upsert(
-        5, "health_activity_summary", "2025-10-14", #""activeEnergyBurned": 512.5, "paused": false"#
-      ),
-      upsert(
-        6, "health_correlation", "6f1c2a40-0000-4000-8000-000000000002",
-        """
-        "type": "HKCorrelationTypeIdentifierBloodPressure", "startDate": 1760400000000,
-        "endDate": 1760400000000, "sourceName": "Monitor", "sourceBundleId": "com.example"
-        """),
-      Components.Schemas.Change(
-        seq: 7, entity: "health_correlation", id: "6f1c2a40-0000-4000-8000-000000000002",
-        op: "delete", at: 1_760_400_000_000),
-      upsert(
-        8, "health_workout", "6f1c2a40-0000-4000-8000-000000000003",
-        """
-        "activityType": 37, "startDate": 1760400000000, "endDate": 1760401800000,
-        "duration": 1740, "activities": [], "events": [{"type": 1}],
-        "statistics": {"HKQuantityTypeIdentifierActiveEnergyBurned": {"unit": "kcal", "sum": 312.5}},
-        "sourceName": "Test Watch", "sourceBundleId": "com.example.watch"
-        """),
-      upsert(
-        9, "health_state_of_mind", "6f1c2a40-0000-4000-8000-000000000004",
-        """
-        "startDate": 1760400000000, "endDate": 1760400000000, "kind": 2, "valence": 0.4,
-        "valenceClassification": 5, "labels": [10], "associations": [6],
-        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
-        """),
-      upsert(
-        10, "health_scored_assessment", "6f1c2a40-0000-4000-8000-000000000005",
-        """
-        "type": "HKScoredAssessmentTypeIdentifierGAD7", "startDate": 1760400000000,
-        "endDate": 1760400000000, "score": 6, "risk": 2, "answers": [1, 1, 0, 1, 2, 0, 1],
-        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
-        """),
-      upsert(
-        11, "health_audiogram", "6f1c2a40-0000-4000-8000-000000000006",
-        """
-        "startDate": 1760400000000, "endDate": 1760400000000,
-        "points": [{"frequency": 1000, "tests": [{"side": 0, "sensitivity": 20}]}],
-        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
-        """),
-      upsert(
-        12, "health_electrocardiogram", "6f1c2a40-0000-4000-8000-000000000007",
-        """
-        "startDate": 1760400000000, "endDate": 1760400030000, "classification": 1,
-        "symptomsStatus": 1, "averageHeartRate": 62, "samplingFrequency": 512,
-        "voltageCount": 15360, "voltages": "\(String(repeating: "a", count: 64))",
-        "sourceName": "Test Watch", "sourceBundleId": "com.example"
-        """),
-      upsert(
-        13, "health_heartbeat_series", "6f1c2a40-0000-4000-8000-000000000008",
-        """
-        "startDate": 1760400000000, "endDate": 1760400060000, "beats": [0, 0.82, 1.65],
-        "gaps": [2], "sourceName": "Test Watch", "sourceBundleId": "com.example"
-        """),
-      upsert(
-        14, "health_workout_route", "6f1c2a40-0000-4000-8000-000000000009",
-        """
-        "startDate": 1760400000000, "endDate": 1760403600000,
-        "workout": "6f1c2a40-0000-4000-8000-000000000004", "locationCount": 3600,
-        "locations": "\(String(repeating: "b", count: 64))",
-        "sourceName": "Test Watch", "sourceBundleId": "com.example"
-        """),
-      upsert(
-        15, "health_provenance", "0123456789abcdef0123456789abcdef",
-        """
-        "sourceRevision": {"version": "11.0"}, "device": {"name": "Apple Watch"}
-        """),
-      upsert(
-        16, "health_vision_prescription", "6f1c2a40-0000-4000-8000-00000000000a",
-        """
-        "startDate": 1760400000000, "endDate": 1760400000000, "prescriptionType": 2,
-        "expirationDate": null, "brand": "Synthetic", "rightEye": {"sphere": -2.25},
-        "leftEye": null, "sourceName": "Test iPhone", "sourceBundleId": "com.example"
-        """),
-      upsert(
-        17, "health_medication", String(repeating: "c", count: 64),
-        """
-        "name": "Synthetic 10 mg Tablet", "nickname": null, "generalForm": "tablet",
-        "isArchived": false, "hasSchedule": true,
-        "codings": [{"system": "http://example.com/codes", "version": null, "code": "12345"}]
-        """),
-      upsert(
-        18, "health_medication_dose", "6f1c2a40-0000-4000-8000-00000000000b",
-        """
-        "startDate": 1760400000000, "endDate": 1760400000000,
-        "medication": "\(String(repeating: "c", count: 64))", "logStatus": 4,
-        "scheduleType": 2, "scheduledDate": 1760399100000, "scheduledDoseQuantity": 1,
-        "doseQuantity": 1, "unit": "count", "sourceName": "Test iPhone",
-        "sourceBundleId": "com.example"
-        """),
-      upsert(
-        19, "health_document", "6f1c2a40-0000-4000-8000-00000000000c",
-        """
-        "startDate": 1760400000000, "endDate": 1760403600000,
-        "title": "Synthetic Visit Summary", "patientName": "Test Patient",
-        "authorName": "", "custodianName": "Example Clinic",
-        "xml": "\(String(repeating: "d", count: 64))",
-        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
-        """),
-      upsert(
-        20, "health_document", "6f1c2a40-0000-4000-8000-00000000000d",
-        """
-        "startDate": 1760400000000, "endDate": 1760403600000, "title": "Deleted",
-        "patientName": "", "authorName": "", "custodianName": "",
-        "xml": "\(String(repeating: "e", count: 64))",
-        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
-        """),
-      Components.Schemas.Change(
-        seq: 21, entity: "health_document", id: "6f1c2a40-0000-4000-8000-00000000000d",
-        op: "delete", at: 1_760_400_000_000),
-    ]
+    let changes = try everyEntitysChanges()
     let api = Client.mock { request, _ in
       #expect(request.path?.hasPrefix("/v1/sync/changes") == true)
       return (
@@ -1522,6 +1388,275 @@ struct HealthSyncTests {
     }
     #expect(viaPrepared == viaStructuredQueries)
     #expect(try database.read { db in try DatedThing.all.fetchAll(db) } == [thing])
+  }
+
+  /// A change to every health entity, with a delete of two of them, as `appliesEveryHealthEntity`
+  /// pulls them. Synthetic.
+  private func everyEntitysChanges() throws -> [Components.Schemas.Change] {
+    let sampleID = "6f1c2a40-0000-4000-8000-000000000001"
+    return try [
+      upsert(
+        1, "health_sample", sampleID,
+        """
+        "type": "HKQuantityTypeIdentifierStepCount", "startDate": 1760400000000,
+        "endDate": 1760400600000, "value": 412, "unit": "count",
+        "sourceName": "Test Watch", "sourceBundleId": "com.example.watch",
+        "metadata": {"HKWasUserEntered": false, "HKTimeZone": "Europe/Bucharest"},
+        "device": null, "provenance": "0123456789abcdef0123456789abcdef",
+        "fieldFromTheFuture": "ignored"
+        """),
+      upsert(
+        2, "health_statistic", "\(device)/HKQuantityTypeIdentifierStepCount@1760400000000",
+        """
+        "device": "\(device)", "type": "HKQuantityTypeIdentifierStepCount",
+        "bucketStart": 1760400000000, "sum": 1234, "unit": "count"
+        """),
+      upsert(
+        3, "health_statistics_device", device,
+        #""device": "\#(device)", "pairedWithWatch": true, "reportedAt": 1760400000000"#),
+      upsert(
+        4, "health_characteristic", "HKCharacteristicTypeIdentifierDateOfBirth",
+        #""value": {"year": 1990, "month": 4, "day": 2}"#),
+      upsert(
+        5, "health_activity_summary", "2025-10-14", #""activeEnergyBurned": 512.5, "paused": false"#
+      ),
+      upsert(
+        6, "health_correlation", "6f1c2a40-0000-4000-8000-000000000002",
+        """
+        "type": "HKCorrelationTypeIdentifierBloodPressure", "startDate": 1760400000000,
+        "endDate": 1760400000000, "sourceName": "Monitor", "sourceBundleId": "com.example"
+        """),
+      Components.Schemas.Change(
+        seq: 7, entity: "health_correlation", id: "6f1c2a40-0000-4000-8000-000000000002",
+        op: "delete", at: 1_760_400_000_000),
+      upsert(
+        8, "health_workout", "6f1c2a40-0000-4000-8000-000000000003",
+        """
+        "activityType": 37, "startDate": 1760400000000, "endDate": 1760401800000,
+        "duration": 1740, "activities": [], "events": [{"type": 1}],
+        "statistics": {"HKQuantityTypeIdentifierActiveEnergyBurned": {"unit": "kcal", "sum": 312.5}},
+        "sourceName": "Test Watch", "sourceBundleId": "com.example.watch"
+        """),
+      upsert(
+        9, "health_state_of_mind", "6f1c2a40-0000-4000-8000-000000000004",
+        """
+        "startDate": 1760400000000, "endDate": 1760400000000, "kind": 2, "valence": 0.4,
+        "valenceClassification": 5, "labels": [10], "associations": [6],
+        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
+        """),
+      upsert(
+        10, "health_scored_assessment", "6f1c2a40-0000-4000-8000-000000000005",
+        """
+        "type": "HKScoredAssessmentTypeIdentifierGAD7", "startDate": 1760400000000,
+        "endDate": 1760400000000, "score": 6, "risk": 2, "answers": [1, 1, 0, 1, 2, 0, 1],
+        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
+        """),
+      upsert(
+        11, "health_audiogram", "6f1c2a40-0000-4000-8000-000000000006",
+        """
+        "startDate": 1760400000000, "endDate": 1760400000000,
+        "points": [{"frequency": 1000, "tests": [{"side": 0, "sensitivity": 20}]}],
+        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
+        """),
+      upsert(
+        12, "health_electrocardiogram", "6f1c2a40-0000-4000-8000-000000000007",
+        """
+        "startDate": 1760400000000, "endDate": 1760400030000, "classification": 1,
+        "symptomsStatus": 1, "averageHeartRate": 62, "samplingFrequency": 512,
+        "voltageCount": 15360, "voltages": "\(String(repeating: "a", count: 64))",
+        "sourceName": "Test Watch", "sourceBundleId": "com.example"
+        """),
+      upsert(
+        13, "health_heartbeat_series", "6f1c2a40-0000-4000-8000-000000000008",
+        """
+        "startDate": 1760400000000, "endDate": 1760400060000, "beats": [0, 0.82, 1.65],
+        "gaps": [2], "sourceName": "Test Watch", "sourceBundleId": "com.example"
+        """),
+      upsert(
+        14, "health_workout_route", "6f1c2a40-0000-4000-8000-000000000009",
+        """
+        "startDate": 1760400000000, "endDate": 1760403600000,
+        "workout": "6f1c2a40-0000-4000-8000-000000000004", "locationCount": 3600,
+        "locations": "\(String(repeating: "b", count: 64))",
+        "sourceName": "Test Watch", "sourceBundleId": "com.example"
+        """),
+      upsert(
+        15, "health_provenance", "0123456789abcdef0123456789abcdef",
+        """
+        "sourceRevision": {"version": "11.0"}, "device": {"name": "Apple Watch"}
+        """),
+      upsert(
+        16, "health_vision_prescription", "6f1c2a40-0000-4000-8000-00000000000a",
+        """
+        "startDate": 1760400000000, "endDate": 1760400000000, "prescriptionType": 2,
+        "expirationDate": null, "brand": "Synthetic", "rightEye": {"sphere": -2.25},
+        "leftEye": null, "sourceName": "Test iPhone", "sourceBundleId": "com.example"
+        """),
+      upsert(
+        17, "health_medication", String(repeating: "c", count: 64),
+        """
+        "name": "Synthetic 10 mg Tablet", "nickname": null, "generalForm": "tablet",
+        "isArchived": false, "hasSchedule": true,
+        "codings": [{"system": "http://example.com/codes", "version": null, "code": "12345"}]
+        """),
+      upsert(
+        18, "health_medication_dose", "6f1c2a40-0000-4000-8000-00000000000b",
+        """
+        "startDate": 1760400000000, "endDate": 1760400000000,
+        "medication": "\(String(repeating: "c", count: 64))", "logStatus": 4,
+        "scheduleType": 2, "scheduledDate": 1760399100000, "scheduledDoseQuantity": 1,
+        "doseQuantity": 1, "unit": "count", "sourceName": "Test iPhone",
+        "sourceBundleId": "com.example"
+        """),
+      upsert(
+        19, "health_document", "6f1c2a40-0000-4000-8000-00000000000c",
+        """
+        "startDate": 1760400000000, "endDate": 1760403600000,
+        "title": "Synthetic Visit Summary", "patientName": "Test Patient",
+        "authorName": "", "custodianName": "Example Clinic",
+        "xml": "\(String(repeating: "d", count: 64))",
+        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
+        """),
+      upsert(
+        20, "health_document", "6f1c2a40-0000-4000-8000-00000000000d",
+        """
+        "startDate": 1760400000000, "endDate": 1760403600000, "title": "Deleted",
+        "patientName": "", "authorName": "", "custodianName": "",
+        "xml": "\(String(repeating: "e", count: 64))",
+        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
+        """),
+      Components.Schemas.Change(
+        seq: 21, entity: "health_document", id: "6f1c2a40-0000-4000-8000-00000000000d",
+        op: "delete", at: 1_760_400_000_000),
+    ]
+  }
+
+  /// A change to every health entity, pulled and loaded from a snapshot: the snapshot, which goes
+  /// through staging tables (851-2859), stores exactly what pulling does, every value with its
+  /// type, over data that was there, and leaves every table's indexes as they were.
+  @Test
+  func aSnapshotStoresWhatPullingTheSameRecordsDoes() async throws {
+    let changes = try everyEntitysChanges()
+    let pulled = try HealthDatabase.make()
+    try await database(pulled, pulling: changes)
+
+    // The records left after the deletes, as a snapshot has them.
+    let deleted = Set(changes.filter { $0.op == "delete" }.map(\.id))
+    var lines: [String: [String]] = [:]
+    for change in changes where change.op == "upsert" && !deleted.contains(change.id) {
+      let row = try #require(change.row)
+      lines[change.entity, default: []].append(
+        String(decoding: try JSONEncoder().encode(row), as: UTF8.self))
+    }
+    let snapshot = try TestSnapshot(
+      seq: changes.count, entities: lines.sorted { $0.key < $1.key }.map { ($0.key, $0.value) },
+      partRecords: 1)
+    let bootstrapped = try HealthDatabase.make()
+    // Local data from before: replaced, or gone if the snapshot hasn't it.
+    try await database(
+      bootstrapped,
+      pulling: [
+        try upsert(
+          1, "health_sample", "6f1c2a40-0000-4000-8000-000000000001",
+          """
+          "type": "HKQuantityTypeIdentifierStepCount", "startDate": 1760300000000,
+          "endDate": 1760300600000, "value": 1, "unit": "count",
+          "sourceName": "Old", "sourceBundleId": "com.example.old"
+          """),
+        try upsert(
+          2, "health_sample", "6f1c2a40-0000-4000-8000-0000000000ff",
+          """
+          "type": "HKQuantityTypeIdentifierStepCount", "startDate": 1760300000000,
+          "endDate": 1760300600000, "value": 2, "unit": "count",
+          "sourceName": "Old", "sourceBundleId": "com.example.old"
+          """),
+      ])
+    let engine = withDependencies {
+      $0.defaultDatabase = bootstrapped
+      $0.api = snapshot.client
+      $0.snapshotDownloader = snapshot.downloader
+      $0.continuousClock = RecordingClock()
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(SplitMix64(seed: "test"))
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      LilSyncEngine(
+        entities: HealthDatabase.syncEntities, syncSchema: HealthDatabase.syncSchema,
+        partsDirectory: URL.temporaryDirectory.appending(path: "lilsync-\(UUID().uuidString)"))
+    }
+    try await engine.bootstrap()
+
+    let (pulledTables, bootstrappedTables) = (try contents(pulled), try contents(bootstrapped))
+    #expect(bootstrappedTables == pulledTables)
+    #expect(pulledTables.values.contains { !$0.isEmpty })
+    #expect(try schema(bootstrapped) == schema(pulled))
+    let integrity = try await bootstrapped.read { db in
+      try String.fetchAll(db, sql: "PRAGMA integrity_check")
+    }
+    #expect(integrity == ["ok"])
+  }
+
+  /// Pulls `changes` into `database`, a new one.
+  private func database(
+    _ database: any DatabaseWriter, pulling changes: [Components.Schemas.Change]
+  ) async throws {
+    try await database.write { db in
+      try #sql(
+        """
+        INSERT INTO lilSyncState (id, cursor, epoch, syncSchema)
+        VALUES (1, 0, 1, \(HealthDatabase.syncSchema))
+        """
+      )
+      .execute(db)
+    }
+    let head = changes.last?.seq ?? 0
+    let api = Client.mock { _, _ in
+      (
+        HTTPResponse(status: .ok, headerFields: [.contentType: "application/json"]),
+        HTTPBody(
+          try JSONEncoder().encode(
+            Components.Schemas.ChangesPage(
+              epoch: 1, changes: changes, next: head, head: head, hasMore: false)))
+      )
+    }
+    let engine = withDependencies {
+      $0.defaultDatabase = database
+      $0.api = api
+      $0.continuousClock = RecordingClock()
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(SplitMix64(seed: "test"))
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      LilSyncEngine(entities: HealthDatabase.syncEntities, syncSchema: HealthDatabase.syncSchema)
+    }
+    try await engine.pull()
+  }
+
+  /// Every health table's rows, each value quoted as SQL, so its type shows (`412` against
+  /// `412.0`, `'1'` against `1`).
+  private func contents(_ database: any DatabaseWriter) throws -> [String: [String]] {
+    try database.read { db in
+      let tables = try String.fetchAll(
+        db, sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'health%'")
+      return try Dictionary(
+        uniqueKeysWithValues: tables.map { table in
+          let columns = try String.fetchAll(
+            db, sql: "SELECT name FROM pragma_table_info(?) ORDER BY cid", arguments: [table])
+          let row = columns.map { #"quote("\#($0)")"# }.joined(separator: " || ', ' || ")
+          return (
+            table,
+            try String.fetchAll(db, sql: #"SELECT \#(row) FROM "\#(table)" ORDER BY "id""#)
+          )
+        })
+    }
+  }
+
+  /// The database's tables and indexes, with their SQL.
+  private func schema(_ database: any DatabaseWriter) throws -> [String] {
+    try database.read { db in
+      try String.fetchAll(
+        db,
+        sql:
+          "SELECT type || ' ' || name || ': ' || ifnull(sql, '') FROM sqlite_master ORDER BY name")
+    }
   }
 
   /// An upsert whose row is `id` plus the given JSON object members.

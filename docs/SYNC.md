@@ -122,6 +122,7 @@ GET /v1/sync/snapshots/<id>
 - **Loading:**
   1. Download and check each part (`sha256`), four at a time. Parts whose URLs expire together share one refresh.
   2. Clear the synced tables (or start a fresh local database) and insert every part in batches.
+     In LilSync, an entity kept in one table (`SyncEntity.decoding(_:as:table:insert:…)`) loads into a staging table without indexes first, then into its table in one transaction, in its primary key's order, with its other indexes built again afterwards (851-2859). Inserted one at a time in the server's order, records with random IDs land all over the primary key's index, and loading slows down as the table grows.
   3. Set `cursor = snapshot.seq` and `epoch = snapshot.epoch`, then resume pulling.
   4. Reapply the pending-mutation queue on top (see [Pushing changes](#pushing-changes)). Bootstrapping never discards unsent local writes.
 

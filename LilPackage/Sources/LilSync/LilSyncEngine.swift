@@ -317,6 +317,8 @@ public actor LilSyncEngine {
   private func deleteLocalData() async throws {
     try await database.write { [entities] db in
       for entity in entities.values { try entity.clear(db) }
+      // In case discarding them after a failed bootstrap failed too.
+      for table in entities.values.compactMap(\.table) { try SnapshotStaging.discard(table, db) }
       try SyncState.find(SyncState.singletonID).delete().execute(db)
       // Unsent writes belong to the account signing out.
       try PendingMutation.delete().execute(db)
@@ -433,14 +435,17 @@ public actor LilSyncEngine {
   ///    Expired URLs are refreshed for the same snapshot.
   /// 2. Resets the client to a new device's state and clears the entities' tables, so a load
   ///    that's interrupted starts over.
-  /// 3. Loads the parts in batches, then sets the cursor and epoch to the snapshot's.
+  /// 3. Loads the parts in batches, into staging tables for entities that have them, then, in
+  ///    one transaction, moves those into their tables (`SnapshotStaging`) and sets the cursor
+  ///    and epoch to the snapshot's.
   ///
   /// If the store has no snapshot yet, the tables are cleared and the whole log is pulled.
   public func bootstrap() async throws {
     try await exclusively { try await self.replaceFromSnapshot() }
   }
 
-  /// Records per write transaction while loading, so other writes aren't held up for long.
+  /// Records per write transaction while loading or staging, so other writes aren't held up for
+  /// long.
   static let loadBatchSize = 5_000
 
   private func replaceFromSnapshot() async throws {
@@ -486,45 +491,71 @@ public actor LilSyncEngine {
     }
     manifest = bootstrapManifest ?? manifest
 
+    // Tables whose records go through a staging table (`SnapshotStaging`).
+    let staged = Set(wanted.compactMap { entities[$0.entity]?.table }).sorted()
     try await database.write { [entities] db in
       // Until the load finishes, this client is a new device, which bootstraps again.
       try SyncState.find(SyncState.singletonID).delete().execute(db)
       for entity in entities.values { try entity.clear(db) }
+      for table in staged { try SnapshotStaging.create(for: table, db) }
     }
-    for (name, file) in files {
-      guard let entity = entities[name] else { continue }
-      let records: Data
-      do {
-        records = try Gzip.decompress(Data(contentsOf: file))
-      } catch {
-        // A damaged file is downloaded again next time.
-        try? FileManager.default.removeItem(at: file)
-        throw error
+    do {
+      for (name, file) in files {
+        guard let entity = entities[name] else { continue }
+        try await load(entity, from: file)
       }
-      let lines = records.split(separator: UInt8(ascii: "\n"))
-      for start in stride(from: 0, to: lines.count, by: Self.loadBatchSize) {
-        let batch = lines[start..<min(start + Self.loadBatchSize, lines.count)]
-        try await database.write { db in
-          for line in batch where !line.isEmpty {
-            do {
+      try await database.write { [manifest, entities] db in
+        for table in staged { try SnapshotStaging.finish(table, db) }
+        try SyncState(
+          id: SyncState.singletonID, cursor: manifest.seq, epoch: manifest.epoch,
+          syncSchema: syncSchema, entities: recordedEntities
+        )
+        .save(db)
+        try PendingMutation.reapply(after: manifest.seq, entities: entities, db)
+      }
+    } catch {
+      // The user's records mustn't linger in the staging tables, also when cancelled.
+      await Task { [database] in
+        try? await database.write { db in
+          for table in staged { try SnapshotStaging.discard(table, db) }
+        }
+      }.value
+      throw error
+    }
+    // The load was one transaction, so the write-ahead log grew as big as the records.
+    _ = try? await database.writeWithoutTransaction { try $0.checkpoint(.truncate) }
+    removeDownloadedParts(keeping: [])
+  }
+
+  /// Loads one downloaded part's records, into the entity's staging table if it has one.
+  private func load(_ entity: SyncEntity, from file: URL) async throws {
+    let records: Data
+    do {
+      records = try Gzip.decompress(Data(contentsOf: file))
+    } catch {
+      // A damaged file is downloaded again next time.
+      try? FileManager.default.removeItem(at: file)
+      throw error
+    }
+    let staging = entity.table.map(SnapshotStaging.name(for:))
+    let lines = records.split(separator: UInt8(ascii: "\n"))
+    for start in stride(from: 0, to: lines.count, by: Self.loadBatchSize) {
+      let batch = lines[start..<min(start + Self.loadBatchSize, lines.count)]
+      try await database.write { db in
+        for line in batch where !line.isEmpty {
+          do {
+            if let staging {
+              try entity.stageRecord(Data(line), in: staging, db)
+            } else {
               try entity.loadRecord(Data(line), db)
-            } catch let error as DecodingError {
-              // As when pulling: a record this app can't read mustn't block the rest.
-              reportIssue("Skipped a \(name) record from the snapshot: \(error)")
             }
+          } catch let error as DecodingError {
+            // As when pulling: a record this app can't read mustn't block the rest.
+            reportIssue("Skipped a \(entity.name) record from the snapshot: \(error)")
           }
         }
       }
     }
-    try await database.write { [manifest, entities] db in
-      try SyncState(
-        id: SyncState.singletonID, cursor: manifest.seq, epoch: manifest.epoch,
-        syncSchema: syncSchema, entities: recordedEntities
-      )
-      .save(db)
-      try PendingMutation.reapply(after: manifest.seq, entities: entities, db)
-    }
-    removeDownloadedParts(keeping: [])
   }
 
   /// Snapshot parts downloaded at once while bootstrapping.
