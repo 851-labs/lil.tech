@@ -2012,6 +2012,12 @@
               "null"
             ]
           },
+          "apps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "connectedAt": {
             "type": "integer",
             "minimum": -9007199254740991,
@@ -2038,6 +2044,7 @@
           "redirectHost",
           "resource",
           "app",
+          "apps",
           "connectedAt",
           "lastUsedAt",
           "firstUsedAt"

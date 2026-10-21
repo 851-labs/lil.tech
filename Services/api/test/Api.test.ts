@@ -1576,6 +1576,7 @@ describe("data exports", () => {
             redirectHost: "localhost",
             scopes: ["health:read"],
             resource: "https://mcp.lil.tech/health",
+            apps: ["health"],
             connectedAt: 1000,
             lastUsedAt: 2000,
             firstUsedAt: 1500,

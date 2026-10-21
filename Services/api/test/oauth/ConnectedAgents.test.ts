@@ -1,20 +1,21 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Option } from "effect";
 import { Auth } from "../../src/auth/Auth.ts";
-import { Consents } from "../../src/core/Consents.ts";
+import { type ConsentType, Consents } from "../../src/core/Consents.ts";
 import { CoreDb } from "../../src/core/CoreDb.ts";
 import { agentTokens } from "../../src/core/Schema.ts";
 import { Devices } from "../../src/core/Devices.ts";
 import type { UserId } from "../../src/core/Ids.ts";
 import { Users } from "../../src/core/Users.ts";
 import type { Deployment } from "../../src/Deployment.ts";
+import { RateLimits } from "../../src/RateLimits.ts";
 import { agentAccessLogPageSize } from "../../src/oauth/AgentsApi.ts";
 import { type AgentAccess, appendAgentAccess } from "../../src/store/AgentAccessLog.ts";
 import { UserStores } from "../../src/store/UserStores.ts";
 import { inSession, postMcp, sessionless, sessionProtocol } from "../mcp/TestMcp.ts";
 import { TestStores } from "../store/TestUserStores.ts";
 import { type Handler, send, withApi } from "../TestApi.ts";
-import { approve } from "./TestAgents.ts";
+import { type Approval, approve, WithMail } from "./TestAgents.ts";
 
 // The apps' endpoints for connected agents (851-2852): listing them, their access log, revoking
 // one, and turning lil health's agents off. Synthetic users and data only.
@@ -54,10 +55,25 @@ const form = (handler: Handler, path: string, params: Record<string, string>) =>
     }),
   );
 
-/** Connects Claude Code for `userId`, as allowing it on the consent page and the token endpoint do. */
-const connect = (handler: Handler, userId: UserId, resource = healthResource) =>
+/** lil's combined MCP server on the preview, as it's stored: the origin. */
+const combinedResource = previewOrigin;
+
+/**
+ * Connects Claude Code for `userId`, as allowing it on the consent page and the token endpoint do,
+ * with `scopes` (`health:read`) granted.
+ */
+const connect = (
+  handler: Handler,
+  userId: UserId,
+  resource = healthResource,
+  scopes?: ReadonlyArray<string>,
+) =>
   Effect.gen(function* () {
-    const approval = yield* approve({ userId, resource });
+    const approval = yield* approve({
+      userId,
+      resource,
+      ...(scopes === undefined ? {} : { scopes }),
+    });
     const tokens = yield* form(handler, "/oauth/token", {
       grant_type: "authorization_code",
       code: approval.code,
@@ -93,10 +109,34 @@ const callMcp = (
 const callSummary = (handler: Handler, accessToken: string) =>
   callMcp(handler, accessToken, "tools/call", { name: "summary", arguments: {} });
 
+/** A request to the combined MCP server. */
+const callCombined = (
+  handler: Handler,
+  accessToken: string,
+  method: string,
+  params: Record<string, unknown> = {},
+) => {
+  const request = sessionless(method, params);
+  return postMcp(handler, `${combinedResource}/`, request.body, {
+    ...request.headers,
+    ...bearer(accessToken),
+  });
+};
+
+/** The tools the combined server lists for an agent. */
+const combinedTools = (handler: Handler, accessToken: string) =>
+  Effect.gen(function* () {
+    const list = yield* callCombined(handler, accessToken, "tools/list");
+    assert.strictEqual(list.status, 200);
+    const result = list.message?.["result"] as { tools: ReadonlyArray<{ name: string }> };
+    return result.tools.map((tool) => tool.name);
+  });
+
 interface AgentBody {
   readonly id: string;
   readonly name: string | null;
   readonly app: string | null;
+  readonly apps: ReadonlyArray<string>;
   readonly resource: string;
 }
 
@@ -135,6 +175,7 @@ describe("GET /v1/me/agents", () => {
             redirectHost: "localhost",
             resource: healthResource,
             app: "health",
+            apps: ["health"],
             connectedAt,
             lastUsedAt,
             firstUsedAt: null,
@@ -194,6 +235,34 @@ describe("GET /v1/me/agents", () => {
           assert.deepStrictEqual(yield* used, read);
         }),
       preview,
+    ),
+  );
+
+  it.live("names the apps each agent reads, through an app's server or the combined one", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const ada = yield* signIn;
+          yield* connect(handler, ada.userId);
+          yield* connect(handler, ada.userId, combinedResource, ["health:read", "mail:read"]);
+          yield* connect(handler, ada.userId, combinedResource, ["mail:read"]);
+          yield* connect(handler, ada.userId, `${combinedResource}/elsewhere`);
+          assert.sameDeepMembers(
+            agentsOf((yield* app(handler, ada.accessToken, "GET", "/v1/me/agents")).body).map(
+              (agent) => [agent.resource, agent.app, agent.apps],
+            ),
+            [
+              [healthResource, "health", ["health"]],
+              [combinedResource, null, ["health", "mail"]],
+              [combinedResource, null, ["mail"]],
+              // A server this deployment doesn't know.
+              [`${combinedResource}/elsewhere`, null, []],
+            ],
+          );
+        }),
+      preview,
+      RateLimits.unlimited,
+      WithMail,
     ),
   );
 
@@ -485,6 +554,166 @@ describe("/v1/me/consents/agents/health", () => {
           );
         }),
       preview,
+    ),
+  );
+});
+
+describe("Turn Off Agent Access with the combined server", () => {
+  /** A user signed in to an app, who allowed agents for lil health and lil mail. */
+  const signInWithConsents = Effect.gen(function* () {
+    const user = yield* signIn;
+    const consents = yield* Consents;
+    yield* consents.grant(user.userId, "agents:health", "2026-10-21").pipe(Effect.orDie);
+    yield* consents
+      .grant(user.userId, "agents:mail" as ConsentType, "2026-10-21")
+      .pipe(Effect.orDie);
+    return user;
+  });
+
+  const turnOffHealth = (handler: Handler, accessToken: string) =>
+    app(handler, accessToken, "DELETE", "/v1/me/consents/agents/health");
+
+  it.live("takes lil health away from combined agents, and revokes those left with nothing", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const ada = yield* signInWithConsents;
+          const both = yield* connect(handler, ada.userId, combinedResource, [
+            "health:read",
+            "mail:read",
+          ]);
+          const healthOnly = yield* connect(handler, ada.userId, combinedResource, ["health:read"]);
+          const own = yield* connect(handler, ada.userId);
+          // Requests allowed but not yet redeemed: one that asked for lil health, which mustn't
+          // become a grant afterwards, and one for lil mail alone, which may.
+          const asked = yield* approve({
+            userId: ada.userId,
+            resource: combinedResource,
+            scopes: ["health:read", "mail:read"],
+          });
+          const mailAsked = yield* approve({
+            userId: ada.userId,
+            resource: combinedResource,
+            scopes: ["mail:read"],
+          });
+          assert.include(yield* combinedTools(handler, both.accessToken), "health.summary");
+
+          assert.strictEqual((yield* turnOffHealth(handler, ada.accessToken)).status, 204);
+
+          // The agent that read both apps reads lil mail alone, from its next request.
+          assert.deepStrictEqual(yield* combinedTools(handler, both.accessToken), [
+            "mail.summary",
+            "mail.search",
+          ]);
+          const refused = yield* callCombined(handler, both.accessToken, "tools/call", {
+            name: "health.summary",
+            arguments: {},
+          });
+          assert.deepInclude(refused.message?.["error"], { code: -32602 });
+          const mail = yield* callCombined(handler, both.accessToken, "tools/call", {
+            name: "mail.summary",
+            arguments: {},
+          });
+          assert.deepInclude(mail.message?.["result"], { isError: false });
+          // A refresh answers with what's left.
+          const refreshed = yield* form(handler, "/oauth/token", {
+            grant_type: "refresh_token",
+            refresh_token: both.refreshToken,
+            client_id: both.clientId,
+          });
+          assert.strictEqual(refreshed.status, 200);
+          assert.deepInclude(refreshed.body, { scope: "mail:read" });
+
+          // The one that read only lil health, and lil health's own, are revoked.
+          const cutOff = yield* callCombined(handler, healthOnly.accessToken, "tools/list");
+          assert.strictEqual(cutOff.status, 401);
+          assert.strictEqual((yield* callSummary(handler, own.accessToken)).status, 401);
+          const listed = agentsOf(
+            (yield* app(handler, ada.accessToken, "GET", "/v1/me/agents")).body,
+          );
+          assert.deepStrictEqual(
+            listed.map((agent) => [agent.resource, agent.app, agent.apps]),
+            [[combinedResource, null, ["mail"]]],
+          );
+
+          const redeem = (approval: Approval) =>
+            form(handler, "/oauth/token", {
+              grant_type: "authorization_code",
+              code: approval.code,
+              client_id: approval.clientId,
+              redirect_uri: approval.redirectUri,
+              code_verifier: approval.verifier,
+            });
+          assert.deepInclude(yield* redeem(asked), { status: 400 });
+          assert.deepInclude(yield* redeem(mailAsked), { status: 200 });
+        }),
+      preview,
+      RateLimits.unlimited,
+      WithMail,
+    ),
+  );
+
+  it.live("leaves another account's combined agents alone", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const ada = yield* signInWithConsents;
+          const bob = yield* signInWithConsents;
+          yield* connect(handler, ada.userId, combinedResource, ["health:read"]);
+          const bobs = yield* connect(handler, bob.userId, combinedResource, [
+            "health:read",
+            "mail:read",
+          ]);
+          assert.strictEqual((yield* turnOffHealth(handler, ada.accessToken)).status, 204);
+          assert.deepStrictEqual(
+            (yield* app(handler, ada.accessToken, "GET", "/v1/me/agents")).body,
+            { agents: [] },
+          );
+          assert.deepStrictEqual(
+            agentsOf((yield* app(handler, bob.accessToken, "GET", "/v1/me/agents")).body).map(
+              (agent) => agent.apps,
+            ),
+            [["health", "mail"]],
+          );
+          assert.include(yield* combinedTools(handler, bobs.accessToken), "health.summary");
+        }),
+      preview,
+      RateLimits.unlimited,
+      WithMail,
+    ),
+  );
+
+  it.live("revoking a combined agent disconnects it from every app", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const ada = yield* signInWithConsents;
+          const both = yield* connect(handler, ada.userId, combinedResource, [
+            "health:read",
+            "mail:read",
+          ]);
+          const [listed] = agentsOf(
+            (yield* app(handler, ada.accessToken, "GET", "/v1/me/agents")).body,
+          );
+          const revoked = yield* app(
+            handler,
+            ada.accessToken,
+            "DELETE",
+            `/v1/me/agents/${listed!.id}`,
+          );
+          assert.strictEqual(revoked.status, 204);
+          assert.strictEqual(
+            (yield* callCombined(handler, both.accessToken, "tools/list")).status,
+            401,
+          );
+          assert.deepStrictEqual(
+            (yield* app(handler, ada.accessToken, "GET", "/v1/me/agents")).body,
+            { agents: [] },
+          );
+        }),
+      preview,
+      RateLimits.unlimited,
+      WithMail,
     ),
   );
 });

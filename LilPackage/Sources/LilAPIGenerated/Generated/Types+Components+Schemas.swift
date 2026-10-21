@@ -248,6 +248,8 @@ extension Components {
             public var resource: Swift.String
             /// - Remark: Generated from `#/components/schemas/ConnectedAgent/app`.
             public var app: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ConnectedAgent/apps`.
+            public var apps: [Swift.String]
             /// - Remark: Generated from `#/components/schemas/ConnectedAgent/connectedAt`.
             public var connectedAt: Swift.Int
             /// - Remark: Generated from `#/components/schemas/ConnectedAgent/lastUsedAt`.
@@ -263,6 +265,7 @@ extension Components {
             ///   - redirectHost:
             ///   - resource:
             ///   - app:
+            ///   - apps:
             ///   - connectedAt:
             ///   - lastUsedAt:
             ///   - firstUsedAt:
@@ -273,6 +276,7 @@ extension Components {
                 redirectHost: Swift.String,
                 resource: Swift.String,
                 app: Swift.String? = nil,
+                apps: [Swift.String],
                 connectedAt: Swift.Int,
                 lastUsedAt: Swift.Int,
                 firstUsedAt: Swift.Int? = nil
@@ -283,6 +287,7 @@ extension Components {
                 self.redirectHost = redirectHost
                 self.resource = resource
                 self.app = app
+                self.apps = apps
                 self.connectedAt = connectedAt
                 self.lastUsedAt = lastUsedAt
                 self.firstUsedAt = firstUsedAt
@@ -294,6 +299,7 @@ extension Components {
                 case redirectHost
                 case resource
                 case app
+                case apps
                 case connectedAt
                 case lastUsedAt
                 case firstUsedAt

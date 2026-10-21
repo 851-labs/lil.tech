@@ -13,6 +13,7 @@ import {
   notExists,
   or,
   sql,
+  type SQLWrapper,
 } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
 import { CoreDb, first, query } from "./CoreDb.ts";
@@ -271,6 +272,16 @@ export class AgentGrants extends Context.Service<
     readonly deleteForResources: (
       userId: UserId,
       resources: ReadonlyArray<string>,
+    ) => Effect.Effect<void, SqlError.SqlError>;
+    /**
+     * Takes `scopes` (an app's) away from the user's grants for these combined servers
+     * (`resource`), and deletes those left with none, with their tokens (851-2901). Their
+     * authorization requests that asked for any of `scopes` go first, as in `deleteForResources`.
+     */
+    readonly withdrawScopes: (
+      userId: UserId,
+      resources: ReadonlyArray<string>,
+      scopes: ReadonlyArray<string>,
     ) => Effect.Effect<void, SqlError.SqlError>;
     /** Records that a grant was used, unless it was after `before`. */
     readonly touchGrant: (
@@ -638,6 +649,54 @@ export class AgentGrants extends Context.Service<
                 .delete(agentGrants)
                 .where(
                   and(eq(agentGrants.userId, userId), inArray(agentGrants.resource, resources)),
+                ),
+            );
+          },
+        ),
+        withdrawScopes: Effect.fn("AgentGrants.withdrawScopes")(
+          function* (userId, resources, scopes) {
+            if (resources.length === 0 || scopes.length === 0) return;
+            const withdrawn = sql.join(
+              scopes.map((scope) => sql`${scope}`),
+              sql`, `,
+            );
+            /** Whether a JSON array of scopes holds any of those withdrawn. */
+            const holdsAny = (column: SQLWrapper) =>
+              sql`exists (select 1 from json_each(${column}) where value in (${withdrawn}))`;
+            yield* query(
+              db
+                .delete(agentAuthorizations)
+                .where(
+                  and(
+                    eq(agentAuthorizations.userId, userId),
+                    inArray(agentAuthorizations.resource, resources),
+                    holdsAny(agentAuthorizations.scopes),
+                  ),
+                ),
+            );
+            yield* query(
+              db
+                .update(agentGrants)
+                .set({
+                  scopes: sql`(select json_group_array(value) from json_each(${agentGrants.scopes}) where value not in (${withdrawn}))`,
+                })
+                .where(
+                  and(
+                    eq(agentGrants.userId, userId),
+                    inArray(agentGrants.resource, resources),
+                    holdsAny(agentGrants.scopes),
+                  ),
+                ),
+            );
+            yield* query(
+              db
+                .delete(agentGrants)
+                .where(
+                  and(
+                    eq(agentGrants.userId, userId),
+                    inArray(agentGrants.resource, resources),
+                    sql`json_array_length(${agentGrants.scopes}) = 0`,
+                  ),
                 ),
             );
           },

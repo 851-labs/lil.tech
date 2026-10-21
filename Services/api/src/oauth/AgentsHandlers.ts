@@ -14,7 +14,14 @@ import {
   ConnectedAgent,
   ConnectedAgents,
 } from "./AgentsApi.ts";
-import { type AgentResource, agentResources, appOfResource } from "./Hosts.ts";
+import {
+  AgentApps,
+  type AgentResource,
+  agentResources,
+  appOfResource,
+  appsOfGrant,
+  isCombinedResource,
+} from "./Hosts.ts";
 
 // The apps' endpoints for connected agents (851-2852, `AgentsApi.ts`). They exist in every
 // environment, prod included, so the apps could ship before agents could connect there (prod
@@ -27,19 +34,29 @@ export const AgentsHandlers = HttpApiBuilder.group(
     const grants = yield* AgentGrants;
     const consents = yield* Consents;
     const stores = yield* UserStores;
-    /** Revokes the user's agents of one app, and its requests to connect one. */
-    const revokeApp = (userId: UserId, key: AgentResource) =>
-      grants.resourcesForUser(userId).pipe(
-        Effect.map((resources) =>
-          resources.filter((resource) => Option.contains(appOfResource(resource), key)),
-        ),
-        Effect.flatMap((resources) => grants.deleteForResources(userId, resources)),
+    const registry = yield* AgentApps;
+    /**
+     * Revokes the user's agents of one app, and its requests to connect one: its own server's are
+     * deleted, and combined ones lose its scopes, those left with none deleted (851-2901).
+     */
+    const revokeApp = Effect.fnUntraced(function* (userId: UserId, key: AgentResource) {
+      const resources = yield* grants.resourcesForUser(userId);
+      yield* grants.deleteForResources(
+        userId,
+        resources.filter((resource) => Option.contains(appOfResource(resource), key)),
       );
+      yield* grants.withdrawScopes(
+        userId,
+        resources.filter(isCombinedResource),
+        agentResources[key].scopes,
+      );
+    });
     /**
      * Turn Off Agent Access for one app. Its agents are revoked first, so if that fails the consent
      * stands and the app asks again, rather than agents reading without it. Then again once the
      * consent is withdrawn, for an agent the user allowed in a browser meanwhile: one allowed after
-     * that gives consent again, as a new connection.
+     * that gives consent again, as a new connection. Combined agents only lose this app, so one
+     * that reads others stays connected to them.
      */
     const turnOff = (key: AgentResource) =>
       Effect.gen(function* () {
@@ -63,6 +80,7 @@ export const AgentsHandlers = HttpApiBuilder.group(
                   redirectHost: grant.redirectHost,
                   resource: grant.resource,
                   app: Option.getOrNull(appOfResource(grant.resource)),
+                  apps: appsOfGrant(registry, grant),
                   connectedAt: grant.createdAt,
                   lastUsedAt: grant.lastUsedAt,
                   firstUsedAt: grant.firstUsedAt,

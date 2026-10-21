@@ -228,6 +228,33 @@ export const appOfResource = (resource: string): Option.Option<AgentResource> =>
 };
 
 /**
+ * Whether a stored grant's or authorization's `resource` is the combined server's: an origin, with
+ * no path, as it's stored (`canonicalResource`). By its form alone, like `appOfResource`.
+ */
+export const isCombinedResource = (resource: string) =>
+  URL.canParse(resource) && new URL(resource).origin === resource;
+
+/**
+ * The apps (keys of the registry) a stored grant can read now, from its scopes: its own server's
+ * app, or, for the combined server, each app it holds a scope of. An app's Turn Off Agent Access
+ * takes its scopes away from combined grants (851-2901), so they're what the grant can read.
+ */
+export const appsOfGrant = (
+  registry: AgentAppRegistry,
+  grant: { readonly resource: string; readonly scopes: ReadonlyArray<string> },
+): ReadonlyArray<string> => {
+  const combined = isCombinedResource(grant.resource);
+  const path = URL.canParse(grant.resource) ? new URL(grant.resource).pathname : undefined;
+  return Object.keys(registry).filter((key) => {
+    const app = registry[key]!;
+    return (
+      (combined || app.path === path) &&
+      app.scopes.some((scope: string) => grant.scopes.includes(scope))
+    );
+  });
+};
+
+/**
  * Whether `path` belongs on the MCP host: an app's MCP server, or its metadata, or the combined
  * server's (the root, `/`, and the root metadata, as exact paths).
  */
