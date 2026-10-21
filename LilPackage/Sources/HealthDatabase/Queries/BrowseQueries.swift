@@ -204,7 +204,10 @@ extension HealthDatabase {
       let day = try HealthActivitySummary.order { $0.id.desc() }.select(\.id).limit(1)
         .fetchOne(db)
       return day.flatMap { gregorianDay($0, calendar: calendar) }
-    case .quantity, .characteristic, .document:
+    case .quantity, .characteristic:
+      milliseconds = nil
+    case .document:
+      // Synced, but listed once they have a page to open (851-2837).
       milliseconds = nil
     }
     return milliseconds.map(Date.init(unixMilliseconds:))

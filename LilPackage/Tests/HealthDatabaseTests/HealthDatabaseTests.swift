@@ -1157,6 +1157,26 @@ struct HealthSyncTests {
         "doseQuantity": 1, "unit": "count", "sourceName": "Test iPhone",
         "sourceBundleId": "com.example"
         """),
+      upsert(
+        19, "health_document", "6f1c2a40-0000-4000-8000-00000000000c",
+        """
+        "startDate": 1760400000000, "endDate": 1760403600000,
+        "title": "Synthetic Visit Summary", "patientName": "Test Patient",
+        "authorName": "", "custodianName": "Example Clinic",
+        "xml": "\(String(repeating: "d", count: 64))",
+        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
+        """),
+      upsert(
+        20, "health_document", "6f1c2a40-0000-4000-8000-00000000000d",
+        """
+        "startDate": 1760400000000, "endDate": 1760403600000, "title": "Deleted",
+        "patientName": "", "authorName": "", "custodianName": "",
+        "xml": "\(String(repeating: "e", count: 64))",
+        "sourceName": "Test iPhone", "sourceBundleId": "com.example"
+        """),
+      Components.Schemas.Change(
+        seq: 21, entity: "health_document", id: "6f1c2a40-0000-4000-8000-00000000000d",
+        op: "delete", at: 1_760_400_000_000),
     ]
     let api = Client.mock { request, _ in
       #expect(request.path?.hasPrefix("/v1/sync/changes") == true)
@@ -1165,7 +1185,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 18, head: 18, hasMore: false)))
+              epoch: 1, changes: changes, next: 21, head: 21, hasMore: false)))
       )
     }
     let engine = withDependencies {
@@ -1238,6 +1258,11 @@ struct HealthSyncTests {
     #expect(doses.map(\.medication) == [String(repeating: "c", count: 64)])
     #expect(doses.map(\.logStatus) == [4])
     #expect(doses.map(\.scheduledDate) == [1_760_399_100_000])
+    let documents = try await database.read { db in try HealthDocument.fetchAll(db) }
+    #expect(documents.map(\.title) == ["Synthetic Visit Summary"])
+    #expect(documents.map(\.custodianName) == ["Example Clinic"])
+    #expect(documents.map(\.authorName) == [""])
+    #expect(documents.map(\.xml) == [String(repeating: "d", count: 64)])
     let routes = try await database.read { db in try HealthWorkoutRoute.fetchAll(db) }
     #expect(routes.map(\.locationCount) == [3600])
     #expect(routes.map(\.workout) == ["6f1c2a40-0000-4000-8000-000000000004"])
@@ -1270,6 +1295,7 @@ struct HealthSyncTests {
       writable(HealthWorkoutRoute.self), writable(HealthHeartbeatSeries.self),
       writable(HealthStatisticsDevice.self), writable(HealthVisionPrescription.self),
       writable(HealthMedication.self), writable(HealthMedicationDose.self),
+      writable(HealthDocument.self),
     ]
     #expect(Set(tables.map(\.0)).count == HealthDatabase.syncEntities.count)
     for (table, written) in tables {
@@ -1461,6 +1487,13 @@ struct HealthSyncTests {
         id: "dose", startDate: 10 + v, endDate: 20 + v, medication: "m\(v)", logStatus: 30 + v,
         scheduleType: 40 + v, scheduledDate: 50 + v, scheduledDoseQuantity: Double(60 + v),
         doseQuantity: Double(70 + v), unit: "u\(v)", sourceName: source.name,
+        sourceBundleID: source.bundle, sourceRevision: source.revision, device: device,
+        metadata: metadata, provenance: "p\(v)")
+    }
+    try roundTrip { v in
+      HealthDocument(
+        id: "doc", startDate: 10 + v, endDate: 20 + v, title: "t\(v)", patientName: "pa\(v)",
+        authorName: "a\(v)", custodianName: "c\(v)", xml: "x\(v)", sourceName: source.name,
         sourceBundleID: source.bundle, sourceRevision: source.revision, device: device,
         metadata: metadata, provenance: "p\(v)")
     }

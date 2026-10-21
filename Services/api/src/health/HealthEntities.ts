@@ -458,6 +458,34 @@ export const HealthWorkoutRoute = defineEntity("health_workout_route", {
 });
 
 /**
+ * Health Documents (`HKCDADocumentSample`, 851-2836): clinical documents in HL7's Clinical
+ * Document Architecture (CDA), such as a visit summary a provider sent, that the person shares
+ * one by one. The XML is a blob (`src/health/HealthBlobs.ts`), as Health gives it: they can be
+ * large, and carry names, addresses and diagnoses. The title and names are what HealthKit
+ * extracts from it, possibly empty.
+ */
+export const HealthDocument = defineEntity("health_document", {
+  clientWritable: false,
+  id: healthKitUUID,
+  blobs: ["xml"],
+  fields: {
+    startDate: Column.integer,
+    endDate: Column.integer,
+    title: Column.text,
+    /** The patient's name. */
+    patientName: Column.text,
+    /** Who wrote it, usually the treating physician. */
+    authorName: Column.text,
+    /** The organization responsible for it, usually where the patient was treated. */
+    custodianName: Column.text,
+    /** The XML blob's SHA-256. */
+    xml: Column.text,
+    ...provenance,
+  },
+  checkRow: (_, row) => (isBlobHash(row.xml) ? undefined : "xml must be a blob's SHA-256"),
+});
+
+/**
  * Heartbeat series (`HKHeartbeatSeriesSample`): the beat-to-beat timings behind Apple Watch's
  * heart rate variability readings, about a minute and a hundred beats each, so they're kept in
  * the row rather than as a blob.
@@ -607,4 +635,5 @@ export const healthEntities = [
   HealthVisionPrescription,
   HealthMedication,
   HealthMedicationDose,
+  HealthDocument,
 ] as const;

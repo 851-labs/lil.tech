@@ -17,6 +17,7 @@ public struct HealthBatchWriter {
     HealthEncoder.audiogramEntity, HealthEncoder.electrocardiogramEntity,
     HealthEncoder.heartbeatSeriesEntity, HealthEncoder.workoutRouteEntity,
     HealthEncoder.visionPrescriptionEntity, HealthEncoder.medicationDoseEntity,
+    HealthEncoder.documentEntity,
   ]
 
   public static let maxFileBytes = 15 * 1024 * 1024

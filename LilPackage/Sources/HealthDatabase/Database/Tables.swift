@@ -312,6 +312,50 @@ public struct HealthVisionPrescription: Equatable, Identifiable, Sendable {
   }
 }
 
+/// A Health Document (`health_document`, 851-2836): a clinical document (CDA) the person shares.
+/// `xml` is its blob's SHA-256, downloaded when it's shown. The title and names are what HealthKit
+/// extracted from the XML, possibly empty.
+@Table
+public struct HealthDocument: Equatable, Identifiable, Sendable {
+  public let id: String
+  public var startDate: Int
+  public var endDate: Int
+  public var title: String
+  public var patientName: String
+  public var authorName: String
+  public var custodianName: String
+  public var xml: String
+  public var sourceName: String
+  public var sourceBundleID: String
+  public var sourceRevision: String?
+  public var device: String?
+  public var metadata: String?
+  /// The ``HealthProvenance`` with its source revision and device.
+  public var provenance: String?
+
+  public init(
+    id: String, startDate: Int, endDate: Int, title: String, patientName: String,
+    authorName: String, custodianName: String, xml: String, sourceName: String,
+    sourceBundleID: String, sourceRevision: String? = nil, device: String? = nil,
+    metadata: String? = nil, provenance: String? = nil
+  ) {
+    self.id = id
+    self.startDate = startDate
+    self.endDate = endDate
+    self.title = title
+    self.patientName = patientName
+    self.authorName = authorName
+    self.custodianName = custodianName
+    self.xml = xml
+    self.sourceName = sourceName
+    self.sourceBundleID = sourceBundleID
+    self.sourceRevision = sourceRevision
+    self.device = device
+    self.metadata = metadata
+    self.provenance = provenance
+  }
+}
+
 /// A medication the person shares (`health_medication`, 851-2571), keyed by its concept's ID,
 /// which its doses refer to. `codings` is JSON, as the server documents it.
 @Table

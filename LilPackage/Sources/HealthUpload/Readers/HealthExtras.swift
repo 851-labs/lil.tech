@@ -3,9 +3,9 @@ public import Foundation
 import HealthKit
 import IssueReporting
 
-// What has no anchors: characteristics, vision prescriptions, medications and Activity summaries.
-// The backfill reads them on every run of everything (`HealthBackfill.uploadExtras`,
-// `HealthBackfill.uploadMedications`).
+// What has no anchors: characteristics, vision prescriptions, Health Documents, medications and
+// Activity summaries. The backfill reads them on every run of everything
+// (`HealthBackfill.uploadExtras`, `HealthBackfill.uploadMedications`).
 
 extension DependencyValues {
   public var healthCharacteristicsReader: HealthCharacteristicsReader {
@@ -16,6 +16,11 @@ extension DependencyValues {
   public var healthVisionPrescriptionsReader: HealthVisionPrescriptionsReader {
     get { self[HealthVisionPrescriptionsReader.self] }
     set { self[HealthVisionPrescriptionsReader.self] = newValue }
+  }
+
+  public var healthDocumentsReader: HealthDocumentsReader {
+    get { self[HealthDocumentsReader.self] }
+    set { self[HealthDocumentsReader.self] = newValue }
   }
 
   public var healthMedicationsReader: HealthMedicationsReader {
@@ -127,6 +132,101 @@ extension HealthVisionPrescriptionsReader: DependencyKey {
 
   /// None shared, unless a test says otherwise: most tests aren't about them.
   public static var testValue: Self { Self { [] } }
+}
+
+/// Reads the Health Documents (CDA) Health shares with the app (851-2836). HealthKit asks the
+/// person about each document new since the app's last document query, when it runs one, and
+/// may stop sharing one at any time, which an anchored query doesn't see (its samples never
+/// have the XML either). So, like vision prescriptions, which ones are shared is read every run
+/// (`shared`), and only those not uploaded yet are read with their XML (`read`), which can be
+/// large. Documents are samples, so they never change.
+public struct HealthDocumentsReader: Sendable {
+  /// The IDs (lowercase UUIDs) of every document Health shares with the app.
+  public var shared: @Sendable () async throws -> Set<String>
+  /// Those of `ids` still shared, with their XML.
+  public var read: @Sendable (_ ids: [String]) async throws -> [DocumentRecord]
+
+  public init(
+    shared: @escaping @Sendable () async throws -> Set<String>,
+    read: @escaping @Sendable (_ ids: [String]) async throws -> [DocumentRecord]
+  ) {
+    self.shared = shared
+    self.read = read
+  }
+
+  /// A document HealthKit gave without its XML, though it was asked for.
+  struct MissingXML: Error, Equatable {
+    let id: String
+  }
+
+  /// Runs an `HKDocumentQuery` for CDA documents to the end. It has no async form, and calls
+  /// back on HealthKit's queue, a batch at a time. Cancelling stops it.
+  static func documents(
+    matching predicate: NSPredicate?, includeXML: Bool, in store: HKHealthStore
+  ) async throws -> [HKCDADocumentSample] {
+    guard let type = HKObjectType.documentType(forIdentifier: .CDA) else { return [] }
+    let found = LockIsolated<[HKCDADocumentSample]>([])
+    let waiting = LockIsolated<CheckedContinuation<[HKCDADocumentSample], any Error>?>(nil)
+    /// Resumes the caller once, whichever comes first: the end, a failure or cancellation.
+    let finish = { @Sendable (result: Result<[HKCDADocumentSample], any Error>) in
+      waiting.withValue { continuation in
+        continuation?.resume(with: result)
+        continuation = nil
+      }
+    }
+    let query = HKDocumentQuery(
+      documentType: type, predicate: predicate, limit: HKObjectQueryNoLimit,
+      sortDescriptors: nil, includeDocumentData: includeXML
+    ) { _, results, done, error in
+      guard let results else {
+        finish(.failure(HealthReader.Locked.mapped(error ?? CancellationError())))
+        return
+      }
+      found.withValue { $0 += results.compactMap { $0 as? HKCDADocumentSample } }
+      if done { finish(.success(found.value)) }
+    }
+    return try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        waiting.setValue(continuation)
+        if Task.isCancelled {
+          finish(.failure(CancellationError()))
+        } else {
+          store.execute(query)
+        }
+      }
+    } onCancel: {
+      store.stop(query)
+      finish(.failure(CancellationError()))
+    }
+  }
+}
+
+extension HealthDocumentsReader: DependencyKey {
+  public static var liveValue: Self {
+    let store = HKHealthStore()
+    return Self(
+      shared: {
+        let documents = try await documents(matching: nil, includeXML: false, in: store)
+        return Set(documents.map { HealthEncoder.id($0.uuid) })
+      },
+      read: { ids in
+        let uuids = Set(ids.compactMap(UUID.init(uuidString:)))
+        guard !uuids.isEmpty else { return [] }
+        let documents = try await documents(
+          matching: HKQuery.predicateForObjects(with: uuids), includeXML: true, in: store)
+        return documents.compactMap { sample in
+          guard let record = DocumentRecord(sample) else {
+            reportIssue(MissingXML(id: HealthEncoder.id(sample.uuid)))
+            return nil
+          }
+          return record
+        }
+      }
+    )
+  }
+
+  /// None shared, unless a test says otherwise: most tests aren't about them.
+  public static var testValue: Self { Self(shared: { [] }, read: { _ in [] }) }
 }
 
 /// Reads every medication Health shares with the app (851-2571), current and archived. Health
