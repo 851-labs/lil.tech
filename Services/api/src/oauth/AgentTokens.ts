@@ -2,6 +2,7 @@ import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
 import type { SqlError } from "effect/sql";
 import { base64url, newOpaqueToken, sha256Hex } from "../auth/Tokens.ts";
 import {
+  type AgentAuthorization,
   AgentGrant,
   AgentGrants,
   type NewAgentToken,
@@ -115,7 +116,7 @@ export class AgentTokens extends Context.Service<
      */
     readonly exchangeCode: (
       request: CodeExchange,
-    ) => Effect.Effect<AgentTokenPair, TokenRequestError | SqlError.SqlError>;
+    ) => Effect.Effect<AgentTokenPair, TokenRequestError | TooManyRequests | SqlError.SqlError>;
     /**
      * Rotates a refresh token (the `refresh_token` grant). The token presented keeps working until
      * the pair it's exchanged for is first used, and each retry before then replaces the unused
@@ -192,6 +193,17 @@ export class AgentTokens extends Context.Service<
         );
       };
 
+      /**
+       * Ends the grant a redeemed code made. The authorization forgets it first, so a redemption
+       * still making it sees that and deletes it itself, if this ran before the grant existed.
+       */
+      const endGrantOf = (authorization: AgentAuthorization) =>
+        authorization.grantId === null
+          ? Effect.void
+          : grants
+              .forgetGrant(authorization.id)
+              .pipe(Effect.andThen(grants.deleteGrant(authorization.grantId)));
+
       /** Reuse: only a stolen copy is presented after its successor was used, so the grant ends. */
       const reused = (grantId: AgentGrantId) =>
         grants
@@ -201,20 +213,18 @@ export class AgentTokens extends Context.Service<
       return AgentTokens.of({
         exchangeCode: Effect.fn("AgentTokens.exchangeCode")(function* (request) {
           const now = yield* Clock.currentTimeMillis;
-          const found = yield* grants.findAuthorizationByCode(yield* sha256Hex(request.code));
+          const codeHash = yield* sha256Hex(request.code);
+          const found = yield* grants.findAuthorizationByCode(codeHash);
           if (Option.isNone(found)) {
             return yield* invalidGrant("The authorization code is invalid");
           }
           const authorization = found.value;
-          if (authorization.usedAt !== null) {
-            // A code redeemed twice may have been stolen, so the grant it made ends (RFC 6749
-            // §4.1.2).
-            if (authorization.grantId !== null) yield* grants.deleteGrant(authorization.grantId);
-            return yield* invalidGrant("The authorization code was already used");
-          }
-          if (authorization.codeExpiresAt <= now) {
-            return yield* invalidGrant("The authorization code has expired");
-          }
+          // Per authorization, the grant it makes: not per client, whose ID is public and shared
+          // by every user of a hosted agent, so anyone could use up its budget.
+          yield* limits.check("agentToken", `authorization:${authorization.id}`);
+          // Only a request that could have redeemed the code counts as redeeming it again: one
+          // with the client, redirect URI and verifier. A used code alone, seen in a log or
+          // history, can't end the grant.
           if (authorization.clientId !== request.clientId) {
             return yield* invalidGrant("The authorization code was issued to another client");
           }
@@ -233,13 +243,21 @@ export class AgentTokens extends Context.Service<
           if (!(yield* verifierMatches(request.codeVerifier, authorization.codeChallenge))) {
             return yield* invalidGrant("The code verifier doesn't match the code challenge");
           }
+          if (authorization.usedAt !== null) {
+            // A code redeemed twice may have been stolen, so the grant it made ends (RFC 6749
+            // §4.1.2).
+            yield* endGrantOf(authorization);
+            return yield* invalidGrant("The authorization code was already used");
+          }
+          if (authorization.codeExpiresAt <= now) {
+            return yield* invalidGrant("The authorization code has expired");
+          }
 
           const grantId = yield* newAgentGrantId;
           // Claims the code first, so of two concurrent redemptions only one makes a grant.
           if (!(yield* grants.redeemCode(authorization.id, grantId, now))) {
-            const again = yield* grants.findAuthorizationByCode(yield* sha256Hex(request.code));
-            const other = Option.flatMapNullishOr(again, (row) => row.grantId);
-            if (Option.isSome(other)) yield* grants.deleteGrant(other.value);
+            const again = yield* grants.findAuthorizationByCode(codeHash);
+            if (Option.isSome(again)) yield* endGrantOf(again.value);
             return yield* invalidGrant("The authorization code was already used");
           }
           yield* grants.createGrant(
@@ -260,6 +278,13 @@ export class AgentTokens extends Context.Service<
             }),
           );
           const { pair } = yield* issue(grantId, authorization.grantedScopes, null);
+          // A second redemption while this one ran may have tried to end the grant before it
+          // existed. It cleared the authorization's grant first, so that shows here.
+          const after = yield* grants.findAuthorizationByCode(codeHash);
+          if (Option.getOrUndefined(after)?.grantId !== grantId) {
+            yield* grants.deleteGrant(grantId);
+            return yield* invalidGrant("The authorization code was already used");
+          }
           return pair;
         }),
 
@@ -295,11 +320,13 @@ export class AgentTokens extends Context.Service<
 
           // No transactions over HTTP, so the order keeps this safe, like `Auth.refresh`: this
           // token's use ends its predecessor's grace, then the new pair is stored, then reuse is
-          // checked again (a pair used meanwhile means another party holds this token), and only
-          // then are earlier unused pairs dropped.
+          // checked again, and only then are earlier unused pairs dropped. The second check only
+          // counts pairs issued before this one: one of those used meanwhile means another party
+          // holds this token. A later pair is a retry of this refresh, which may use its pair at
+          // once.
           yield* grants.markUsed([token.tokenHash], now);
           const { pair, refresh } = yield* issue(grant.id, grant.scopes, token.tokenHash);
-          if (yield* grants.successorUsed(token.tokenHash, refresh.tokenHash)) {
+          if (yield* grants.successorUsed(token.tokenHash, refresh.expiresAt)) {
             return yield* reused(grant.id);
           }
           // Housekeeping: an earlier try's pair left behind would only work until it's replaced.
@@ -329,20 +356,25 @@ export class AgentTokens extends Context.Service<
             return yield* new InvalidAgentToken({ reason: "invalid" });
           }
           if (stored.expiresAt <= now) return yield* new InvalidAgentToken({ reason: "expired" });
-          if (stored.usedAt === null) {
-            // The pair's first use, which ends the grace of the refresh token it replaced.
-            yield* grants.markUsed(
-              stored.refreshTokenHash === null
-                ? [stored.tokenHash]
-                : [stored.tokenHash, stored.refreshTokenHash],
-              now,
-            );
-          }
-          if (stored.grant.lastUsedAt <= now - grantLastUsedInterval) {
-            yield* grants
-              .touchGrant(stored.grant.id, now, now - grantLastUsedInterval)
-              .pipe(Effect.ignore({ log: true }));
-          }
+          yield* Effect.all(
+            [
+              // The pair's first use, which ends the grace of the refresh token it replaced.
+              stored.usedAt === null
+                ? grants.markUsed(
+                    stored.refreshTokenHash === null
+                      ? [stored.tokenHash]
+                      : [stored.tokenHash, stored.refreshTokenHash],
+                    now,
+                  )
+                : Effect.void,
+              stored.grant.lastUsedAt <= now - grantLastUsedInterval
+                ? grants
+                    .touchGrant(stored.grant.id, now, now - grantLastUsedInterval)
+                    .pipe(Effect.ignore({ log: true }))
+                : Effect.void,
+            ],
+            { concurrency: "unbounded", discard: true },
+          );
           return stored.grant;
         }),
       });

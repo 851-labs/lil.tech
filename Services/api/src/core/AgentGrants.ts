@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Option, Schema } from "effect";
-import { and, eq, gt, inArray, isNotNull, isNull, lt, lte, ne, notExists, or } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, lt, lte, notExists, or } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
 import { CoreDb, first, query } from "./CoreDb.ts";
 import { AgentAuthorizationId, AgentGrantId, UserId } from "./Ids.ts";
@@ -90,6 +90,8 @@ export class AgentGrants extends Context.Service<
       grantId: AgentGrantId,
       now: number,
     ) => Effect.Effect<boolean, SqlError.SqlError>;
+    /** Clears the grant an authorization's code made, before that grant is deleted. */
+    readonly forgetGrant: (id: AgentAuthorizationId) => Effect.Effect<void, SqlError.SqlError>;
     readonly createGrant: (grant: AgentGrant) => Effect.Effect<void, SqlError.SqlError>;
     /** Deletes a grant, and with it its tokens. */
     readonly deleteGrant: (id: AgentGrantId) => Effect.Effect<void, SqlError.SqlError>;
@@ -113,12 +115,13 @@ export class AgentGrants extends Context.Service<
       now: number,
     ) => Effect.Effect<void, SqlError.SqlError>;
     /**
-     * Whether a refresh token that replaced `tokenHash`, other than `except`, has had its pair
-     * used: if so, `tokenHash` is dead, and presenting it is reuse.
+     * Whether a refresh token that replaced `tokenHash` (only those that expire before
+     * `expiringBefore`, if given: issued earlier) has had its pair used: if so, `tokenHash` is
+     * dead, and presenting it is reuse.
      */
     readonly successorUsed: (
       tokenHash: string,
-      except?: string,
+      expiringBefore?: number,
     ) => Effect.Effect<boolean, SqlError.SqlError>;
     /**
      * Deletes the unused pairs that replaced `tokenHash` and were issued before `expiresAt` (an
@@ -187,6 +190,14 @@ export class AgentGrants extends Context.Service<
               .returning({ id: agentAuthorizations.id }),
           );
           return rows.length === 1;
+        }),
+        forgetGrant: Effect.fn("AgentGrants.forgetGrant")(function* (id) {
+          yield* query(
+            db
+              .update(agentAuthorizations)
+              .set({ grantId: null })
+              .where(eq(agentAuthorizations.id, id)),
+          );
         }),
         createGrant: Effect.fn("AgentGrants.createGrant")(function* (grant) {
           yield* query(
@@ -259,22 +270,26 @@ export class AgentGrants extends Context.Service<
               .where(and(inArray(agentTokens.tokenHash, tokenHashes), isNull(agentTokens.usedAt))),
           );
         }),
-        successorUsed: Effect.fn("AgentGrants.successorUsed")(function* (tokenHash, except) {
-          const rows = yield* query(
-            db
-              .select({ tokenHash: agentTokens.tokenHash })
-              .from(agentTokens)
-              .where(
-                and(
-                  eq(agentTokens.replaces, tokenHash),
-                  isNotNull(agentTokens.usedAt),
-                  except === undefined ? undefined : ne(agentTokens.tokenHash, except),
-                ),
-              )
-              .limit(1),
-          );
-          return rows.length > 0;
-        }),
+        successorUsed: Effect.fn("AgentGrants.successorUsed")(
+          function* (tokenHash, expiringBefore) {
+            const rows = yield* query(
+              db
+                .select({ tokenHash: agentTokens.tokenHash })
+                .from(agentTokens)
+                .where(
+                  and(
+                    eq(agentTokens.replaces, tokenHash),
+                    isNotNull(agentTokens.usedAt),
+                    expiringBefore === undefined
+                      ? undefined
+                      : lt(agentTokens.expiresAt, expiringBefore),
+                  ),
+                )
+                .limit(1),
+            );
+            return rows.length > 0;
+          },
+        ),
         deleteUnusedSuccessors: Effect.fn("AgentGrants.deleteUnusedSuccessors")(
           function* (tokenHash, expiresAt) {
             yield* query(

@@ -190,6 +190,12 @@ describe("AgentTokens: authorization codes", () => {
       const approval = yield* approve();
       const pair = yield* exchange(approval);
       assert.strictEqual(yield* grantCount, 1);
+      // Only from someone who could have redeemed it: the code alone (seen in a log, say) with
+      // another client or verifier is refused, and leaves the grant.
+      yield* refused(exchange(approval, { codeVerifier: "x".repeat(43) }), "invalid_grant");
+      yield* refused(exchange(approval, { clientId: "cli_other" }), "invalid_grant");
+      assert.strictEqual(yield* grantCount, 1);
+      yield* verify(pair);
       yield* refused(exchange(approval), "invalid_grant");
       assert.strictEqual(yield* grantCount, 0);
       yield* rejected(pair, "invalid");
@@ -198,7 +204,7 @@ describe("AgentTokens: authorization codes", () => {
     }).pipe(Effect.provide(TestAgents)),
   );
 
-  it.effect("make one grant when redeemed twice at once", () =>
+  it.effect("leave no grant when redeemed twice at once", () =>
     Effect.gen(function* () {
       const approval = yield* approve();
       const results = yield* Effect.all([exchange(approval), exchange(approval)], {
@@ -206,7 +212,7 @@ describe("AgentTokens: authorization codes", () => {
         mode: "result",
       });
       assert.isAtMost(results.filter((result) => result._tag === "Success").length, 1);
-      assert.isAtMost(yield* grantCount, 1);
+      assert.strictEqual(yield* grantCount, 0);
     }).pipe(Effect.provide(TestAgents)),
   );
 });
@@ -564,6 +570,11 @@ describe("POST /oauth/token", () => {
               "invalid_request",
             ],
             [
+              "a parameter twice, first empty",
+              `client_id=&${new URLSearchParams(params).toString()}`,
+              "invalid_request",
+            ],
+            [
               "JSON",
               JSON.stringify(params),
               "invalid_request",
@@ -625,7 +636,7 @@ describe("POST /oauth/token", () => {
     ),
   );
 
-  it.live("limits exchanges per client and refreshes per grant", () => {
+  it.live("limits exchanges per authorization and refreshes per grant", () => {
     const counts = new Map<string, number>();
     const counter = (limit: RateLimitName, max: number) => (key: string) =>
       Effect.sync(() => {
@@ -643,20 +654,22 @@ describe("POST /oauth/token", () => {
     return withApi(
       (handler) =>
         Effect.gen(function* () {
+          // Exchanges count per authorization: not per client, whose budget anyone could use up.
           const first = yield* approve({ resource: previewResource });
           const second = yield* approve({ resource: previewResource, clientId: first.clientId });
-          const third = yield* approve({ resource: previewResource, clientId: first.clientId });
+          const wrong = { ...codeParams(first), code_verifier: "x".repeat(43) };
+          assert.strictEqual((yield* post(handler, "/oauth/token", wrong)).status, 400);
           const pair = yield* post(handler, "/oauth/token", codeParams(first));
           assert.strictEqual(pair.status, 200);
+          const limited = yield* post(handler, "/oauth/token", codeParams(first));
+          assert.strictEqual(limited.status, 429);
+          assert.strictEqual(limited.headers.get("retry-after"), "60");
           assert.strictEqual(
             (yield* post(handler, "/oauth/token", codeParams(second))).status,
             200,
           );
-          const limited = yield* post(handler, "/oauth/token", codeParams(third));
-          assert.strictEqual(limited.status, 429);
-          assert.strictEqual(limited.headers.get("retry-after"), "60");
 
-          // Refreshes count per grant, apart from the client's exchanges.
+          // Refreshes count per grant.
           const refreshWith = (token: unknown) =>
             post(handler, "/oauth/token", {
               grant_type: "refresh_token",

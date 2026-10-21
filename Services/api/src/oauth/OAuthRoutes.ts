@@ -1,6 +1,6 @@
 import { Effect, Option, Schema, Stream } from "effect";
 import { HttpMiddleware, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
-import { sha256Hex } from "../auth/Tokens.ts";
+import type { SqlError } from "effect/sql";
 import { OAuthClients } from "../core/OAuthClients.ts";
 import { Deployment } from "../Deployment.ts";
 import { checkAddressRateLimit, RateLimits, tooManyRequests } from "../RateLimits.ts";
@@ -165,10 +165,12 @@ const readForm = Effect.gen(function* () {
   );
   if (Option.isNone(body)) return yield* tooLarge;
   const params = new Map<string, string>();
+  const seen = new Set<string>();
   for (const [name, value] of new URLSearchParams(body.value)) {
-    if (params.has(name)) {
+    if (seen.has(name)) {
       return yield* new InvalidForm({ description: `${name} is given more than once` });
     }
+    seen.add(name);
     if (value !== "") params.set(name, value);
   }
   return {
@@ -184,16 +186,32 @@ const readForm = Effect.gen(function* () {
   };
 });
 
+/** Answers a token or revocation request's errors as RFC 6749 §5.2 does. Others are defects. */
+const catchOAuthErrors = <R>(
+  effect: Effect.Effect<
+    HttpServerResponse.HttpServerResponse,
+    InvalidForm | TokenRequestError | SqlError.SqlError,
+    R
+  >,
+) =>
+  effect.pipe(
+    Effect.catchTags({
+      InvalidForm: (error: InvalidForm) =>
+        Effect.succeed(oauthError(400, "invalid_request", error.description)),
+      TokenRequestError: (error: TokenRequestError) =>
+        Effect.succeed(oauthError(400, error.error, error.description)),
+    }),
+    Effect.orDie,
+  );
+
 /** `POST /oauth/token`: a code exchange or a refresh, for public clients (no authentication). */
-const tokenEndpoint = (tokens: AgentTokens["Service"], limits: RateLimits["Service"]) =>
+const tokenEndpoint = (tokens: AgentTokens["Service"]) =>
   Effect.gen(function* () {
     const form = yield* readForm;
     const grantType = yield* form.require("grant_type");
     const clientId = yield* form.require("client_id");
     const resource = form.get("resource");
     if (grantType === "authorization_code") {
-      // Per client: the code's grant doesn't exist yet. Hashed, since a client ID can be a long URL.
-      yield* limits.check("agentToken", `client:${yield* sha256Hex(clientId)}`);
       return tokenResponse(
         pairBody(
           yield* tokens.exchangeCode({
@@ -222,16 +240,7 @@ const tokenEndpoint = (tokens: AgentTokens["Service"], limits: RateLimits["Servi
       error: "unsupported_grant_type",
       description: "Only authorization_code and refresh_token are supported",
     });
-  }).pipe(
-    Effect.catchTags({
-      InvalidForm: (error: InvalidForm) =>
-        Effect.succeed(oauthError(400, "invalid_request", error.description)),
-      TokenRequestError: (error: TokenRequestError) =>
-        Effect.succeed(oauthError(400, error.error, error.description)),
-      TooManyRequests: tooManyRequests,
-    }),
-    Effect.orDie,
-  );
+  }).pipe(Effect.catchTag("TooManyRequests", tooManyRequests), catchOAuthErrors);
 
 const pairBody = (pair: AgentTokenPair) => ({
   access_token: pair.accessToken,
@@ -250,15 +259,7 @@ const revocationEndpoint = (tokens: AgentTokens["Service"]) =>
     const form = yield* readForm;
     yield* tokens.revoke(yield* form.require("token"), form.get("client_id"));
     return HttpServerResponse.empty({ status: 200, headers: { "cache-control": "no-store" } });
-  }).pipe(
-    Effect.catchTags({
-      InvalidForm: (error: InvalidForm) =>
-        Effect.succeed(oauthError(400, "invalid_request", error.description)),
-      TokenRequestError: (error: TokenRequestError) =>
-        Effect.succeed(oauthError(400, error.error, error.description)),
-    }),
-    Effect.orDie,
-  );
+  }).pipe(catchOAuthErrors);
 
 /**
  * The authorization server's metadata, on the API's host. `/oauth/authorize` comes in 851-2849.
@@ -370,7 +371,7 @@ export const AgentOAuthRoutes = HttpRouter.use((router) =>
       ),
     );
 
-    yield* addPublic(router, "POST", "/oauth/token", tokenEndpoint(tokens, limits));
+    yield* addPublic(router, "POST", "/oauth/token", tokenEndpoint(tokens));
     yield* addPublic(router, "POST", "/oauth/revoke", revocationEndpoint(tokens));
   }),
 );
