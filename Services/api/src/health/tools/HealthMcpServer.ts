@@ -48,10 +48,11 @@ const nextTask = Effect.callback<void>((resume) => {
  * Workers freezes its clock while code runs, as a Spectre mitigation: `Date.now()` (and Effect's
  * clock on it) only moves at I/O and when a new task starts. A tool call reads the store's SQLite
  * synchronously, so a clock read as it ends gave its start, and every call logged 0. The next task
- * starts once the call's has ended, so it sees the time the call took (and the moment the runtime
- * took to end its task), not the time it waited for its turn.
+ * starts once the call's has ended, so it sees the time the call took. It's at most a little more:
+ * the moment the runtime takes to end the call's task, and any task of the store's (another
+ * request's) that runs before the next.
  */
-export const timedToNextTask = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+const timedToNextTask = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
     const started = yield* Clock.currentTimeMillis;
     const result = yield* effect;
@@ -202,6 +203,7 @@ const logged =
         );
         return { exit, bytes };
       });
+      // Not interrupted between its row and its log line, a task apart.
       const logCall = Effect.gen(function* () {
         const {
           result: { exit, bytes },
@@ -209,7 +211,7 @@ const logged =
         } = yield* timedToNextTask(call);
         yield* Effect.logInfo("Agent tool call").pipe(Effect.annotateLogs({ durationMs, bytes }));
         return yield* exit;
-      });
+      }).pipe(Effect.uninterruptible);
       return yield* logCall.pipe(
         turn,
         Effect.annotateLogs({ tool: tool.name, grant: agent.grantId }),

@@ -1,10 +1,9 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Clock, Effect } from "effect";
-import { TestClock } from "effect/testing";
+import { Clock, Effect, Predicate } from "effect";
+import { TestClock, TestConsole } from "effect/testing";
 import {
   healthMcpMaxWaitMs,
   makeHealthMcpServer,
-  timedToNextTask,
 } from "../../../src/health/tools/HealthMcpServer.ts";
 import { storeHealthTools } from "../../../src/health/tools/StoreHealthTools.ts";
 import { agentClientHeader, agentGrantHeader } from "../../../src/mcp/AgentHeaders.ts";
@@ -244,30 +243,45 @@ describe("the Health MCP server in the store", () => {
   );
 
   // 851-2907: Workers moves its clock only at I/O and when a new task starts, so a clock read as a
-  // synchronous call ends gave its start, and every call logged a duration of 0.
-  it.effect("times a call by the clock of the task after it", () =>
+  // synchronous call ended gave its start, and every call logged a duration of 0.
+  it.effect("logs each call's own duration, by the clock of the task after it", () =>
     Effect.gen(function* () {
       const base = yield* Clock.Clock;
       let now = 1_000;
+      const nanos = () => BigInt(now) * 1_000_000n;
       // Workers' clock: frozen while a task runs.
       const frozen: Clock.Clock = {
         currentTimeMillisUnsafe: () => now,
         currentTimeMillis: Effect.sync(() => now),
-        currentTimeNanosUnsafe: () => BigInt(now) * 1_000_000n,
-        currentTimeNanos: Effect.sync(() => BigInt(now) * 1_000_000n),
-        monotonicTimeNanosUnsafe: () => BigInt(now) * 1_000_000n,
-        monotonicTimeNanos: Effect.sync(() => BigInt(now) * 1_000_000n),
+        currentTimeNanosUnsafe: nanos,
+        currentTimeNanos: Effect.sync(nanos),
+        monotonicTimeNanosUnsafe: nanos,
+        monotonicTimeNanos: Effect.sync(nanos),
         sleep: (duration) => base.sleep(duration),
       };
-      const { result, durationMs } = yield* timedToNextTask(
-        Effect.sync(() => {
-          // The call's 250 ms show once its task ends.
-          setTimeout(() => (now += 250), 0);
-          return "answer";
-        }),
-      ).pipe(Effect.provideService(Clock.Clock, frozen));
-      assert.strictEqual(result, "answer");
-      assert.strictEqual(durationMs, 250);
+      const { sql, store } = makeTestStore();
+      const tools = storeHealthTools(sql);
+      const server = yield* makeHealthMcpServer({
+        sql,
+        record: store.recordAgentAccess,
+        handlers: {
+          ...tools,
+          summary: (params) =>
+            Effect.sync(() => {
+              // Each call's 250 ms show once its task ends.
+              setTimeout(() => (now += 250), 0);
+            }).pipe(Effect.andThen(tools.summary(params))),
+        },
+      }).pipe(Effect.provideService(Clock.Clock, frozen));
+      yield* callsAtOnce(viaStore(server), 2, false);
+      const logged = (yield* TestConsole.logLines).filter(
+        (line) => Predicate.isObject(line) && "durationMs" in line,
+      );
+      // The second call's wait for its turn isn't its own.
+      assert.deepStrictEqual(
+        logged.map((line) => (line as { readonly durationMs: number }).durationMs),
+        [250, 250],
+      );
     }),
   );
 });
