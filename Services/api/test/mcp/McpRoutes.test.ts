@@ -394,7 +394,7 @@ describe("the Health MCP server", () => {
     );
   });
 
-  it.live("is on the MCP host in staging, and nowhere in prod yet", () =>
+  it.live("is on the MCP host in staging and prod, and not the API's", () =>
     Effect.gen(function* () {
       yield* withApi(
         (handler) =>
@@ -426,7 +426,7 @@ describe("the Health MCP server", () => {
       yield* withApi(
         (handler) =>
           Effect.gen(function* () {
-            const response = yield* call(
+            const missing = yield* call(
               handler,
               undefined,
               "tools/list",
@@ -434,7 +434,20 @@ describe("the Health MCP server", () => {
               {},
               "https://mcp.lil.tech/health",
             );
-            assert.strictEqual(response.status, 404);
+            assert.strictEqual(missing.status, 401);
+            assert.strictEqual(
+              missing.headers.get("www-authenticate"),
+              'Bearer resource_metadata="https://mcp.lil.tech/.well-known/oauth-protected-resource/health", scope="health:read"',
+            );
+            const onApi = yield* call(
+              handler,
+              undefined,
+              "tools/list",
+              {},
+              {},
+              "https://api.lil.tech/health",
+            );
+            assert.strictEqual(onApi.status, 404);
           }),
         { environment: "prod", version: "1" },
       );

@@ -101,8 +101,5 @@ struct LilAPITests {
     #expect(
       APIEnvironment.preview(preview).mcpURL(app: "health").absoluteString
         == "https://lil-api-api-pr-57-x.851.workers.dev/health")
-    // Prod's servers come at launch (851-2855).
-    #expect(!APIEnvironment.prod.servesAgents)
-    #expect(APIEnvironment.staging.servesAgents)
   }
 }

@@ -255,20 +255,17 @@ struct ConnectedAgentsSections: View {
       }
     }
 
-    // Only where agents can connect: not prod until launch (851-2855).
-    if Self.environment.servesAgents {
-      Section {
-        CopyableRow(
-          title: "MCP server URL",
-          value: Self.environment.mcpURL(app: "health").absoluteString)
-      } header: {
-        Text("Connect a Remote Agent")
-      } footer: {
-        Text(
-          "Add this URL to your agent as a remote MCP server (a connector), then sign in to lil health when it asks, and allow it."
-        )
-        .foregroundStyle(.secondary)
-      }
+    Section {
+      CopyableRow(
+        title: "MCP server URL",
+        value: Self.environment.mcpURL(app: "health").absoluteString)
+    } header: {
+      Text("Connect a Remote Agent")
+    } footer: {
+      Text(
+        "Add this URL to your agent as a remote MCP server (a connector), then sign in to lil health when it asks, and allow it."
+      )
+      .foregroundStyle(.secondary)
     }
 
     Section {

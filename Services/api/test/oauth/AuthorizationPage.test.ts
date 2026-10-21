@@ -219,7 +219,7 @@ describe("The authorization page", () => {
           assert.include(consent.html, "Allow MCP Inspector to read your lil health data?");
           assert.include(consent.html, "all of your lil health data");
           assert.include(consent.html, "Agents may send what they read to their AI provider");
-          assert.include(consent.html, "https://lil.tech/privacy");
+          assert.include(consent.html, "https://lil.tech/privacy#agents");
           assert.include(consent.html, "Signed in as <strong>e2e</strong>");
           assert.include(consent.html, "Unverified");
           assert.include(consent.html, "Returns you to <strong>127.0.0.1</strong>");
@@ -611,30 +611,16 @@ describe("The authorization page", () => {
       limits,
     );
   });
-
-  it.live("isn't in prod yet", () =>
-    withApi(
-      (handler) =>
-        Effect.gen(function* () {
-          const { response } = yield* fetchWith(
-            handler,
-            new Request(`https://api.lil.tech/oauth/authorize?${query("cli_x").search}`),
-          );
-          assert.strictEqual(response.status, 404);
-        }),
-      prod,
-    ),
-  );
 });
 
 /** Staging's API host: the issuer, and where Apple and Google send their answers. */
 const issuer = "https://api.staging.lil.tech";
 
-/** Registers a client (DCR) on staging. */
-const registerOnStaging = (handler: Handler) =>
+/** Registers a client (DCR) on staging, or on another deployment's issuer. */
+const registerOnStaging = (handler: Handler, on = issuer) =>
   Effect.promise(async () => {
     const response = await handler(
-      new Request(`${issuer}/oauth/register`, {
+      new Request(`${on}/oauth/register`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ client_name: "MCP Inspector", redirect_uris: [redirectUri] }),
@@ -806,6 +792,30 @@ describe("Signing in with Apple and Google on the authorization page", () => {
           }
         }).pipe(Effect.orDie),
       staging,
+    ),
+  );
+
+  it.live("offers Apple and Google in prod, for mcp.lil.tech/health, since the launch", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const prodIssuer = "https://api.lil.tech";
+          const clientId = yield* registerOnStaging(handler, prodIssuer);
+          const { search } = query(clientId, { resource: "https://mcp.lil.tech/health" });
+          const started = yield* start(handler, search, prodIssuer);
+          assert.strictEqual(started.response.status, 200);
+          assert.include(started.html, 'name="provider" value="apple"');
+          assert.include(started.html, 'name="provider" value="google"');
+          assert.notInclude(started.html, "Sign in to a Test Account");
+          const [row] = yield* (yield* CoreDb)
+            .select({ resource: agentAuthorizations.resource })
+            .from(agentAuthorizations)
+            .where(eq(agentAuthorizations.id, started.request as never));
+          assert.strictEqual(row?.resource, "https://mcp.lil.tech/health");
+          const onMcp = new Request(`https://mcp.lil.tech/oauth/authorize?${search}`);
+          assert.strictEqual((yield* fetchWith(handler, onMcp)).response.status, 404);
+        }).pipe(Effect.orDie),
+      prod,
     ),
   );
 

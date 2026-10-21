@@ -354,9 +354,9 @@ const checkRequest = Effect.fnUntraced(function* (
   };
 });
 
-/** The privacy policy's URL on this stage's site. */
+/** The privacy policy's section on connected agents, on this stage's site (851-2855). */
 const privacyUrl = (environment: Environment) =>
-  `https://${stageDomains[environment]?.site ?? "lil.tech"}/privacy`;
+  `https://${stageDomains[environment]?.site ?? "lil.tech"}/privacy#agents`;
 
 /**
  * `GET /oauth/authorize` and its steps, `POST /oauth/authorize/sign-in`,

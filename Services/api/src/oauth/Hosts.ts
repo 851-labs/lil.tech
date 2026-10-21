@@ -8,13 +8,15 @@ import type { Environment } from "../Status.ts";
 // host, and a protected resource per app on the MCP host (`mcp.lil.tech`).
 
 /**
- * Where agents can connect: the OAuth and MCP routes exist only here, and elsewhere are a 404. Prod
- * is added by the launch (851-2855), once the privacy policy covers it.
+ * Where agents can connect: the OAuth and MCP routes exist only here, and elsewhere are a 404.
+ * Every environment since the launch (851-2855), once the privacy policy covered it. A new
+ * environment opts in here.
  */
 export const agentAccessEnvironments: ReadonlySet<Environment> = new Set([
   "preview",
   "local",
   "staging",
+  "prod",
 ]);
 
 /**
@@ -120,6 +122,9 @@ export const isMcpPath = (path: string) =>
 export const isAuthorizationServerPath = (path: string) =>
   path === authorizationServerMetadataPath || path.startsWith("/oauth/");
 
-/** The help page that Protected Resource Metadata's `resource_documentation` points to (851-2855). */
+/**
+ * The help page that Protected Resource Metadata's `resource_documentation` points to, on the
+ * stage's site (`Web/site/public/agents`, 851-2855).
+ */
 export const agentsHelpUrl = (environment: Environment) =>
   `https://${stageDomains[environment]?.site ?? "lil.tech"}/agents`;

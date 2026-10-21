@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Connect an AI agent · lil health</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Connect an AI agent</h1>
+      <p class="muted">lil health · Claude, Claude Code, ChatGPT and other agents</p>
+
+      <p>
+        Connect an AI agent to your lil health account, then ask it about your Health data: how you
+        slept this week, how your resting heart rate has changed this year, or what workouts you did
+        last month. The agent reads your data from lil health's servers, so it works wherever the
+        agent runs, without your Mac.
+      </p>
+      <p>
+        You need a lil health account with your Health data in it: set up lil health on your iPhone
+        first. When the agent asks you to sign in, use the same Apple ID or Google account.
+      </p>
+
+      <h2>The URL</h2>
+      <p>Add this URL to your agent as a remote MCP server (some agents call it a connector):</p>
+      <pre><code>https://mcp.lil.tech/health</code></pre>
+      <p>
+        The agent then opens lil health's page in your browser. Sign in with Apple or Google, check
+        which agent is asking, and click Allow.
+      </p>
+
+      <h2>Claude</h2>
+      <p>On claude.ai, or in the Claude app on your Mac or PC:</p>
+      <ol>
+        <li>Open Customize › Connectors (Settings › Connectors in some versions).</li>
+        <li>Click Add, then Add custom connector.</li>
+        <li>Name it lil health, paste the URL above, and add it.</li>
+        <li>Click Connect, then sign in to lil health and allow Claude.</li>
+      </ol>
+      <p>
+        On a Team or Enterprise plan, an owner adds the connector in Organization settings ›
+        Connectors first. Then you find it in Customize › Connectors and click Connect.
+      </p>
+
+      <h2>Claude Code</h2>
+      <p>In a terminal:</p>
+      <pre><code>claude mcp add --transport http lil-health https://mcp.lil.tech/health</code></pre>
+      <p>
+        Then, in Claude Code, run <code>/mcp</code>, choose lil-health, and authenticate. Your
+        browser opens lil health's page.
+      </p>
+
+      <h2>ChatGPT</h2>
+      <p>
+        ChatGPT can add a custom MCP server on some plans and workspaces, sometimes only in
+        developer mode, and its menus change often. Today, on chatgpt.com:
+      </p>
+      <ol>
+        <li>Open Plugins, click the plus button, then Add custom MCP server.</li>
+        <li>Name it lil health, paste the URL above as the Server URL, and choose OAuth.</li>
+        <li>Create it, sign in to lil health and allow ChatGPT, then install the plugin.</li>
+        <li>In a chat, type @ and choose lil health.</li>
+      </ol>
+      <p>
+        If your ChatGPT looks different, see OpenAI's guide to
+        <a href="https://developers.openai.com/api/docs/guides/custom-mcp-server"
+          >adding a custom MCP server</a
+        >.
+      </p>
+
+      <h2>Other agents</h2>
+      <p>
+        Any agent that supports remote MCP servers over Streamable HTTP, with OAuth sign-in, can
+        connect: give it the URL above. lil health registers it when it connects, so there's no
+        client ID or secret to enter.
+      </p>
+
+      <h2>What an agent can read</h2>
+      <ul>
+        <li>
+          <strong>All of your lil health data,</strong> read-only. There's no way to share only some
+          kinds of data, and an agent can't change or delete anything.
+        </li>
+        <li>
+          <strong>Summaries first:</strong> today's numbers, totals and averages over a day, week,
+          month, six months or a year, workouts, sleep, medications and your health details. It
+          reads individual records only when it asks for them, a page at a time.
+        </li>
+        <li>
+          <strong>Days in UTC</strong> unless the agent asks for your time zone, since lil health's
+          servers don't know where you are. Tell your agent where you are if its days look off.
+        </li>
+        <li>
+          <strong>Agents send what they read to their provider,</strong> such as Anthropic or
+          OpenAI, under the provider's own privacy policy.
+        </li>
+      </ul>
+      <p>
+        lil health logs every time an agent reads your data: what it asked for and when, never the
+        answers. You can see the log in lil health on your Mac and iPhone. It's kept for 90 days.
+        The <a href="/privacy#agents">privacy policy</a> has the details.
+      </p>
+
+      <h2>Stop an agent</h2>
+      <ul>
+        <li>
+          <strong>On your Mac:</strong> in lil health, open Settings › Agents. Click Revoke… next to
+          an agent, or Turn Off Agent Access… to disconnect them all.
+        </li>
+        <li>
+          <strong>On your iPhone:</strong> in lil health, open Settings › Connected Agents. Swipe
+          left on an agent to revoke it, or tap Turn Off Agent Access.
+        </li>
+      </ul>
+      <p>
+        The agent is cut off at its next request. You can also remove it in the agent itself: in
+        Claude, Customize › Connectors; in Claude Code, <code>claude mcp remove lil-health</code>.
+        Connecting again asks you to sign in and allow it again.
+      </p>
+
+      <h2>Agents on your Mac only</h2>
+      <p>
+        lil health for Mac also has a command, <code>lil health</code>, with a local MCP server that
+        reads the copy of your data on your Mac instead (install it with lil health › Install
+        Command Line Tool…). It's off until you turn on “Allow command-line and agent access” in
+        Settings › Agents, which also shows how to connect an agent to it.
+      </p>
+
+      <h2>If something doesn't work</h2>
+      <ul>
+        <li>
+          <strong>“No lil health account uses this Apple ID”</strong> (or Google account): sign in
+          with the account you use in lil health on your iPhone. Accounts can't be created on the
+          web.
+        </li>
+        <li>
+          <strong>The agent finds no data:</strong> open lil health on your iPhone and check that it
+          has uploaded your Health data.
+        </li>
+      </ul>
+      <p>Anything else: <a href="mailto:hello@851.sh">hello@851.sh</a>.</p>
+
+      <p class="muted"><a href="/">lil.tech</a> · <a href="/privacy">Privacy Policy</a></p>
+    </main>
+  </body>
+</html>

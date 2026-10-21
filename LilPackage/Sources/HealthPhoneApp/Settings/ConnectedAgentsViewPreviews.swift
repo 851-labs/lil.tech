@@ -46,9 +46,7 @@ enum ConnectedAgentsPreviewData {
 }
 
 @MainActor
-private func agents(
-  _ state: ConnectedAgentsFeature.State, environment: APIEnvironment = .staging
-) -> some View {
+private func agents(_ state: ConnectedAgentsFeature.State) -> some View {
   // `EmptyReducer`: opening the screen would read the agents again.
   // `ifLet`: closing an alert (e.g. when a snapshot's window goes) clears it, as the feature does.
   return NavigationStack {
@@ -57,7 +55,7 @@ private func agents(
         EmptyReducer<ConnectedAgentsFeature.State, ConnectedAgentsFeature.Action>()
           .ifLet(\.$alert, action: \.alert)
       },
-      environment: environment)
+      environment: .staging)
   }
 }
 
@@ -140,10 +138,4 @@ private func agents(
           firstUsedAt: Date(timeIntervalSince1970: 1_760_650_060),
           lastUsedAt: Date.now.addingTimeInterval(-26 * 3600)),
       ])))
-}
-
-#Preview("Before agents launch") {
-  // Prod has no MCP server yet (851-2855), so there's no URL to give.
-  agents(
-    ConnectedAgentsFeature.State(agents: .loaded([])), environment: .prod)
 }

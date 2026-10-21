@@ -183,21 +183,36 @@ describe("OAuth metadata", () => {
     );
   });
 
-  it.live("isn't in prod yet, whose MCP host serves nothing", () =>
+  it.live("serves prod's documents on its own hosts, since the launch", () =>
     withApi(
       (handler) =>
         Effect.gen(function* () {
-          for (const url of [
+          const resource = yield* get(
+            handler,
             "https://mcp.lil.tech/.well-known/oauth-protected-resource/health",
+          );
+          assert.strictEqual(resource.status, 200);
+          assert.deepInclude(yield* json(resource), {
+            resource: "https://mcp.lil.tech/health",
+            authorization_servers: ["https://api.lil.tech"],
+            resource_documentation: "https://lil.tech/agents",
+          });
+          const server = yield* get(
+            handler,
             "https://api.lil.tech/.well-known/oauth-authorization-server",
+          );
+          assert.strictEqual(server.status, 200);
+          assert.deepInclude(yield* json(server), {
+            issuer: "https://api.lil.tech",
+            authorization_endpoint: "https://api.lil.tech/oauth/authorize",
+          });
+          for (const url of [
+            "https://api.lil.tech/.well-known/oauth-protected-resource/health",
+            "https://mcp.lil.tech/.well-known/oauth-authorization-server",
             "https://mcp.lil.tech/v1/status",
           ]) {
             assert.strictEqual((yield* get(handler, url)).status, 404, url);
           }
-          assert.strictEqual(
-            (yield* register(handler, { redirect_uris: ["https://example.com/cb"] })).status,
-            404,
-          );
           assert.strictEqual((yield* get(handler, "https://api.lil.tech/v1/status")).status, 200);
         }),
       prod,
