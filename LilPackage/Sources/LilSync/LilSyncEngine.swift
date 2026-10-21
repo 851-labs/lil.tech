@@ -1,9 +1,9 @@
 import CryptoKit
 import Dependencies
 public import Foundation
-import GzipFiles
 import IssueReporting
 public import LilAPI
+import LilGzip
 import SQLiteData
 
 /// What the UI shows about sync.

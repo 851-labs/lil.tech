@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import MessageThreadFeature
+@testable import MessagesThread
 
 struct MessageLinkTests {
   @Test

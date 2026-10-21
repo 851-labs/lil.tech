@@ -1,7 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import MessagesDatabase
-import OnboardingFeature
+import MessagesOnboarding
 import Testing
 
 @MainActor

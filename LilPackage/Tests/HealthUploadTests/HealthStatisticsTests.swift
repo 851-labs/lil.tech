@@ -1,6 +1,6 @@
 import Dependencies
 import Foundation
-import GzipFiles
+import LilGzip
 import Testing
 
 @testable import HealthUpload

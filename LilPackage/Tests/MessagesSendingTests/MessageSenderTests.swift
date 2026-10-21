@@ -1,4 +1,4 @@
-import MessageSending
+import MessagesSending
 import Testing
 
 struct MessageSenderTests {

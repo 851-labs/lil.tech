@@ -1,11 +1,11 @@
 import ComposableArchitecture
-import ContactNames
-import ConversationListFeature
 import Foundation
-import MessageThreadFeature
-import MessagesApp
+import MessagesContacts
+import MessagesConversationList
 import MessagesDatabase
-import OnboardingFeature
+import MessagesMacApp
+import MessagesOnboarding
+import MessagesThread
 import Tagged
 import Testing
 

@@ -3,19 +3,19 @@
   "screens": [
     {
       "id": "window",
-      "screen": "MessagesApp/AppViewPreviews.swift",
+      "screen": "MessagesMacApp/AppViewPreviews.swift",
       "title": "Window",
       "states": ["Thread Open", "Nothing Selected", "Needs Full Disk Access", "Checking Access"]
     },
-    { "id": "full-disk-access", "screen": "OnboardingFeature/FullDiskAccessView.swift" },
+    { "id": "full-disk-access", "screen": "MessagesOnboarding/FullDiskAccessView.swift" },
     {
       "id": "conversations",
-      "screen": "ConversationListFeature/ConversationListViewPreviews.swift",
+      "screen": "MessagesConversationList/ConversationListViewPreviews.swift",
       "title": "Conversations"
     },
     {
       "id": "thread",
-      "screen": "MessageThreadFeature/MessageThreadViewPreviews.swift",
+      "screen": "MessagesThread/MessageThreadViewPreviews.swift",
       "title": "Thread"
     }
   ],

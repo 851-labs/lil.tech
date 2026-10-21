@@ -1,8 +1,8 @@
 import ComposableArchitecture
 import Foundation
-import MessageSending
-import MessageThreadFeature
 import MessagesDatabase
+import MessagesSending
+import MessagesThread
 import SQLiteData
 import Tagged
 import Testing

@@ -10,7 +10,7 @@
 		2B000000000000000000000A /* HealthPhoneApp in Frameworks */ = {isa = PBXBuildFile; productRef = 2B000000000000000000000B /* HealthPhoneApp */; };
 		2B0000000000000000000012 /* SnapshottingTests in Frameworks */ = {isa = PBXBuildFile; productRef = 2B0000000000000000000013 /* SnapshottingTests */; };
 		2D000000000000000000000A /* HealthMacApp in Frameworks */ = {isa = PBXBuildFile; productRef = 2D000000000000000000000B /* HealthMacApp */; };
-		2E000000000000000000000A /* MessagesApp in Frameworks */ = {isa = PBXBuildFile; productRef = 2E000000000000000000000B /* MessagesApp */; };
+		2E000000000000000000000A /* MessagesMacApp in Frameworks */ = {isa = PBXBuildFile; productRef = 2E000000000000000000000B /* MessagesMacApp */; };
 		2D0000000000000000000012 /* SnapshottingTests in Frameworks */ = {isa = PBXBuildFile; productRef = 2D0000000000000000000013 /* SnapshottingTests */; };
 		2E0000000000000000000012 /* SnapshottingTests in Frameworks */ = {isa = PBXBuildFile; productRef = 2E0000000000000000000013 /* SnapshottingTests */; };
 /* End PBXBuildFile section */
@@ -85,7 +85,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2E000000000000000000000A /* MessagesApp in Frameworks */,
+				2E000000000000000000000A /* MessagesMacApp in Frameworks */,
 				2E0000000000000000000012 /* SnapshottingTests in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -204,7 +204,7 @@
 			);
 			name = MessagesMacSnapshots;
 			packageProductDependencies = (
-				2E000000000000000000000B /* MessagesApp */,
+				2E000000000000000000000B /* MessagesMacApp */,
 				2E0000000000000000000013 /* SnapshottingTests */,
 			);
 			productName = MessagesMacSnapshots;
@@ -534,10 +534,10 @@
 			package = 2C0000000000000000000001 /* XCLocalSwiftPackageReference "../../LilPackage" */;
 			productName = HealthMacApp;
 		};
-		2E000000000000000000000B /* MessagesApp */ = {
+		2E000000000000000000000B /* MessagesMacApp */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 2C0000000000000000000001 /* XCLocalSwiftPackageReference "../../LilPackage" */;
-			productName = MessagesApp;
+			productName = MessagesMacApp;
 		};
 		2D0000000000000000000013 /* SnapshottingTests */ = {
 			isa = XCSwiftPackageProductDependency;

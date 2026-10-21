@@ -1,8 +1,8 @@
 public import ComposableArchitecture
-import ConversationListFeature
-import MessageThreadFeature
+import MessagesConversationList
 import MessagesDatabase
-import OnboardingFeature
+import MessagesOnboarding
+import MessagesThread
 public import SwiftUI
 
 public struct AppView: View {

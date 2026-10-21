@@ -5,7 +5,7 @@ import MessagesDatabase
 import Tagged
 import Testing
 
-@testable import MessageThreadFeature
+@testable import MessagesThread
 
 /// The arithmetic row heights must match a full Auto Layout pass on the real cells.
 @MainActor

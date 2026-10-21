@@ -1,6 +1,6 @@
 import CryptoKit
 public import Foundation
-import GzipFiles
+import LilGzip
 
 /// Collects mutations into gzip NDJSON batch files (`docs/SYNC.md`). Files are cut by
 /// uncompressed size: at most 15 MB, under the server's 16 MB compressed and 64 MB decompressed

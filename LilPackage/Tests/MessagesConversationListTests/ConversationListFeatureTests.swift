@@ -1,7 +1,7 @@
 import ComposableArchitecture
-import ContactNames
-import ConversationListFeature
 import Foundation
+import MessagesContacts
+import MessagesConversationList
 import MessagesDatabase
 import SQLiteData
 import Tagged

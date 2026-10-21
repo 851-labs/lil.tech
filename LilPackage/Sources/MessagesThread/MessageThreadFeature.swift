@@ -1,7 +1,7 @@
 public import ComposableArchitecture
 public import Foundation
-import MessageSending
 public import MessagesDatabase
+import MessagesSending
 import SQLiteData
 public import Tagged
 

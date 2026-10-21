@@ -1,7 +1,7 @@
 import AppKit
 import Testing
 
-@testable import MessageThreadFeature
+@testable import MessagesThread
 
 struct BubbleColorsTests {
   @Test

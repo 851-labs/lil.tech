@@ -1,9 +1,9 @@
 public import ComposableArchitecture
-import ContactNames
-public import ConversationListFeature
-public import MessageThreadFeature
+import MessagesContacts
+public import MessagesConversationList
 import MessagesDatabase
-public import OnboardingFeature
+public import MessagesOnboarding
+public import MessagesThread
 
 @Reducer
 public struct AppFeature {

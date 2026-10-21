@@ -6,7 +6,7 @@ import SQLiteData
 import Tagged
 import Testing
 
-@testable import MessageThreadFeature
+@testable import MessagesThread
 
 /// Drives the real thread view controller in an offscreen window: scrolling to the top loads
 /// earlier pages, keeps the message that was on screen in place, and stops at the first message.

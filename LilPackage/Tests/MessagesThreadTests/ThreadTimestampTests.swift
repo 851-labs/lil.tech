@@ -3,7 +3,7 @@ import MessagesDatabase
 import Tagged
 import Testing
 
-@testable import MessageThreadFeature
+@testable import MessagesThread
 
 @MainActor
 struct ThreadTimestampTests {

@@ -1,8 +1,8 @@
 import Foundation
-import GzipFiles
 import HealthCatalog
 import HealthKit
 import LilAPI
+import LilGzip
 import Testing
 
 @testable import HealthUpload

@@ -1,7 +1,7 @@
-import AppUpdates
 import ComposableArchitecture
 import HealthMacApp
 import LilAuth
+import LilUpdates
 import SwiftUI
 
 @main

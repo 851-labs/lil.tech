@@ -1,6 +1,6 @@
 public import ComposableArchitecture
-import ContactNames
 public import Foundation
+import MessagesContacts
 public import MessagesDatabase
 import SQLiteData
 

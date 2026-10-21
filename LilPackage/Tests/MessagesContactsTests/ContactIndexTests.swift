@@ -1,5 +1,5 @@
-import ContactNames
 import Foundation
+import MessagesContacts
 import Testing
 
 struct ContactIndexTests {

@@ -6,7 +6,7 @@ import SQLiteData
 import Tagged
 import Testing
 
-@testable import MessageThreadFeature
+@testable import MessagesThread
 
 /// Resizes the real thread view controller in an offscreen window, like dragging the sidebar
 /// divider, and checks bubbles keep hugging their text.

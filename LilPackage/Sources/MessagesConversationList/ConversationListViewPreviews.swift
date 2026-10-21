@@ -1,6 +1,6 @@
 import AppKit
 import ComposableArchitecture
-import ContactNames
+import MessagesContacts
 import MessagesDatabase
 import SQLiteData
 import SwiftUI

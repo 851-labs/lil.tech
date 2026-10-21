@@ -1,9 +1,9 @@
 import ComposableArchitecture
-import ContactNames
-import ConversationListFeature
-import MessageThreadFeature
+import MessagesContacts
+import MessagesConversationList
 import MessagesDatabase
-import OnboardingFeature
+import MessagesOnboarding
+import MessagesThread
 import SQLiteData
 import SwiftUI
 

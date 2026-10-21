@@ -1,10 +1,10 @@
-import ConversationListFeature
 import Foundation
+import MessagesConversationList
 import MessagesDatabase
 import Tagged
 import Testing
 
-@testable import ConversationListFeature
+@testable import MessagesConversationList
 
 struct ConversationDisplayTests {
   @Test
