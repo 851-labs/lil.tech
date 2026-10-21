@@ -58,18 +58,19 @@ const readGoogleWebClientSecret = readOptionalSecret("LIL_GOOGLE_WEB_CLIENT_SECR
 const providerSecretsRequired: ReadonlySet<string> = new Set(["staging", "prod"]);
 
 /**
- * Workers Logs (851-2908): Alchemy's default (logs and invocation logs on), without query strings.
+ * Workers Logs (851-2908): what Alchemy turns on when a Worker has no `observability` (logs and
+ * invocation logs), plus no query strings. Giving the prop replaces that default.
  * Cloudflare records each request's URL, and ours carry secrets there: the Google callback's `code`
  * and `state`, the agent's `state` and PKCE challenge on `/oauth/authorize`, the one-time `ticket`
  * of `/oauth/authorize/signed-in`, and signed downloads' `token`s. Cloudflare's own setting is the
  * only way to keep them out: a request's URL is logged before the Worker runs, and is the same for
  * every route.
  */
-export const apiObservability = {
+const apiObservability = {
   enabled: true,
   logs: { enabled: true, invocationLogs: true },
   redactQueryString: true,
-};
+} satisfies Cloudflare.WorkerObservability;
 
 /**
  * The Worker's props. Alchemy also evaluates them inside the running Worker, where there's no
