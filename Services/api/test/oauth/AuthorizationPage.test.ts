@@ -223,7 +223,7 @@ describe("The authorization page", () => {
           assert.include(consent.html, "Signed in as <strong>e2e</strong>");
           assert.include(consent.html, "Unverified");
           assert.include(consent.html, "Returns you to <strong>127.0.0.1</strong>");
-          assert.include(consent.html, "a program on this computer");
+          assert.include(consent.html, "This agent is a program on your computer");
 
           const allowed = yield* decide(
             handler,
@@ -560,7 +560,7 @@ describe("The authorization page", () => {
           assert.include(cimd.html, "Sign in to connect Claude Code to lil health");
           assert.include(cimd.html, "Identified by <strong>claude.ai</strong>");
           assert.notInclude(cimd.html, "Unverified");
-          assert.include(cimd.html, "a program on this computer");
+          assert.include(cimd.html, "This agent is a program on your computer");
         }),
       preview,
     ),
