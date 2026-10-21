@@ -55,6 +55,121 @@ public enum CommandLineToolInstaller {
     }
   }
 
+  /// What refreshing does about the `lil` in one destination, when the app opens.
+  public enum Refresh: Equatable, Sendable {
+    /// Nothing: no `lil` there, one this version or newer, or another command named `lil`.
+    case none
+    /// Replace the older `lil` there, which this account can do without asking.
+    case replace(version: Int)
+    /// The `lil` there is older, but replacing it needs an administrator, so offer to rather than
+    /// ask for a password nobody expected.
+    case offer(version: Int)
+  }
+
+  /// What refreshing does about `existing`, in a directory this account can write or not. It only
+  /// replaces an older `lil`: it never installs one where there was none.
+  public static func refresh(bundledVersion: Int, existing: Existing, writable: Bool) -> Refresh {
+    guard case .replace(let version) = decide(bundledVersion: bundledVersion, existing: existing)
+    else { return .none }
+    return writable ? .replace(version: version) : .offer(version: version)
+  }
+
+  /// An installed `lil` older than the bundled one, which only an administrator can replace.
+  public struct Outdated: Equatable, Sendable {
+    /// The directory it's in.
+    public var directory: URL
+    public var version: Int
+    public var bundledVersion: Int
+
+    public init(directory: URL, version: Int, bundledVersion: Int) {
+      self.directory = directory
+      self.version = version
+      self.bundledVersion = bundledVersion
+    }
+  }
+
+  /// What refreshing the installed copies did.
+  public struct RefreshResult: Equatable, Sendable {
+    /// The `lil`s it replaced.
+    public var replaced: [URL] = []
+    /// The older `lil`s it left for an administrator.
+    public var outdated: [Outdated] = []
+  }
+
+  /// Replaces any older `lil` installed in `directories` with `bundled`, where this account can
+  /// without an administrator's password, and reports the rest. For the app to call when it opens,
+  /// so a `lil` installed from an older version follows the app's updates.
+  ///
+  /// Unlike installing, which the user asks for, this runs nothing: it reads versions from the
+  /// info section the apps' `lil` target embeds (`version`), so another command named `lil` isn't
+  /// run every time the app opens. It leaves links alone too: whoever made one (Homebrew, the
+  /// user) manages that `lil`, and a link into an app follows its updates already.
+  public static func refreshInstalled(
+    _ bundled: URL,
+    in directories: [URL] = Destination.allCases.map(\.directory),
+    version: @escaping @Sendable (URL) -> Int? = embeddedVersion(of:)
+  ) async -> RefreshResult {
+    await withCheckedContinuation { continuation in
+      DispatchQueue.global(qos: .utility).async {
+        continuation.resume(
+          returning: refreshInstalledNow(bundled, in: directories, version: version)
+        )
+      }
+    }
+  }
+
+  private static func refreshInstalledNow(
+    _ bundled: URL,
+    in directories: [URL],
+    version: (URL) -> Int?
+  ) -> RefreshResult {
+    var result = RefreshResult()
+    guard let bundledVersion = version(bundled) else { return result }
+    for directory in directories {
+      let destination = directory.appending(component: "lil")
+      guard
+        let type = try? FileManager.default.attributesOfItem(atPath: destination.path)[.type]
+          as? FileAttributeType,
+        type == .typeRegular
+      else { continue }
+      switch refresh(
+        bundledVersion: bundledVersion,
+        existing: version(destination).map(Existing.lil(version:)) ?? .other,
+        writable: isWritable(directory)
+      ) {
+      case .none:
+        break
+      case .replace:
+        // If that fails after all (an immutable file, say), the menu item is still there.
+        if (try? copy(bundled, into: directory)) != nil {
+          result.replaced.append(destination)
+        }
+      case .offer(let version):
+        result.outdated.append(
+          Outdated(directory: directory, version: version, bundledVersion: bundledVersion)
+        )
+      }
+    }
+    return result
+  }
+
+  /// The version of the `lil` at `url`, from the info section the apps' `lil` target embeds in
+  /// the binary (`CFBundleVersion`, which `lil --version` prints), without running it. Nil if it
+  /// isn't a `lil` (`tech.lil.cli`).
+  public static func embeddedVersion(of url: URL) -> Int? {
+    guard
+      let info = CFBundleCopyInfoDictionaryForURL(url as CFURL) as? [String: Any],
+      info["CFBundleIdentifier"] as? String == "tech.lil.cli"
+    else { return nil }
+    return (info["CFBundleVersion"] as? String).flatMap { Int($0) }
+  }
+
+  /// Whether to offer to replace `outdated`, given the bundled version last offered: once per
+  /// version, so declining isn't asked again until the app updates.
+  public static func shouldOffer(_ outdated: [Outdated], lastOfferedVersion: Int) -> Bool {
+    outdated.contains { $0.bundledVersion > lastOfferedVersion }
+  }
+
   public enum Outcome: Equatable, Sendable {
     case installed(URL, replacedVersion: Int?)
     /// A `lil` of this version, or a newer one, was there already.
@@ -106,7 +221,7 @@ public enum CommandLineToolInstaller {
     }
     let arguments = [copyScript, "sh", directory.path, bundled.path]
     if isWritable(directory) {
-      try run(URL(filePath: "/bin/sh"), arguments: ["-c"] + arguments)
+      try copy(bundled, into: directory)
     } else {
       // The same script, as root. The paths are arguments, not part of the script.
       let appleScript = [
@@ -129,6 +244,14 @@ public enum CommandLineToolInstaller {
       }
     }
     return .installed(destination, replacedVersion: replacedVersion)
+  }
+
+  /// Copies `bundled` into `directory` as `lil`, as this account.
+  private static func copy(_ bundled: URL, into directory: URL) throws {
+    try run(
+      URL(filePath: "/bin/sh"),
+      arguments: ["-c", copyScript, "sh", directory.path, bundled.path]
+    )
   }
 
   /// Copies `$2` to `$1/lil`, creating `$1` if needed. Through a temporary file of its own, so the
