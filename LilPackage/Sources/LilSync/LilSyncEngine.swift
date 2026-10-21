@@ -318,7 +318,9 @@ public actor LilSyncEngine {
     try await database.write { [entities] db in
       for entity in entities.values { try entity.clear(db) }
       // In case discarding them after a failed bootstrap failed too.
-      for table in entities.values.compactMap(\.table) { try SnapshotStaging.discard(table, db) }
+      for table in entities.values.compactMap(\.staging?.table) {
+        try SnapshotStaging.discard(table, db)
+      }
       try SyncState.find(SyncState.singletonID).delete().execute(db)
       // Unsent writes belong to the account signing out.
       try PendingMutation.delete().execute(db)
@@ -492,7 +494,7 @@ public actor LilSyncEngine {
     manifest = bootstrapManifest ?? manifest
 
     // Tables whose records go through a staging table (`SnapshotStaging`).
-    let staged = Set(wanted.compactMap { entities[$0.entity]?.table }).sorted()
+    let staged = Set(wanted.compactMap { entities[$0.entity]?.staging?.table }).sorted()
     try await database.write { [entities] db in
       // Until the load finishes, this client is a new device, which bootstraps again.
       try SyncState.find(SyncState.singletonID).delete().execute(db)
@@ -522,8 +524,13 @@ public actor LilSyncEngine {
       }.value
       throw error
     }
-    // The load was one transaction, so the write-ahead log grew as big as the records.
-    _ = try? await database.writeWithoutTransaction { try $0.checkpoint(.truncate) }
+    // The load was one transaction, so the write-ahead log grew as big as the records. Truncated
+    // now unless something's reading (GRDB doesn't wait), and otherwise once a later checkpoint
+    // resets it, down to `walSizeLimit`.
+    _ = try? await database.writeWithoutTransaction { db in
+      try db.execute(sql: "PRAGMA journal_size_limit = \(Self.walSizeLimit)")
+      try db.checkpoint(.truncate)
+    }
     removeDownloadedParts(keeping: [])
   }
 
@@ -537,7 +544,9 @@ public actor LilSyncEngine {
       try? FileManager.default.removeItem(at: file)
       throw error
     }
-    let staging = entity.table.map(SnapshotStaging.name(for:))
+    let staging = entity.staging.map {
+      (insert: $0.insert, table: SnapshotStaging.name(for: $0.table))
+    }
     let lines = records.split(separator: UInt8(ascii: "\n"))
     for start in stride(from: 0, to: lines.count, by: Self.loadBatchSize) {
       let batch = lines[start..<min(start + Self.loadBatchSize, lines.count)]
@@ -545,7 +554,7 @@ public actor LilSyncEngine {
         for line in batch where !line.isEmpty {
           do {
             if let staging {
-              try entity.stageRecord(Data(line), in: staging, db)
+              try staging.insert(Data(line), staging.table, db)
             } else {
               try entity.loadRecord(Data(line), db)
             }
@@ -557,6 +566,9 @@ public actor LilSyncEngine {
       }
     }
   }
+
+  /// The size, in bytes, the write-ahead log shrinks back to after a bootstrap grew it.
+  static let walSizeLimit = 64 << 20
 
   /// Snapshot parts downloaded at once while bootstrapping.
   static let parallelDownloads = 4

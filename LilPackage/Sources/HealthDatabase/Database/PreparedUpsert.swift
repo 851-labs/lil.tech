@@ -11,6 +11,9 @@ struct PreparedUpsert<Record: PrimaryKeyedTable>: Sendable where Record.QueryOut
   /// The columns and placeholders of an `INSERT` into a table with `Record`'s columns.
   private let columnList: String
   private let placeholders: String
+  /// Each column's name, quoted, and the primary key's columns, by their place in `bindings`.
+  private let columnNames: [String]
+  private let primaryKey: [Int]
   /// Each column's value in a record, as StructuredQueries binds it, in the statement's order.
   private let bindings: [@Sendable (Record) -> QueryBinding]
 
@@ -22,6 +25,8 @@ struct PreparedUpsert<Record: PrimaryKeyedTable>: Sendable where Record.QueryOut
     let updates = names.filter { !primaryKey.contains($0) }.map {
       "\(quoted($0)) = excluded.\(quoted($0))"
     }
+    columnNames = names.map(quoted)
+    self.primaryKey = names.indices.filter { primaryKey.contains(names[$0]) }
     columnList = names.map(quoted).joined(separator: ", ")
     placeholders = names.map { _ in "?" }.joined(separator: ", ")
     sql = """
@@ -54,12 +59,21 @@ struct PreparedUpsert<Record: PrimaryKeyedTable>: Sendable where Record.QueryOut
 
   /// Inserts `record` into `table`, a table with `Record`'s columns and no constraints, such as a
   /// snapshot's staging table (851-2859). A record with a value StructuredQueries binds specially
-  /// is upserted into `Record`'s own table instead.
+  /// is upserted into `Record`'s own table instead, with what was staged for its ID before it
+  /// dropped, so it isn't moved over it later.
   func insert(_ record: Record, into table: String, _ db: Database) throws {
-    guard let arguments = try arguments(record) else { return try execute(record, db) }
-    let quoted = table.replacingOccurrences(of: "\"", with: "\"\"")
+    let table = table.quotedDatabaseIdentifier
+    guard let arguments = try arguments(record) else {
+      try Record.upsert { record }.execute(db)
+      let key = try primaryKey.map { index in
+        try Self.databaseValue(bindings[index](record)) ?? .null
+      }
+      let condition = primaryKey.map { "\(columnNames[$0]) IS ?" }.joined(separator: " AND ")
+      return try db.execute(
+        sql: "DELETE FROM \(table) WHERE \(condition)", arguments: StatementArguments(key))
+    }
     let statement = try db.cachedStatement(
-      sql: "INSERT INTO \"\(quoted)\" (\(columnList)) VALUES (\(placeholders))")
+      sql: "INSERT INTO \(table) (\(columnList)) VALUES (\(placeholders))")
     statement.setUncheckedArguments(arguments)
     try statement.execute()
   }

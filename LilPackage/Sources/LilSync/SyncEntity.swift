@@ -69,7 +69,8 @@ public struct SyncEntity: Sendable {
   /// as the table grew.
   ///
   /// - Parameter insert: Inserts a row into the table named by its second argument, which has
-  ///   `table`'s columns and no constraints, or upserts it into `table` itself.
+  ///   `table`'s columns and no constraints. It must write every column of `table`: they're all
+  ///   moved into it, and one left out would be stored as null rather than its default.
   public static func decoding<Row: Decodable & SendableMetatype>(
     _ name: String,
     as _: Row.Type,
@@ -81,27 +82,26 @@ public struct SyncEntity: Sendable {
   ) -> Self {
     var entity = decoding(name, as: Row.self, upsert: upsert, delete: delete, clear: clear)
     let decoder = JSONDecoder()
-    entity.table = table
-    entity.stageDecoding = { record, staging, db in
+    entity.staging = Staging(table: table) { record, staging, db in
       try insert(decoder.decode(Row.self, from: record), staging, db)
     }
     return entity
   }
 
+  /// How an entity's snapshot records go through a staging table (`SnapshotStaging`).
+  struct Staging: Sendable {
+    /// The entity's table.
+    let table: String
+    /// Stores one record in the staging table named by its second argument.
+    let insert: @Sendable (_ record: Data, _ staging: String, _ db: Database) throws -> Void
+  }
+
   private var loadDecoding: (@Sendable (_ record: Data, _ db: Database) throws -> Void)?
 
-  /// The entity's table, if its snapshots load through a staging table.
-  private(set) var table: String?
-  private var stageDecoding:
-    (@Sendable (_ record: Data, _ staging: String, _ db: Database) throws -> Void)?
+  /// Set if the entity's snapshots load through a staging table.
+  private(set) var staging: Staging?
 
   func loadRecord(_ record: Data, _ db: Database) throws {
     try (loadDecoding ?? load)(record, db)
-  }
-
-  /// Stores a snapshot record in `staging`, the entity's staging table.
-  func stageRecord(_ record: Data, in staging: String, _ db: Database) throws {
-    guard let stageDecoding else { return try loadRecord(record, db) }
-    try stageDecoding(record, staging, db)
   }
 }

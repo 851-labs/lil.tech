@@ -1390,6 +1390,41 @@ struct HealthSyncTests {
     #expect(try database.read { db in try DatedThing.all.fetchAll(db) } == [thing])
   }
 
+  /// A record that needs StructuredQueries' own binding can't be staged (851-2859): it's upserted
+  /// into its table, and an earlier version staged for its ID is dropped, so moving the staged
+  /// records doesn't put it back over the newer one.
+  @Test
+  func recordsThatCantBeStagedGoStraightToTheirTable() throws {
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try #sql(
+        #"CREATE TABLE "datedThings" ("id" TEXT PRIMARY KEY NOT NULL, "at" TEXT NOT NULL, "bytes" BLOB NOT NULL)"#
+      )
+      .execute(db)
+      try #sql(#"CREATE TEMP TABLE "staging" ("id", "at", "bytes")"#).execute(db)
+    }
+    let upsert = PreparedUpsert<DatedThing>()
+    let older = DatedThing(id: "a", at: Date(timeIntervalSince1970: 1), bytes: [1])
+    let newer = DatedThing(id: "a", at: Date(timeIntervalSince1970: 2), bytes: [])
+    let other = DatedThing(id: "b", at: Date(timeIntervalSince1970: 3), bytes: [2])
+    // A date binds specially, so nothing is staged.
+    try database.write { db in
+      try #sql(#"INSERT INTO "staging" VALUES ('a', 'staged', x'01'), ('b', 'staged', x'02')"#)
+        .execute(db)
+      try upsert.insert(older, into: "staging", db)
+      try upsert.insert(newer, into: "staging", db)
+      try upsert.insert(other, into: "staging", db)
+    }
+    let (stored, staged) = try database.write { db in
+      (
+        try DatedThing.order(by: \.id).fetchAll(db),
+        try String.fetchAll(db, sql: #"SELECT "id" FROM "staging""#)
+      )
+    }
+    #expect(stored == [newer, other])
+    #expect(staged.isEmpty)
+  }
+
   /// A change to every health entity, with a delete of two of them, as `appliesEveryHealthEntity`
   /// pulls them. Synthetic.
   private func everyEntitysChanges() throws -> [Components.Schemas.Change] {

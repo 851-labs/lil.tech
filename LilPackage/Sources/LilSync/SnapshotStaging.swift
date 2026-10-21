@@ -23,58 +23,77 @@ enum SnapshotStaging {
   /// Creates `table`'s staging table, empty, with its columns, without types (so values are
   /// stored as they're bound) or constraints. Replaces one an interrupted bootstrap left.
   static func create(for table: String, _ db: Database) throws {
-    let columns = try String.fetchAll(
-      db, sql: "SELECT name FROM pragma_table_info(?, 'main') ORDER BY cid", arguments: [table])
+    let columns = try self.columns(of: table, db).map(\.name.quotedDatabaseIdentifier)
     try discard(table, db)
     try db.execute(
       sql: """
-        CREATE TEMP TABLE \(quoted(name(for: table))) \
-        (\(columns.map(quoted).joined(separator: ", ")))
+        CREATE TEMP TABLE \(name(for: table).quotedDatabaseIdentifier) \
+        (\(columns.joined(separator: ", ")))
         """
     )
   }
 
   /// Moves the staged records into `table`, in the order of its primary key, and drops the
-  /// staging table. A record staged twice is stored as it was staged last, as upserting it would.
+  /// staging table. They're upserted as the records were before staging: a record staged twice
+  /// is stored as it was staged last, and one the table refuses fails the transaction.
   static func finish(_ table: String, _ db: Database) throws {
-    let columns = try String.fetchAll(
-      db, sql: "SELECT name FROM pragma_table_info(?, 'main') ORDER BY cid", arguments: [table]
-    )
-    .map(quoted).joined(separator: ", ")
-    let key = try String.fetchAll(
-      db, sql: "SELECT name FROM pragma_table_info(?, 'main') WHERE pk > 0 ORDER BY pk",
-      arguments: [table]
-    )
+    let columns = try self.columns(of: table, db)
+    let key = columns.filter { $0.primaryKey > 0 }.sorted { $0.primaryKey < $1.primaryKey }
+      .map(\.name.quotedDatabaseIdentifier)
+    let names = columns.map(\.name.quotedDatabaseIdentifier)
+    let updates = columns.filter { $0.primaryKey == 0 }.map(\.name.quotedDatabaseIdentifier)
+      .map { "\($0) = excluded.\($0)" }
+    // As `PreparedUpsert`'s, so the same records succeed and fail. (`WHERE true` tells SQLite
+    // the `ON CONFLICT` isn't a join's.)
+    let conflict =
+      key.isEmpty
+      ? ""
+      : """
+      ON CONFLICT (\(key.joined(separator: ", "))) DO \
+      \(updates.isEmpty ? "NOTHING" : "UPDATE SET \(updates.joined(separator: ", "))")
+      """
     // Indexes the schema declares; the primary key's own (`sql IS NULL`) can't be dropped.
-    let declared =
-      "FROM main.sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL"
-    let indexes = try zip(
-      String.fetchAll(db, sql: "SELECT name \(declared) ORDER BY name", arguments: [table]),
-      String.fetchAll(db, sql: "SELECT sql \(declared) ORDER BY name", arguments: [table])
+    let indexes = try #sql(
+      """
+      SELECT "name", "sql" FROM main.sqlite_master
+      WHERE "type" = 'index' AND "tbl_name" = \(bind: table) AND "sql" IS NOT NULL
+      """,
+      as: (String, String).self
     )
-    .map { (name: $0, sql: $1) }
-    for index in indexes {
-      try db.execute(sql: "DROP INDEX main.\(quoted(index.name))")
+    .fetchAll(db)
+    for (index, _) in indexes {
+      try db.execute(sql: "DROP INDEX main.\(index.quotedDatabaseIdentifier)")
     }
     try db.execute(
       sql: """
-        INSERT OR REPLACE INTO main.\(quoted(table)) (\(columns))
-        SELECT \(columns) FROM temp.\(quoted(name(for: table)))
-        ORDER BY \((key.map(quoted) + ["rowid"]).joined(separator: ", "))
+        INSERT INTO main.\(table.quotedDatabaseIdentifier) (\(names.joined(separator: ", ")))
+        SELECT \(names.joined(separator: ", ")) FROM temp.\(name(for: table).quotedDatabaseIdentifier)
+        WHERE true ORDER BY \((key + ["rowid"]).joined(separator: ", "))
+        \(conflict)
         """
     )
-    for index in indexes {
-      try db.execute(sql: index.sql)
+    for (_, sql) in indexes {
+      try db.execute(sql: sql)
     }
     try discard(table, db)
   }
 
   /// Drops `table`'s staging table, if there is one.
   static func discard(_ table: String, _ db: Database) throws {
-    try db.execute(sql: "DROP TABLE IF EXISTS temp.\(quoted(name(for: table)))")
+    try db.execute(sql: "DROP TABLE IF EXISTS temp.\(name(for: table).quotedDatabaseIdentifier)")
   }
 
-  private static func quoted(_ name: String) -> String {
-    "\"\(name.replacingOccurrences(of: "\"", with: "\"\""))\""
+  /// `table`'s columns in order, with their place in its primary key (0 if they're not in it).
+  private static func columns(
+    of table: String, _ db: Database
+  ) throws -> [(name: String, primaryKey: Int)] {
+    try #sql(
+      """
+      SELECT "name", "pk" FROM pragma_table_info(\(bind: table), 'main') ORDER BY "cid"
+      """,
+      as: (String, Int).self
+    )
+    .fetchAll(db)
+    .map { name, primaryKey in (name: name, primaryKey: primaryKey) }
   }
 }
