@@ -17,15 +17,14 @@ extension HealthDatabase {
     "HKCategoryTypeIdentifierBleedingAfterPregnancy",
     "HKCategoryTypeIdentifierBleedingAfterMenopause",
   ]
-  /// What a day's log lists by name and value, besides flow, spotting, sexual activity and
-  /// symptoms: tests, cervical mucus, factors and other bleeding (851-2830). Menopause and cycle
-  /// deviations, which span months, aren't a day's (851-2870, 851-2871).
-  static let cycleLogTypes =
-    [
-      "HKCategoryTypeIdentifierCervicalMucusQuality", ovulationTestType,
-      "HKCategoryTypeIdentifierPregnancyTestResult",
-      "HKCategoryTypeIdentifierProgesteroneTestResult",
-    ] + factorTypes + bleedingTypes
+  /// What a day's log lists by name and value, on the day each starts: every Cycle Tracking
+  /// category type but flow, spotting and sexual activity, which have their own marks (851-2830).
+  /// Factors, menopause and cycle deviations go on for months; until they get sections of their
+  /// own (851-2870, 851-2871), the day they start says so.
+  static let cycleLogTypes = HealthCatalog.all
+    .filter { $0.category == .cycleTracking && $0.kind == .category }
+    .map(\.id)
+    .filter { ![menstrualFlowType, spottingType, sexualActivityType].contains($0) }
 
   /// Whether `typeID` opens Cycle Tracking: Health's Cycle Tracking types, but Basal Body
   /// Temperature, a quantity with its own chart.
@@ -34,15 +33,6 @@ extension HealthDatabase {
     return type.category == .cycleTracking && type.kind == .category
   }
 
-  /// When `typeID`'s latest sample starts, for Cycle Tracking to open on its month.
-  public static func latestSampleStart(of typeID: String, _ db: Database) throws -> Date? {
-    try HealthSample
-      .where { $0.type.eq(typeID) }
-      .select { $0.startDate.max() }
-      .fetchOne(db)
-      .flatMap { $0 }
-      .map(Date.init(unixMilliseconds:))
-  }
   /// Symptoms (Health's Symptoms category), shown on the days they were logged.
   static let symptomTypes = HealthCatalog.all.filter { $0.category == .symptoms }.map(\.id)
 

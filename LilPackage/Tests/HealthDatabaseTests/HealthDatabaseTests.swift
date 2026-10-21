@@ -1946,7 +1946,7 @@ struct CycleQueriesTests {
       // No bleeding isn't marked, but it's in the log.
       sample("e", "HKCategoryTypeIdentifierBleedingAfterMenopause", day: 7, value: 5),
       sample("f", "HKCategoryTypeIdentifierContraceptive", day: 8, value: 6, endDay: 30),
-      // Spans months: not a day's (851-2871).
+      // Spans months: its first day says so, until it has a section (851-2871).
       sample("g", "HKCategoryTypeIdentifierIrregularMenstrualCycles", day: 9, value: 0),
     ])
     let october = calendar.dateInterval(of: .month, for: day(1))!
@@ -1968,7 +1968,7 @@ struct CycleQueriesTests {
     #expect(days[start(7)]?.bleeding == false)
     #expect(days[start(7)]?.log == [.init(name: "Bleeding After Menopause", value: "None")])
     #expect(days[start(8)]?.log == [.init(name: "Contraceptives", value: "Oral")])
-    #expect(days[start(9)] == nil)
+    #expect(days[start(9)]?.log == [.init(name: "Irregular Cycles", value: nil)])
   }
 
   @Test
@@ -1999,12 +1999,11 @@ struct CycleQueriesTests {
     let database = try database([
       sample("a", mucus, day: 3, value: 2), sample("b", mucus, day: 12, value: 4),
     ])
-    let latest = try database.read { db in try HealthDatabase.latestSampleStart(of: mucus, db) }
-    #expect(latest == day(12))
-    let none = try database.read { db in
-      try HealthDatabase.latestSampleStart(of: "HKCategoryTypeIdentifierPregnancy", db)
+    // Not one dated later than now.
+    let latest = try database.read { db in
+      try HealthDatabase.latestSample(of: mucus, startedBy: day(10), db)?.start
     }
-    #expect(none == nil)
+    #expect(latest == day(3))
   }
 
   @Test

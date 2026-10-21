@@ -14,6 +14,8 @@ public struct CycleTrackingView: View {
   @Dependency(\.defaultDatabase) private var database
   @State private var monthOffset = 0
   @State private var selected: Date?
+  /// Whether the month to open on is known, so the first month loaded is the right one.
+  @State private var isPositioned: Bool
   /// Moves at midnight, so the months do even if nothing syncs.
   @State private var today = Date.now
   @Fetch private var days: CycleMonth? = nil
@@ -22,6 +24,8 @@ public struct CycleTrackingView: View {
 
   public init(typeID: String? = nil) {
     self.typeID = typeID
+    // A period opens on today's month, as it always has: its latest sample may be "no flow".
+    _isPositioned = State(initialValue: typeID == nil || typeID == HealthDatabase.menstrualFlowType)
     _history = Fetch(wrappedValue: nil, CycleHistoryRequest(), scheduler: MainQueueScheduler())
   }
 
@@ -42,22 +46,28 @@ public struct CycleTrackingView: View {
       isLatest: monthOffset >= 0
     )
     .task(id: [String(monthOffset), today.formatted(.iso8601)]) {
+      if !isPositioned {
+        let offset = monthOffset
+        await openOnLatestSample()
+        isPositioned = true
+        // A new month runs this task again for it.
+        guard monthOffset == offset else { return }
+      }
+      let month = ChartRange.month.interval(offset: monthOffset, now: today, calendar: .current)
       _ = try? await $days.load(CycleMonthRequest(month: month), scheduler: MainQueueScheduler())
-    }
-    .task {
-      await openOnLatestSample()
     }
     .onReceive(calendarDayChanges()) {
       today = .now
     }
   }
 
-  /// Shows the month of the type's latest sample, with its day selected. Today's month if it has
-  /// none.
+  /// Shows the month of the type's latest sample (not one dated later than now), with its day
+  /// selected. Today's month if it has none.
   private func openOnLatestSample() async {
+    let now = Date.now
     guard let typeID,
       let latest = try? await database.read({ db in
-        try HealthDatabase.latestSampleStart(of: typeID, db)
+        try HealthDatabase.latestSample(of: typeID, startedBy: now, db)?.start
       })
     else { return }
     let calendar = Calendar.current
@@ -262,7 +272,7 @@ struct CycleTrackingContent: View {
         if let flow = entry.flow { Text(flow.name) }
         if entry.spotting { Text("Spotting") }
         if entry.sexualActivity { Text("Sexual Activity") }
-        // Each as Health names it: "Cervical Mucus Quality: Egg White".
+        // Each as Health names it: Cervical Mucus Quality, and Egg White on the right.
         ForEach(Array(entry.log.enumerated()), id: \.offset) { _, item in
           HStack {
             Text(item.name)

@@ -29,7 +29,9 @@ private let days: [Date: CycleDay] = [
     log: [CycleLogEntry(name: "Ovulation Test Result", value: "Positive (LH Surge)")]),
   day(21): CycleDay(
     bleeding: true, log: [CycleLogEntry(name: "Bleeding After Pregnancy", value: "Light")]),
-  day(17): CycleDay(ovulationPositive: true, symptoms: ["Bloating"]),
+  day(17): CycleDay(
+    ovulationPositive: true, symptoms: ["Bloating"],
+    log: [CycleLogEntry(name: "Ovulation Test Result", value: "Estrogen Surge")]),
   day(24): CycleDay(spotting: true),
   day(28): CycleDay(symptoms: ["Mood Changes", "Acne"]),
 ]
