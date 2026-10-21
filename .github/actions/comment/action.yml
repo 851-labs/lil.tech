@@ -27,8 +27,10 @@ runs:
         MARKER: ${{ inputs.marker }}
         BODY: ${{ inputs.body }}
       run: |
+        # `--jq` runs on each page, so keep the first match. `sed` reads to the end, unlike `head`,
+        # so gh never writes to a closed pipe.
         id=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
-          --jq "[.[] | select(.body | startswith(\"$MARKER\"))][0].id // empty")
+          --jq "[.[] | select(.body | startswith(\"$MARKER\"))][0].id // empty" | sed -n 1p)
         if [ -n "$id" ]; then
           gh api --method PATCH "repos/$GH_REPO/issues/comments/$id" -f body="$BODY" > /dev/null
         else

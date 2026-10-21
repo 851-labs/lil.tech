@@ -67,7 +67,7 @@ jobs:
       needs.changes.outputs.services == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository
     # One deploy or teardown per PR at a time, never cancelled halfway. A newer push replaces one
-    # that's waiting.
+    # that's waiting, and so does a teardown.
     concurrency:
       group: pr-services-${{ github.event.pull_request.number }}
       cancel-in-progress: false
@@ -80,9 +80,23 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       STAGE: pr-${{ github.event.pull_request.number }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-services
+      # The concurrency group is per job, so a PR closed right after a push can be torn down
+      # before this deploy joins the group. Deploying then would leave a stage nothing destroys.
+      - name: Check the PR is still open
+        id: open
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .state)
+          echo "open=$([ "$state" = open ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          [ "$state" = open ] || echo "::notice::The PR is $state, so its preview isn't deployed."
+      - if: steps.open.outputs.open == 'true'
+        uses: actions/checkout@v7
+      - if: steps.open.outputs.open == 'true'
+        uses: ./.github/actions/setup-services
       - name: Deploy the preview stage
+        if: steps.open.outputs.open == 'true'
         id: deploy
         working-directory: Services/api
         run: |
@@ -101,8 +115,10 @@ jobs:
           echo "pixelbook_url=$pixelbook_url" >> "$GITHUB_OUTPUT"
           echo "version=$(git describe --always --dirty --exclude '*')" >> "$GITHUB_OUTPUT"
       - name: Check the preview serves this commit
+        if: steps.open.outputs.open == 'true'
         run: scripts/check-deploy "${{ steps.deploy.outputs.url }}" "${{ steps.deploy.outputs.version }}"
       - name: Comment the preview URL
+        if: steps.open.outputs.open == 'true'
         uses: ./.github/actions/comment
         with:
           pr: ${{ github.event.pull_request.number }}
