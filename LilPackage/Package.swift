@@ -16,6 +16,7 @@ let package = Package(
     .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
     .library(name: "HealthKitAccess", targets: ["HealthKitAccess"]),
     .library(name: "HealthMacApp", targets: ["HealthMacApp"]),
+    .library(name: "HealthPages", targets: ["HealthPages"]),
     .library(name: "HealthPhoneApp", targets: ["HealthPhoneApp"]),
     .library(name: "HealthUpload", targets: ["HealthUpload"]),
     .library(name: "LilAPI", targets: ["LilAPI"]),
@@ -106,6 +107,7 @@ let package = Package(
         "HealthCatalog",
         "LilAPI",
         "LilSync",
+        .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "GRDB", package: "GRDB.swift"),
         .product(name: "SQLiteData", package: "sqlite-data"),
       ]
@@ -136,6 +138,7 @@ let package = Package(
       dependencies: [
         "HealthCatalog",
         "HealthDatabase",
+        "HealthPages",
         "HealthUI",
         "LilAuth",
         "LilSync",
@@ -153,6 +156,27 @@ let package = Package(
         "LilAuth",
         "LilSync",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+      ]
+    ),
+    // lil health for Mac's data pages (Sleep, Workouts, Medications…), which HealthMacApp's browse
+    // and sidebar open, and what the Mac's pages and shell share (page colors, MetricFormat,
+    // previewFrame).
+    .target(
+      name: "HealthPages",
+      dependencies: [
+        "HealthCatalog",
+        "HealthDatabase",
+        "HealthUI",
+        "LilSync",
+        .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
+      ]
+    ),
+    .testTarget(
+      name: "HealthPagesTests",
+      dependencies: [
+        "HealthDatabase",
+        "HealthPages",
       ]
     ),
     .target(
