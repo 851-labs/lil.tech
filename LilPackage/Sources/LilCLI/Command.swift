@@ -6,6 +6,8 @@ public enum Command: Equatable, Sendable {
   case help(app: String)
   /// `lil --version`.
   case version
+  /// `lil mcp`: one MCP server with every app's tools (851-2897).
+  case mcp
   /// `lil <app> <arguments…>`: runs `lil-<app> <arguments…>`.
   case run(app: String, arguments: [String])
   /// Arguments `lil` doesn't understand, with what's wrong.
@@ -31,6 +33,8 @@ public enum Command: Equatable, Sendable {
       }
     case "--version":
       self = rest.isEmpty ? .version : .usageError("--version takes no arguments")
+    case "mcp":
+      self = rest.isEmpty ? .mcp : .usageError("mcp takes no arguments")
     case _ where first.hasPrefix("-"):
       self = .usageError("unknown option: \(first)")
     case _ where isAppName(first):
@@ -42,10 +46,16 @@ public enum Command: Equatable, Sendable {
   }
 }
 
-/// Whether `name` can name a lil app: lowercase letters, digits and inner hyphens, like `health`.
-/// It becomes part of a bundle ID (`tech.lil.<app>`) and an executable's name (`lil-<app>`).
+/// Words `lil` keeps for its own commands, so no app can be called them: `lil help` and `lil mcp`
+/// never run a `lil-help` or `lil-mcp`.
+let reservedWords: Set<String> = ["help", "mcp"]
+
+/// Whether `name` can name a lil app: lowercase letters, digits and inner hyphens, like `health`,
+/// and not a reserved word. It becomes part of a bundle ID (`tech.lil.<app>`), an executable's
+/// name (`lil-<app>`) and, before a dot, the names of its MCP tools (`health.summary`).
 func isAppName(_ name: some StringProtocol) -> Bool {
   !name.isEmpty
+    && !reservedWords.contains(String(name))
     && !name.hasPrefix("-")
     && !name.hasSuffix("-")
     && name.unicodeScalars.allSatisfy {

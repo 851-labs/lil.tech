@@ -20,6 +20,11 @@ struct CommandTests {
   }
 
   @Test
+  func mcp() {
+    #expect(Command(arguments: ["mcp"]) == .mcp)
+  }
+
+  @Test
   func runsAnAppWithEverythingAfterItsName() {
     #expect(
       Command(arguments: ["health", "summary", "--json", "--help", "a b"])
@@ -32,7 +37,7 @@ struct CommandTests {
   @Test(arguments: [
     ["--verbose"], ["-x", "health"], ["Health"], ["../health"], ["health.sh"], ["-"], ["a-"],
     ["help", "health", "more"], ["help", "/bin"], ["--version", "health"], ["b\u{20DD}"],
-    ["y\u{0331}"], ["héalth"],
+    ["y\u{0331}"], ["héalth"], ["mcp", "health"], ["help", "mcp"], ["help", "help"],
   ])
   func rejectsWhatIsntAnAppOrOption(arguments: [String]) {
     guard case .usageError = Command(arguments: arguments) else {

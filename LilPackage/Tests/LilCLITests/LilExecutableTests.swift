@@ -58,6 +58,55 @@ struct LilExecutableTests {
     #expect(result.status == 127)
   }
 
+  /// `lil mcp` as an agent runs it: JSON-RPC messages, one per line, on standard input and
+  /// output, until it closes them. Its home is a temporary folder, so an installed lil health's
+  /// server, which it may start, reads nothing real.
+  @Test
+  func servesMCPOverStandardInputAndOutput() throws {
+    try #require(FileManager.default.isExecutableFile(atPath: lil.path))
+    let process = Process()
+    process.executableURL = lil
+    process.arguments = ["mcp"]
+    process.environment = [
+      "PATH": "\(directory.path):/usr/bin:/bin",
+      "CFFIXED_USER_HOME": directory.appending(path: "home").path,
+    ]
+    let input = Pipe()
+    let output = Pipe()
+    process.standardInput = input
+    process.standardOutput = output
+    try process.run()
+    // A server that stops answering fails the test rather than hanging it.
+    let watchdog = DispatchWorkItem { process.terminate() }
+    DispatchQueue.global().asyncAfter(deadline: .now() + 60, execute: watchdog)
+    defer { watchdog.cancel() }
+
+    let initialize: [String: Any] = [
+      "jsonrpc": "2.0", "id": 1, "method": "initialize",
+      "params": [
+        "protocolVersion": "2025-06-18", "capabilities": [:] as [String: Any],
+        "clientInfo": ["name": "LilExecutableTests", "version": "1"],
+      ],
+    ]
+    input.fileHandleForWriting.write(try JSONSerialization.data(withJSONObject: initialize) + [10])
+    var line = Data()
+    while !line.contains(10) {
+      let data = output.fileHandleForReading.availableData
+      guard !data.isEmpty else { break }
+      line += data
+    }
+    let response =
+      try JSONSerialization.jsonObject(with: line.prefix { $0 != 10 }) as? [String: Any]
+    let result = response?["result"] as? [String: Any]
+    #expect((result?["serverInfo"] as? [String: Any])?["name"] as? String == "lil")
+    #expect((result?["instructions"] as? String)?.hasPrefix("Tools from the lil apps") == true)
+
+    // Closing its input ends it.
+    try input.fileHandleForWriting.close()
+    process.waitUntilExit()
+    #expect(process.terminationReason == .exit && process.terminationStatus == 0)
+  }
+
   private func run(
     _ arguments: [String],
     input: String
