@@ -35,10 +35,27 @@ public struct HealthCategoryLabel: View {
   }
 
   public var body: some View {
+    TintedLabel(category.name, systemImage: category.symbolName, color: category.color)
+  }
+}
+
+/// A title with a `TintedIcon`.
+public struct TintedLabel: View {
+  let title: String
+  let systemImage: String
+  let color: Color
+
+  public init(_ title: String, systemImage: String, color: Color) {
+    self.title = title
+    self.systemImage = systemImage
+    self.color = color
+  }
+
+  public var body: some View {
     Label {
-      Text(category.name)
+      Text(title)
     } icon: {
-      TintedIcon(category.symbolName, color: category.color)
+      TintedIcon(systemImage, color: color)
     }
   }
 }

@@ -56,6 +56,13 @@ private func appView(_ state: AppFeature.State) -> some View {
   appView(AppFeature.State(isSignedIn: true, searchText: "heart"))
 }
 
+#Preview("A search result") {
+  appView(
+    AppFeature.State(
+      isSignedIn: true, selection: .dataType("HKQuantityTypeIdentifierHeartRate"),
+      searchText: "heart"))
+}
+
 #Preview("Search without results") {
   appView(AppFeature.State(isSignedIn: true, searchText: "xylophone"))
 }

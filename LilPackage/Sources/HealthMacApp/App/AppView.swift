@@ -54,27 +54,19 @@ struct SidebarView: View {
               .foregroundStyle(.secondary)
           }
           ForEach(results, id: \.id) { type in
-            Label {
-              Text(type.name)
-            } icon: {
-              TintedIcon(
-                type.category?.symbolName ?? "circle", color: type.category?.color ?? .secondary)
-            }
+            TintedLabel(
+              type.name, systemImage: type.category?.symbolName ?? "circle",
+              color: type.category?.color ?? .secondary
+            )
             .tag(SidebarItem.dataType(type.id))
           }
         }
       } else {
-        Label {
-          Text("Summary")
-        } icon: {
-          TintedIcon("heart.text.square.fill", color: .accentColor)
-        }
-        .tag(SidebarItem.summary)
-        Label {
-          Text("Health Details")
-        } icon: {
-          TintedIcon("person.text.rectangle.fill", color: .accentColor)
-        }
+        TintedLabel("Summary", systemImage: "heart.text.square.fill", color: .accentColor)
+          .tag(SidebarItem.summary)
+        TintedLabel(
+          "Health Details", systemImage: "person.text.rectangle.fill", color: .accentColor
+        )
         .tag(SidebarItem.healthDetails)
         Section("Health Categories") {
           ForEach(HealthCategory.allCases) { category in
