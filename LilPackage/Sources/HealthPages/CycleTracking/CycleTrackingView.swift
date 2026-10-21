@@ -382,7 +382,7 @@ struct CycleTrackingContent: View {
       ForEach(Array(factors.enumerated()), id: \.offset) { _, factor in
         LabeledContent {
           if let end = factor.end {
-            Text((factor.start..<end).formatted(.interval.month(.abbreviated).day().year()))
+            Text(CycleFormat.days(from: factor.start, to: end, calendar: calendar))
           } else {
             Text("Since \(factor.start.formatted(date: .abbreviated, time: .omitted))")
           }
@@ -399,10 +399,7 @@ struct CycleTrackingContent: View {
     section("Cycle Deviations") {
       ForEach(Array(deviations.enumerated()), id: \.offset) { _, deviation in
         LabeledContent(deviation.name) {
-          // A range can't end before it starts.
-          Text(
-            (deviation.start..<max(deviation.start, deviation.end))
-              .formatted(.interval.month(.abbreviated).day().year()))
+          Text(CycleFormat.days(from: deviation.start, to: deviation.end, calendar: calendar))
         }
       }
     }
@@ -470,6 +467,24 @@ struct CycleTrackingContent: View {
       }
       .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
     }
+  }
+}
+
+/// How Cycle Tracking writes dates.
+enum CycleFormat {
+  /// The days a log covers, from `start` to `end`, as cycle deviations and past factors show them
+  /// ("Mar 1 – 3, 2026", or one day). Its end is exclusive, so one at the very start of a day
+  /// ends the range on the day before, unless it starts then too (851-2904). HealthKit may store
+  /// a range's end as the following midnight or as its last day's end (23:59:59), and both read
+  /// the same.
+  static func days(
+    from start: Date, to end: Date, calendar: Calendar, locale: Locale = .autoupdatingCurrent
+  ) -> String {
+    // The last moment inside, as `ChartFormat.span` has it. A range can't end before it starts.
+    let last = max(start, end.addingTimeInterval(-1))
+    return (start..<last).formatted(
+      Date.IntervalFormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+        .month(.abbreviated).day().year())
   }
 }
 
