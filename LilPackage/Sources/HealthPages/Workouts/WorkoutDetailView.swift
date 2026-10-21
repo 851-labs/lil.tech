@@ -15,7 +15,7 @@ struct WorkoutDetailView: View {
   @Dependency(\.defaultDatabase) private var database
   @Dependency(\.blobCache) private var blobCache
   @State private var heartRates: [HealthSample] = []
-  @State private var route = WorkoutDetailContent.Route.loading
+  @State private var route = RouteState.loading
 
   var body: some View {
     WorkoutDetailContent(workout: workout, heartRates: heartRates, route: route)
@@ -43,42 +43,33 @@ struct WorkoutDetailView: View {
     return samples.filter { $0.sourceBundleID == source }
   }
 
-  private func loadRoute(_ workout: HealthWorkout) async -> WorkoutDetailContent.Route {
+  private func loadRoute(_ workout: HealthWorkout) async -> RouteState {
+    let route: HealthWorkoutRoute?
     do {
-      guard
-        let sha256 = try await database.read({ db in try HealthDatabase.route(of: workout, db) })?
-          .locations
-      else { return .none }
-      return .loaded(HealthDatabase.routeLocations(try await blobCache.data(for: sha256)))
+      route = try await database.read { db in try HealthDatabase.route(of: workout, db) }
     } catch {
       return .failed(error.localizedDescription)
     }
+    return await .load(route?.locations, from: blobCache)
   }
 }
 
 /// What a workout's detail shows, however it got it.
 struct WorkoutDetailContent: View {
-  enum Route {
-    case loading
-    case none
-    case loaded([RouteLocation])
-    case failed(String)
-  }
-
   let workout: HealthWorkout
   let heartRates: [HealthSample]
-  let route: Route
+  let route: RouteState
   /// Decoded and worked out once, not on every render.
   private let statistics: [String: WorkoutStatistic]
   private let splits: [RouteSplit]
 
-  init(workout: HealthWorkout, heartRates: [HealthSample], route: Route) {
+  init(workout: HealthWorkout, heartRates: [HealthSample], route: RouteState) {
     self.workout = workout
     self.heartRates = heartRates
     self.route = route
     statistics = workout.decodedStatistics
-    if case .loaded(let locations) = route {
-      splits = HealthDatabase.splits(locations, pauses: workout.pauses)
+    if case .loaded(let loaded) = route {
+      splits = HealthDatabase.splits(loaded.locations, pauses: workout.pauses)
     } else {
       splits = []
     }
@@ -214,27 +205,8 @@ struct WorkoutDetailContent: View {
   // MARK: Route and splits
 
   @ViewBuilder private var routeSection: some View {
-    switch route {
-    case .none:
-      EmptyView()
-    case .loading:
-      card {
-        ProgressView()
-          .frame(maxWidth: .infinity, minHeight: 240)
-      }
-    case .failed(let reason):
-      card {
-        ContentUnavailableView(
-          "Couldn't Load the Route", systemImage: "map", description: Text(reason))
-      }
-    case .loaded(let locations) where locations.count < 2:
-      EmptyView()
-    case .loaded(let locations):
-      card {
-        RouteMap(locations: locations)
-          .frame(height: 300)
-          .clipShape(RoundedRectangle(cornerRadius: 8))
-      }
+    RouteMapCard(route: route, height: 300)
+    if case .loaded(let loaded) = route, loaded.hasMap {
       splitsTable
     }
   }
@@ -303,13 +275,6 @@ struct WorkoutDetailContent: View {
         .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
       }
     }
-  }
-
-  private func card(@ViewBuilder _ content: () -> some View) -> some View {
-    content()
-      .frame(maxWidth: .infinity)
-      .padding(12)
-      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
   }
 }
 

@@ -53,7 +53,7 @@ private func previewRoute(of workout: HealthWorkout) -> [RouteLocation] {
 }
 
 @MainActor
-private func detail(_ route: (HealthWorkout) -> WorkoutDetailContent.Route, kind: Int = 37)
+private func detail(_ route: (HealthWorkout) -> RouteState, kind: Int = 37)
   -> some View
 {
   // One database for both: building it is the slow part.
@@ -71,7 +71,7 @@ private func detail(_ route: (HealthWorkout) -> WorkoutDetailContent.Route, kind
 }
 
 #Preview("Run with route") {
-  detail { .loaded(previewRoute(of: $0)) }
+  detail { .loaded(LoadedRoute(previewRoute(of: $0))) }
 }
 
 #Preview("Strength, no route") {

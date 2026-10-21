@@ -2807,3 +2807,177 @@ struct NotificationQueriesTests {
     #expect(HealthNotificationKind.highHeartRate.listedDate(of: long.sample) == long.sample.start)
   }
 }
+
+// Synthetic data only (AGENTS.md).
+@Suite
+struct WorkoutRouteQueriesTests {
+  let database: any DatabaseWriter
+
+  init() throws {
+    database = try HealthDatabase.make()
+  }
+
+  private func workout(_ id: String, at start: Date, minutes: Double = 30) -> HealthWorkout {
+    HealthWorkout(
+      id: id, activityType: 37, startDate: start.unixMilliseconds,
+      endDate: start.addingTimeInterval(minutes * 60).unixMilliseconds, duration: minutes * 60,
+      activities: "[]", events: "[]", statistics: "{}", sourceName: "Test",
+      sourceBundleID: "com.example")
+  }
+
+  private func route(
+    _ id: String, from start: Date, to end: Date, workout: String? = nil, count: Int = 2,
+    locations: String? = "abc"
+  ) -> HealthWorkoutRoute {
+    HealthWorkoutRoute(
+      id: id, startDate: start.unixMilliseconds, endDate: end.unixMilliseconds, workout: workout,
+      locationCount: count, locations: locations, sourceName: "Test",
+      sourceBundleID: "com.example")
+  }
+
+  private func insert(_ workouts: [HealthWorkout], _ routes: [HealthWorkoutRoute]) throws {
+    try database.write { db in
+      try HealthWorkout.insert { workouts }.execute(db)
+      try HealthWorkoutRoute.insert { routes }.execute(db)
+    }
+  }
+
+  private func lists(limit: Int = 10) throws -> (workouts: [String], otherRoutes: [String]) {
+    let (workouts, routes) = try database.read { db in
+      try HealthDatabase.workoutRoutes(limit: limit, db)
+    }
+    return (workouts.map(\.id), routes.map(\.id))
+  }
+
+  /// Every workout shows the route `route(of:)` picks for it, and Other Routes lists the rest.
+  private func expectEveryRouteShowsOnce() throws {
+    let (workouts, others) = try database.read { db in
+      try HealthDatabase.workoutRoutes(limit: 100, db)
+    }
+    let shown = try database.read { db in
+      try HealthWorkout.fetchAll(db).compactMap { try HealthDatabase.route(of: $0, db)?.id }
+    }
+    let routes = try database.read { db in
+      try HealthWorkoutRoute.where { $0.locations.isNot(nil) }.fetchAll(db).map(\.id)
+    }
+    #expect(workouts.count == shown.count)
+    #expect(Set(shown + others.map(\.id)) == Set(routes))
+    #expect(Set(shown).isDisjoint(with: others.map(\.id)))
+  }
+
+  @Test
+  func workoutsWithRoutesAreThoseARouteIsLinkedToOrRecordedDuring() throws {
+    try insert(
+      [
+        workout("linked", at: utc(8, day: 12)),
+        workout("overlapped", at: utc(8, day: 13)),
+        workout("strength", at: utc(8, day: 14)),
+        // A route linked to another workout doesn't count, though it was recorded during this.
+        workout("during-linked", at: utc(18, day: 12)),
+        workout("newest", at: utc(8, day: 15)),
+        // Its only route has no locations.
+        workout("no-locations", at: utc(8, day: 16)),
+      ],
+      [
+        route("a", from: utc(8, day: 12), to: utc(8.5, day: 12), workout: "linked"),
+        route("b", from: utc(18, day: 12), to: utc(18.5, day: 12), workout: "linked"),
+        // Starts before the workout and ends during it.
+        route("c", from: utc(7.9, day: 13), to: utc(8.2, day: 13)),
+        // Ends just as the workout starts.
+        route("d", from: utc(7.5, day: 14), to: utc(8, day: 14)),
+        route("e", from: utc(8, day: 15), to: utc(8.5, day: 15), workout: "newest"),
+        route(
+          "f", from: utc(8, day: 16), to: utc(8.5, day: 16), workout: "no-locations",
+          locations: nil),
+      ])
+    #expect(try lists().workouts == ["newest", "overlapped", "linked"])
+    #expect(try lists(limit: 2).workouts == ["newest", "overlapped"])
+    try expectEveryRouteShowsOnce()
+  }
+
+  @Test
+  func otherRoutesAreThoseNoWorkoutShows() throws {
+    try insert(
+      [workout("run", at: utc(8, day: 13)), workout("walk", at: utc(18, day: 13))],
+      [
+        route("linked", from: utc(8, day: 13), to: utc(8.5, day: 13), workout: "run"),
+        // Recorded during the walk, which no route is linked to.
+        route("overlapping", from: utc(18.2, day: 13), to: utc(19, day: 13)),
+        // Linked to a workout that isn't here.
+        route("orphaned", from: utc(8, day: 12), to: utc(8.5, day: 12), workout: "deleted"),
+        // Recorded while no workout was: right after the run.
+        route("unlinked", from: utc(8.5, day: 13), to: utc(9, day: 13)),
+        route("newest", from: utc(8, day: 15), to: utc(8.5, day: 15)),
+        // Without locations, it would open with no map.
+        route("empty", from: utc(8, day: 16), to: utc(8.5, day: 16), locations: nil),
+      ])
+    #expect(try lists().otherRoutes == ["newest", "unlinked", "orphaned"])
+    #expect(try lists(limit: 1).otherRoutes == ["newest"])
+    try expectEveryRouteShowsOnce()
+  }
+
+  @Test
+  func aRouteDuringAWorkoutWithALinkedOneIsAnOtherRoute() throws {
+    try insert(
+      [workout("run", at: utc(8))],
+      [
+        route("linked", from: utc(8, day: 14), to: utc(8.5), workout: "run"),
+        // More locations, but the workout shows the one HealthKit linked.
+        route("overlapping", from: utc(8.1), to: utc(8.4), count: 50),
+      ])
+    #expect(try lists().workouts == ["run"])
+    #expect(try lists().otherRoutes == ["overlapping"])
+    try expectEveryRouteShowsOnce()
+  }
+
+  @Test
+  func ofTwoRoutesDuringAWorkoutTheSmallerIsAnOtherRoute() throws {
+    try insert(
+      [workout("run", at: utc(8)), workout("walk", at: utc(18))],
+      [
+        route("small", from: utc(8), to: utc(8.2), count: 10),
+        route("large", from: utc(8.1), to: utc(8.5), count: 90),
+        // As many locations: the first by ID is shown.
+        route("b", from: utc(18), to: utc(18.2), count: 10),
+        route("a", from: utc(18.1), to: utc(18.5), count: 10),
+      ])
+    #expect(try lists().workouts == ["walk", "run"])
+    #expect(try lists().otherRoutes == ["b", "small"])
+    try expectEveryRouteShowsOnce()
+  }
+
+  @Test
+  func aLongRouteOverlapsTheWorkoutsDuringIt() throws {
+    // Starts long before the workouts after it, so the search back from each must reach it.
+    try insert(
+      [workout("early", at: utc(9)), workout("late", at: utc(20))],
+      [
+        route("all-day", from: utc(6), to: utc(22)),
+        route("short", from: utc(7), to: utc(7.5)),
+      ])
+    #expect(try lists().workouts == ["late", "early"])
+    #expect(try lists().otherRoutes == ["short"])
+    try expectEveryRouteShowsOnce()
+  }
+
+  @Test
+  func noRoutesNoWorkoutsWithRoutes() throws {
+    try insert([workout("run", at: utc(8))], [])
+    #expect(try lists().workouts.isEmpty)
+    #expect(try lists().otherRoutes.isEmpty)
+  }
+
+  @Test
+  func aRoutesDistanceAddsUpItsSteps() {
+    // Synthetic: about 100 m north, then about 100 m east, on the equator.
+    let start = Date(timeIntervalSince1970: 1_760_400_000)
+    let locations = [(0.0, 0.0), (0.0009, 0.0), (0.0009, 0.0009)].enumerated().map {
+      RouteLocation(
+        time: start.addingTimeInterval(Double($0.offset) * 20), latitude: $0.element.0,
+        longitude: $0.element.1, altitude: 0, speed: 5)
+    }
+    #expect(abs(HealthDatabase.routeDistance(locations) - 200) < 0.5)
+    #expect(HealthDatabase.routeDistance(Array(locations.prefix(1))) == 0)
+    #expect(HealthDatabase.routeDistance([]) == 0)
+  }
+}
