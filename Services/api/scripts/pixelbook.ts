@@ -190,7 +190,7 @@ export const pngInfo = (bytes: Buffer) => {
 
 /**
  * How much smaller a thumbnail is than its image, in each dimension. Pixelbook's viewer
- * (`thumbnailDivisor` in `Web/pixelbook/src/Snapshots.ts`) relies on it.
+ * (`thumbnailDivisor` in `Web/pixelbook/src/lib/Snapshots.ts`) relies on it.
  */
 const thumbnailDivisor = 4;
 
