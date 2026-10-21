@@ -1,0 +1,14 @@
+#!/bin/sh
+# The sync throughput benchmark (851-2650): synthetic Health data from "iPhone" to server to Mac,
+# printing each stage's items per second. See docs/BENCHMARK.md.
+# Usage: scripts/bench-sync [--records <n>] [--concurrency <n>] [--url <stage>] [--keep]
+#                           [--skip-mac] [--seed <n>] [--json <file>]
+#   Deploys your personal stage first, unless --url (or LIL_BENCH_API_URL) names one. Never prod.
+#   --records      Records to upload (default 200,000, a few minutes). 10,000,000 is a big run.
+#   --concurrency  Uploads at once (default 4, as many as the iPhone's backfill has).
+#   --keep         Keeps the synthetic account rather than deleting it afterwards.
+#   --skip-mac     Stops after the snapshot, without the Mac's bootstrap.
+#   LIL_BENCH_REFRESH_TOKEN  Uses that account instead of dev sign-in (staging has none). Kept.
+set -eu
+cd "$(dirname "$0")/../Services/api"
+exec node scripts/bench-sync.ts "$@"
