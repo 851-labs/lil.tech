@@ -2412,3 +2412,181 @@ struct BloodPressureQueriesTests {
     #expect(chart.span.diastolic == nil)
   }
 }
+
+// Synthetic data only (AGENTS.md).
+@Suite
+struct FoodQueriesTests {
+  private let calendar = {
+    var c = Calendar(identifier: .gregorian)
+    c.timeZone = .gmt
+    return c
+  }()
+
+  /// October `day`, 2025, at `hour`:`minute` UTC.
+  private func time(_ day: Int, _ hour: Int, _ minute: Int = 0, _ second: Int = 0) -> Date {
+    calendar.date(
+      from: DateComponents(
+        year: 2025, month: 10, day: day, hour: hour, minute: minute, second: second))!
+  }
+
+  /// A food with a sample of each nutrient given, by type identifier without its prefix.
+  private func food(
+    _ id: String, at date: Date, metadata: String? = nil, _ nutrients: [(String, Double)] = []
+  ) -> (HealthCorrelation, [HealthSample]) {
+    let ms = date.unixMilliseconds
+    let correlation = HealthCorrelation(
+      id: id, type: HealthDatabase.foodType, startDate: ms, endDate: ms, sourceName: "Food Log",
+      sourceBundleID: "com.example.food", metadata: metadata)
+    let samples = nutrients.map { name, value in
+      HealthSample(
+        id: "\(id)-\(name)", type: "HKQuantityTypeIdentifier\(name)", startDate: ms,
+        endDate: ms, value: value,
+        unit: HealthCatalog.type(id: "HKQuantityTypeIdentifier\(name)")?.unit,
+        correlationID: id, sourceName: "Food Log", sourceBundleID: "com.example.food")
+    }
+    return (correlation, samples)
+  }
+
+  private func database(_ foods: [(HealthCorrelation, [HealthSample])]) throws
+    -> any DatabaseWriter
+  {
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthCorrelation.insert { foods.map(\.0) }.execute(db)
+      let samples = foods.flatMap(\.1)
+      if !samples.isEmpty {
+        try HealthSample.insert { samples }.execute(db)
+      }
+      // A blood pressure reading, which isn't a food.
+      try HealthCorrelation.insert {
+        HealthCorrelation(
+          id: "bp", type: HealthDatabase.bloodPressureType,
+          startDate: time(15, 9).unixMilliseconds, endDate: time(15, 9).unixMilliseconds,
+          sourceName: "Cuff", sourceBundleID: "com.example.cuff")
+      }
+      .execute(db)
+    }
+    return database
+  }
+
+  @Test
+  func pagesReadFoodsWithTheirSummaryNutrients() throws {
+    let database = try database([
+      food(
+        "a", at: time(14, 8), metadata: #"{"HKFoodType":"Oatmeal","HKFoodMeal":"Breakfast"}"#,
+        [
+          ("DietaryEnergyConsumed", 310), ("DietaryCarbohydrates", 54), ("DietaryProtein", 9.5),
+          ("DietaryFatTotal", 6.1), ("DietaryFiber", 8),
+        ]),
+      // No name, only its energy.
+      food("b", at: time(15, 12), [("DietaryEnergyConsumed", 250)]),
+      // A blank name, and no nutrients at all.
+      food("c", at: time(15, 18), metadata: #"{"HKFoodType":"  "}"#),
+      // Metadata that isn't an object.
+      food("d", at: time(16, 7), metadata: #"["HKFoodType"]"#, [("DietaryProtein", 20)]),
+    ])
+    let foods = try database.read { db in
+      try HealthDatabase.foodPage(after: nil, limit: 10, db)
+    }
+    #expect(foods.map(\.id) == ["d", "c", "b", "a"])
+    #expect(foods.map(\.name) == [nil, nil, nil, "Oatmeal"])
+    #expect(foods.map(\.title) == ["Food", "Food", "Food", "Oatmeal"])
+    #expect(foods.map(\.energy) == [nil, nil, 250, 310])
+    #expect(foods[3].carbohydrates == 54)
+    #expect(foods[3].protein == 9.5)
+    #expect(foods[3].fat == 6.1)
+    #expect(foods[0].protein == 20)
+    #expect(foods[0].carbohydrates == nil)
+    #expect(foods[3].sourceName == "Food Log")
+  }
+
+  @Test
+  func pagesContinueAfterTheirCursor() throws {
+    // Two foods at the same moment, told apart by ID.
+    let database = try database([
+      food("a", at: time(14, 8)),
+      food("b", at: time(14, 12)),
+      food("c", at: time(14, 12)),
+      food("d", at: time(15, 9)),
+      food("e", at: time(16, 9)),
+    ])
+    var pages: [[String]] = []
+    var cursor: SampleCursor?
+    repeat {
+      let page = try database.read { [cursor] db in
+        try HealthDatabase.foodPage(after: cursor, limit: 2, db)
+      }
+      pages.append(page.map(\.id))
+      cursor = page.last?.cursor
+    } while pages.last?.count == 2
+    #expect(pages == [["e", "d"], ["c", "b"], ["a"]])
+  }
+
+  @Test
+  func daysGroupFoodsAtTheirEdgesWithEnergyTotals() throws {
+    let foods = [
+      Food(
+        id: "a", name: "Late Snack", startDate: time(15, 23, 59, 59).unixMilliseconds, energy: 200,
+        sourceName: "Food Log"),
+      Food(
+        id: "b", name: nil, startDate: time(15, 12).unixMilliseconds, energy: 640.5, protein: 30,
+        sourceName: "Food Log"),
+      Food(
+        id: "c", name: "Coffee", startDate: time(15, 0).unixMilliseconds, sourceName: "Food Log"),
+      Food(
+        id: "d", name: "Dinner", startDate: time(14, 23, 59, 59).unixMilliseconds,
+        sourceName: "Food Log"),
+      Food(
+        id: "e", name: "Toast", startDate: time(12, 8).unixMilliseconds, energy: 180,
+        sourceName: "Food Log"),
+    ]
+    let days = HealthDatabase.foodDays(foods, calendar: calendar)
+    #expect(days.map(\.day) == [time(15, 0), time(14, 0), time(12, 0)])
+    #expect(days.map { $0.foods.map(\.id) } == [["a", "b", "c"], ["d"], ["e"]])
+    #expect(days.map(\.energy) == [840.5, nil, 180])
+
+    // The same foods in a zone behind GMT: midnight there is still the 14th.
+    let newYork = {
+      var c = Calendar(identifier: .gregorian)
+      c.timeZone = TimeZone(identifier: "America/New_York")!
+      return c
+    }()
+    let local = HealthDatabase.foodDays(foods, calendar: newYork)
+    #expect(local.map { $0.foods.map(\.id) } == [["a", "b"], ["c", "d"], ["e"]])
+    #expect(local.map(\.energy) == [840.5, nil, 180])
+  }
+
+  @Test
+  func detailsListEveryNutrientInTheCatalogsOrder() throws {
+    let database = try database([
+      food(
+        "a", at: time(14, 8), metadata: #"{"HKFoodType":"Salad"}"#,
+        [
+          ("DietarySodium", 1_120), ("DietaryFatTotal", 34), ("DietaryEnergyConsumed", 540),
+          ("DietaryProtein", 38), ("DietaryVitaminC", 22), ("DietaryCarbohydrates", 18),
+        ]),
+      food("b", at: time(14, 9), [("DietaryEnergyConsumed", 100)]),
+    ])
+    try database.write { db in
+      // A type the catalog doesn't know goes last.
+      try HealthSample.insert {
+        HealthSample(
+          id: "a-unknown", type: "HKQuantityTypeIdentifierDietaryUnobtainium",
+          startDate: time(14, 8).unixMilliseconds, endDate: time(14, 8).unixMilliseconds,
+          value: 1, unit: "mg", correlationID: "a", sourceName: "Food Log",
+          sourceBundleID: "com.example.food")
+      }
+      .execute(db)
+    }
+    let nutrients = try database.read { db in
+      try HealthDatabase.foodNutrients(of: "a", db)
+    }
+    #expect(
+      nutrients.map(\.name) == [
+        "Dietary Energy", "Carbohydrates", "Protein", "Total Fat", "Sodium", "Vitamin C",
+        "HKQuantityTypeIdentifierDietaryUnobtainium",
+      ])
+    #expect(nutrients.map(\.value) == [540, 18, 38, 34, 1_120, 22, 1])
+    #expect(nutrients.first?.unit == "kcal")
+  }
+}

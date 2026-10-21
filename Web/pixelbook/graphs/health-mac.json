@@ -146,6 +146,31 @@
       "screen": "HealthPages/BloodPressureViewPreviews.swift"
     },
     {
+      "id": "food",
+      "screen": "HealthPages/FoodViewPreviews.swift",
+      "title": "Food",
+      "states": [
+        "Food",
+        "Food, empty",
+        "Food, loading",
+        "Food, failed",
+        "Food, loading more",
+        "Food, more failed"
+      ]
+    },
+    {
+      "id": "food-item",
+      "screen": "HealthPages/FoodViewPreviews.swift",
+      "title": "A food",
+      "states": [
+        "A food",
+        "A food without a name",
+        "A food, no nutrients",
+        "A food, loading",
+        "A food, failed"
+      ]
+    },
+    {
       "id": "workouts",
       "screen": "HealthPages/WorkoutsViewPreviews.swift",
       "states": ["Workouts", "No workouts", "Workouts loading", "Workouts failed"]
@@ -320,6 +345,16 @@
       "from": "metric",
       "to": "blood-pressure",
       "label": "For Blood Pressure"
+    },
+    {
+      "from": "metric",
+      "to": "food",
+      "label": "For Food"
+    },
+    {
+      "from": "food",
+      "to": "food-item",
+      "label": "Choose a food"
     },
     {
       "from": "metric",
