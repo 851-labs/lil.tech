@@ -37,6 +37,9 @@ struct MetricDetailView: View {
         FoodView()
       } else if type.kind == .workout {
         WorkoutsView()
+      } else if type.kind == .workoutRoute {
+        // Workouts with a route, then the routes no workout shows (851-2835).
+        WorkoutsView(onlyWithRoutes: true)
       } else if type.kind == .electrocardiogram {
         ElectrocardiogramsView()
       } else if type.kind == .audiogram {

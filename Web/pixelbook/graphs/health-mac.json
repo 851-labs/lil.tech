@@ -182,6 +182,30 @@
       "states": ["Run with route", "Strength, no route", "Route loading", "Route failed"]
     },
     {
+      "id": "workout-routes",
+      "screen": "HealthPages/WorkoutRoutesPreviews.swift",
+      "title": "Workout Routes",
+      "states": [
+        "Workout routes",
+        "Workout routes, no other routes",
+        "Only other routes",
+        "No workout routes",
+        "Workout routes loading",
+        "Workout routes failed"
+      ]
+    },
+    {
+      "id": "other-route",
+      "screen": "HealthPages/WorkoutRoutesPreviews.swift",
+      "title": "Route",
+      "states": [
+        "Other route",
+        "Other route loading",
+        "Other route failed",
+        "Other route without locations"
+      ]
+    },
+    {
       "id": "ecgs",
       "screen": "HealthPages/ElectrocardiogramsViewPreviews.swift",
       "states": ["ECGs", "ECGs, at the limit", "No ECGs", "ECGs loading", "ECGs failed"]
@@ -393,6 +417,11 @@
     },
     {
       "from": "metric",
+      "to": "workout-routes",
+      "label": "For Workout Routes"
+    },
+    {
+      "from": "metric",
       "to": "ecgs",
       "label": "For ECG"
     },
@@ -475,6 +504,16 @@
       "from": "workouts",
       "to": "workout",
       "label": "Choose a workout"
+    },
+    {
+      "from": "workout-routes",
+      "to": "workout",
+      "label": "Choose a workout"
+    },
+    {
+      "from": "workout-routes",
+      "to": "other-route",
+      "label": "Choose another route"
     },
     {
       "from": "ecgs",

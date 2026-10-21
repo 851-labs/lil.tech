@@ -195,6 +195,48 @@ extension HealthDatabase {
       .fetchOne(db)
   }
 
+  /// Up to `limit` of the workouts with a route, newest first: those ``route(of:_:)`` finds one
+  /// for, linked or recorded during them.
+  public static func workoutsWithRoutes(limit: Int, _ db: Database) throws -> [HealthWorkout] {
+    // Each a list SQLite builds once, rather than a search of the routes for every workout.
+    let linked = HealthWorkoutRoute.where { $0.workout.isNot(nil) }.select { $0.workout ?? "" }
+    let recordedDuring =
+      HealthWorkoutRoute
+      .where { $0.workout.is(nil) }
+      .join(HealthWorkout.all) { route, workout in
+        workout.startDate < route.endDate && workout.endDate > route.startDate
+      }
+      .select { $1.id }
+    return
+      try HealthWorkout
+      .where { $0.id.in(linked) || $0.id.in(recordedDuring) }
+      .order { ($0.startDate.desc(), $0.id.desc()) }
+      .limit(limit)
+      .fetchAll(db)
+  }
+
+  /// Up to `limit` of the routes no workout shows, newest first: linked to none and recorded
+  /// while no workout was, or linked to a workout that isn't here.
+  public static func otherRoutes(limit: Int, _ db: Database) throws -> [HealthWorkoutRoute] {
+    try HealthWorkoutRoute
+      .where { route in
+        (route.workout.is(nil)
+          && !HealthWorkout.where {
+            $0.startDate < route.endDate && $0.endDate > route.startDate
+          }.exists())
+          || (route.workout.isNot(nil)
+            && !HealthWorkout.where { route.workout.eq($0.id) }.exists())
+      }
+      .order { ($0.startDate.desc(), $0.id.desc()) }
+      .limit(limit)
+      .fetchAll(db)
+  }
+
+  /// How far a route goes, in meters: the distance between each point and the next.
+  public static func routeDistance(_ locations: [RouteLocation]) -> Double {
+    zip(locations, locations.dropFirst()).reduce(0) { $0 + distance($1.0, $1.1) }
+  }
+
   /// A route blob's locations: 44 little-endian bytes each, the time (Unix seconds), latitude
   /// and longitude as 64-bit floats, then altitude, horizontal and vertical accuracy, speed and
   /// course as 32-bit ones (`HealthWorkoutRoute` on the server). A trailing partial record is

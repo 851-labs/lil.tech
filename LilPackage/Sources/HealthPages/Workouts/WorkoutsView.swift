@@ -5,27 +5,52 @@ public import SwiftUI
 
 /// Workouts, newest first and grouped by month, as in Health. Each opens its detail. Follows the
 /// local database as sync changes it.
+///
+/// With `onlyWithRoutes`, it's Workout Routes (851-2835): the workouts with a route, then the
+/// routes no workout shows, each opening on a map.
 public struct WorkoutsView: View {
-  @Fetch private var workouts: [HealthWorkout]
+  private let onlyWithRoutes: Bool
+  @Fetch private var list: WorkoutList
 
-  public init() {
-    _workouts = Fetch(
-      wrappedValue: [], RecentWorkouts(), scheduler: MainQueueScheduler())
+  public init(onlyWithRoutes: Bool = false) {
+    self.onlyWithRoutes = onlyWithRoutes
+    _list = Fetch(
+      wrappedValue: WorkoutList(), RecentWorkouts(onlyWithRoutes: onlyWithRoutes),
+      scheduler: MainQueueScheduler())
   }
 
   public var body: some View {
     WorkoutsContent(
-      state: $workouts.loadError.map { .failed($0.localizedDescription) }
-        ?? ($workouts.isLoading && workouts.isEmpty ? .loading : .loaded(workouts)))
+      state: $list.loadError.map { .failed($0.localizedDescription) }
+        ?? ($list.isLoading && list.isEmpty
+          ? .loading : .loaded(list.workouts, otherRoutes: list.otherRoutes)),
+      onlyWithRoutes: onlyWithRoutes)
   }
 }
 
-/// The most recent workouts: years of them for most people.
+/// What Workouts lists.
+struct WorkoutList: Equatable, Sendable {
+  var workouts: [HealthWorkout] = []
+  /// Routes no workout shows, for Workout Routes.
+  var otherRoutes: [HealthWorkoutRoute] = []
+
+  var isEmpty: Bool { workouts.isEmpty && otherRoutes.isEmpty }
+}
+
+/// The most recent workouts (years of them for most people), or those with routes, and the
+/// routes no workout shows.
 struct RecentWorkouts: FetchKeyRequest {
   static let limit = 2_000
 
-  func fetch(_ db: Database) throws -> [HealthWorkout] {
-    try HealthDatabase.workouts(limit: Self.limit, db)
+  var onlyWithRoutes = false
+
+  func fetch(_ db: Database) throws -> WorkoutList {
+    guard onlyWithRoutes else {
+      return WorkoutList(workouts: try HealthDatabase.workouts(limit: Self.limit, db))
+    }
+    return WorkoutList(
+      workouts: try HealthDatabase.workoutsWithRoutes(limit: Self.limit, db),
+      otherRoutes: try HealthDatabase.otherRoutes(limit: Self.limit, db))
   }
 }
 
@@ -33,11 +58,13 @@ struct RecentWorkouts: FetchKeyRequest {
 struct WorkoutsContent: View {
   enum State {
     case loading
-    case loaded([HealthWorkout])
+    case loaded([HealthWorkout], otherRoutes: [HealthWorkoutRoute] = [])
     case failed(String)
   }
 
   let state: State
+  /// Workout Routes rather than Workouts.
+  var onlyWithRoutes = false
   var calendar = Calendar.current
 
   var body: some View {
@@ -48,13 +75,19 @@ struct WorkoutsContent: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
-          "Couldn't Load Workouts", systemImage: "exclamationmark.triangle",
-          description: Text(reason))
-      case .loaded(let workouts) where workouts.isEmpty:
-        ContentUnavailableView(
-          "No Workouts", systemImage: "figure.run",
-          description: Text("Workouts from your Apple Watch and fitness apps will appear here."))
-      case .loaded(let workouts):
+          onlyWithRoutes ? "Couldn't Load Workout Routes" : "Couldn't Load Workouts",
+          systemImage: "exclamationmark.triangle", description: Text(reason))
+      case .loaded(let workouts, let otherRoutes) where workouts.isEmpty && otherRoutes.isEmpty:
+        if onlyWithRoutes {
+          ContentUnavailableView(
+            "No Workout Routes", systemImage: "map",
+            description: Text("Routes from your outdoor workouts will appear here."))
+        } else {
+          ContentUnavailableView(
+            "No Workouts", systemImage: "figure.run",
+            description: Text("Workouts from your Apple Watch and fitness apps will appear here."))
+        }
+      case .loaded(let workouts, let otherRoutes):
         List {
           ForEach(
             monthSections(workouts, calendar: calendar, startDate: \.startDate), id: \.month
@@ -70,14 +103,29 @@ struct WorkoutsContent: View {
             }
           }
           if workouts.count >= RecentWorkouts.limit {
-            Text("Showing the \(RecentWorkouts.limit.formatted()) most recent workouts.")
-              .font(.footnote)
-              .foregroundStyle(.secondary)
+            Text(
+              onlyWithRoutes
+                ? "Showing the \(RecentWorkouts.limit.formatted()) most recent workouts with routes."
+                : "Showing the \(RecentWorkouts.limit.formatted()) most recent workouts."
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+          }
+          if !otherRoutes.isEmpty {
+            Section("Other Routes") {
+              ForEach(otherRoutes) { route in
+                NavigationLink {
+                  RouteDetailView(route: route)
+                } label: {
+                  OtherRouteRow(route: route)
+                }
+              }
+            }
           }
         }
       }
     }
-    .navigationTitle("Workouts")
+    .navigationTitle(onlyWithRoutes ? "Workout Routes" : "Workouts")
   }
 }
 
