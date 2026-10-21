@@ -73,6 +73,7 @@ struct HealthCatalogTests {
   @Test
   func workoutActivityNames() {
     #expect(HealthCatalog.workoutActivityName(37) == "Running")
+    #expect(HealthCatalog.workoutActivityName(49) == "Track and Field")
     #expect(HealthCatalog.workoutActivityName(3000) == "Other")
     #expect(HealthCatalog.workoutActivityName(9_999) == "Workout")
   }
@@ -185,6 +186,32 @@ struct HealthCatalogTests {
         #expect(catalog == identifiers, "\(kind)")
       }
     }
+    /// Every `HKWorkoutActivityType` the SDK declares has a name, and the catalog names nothing
+    /// else, so only values a later iOS adds read "Workout". Names follow the cases', apart from
+    /// where Health's differ, which catches a name filed under the wrong raw value.
+    @Test
+    func namesEveryWorkoutActivityType() throws {
+      let sdk = try SDKHeaders.load()
+      #expect(sdk.workoutActivityTypes.count > 80)
+      #expect(Set(HealthCatalog.workoutActivityNames.keys) == Set(sdk.workoutActivityTypes.keys))
+
+      let healthsNames = [
+        "StairClimbing": "Stair Stepper",
+        "SkatingSports": "Skating",
+        "SurfingSports": "Surfing",
+        "SwimBikeRun": "Multisport",
+      ]
+      for (rawValue, caseName) in sdk.workoutActivityTypes {
+        guard let name = HealthCatalog.workoutActivityNames[rawValue] else { continue }
+        // "Track and Field" is `TrackAndField`.
+        let expected = healthsNames[caseName] ?? caseName
+        #expect(
+          name.filter { $0 != " " }.lowercased() == expected.filter { $0 != " " }.lowercased(),
+          "\(rawValue) is HKWorkoutActivityType\(caseName), not \(name)")
+      }
+      #expect(Int(HKWorkoutActivityType.underwaterDiving.rawValue) == 84)
+      #expect(Int(HKWorkoutActivityType.other.rawValue) == 3000)
+    }
   }
 
   extension HealthDataType.Aggregation {
@@ -206,6 +233,9 @@ struct HealthCatalogTests {
     var identifiers: [String: IOSVersion] = [:]
     /// When each special type was introduced, from its identifier constant or type accessor.
     var specialTypes: [HealthDataType.Kind: IOSVersion] = [:]
+    /// `HKWorkoutActivityType`'s cases by raw value, named without the prefix (`Running`),
+    /// leaving out those the SDK marks unavailable everywhere (Rest and Group).
+    var workoutActivityTypes: [Int: String] = [:]
 
     /// Header constants whose runtime value isn't their name, by value.
     static let constantNames = [
@@ -245,6 +275,8 @@ struct HealthCatalogTests {
         contentsOf: headers.appending(path: "HKTypeIdentifiers.h"), encoding: .utf8)
       let objectType = try String(
         contentsOf: headers.appending(path: "HKObjectType.h"), encoding: .utf8)
+      let workoutActivityType = try String(
+        contentsOf: headers.appending(path: "HKWorkoutActivityType.h"), encoding: .utf8)
 
       var sdk = Self()
       let identifier =
@@ -267,6 +299,13 @@ struct HealthCatalogTests {
           let kind = specialTypeDeclarations[String(match.output.1)]
         {
           sdk.specialTypes[kind] = IOSVersion(Int(match.output.2)!, Int(match.output.3)!)
+        }
+      }
+      let activityCase = /^\s*HKWorkoutActivityType(\w+)\b.*= (\d+),/
+      for line in workoutActivityType.split(separator: "\n") where !line.contains("API_UNAVAILABLE")
+      {
+        if let match = line.firstMatch(of: activityCase) {
+          sdk.workoutActivityTypes[Int(match.output.2)!] = String(match.output.1)
         }
       }
       return sdk
