@@ -1,0 +1,106 @@
+name: Main
+
+# Everything GitHub runs for a merge to main (851-2826). pr.yml runs what happens before one.
+# - changes: which parts the merge touches (`.github/actions/changes`). The jobs below skip the rest.
+# - deploy: the TypeScript workspace to staging (api.staging.lil.tech), then prod (api.lil.tech),
+#   checking each serves the merge (`scripts/check-deploy`).
+# - check: the Swift checks again, on the merged code (`swift-check.yml`).
+# - pixelbook: points Pixelbook's main at the merge's snapshots. Paused (851-2816).
+#
+# Nothing here is ever cancelled, so every merge is deployed and checked: jobs that must not
+# overlap queue in order (`queue: max` keeps up to 100 waiting, where the default keeps one and
+# cancels the rest).
+
+on:
+  push:
+    branches: [main]
+  # Checks main's Swift again. It never deploys.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DO_NOT_TRACK: "1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      swift: ${{ steps.changes.outputs.swift }}
+      services: ${{ steps.changes.outputs.services }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # A run by hand has no `before`, so everything counts as changed.
+      - id: changes
+        uses: ./.github/actions/changes
+        with:
+          base: ${{ github.event.before }}
+
+  deploy:
+    needs: changes
+    if: needs.changes.outputs.services == 'true' && github.event_name == 'push'
+    # One deploy at a time, in the order of the merges.
+    concurrency:
+      group: main-deploy
+      cancel-in-progress: false
+      queue: max
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Staging and prod revoke Sign in with Apple tokens (851-2612). Previews don't get it.
+      LIL_APPLE_SIGN_IN_KEY: ${{ secrets.LIL_APPLE_SIGN_IN_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-services
+      - id: version
+        run: echo "version=$(git describe --always --dirty --exclude '*')" >> "$GITHUB_OUTPUT"
+      - name: Deploy staging
+        run: pnpm run deploy:staging --yes
+        working-directory: Services/api
+      - name: Check staging serves this commit
+        run: scripts/check-deploy https://api.staging.lil.tech "${{ steps.version.outputs.version }}"
+      - name: Deploy prod
+        run: pnpm run deploy:prod --yes
+        working-directory: Services/api
+      - name: Check prod serves this commit
+        run: scripts/check-deploy https://api.lil.tech "${{ steps.version.outputs.version }}"
+
+  check:
+    needs: changes
+    if: needs.changes.outputs.swift == 'true'
+    uses: ./.github/workflows/swift-check.yml
+
+  # Pixelbook's snapshots are published before a push, on developers' Macs, but no one pushes
+  # main's squash merges. A merge shares its branch's snapshots when the branch was up to date with
+  # main, so this points main at them (`publish --pointers-only`). Otherwise it warns, and main
+  # keeps its last published commit until someone runs `scripts/pixelbook publish` on it.
+  #
+  # Paused with the pre-push render (851-2816): with nothing published, it only warned on each
+  # merge. Remove `false &&` when the render is turned back on, with pr.yml's.
+  pixelbook:
+    if: false && github.event_name == 'push'
+    # In order, so main's pointer doesn't move back.
+    concurrency:
+      group: main-pixelbook
+      cancel-in-progress: false
+      queue: max
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # All of main, so a late or re-run job can tell its commit is behind main's pointer.
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-services
+      - name: Point main at this commit's snapshots
+        run: scripts/pixelbook publish --pointers-only --ref main

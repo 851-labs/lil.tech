@@ -1,6 +1,6 @@
 #!/bin/sh
 # Runs our checks (`docs/DECISIONS.md`). The pre-commit hook (`lefthook.yml`) runs the services and
-# Pixelbook parts a commit touches; GitHub runs the Swift part on our Mac minis (`swift.yml`).
+# Pixelbook parts a commit touches; GitHub runs the Swift part on our Mac minis (`swift-check.yml`).
 # Usage: scripts/check [--hook] [--swift] [--services] [--pixelbook]   (every part when none is given)
 #   --swift     Swift lint, the package's tests, and the apps' builds.
 #   --services  Format, lint and type checks (`scripts/format --lint --services`, which also checks
@@ -40,7 +40,7 @@ cd "$(dirname "$0")/.."
 # As on GitHub: our targets treat warnings as errors (`LilPackage/Package.swift`).
 export CI=1
 # Builds of their own, so they neither invalidate nor wait on Xcode's and everyday `swift test`'s.
-# CI keeps them outside its checkout, which it cleans (`LIL_CHECK_SCRATCH`, `swift.yml`).
+# CI keeps them outside its checkout, which it cleans (`LIL_CHECK_SCRATCH`, `swift-check.yml`).
 scratch="${LIL_CHECK_SCRATCH:-$PWD/.build-check}"
 
 status=0

@@ -1,0 +1,38 @@
+name: Comment on the pull request
+description: >-
+  Posts a comment on a pull request, or updates the one posted before: the first comment starting
+  with the marker. Needs `pull-requests: write`.
+inputs:
+  pr:
+    description: The pull request's number.
+    required: true
+  marker:
+    description: An HTML comment the body starts with, which finds the comment to update.
+    required: true
+  body:
+    description: The comment, starting with the marker.
+    required: true
+  token:
+    description: The token to comment with.
+    required: false
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        GH_REPO: ${{ github.repository }}
+        PR: ${{ inputs.pr }}
+        MARKER: ${{ inputs.marker }}
+        BODY: ${{ inputs.body }}
+      run: |
+        # `--jq` runs on each page, so keep the first match. `sed` reads to the end, unlike `head`,
+        # so gh never writes to a closed pipe.
+        id=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
+          --jq "[.[] | select(.body | startswith(\"$MARKER\"))][0].id // empty" | sed -n 1p)
+        if [ -n "$id" ]; then
+          gh api --method PATCH "repos/$GH_REPO/issues/comments/$id" -f body="$BODY" > /dev/null
+        else
+          gh pr comment "$PR" --body "$BODY"
+        fi

@@ -1,0 +1,260 @@
+name: PR
+
+# Everything GitHub runs for a pull request (851-2826). main.yml runs what follows a merge.
+# - changes: which parts the PR touches (`.github/actions/changes`). The jobs below skip the rest.
+# - check: the Swift checks on our Mac minis (`swift-check.yml`), for PRs from this repo.
+# - preview: deploys the TypeScript workspace to a preview stage (pr-<number>) on workers.dev and
+#   comments its URL. Its checks run before every commit instead (`lefthook.yml`).
+# - destroy-preview: when the PR closes, destroys its preview stage, if there is one.
+# - pixelbook: comments how many snapshots changed. Paused (851-2816).
+# - pr-ok: passes when every other job passed or was skipped. It's the one check branch protection
+#   needs, since the others are skipped when a PR doesn't touch their part.
+#
+# Fork PRs: a fork's pull request runs no workflow until a maintainer approves it, and then runs
+# its own copy of this file, so the same-repo conditions below only keep an unchanged copy off the
+# minis and away from the deploy token. Never approve a fork's run that changes `.github/`.
+# Previews run PR code with the deploy token, and Cloudflare can't limit Workers Scripts:Edit to
+# particular Workers, so only branches in this repo get previews (fork PRs get no secrets).
+
+on:
+  # No paths filter, so pr-ok always reports, and closing any PR can clean up its preview.
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+# No run-wide concurrency: cancelling a run would stop a deploy halfway. Each job sets its own.
+
+permissions:
+  contents: read
+
+env:
+  DO_NOT_TRACK: "1"
+
+defaults:
+  run:
+    # `shell: bash` runs with `-o pipefail`, so a failing command piped into tee fails the step.
+    shell: bash
+
+jobs:
+  changes:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    outputs:
+      swift: ${{ steps.changes.outputs.swift }}
+      services: ${{ steps.changes.outputs.services }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: changes
+        uses: ./.github/actions/changes
+        with:
+          base: ${{ github.event.pull_request.base.sha }}
+
+  check:
+    needs: changes
+    if: >-
+      needs.changes.outputs.swift == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    # A new push cancels the check of the one before.
+    concurrency:
+      group: pr-swift-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    uses: ./.github/workflows/swift-check.yml
+
+  preview:
+    needs: changes
+    if: >-
+      needs.changes.outputs.services == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    # One deploy or teardown per PR at a time, never cancelled halfway. A newer push replaces one
+    # that's waiting, and so does a teardown.
+    concurrency:
+      group: pr-services-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      STAGE: pr-${{ github.event.pull_request.number }}
+    steps:
+      # The concurrency group is per job, so a PR closed right after a push can be torn down
+      # before this deploy joins the group. Deploying then would leave a stage nothing destroys.
+      - name: Check the PR is still open
+        id: open
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .state)
+          echo "open=$([ "$state" = open ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          [ "$state" = open ] || echo "::notice::The PR is $state, so its preview isn't deployed."
+      - if: steps.open.outputs.open == 'true'
+        uses: actions/checkout@v7
+      - if: steps.open.outputs.open == 'true'
+        uses: ./.github/actions/setup-services
+      - name: Deploy the preview stage
+        if: steps.open.outputs.open == 'true'
+        id: deploy
+        working-directory: Services/api
+        run: |
+          pnpm run deploy --stage "$STAGE" --yes | tee deploy.log
+          # The stack's outputs (alchemy.run.ts) end the log, one per line: `  siteUrl: 'https://…',`.
+          output() { sed -nE "s/^  $1: '(https:[^']+)'.*/\1/p" deploy.log | tail -1; }
+          url=$(output url)
+          site_url=$(output siteUrl)
+          pixelbook_url=$(output pixelbookUrl)
+          if [ -z "$url" ]; then
+            echo "error: couldn't find the preview URL in the deploy output" >&2
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "site_url=$site_url" >> "$GITHUB_OUTPUT"
+          echo "pixelbook_url=$pixelbook_url" >> "$GITHUB_OUTPUT"
+          echo "version=$(git describe --always --dirty --exclude '*')" >> "$GITHUB_OUTPUT"
+      - name: Check the preview serves this commit
+        if: steps.open.outputs.open == 'true'
+        run: scripts/check-deploy "${{ steps.deploy.outputs.url }}" "${{ steps.deploy.outputs.version }}"
+      - name: Comment the preview URL
+        if: steps.open.outputs.open == 'true'
+        uses: ./.github/actions/comment
+        with:
+          pr: ${{ github.event.pull_request.number }}
+          marker: "<!-- services-preview -->"
+          body: |-
+            <!-- services-preview -->
+            **API preview** (`${{ env.STAGE }}`, `${{ steps.deploy.outputs.version }}`): ${{ steps.deploy.outputs.url }}/v1/status
+            **Website preview**: ${{ steps.deploy.outputs.site_url || 'not found in the deploy output' }}
+            **Pixelbook preview**: ${{ steps.deploy.outputs.pixelbook_url || 'not found in the deploy output' }}
+
+  destroy-preview:
+    if: >-
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    # After a deploy that's still running.
+    concurrency:
+      group: pr-services-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      STAGE: pr-${{ github.event.pull_request.number }}
+      LIL_ENVIRONMENT: preview
+      LIL_VERSION: destroy
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-services
+      # Destroying a stage that was never deployed is a no-op.
+      - name: Destroy the preview stage
+        id: destroy
+        run: pnpm exec alchemy destroy --stage "$STAGE" --yes
+        working-directory: Services/api
+      # A failed teardown would otherwise only be a red run on a closed PR, and leave resources
+      # (and costs) behind. One comment, updated on each failed attempt.
+      - name: Comment if the teardown failed
+        if: failure() && steps.destroy.outcome == 'failure'
+        uses: ./.github/actions/comment
+        with:
+          pr: ${{ github.event.pull_request.number }}
+          marker: "<!-- preview-teardown-failed -->"
+          body: |-
+            <!-- preview-teardown-failed -->
+            **Preview teardown failed** for `${{ env.STAGE }}`, so some of its resources are still in Cloudflare: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Fix the cause, then rerun the failed job. For `BucketNotEmpty`, empty the bucket first: destroy reads the props saved when the stage was last deployed, so a stage deployed before `forceDestroy` keeps refusing.
+
+  # Pixelbook's snapshots are rendered and published before a push, on developers' Macs (lefthook's
+  # pre-push hook, `scripts/pixelbook publish --hook`). This never renders, since that needs Xcode:
+  # it comments how many snapshots changed since the PR's base, linked to Pixelbook's comparison
+  # (`Web/pixelbook/scripts/diff.ts`), refreshed on each push. Re-run the PR's pixelbook job after
+  # publishing by hand.
+  #
+  # Paused with the pre-push render (851-2816): with nothing published, it only commented "no
+  # snapshots" on each PR. Remove `false &&` when the render is turned back on, with main.yml's.
+  pixelbook:
+    # Fork PRs get no secrets, and their snapshots wouldn't be published.
+    if: >-
+      false &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    # In order per PR.
+    concurrency:
+      group: pr-pixelbook-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-services
+      - name: Point the base and head at their snapshots
+        id: commits
+        run: |
+          # The PR's merge base, or the nearest commit before it with snapshots: a merge from a
+          # branch that wasn't up to date with main has none.
+          merge_base=$(git merge-base "origin/$BASE_REF" "$HEAD_SHA")
+          base=$merge_base
+          for commit in $(git rev-list --first-parent --max-count=20 "$merge_base"); do
+            key=$(scripts/pixelbook key "$commit")
+            if curl -sfo /dev/null "https://pixelbook-assets.lil.tech/snapshots/$key/index.json"; then
+              base=$commit
+              break
+            fi
+          done
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          # main's merges are pointed at as they land, but the base may predate that, and the
+          # head's hook may have skipped while its snapshots were published from elsewhere.
+          scripts/pixelbook publish --pointers-only --commit "$base"
+          scripts/pixelbook publish --pointers-only --commit "$HEAD_SHA"
+      - name: Count what changed
+        id: diff
+        env:
+          BASE: ${{ steps.commits.outputs.base }}
+        run: |
+          body=$(node Web/pixelbook/scripts/diff.ts --base "$BASE" --head "$HEAD_SHA")
+          {
+            echo "body<<PIXELBOOK_BODY"
+            echo "$body"
+            echo "PIXELBOOK_BODY"
+          } >> "$GITHUB_OUTPUT"
+      - name: Comment what changed
+        uses: ./.github/actions/comment
+        with:
+          pr: ${{ github.event.pull_request.number }}
+          # diff.ts starts its comment with this.
+          marker: "<!-- pixelbook -->"
+          body: ${{ steps.diff.outputs.body }}
+
+  # The one required check. Runs even when a job it needs failed or the run was cancelled, so it
+  # never counts as skipped (which branch protection would take as passed).
+  pr-ok:
+    if: always()
+    needs: [changes, check, preview, destroy-preview, pixelbook]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check every job passed or was skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          failed=$(jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key): \(.value.result)"' <<< "$NEEDS")
+          if [ -n "$failed" ]; then
+            echo "These jobs didn't pass:" >&2
+            echo "$failed" >&2
+            exit 1
+          fi
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"

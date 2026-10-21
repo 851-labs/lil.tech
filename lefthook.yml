@@ -1,5 +1,5 @@
 # Checks before every commit (`docs/DECISIONS.md`): each job runs when the commit touches its part of
-# the repo. The Swift checks run on GitHub instead, on our Mac minis (`.github/workflows/swift.yml`).
+# the repo. The Swift checks run on GitHub instead, on our Mac minis (`.github/workflows/swift-check.yml`).
 # Set up once per clone with `lefthook install`; skip in an emergency with `LEFTHOOK=0 git commit …`
 # (or `git push`).
 
@@ -9,7 +9,8 @@
 # something other than HEAD); a preview that fails to render blocks the push, like a failing check.
 #
 # Paused (851-2816): the iPhone simulator kept hanging renders, and the render lock queued pushes
-# behind each other. Remove `skip`, and restore `pixelbook.yml`'s triggers, to turn it back on.
+# behind each other. Remove `skip`, and the `false &&` in the pixelbook jobs of
+# `pr.yml` and `main.yml`, to turn it back on.
 pre-push:
   jobs:
     - name: pixelbook

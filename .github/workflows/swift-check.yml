@@ -1,27 +1,17 @@
-name: Swift
+name: Swift check
 
 # Lints and tests the Swift code, and builds the apps (`scripts/check --swift`), on our Mac minis
 # (851-2787): they keep their builds between runs, so a run takes minutes, where GitHub's macOS
 # runners took 6–11 restoring caches. Moved here from the pre-commit hook (`docs/DECISIONS.md`).
+# Called by pr.yml for pull requests and by main.yml for merges, never on its own.
 #
 # The minis are self-hosted and this repo is public. What keeps a fork's code off them is that a
 # fork's pull request runs no workflow until a maintainer approves it (the repo's policy for every
-# outside contributor): a fork's PR runs its own copy of this file, so the `if:` below only keeps
-# an unchanged copy off them. Never approve a fork's run that changes `.github/`.
+# outside contributor): a fork's PR runs its own copy of the workflows, so pr.yml's same-repo `if:`
+# only keeps an unchanged copy off them. Never approve a fork's run that changes `.github/`.
 
 on:
-  # No paths filter, so `check` always reports and can be a required check: the `changes` job
-  # decides whether it runs. A skipped job counts as passed.
-  pull_request:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-# One run per PR at a time, cancelling a superseded one. Runs on main are never cancelled, so every
-# merge is checked.
-concurrency:
-  group: swift-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  workflow_call:
 
 permissions:
   contents: read
@@ -31,40 +21,14 @@ defaults:
     shell: bash
 
 jobs:
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      swift: ${{ steps.diff.outputs.swift }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      # The paths `scripts/check --swift` checks.
-      - id: diff
-        env:
-          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] ||
-            ! git cat-file -e "$BASE^{commit}" 2>/dev/null ||
-            git diff --name-only "$BASE" HEAD |
-              grep -qE '^(LilPackage/|Apps/|Tools/|Lil\.xcworkspace/|\.swift-format$|scripts/(format|check)$|\.github/workflows/swift\.yml$)'; then
-            echo "swift=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "swift=false" >> "$GITHUB_OUTPUT"
-          fi
-
   check:
-    needs: changes
-    if: >-
-      needs.changes.outputs.swift == 'true' &&
-      (github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository)
     # Shared with Codevisor, in the "Mac minis" runner group.
     runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
     timeout-minutes: 60
     env:
       # Outside the checkout, which is cleaned each run, so the builds stay warm. Main's apart from
-      # pull requests', so a branch's leftovers never reach main's check.
+      # pull requests', so a branch's leftovers never reach main's check. (A called workflow sees
+      # its caller's event.)
       LIL_CHECK_SCRATCH: ${{ github.workspace }}/../lil.tech-check-${{ github.event_name == 'pull_request' && 'pr' || 'main' }}
     steps:
       - uses: actions/checkout@v7
