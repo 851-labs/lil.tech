@@ -4,8 +4,16 @@ import {
   statisticsSource,
   statisticsSourceStalenessMillis,
 } from "../../../src/health/tools/HealthQueries.ts";
+import { age } from "../../../src/health/tools/Details.ts";
 import { HealthToolkit } from "../../../src/health/tools/HealthToolkit.ts";
-import { localDate, localTime, startOfDay } from "../../../src/health/tools/ToolTime.ts";
+import {
+  bucketIndex,
+  localDate,
+  localTime,
+  startOfDay,
+  startOfHour,
+  toolPeriod,
+} from "../../../src/health/tools/ToolTime.ts";
 
 const day = 24 * 60 * 60 * 1000;
 const now = Date.parse("2026-10-20T15:00:00Z");
@@ -70,6 +78,69 @@ describe("tool times", () => {
     assert.strictEqual(startOfDay(sunday, london), Date.parse("2026-10-24T23:00:00Z"));
     assert.strictEqual(startOfDay(sunday, london, 1), Date.parse("2026-10-26T00:00:00Z"));
     assert.strictEqual(startOfDay(sunday, london, -6), Date.parse("2026-10-18T23:00:00Z"));
+  });
+});
+
+describe("tool periods", () => {
+  const london = Option.getOrThrow(DateTime.zoneMakeNamed("Europe/London"));
+  const kolkata = Option.getOrThrow(DateTime.zoneMakeNamed("Asia/Kolkata"));
+  const times = (millis: ReadonlyArray<number>) => millis.map((time) => localTime(time, london));
+
+  it("have 25 hours on the day London leaves summer time", () => {
+    const period = toolPeriod("D", "2026-10-25", now, london);
+    assert.strictEqual(period.buckets.length, 25);
+    assert.deepStrictEqual(times(period.buckets.slice(0, 3)), [
+      "2026-10-25T00:00:00+01:00",
+      "2026-10-25T01:00:00+01:00",
+      "2026-10-25T01:00:00+00:00",
+    ]);
+    assert.strictEqual(localTime(period.end, london), "2026-10-26T00:00:00+00:00");
+  });
+
+  it("count 26 weeks for 6M, and 12 calendar months for Y", () => {
+    const sixMonths = toolPeriod("6M", "2026-10-20", now, london);
+    assert.strictEqual(sixMonths.buckets.length, 26);
+    assert.strictEqual(localTime(sixMonths.start, london), "2026-04-22T00:00:00+01:00");
+    const year = toolPeriod("Y", undefined, now, london);
+    assert.deepStrictEqual(times([year.start, year.buckets[11]!, year.end]), [
+      "2025-11-01T00:00:00+00:00",
+      "2026-10-01T00:00:00+01:00",
+      "2026-10-21T00:00:00+01:00",
+    ]);
+  });
+
+  it("place a time in its bucket", () => {
+    const week = toolPeriod("W", "2026-10-20", now, london);
+    assert.strictEqual(bucketIndex(week, week.start), 0);
+    assert.strictEqual(bucketIndex(week, week.end - 1), 6);
+    assert.isUndefined(bucketIndex(week, week.end));
+    assert.isUndefined(bucketIndex(week, week.start - 1));
+  });
+
+  it("start hours at local hours, in half-hour zones too", () => {
+    const millis = Date.parse("2026-10-20T08:10:00Z");
+    assert.strictEqual(startOfHour(millis, kolkata), Date.parse("2026-10-20T07:30:00Z"));
+    assert.strictEqual(startOfHour(millis, london), Date.parse("2026-10-20T08:00:00Z"));
+  });
+});
+
+describe("ages", () => {
+  const utc = Option.getOrThrow(DateTime.zoneMakeNamed("UTC"));
+  const at = (iso: string) => Date.parse(iso);
+
+  it("count whole years, from the birthday's start", () => {
+    const birth = { year: 1990, month: 10, day: 21 };
+    assert.strictEqual(age(birth, at("2026-10-20T23:59:59Z"), utc), 35);
+    assert.strictEqual(age(birth, at("2026-10-21T00:00:00Z"), utc), 36);
+    assert.isNull(age({ year: 2027, month: 1, day: 1 }, at("2026-10-21T00:00:00Z"), utc));
+  });
+
+  it("have a leap day's birthday on 28 February in other years, as Foundation does", () => {
+    const birth = { year: 2000, month: 2, day: 29 };
+    assert.strictEqual(age(birth, at("2027-02-27T12:00:00Z"), utc), 26);
+    assert.strictEqual(age(birth, at("2027-02-28T12:00:00Z"), utc), 27);
+    assert.strictEqual(age(birth, at("2028-02-28T12:00:00Z"), utc), 27);
+    assert.strictEqual(age(birth, at("2028-02-29T00:00:00Z"), utc), 28);
   });
 });
 

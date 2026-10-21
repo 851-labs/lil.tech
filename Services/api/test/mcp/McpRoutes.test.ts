@@ -102,20 +102,16 @@ describe("the Health MCP server", () => {
           const list = yield* call(handler, accessToken, "tools/list");
           assert.strictEqual(list.status, 200);
           const tools = result(list.message)?.["tools"] as Array<Record<string, unknown>>;
-          assert.deepStrictEqual(
-            tools.map((tool) => tool["name"]),
-            ["summary"],
-          );
-          // Exactly as `mcp-tools.json` lists it, which the Mac's server lists too: read-only.
-          assert.deepStrictEqual(
-            tools,
-            committedTools.filter((tool) => tool["name"] === "summary"),
-          );
-          assert.deepInclude(tools[0]?.["annotations"], {
-            readOnlyHint: true,
-            destructiveHint: false,
-            openWorldHint: false,
-          });
+          // All ten, exactly as `mcp-tools.json` lists them, which the Mac's server lists too.
+          assert.deepStrictEqual(tools, committedTools);
+          assert.strictEqual(tools.length, 10);
+          for (const tool of tools) {
+            assert.deepInclude(tool["annotations"], {
+              readOnlyHint: true,
+              destructiveHint: false,
+              openWorldHint: false,
+            });
+          }
           const summary = yield* call(handler, accessToken, "tools/call", {
             name: "summary",
             arguments: { timeZone: "Europe/London" },
@@ -150,12 +146,7 @@ describe("the Health MCP server", () => {
           };
           assert.strictEqual((yield* postMcp(handler, url, initialized, headers)).status, 202);
           const list = yield* postMcp(handler, url, inSession("tools/list"), headers);
-          assert.deepStrictEqual(
-            (result(list.message)?.["tools"] as Array<Record<string, unknown>>).map(
-              (tool) => tool["name"],
-            ),
-            ["summary"],
-          );
+          assert.deepStrictEqual(result(list.message)?.["tools"], committedTools);
           const summary = yield* postMcp(
             handler,
             url,

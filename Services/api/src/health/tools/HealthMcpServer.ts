@@ -11,15 +11,16 @@ import {
   Schema,
   Scope,
 } from "effect";
-import { McpProtocol, McpServer, Toolkit } from "effect/ai";
+import { McpProtocol, McpServer } from "effect/ai";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { agentClientHeader, agentGrantHeader } from "../../mcp/AgentHeaders.ts";
 import { agentResources } from "../../oauth/Hosts.ts";
 import type { AgentAccess } from "../../store/AgentAccessLog.ts";
 import type { AccountDeleted } from "../../store/Changes.ts";
 import type { StoreSql } from "../../store/StoreSql.ts";
-import { HealthToolError, HealthToolkit } from "./HealthToolkit.ts";
-import { healthSummary } from "./Summary.ts";
+import { HealthToolError, type HealthToolHandlers, HealthToolkit } from "./HealthToolkit.ts";
+import { storeHealthTools } from "./StoreHealthTools.ts";
+import { findHealthType } from "./ToolTypes.ts";
 
 // lil health's remote MCP server (851-2851, `docs/decisions/server.md`): the Health toolkit over
 // Streamable HTTP, served by the user's store from its own database. The Worker checks the agent's
@@ -43,12 +44,6 @@ export const healthMcpProtocols = [
   McpProtocol.v2025_06_18,
 ] as const;
 
-/**
- * The tools the server implements so far. The others join as they land on the server, each with
- * its conformance cases (851-2868); until then agents only see these.
- */
-export const RemoteHealthToolkit = Toolkit.make(HealthToolkit.tools.summary);
-
 /** How many rows an answer holds: the items of its top-level lists. */
 const rowCount = (encoded: unknown) =>
   Predicate.isObject(encoded)
@@ -58,12 +53,20 @@ const rowCount = (encoded: unknown) =>
       )
     : 0;
 
-/** What the log keeps of a call's arguments: the types, range and day, never other text. */
+/**
+ * What the log keeps of a call's arguments: the type (its catalog identifier, however the call
+ * named it, or nothing for a type the catalog doesn't have), range and day, never other text.
+ */
 const askedFor = (params: object) => {
   const field = (name: string) =>
     Predicate.hasProperty(params, name) && typeof params[name] === "string" ? params[name] : null;
   const type = field("type");
-  return { types: type === null ? null : [type], range: field("range"), date: field("date") };
+  const known = type === null ? undefined : findHealthType(type);
+  return {
+    types: known === undefined ? null : [known.id],
+    range: field("range"),
+    date: field("date"),
+  };
 };
 
 /** The agent the Worker forwarded the request for. */
@@ -168,18 +171,23 @@ export const makeHealthMcpServer = (options: {
 }) =>
   Effect.gen(function* () {
     const { sql, record, resultCeiling = healthMcpResultCeiling } = options;
-    const tools = RemoteHealthToolkit.tools;
-    const layer = McpServer.toolkit(RemoteHealthToolkit).pipe(
-      Layer.provide(
-        RemoteHealthToolkit.toLayer({
-          summary: logged(
-            tools.summary,
-            (params) => healthSummary(sql, params),
-            record,
-            resultCeiling,
-          ),
-        }),
-      ),
+    const handlers = storeHealthTools(sql);
+    const tools = HealthToolkit.tools;
+    // Every tool's handler, logged and held to the ceiling.
+    const loggedHandlers: HealthToolHandlers = {
+      summary: logged(tools.summary, handlers.summary, record, resultCeiling),
+      list_types: logged(tools.list_types, handlers.list_types, record, resultCeiling),
+      metric: logged(tools.metric, handlers.metric, record, resultCeiling),
+      samples: logged(tools.samples, handlers.samples, record, resultCeiling),
+      workouts: logged(tools.workouts, handlers.workouts, record, resultCeiling),
+      sleep: logged(tools.sleep, handlers.sleep, record, resultCeiling),
+      medications: logged(tools.medications, handlers.medications, record, resultCeiling),
+      health_details: logged(tools.health_details, handlers.health_details, record, resultCeiling),
+      search: logged(tools.search, handlers.search, record, resultCeiling),
+      sync_status: logged(tools.sync_status, handlers.sync_status, record, resultCeiling),
+    };
+    const layer = McpServer.toolkit(HealthToolkit).pipe(
+      Layer.provide(HealthToolkit.toLayer(loggedHandlers)),
       Layer.provideMerge(
         McpServer.layerHttp({
           name: "lil health",

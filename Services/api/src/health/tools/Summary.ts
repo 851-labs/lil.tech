@@ -57,7 +57,8 @@ export const healthSummary = Effect.fn("healthSummary")(function* (
     date: localDate(now, zone),
     pinned: pins.length > 0,
     metrics,
-    workouts: workoutTotals(sql, weekStart, tomorrow, now),
+    // A workout an app dated later today hasn't happened.
+    workouts: workoutTotals(sql, weekStart, Math.min(tomorrow, now + 1)),
   };
   return result;
 });
