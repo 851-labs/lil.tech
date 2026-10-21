@@ -152,6 +152,21 @@ struct HealthAppIntentsTests {
     await #expect(throws: HealthAppActionError.signedOut) { try await opened.value }
   }
 
+  @Test(.timeLimit(.minutes(1)))
+  func aReplacedServerStillAnswersWhatItRead() async throws {
+    let channel = HealthAppActionChannel(signInWait: .zero)
+    let first = channel.requests()
+    let opened = Task { try await channel.perform(.open(.summary)) }
+    // Another server starts before the first has read the request.
+    while channel.pendingCount == 0 { await Task.yield() }
+    _ = channel.requests()
+    for await request in first {
+      request.finish(.success(.done))
+      break
+    }
+    #expect(try await opened.value == .done)
+  }
+
   @Test
   func failsAtOnceWhenNotSignedInAfterTheWait() async {
     let channel = HealthAppActionChannel(signInWait: .zero)
@@ -214,10 +229,10 @@ struct HealthAppIntentsTests {
       $0.agentAccess = .live(accessStore)
       $0.healthAppActions = HealthAppActions(channel: HealthAppActionChannel(signInWait: .zero))
     } operation: {
-      let error = await #expect(throws: HealthAppIntentError.self) {
+      await #expect(throws: HealthAppActionError.signedOut) {
         try await HealthAppIntents.perform(.open(.summary))
       }
-      #expect(error?.message == "Sign in to lil health first.")
+      #expect(HealthAppActionError.signedOut.localizedDescription == "Sign in to lil health first.")
     }
     // Asked while access was on, so it's in the log.
     #expect(try accessStore.entries().map(\.command) == ["open Summary"])

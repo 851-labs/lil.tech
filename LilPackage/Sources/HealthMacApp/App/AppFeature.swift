@@ -226,16 +226,14 @@ public struct AppFeature {
 
       case .pageOpened(let page):
         state.searchText = ""
+        state.metricPath = []
         switch page.kind {
         case .summary:
           state.selection = .summary
-          state.metricPath = []
         case .healthDetails:
           state.selection = .healthDetails
-          state.metricPath = []
         case .category(let category):
           state.selection = .category(category)
-          state.metricPath = []
         case .dataType(let type):
           // As if its card were clicked in its category.
           state.selection = type.category.map(SidebarItem.category) ?? .summary

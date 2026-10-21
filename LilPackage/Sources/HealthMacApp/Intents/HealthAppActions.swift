@@ -136,14 +136,15 @@ final class HealthAppActionChannel: Sendable {
   func requests() -> AsyncStream<HealthAppActionRequest> {
     let (stream, continuation) = AsyncStream<HealthAppActionRequest>.makeStream()
     let id = UUID()
-    let replaced = state.withLock { state in
-      defer { state.server = (id, continuation) }
-      return state.server?.continuation
-    }
-    replaced?.finish()
+    // A previous server's stream isn't finished here: what it has buffered, it still performs and
+    // answers. Once its reader stops, what it didn't answer fails (`serverEnded`).
+    state.withLock { $0.server = (id, continuation) }
     continuation.onTermination = { [self] _ in serverEnded(id) }
     return stream
   }
+
+  /// How many actions are waiting for an answer.
+  var pendingCount: Int { state.withLock { $0.pending.count } }
 
   func perform(_ action: HealthAppAction) async throws -> HealthAppActionResult {
     while true {

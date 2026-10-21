@@ -52,13 +52,14 @@ enum HealthAppIntents {
     @Dependency(\.healthAppActions) var healthAppActions
     do {
       try await agentAccess.authorize(action.command, process)
-      try await beforeAction()
-      return try await healthAppActions.perform(action)
-    } catch is CancellationError {
-      throw CancellationError()
     } catch {
+      // `AgentAccessError.off`'s message, or why the setting couldn't be read.
       throw HealthAppIntentError(error)
     }
+    // App Intents' own errors (the app couldn't come forward) and the app's
+    // (`HealthAppActionError`, which says itself what Shortcuts shows) pass through as they are.
+    try await beforeAction()
+    return try await healthAppActions.perform(action)
   }
 }
 
