@@ -1,12 +1,12 @@
 import { Context, Effect, Layer, Option, Schema } from "effect";
-import { and, eq, gt, inArray, isNotNull, isNull, lt, lte, notExists, or } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, lt, lte, notExists, or, sql } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
 import { CoreDb, first, query } from "./CoreDb.ts";
 import { AgentAuthorizationId, AgentGrantId, UserId } from "./Ids.ts";
-import { agentAuthorizations, agentGrants, agentTokens, oauthClients } from "./Schema.ts";
+import { agentAuthorizations, agentGrants, agentTokens, oauthClients, users } from "./Schema.ts";
 
-// Storage for the agents' authorization server (`docs/decisions/accounts.md`, Agents): approved
-// authorizations, grants and their tokens. `AgentTokens` (`src/oauth/AgentTokens.ts`) is the logic
+// Storage for the agents' authorization server (`docs/decisions/accounts.md`, Agents):
+// authorization requests (`/oauth/authorize`), grants and their tokens. `AgentTokens` (`src/oauth/AgentTokens.ts`) is the logic
 // over it. D1 has no transactions over HTTP, so every step that must happen once is a single
 // guarded statement.
 
@@ -28,6 +28,53 @@ export class AgentAuthorization extends Schema.Class<AgentAuthorization>(
   clientName: Schema.NullOr(Schema.String),
   clientKind: Schema.Literals(["cimd", "dcr"]),
 }) {}
+
+/**
+ * An authorization request on its way through the authorization page (`/oauth/authorize`): asked
+ * for, signed in to (`userId`), then allowed (`decided`, once it has a code).
+ */
+export class PendingAuthorization extends Schema.Class<PendingAuthorization>(
+  "lil/api/core/PendingAuthorization",
+)({
+  id: AgentAuthorizationId,
+  clientId: Schema.String,
+  redirectUri: Schema.String,
+  state: Schema.NullOr(Schema.String),
+  scopes: Schema.Array(Schema.String),
+  resource: Schema.String,
+  browserHash: Schema.String,
+  expiresAt: Schema.Number,
+  userId: Schema.NullOr(UserId),
+  /** The signed-in user's name, if they have one. */
+  userName: Schema.NullOr(Schema.String),
+  decided: Schema.Boolean,
+  clientName: Schema.NullOr(Schema.String),
+  clientKind: Schema.Literals(["cimd", "dcr"]),
+}) {}
+
+/** A new authorization request, before anyone has signed in. */
+export interface NewAgentAuthorization {
+  readonly id: AgentAuthorizationId;
+  readonly clientId: string;
+  readonly redirectUri: string;
+  readonly state: string | null;
+  readonly codeChallenge: string;
+  readonly scopes: ReadonlyArray<string>;
+  readonly resource: string;
+  readonly browserHash: string;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+}
+
+/** What allowing an authorization records: the scopes granted and the code's hash. */
+export interface AgentAuthorizationApproval {
+  readonly id: AgentAuthorizationId;
+  readonly userId: UserId;
+  readonly grantedScopes: ReadonlyArray<string>;
+  readonly codeHash: string;
+  readonly codeExpiresAt: number;
+  readonly now: number;
+}
 
 /** A connected agent: one user's grant to one client, for one app's MCP server (`resource`). */
 export class AgentGrant extends Schema.Class<AgentGrant>("lil/api/core/AgentGrant")({
@@ -72,11 +119,41 @@ export interface NewAgentToken {
 const emptyGrantAge = 24 * 60 * 60 * 1000;
 
 const decodeAuthorization = Schema.decodeUnknownEffect(AgentAuthorization);
+const decodePending = Schema.decodeUnknownEffect(PendingAuthorization);
 const decodeToken = Schema.decodeUnknownEffect(StoredAgentToken);
 
 export class AgentGrants extends Context.Service<
   AgentGrants,
   {
+    /** Stores a new authorization request, bound to its browser by `browserHash`. */
+    readonly createAuthorization: (
+      authorization: NewAgentAuthorization,
+    ) => Effect.Effect<void, SqlError.SqlError>;
+    /** An authorization request, with its client and who signed in, while it hasn't expired. */
+    readonly findPendingAuthorization: (
+      id: AgentAuthorizationId,
+      now: number,
+    ) => Effect.Effect<Option.Option<PendingAuthorization>, SqlError.SqlError>;
+    /**
+     * Records who signed in to an authorization request, unless someone already has, it was
+     * decided, or it expired. Whether it did.
+     */
+    readonly signInAuthorization: (
+      id: AgentAuthorizationId,
+      userId: UserId,
+      now: number,
+    ) => Effect.Effect<boolean, SqlError.SqlError>;
+    /**
+     * Allows an authorization request that `userId` signed in to and nobody decided yet, giving it
+     * a code. Whether it did: of two at once, only one does.
+     */
+    readonly approveAuthorization: (
+      approval: AgentAuthorizationApproval,
+    ) => Effect.Effect<boolean, SqlError.SqlError>;
+    /** Deletes an authorization request that wasn't allowed (Cancel). Whether it did. */
+    readonly deleteUndecidedAuthorization: (
+      id: AgentAuthorizationId,
+    ) => Effect.Effect<boolean, SqlError.SqlError>;
     /** The approved authorization whose code hashes to `codeHash`, with its client. */
     readonly findAuthorizationByCode: (
       codeHash: string,
@@ -151,6 +228,91 @@ export class AgentGrants extends Context.Service<
     Effect.gen(function* () {
       const db = yield* CoreDb;
       return AgentGrants.of({
+        createAuthorization: Effect.fn("AgentGrants.createAuthorization")(
+          function* (authorization) {
+            yield* query(db.insert(agentAuthorizations).values(authorization));
+          },
+        ),
+        findPendingAuthorization: Effect.fn("AgentGrants.findPendingAuthorization")(
+          function* (id, now) {
+            const rows = yield* query(
+              db
+                .select({
+                  id: agentAuthorizations.id,
+                  clientId: agentAuthorizations.clientId,
+                  redirectUri: agentAuthorizations.redirectUri,
+                  state: agentAuthorizations.state,
+                  scopes: agentAuthorizations.scopes,
+                  resource: agentAuthorizations.resource,
+                  browserHash: agentAuthorizations.browserHash,
+                  expiresAt: agentAuthorizations.expiresAt,
+                  userId: agentAuthorizations.userId,
+                  userName: users.displayName,
+                  decided: sql<boolean>`${agentAuthorizations.codeHash} IS NOT NULL`.mapWith(
+                    Boolean,
+                  ),
+                  clientName: oauthClients.name,
+                  clientKind: oauthClients.kind,
+                })
+                .from(agentAuthorizations)
+                .innerJoin(oauthClients, eq(oauthClients.clientId, agentAuthorizations.clientId))
+                .leftJoin(users, eq(users.id, agentAuthorizations.userId))
+                .where(and(eq(agentAuthorizations.id, id), gt(agentAuthorizations.expiresAt, now))),
+            );
+            return yield* first(decodePending)(rows);
+          },
+        ),
+        signInAuthorization: Effect.fn("AgentGrants.signInAuthorization")(
+          function* (id, userId, now) {
+            const rows = yield* query(
+              db
+                .update(agentAuthorizations)
+                .set({ userId })
+                .where(
+                  and(
+                    eq(agentAuthorizations.id, id),
+                    isNull(agentAuthorizations.userId),
+                    isNull(agentAuthorizations.codeHash),
+                    gt(agentAuthorizations.expiresAt, now),
+                  ),
+                )
+                .returning({ id: agentAuthorizations.id }),
+            );
+            return rows.length === 1;
+          },
+        ),
+        approveAuthorization: Effect.fn("AgentGrants.approveAuthorization")(function* (approval) {
+          const rows = yield* query(
+            db
+              .update(agentAuthorizations)
+              .set({
+                grantedScopes: approval.grantedScopes,
+                codeHash: approval.codeHash,
+                codeExpiresAt: approval.codeExpiresAt,
+              })
+              .where(
+                and(
+                  eq(agentAuthorizations.id, approval.id),
+                  eq(agentAuthorizations.userId, approval.userId),
+                  isNull(agentAuthorizations.codeHash),
+                  gt(agentAuthorizations.expiresAt, approval.now),
+                ),
+              )
+              .returning({ id: agentAuthorizations.id }),
+          );
+          return rows.length === 1;
+        }),
+        deleteUndecidedAuthorization: Effect.fn("AgentGrants.deleteUndecidedAuthorization")(
+          function* (id) {
+            const rows = yield* query(
+              db
+                .delete(agentAuthorizations)
+                .where(and(eq(agentAuthorizations.id, id), isNull(agentAuthorizations.codeHash)))
+                .returning({ id: agentAuthorizations.id }),
+            );
+            return rows.length === 1;
+          },
+        ),
         findAuthorizationByCode: Effect.fn("AgentGrants.findAuthorizationByCode")(
           function* (codeHash) {
             const rows = yield* query(

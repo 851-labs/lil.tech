@@ -8,8 +8,8 @@ import { Users } from "../../src/core/Users.ts";
 import { RateLimits } from "../../src/RateLimits.ts";
 import { TestCore } from "../core/TestCoreDatabase.ts";
 
-// Agents' clients and approved authorizations, stored directly: the authorization page that makes
-// them is 851-2849.
+// Agents' clients and approved authorizations, stored directly, for tests of the tokens. The
+// authorization page's own tests (`AuthorizationPage.test.ts`) go through the page.
 
 /** lil health's MCP server in prod: its tokens' audience. */
 export const healthResource = "https://mcp.lil.tech/health";

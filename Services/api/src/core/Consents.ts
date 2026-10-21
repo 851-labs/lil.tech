@@ -5,8 +5,13 @@ import { CoreDb, query } from "./CoreDb.ts";
 import type { UserId } from "./Ids.ts";
 import { consents } from "./Schema.ts";
 
-/** What a user can consent to. Health: processing their Health data (GDPR Article 9). */
-export const ConsentType = Schema.Literals(["health"]);
+/**
+ * What a user can consent to. `health`: processing their Health data (GDPR Article 9).
+ * `agents:health`: letting agents they connect read their lil health data through its MCP server,
+ * asked each time one connects (851-2849). Each later app gets its own agents consent
+ * (`agents:mail`), so turning one app's agents off leaves the others.
+ */
+export const ConsentType = Schema.Literals(["health", "agents:health"]);
 export type ConsentType = typeof ConsentType.Type;
 
 /**
@@ -14,6 +19,15 @@ export type ConsentType = typeof ConsentType.Type;
  * be for. Bumping it, for a change in how Health data is used, asks everyone to consent again.
  */
 export const healthConsentPolicyVersion = "2026-10-15";
+
+/**
+ * The privacy policy version that consent to an app's agents is recorded against, separate from
+ * Health consent's, so asking for it never asks anyone to consent to Health again. The launch
+ * (851-2855) moves it to the policy that describes remote agents, before prod has them.
+ */
+export const agentsConsentPolicyVersions = {
+  "agents:health": "2026-10-20",
+} as const satisfies Record<Extract<ConsentType, `agents:${string}`>, string>;
 
 /** A consent in force. */
 export interface GivenConsent {

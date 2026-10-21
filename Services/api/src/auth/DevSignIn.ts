@@ -17,6 +17,35 @@ export const devSignInEnvironments: ReadonlySet<Environment> = new Set(["preview
  */
 export const maxDevUsers = 1000;
 
+/**
+ * The synthetic user to sign in to: the one named `account`, made the first time, or a new one
+ * (named `displayName`) without it. `None` once the stage has `maxDevUsers` users and this would
+ * make another. Used by `POST /v1/auth/dev` and the agents' authorization page's test-account
+ * sign-in (`src/oauth/AuthorizationPage.ts`). `made` says whether it's new, so a sign-in that fails
+ * afterwards can delete it.
+ */
+export const testAccount = Effect.fn("testAccount")(function* (
+  users: Users["Service"],
+  request: { readonly account?: string | undefined; readonly displayName?: string | null },
+) {
+  const existing =
+    request.account === undefined ? Option.none() : yield* users.findSynthetic(request.account);
+  if (Option.isSome(existing)) return Option.some({ user: existing.value, made: false });
+  if ((yield* users.count) >= maxDevUsers) return Option.none();
+  const user = yield* users.create({
+    displayName: request.account ?? request.displayName ?? null,
+  });
+  if (request.account !== undefined) {
+    // Two devices that made it at once: the oldest wins, and the other user goes.
+    const oldest = yield* users.findSynthetic(request.account);
+    if (Option.isSome(oldest) && oldest.value.id !== user.id) {
+      yield* users.delete(user.id);
+      return Option.some({ user: oldest.value, made: false });
+    }
+  }
+  return Option.some({ user, made: true });
+});
+
 const DevSignInRequest = Schema.Struct({
   displayName: Schema.optionalKey(Schema.NullOr(Schema.String)),
   /**
@@ -61,29 +90,14 @@ export const DevSignInRoute = HttpRouter.use((router) =>
         const request = yield* readRequest.pipe(
           Effect.mapError((error) => badRequest(error.message)),
         );
-        const existing =
-          request.account === undefined
-            ? Option.none()
-            : yield* users.findSynthetic(request.account);
-        if (Option.isNone(existing) && (yield* users.count) >= maxDevUsers) {
+        const signedIn = yield* testAccount(users, request);
+        if (Option.isNone(signedIn)) {
           return HttpServerResponse.jsonUnsafe(
             { _tag: "TooManyUsers", message: `This stage already has ${maxDevUsers} users` },
             { status: 429 },
           );
         }
-        let user = Option.isSome(existing)
-          ? existing.value
-          : yield* users.create({ displayName: request.account ?? request.displayName ?? null });
-        let made = Option.isNone(existing);
-        if (made && request.account !== undefined) {
-          // Two devices that made it at once: the oldest wins, and the other user goes.
-          const oldest = yield* users.findSynthetic(request.account);
-          if (Option.isSome(oldest) && oldest.value.id !== user.id) {
-            yield* users.delete(user.id);
-            user = oldest.value;
-            made = false;
-          }
-        }
+        const { user, made } = signedIn.value;
         const device = yield* devices
           .create({
             userId: user.id,

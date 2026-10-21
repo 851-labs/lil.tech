@@ -1,4 +1,6 @@
+import { Option } from "effect";
 import { stageDomains } from "../Deployment.ts";
+import type { ConsentType } from "../core/Consents.ts";
 import type { Environment } from "../Status.ts";
 
 // Where agents find the authorization server and each app's MCP server (851-2845,
@@ -20,13 +22,20 @@ export const agentAccessEnvironments: ReadonlySet<Environment> = new Set([
  * scopes its tokens can carry, each with the app's prefix so later apps' can't collide.
  */
 export const agentResources = {
-  health: { path: "/health", name: "lil health", scopes: ["health:read"] },
+  health: {
+    path: "/health",
+    name: "lil health",
+    scopes: ["health:read"],
+    consent: "agents:health",
+  },
 } as const satisfies Record<
   string,
   {
     readonly path: `/${string}`;
     readonly name: string;
     readonly scopes: ReadonlyArray<`${string}:${string}`>;
+    /** The consent connecting an agent records (`Consents.ts`). */
+    readonly consent: ConsentType;
   }
 >;
 
@@ -67,6 +76,17 @@ export const agentHosts = (environment: Environment, requestOrigin: string): Age
 /** The URL of an app's MCP server: its protected resource, and its tokens' audience. */
 export const resourceUrl = (hosts: AgentHosts, resource: AgentResource) =>
   `${hosts.mcp}${agentResources[resource].path}`;
+
+/**
+ * The app whose MCP server `resource` is, on these hosts, if it's one. Exactly its URL, as its
+ * Protected Resource Metadata gives it, since the token endpoint compares resources as strings.
+ */
+export const resourceFor = (hosts: AgentHosts, resource: string): Option.Option<AgentResource> =>
+  Option.fromNullishOr(
+    (Object.keys(agentResources) as Array<AgentResource>).find(
+      (key) => resourceUrl(hosts, key) === resource,
+    ),
+  );
 
 /** Whether `path` belongs on the MCP host: an app's MCP server, or its metadata. */
 export const isMcpPath = (path: string) =>
