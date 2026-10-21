@@ -29,31 +29,48 @@ struct HighlightCard: View {
     .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
   }
 
-  /// The two weeks' averages as bars, this week in the category's color.
+  /// The two weeks' averages as bars, this week in the category's color. Each row has its own
+  /// line above its bar, the week's name and its average, so neither can run into the other bar
+  /// (851-2824): Charts placed the names as axis labels, between the bars, where they collided.
   private var comparison: some View {
-    Chart {
+    // Both bars on one scale, the longer one full width.
+    let longest = max(highlight.previous, highlight.current)
+    return VStack(alignment: .leading, spacing: 8) {
       // Rolling weeks ending yesterday, as the sentence says, not calendar weeks.
-      bar("7 Days Before", highlight.previous, color: Color.gray.opacity(0.35))
-      bar("Last 7 Days", highlight.current, color: color)
+      comparisonRow(
+        "7 Days Before", highlight.previous, longest: longest, color: Color.gray.opacity(0.35))
+      comparisonRow("Last 7 Days", highlight.current, longest: longest, color: color)
     }
-    .chartXAxis(.hidden)
-    .chartYAxis {
-      AxisMarks { _ in AxisValueLabel() }
-    }
-    .frame(height: 70)
   }
 
-  private func bar(_ label: String, _ value: Double, color: some ShapeStyle) -> some ChartContent {
+  private func comparisonRow(
+    _ label: String, _ value: Double, longest: Double, color: some ShapeStyle
+  ) -> some View {
     let (number, unit) = MetricFormat.value(value, unit: type.unit, typeID: type.id)
-    return BarMark(x: .value("Average", value), y: .value("Week", label), height: 18)
-      .foregroundStyle(color)
-      .clipShape(Capsule())
-      .annotation(position: .trailing) {
-        Text("\(number) \(unit)")
-          .font(.caption.weight(.semibold))
+    let share = longest > 0 ? min(max(value / longest, 0), 1) : 0
+    return VStack(alignment: .leading, spacing: 4) {
+      HStack(alignment: .firstTextBaseline) {
+        Text(label)
           .foregroundStyle(.secondary)
+        Spacer()
+        Text(unit.isEmpty ? number : "\(number) \(unit)")
+          .fontWeight(.semibold)
+          .foregroundStyle(.secondary)
+          .monospacedDigit()
       }
+      .font(.caption)
+      GeometryReader { proxy in
+        // At least a dot, so a week of almost nothing still shows.
+        Capsule()
+          .fill(color)
+          .frame(width: max(proxy.size.width * share, Self.barHeight))
+      }
+      .frame(height: Self.barHeight)
+    }
+    .accessibilityElement(children: .combine)
   }
+
+  private static let barHeight: CGFloat = 18
 
   /// Each week's average, the last 4 in color, with both periods' averages as lines.
   private var trend: some View {
@@ -123,4 +140,28 @@ enum HighlightText {
     let (number, unit) = MetricFormat.value(value, unit: type.unit, typeID: type.id)
     return unit.isEmpty ? number : "\(number) \(unit)"
   }
+}
+
+// Week comparisons with synthetic values: about the same, up a lot, and down to almost nothing,
+// in a narrow column, where the bars' names used to run into the bar above (851-2824).
+
+@MainActor
+private func weekHighlight(_ typeID: String, current: Double, previous: Double) -> some View {
+  HighlightCard(
+    highlight: Highlight(
+      typeID: typeID, kind: .week, current: current, previous: previous, recentStart: .now),
+    type: HealthCatalog.type(id: typeID)!)
+}
+
+#Preview("Week comparisons") {
+  ScrollView {
+    VStack(spacing: 12) {
+      weekHighlight("HKQuantityTypeIdentifierRestingHeartRate", current: 61, previous: 60)
+      weekHighlight("HKQuantityTypeIdentifierStepCount", current: 12_480, previous: 4_210)
+      weekHighlight("HKQuantityTypeIdentifierActiveEnergyBurned", current: 12, previous: 640)
+    }
+    .padding(16)
+  }
+  .background(Color.pageBackground)
+  .previewFrame(width: 360, height: 640)
 }
