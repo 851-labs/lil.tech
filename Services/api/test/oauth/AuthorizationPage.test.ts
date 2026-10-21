@@ -616,11 +616,11 @@ describe("The authorization page", () => {
 /** Staging's API host: the issuer, and where Apple and Google send their answers. */
 const issuer = "https://api.staging.lil.tech";
 
-/** Registers a client (DCR) on staging, or on another deployment's issuer. */
-const registerOnStaging = (handler: Handler, on = issuer) =>
+/** Registers a client (DCR) at an issuer: staging's unless it says. */
+const registerAt = (handler: Handler, at = issuer) =>
   Effect.promise(async () => {
     const response = await handler(
-      new Request(`${on}/oauth/register`, {
+      new Request(`${at}/oauth/register`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ client_name: "MCP Inspector", redirect_uris: [redirectUri] }),
@@ -646,7 +646,7 @@ const account = (provider: "apple" | "google", subject: string, displayName = "A
 /** Starts an authorization on staging, then signing in with `provider`: the redirect to it. */
 const startProvider = (handler: Handler, provider: "apple" | "google") =>
   Effect.gen(function* () {
-    const clientId = yield* registerOnStaging(handler);
+    const clientId = yield* registerAt(handler);
     const { search, verifier } = query(clientId, { resource: undefined });
     const started = yield* start(handler, search, issuer);
     const { response } = yield* post(
@@ -744,7 +744,7 @@ describe("Signing in with Apple and Google on the authorization page", () => {
     withApi(
       (handler) =>
         Effect.gen(function* () {
-          const clientId = yield* registerOnStaging(handler);
+          const clientId = yield* registerAt(handler);
           const { search } = query(clientId, { resource: undefined });
           const started = yield* start(handler, search, issuer);
           assert.strictEqual(started.response.status, 200);
@@ -800,7 +800,7 @@ describe("Signing in with Apple and Google on the authorization page", () => {
       (handler) =>
         Effect.gen(function* () {
           const prodIssuer = "https://api.lil.tech";
-          const clientId = yield* registerOnStaging(handler, prodIssuer);
+          const clientId = yield* registerAt(handler, prodIssuer);
           const { search } = query(clientId, { resource: "https://mcp.lil.tech/health" });
           const started = yield* start(handler, search, prodIssuer);
           assert.strictEqual(started.response.status, 200);

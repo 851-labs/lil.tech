@@ -13,7 +13,6 @@ import { Identities } from "../core/Identities.ts";
 import { AgentAuthorizationId, newAgentAuthorizationId } from "../core/Ids.ts";
 import { type OAuthClient, OAuthClients } from "../core/OAuthClients.ts";
 import { Users } from "../core/Users.ts";
-import { stageDomains } from "../Deployment.ts";
 import { checkAddressRateLimit, RateLimits, type TooManyRequests } from "../RateLimits.ts";
 import type { Environment } from "../Status.ts";
 import {
@@ -41,6 +40,7 @@ import {
   agentResources,
   resourceFor,
   resourceUrl,
+  siteUrl,
 } from "./Hosts.ts";
 import { isLoopbackUri, matchesRedirectUri } from "./RedirectUris.ts";
 import { queryOf, readForm, readParams, requestOrigin } from "./Requests.ts";
@@ -355,8 +355,7 @@ const checkRequest = Effect.fnUntraced(function* (
 });
 
 /** The privacy policy's section on connected agents, on this stage's site (851-2855). */
-const privacyUrl = (environment: Environment) =>
-  `https://${stageDomains[environment]?.site ?? "lil.tech"}/privacy#agents`;
+const privacyUrl = (environment: Environment) => siteUrl(environment, "/privacy#agents");
 
 /**
  * `GET /oauth/authorize` and its steps, `POST /oauth/authorize/sign-in`,

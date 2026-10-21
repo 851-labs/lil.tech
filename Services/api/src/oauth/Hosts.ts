@@ -122,9 +122,12 @@ export const isMcpPath = (path: string) =>
 export const isAuthorizationServerPath = (path: string) =>
   path === authorizationServerMetadataPath || path.startsWith("/oauth/");
 
+/** A page of the stage's website (`Web/site/public`): prod's for stages without their own. */
+export const siteUrl = (environment: Environment, path: `/${string}`) =>
+  `https://${stageDomains[environment]?.site ?? "lil.tech"}${path}`;
+
 /**
- * The help page that Protected Resource Metadata's `resource_documentation` points to, on the
- * stage's site (`Web/site/public/agents`, 851-2855).
+ * The help page that Protected Resource Metadata's `resource_documentation` points to
+ * (`Web/site/public/agents`, 851-2855).
  */
-export const agentsHelpUrl = (environment: Environment) =>
-  `https://${stageDomains[environment]?.site ?? "lil.tech"}/agents`;
+export const agentsHelpUrl = (environment: Environment) => siteUrl(environment, "/agents");
