@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from "effect";
+import { Clock, Effect, Option, Schema } from "effect";
 import { Headers, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import type { SqlError } from "effect/sql";
 import type { AgentGrant } from "../core/AgentGrants.ts";
@@ -23,7 +23,13 @@ import {
 import { readAtMost, requestOrigin } from "../oauth/Requests.ts";
 import { RateLimits, tooManyRequests } from "../RateLimits.ts";
 import { UserStores } from "../store/UserStores.ts";
-import { agentClientHeader, agentGrantHeader, agentScopesHeader } from "./AgentHeaders.ts";
+import {
+  agentAnswerBytesHeader,
+  agentClientHeader,
+  agentGrantHeader,
+  agentScopesHeader,
+  agentToolHeader,
+} from "./AgentHeaders.ts";
 import { combinedMcpPath } from "./CombinedMcpServer.ts";
 
 // Each app's MCP server on the MCP host (`https://mcp.lil.tech/health`, 851-2851), and the
@@ -66,6 +72,34 @@ const tokenRefused = (reason: InvalidAgentToken["reason"]) => ({
   description:
     reason === "expired" ? "The access token expired" : "The access token is invalid or revoked",
 });
+
+/**
+ * Logs a tool call the store answered (851-2907): the tool and the answer's size, which the store
+ * put in its response's headers (`agentToolHeader`), the grant, and how long the store took to
+ * answer since the Worker forwarded the call (`forwardedAt`). That includes the call's wait for its
+ * turn in the store, which runs its calls one at a time. The store can't time a call itself:
+ * Workers doesn't move its clock while code runs, and a call reads SQLite without waiting on I/O,
+ * so its clock said the call took 0 ms. The Worker waits on the store, which does move it. The
+ * headers aren't passed on to the agent.
+ */
+const logToolCall = (
+  response: HttpServerResponse.HttpServerResponse,
+  grant: AgentGrant,
+  forwardedAt: number,
+) =>
+  Effect.gen(function* () {
+    const tool = response.headers[agentToolHeader];
+    if (tool === undefined) return response;
+    const durationMs = (yield* Clock.currentTimeMillis) - forwardedAt;
+    const bytes = Number(response.headers[agentAnswerBytesHeader]);
+    yield* Effect.logInfo("Agent tool call").pipe(
+      Effect.annotateLogs({ tool, grant: grant.id, durationMs, bytes }),
+    );
+    return response.pipe(
+      HttpServerResponse.removeHeader(agentToolHeader),
+      HttpServerResponse.removeHeader(agentAnswerBytesHeader),
+    );
+  });
 
 /** An MCP server on the MCP host, as the Worker checks requests to it. */
 interface McpServerRoute {
@@ -221,7 +255,9 @@ const mcpRoute = (server: McpServerRoute) =>
         [agentClientHeader]: encodeURIComponent(grant.clientName ?? grant.clientId),
         [agentScopesHeader]: scopes.join(" "),
       });
-      const response = yield* stores.mcp(
+      // The Worker's clock moves while it waits for the store, which the store's own doesn't.
+      const forwarded = yield* Clock.currentTimeMillis;
+      const answer = yield* stores.mcp(
         grant.userId,
         HttpServerRequest.fromWeb(
           new Request(new URL(request.url, requestOrigin(request)), {
@@ -231,6 +267,7 @@ const mcpRoute = (server: McpServerRoute) =>
           }),
         ),
       );
+      const response = yield* logToolCall(answer, grant, forwarded);
       // Once the server took the call (and logged it), not one it refused, such as a request in
       // a session it forgot.
       if (firstRead && response.status >= 200 && response.status < 300) {

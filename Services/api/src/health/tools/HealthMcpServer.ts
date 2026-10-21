@@ -1,7 +1,12 @@
 import { Clock, Effect, Exit, Option, Predicate, Schema, Semaphore } from "effect";
 import { McpServer } from "effect/ai";
-import { HttpServerRequest } from "effect/http";
-import { agentClientHeader, agentGrantHeader } from "../../mcp/AgentHeaders.ts";
+import { HttpEffect, HttpServerRequest, HttpServerResponse } from "effect/http";
+import {
+  agentAnswerBytesHeader,
+  agentClientHeader,
+  agentGrantHeader,
+  agentToolHeader,
+} from "../../mcp/AgentHeaders.ts";
 import { serveStoreMcp, type StoreMcpApp } from "../../mcp/StoreMcpServer.ts";
 import { agentResources } from "../../oauth/Hosts.ts";
 import type { AgentAccess } from "../../store/AgentAccessLog.ts";
@@ -40,25 +45,6 @@ const nextTask = Effect.callback<void>((resume) => {
   const timer = setTimeout(() => resume(Effect.void), 0);
   return Effect.sync(() => clearTimeout(timer));
 });
-
-/**
- * Runs `effect` and tells how long it took, in milliseconds, reading the clock in the next
- * JavaScript task after it ends (851-2907).
- *
- * Workers freezes its clock while code runs, as a Spectre mitigation: `Date.now()` (and Effect's
- * clock on it) only moves at I/O and when a new task starts. A tool call reads the store's SQLite
- * synchronously, so a clock read as it ends gave its start, and every call logged 0. The next task
- * starts once the call's has ended, so it sees the time the call took. It's at most a little more:
- * the moment the runtime takes to end the call's task, and any task of the store's (another
- * request's) that runs before the next.
- */
-const timedToNextTask = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  Effect.gen(function* () {
-    const started = yield* Clock.currentTimeMillis;
-    const result = yield* effect;
-    yield* nextTask;
-    return { result, durationMs: (yield* Clock.currentTimeMillis) - started };
-  });
 
 /**
  * Runs a store's tool calls one at a time, each in a JavaScript task of its own, and refuses those
@@ -147,9 +133,12 @@ const agentOf = (request: Option.Option<HttpServerRequest.HttpServerRequest>) =>
 
 /**
  * Wraps a tool's handler: it runs in its `turn`, its answer is held to `ceiling` bytes, and the
- * call is logged (`record`) before anything goes back, so nothing is read without a row. Workers
- * Logs get the tool, grant, duration and size only: the duration is the call's own, from its turn
- * to its row (`timedToNextTask`), without its wait.
+ * call is logged (`record`) before anything goes back, so nothing is read without a row.
+ *
+ * Workers Logs get the tool, grant, duration and size only, from the Worker (`McpRoutes.ts`,
+ * 851-2907). The store's clock doesn't move while a call runs, so the store puts the tool and the
+ * answer's size in its response's headers, and the Worker, whose clock moved while it waited for
+ * the store, adds the duration.
  */
 const logged =
   <P extends object, A>(
@@ -161,7 +150,8 @@ const logged =
   ) =>
   (params: P) =>
     Effect.gen(function* () {
-      const agent = agentOf(yield* Effect.serviceOption(HttpServerRequest.HttpServerRequest));
+      const request = yield* Effect.serviceOption(HttpServerRequest.HttpServerRequest);
+      const agent = agentOf(request);
       const call = Effect.gen(function* () {
         let exit: Exit.Exit<A, HealthToolError> = yield* Effect.exit(run(params));
         let bytes = 0;
@@ -201,21 +191,19 @@ const logged =
             Effect.fail(new HealthToolError({ message: "This lil account was deleted." })),
           ),
         );
-        return { exit, bytes };
-      });
-      // Not interrupted between its row and its log line, a task apart.
-      const logCall = Effect.gen(function* () {
-        const {
-          result: { exit, bytes },
-          durationMs,
-        } = yield* timedToNextTask(call);
-        yield* Effect.logInfo("Agent tool call").pipe(Effect.annotateLogs({ durationMs, bytes }));
+        if (Option.isSome(request)) {
+          HttpEffect.appendPreResponseHandlerUnsafe(request.value, (_, response) =>
+            Effect.succeed(
+              HttpServerResponse.setHeaders(response, {
+                [agentToolHeader]: tool.name,
+                [agentAnswerBytesHeader]: String(bytes),
+              }),
+            ),
+          );
+        }
         return yield* exit;
-      }).pipe(Effect.uninterruptible);
-      return yield* logCall.pipe(
-        turn,
-        Effect.annotateLogs({ tool: tool.name, grant: agent.grantId }),
-      );
+      });
+      return yield* call.pipe(turn, Effect.annotateLogs({ tool: tool.name, grant: agent.grantId }));
     });
 
 /** What lil health's server tells agents when they connect, and the combined server under its name. */
