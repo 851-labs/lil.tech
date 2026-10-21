@@ -15,6 +15,7 @@ import { AgentGrants } from "./core/AgentGrants.ts";
 import { agentAccessLogPolicy } from "./store/AgentAccessLog.ts";
 import { AgentMcpRoutes } from "./mcp/McpRoutes.ts";
 import { AgentsHandlers } from "./oauth/AgentsHandlers.ts";
+import { AgentApps, appsOfGrant } from "./oauth/Hosts.ts";
 import { AgentHostsMiddleware, AgentOAuthRoutes } from "./oauth/OAuthRoutes.ts";
 import {
   Authorization,
@@ -804,6 +805,7 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
     const consents = yield* Consents;
     const connections = yield* Connections;
     const agentGrants = yield* AgentGrants;
+    const agentApps = yield* AgentApps;
     yield* router.add(
       "GET",
       exportDownloadPath,
@@ -899,6 +901,7 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
               redirectHost,
               scopes,
               resource,
+              apps: appsOfGrant(agentApps, { resource, scopes }),
               connectedAt: createdAt,
               lastUsedAt,
               firstUsedAt,

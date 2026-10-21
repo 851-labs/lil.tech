@@ -209,22 +209,43 @@ export const appsOfScopes = (
   );
 
 /**
- * The app whose MCP server a stored grant's or authorization's `resource` is, by its path alone.
- * Authorizing already checked the whole URL, and the apps' requests may come to another origin
- * than the agent's (`alchemy dev` behind a tunnel), so the path is what's left to tell apps apart.
+ * The app (a key of the registry) whose MCP server a stored grant's or authorization's `resource`
+ * is, by its path alone. Authorizing already checked the whole URL, and the apps' requests may come
+ * to another origin than the agent's (`alchemy dev` behind a tunnel), so the path is what's left to
+ * tell apps apart.
  */
-export const appOfResource = (resource: string): Option.Option<AgentResource> => {
-  let path: string;
-  try {
-    path = new URL(resource).pathname;
-  } catch {
-    return Option.none();
-  }
+export const appOfResource = (
+  registry: AgentAppRegistry,
+  resource: string,
+): Option.Option<string> => {
+  if (!URL.canParse(resource)) return Option.none();
+  const { pathname } = new URL(resource);
   return Option.fromNullishOr(
-    (Object.keys(agentResources) as Array<AgentResource>).find(
-      (key) => agentResources[key].path === path,
-    ),
+    Object.keys(registry).find((key) => registry[key]?.path === pathname),
   );
+};
+
+/**
+ * Whether a stored grant's or authorization's `resource` is the combined server's: an origin, with
+ * no path, as it's stored (`canonicalResource`). By its form alone, like `appOfResource`.
+ */
+export const isCombinedResource = (resource: string) =>
+  URL.canParse(resource) && new URL(resource).origin === resource;
+
+/**
+ * The apps (keys of the registry) a stored grant can read now, from its scopes: its own server's
+ * app, or, for the combined server, each app it holds a scope of. An app's Turn Off Agent Access
+ * takes its scopes away from combined grants (851-2901), so they're what the grant can read.
+ */
+export const appsOfGrant = (
+  registry: AgentAppRegistry,
+  grant: { readonly resource: string; readonly scopes: ReadonlyArray<string> },
+): ReadonlyArray<string> => {
+  const combined = isCombinedResource(grant.resource);
+  const apps = combined
+    ? Object.keys(registry)
+    : Option.toArray(appOfResource(registry, grant.resource));
+  return appsOfScopes(registry, { resource: grant.resource, combined, apps }, grant.scopes);
 };
 
 /**

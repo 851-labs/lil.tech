@@ -12,7 +12,10 @@ import { UserStoreUnavailable } from "../store/UserStores.ts";
 /** The most access log entries a page holds. */
 export const agentAccessLogPageSize = 100;
 
-/** An agent connected to one app (a grant): who it is, as the consent page showed it. */
+/**
+ * An agent connected to one app, or to several through the combined server (a grant): who it is,
+ * as the consent page showed it.
+ */
 export class ConnectedAgent extends Schema.Class<ConnectedAgent>("lil/api/oauth/ConnectedAgent")({
   /** What `DELETE /v1/me/agents/{id}` takes, and what access log entries name. */
   id: AgentGrantId,
@@ -26,15 +29,22 @@ export class ConnectedAgent extends Schema.Class<ConnectedAgent>("lil/api/oauth/
   /** The host the user's browser returned to when it connected, e.g. `claude.ai` or `localhost`. */
   redirectHost: Schema.String,
   /**
-   * The app's MCP server the agent reads, e.g. `https://mcp.lil.tech/health`. A string, not an
-   * enum, so later apps' servers don't break clients.
+   * The MCP server the agent reads: an app's, e.g. `https://mcp.lil.tech/health`, or the combined
+   * one, `https://mcp.lil.tech`. A string, not an enum, so later apps' servers don't break clients.
    */
   resource: Schema.String,
   /**
-   * The app it's connected to, e.g. `health`: each app lists its own. A string, not an enum, for
-   * the same reason. `null` for a server this deployment doesn't know.
+   * The app whose own server it's connected to, e.g. `health`. A string, not an enum, for the same
+   * reason. `null` for the combined server, or a server this deployment doesn't know: use `apps`.
    */
   app: Schema.NullOr(Schema.String),
+  /**
+   * The apps it can read now, from its scopes, e.g. `["health"]`: its own app (`app`), or each app
+   * an agent connected through the combined server (`https://mcp.lil.tech`, whose `app` is `null`)
+   * still has. Each app lists those that name it. Strings, not an enum, so later apps don't break
+   * clients. Turn Off Agent Access takes its app away, and revoking an agent ends all of them.
+   */
+  apps: Schema.Array(Schema.String),
   /** Unix milliseconds. */
   connectedAt: Schema.Int,
   /**
@@ -51,7 +61,7 @@ export class ConnectedAgent extends Schema.Class<ConnectedAgent>("lil/api/oauth/
 
 export class ConnectedAgents extends Schema.Class<ConnectedAgents>("lil/api/oauth/ConnectedAgents")(
   {
-    /** Most recently connected first, for every app: each app shows those whose `app` is its own. */
+    /** Most recently connected first, for every app: each app shows those whose `apps` name it. */
     agents: Schema.Array(ConnectedAgent),
   },
 ) {}
@@ -136,7 +146,9 @@ export class AgentsApi extends HttpApiGroup.make("agents", { topLevel: true })
   )
   .add(
     // Turn Off Agent Access for lil health: withdraws its agents consent and revokes its agents
-    // only, leaving other apps'. Connecting an agent again asks for consent again.
+    // only, leaving other apps'. Agents connected through the combined server lose lil health
+    // and keep other apps, or are revoked if it was their last. Connecting an agent again asks for
+    // consent again.
     HttpApiEndpoint.delete("withdrawHealthAgentsConsent", "/v1/me/consents/agents/health"),
   )
   .middleware(Authorization) {}

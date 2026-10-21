@@ -15,10 +15,10 @@ struct ConnectedAgentsClientTests {
     let agents = """
       {"agents":[
         {"id":"agr_1","name":"Claude","domain":"claude.ai","redirectHost":"claude.ai",
-         "resource":"https://mcp.lil.tech/health","app":"health",
+         "resource":"https://mcp.lil.tech/health","app":"health","apps":["health"],
          "connectedAt":1760900000000,"lastUsedAt":1760900001000,"firstUsedAt":1760900001000},
         {"id":"agr_2","name":null,"domain":null,"redirectHost":"localhost",
-         "resource":"https://mcp.lil.tech/health","app":"health",
+         "resource":"https://mcp.lil.tech/health","app":"health","apps":["health"],
          "connectedAt":1760800000000,"lastUsedAt":1760800000000,"firstUsedAt":null}
       ]}
       """
