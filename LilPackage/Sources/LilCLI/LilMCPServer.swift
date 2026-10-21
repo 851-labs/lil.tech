@@ -31,9 +31,9 @@ enum LilMCPServer {
   /// Serves on standard input and output until the client closes them, then ends the apps'
   /// servers and exits.
   static func serve(dispatcher: Dispatcher) -> Never {
-    // A server that has exited closes its end of the pipe: writing to it fails rather than ending
-    // `lil mcp`.
-    signal(SIGPIPE, SIG_IGN)
+    // An agent that has gone makes writing to standard output fail rather than end `lil mcp`
+    // with SIGPIPE. Per descriptor, not by ignoring SIGPIPE, which the apps' servers would inherit.
+    _ = fcntl(STDOUT_FILENO, F_SETNOSIGPIPE, 1)
     let environment = serversEnvironment(
       ProcessInfo.processInfo.environment, agent: parentProcessName())
     Task {
@@ -75,8 +75,11 @@ enum LilMCPServer {
   ) async -> [App] {
     // Only the apps `lil` knows: another `lil-<something>` on `PATH` could do anything with an
     // argument it doesn't expect.
+    var seen = Set<String>()
     let tools = dispatcher.knownApps.compactMap { app -> (String, URL)? in
-      guard case .tool(let tool) = dispatcher.locate(app: app) else { return nil }
+      guard seen.insert(app).inserted, case .tool(let tool) = dispatcher.locate(app: app) else {
+        return nil
+      }
       return (app, tool)
     }
     return await withTaskGroup(of: (Int, App?).self) { group in
@@ -100,16 +103,18 @@ enum LilMCPServer {
 
   /// The combined server, named "lil", with the apps' tools and resources.
   static func makeServer(apps: [App]) async -> Server {
-    let tools = apps.flatMap { app in app.listing.tools.compactMap { namespaced($0, app: app.name) }
-    }
-    let resources = apps.flatMap(\.listing.resources)
-    // The first app to list a URI reads it, as each app uses its own scheme (`health://`).
+    let tools = apps.flatMap { app in app.listing.tools.map { namespaced($0, app: app.name) } }
+    // The first app to list a URI lists and reads it, as each app uses its own scheme
+    // (`health://`).
+    var resources: [Resource] = []
     var readers: [String: AppServer] = [:]
     for app in apps {
       for resource in app.listing.resources where readers[resource.uri] == nil {
+        resources.append(resource)
         readers[resource.uri] = app.server
       }
     }
+    let listedResources = resources
     let servers = Dictionary(uniqueKeysWithValues: apps.map { ($0.name, $0) })
     let byURI = readers
 
@@ -134,7 +139,7 @@ enum LilMCPServer {
       return try await app.server.call(tool, arguments: parameters.arguments)
     }
     await server.withMethodHandler(ListResources.self) { _ in
-      ListResources.Result(resources: resources)
+      ListResources.Result(resources: listedResources)
     }
     await server.withMethodHandler(ReadResource.self) { parameters in
       guard let reader = byURI[parameters.uri] else {
@@ -168,15 +173,13 @@ enum LilMCPServer {
     return text
   }
 
-  /// A tool listed under its app's name, otherwise unchanged.
-  static func namespaced(_ tool: Tool, app: String) -> Tool? {
-    // `Tool`'s name can't be set, so it's renamed in its JSON, which keeps every other field.
-    guard
-      var object = try? JSONDecoder().decode(
-        [String: Value].self, from: JSONEncoder().encode(tool))
-    else { return nil }
-    object["name"] = .string("\(app)\(separator)\(tool.name)")
-    return try? JSONDecoder().decode(Tool.self, from: JSONEncoder().encode(object))
+  /// A tool listed under its app's name, otherwise unchanged. `LilMCPServerTests` checks that
+  /// nothing else changes.
+  static func namespaced(_ tool: Tool, app: String) -> Tool {
+    Tool(
+      name: "\(app)\(separator)\(tool.name)", title: tool.title, description: tool.description,
+      inputSchema: tool.inputSchema, annotations: tool.annotations,
+      outputSchema: tool.outputSchema, icons: tool.icons, _meta: tool._meta)
   }
 
   /// The app and the tool's own name, split at the first separator.

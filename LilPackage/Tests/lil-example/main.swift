@@ -12,7 +12,10 @@ guard Array(CommandLine.arguments.dropFirst()) == ["mcp"] else {
 let echo = Tool(
   name: "echo",
   title: "Echo",
-  description: "Answers with its text, and the calling process the server was told of.",
+  description: """
+    Answers with its text, and the calling process the server was told of. With "fail" the \
+    answer is an error, and with "exit" the server exits instead of answering.
+    """,
   inputSchema: [
     "type": "object",
     "properties": ["text": ["type": "string"]],
@@ -39,6 +42,8 @@ await server.withMethodHandler(CallTool.self) { parameters in
   guard let text = parameters.arguments?["text"]?.stringValue else {
     throw MCPError.invalidParams("text is required")
   }
+  // A server that exits while it answers.
+  if text == "exit" { exit(0) }
   let process = ProcessInfo.processInfo.environment["LIL_CALLING_PROCESS"] ?? ""
   return CallTool.Result(
     content: [.text(text: text, annotations: nil, _meta: nil)],

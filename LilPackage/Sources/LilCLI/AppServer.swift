@@ -8,8 +8,8 @@ import System
 /// and speaks to as an MCP client (851-2897).
 ///
 /// It's started once, when `lil mcp` starts, and what it lists then is what `lil mcp` lists. If it
-/// exits, the next call to one of its tools starts it again, once: if that fails too, its tools
-/// answer with an error from then on.
+/// exits, the next request to it starts it again, with one attempt, not retries: if that fails,
+/// its tools answer with an error from then on.
 actor AppServer {
   /// The app, by the name `lil` knows it by (`health`).
   nonisolated let app: String
@@ -17,7 +17,7 @@ actor AppServer {
   nonisolated let tool: URL
   /// The environment it runs in.
   nonisolated let environment: [String: String]
-  /// How long it has to start: to initialize, and list its tools and resources.
+  /// How long it has to start: to initialize, and list its tools and resources, together.
   nonisolated let timeout: Duration
 
   /// What a started server offered.
@@ -55,28 +55,9 @@ actor AppServer {
 
   /// Starts it and returns what it offers.
   func start() async throws -> Listing {
-    let (connection, initialized) = try await launch()
-    do {
-      let listing = try await ending(connection, after: timeout) {
-        let capabilities = initialized.capabilities
-        var listing = Listing(instructions: initialized.instructions)
-        if capabilities.tools != nil {
-          listing.tools = try await connection.client.allTools()
-        }
-        if capabilities.resources != nil {
-          listing.resources = try await connection.client.allResources()
-        }
-        return listing
-      }
-      self.connection = connection
-      return listing
-    } catch {
-      await end(connection)
-      throw StartError(
-        description: error is TimedOut
-          ? "\(name) didn't list its tools within \(timeout.text)"
-          : "\(name) couldn't list its tools: \(error)")
-    }
+    let (connection, listing) = try await launch()
+    self.connection = connection
+    return listing
   }
 
   /// Calls one of its tools by its own name, starting it again first if it has exited. Its result
@@ -88,7 +69,7 @@ actor AppServer {
         CallTool.request(.init(name: name, arguments: arguments))
       ).value
     } catch {
-      if await hasExited(connection, after: error) { return stoppedResult }
+      if await hasExited(connection, after: error) { return exitedResult }
       throw error
     }
   }
@@ -101,7 +82,7 @@ actor AppServer {
     do {
       return try await connection.client.send(ReadResource.request(.init(uri: uri))).value
     } catch {
-      if await hasExited(connection, after: error) { throw MCPError.internalError(stoppedMessage) }
+      if await hasExited(connection, after: error) { throw MCPError.internalError(exitedMessage) }
       throw error
     }
   }
@@ -123,9 +104,17 @@ actor AppServer {
   /// The command, as messages name it: `lil-health mcp`.
   private var name: String { "\(tool.lastPathComponent) mcp" }
 
-  private var stoppedResult: CallTool.Result {
-    CallTool.Result(
-      content: [.text(text: stoppedMessage, annotations: nil, _meta: nil)], isError: true)
+  /// What a request it was answering when it exited says. The next request starts it again.
+  private var exitedMessage: String {
+    "lil \(app)'s server stopped before it answered. Call again to start it again."
+  }
+
+  private var stoppedResult: CallTool.Result { errorResult(stoppedMessage) }
+
+  private var exitedResult: CallTool.Result { errorResult(exitedMessage) }
+
+  private func errorResult(_ message: String) -> CallTool.Result {
+    CallTool.Result(content: [.text(text: message, annotations: nil, _meta: nil)], isError: true)
   }
 
   /// The running server, started again if it has exited, or nil if that fails.
@@ -144,6 +133,11 @@ actor AppServer {
     defer { starting = nil }
     do {
       let connection = try await task.value
+      // `lil mcp` ended while it was starting.
+      guard !stopped else {
+        await end(connection)
+        return nil
+      }
       self.connection = connection
       return connection
     } catch {
@@ -158,11 +152,12 @@ actor AppServer {
   /// a request it never answered may have failed just before its process was seen to exit.
   private func hasExited(_ connection: Connection, after error: any Error) async -> Bool {
     switch error as? MCPError {
-    case .parseError, .invalidRequest, .methodNotFound, .invalidParams, .serverError,
-      .urlElicitationRequired:
-      return false
-    default:
+    // The client's own failures: it disconnected when the process exited (`terminationHandler`),
+    // or couldn't write to it.
+    case .internalError("Client disconnected"), .connectionClosed, .transportError:
       return await Self.hasExited(connection.process)
+    default:
+      return false
     }
   }
 
@@ -174,8 +169,9 @@ actor AppServer {
     return !process.isRunning
   }
 
-  /// Runs `lil-<app> mcp` and initializes it.
-  private func launch() async throws -> (connection: Connection, initialized: Initialize.Result) {
+  /// Runs `lil-<app> mcp`, initializes it and lists its tools and resources, all within
+  /// `timeout`.
+  private func launch() async throws -> (connection: Connection, listing: Listing) {
     let input = Pipe()
     let output = Pipe()
     let process = Process()
@@ -200,10 +196,18 @@ actor AppServer {
       input: FileDescriptor(rawValue: output.fileHandleForReading.fileDescriptor),
       output: FileDescriptor(rawValue: input.fileHandleForWriting.fileDescriptor))
     do {
-      let initialized = try await ending(connection, after: timeout) {
-        try await client.connect(transport: transport)
+      let listing = try await ending(connection, after: timeout) {
+        let initialized = try await client.connect(transport: transport)
+        var listing = Listing(instructions: initialized.instructions)
+        if initialized.capabilities.tools != nil {
+          listing.tools = try await client.allTools()
+        }
+        if initialized.capabilities.resources != nil {
+          listing.resources = try await client.allResources()
+        }
+        return listing
       }
-      return (connection, initialized)
+      return (connection, listing)
     } catch is TimedOut {
       throw StartError(description: "\(name) didn't start within \(timeout.text)")
     } catch {

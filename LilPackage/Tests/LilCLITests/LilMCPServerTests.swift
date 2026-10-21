@@ -180,7 +180,7 @@ struct LilMCPServerTests {
     try writeScript("echo 'unknown command' >&2; exit 64", to: bin.appending(path: "lil-old"))
     try writeScript("touch \"$0.ran\"; exit 0", to: bin.appending(path: "lil-stranger"))
     let reports = Reports()
-    let connection = try await connect(["example", "missing", "old"], reports: reports)
+    let connection = try await connect(["example", "missing", "old", "example"], reports: reports)
     #expect(connection.apps.map(\.name) == ["example"])
     #expect(reports.lines == ["lil mcp: skipped lil old: lil-old mcp exited with status 64"])
     #expect(!FileManager.default.fileExists(atPath: bin.appending(path: "lil-stranger.ran").path))
@@ -201,14 +201,20 @@ struct LilMCPServerTests {
     await connection.close()
   }
 
-  /// A server that exits is started again at the next call to one of its tools, once. If that
-  /// fails, its tools answer with an error.
+  /// A server that exits is started again at the next call to one of its tools, with one
+  /// attempt. If that fails, its tools answer with an error from then on.
   @Test
   func startsAServerThatExitedAgainOnce() async throws {
     let connection = try await connect(["example"])
     let example = try #require(connection.apps.first?.server)
     let first = try #require(await example.processIdentifier)
-    try await kill(first)
+    // It exits while it answers.
+    let exited = try await connection.call("example.echo", ["text": "exit"])
+    #expect(exited.isError == true)
+    #expect(
+      exited.text
+        == "lil example's server stopped before it answered. Call again to start it again.")
+    #expect(await example.processIdentifier == nil)
 
     let echo = try await connection.call("example.echo", ["text": "again"])
     #expect(echo.isError == false && echo.text == "again")
