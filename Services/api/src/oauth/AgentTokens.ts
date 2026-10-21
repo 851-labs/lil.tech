@@ -1,6 +1,6 @@
 import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
 import type { SqlError } from "effect/sql";
-import { base64url, newOpaqueToken, sha256Hex } from "../auth/Tokens.ts";
+import { newOpaqueToken, sha256Base64url, sha256Hex } from "../auth/Tokens.ts";
 import {
   type AgentAuthorization,
   AgentGrant,
@@ -95,9 +95,7 @@ const codeVerifierPattern = /^[A-Za-z0-9._~-]{43,128}$/;
 /** Whether `verifier` is the one `challenge` was made from, with S256 (RFC 7636 §4.6). */
 const verifierMatches = (verifier: string, challenge: string) =>
   codeVerifierPattern.test(verifier)
-    ? Effect.promise(() =>
-        crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
-      ).pipe(Effect.map((digest) => base64url(new Uint8Array(digest)) === challenge))
+    ? Effect.map(sha256Base64url(verifier), (hashed) => hashed === challenge)
     : Effect.succeed(false);
 
 /** The host a redirect URI goes to, as the consent page names it: its scheme, if it has no host. */

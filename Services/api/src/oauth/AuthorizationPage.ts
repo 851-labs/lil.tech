@@ -56,8 +56,10 @@ import { queryOf, readForm, readParams, requestOrigin } from "./Requests.ts";
 // already exist: nothing is created here. Each sign-in's `state` names the request and carries a
 // random secret whose hash the request keeps, with the nonce its ID token must carry. Apple posts
 // its answer cross-site, which a `SameSite=Lax` cookie doesn't come with, so its callback finds the
-// request by `state` alone; the page it redirects to then checks the cookie. Google's answer is a
-// redirect, which does bring the cookie, and its PKCE verifier is derived from it.
+// request by `state` alone. So an answer only records whose account it was, and sends the browser
+// that brought it to finish signing in with a one-time ticket, where the cookie is checked: the
+// account goes to the request only if that browser started it. Google's answer is a redirect,
+// which does bring the cookie (checked there too), and its PKCE verifier is derived from it.
 
 /** Where Apple and Google sign in (`providerSignIn`): only these hosts can be registered with them. */
 export const providerSignInEnvironments: ReadonlySet<Environment> = new Set(["staging", "prod"]);
@@ -67,6 +69,9 @@ export const appleCallbackPath = "/oauth/apple/callback";
 
 /** Where Google redirects with its sign-in's answer, on the issuer's host. */
 export const googleCallbackPath = "/oauth/google/callback";
+
+/** Where a provider's answer sends the browser to finish signing in, with its ticket. */
+const signedInPath = "/oauth/authorize/signed-in";
 
 /** Apple's sign-in page. */
 const appleAuthorizeUrl = "https://appleid.apple.com/auth/authorize";
@@ -469,10 +474,13 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
       );
 
     /**
-     * Signs the identity `provider` and `subject` in to a request through the sign-in whose state
-     * hashes to `stateHash`, if an account has that identity, and redirects to the request's page.
+     * Records that the identity `provider` and `subject` answered a request's sign-in (the one
+     * whose state hashes to `stateHash`), if an account has it, and sends the browser that brought
+     * the answer to finish signing in, with a ticket. Finishing also needs the request's cookie, so
+     * the account goes to a request only when one browser both started it and signed in: someone
+     * who sends their sign-in link (with their `state`) to someone else gets neither.
      */
-    const signInIdentity = (
+    const answerSignIn = (
       pending: PendingAuthorization,
       stateHash: string,
       provider: "apple" | "google",
@@ -482,31 +490,53 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
       Effect.gen(function* () {
         const identity = yield* identities.find(provider, subject);
         if (Option.isNone(identity)) return toStep(pending.id, `${provider}_unknown`);
-        // Not signed in only when someone already did, or it was started again: either way, its
-        // page says where it is.
-        yield* grants.finishProviderSignIn(pending.id, stateHash, identity.value.userId, now);
-        return toStep(pending.id);
+        const ticket = yield* newBrowserSecret;
+        const answered = yield* grants.answerProviderSignIn(
+          pending.id,
+          stateHash,
+          { userId: identity.value.userId, ticketHash: yield* sha256Hex(ticket) },
+          now,
+        );
+        // Started again, signed in another way or decided, since its state was checked.
+        if (!answered) return toStep(pending.id, "failed");
+        return HttpServerResponse.redirect(
+          `${signedInPath}?request=${encodeURIComponent(pending.id)}` +
+            `&ticket=${encodeURIComponent(ticket)}`,
+          {
+            status: 303,
+            headers: { "cache-control": "no-store", "referrer-policy": "no-referrer" },
+          },
+        );
       });
 
     /**
-     * The request a provider's answer is for, with its sign-in's state hash: the request its
-     * `state` names, still waiting for this provider's sign-in with that state.
+     * The request a provider's answer is for, with its sign-in's state hash and nonce: the request
+     * its `state` names (`pending`, if it's already read), waiting for this provider's sign-in
+     * with that state.
      */
-    const answered = (provider: "apple" | "google", state: string | undefined, now: number) =>
+    const awaitingAnswer = (
+      provider: "apple" | "google",
+      state: string | undefined,
+      now: number,
+      read?: PendingAuthorization,
+    ) =>
       Effect.gen(function* () {
         const id = requestOfState(state);
         if (Option.isNone(id) || state === undefined) return yield* badSignIn;
-        const pending = yield* grants.findPendingAuthorization(id.value, now);
-        if (Option.isNone(pending)) return yield* badSignIn;
+        const pending =
+          read?.id === id.value
+            ? read
+            : Option.getOrUndefined(yield* grants.findPendingAuthorization(id.value, now));
+        if (pending === undefined) return yield* badSignIn;
         const stateHash = yield* sha256Hex(state);
         if (
-          pending.value.signInProvider !== provider ||
-          pending.value.signInNonce === null ||
-          !constantTimeEquals(pending.value.signInStateHash ?? "", stateHash)
+          pending.signInProvider !== provider ||
+          pending.signInNonce === null ||
+          !constantTimeEquals(pending.signInStateHash ?? "", stateHash)
         ) {
           return yield* badSignIn;
         }
-        return { pending: pending.value, stateHash, nonce: pending.value.signInNonce };
+        return { pending, stateHash, nonce: pending.signInNonce };
       });
 
     /** What a provider's ID token that didn't sign in says to the person. */
@@ -703,6 +733,25 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
     );
 
     if (providerSignIn) {
+      // Finishes signing in with Apple or Google: the browser that brought the provider's answer,
+      // with its ticket, and the request's cookie.
+      yield* router.add(
+        "GET",
+        signedInPath,
+        Effect.gen(function* () {
+          const query = yield* readParams(
+            queryOf((yield* HttpServerRequest.HttpServerRequest).url),
+          ).pipe(Effect.mapError(() => notThisBrowser));
+          const { pending, now } = yield* bound(query.get("request"));
+          const finished = yield* grants.finishProviderSignIn(
+            pending.id,
+            yield* sha256Hex(query.get("ticket") ?? ""),
+            now,
+          );
+          return toStep(pending.id, finished || pending.userId !== null ? undefined : "failed");
+        }).pipe(answerErrors),
+      );
+
       // Apple's answer, posted from its page (`response_mode=form_post`). Cross-site, so without
       // the cookie: the page it redirects to checks that.
       yield* router.add(
@@ -715,7 +764,11 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
           if (origin !== undefined && origin !== appleWebOrigin) return yield* badSignIn;
           const form = yield* readForm(maxAppleWebPostBytes).pipe(Effect.mapError(() => badSignIn));
           const now = yield* Clock.currentTimeMillis;
-          const { pending, stateHash, nonce } = yield* answered("apple", form.get("state"), now);
+          const { pending, stateHash, nonce } = yield* awaitingAnswer(
+            "apple",
+            form.get("state"),
+            now,
+          );
           // Cancelled on Apple's page, or something went wrong there: back to signing in.
           const idToken = form.get("id_token");
           if (form.has("error") || idToken === undefined) return toStep(pending.id);
@@ -723,7 +776,7 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
             Effect.flatMap((identity) =>
               // Apple signs it for the Services ID; the iPhone's App ID would be another sign-in.
               identity.clientId === appleWebServicesId
-                ? signInIdentity(pending, stateHash, "apple", identity.subject, now)
+                ? answerSignIn(pending, stateHash, "apple", identity.subject, now)
                 : Effect.succeed(toStep(pending.id, "failed")),
             ),
             Effect.catchTags(signInFailed(pending.id)),
@@ -741,10 +794,16 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
             queryOf((yield* HttpServerRequest.HttpServerRequest).url),
           ).pipe(Effect.mapError(() => badSignIn));
           const state = query.get("state");
-          const { cookie, now } = yield* bound(Option.getOrUndefined(requestOfState(state))).pipe(
+          const step = yield* bound(Option.getOrUndefined(requestOfState(state))).pipe(
             Effect.catchTag("PageError", () => Effect.fail(badSignIn)),
           );
-          const { pending, stateHash, nonce } = yield* answered("google", state, now);
+          const { cookie, now } = step;
+          const { pending, stateHash, nonce } = yield* awaitingAnswer(
+            "google",
+            state,
+            now,
+            step.pending,
+          );
           const code = query.get("code");
           if (query.has("error") || code === undefined) return toStep(pending.id);
           const hosts = yield* hostsOf;
@@ -755,15 +814,15 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
               redirectUri: `${hosts.issuer}${googleCallbackPath}`,
             })
             .pipe(
-              Effect.flatMap((idToken) => google.verify(idToken, nonce)),
+              Effect.flatMap((idToken) => google.verify(idToken, nonce, "web")),
               Effect.flatMap((identity) =>
-                signInIdentity(pending, stateHash, "google", identity.subject, now),
+                answerSignIn(pending, stateHash, "google", identity.subject, now),
               ),
               Effect.catchTags({
                 ...signInFailed(pending.id),
                 GoogleCodeRedemptionFailed: (error) =>
                   Effect.logWarning("Redeeming Google's code failed", error.message).pipe(
-                    Effect.as(toStep(pending.id, "failed")),
+                    Effect.as(toStep(pending.id, error.unavailable ? "unavailable" : "failed")),
                   ),
               }),
             );

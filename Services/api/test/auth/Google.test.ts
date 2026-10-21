@@ -144,6 +144,24 @@ layer(TestGoogleSignIn)("Sign in with Google", (it) => {
     }),
   );
 
+  it.effect(
+    "takes the authorization page's tokens only for the page, and the apps' only for them",
+    () =>
+      Effect.gen(function* () {
+        const google = yield* GoogleSignIn;
+        const web = testGoogleClients.web[0] ?? "";
+        const webToken = () =>
+          googleIdToken({ sub: newSubject(), nonce: "n", azp: web }, { audience: web });
+        const identity = yield* google.verify(yield* webToken(), "n", "web");
+        assert.strictEqual(identity.provider, "google");
+        // The apps' sign-in, which creates accounts, doesn't take the page's tokens.
+        yield* rejected(webToken());
+        const appsToken = yield* googleIdToken({ sub: newSubject(), nonce: "n" });
+        const error = yield* Effect.flip(google.verify(appsToken, "n", "web"));
+        assert.strictEqual(error._tag, "InvalidIdentityToken");
+      }),
+  );
+
   it.effect("fetches Google's keys again for a key ID it hasn't seen", () =>
     Effect.gen(function* () {
       const control = testGoogleKeysControl;

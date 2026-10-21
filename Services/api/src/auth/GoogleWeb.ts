@@ -23,19 +23,26 @@ export class GoogleCodeRedemptionFailed extends Schema.TaggedError<GoogleCodeRed
     message: Schema.String,
     /** Google's `error`, if it answered with one, e.g. `invalid_grant`. */
     googleError: Schema.optionalKey(Schema.String),
+    /**
+     * Whether Google couldn't be reached or failed (a timeout, a network error, a 5xx), so trying
+     * again later can work, rather than refusing the code.
+     */
+    unavailable: Schema.Boolean,
   },
 ) {}
 
 /** POSTs a form to Google's token endpoint: `fetch`, swapped in tests. */
 export type GooglePost = (
   form: Readonly<Record<string, string>>,
+  signal: AbortSignal,
 ) => Promise<{ readonly status: number; readonly body: string }>;
 
-const fetchPost: GooglePost = async (form) => {
+const fetchPost: GooglePost = async (form, signal) => {
   const response = await fetch(googleTokenUrl, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(form).toString(),
+    signal,
   });
   return { status: response.status, body: await response.text() };
 };
@@ -86,22 +93,28 @@ export class GoogleWebClient extends Context.Service<
             if (Option.isNone(configured)) {
               return yield* new GoogleCodeRedemptionFailed({
                 message: "Google sign-in on the web isn't set up here",
+                unavailable: true,
               });
             }
             const { clientId, secret } = configured.value;
             const response = yield* Effect.tryPromise({
-              try: () =>
-                post({
-                  grant_type: "authorization_code",
-                  code,
-                  code_verifier: codeVerifier,
-                  redirect_uri: redirectUri,
-                  client_id: clientId,
-                  client_secret: Redacted.value(secret),
-                }),
+              // The timeout aborts the request.
+              try: (signal) =>
+                post(
+                  {
+                    grant_type: "authorization_code",
+                    code,
+                    code_verifier: codeVerifier,
+                    redirect_uri: redirectUri,
+                    client_id: clientId,
+                    client_secret: Redacted.value(secret),
+                  },
+                  signal,
+                ),
               catch: (error) =>
                 new GoogleCodeRedemptionFailed({
                   message: `Google's token endpoint: ${String(error)}`,
+                  unavailable: true,
                 }),
             }).pipe(
               Effect.timeoutOrElse({
@@ -110,6 +123,7 @@ export class GoogleWebClient extends Context.Service<
                   Effect.fail(
                     new GoogleCodeRedemptionFailed({
                       message: "Google's token endpoint timed out",
+                      unavailable: true,
                     }),
                   ),
               }),
@@ -125,6 +139,7 @@ export class GoogleWebClient extends Context.Service<
                 message:
                   `Google's token endpoint answered ${response.status} ${googleError ?? ""}`.trim(),
                 ...(googleError === undefined ? {} : { googleError }),
+                unavailable: response.status >= 500,
               });
             }
             const tokens = yield* Schema.decodeUnknownEffect(TokenResponse)(response.body).pipe(
@@ -132,6 +147,7 @@ export class GoogleWebClient extends Context.Service<
                 () =>
                   new GoogleCodeRedemptionFailed({
                     message: "Google's token response has no ID token",
+                    unavailable: false,
                   }),
               ),
             );

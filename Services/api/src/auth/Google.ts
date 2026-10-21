@@ -61,18 +61,21 @@ const GoogleClaims = Schema.Struct({
   name: Schema.optionalKey(Schema.String),
 });
 
-/** Verifies Google ID tokens from the apps' sign-in and the authorization page's. */
+/** Verifies Google ID tokens from the apps' sign-in, and from the authorization page's. */
 export class GoogleSignIn extends Context.Service<
   GoogleSignIn,
   {
     /**
-     * Verifies an ID token (see `verifyProviderToken`): one of our clients as audience and
-     * authorized party, the nonce (as with Apple, the app gives Google the SHA-256 of `nonce`),
-     * and a verified email. Each token signs in once.
+     * Verifies an ID token (see `verifyProviderToken`): one of `requester`'s clients as audience
+     * and authorized party (the apps', by default, or the authorization page's `web` client), the
+     * nonce (as with Apple, the app gives Google the SHA-256 of `nonce`), and a verified email.
+     * Each token signs in once. A token for one is refused by the other, so the apps' sign-in,
+     * which creates accounts, doesn't take the page's.
      */
     readonly verify: (
       idToken: string,
       nonce: string,
+      requester?: "apps" | "web",
     ) => Effect.Effect<VerifiedIdentity, InvalidIdentityToken | SignInUnavailable>;
   }
 >()("lil/api/auth/GoogleSignIn") {
@@ -82,13 +85,14 @@ export class GoogleSignIn extends Context.Service<
       const keys = yield* GoogleKeys;
       const clients = yield* GoogleClients;
       const tokenUses = yield* IdentityTokenUses;
-      // The clients that ask Google for tokens themselves: the apps, and the authorization page.
-      const requesters = [...clients.apps, ...clients.web];
-      const audience = [...requesters, ...clients.server];
       const invalid = (message: string) => new InvalidIdentityToken({ message });
 
       return GoogleSignIn.of({
-        verify: Effect.fn("GoogleSignIn.verify")(function* (idToken, nonce) {
+        verify: Effect.fn("GoogleSignIn.verify")(function* (idToken, nonce, requester = "apps") {
+          // The clients that asked Google for the token, and those it may be for: the apps' tokens
+          // may be for our server client, which the page's never are.
+          const requesters = clients[requester];
+          const audience = requester === "apps" ? [...requesters, ...clients.server] : requesters;
           if (requesters.length === 0) {
             return yield* new SignInUnavailable({ message: "Google sign-in isn't set up yet" });
           }
@@ -103,7 +107,7 @@ export class GoogleSignIn extends Context.Service<
             now,
             claims: GoogleClaims,
           });
-          // A token for our server client must have been requested by one of our clients.
+          // A token for our server client must have been requested by one of the apps.
           if (claims.azp !== undefined && !requesters.includes(claims.azp)) {
             return yield* invalid("The Google token was issued to another app");
           }

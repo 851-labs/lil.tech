@@ -715,12 +715,24 @@ const googleRedirect = (handler: Handler, params: Record<string, string>, cookie
     }),
   );
 
-/** The request's page after a provider's answer, as the browser follows the redirect to it. */
-const stepAfter = (handler: Handler, response: Response, cookie: string) =>
-  fetchWith(
-    handler,
-    new Request(new URL(response.headers.get("location") ?? "", issuer), { headers: { cookie } }),
-  );
+/**
+ * Where a provider's answer leads, as the browser with `cookie` (or none) follows its redirects on
+ * the issuer's host: finishing the sign-in, then the request's page.
+ */
+const stepAfter = (handler: Handler, response: Response, cookie: string | null) =>
+  Effect.gen(function* () {
+    let current = response;
+    let html = "";
+    while (current.status === 303) {
+      const next = new URL(current.headers.get("location") ?? "", issuer);
+      if (next.origin !== issuer) break;
+      ({ response: current, html } = yield* fetchWith(
+        handler,
+        new Request(next, { headers: cookie === null ? {} : { cookie }, redirect: "manual" }),
+      ));
+    }
+    return { response: current, html };
+  });
 
 /** The sign-in page's notice for `notice`, as `stepAfter` shows it. */
 const expectNotice = (
@@ -835,10 +847,10 @@ describe("Signing in with Apple and Google on the authorization page", () => {
             ),
           });
           assert.strictEqual(answer.response.status, 303);
-          assert.strictEqual(
-            answer.response.headers.get("location"),
-            `/oauth/authorize/consent?request=${started.request}`,
-          );
+          const finish = location(answer.response);
+          assert.strictEqual(finish.pathname, "/oauth/authorize/signed-in");
+          assert.strictEqual(finish.searchParams.get("request"), started.request);
+          assert.isNotEmpty(finish.searchParams.get("ticket"));
           const consent = yield* stepAfter(handler, answer.response, started.cookie);
           assert.strictEqual(consent.response.status, 200);
           assert.include(consent.html, "Signed in as <strong>Ada Apple</strong>");
@@ -1020,10 +1032,7 @@ describe("Signing in with Apple and Google on the authorization page", () => {
             started.cookie,
           );
           assert.strictEqual(answer.response.status, 303);
-          assert.strictEqual(
-            answer.response.headers.get("location"),
-            `/oauth/authorize/consent?request=${started.request}`,
-          );
+          assert.strictEqual(location(answer.response).pathname, "/oauth/authorize/signed-in");
           const call = endpoint.calls.at(-1)?.form;
           assert.deepStrictEqual(
             { ...call, code_verifier: undefined },
@@ -1132,6 +1141,97 @@ describe("Signing in with Apple and Google on the authorization page", () => {
           yield* account("google", subject);
           const replayed = yield* redirect({ state: started.state });
           yield* expectNotice(handler, replayed.response, started.cookie, "failed", "didn't work");
+        }).pipe(Effect.orDie),
+      staging,
+    ),
+  );
+
+  it.live("doesn't sign someone else's Apple account in to a request they didn't start", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const subject = `apple-${crypto.randomUUID()}`;
+          yield* account("apple", subject, "Victim");
+          // Someone starts a request in their browser, then sends its Apple link to someone else,
+          // who signs in with Apple, which posts that person's token with the first one's state.
+          const started = yield* startProvider(handler, "apple");
+          const answer = yield* applePost(handler, {
+            state: started.state,
+            id_token: yield* appleIdentityToken(
+              { sub: subject, nonce: started.nonce },
+              { audience: "tech.lil.health.web" },
+            ),
+          });
+          assert.strictEqual(answer.response.status, 303);
+          // The browser Apple posted from has the ticket but not the cookie.
+          const victim = yield* stepAfter(handler, answer.response, null);
+          assert.strictEqual(victim.response.status, 400);
+          // The one with the cookie has no ticket, so it's still not signed in.
+          const request = encodeURIComponent(started.request);
+          for (const ticket of ["", "&ticket=forged"]) {
+            const finishing = yield* fetchWith(
+              handler,
+              new Request(`${issuer}/oauth/authorize/signed-in?request=${request}${ticket}`, {
+                headers: { cookie: started.cookie },
+                redirect: "manual",
+              }),
+            );
+            yield* expectNotice(
+              handler,
+              finishing.response,
+              started.cookie,
+              "failed",
+              "Signing in didn't work",
+            );
+          }
+          const page = yield* getConsentOn(issuer, handler, started.request, started.cookie);
+          assert.notInclude(page.html, "Victim");
+          assert.include(page.html, "Sign in with Apple");
+          // A ticket works in the browser that started the request, once.
+          const ticket = location(answer.response).searchParams.get("ticket") ?? "";
+          const finish = (cookie: string) =>
+            fetchWith(
+              handler,
+              new Request(
+                `${issuer}/oauth/authorize/signed-in?request=${request}&ticket=${ticket}`,
+                {
+                  headers: { cookie },
+                  redirect: "manual",
+                },
+              ),
+            );
+          const other = yield* start(handler, query(started.clientId).search, issuer);
+          assert.strictEqual((yield* finish(other.cookie)).response.status, 400);
+          const signedIn = yield* stepAfter(
+            handler,
+            (yield* finish(started.cookie)).response,
+            started.cookie,
+          );
+          assert.include(signedIn.html, "Signed in as <strong>Victim</strong>");
+        }).pipe(Effect.orDie),
+      staging,
+    ),
+  );
+
+  it.live("says Google isn't available when its token endpoint fails", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const endpoint = yield* TestGoogleTokenEndpoint;
+          const started = yield* startProvider(handler, "google");
+          endpoint.answerWith(() => ({ status: 503, body: "" }));
+          const answer = yield* googleRedirect(
+            handler,
+            { state: started.state, code: "c" },
+            started.cookie,
+          );
+          yield* expectNotice(
+            handler,
+            answer.response,
+            started.cookie,
+            "unavailable",
+            "Signing in isn't available right now",
+          );
         }).pipe(Effect.orDie),
       staging,
     ),

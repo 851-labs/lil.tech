@@ -12,6 +12,7 @@ import {
   lte,
   notExists,
   or,
+  sql,
 } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
 import { CoreDb, first, query } from "./CoreDb.ts";
@@ -192,14 +193,25 @@ export class AgentGrants extends Context.Service<
       now: number,
     ) => Effect.Effect<boolean, SqlError.SqlError>;
     /**
-     * Records who signed in with the provider sign-in whose state hashes to `stateHash`, and
-     * forgets that sign-in, so its callback works once. Unless someone already signed in, it was
-     * decided, or it expired. Whether it did.
+     * Records the provider's answer to the sign-in whose state hashes to `stateHash`: the account
+     * `userId`, waiting for the browser with the ticket that hashes to `ticketHash`. Forgets the
+     * state and nonce, so the answer works once. Unless the sign-in was started again, someone
+     * already signed in, it was decided, or it expired. Whether it did.
+     */
+    readonly answerProviderSignIn: (
+      id: AgentAuthorizationId,
+      stateHash: string,
+      answer: { readonly userId: UserId; readonly ticketHash: string },
+      now: number,
+    ) => Effect.Effect<boolean, SqlError.SqlError>;
+    /**
+     * Signs in the account a provider answered with, for the ticket that hashes to `ticketHash`,
+     * and forgets the sign-in. Unless someone already signed in, it was decided, or it expired.
+     * Whether it did.
      */
     readonly finishProviderSignIn: (
       id: AgentAuthorizationId,
-      stateHash: string,
-      userId: UserId,
+      ticketHash: string,
       now: number,
     ) => Effect.Effect<boolean, SqlError.SqlError>;
     /**
@@ -386,6 +398,8 @@ export class AgentGrants extends Context.Service<
                   signInProvider: start.provider,
                   signInStateHash: start.stateHash,
                   signInNonce: start.nonce,
+                  signInUserId: null,
+                  signInTicketHash: null,
                 })
                 .where(
                   and(
@@ -400,16 +414,49 @@ export class AgentGrants extends Context.Service<
             return rows.length === 1;
           },
         ),
-        finishProviderSignIn: Effect.fn("AgentGrants.finishProviderSignIn")(
-          function* (id, stateHash, userId, now) {
+        answerProviderSignIn: Effect.fn("AgentGrants.answerProviderSignIn")(
+          function* (id, stateHash, answer, now) {
             const rows = yield* query(
               db
                 .update(agentAuthorizations)
-                .set({ userId, signInProvider: null, signInStateHash: null, signInNonce: null })
+                .set({
+                  signInStateHash: null,
+                  signInNonce: null,
+                  signInUserId: answer.userId,
+                  signInTicketHash: answer.ticketHash,
+                })
                 .where(
                   and(
                     eq(agentAuthorizations.id, id),
                     eq(agentAuthorizations.signInStateHash, stateHash),
+                    isNull(agentAuthorizations.userId),
+                    isNull(agentAuthorizations.codeHash),
+                    gt(agentAuthorizations.expiresAt, now),
+                  ),
+                )
+                .returning({ id: agentAuthorizations.id }),
+            );
+            return rows.length === 1;
+          },
+        ),
+        finishProviderSignIn: Effect.fn("AgentGrants.finishProviderSignIn")(
+          function* (id, ticketHash, now) {
+            const rows = yield* query(
+              db
+                .update(agentAuthorizations)
+                .set({
+                  userId: sql`${agentAuthorizations.signInUserId}`,
+                  signInProvider: null,
+                  signInStateHash: null,
+                  signInNonce: null,
+                  signInUserId: null,
+                  signInTicketHash: null,
+                })
+                .where(
+                  and(
+                    eq(agentAuthorizations.id, id),
+                    eq(agentAuthorizations.signInTicketHash, ticketHash),
+                    isNotNull(agentAuthorizations.signInUserId),
                     isNull(agentAuthorizations.userId),
                     isNull(agentAuthorizations.codeHash),
                     gt(agentAuthorizations.expiresAt, now),

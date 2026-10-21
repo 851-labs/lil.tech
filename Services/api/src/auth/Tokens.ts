@@ -109,5 +109,11 @@ export const sha256Hex = (value: string) =>
     Effect.map((digest) => hex(new Uint8Array(digest))),
   );
 
+/** The SHA-256 of a string, base64url-encoded: a PKCE S256 challenge (RFC 7636 §4.2). */
+export const sha256Base64url = (value: string) =>
+  Effect.promise(() => crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))).pipe(
+    Effect.map((digest) => base64url(new Uint8Array(digest))),
+  );
+
 /** Refresh tokens are stored only as their SHA-256 hash. */
 export const hashRefreshToken = sha256Hex;

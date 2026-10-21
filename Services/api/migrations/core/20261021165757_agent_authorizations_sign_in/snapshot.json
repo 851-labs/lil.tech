@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "a9137b6b-d8bf-4ff4-a40e-f3330569baf5",
+  "id": "9c949b94-1376-4d56-8c0b-03493d3ce8bd",
   "prevIds": [
     "2234c6e8-efa5-4fc7-80bf-ac3fa94429c6"
   ],
@@ -181,6 +181,26 @@
       "default": null,
       "generated": null,
       "name": "sign_in_nonce",
+      "entityType": "columns",
+      "table": "agent_authorizations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "sign_in_user_id",
+      "entityType": "columns",
+      "table": "agent_authorizations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "sign_in_ticket_hash",
       "entityType": "columns",
       "table": "agent_authorizations"
     },
@@ -1076,6 +1096,21 @@
       "onDelete": "CASCADE",
       "nameExplicit": false,
       "name": "fk_agent_authorizations_client_id_oauth_clients_client_id_fk",
+      "entityType": "fks",
+      "table": "agent_authorizations"
+    },
+    {
+      "columns": [
+        "sign_in_user_id"
+      ],
+      "tableTo": "users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_agent_authorizations_sign_in_user_id_users_id_fk",
       "entityType": "fks",
       "table": "agent_authorizations"
     },
