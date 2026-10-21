@@ -6,9 +6,9 @@ extension HealthCatalog {
   /// catalog is the source of truth: `scripts/generate-health-catalog` writes the file from this,
   /// and `HealthCatalogTests` checks the committed file matches.
   ///
-  /// One entry per line, with fields in a fixed order, so changes diff by entry. Internal: the
-  /// generator compiles it into the module, and the apps don't need it.
-  static func json() throws -> String {
+  /// One entry per line, with fields in a fixed order, so changes diff by entry. `lil-health mcp`
+  /// serves it to agents as a resource (851-2844).
+  public static func json() throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     func value(_ value: any Encodable) throws -> String {

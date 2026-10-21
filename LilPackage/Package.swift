@@ -52,6 +52,9 @@ let package = Package(
     .package(url: "https://github.com/apple/swift-openapi-urlsession", from: "1.3.2"),
     .package(url: "https://github.com/pointfreeco/swift-issue-reporting", from: "2.0.0"),
     .package(url: "https://github.com/apple/swift-http-types", from: "1.0.0"),
+    // The official MCP SDK, for `lil-health mcp` (851-2844). Exact: it's before 1.0, so a minor
+    // release may break its API.
+    .package(url: "https://github.com/modelcontextprotocol/swift-sdk", exact: "0.12.1"),
     // Already a dependency of sqlite-data; direct for its prepared statements (HealthDatabase).
     .package(url: "https://github.com/groue/GRDB.swift", from: "7.11.1"),
   ],
@@ -78,7 +81,8 @@ let package = Package(
       dependencies: ["HealthCatalog"]
     ),
     // `lil-health`, lil health for Mac's command-line tool: the Health toolkit's queries on the
-    // Mac's database, read-only, while command-line and agent access is on (851-2843).
+    // Mac's database, read-only, while command-line and agent access is on (851-2843), as
+    // commands and as a local MCP server (`lil-health mcp`, 851-2844).
     .target(
       name: "HealthCLI",
       dependencies: [
@@ -88,6 +92,7 @@ let package = Package(
         "HealthTools",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "GRDB", package: "GRDB.swift"),
+        .product(name: "MCP", package: "swift-sdk"),
       ]
     ),
     // `lil-health` for `swift run lil-health-dev` and HealthCLITests. The app bundles the same
@@ -102,11 +107,19 @@ let package = Package(
       name: "HealthCLITests",
       dependencies: [
         "HealthAgentAccess",
+        "HealthCatalog",
         "HealthCLI",
         "HealthDatabase",
         "HealthTools",
+        "LilAPI",
+        "LilSync",
+        "LilTestSupport",
         "lil-health-dev",
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         .product(name: "GRDB", package: "GRDB.swift"),
+        .product(name: "HTTPTypes", package: "swift-http-types"),
+        .product(name: "MCP", package: "swift-sdk"),
+        .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
         .product(name: "SQLiteData", package: "sqlite-data"),
       ]
     ),

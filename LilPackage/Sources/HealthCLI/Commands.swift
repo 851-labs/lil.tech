@@ -26,7 +26,7 @@ struct LilHealthCommand: ParsableCommand {
     subcommands: [
       SummaryCommand.self, TypesCommand.self, MetricCommand.self, SamplesCommand.self,
       WorkoutsCommand.self, SleepCommand.self, MedicationsCommand.self, DetailsCommand.self,
-      SearchCommand.self, SyncCommand.self,
+      SearchCommand.self, SyncCommand.self, MCPCommand.self,
     ]
   )
 
@@ -259,4 +259,21 @@ struct SyncStatusCommand: QueryCommand {
   func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
     Answer(try tools.syncStatus(timeZone: timeZone, db))
   }
+}
+
+/// `lil-health mcp`: not a query itself, but a server that answers the tools' calls, each checked
+/// and logged as a command is.
+struct MCPCommand: ParsableCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "mcp",
+    abstract: "Runs a local MCP server for agents, on standard input and output.",
+    discussion: """
+      Agents such as Claude Code start it themselves, with lil health's tools (summary, metric, \
+      sleep…) and the catalog of data types. Add it to Claude Code with:
+
+        claude mcp add --scope user lil-health -- lil health mcp
+
+      Each tool call answers only while command-line and agent access is on, and is logged \
+      there, like a command.
+      """)
 }
