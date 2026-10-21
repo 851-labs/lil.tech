@@ -388,10 +388,18 @@ public enum HealthDatabase {
       )
       .execute(db)
     }
-    // Blood pressure readings join their samples by correlation (851-2832).
+    // Blood pressure readings: correlations by type and time, and their samples by
+    // correlation (851-2832).
     migrator.registerMigration("Index samples by correlation") { db in
       try #sql(
         #"CREATE INDEX "healthSamples_correlationID" ON "healthSamples" ("correlationID")"#
+      )
+      .execute(db)
+      try #sql(
+        """
+        CREATE INDEX "healthCorrelations_type_startDate"
+        ON "healthCorrelations" ("type", "startDate")
+        """
       )
       .execute(db)
     }

@@ -2401,4 +2401,14 @@ struct BloodPressureQueriesTests {
     #expect(week.points.map(\.start) == [time(14, 8), time(14, 20), time(15, 8)])
     #expect(week.points[0].systolic == 121...121)
   }
+
+  @Test
+  func aValueNoReadingHasHasNoAverage() {
+    let reading = BloodPressureReading(
+      id: "a", date: time(14, 8), systolic: 133, diastolic: nil, sourceName: "Cuff")
+    let chart = BloodPressureChart(interval: DateInterval(), points: [], readings: [reading])
+    #expect(chart.average?.systolic == 133)
+    #expect(chart.average?.diastolic == nil)
+    #expect(chart.span.diastolic == nil)
+  }
 }

@@ -68,17 +68,18 @@ extension HealthDatabase {
       }
       points = buckets.sorted { $0.key < $1.key }.map { start, readings in
         BloodPressurePoint(
-          start: start, systolic: span(readings.compactMap(\.systolic)),
-          diastolic: span(readings.compactMap(\.diastolic)), readings: readings)
+          start: start, systolic: valueSpan(readings.compactMap(\.systolic)),
+          diastolic: valueSpan(readings.compactMap(\.diastolic)), readings: readings)
       }
     }
     return BloodPressureChart(interval: interval, points: points, readings: readings)
   }
+}
 
-  private static func span(_ values: [Double]) -> ClosedRange<Double>? {
-    guard let low = values.min(), let high = values.max() else { return nil }
-    return low...high
-  }
+/// The lowest and highest of `values`, if any.
+private func valueSpan(_ values: [Double]) -> ClosedRange<Double>? {
+  guard let low = values.min(), let high = values.max() else { return nil }
+  return low...high
 }
 
 /// One reading: systolic over diastolic, either of which may be missing.
@@ -132,23 +133,20 @@ public struct BloodPressureChart: Equatable, Sendable {
     self.readings = readings
   }
 
-  /// The period's average of each value, among readings that have it.
-  public var average: (systolic: Double, diastolic: Double)? {
+  /// The period's average of each value, among readings that have it: nil for a value none
+  /// has.
+  public var average: (systolic: Double?, diastolic: Double?)? {
     let systolic = readings.compactMap(\.systolic)
     let diastolic = readings.compactMap(\.diastolic)
     guard !systolic.isEmpty || !diastolic.isEmpty else { return nil }
-    func mean(_ values: [Double]) -> Double {
-      values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count)
+    func mean(_ values: [Double]) -> Double? {
+      values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
     }
     return (mean(systolic), mean(diastolic))
   }
 
   /// The period's lowest and highest of each value.
   public var span: (systolic: ClosedRange<Double>?, diastolic: ClosedRange<Double>?) {
-    func range(_ values: [Double]) -> ClosedRange<Double>? {
-      guard let low = values.min(), let high = values.max() else { return nil }
-      return low...high
-    }
-    return (range(readings.compactMap(\.systolic)), range(readings.compactMap(\.diastolic)))
+    (valueSpan(readings.compactMap(\.systolic)), valueSpan(readings.compactMap(\.diastolic)))
   }
 }

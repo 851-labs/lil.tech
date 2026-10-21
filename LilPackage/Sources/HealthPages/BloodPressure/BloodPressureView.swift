@@ -11,19 +11,30 @@ public import SwiftUI
 public struct BloodPressureView: View {
   @State private var range = ChartRange.week
   @State private var offset = 0
+  /// Moves at midnight, so the periods do.
+  @State private var today = Date.now
   @Fetch private var chart: BloodPressureChart? = nil
 
   public init() {}
 
   public var body: some View {
+    let interval = range.interval(offset: offset, now: today, calendar: .current)
     BloodPressureContent(
       range: $range, offset: $offset,
       state: $chart.loadError.map { .failed($0.localizedDescription) }
-        ?? ($chart.isLoading ? .loading : chart.map { .loaded($0) } ?? .loading)
+        ?? {
+          // The period being loaded, not the one before it, drawn as the new range.
+          guard let chart, chart.interval == interval else { return .loading }
+          return .loaded(chart)
+        }()
     )
-    .task(id: [range.rawValue, String(offset)]) {
+    .task(id: [range.rawValue, String(offset), today.formatted(.iso8601)]) {
       _ = try? await $chart.load(
-        BloodPressureRequest(range: range, offset: offset), scheduler: MainQueueScheduler())
+        BloodPressureRequest(range: range, offset: offset, now: today),
+        scheduler: MainQueueScheduler())
+    }
+    .onReceive(calendarDayChanges()) {
+      today = .now
     }
   }
 }
@@ -31,10 +42,12 @@ public struct BloodPressureView: View {
 struct BloodPressureRequest: FetchKeyRequest {
   let range: ChartRange
   let offset: Int
+  /// The day it's for, so a new day is a new request.
+  let now: Date
 
   func fetch(_ db: Database) throws -> BloodPressureChart? {
     try HealthDatabase.bloodPressureChart(
-      range: range, offset: offset, now: .now, calendar: .current, db)
+      range: range, offset: offset, now: now, calendar: .current, db)
   }
 }
 
@@ -104,6 +117,7 @@ struct BloodPressureContent: View {
           shown.average.map { BloodPressureFormat.pair($0.systolic, $0.diastolic) }
             ?? (chart == nil ? "–" : "No Data")
         )
+        .monospacedDigit()
         .font(.system(.largeTitle, design: .rounded).bold())
         .foregroundStyle(shown.average == nil ? .secondary : .primary)
         if shown.average != nil {
@@ -117,7 +131,12 @@ struct BloodPressureContent: View {
           .foregroundStyle(.secondary)
       }
       Text(
-        point.map { ChartFormat.bucket($0.start, range: range, calendar: calendar) }
+        point.map { point in
+          // A reading (a day or a week) by its time, a bucket by its period.
+          range == .day || range == .week
+            ? point.start.formatted(Self.time(calendar))
+            : ChartFormat.bucket(point.start, range: range, calendar: calendar)
+        }
           ?? ChartFormat.span(
             chart?.interval ?? range.interval(offset: offset, now: .now, calendar: calendar),
             range: range, calendar: calendar)
@@ -220,8 +239,8 @@ struct BloodPressureContent: View {
     let x = PlottableValue.value("Date", point.start, unit: range.barUnit)
     if let systolic = point.systolic {
       BarMark(
-        x: x, yStart: .value("Lowest", systolic.lowerBound - 0.5),
-        yEnd: .value("Highest", systolic.upperBound + 0.5), width: .fixed(5)
+        x: x, yStart: .value("Lowest", systolic.lowerBound - Self.pad(systolic)),
+        yEnd: .value("Highest", systolic.upperBound + Self.pad(systolic)), width: .fixed(5)
       )
       .clipShape(Capsule())
       .foregroundStyle(Self.systolicColor)
@@ -229,13 +248,24 @@ struct BloodPressureContent: View {
     }
     if let diastolic = point.diastolic {
       BarMark(
-        x: x, yStart: .value("Lowest", diastolic.lowerBound - 0.5),
-        yEnd: .value("Highest", diastolic.upperBound + 0.5), width: .fixed(5)
+        x: x, yStart: .value("Lowest", diastolic.lowerBound - Self.pad(diastolic)),
+        yEnd: .value("Highest", diastolic.upperBound + Self.pad(diastolic)), width: .fixed(5)
       )
       .clipShape(Capsule())
       .foregroundStyle(Self.diastolicColor)
       .position(by: .value("Value", "Diastolic"))
     }
+  }
+
+  /// A reading's day and time, in the view's calendar.
+  static func time(_ calendar: Calendar) -> Date.FormatStyle {
+    Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone)
+      .month(.abbreviated).day().year().hour().minute()
+  }
+
+  /// How far past its ends to draw a range, so one reading is a short bar, not a dot.
+  static func pad(_ range: ClosedRange<Double>) -> Double {
+    range.upperBound - range.lowerBound < 3 ? 1.5 : 0
   }
 
   private var axisFormat: Date.FormatStyle {
@@ -292,7 +322,7 @@ struct BloodPressureContent: View {
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Text(reading.date.formatted(date: .abbreviated, time: .shortened))
+            Text(reading.date.formatted(Self.time(calendar)))
               .foregroundStyle(.secondary)
           }
           .padding(.horizontal, 14)
@@ -323,8 +353,9 @@ enum BloodPressureFormat {
     guard span.systolic != nil || span.diastolic != nil else { return nil }
     func text(_ range: ClosedRange<Double>?) -> String {
       guard let range else { return "–" }
-      return range.lowerBound == range.upperBound
-        ? number(range.lowerBound) : "\(number(range.lowerBound))–\(number(range.upperBound))"
+      // As written: 119.8 and 120.3 are both 120.
+      let (low, high) = (number(range.lowerBound), number(range.upperBound))
+      return low == high ? low : "\(low)–\(high)"
     }
     return "\(text(span.systolic))/\(text(span.diastolic))"
   }
