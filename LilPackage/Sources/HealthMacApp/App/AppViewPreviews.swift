@@ -60,12 +60,21 @@ private func appView(
     AppFeature.State(isSignedIn: true, selection: .dataType("HKQuantityTypeIdentifierStepCount")))
 }
 
-// The window at its smallest, where the toolbar is most crowded.
+// The window at its smallest, where the toolbar is most crowded and the sidebar's last rows go
+// under its footer (851-2867).
 #Preview("A metric, smallest window") {
   appView(
     AppFeature.State(
       isSignedIn: true,
       selection: .dataType("HKQuantityTypeIdentifierDistanceWalkingRunning")),
+    width: 800, height: 480)
+}
+
+// The footer at its tallest, with its progress bar, over the rows of a short window (851-2867).
+#Preview("First sync, smallest window") {
+  appView(
+    AppFeature.State(
+      isSignedIn: true, syncStatus: .bootstrapping(downloadedParts: 12, totalParts: 80)),
     width: 800, height: 480)
 }
 

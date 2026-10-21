@@ -36,6 +36,8 @@ struct SyncFooterView: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
+    // All of it takes clicks, so none reach a sidebar row scrolled under it.
+    .contentShape(Rectangle())
   }
 
   @ViewBuilder private var icon: some View {
