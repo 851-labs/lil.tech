@@ -19,11 +19,13 @@ struct AgentAccessFeatureTests {
   func readsTheSettingThenTheLogWhileOpen() async throws {
     let clock = ManualClock()
     let log = LockIsolated<[AgentAccessEntry]>([])
+    let tool = LockIsolated<URL?>(nil)
     let store = TestStore(initialState: AgentAccessFeature.State()) {
       AgentAccessFeature()
     } withDependencies: {
       $0.continuousClock = clock
       $0.agentAccess.isEnabled = { true }
+      $0.agentAccess.commandLineTool = { tool.value }
       $0.agentAccess.entries = { limit in
         #expect(limit == AgentAccessFeature.entryLimit)
         return log.value
@@ -35,12 +37,19 @@ struct AgentAccessFeatureTests {
       $0.isEnabled = true
       $0.isLoading = false
     }
+    // `lil` isn't installed yet.
+    await store.receive(\.commandLineToolLocated)
     await store.receive(\.entriesLoaded)
 
-    // The command logs a query, and the open pane shows it at its next read.
+    // The command logs a query, and the open pane shows it at its next read. `lil` is installed
+    // meanwhile, and the pane says where.
     log.setValue([first])
+    tool.setValue(URL(filePath: "/usr/local/bin/lil"))
     try await clock.waitUntilAsleep(endingIn: AgentAccessFeature.refreshInterval)
     clock.advance(by: AgentAccessFeature.refreshInterval)
+    await store.receive(\.commandLineToolLocated) {
+      $0.commandLineTool = URL(filePath: "/usr/local/bin/lil")
+    }
     await store.receive(\.entriesLoaded) {
       $0.entries = [first]
     }
@@ -115,6 +124,7 @@ struct AgentAccessFeatureTests {
     } withDependencies: {
       $0.continuousClock = clock
       $0.agentAccess.isEnabled = { throw Busy() }
+      $0.agentAccess.commandLineTool = { nil }
       $0.agentAccess.entries = { _ in
         guard logReadable.value else { throw Busy() }
         return []
@@ -127,6 +137,7 @@ struct AgentAccessFeatureTests {
       $0.failure = "lil health couldn't read or save this setting: \(Busy().localizedDescription)"
       $0.isLoading = false
     }
+    await store.receive(\.commandLineToolLocated)
     await store.receive(\.logFailed) {
       $0.logFailure = "lil health couldn't read the access log: \(Busy().localizedDescription)"
     }

@@ -45,6 +45,16 @@ struct CommandLineToolInstallerTests {
   }
 
   @Test
+  func findsWhereLilIsInstalled() throws {
+    let shared = root.appending(path: "usr/local/bin", directoryHint: .isDirectory)
+    #expect(CommandLineToolInstaller.installedLocation(in: [shared, bin]) == nil)
+    _ = try fakeLil(version: 5, at: installed)
+    #expect(CommandLineToolInstaller.installedLocation(in: [shared, bin]) == installed)
+    let sharedLil = try fakeLil(version: 5, at: shared.appending(path: "lil"))
+    #expect(CommandLineToolInstaller.installedLocation(in: [shared, bin]) == sharedLil)
+  }
+
+  @Test
   func installsCreatingTheDirectory() async throws {
     let bundled = try fakeLil(version: 5, at: root.appending(path: "app/lil"))
 

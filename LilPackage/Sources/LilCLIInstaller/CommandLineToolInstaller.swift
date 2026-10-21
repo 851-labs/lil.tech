@@ -153,6 +153,15 @@ public enum CommandLineToolInstaller {
     return result
   }
 
+  /// Where `lil` is installed among `directories` (a copy or a link), for an app to show in how
+  /// to set up an agent: the first that's an executable. Nil if there's none.
+  public static func installedLocation(
+    in directories: [URL] = Destination.allCases.map(\.directory)
+  ) -> URL? {
+    directories.map { $0.appending(component: "lil") }
+      .first { FileManager.default.isExecutableFile(atPath: $0.path(percentEncoded: false)) }
+  }
+
   /// The version of the `lil` at `url`, from the info section the apps' `lil` target embeds in
   /// the binary (`CFBundleVersion`, which `lil --version` prints), without running it. Nil if it
   /// isn't a `lil` (`tech.lil.cli`).

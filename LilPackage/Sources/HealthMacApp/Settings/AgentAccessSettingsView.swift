@@ -1,3 +1,4 @@
+import AppKit
 import ComposableArchitecture
 import HealthAgentAccess
 import SwiftUI
@@ -57,6 +58,8 @@ struct AgentAccessForm: View {
         .foregroundStyle(.secondary)
       }
 
+      AgentSetupSection(commandLineTool: store.commandLineTool)
+
       Section {
         if store.isLoading {
           ProgressView()
@@ -108,6 +111,68 @@ struct AgentAccessEntryRow: View {
         .lineLimit(1)
         .truncationMode(.middle)
       Text(entry.process)
+    }
+  }
+}
+
+/// How to connect an agent to `lil-health mcp`, a local MCP server agents start themselves
+/// (851-2865): Claude Code's command, and for other agents a local (stdio) server's command and
+/// arguments, with `lil`'s full path, since apps don't get the shell's `PATH`. lil health has no
+/// help book, so it's said here.
+struct AgentSetupSection: View {
+  /// Where `lil` is installed, if it is.
+  let commandLineTool: URL?
+
+  static let claudeCode = "claude mcp add --scope user lil-health -- lil health mcp"
+  static let arguments = "health mcp"
+
+  var body: some View {
+    Section {
+      CopyableRow(title: "Claude Code", value: Self.claudeCode)
+      CopyableRow(
+        title: "Other agents: command",
+        value: commandLineTool?.path(percentEncoded: false) ?? "lil")
+      CopyableRow(title: "Other agents: arguments", value: Self.arguments)
+    } header: {
+      Text("Connect an Agent")
+    } footer: {
+      Group {
+        if commandLineTool == nil {
+          Text(
+            "These need the lil command. Install it with lil health › Install Command Line Tool…, then add lil-health to your agent as a local (stdio) MCP server."
+          )
+        } else {
+          Text(
+            "Add lil-health to your agent as a local (stdio) MCP server. The agent starts it when it needs it, and it answers while access is on."
+          )
+        }
+      }
+      .foregroundStyle(.secondary)
+    }
+  }
+}
+
+/// A title above a monospaced value, with a button that copies it.
+struct CopyableRow: View {
+  let title: String
+  let value: String
+
+  var body: some View {
+    HStack(alignment: .firstTextBaseline) {
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+        Text(value)
+          .font(.callout.monospaced())
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Spacer()
+      Button("Copy") {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+      }
+      .help("Copy \(value)")
     }
   }
 }

@@ -89,11 +89,13 @@ private let agentQueries = [
 @MainActor
 private func agents(
   isEnabled: Bool = true, entries: [AgentAccessEntry] = agentQueries, isLoading: Bool = false,
-  failure: String? = nil, logFailure: String? = nil, isSignedIn: Bool? = true
+  failure: String? = nil, logFailure: String? = nil, isSignedIn: Bool? = true,
+  commandLineTool: URL? = URL(filePath: "/usr/local/bin/lil")
 ) -> some View {
   var state = AppFeature.State(isSignedIn: isSignedIn)
   state.agentAccess = AgentAccessFeature.State(
-    entries: entries, failure: failure, isEnabled: isEnabled, isLoading: isLoading,
+    commandLineTool: commandLineTool, entries: entries, failure: failure, isEnabled: isEnabled,
+    isLoading: isLoading,
     logFailure: logFailure)
   // `EmptyReducer`, so the pane's task doesn't replace the state shown.
   return AgentAccessSettingsView(store: Store(initialState: state) { EmptyReducer() })
@@ -110,6 +112,11 @@ private func agents(
 
 #Preview("Agents: off, with a log") {
   agents(isEnabled: false)
+}
+
+// How to connect an agent, before `lil` is installed (851-2865).
+#Preview("Agents: without lil") {
+  agents(entries: [], commandLineTool: nil)
 }
 
 #Preview("Agents: off") {
