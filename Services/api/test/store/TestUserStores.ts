@@ -1,5 +1,7 @@
-import { Clock, Context, Effect, Layer, Option } from "effect";
-import { HttpServerResponse } from "effect/http";
+import { Clock, Context, Effect, Layer, Option, type Scope } from "effect";
+import { HttpEffect, HttpServerRequest, HttpServerResponse } from "effect/http";
+import { healthMcpPath, makeHealthMcpServer } from "../../src/health/tools/HealthMcpServer.ts";
+import { requestPath } from "../../src/oauth/Requests.ts";
 import type { UserId } from "../../src/core/Ids.ts";
 import { Column, createEntityTable, defineEntity } from "../../src/store/Entities.ts";
 import type { Mutation } from "../../src/store/Changes.ts";
@@ -70,23 +72,65 @@ const asOverRpc = (store: UserStoreMethods): UserStoreMethods =>
     ]),
   ) as UserStoreMethods;
 
+/**
+ * Serves a request as a Durable Object's `fetch` does: in its own scope, with the handlers that
+ * code registered for the response (such as MCP's session headers) applied to it.
+ */
+export const servedLikeFetch = (
+  handler: Effect.Effect<
+    HttpServerResponse.HttpServerResponse,
+    never,
+    HttpServerRequest.HttpServerRequest | Scope.Scope
+  >,
+) =>
+  Effect.gen(function* () {
+    let served: HttpServerResponse.HttpServerResponse | undefined;
+    yield* HttpEffect.toHandled(handler, (_, response) =>
+      Effect.sync(() => {
+        served = response;
+      }),
+    );
+    return served ?? HttpServerResponse.empty({ status: 500 });
+  });
+
+interface OpenedStore {
+  readonly sql: TestStoreSql;
+  readonly store: UserStoreMethods;
+  /** lil health's MCP server, as the store's `fetch` serves it. */
+  readonly mcp: Effect.Effect<
+    HttpServerResponse.HttpServerResponse,
+    never,
+    HttpServerRequest.HttpServerRequest
+  >;
+}
+
 /** `UserStores` over in-memory test stores, opened on first use like Durable Objects. */
 export const makeTestUserStores = (files?: SnapshotFiles) => {
-  const opened = new Map<string, { sql: TestStoreSql; store: UserStoreMethods }>();
+  const opened = new Map<string, OpenedStore>();
+  const open = (name: string): OpenedStore => {
+    const existing = opened.get(name);
+    if (existing !== undefined) return existing;
+    const { sql, store } = makeTestStore(files);
+    const server = Effect.runSync(makeHealthMcpServer({ sql, record: store.recordAgentAccess }));
+    const created = { sql, store, mcp: servedLikeFetch(server) };
+    opened.set(name, created);
+    return created;
+  };
   const stores = UserStores.fromNamespace({
     getByName: (name) => {
-      const existing = opened.get(name) ?? makeTestStore(files);
-      opened.set(name, existing);
+      const existing = open(name);
       return {
         ...asOverRpc(existing.store),
-        // A live connection can't be upgraded in tests; this answers with what the store got.
         fetch: (request) =>
-          Effect.succeed(
-            HttpServerResponse.jsonUnsafe({
-              store: name,
-              expiresAt: request.headers[sessionExpiresHeader],
-            }),
-          ),
+          requestPath(request) === healthMcpPath
+            ? existing.mcp.pipe(Effect.provideService(HttpServerRequest.HttpServerRequest, request))
+            : // A live connection can't be upgraded in tests; this answers with what the store got.
+              Effect.succeed(
+                HttpServerResponse.jsonUnsafe({
+                  store: name,
+                  expiresAt: request.headers[sessionExpiresHeader],
+                }),
+              ),
       };
     },
   });

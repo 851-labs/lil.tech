@@ -1,7 +1,7 @@
 import { exportSnapshot, readExportRequest, requestExport } from "./Exports.ts";
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import { Clock, Effect } from "effect";
+import { Clock, Effect, type Scope } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import {
   healthBatchesAhead,
@@ -11,8 +11,16 @@ import {
   touchQueuedHealthBatch,
 } from "../health/HealthBatchStore.ts";
 import { DisposableBucket } from "../Deployment.ts";
+import { healthMcpPath, makeHealthMcpServer } from "../health/tools/HealthMcpServer.ts";
+import { requestPath } from "../oauth/Requests.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
 import { deleteObjects, listObjects, provideRuntime } from "../Runtime.ts";
+import {
+  type AgentAccess,
+  appendAgentAccess,
+  nextAgentAccessTrimAt,
+  trimAgentAccessLog,
+} from "./AgentAccessLog.ts";
 import { applyMutations, readChanges, readEpoch, readHead, readMeta } from "./ChangeLog.ts";
 import {
   AccountDeleted,
@@ -244,6 +252,7 @@ export const makeUserStore = (
       retireAt,
       nextBlobSweepAt(sql),
       nextTombstoneSweepAt(sql, now),
+      nextAgentAccessTrimAt(sql),
       wipeAt,
     ].filter((time): time is number => time !== null);
     if (times.length === 0) return;
@@ -462,6 +471,19 @@ export const makeUserStore = (
       ),
     /** Frees a batch's place among those applying at once, after it failed partway. */
     releaseHealthBatch: (id: string) => Effect.sync(() => void ingesting.delete(id)),
+    /**
+     * Adds an agent's tool call to the access log (`AgentAccessLog.ts`), before its answer goes
+     * back, so nothing is read without a row.
+     */
+    recordAgentAccess: (access: AgentAccess) =>
+      Effect.gen(function* () {
+        yield* ensureNotDeleted;
+        const at = yield* Clock.currentTimeMillis;
+        // Only the first row changes when the log needs trimming.
+        const first = nextAgentAccessTrimAt(sql) === null;
+        appendAgentAccess(sql, access, at);
+        if (first) yield* scheduleAlarm(at);
+      }),
     /** Applies mutations in one transaction (see `apply`). */
     applyMutations: (mutations: ReadonlyArray<Mutation>) => apply(mutations),
     /**
@@ -585,6 +607,8 @@ export const makeUserStore = (
           retiring = hasRetiringDevices(sql);
         }
         sweepTombstones(sql, registry, now);
+        const trimAt = nextAgentAccessTrimAt(sql);
+        if (trimAt !== null && trimAt <= now) trimAgentAccessLog(sql, now);
         yield* scheduleAlarm(now, { afterAlarm: true, sockets: true });
       }).pipe(
         Effect.catchCause((cause) =>
@@ -605,13 +629,19 @@ export const makeUserStore = (
 
 export type UserStoreMethods = ReturnType<typeof makeUserStore>;
 
-/** A store as a Durable Object: its RPC methods, plus live connections. */
+/** A store as a Durable Object: its RPC methods, plus what the Worker forwards to it. */
 export type UserStoreShape = UserStoreMethods & {
-  /** Accepts a live notice connection the Worker forwarded (`GET /v1/sync/live`). */
+  /**
+   * Requests the Worker forwarded, by path: lil health's MCP server (`healthMcpPath`), else a
+   * live notice connection (`GET /v1/sync/live`).
+   */
   readonly fetch: Effect.Effect<
     HttpServerResponse.HttpServerResponse,
     never,
-    HttpServerRequest.HttpServerRequest | Cloudflare.DurableObjectState | Alchemy.RuntimeContext
+    | HttpServerRequest.HttpServerRequest
+    | Scope.Scope
+    | Cloudflare.DurableObjectState
+    | Alchemy.RuntimeContext
   >;
   readonly webSocketClose: (
     socket: Cloudflare.WebSocket,
@@ -739,18 +769,15 @@ export const UserStoreLive = UserStore.make(
           }
         ).WebSocketRequestResponsePair("ping", "pong"),
       );
+      const sql = fromDurableObjectStorage(state.raw.storage);
       // A migration that fails stops the object from starting, rather than serving an old schema.
-      const store = makeUserStore(
-        fromDurableObjectStorage(state.raw.storage),
-        entities,
-        files,
-        sockets,
-        blobFiles,
-      );
+      const store = makeUserStore(sql, entities, files, sockets, blobFiles);
+      const mcp = yield* makeHealthMcpServer({ sql, record: store.recordAgentAccess });
       return {
         ...store,
         fetch: Effect.gen(function* () {
           const request = yield* HttpServerRequest.HttpServerRequest;
+          if (requestPath(request) === healthMcpPath) return yield* mcp;
           const expiresAt = Number(request.headers[sessionExpiresHeader]);
           if (!Number.isFinite(expiresAt)) return HttpServerResponse.empty({ status: 400 });
           const [response, socket] = yield* Cloudflare.upgrade();

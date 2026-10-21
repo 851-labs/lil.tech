@@ -38,6 +38,11 @@ export const rateLimits = {
    * egress ranges.
    */
   agentToken: { namespace: 5, limit: 60, periodSeconds: 60 },
+  /**
+   * Requests to the MCP servers per grant (one agent's access to one app). Separate from `user`,
+   * so a busy agent can't stall the apps' sync.
+   */
+  agent: { namespace: 6, limit: 120, periodSeconds: 60 },
 } as const satisfies Record<
   string,
   { readonly namespace: number; readonly limit: number; readonly periodSeconds: 10 | 60 }
@@ -85,6 +90,7 @@ export class RateLimits extends Context.Service<
     refresh: () => Effect.succeed(true),
     clientRegistration: () => Effect.succeed(true),
     agentToken: () => Effect.succeed(true),
+    agent: () => Effect.succeed(true),
   });
 }
 

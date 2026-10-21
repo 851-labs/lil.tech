@@ -2215,6 +2215,7 @@ describe("rate limits", () => {
       refresh: counter("refresh"),
       clientRegistration: counter("clientRegistration"),
       agentToken: counter("agentToken"),
+      agent: counter("agent"),
     });
   };
   const from = (address: string) => ({ "cf-connecting-ip": address });
@@ -2407,6 +2408,7 @@ describe("rate limits", () => {
         refresh: () => Effect.fail(new Error("binding unavailable")),
         clientRegistration: () => Effect.fail(new Error("binding unavailable")),
         agentToken: () => Effect.fail(new Error("binding unavailable")),
+        agent: () => Effect.fail(new Error("binding unavailable")),
       }),
     ),
   );

@@ -650,6 +650,7 @@ describe("POST /oauth/token", () => {
       refresh: counter("refresh", Infinity),
       clientRegistration: counter("clientRegistration", Infinity),
       agentToken: counter("agentToken", 2),
+      agent: counter("agent", Infinity),
     });
     return withApi(
       (handler) =>

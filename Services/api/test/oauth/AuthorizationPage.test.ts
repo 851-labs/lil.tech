@@ -601,6 +601,7 @@ describe("The authorization page", () => {
       refresh: allowed,
       clientRegistration: allowed,
       agentToken: allowed,
+      agent: allowed,
     });
     return withApi(
       (handler) =>
