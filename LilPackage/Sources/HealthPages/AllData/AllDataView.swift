@@ -99,22 +99,27 @@ struct AllDataContent: View {
   /// only the rows on screen are built: a grouped `Form` builds every row at once (a second for
   /// 1,000, and 100,000 crash it), and a day can have hundreds.
   private func list(_ samples: [HealthSample], hasMore: Bool) -> some View {
-    ScrollView {
+    let days = days(samples)
+    return ScrollView {
       LazyVStack(alignment: .leading, spacing: 0) {
-        ForEach(days(samples), id: \.day) { section in
+        ForEach(days, id: \.day) { section in
           Text(MetricFormat.date(section.day, isDay: true, now: now, calendar: calendar))
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.secondary)
+            .accessibilityAddTraits(.isHeader)
             .padding(.horizontal, 14)
-            .padding(.top, section.day == samples.first.map(day) ? 0 : 18)
+            .padding(.top, section.day == days.first?.day ? 0 : 18)
             .padding(.bottom, 6)
-          ForEach(Array(section.samples.enumerated()), id: \.element.id) { index, sample in
+          // The last day may go on in the next page, so its card stays open while that loads.
+          let isOpen = hasMore && !moreFailed && section.day == days.last?.day
+          ForEach(section.samples) { sample in
             NavigationLink {
               SampleDetailView(type: type, sample: sample)
             } label: {
               SampleCardRow(
-                type: type, sample: sample, calendar: calendar, isFirst: index == 0,
-                isLast: index == section.samples.count - 1)
+                type: type, sample: sample, calendar: calendar,
+                isFirst: sample.id == section.samples.first?.id,
+                isLast: !isOpen && sample.id == section.samples.last?.id)
             }
             .buttonStyle(.plain)
           }
@@ -136,10 +141,6 @@ struct AllDataContent: View {
       .frame(maxWidth: .infinity)
     }
     .background(Color.pageBackground)
-  }
-
-  private func day(_ sample: HealthSample) -> Date? {
-    calendar.dateInterval(of: .day, for: Date(unixMilliseconds: sample.startDate))?.start
   }
 
   /// The samples (newest first) by day, asking the calendar only when a sample leaves the day
