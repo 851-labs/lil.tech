@@ -1,6 +1,7 @@
-import { Clock, Effect, Layer } from "effect";
+import { Clock, Context, Effect, Layer, Option, Redacted } from "effect";
 import { type JWTPayload, SignJWT } from "jose";
 import { GoogleClients, GoogleKeys, GoogleSignIn } from "../../src/auth/Google.ts";
+import { type GooglePost, GoogleWebClient } from "../../src/auth/GoogleWeb.ts";
 import { ProviderSignIn } from "../../src/auth/ProviderSignIn.ts";
 import { sha256Hex } from "../../src/auth/Tokens.ts";
 import { TestAuth } from "./TestAuth.ts";
@@ -13,9 +14,10 @@ const google = await makeTestProviderKeys("test-google-key");
 /** Simulates Google's key endpoint having a stale cache or being down. */
 export const testGoogleKeysControl = google.control;
 
-/** Made-up OAuth client IDs for the test apps and server. */
+/** Made-up OAuth client IDs for the test apps, the authorization page and a server. */
 export const testGoogleClients = {
   apps: ["000000000000-ios.apps.googleusercontent.com"],
+  web: ["000000000000-web.apps.googleusercontent.com"],
   server: ["000000000000-server.apps.googleusercontent.com"],
 };
 
@@ -58,3 +60,54 @@ export const googleIdToken = (
         .sign(google.privateKey),
     );
   });
+
+export interface GoogleTokenCall {
+  readonly form: Readonly<Record<string, string>>;
+}
+
+/** The test web client's secret. */
+export const testGoogleWebClientSecret = "test-google-web-secret";
+
+/**
+ * A stand-in for Google's token endpoint, for the authorization page's web client: the requests it
+ * got, and how it answers (by default, refusing every code until a test says what to answer).
+ */
+export class TestGoogleTokenEndpoint extends Context.Service<
+  TestGoogleTokenEndpoint,
+  {
+    readonly calls: Array<GoogleTokenCall>;
+    readonly post: GooglePost;
+    /** Answers with `answer` from now on. */
+    readonly answerWith: (
+      answer: (call: GoogleTokenCall) => { readonly status: number; readonly body: string },
+    ) => void;
+  }
+>()("test/TestGoogleTokenEndpoint") {
+  static readonly layer = Layer.sync(TestGoogleTokenEndpoint, () => {
+    const calls: Array<GoogleTokenCall> = [];
+    let answer: (call: GoogleTokenCall) => {
+      readonly status: number;
+      readonly body: string;
+    } = () => ({ status: 400, body: JSON.stringify({ error: "invalid_grant" }) });
+    return TestGoogleTokenEndpoint.of({
+      calls,
+      post: async (form) => {
+        calls.push({ form });
+        return answer({ form });
+      },
+      answerWith: (next) => {
+        answer = next;
+      },
+    });
+  });
+}
+
+/** The authorization page's Google client over the fake token endpoint, with a secret. */
+export const TestGoogleWebClient = Layer.unwrap(
+  Effect.map(TestGoogleTokenEndpoint, (endpoint) =>
+    GoogleWebClient.layer({
+      clientSecret: Option.some(Redacted.make(testGoogleWebClientSecret)),
+      post: endpoint.post,
+    }),
+  ),
+).pipe(Layer.provideMerge(TestGoogleTokenEndpoint.layer), Layer.provide(TestGoogleClients));

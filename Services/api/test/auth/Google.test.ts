@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { assert, describe, it, layer } from "@effect/vitest";
-import { Effect, Layer, Option } from "effect";
+import { Effect, Layer, Option, Redacted } from "effect";
 import { TestClock } from "effect/testing";
 import { GoogleClients, googleClientIds, GoogleSignIn } from "../../src/auth/Google.ts";
+import { GoogleWebClient } from "../../src/auth/GoogleWeb.ts";
 import { ProviderSignIn } from "../../src/auth/ProviderSignIn.ts";
 import { AccessTokens } from "../../src/auth/Tokens.ts";
 import { Identities } from "../../src/core/Identities.ts";
@@ -143,6 +144,24 @@ layer(TestGoogleSignIn)("Sign in with Google", (it) => {
     }),
   );
 
+  it.effect(
+    "takes the authorization page's tokens only for the page, and the apps' only for them",
+    () =>
+      Effect.gen(function* () {
+        const google = yield* GoogleSignIn;
+        const web = testGoogleClients.web[0] ?? "";
+        const webToken = () =>
+          googleIdToken({ sub: newSubject(), nonce: "n", azp: web }, { audience: web });
+        const identity = yield* google.verify(yield* webToken(), "n", "web");
+        assert.strictEqual(identity.provider, "google");
+        // The apps' sign-in, which creates accounts, doesn't take the page's tokens.
+        yield* rejected(webToken());
+        const appsToken = yield* googleIdToken({ sub: newSubject(), nonce: "n" });
+        const error = yield* Effect.flip(google.verify(appsToken, "n", "web"));
+        assert.strictEqual(error._tag, "InvalidIdentityToken");
+      }),
+  );
+
   it.effect("fetches Google's keys again for a key ID it hasn't seen", () =>
     Effect.gen(function* () {
       const control = testGoogleKeysControl;
@@ -171,7 +190,7 @@ layer(TestGoogleSignIn)("Sign in with Google", (it) => {
 describe("Sign in with Google without client IDs", () => {
   layer(
     GoogleSignIn.layer.pipe(
-      Layer.provide(Layer.succeed(GoogleClients, { apps: [], server: [] })),
+      Layer.provide(Layer.succeed(GoogleClients, { apps: [], web: [], server: [] })),
       Layer.provide(TestGoogleKeys),
       Layer.provideMerge(TestAuth),
     ),
@@ -198,4 +217,30 @@ describe("googleClientIds", () => {
     const clientId = /<key>GIDClientID<\/key>\s*<string>([^<]+)<\/string>/.exec(plist)?.[1];
     assert.include(googleClientIds.apps, clientId);
   });
+});
+
+describe("The authorization page's Google client", () => {
+  const client = (clients: GoogleClients["Service"], secret: Option.Option<string>) =>
+    GoogleWebClient.use((web) => Effect.succeed(web)).pipe(
+      Effect.provide(
+        GoogleWebClient.layer({ clientSecret: Option.map(secret, Redacted.make) }).pipe(
+          Layer.provide(Layer.succeed(GoogleClients, clients)),
+        ),
+      ),
+    );
+
+  it.effect("is set up only with a web client and its secret", () =>
+    Effect.gen(function* () {
+      const both = yield* client(testGoogleClients, Option.some("secret"));
+      assert.deepStrictEqual(both.clientId, Option.some(testGoogleClients.web[0] ?? ""));
+      const noSecret = yield* client(testGoogleClients, Option.none());
+      assert.isTrue(Option.isNone(noSecret.clientId));
+      const error = yield* Effect.flip(
+        noSecret.redeem({ code: "c", codeVerifier: "v", redirectUri: "https://x/cb" }),
+      );
+      assert.strictEqual(error._tag, "GoogleCodeRedemptionFailed");
+      const noClient = yield* client({ ...testGoogleClients, web: [] }, Option.some("secret"));
+      assert.isTrue(Option.isNone(noClient.clientId));
+    }),
+  );
 });

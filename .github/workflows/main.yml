@@ -57,6 +57,9 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       # Staging and prod revoke Sign in with Apple tokens (851-2612). Previews don't get it.
       LIL_APPLE_SIGN_IN_KEY: ${{ secrets.LIL_APPLE_SIGN_IN_KEY }}
+      # Staging and prod sign in with Google on the agents' authorization page (851-2850).
+      # Previews don't get it.
+      LIL_GOOGLE_WEB_CLIENT_SECRET: ${{ secrets.LIL_GOOGLE_WEB_CLIENT_SECRET }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-services
