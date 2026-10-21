@@ -252,6 +252,8 @@ extension Components {
             public var connectedAt: Swift.Int
             /// - Remark: Generated from `#/components/schemas/ConnectedAgent/lastUsedAt`.
             public var lastUsedAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/ConnectedAgent/firstUsedAt`.
+            public var firstUsedAt: Swift.Int?
             /// Creates a new `ConnectedAgent`.
             ///
             /// - Parameters:
@@ -263,6 +265,7 @@ extension Components {
             ///   - app:
             ///   - connectedAt:
             ///   - lastUsedAt:
+            ///   - firstUsedAt:
             public init(
                 id: Swift.String,
                 name: Swift.String? = nil,
@@ -271,7 +274,8 @@ extension Components {
                 resource: Swift.String,
                 app: Swift.String? = nil,
                 connectedAt: Swift.Int,
-                lastUsedAt: Swift.Int
+                lastUsedAt: Swift.Int,
+                firstUsedAt: Swift.Int? = nil
             ) {
                 self.id = id
                 self.name = name
@@ -281,6 +285,7 @@ extension Components {
                 self.app = app
                 self.connectedAt = connectedAt
                 self.lastUsedAt = lastUsedAt
+                self.firstUsedAt = firstUsedAt
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -291,6 +296,7 @@ extension Components {
                 case app
                 case connectedAt
                 case lastUsedAt
+                case firstUsedAt
             }
         }
         /// - Remark: Generated from `#/components/schemas/HealthBlobNotFound`.

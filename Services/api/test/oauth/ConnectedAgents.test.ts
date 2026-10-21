@@ -75,14 +75,23 @@ const connect = (handler: Handler, userId: UserId, resource = healthResource) =>
     };
   });
 
-/** A tool call at lil health's MCP server. */
-const callSummary = (handler: Handler, accessToken: string) => {
-  const request = sessionless("tools/call", { name: "summary", arguments: {} });
+/** A request to lil health's MCP server. */
+const callMcp = (
+  handler: Handler,
+  accessToken: string,
+  method: string,
+  params: Record<string, unknown> = {},
+) => {
+  const request = sessionless(method, params);
   return postMcp(handler, healthResource, request.body, {
     ...request.headers,
     ...bearer(accessToken),
   });
 };
+
+/** A tool call at lil health's MCP server. */
+const callSummary = (handler: Handler, accessToken: string) =>
+  callMcp(handler, accessToken, "tools/call", { name: "summary", arguments: {} });
 
 interface AgentBody {
   readonly id: string;
@@ -118,6 +127,7 @@ describe("GET /v1/me/agents", () => {
           const { connectedAt, lastUsedAt } = agent as unknown as Record<string, number>;
           assert.isNumber(connectedAt);
           assert.strictEqual(lastUsedAt, connectedAt);
+          // Not used yet.
           assert.deepStrictEqual(agent, {
             id: agent!.id,
             name: "Claude Code",
@@ -127,7 +137,49 @@ describe("GET /v1/me/agents", () => {
             app: "health",
             connectedAt,
             lastUsedAt,
+            firstUsedAt: null,
           } as AgentBody);
+        }),
+      preview,
+    ),
+  );
+
+  it.live("records an agent's first read at once, which listing tools doesn't count as", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const ada = yield* signIn;
+          const agent = yield* connect(handler, ada.userId);
+          const used = Effect.gen(function* () {
+            const [listed] = agentsOf(
+              (yield* app(handler, ada.accessToken, "GET", "/v1/me/agents")).body,
+            );
+            return listed as unknown as {
+              readonly connectedAt: number;
+              readonly lastUsedAt: number;
+              readonly firstUsedAt: number | null;
+            };
+          });
+          // Agents list the tools as they connect, without reading anything.
+          assert.strictEqual(
+            (yield* callMcp(handler, agent.accessToken, "tools/list")).status,
+            200,
+          );
+          const connected = yield* used;
+          assert.isNull(connected.firstUsedAt);
+          assert.strictEqual(connected.lastUsedAt, connected.connectedAt);
+
+          // A read within the first 5 minutes, which `lastUsedAt` alone would miss.
+          assert.strictEqual((yield* callSummary(handler, agent.accessToken)).status, 200);
+          const read = yield* used;
+          assert.isNotNull(read.firstUsedAt);
+          assert.isAtLeast(read.firstUsedAt!, read.connectedAt);
+          assert.strictEqual(read.lastUsedAt, read.firstUsedAt);
+
+          // Only the first is recorded.
+          yield* Effect.sleep("5 millis");
+          assert.strictEqual((yield* callSummary(handler, agent.accessToken)).status, 200);
+          assert.deepStrictEqual(yield* used, read);
         }),
       preview,
     ),

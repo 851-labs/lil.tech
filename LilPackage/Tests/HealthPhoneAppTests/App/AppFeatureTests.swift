@@ -379,6 +379,7 @@ struct AppFeatureTests {
     let agent = ConnectedAgent(
       id: "grant-1", name: "Claude", domain: "claude.ai", app: "health",
       connectedAt: Date(timeIntervalSince1970: 1_760_300_000),
+      firstUsedAt: nil,
       lastUsedAt: Date(timeIntervalSince1970: 1_760_300_000))
     await store.send(\.syncStatus.connectedAgents.revokeButtonTapped, agent) {
       $0.syncStatus.connectedAgents.alert = .confirmRevoke(agent)

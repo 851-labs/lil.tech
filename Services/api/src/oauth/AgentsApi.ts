@@ -38,10 +38,15 @@ export class ConnectedAgent extends Schema.Class<ConnectedAgent>("lil/api/oauth/
   /** Unix milliseconds. */
   connectedAt: Schema.Int,
   /**
-   * Unix milliseconds: when it last used its access, recorded at most every 5 minutes. When it
-   * connected, until then.
+   * Unix milliseconds: when it last used its access, recorded at most every 5 minutes, and at its
+   * first tool call. When it connected, until then.
    */
   lastUsedAt: Schema.Int,
+  /**
+   * Unix milliseconds: when it first called a tool (read anything), recorded exactly. `null` until
+   * it does: show it as not used yet.
+   */
+  firstUsedAt: Schema.NullOr(Schema.Int),
 }) {}
 
 export class ConnectedAgents extends Schema.Class<ConnectedAgents>("lil/api/oauth/ConnectedAgents")(

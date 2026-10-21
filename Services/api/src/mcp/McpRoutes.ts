@@ -1,4 +1,4 @@
-import { Effect, Option } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { Headers, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { Deployment } from "../Deployment.ts";
 import { AgentTokens, type InvalidAgentToken } from "../oauth/AgentTokens.ts";
@@ -40,6 +40,14 @@ const challenge = (
       ? []
       : [`error="${error.code}"`, `error_description="${error.description}"`]),
   ].join(", ");
+
+/**
+ * A request body that's a tool call: an agent reading. The protocols served have no JSON-RPC
+ * batches, so a body is one message.
+ */
+const decodeToolCall = Schema.decodeUnknownOption(
+  Schema.fromJsonString(Schema.Struct({ method: Schema.Literal("tools/call") })),
+);
 
 const tokenRefused = (reason: InvalidAgentToken["reason"]) => ({
   code: "invalid_token",
@@ -126,6 +134,10 @@ const mcpRoute = (key: AgentResource) =>
           : Option.some(Option.none<string>());
       if (Option.isNone(body)) return HttpServerResponse.empty({ status: 400 });
       if (request.method === "POST" && Option.isNone(body.value)) return tooLarge;
+      // An agent's first read, which the apps show, even within minutes of connecting.
+      if (Option.isSome(body.value) && Option.isSome(decodeToolCall(body.value.value))) {
+        yield* tokens.recordFirstUse(grant);
+      }
       // Set here, over any a client sent; the token itself stays with the Worker.
       const headers = Headers.setAll(Headers.remove(request.headers, "authorization"), {
         [agentGrantHeader]: grant.id,

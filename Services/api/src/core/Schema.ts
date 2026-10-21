@@ -266,7 +266,11 @@ export const agentGrants = sqliteTable(
     scopes: text({ mode: "json" }).$type<ReadonlyArray<string>>().notNull(),
     resource: text().notNull(),
     createdAt: integer("created_at").notNull(),
+    // Any request to the MCP server, recorded at most every 5 minutes: the connection time until
+    // then, or until the first tool call.
     lastUsedAt: integer("last_used_at").notNull(),
+    // The first tool call, recorded exactly (851-2872). Null until the agent reads anything.
+    firstUsedAt: integer("first_used_at"),
   },
   (table) => [
     index("agent_grants_user_id").on(table.userId),

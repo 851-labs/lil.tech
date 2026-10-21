@@ -12,14 +12,17 @@ enum ConnectedAgentsPreviewData {
   static let claude = ConnectedAgent(
     id: "grant-1", name: "Claude", domain: "claude.ai", app: "health",
     connectedAt: Date(timeIntervalSince1970: 1_760_900_000),
+    firstUsedAt: Date(timeIntervalSince1970: 1_760_900_060),
     lastUsedAt: Date.now.addingTimeInterval(-2 * 3600))
   static let digest = ConnectedAgent(
     id: "grant-2", name: "Weekly Health Digest", domain: nil, app: "health",
     connectedAt: Date(timeIntervalSince1970: 1_760_800_000),
+    firstUsedAt: Date(timeIntervalSince1970: 1_760_800_060),
     lastUsedAt: Date.now.addingTimeInterval(-3 * 86_400))
   static let chatGPT = ConnectedAgent(
     id: "grant-3", name: "ChatGPT", domain: "chatgpt.com", app: "health",
     connectedAt: Date(timeIntervalSince1970: 1_760_960_000),
+    firstUsedAt: nil,
     lastUsedAt: Date(timeIntervalSince1970: 1_760_960_000))
 
   static let agents = [claude, digest, chatGPT]
@@ -115,6 +118,7 @@ private func agents(
         ConnectedAgent(
           id: "grant-4", name: nil, domain: nil, app: "health",
           connectedAt: Date(timeIntervalSince1970: 1_760_600_000),
+          firstUsedAt: nil,
           lastUsedAt: Date(timeIntervalSince1970: 1_760_600_000)),
       ])))
 }
@@ -127,11 +131,13 @@ private func agents(
           id: "grant-5",
           name: "A Very Long Agent Name That Somebody Registered For Their Own Health Dashboard",
           domain: nil, app: "health", connectedAt: Date(timeIntervalSince1970: 1_760_700_000),
+          firstUsedAt: nil,
           lastUsedAt: Date(timeIntervalSince1970: 1_760_700_000)),
         ConnectedAgent(
           id: "grant-6", name: "Health Insights Assistant for Research Studies",
           domain: "research-assistant.health-insights.example.com", app: "health",
           connectedAt: Date(timeIntervalSince1970: 1_760_650_000),
+          firstUsedAt: Date(timeIntervalSince1970: 1_760_650_060),
           lastUsedAt: Date.now.addingTimeInterval(-26 * 3600)),
       ])))
 }

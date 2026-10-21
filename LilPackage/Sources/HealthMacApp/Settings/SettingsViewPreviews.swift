@@ -150,10 +150,12 @@ private let remoteAgents = [
   ConnectedAgent(
     id: "grant-1", name: "Claude", domain: "claude.ai", app: "health",
     connectedAt: Date(timeIntervalSince1970: 1_760_900_000),
+    firstUsedAt: Date(timeIntervalSince1970: 1_760_900_060),
     lastUsedAt: Date.now.addingTimeInterval(-2 * 3600)),
   ConnectedAgent(
     id: "grant-2", name: "Weekly Health Digest", domain: nil, app: "health",
     connectedAt: Date(timeIntervalSince1970: 1_760_800_000),
+    firstUsedAt: Date(timeIntervalSince1970: 1_760_800_060),
     lastUsedAt: Date.now.addingTimeInterval(-3 * 86_400)),
 ]
 
@@ -229,10 +231,12 @@ private func remote(_ state: ConnectedAgentsFeature.State) -> some View {
           id: "grant-3",
           name: "A Very Long Agent Name That Somebody Registered For Their Own Health Dashboard",
           domain: nil, app: "health", connectedAt: Date(timeIntervalSince1970: 1_760_700_000),
+          firstUsedAt: nil,
           lastUsedAt: Date(timeIntervalSince1970: 1_760_700_000)),
         ConnectedAgent(
           id: "grant-4", name: nil, domain: nil, app: "health",
           connectedAt: Date(timeIntervalSince1970: 1_760_600_000),
+          firstUsedAt: nil,
           lastUsedAt: Date(timeIntervalSince1970: 1_760_600_000)),
       ]),
       log: remoteReads

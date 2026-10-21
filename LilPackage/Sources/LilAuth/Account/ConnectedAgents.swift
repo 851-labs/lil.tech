@@ -15,18 +15,22 @@ public struct ConnectedAgent: Equatable, Identifiable, Sendable {
   /// Which app's data it reads: "health".
   public var app: String?
   public var connectedAt: Date
-  /// When it last read anything: its connection time until it first does, and recorded at most
-  /// every few minutes.
+  /// When it first read anything (called a tool), recorded exactly. Nil until it does.
+  public var firstUsedAt: Date?
+  /// When it last used its access: its first read, then recorded at most every few minutes. Its
+  /// connection time until it first does.
   public var lastUsedAt: Date
 
   public init(
-    id: String, name: String?, domain: String?, app: String?, connectedAt: Date, lastUsedAt: Date
+    id: String, name: String?, domain: String?, app: String?, connectedAt: Date,
+    firstUsedAt: Date?, lastUsedAt: Date
   ) {
     self.id = id
     self.name = name
     self.domain = domain
     self.app = app
     self.connectedAt = connectedAt
+    self.firstUsedAt = firstUsedAt
     self.lastUsedAt = lastUsedAt
   }
 
@@ -34,16 +38,17 @@ public struct ConnectedAgent: Equatable, Identifiable, Sendable {
     self.init(
       id: agent.id, name: agent.name, domain: agent.domain, app: agent.app,
       connectedAt: Date(unixMilliseconds: agent.connectedAt),
+      firstUsedAt: agent.firstUsedAt.map(Date.init(unixMilliseconds:)),
       lastUsedAt: Date(unixMilliseconds: agent.lastUsedAt))
   }
 
   /// Whether its name is its own claim: no verified domain backs it.
   public var isUnverified: Bool { domain == nil }
 
-  /// Whether it hasn't read anything yet, as far as the server recorded: it gives the connection
-  /// time as the last use until then. Uses are recorded at most every 5 minutes, counted from the
-  /// connection, so one that read in its first 5 minutes and not since still counts as unused.
-  public var isUnused: Bool { lastUsedAt == connectedAt }
+  /// Whether it hasn't read anything yet. The server records the first read exactly (851-2872),
+  /// so one that read only in its first minutes counts as used. Listing its tools, which agents do
+  /// as they connect, isn't a read.
+  public var isUnused: Bool { firstUsedAt == nil }
 
   /// When it last read, for settings: "Not used yet", or "Last used 2 hours ago".
   public var lastUsedDescription: String {
