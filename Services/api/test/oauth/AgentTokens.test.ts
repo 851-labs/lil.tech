@@ -707,21 +707,34 @@ describe("POST /oauth/token", () => {
     );
   });
 
-  it.live("isn't in prod yet", () =>
+  it.live("is on prod's API host, not its MCP host, since the launch", () =>
     withApi(
       (handler) =>
         Effect.gen(function* () {
-          for (const path of ["/oauth/token", "/oauth/revoke"]) {
-            const response = yield* Effect.promise(() =>
+          const postTo = (url: string, body: string) =>
+            Effect.promise(() =>
               handler(
-                new Request(`https://api.lil.tech${path}`, {
+                new Request(url, {
                   method: "POST",
                   headers: { "content-type": "application/x-www-form-urlencoded" },
-                  body: "token=x",
+                  body,
                 }),
               ),
             );
-            assert.strictEqual(response.status, 404, path);
+          const refresh = "grant_type=refresh_token&refresh_token=lmr_unknown&client_id=cli_x";
+          const token = yield* postTo("https://api.lil.tech/oauth/token", refresh);
+          assert.strictEqual(token.status, 400);
+          assert.strictEqual(
+            ((yield* Effect.promise(() => token.json())) as { error: string }).error,
+            "invalid_grant",
+          );
+          assert.strictEqual(
+            (yield* postTo("https://api.lil.tech/oauth/revoke", "token=x")).status,
+            200,
+          );
+          for (const path of ["/oauth/token", "/oauth/revoke"]) {
+            const onMcp = yield* postTo(`https://mcp.lil.tech${path}`, "token=x");
+            assert.strictEqual(onMcp.status, 404, path);
           }
         }),
       { environment: "prod", version: "1" },

@@ -17,8 +17,8 @@ import {
 import { type AgentResource, agentResources, appOfResource } from "./Hosts.ts";
 
 // The apps' endpoints for connected agents (851-2852, `AgentsApi.ts`). They exist in every
-// environment, prod included, so the apps can ship before agents can connect there (851-2855):
-// until then there's nothing to list.
+// environment, prod included, so the apps could ship before agents could connect there (prod
+// since 851-2855).
 
 export const AgentsHandlers = HttpApiBuilder.group(
   Api,

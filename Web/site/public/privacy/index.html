@@ -9,7 +9,7 @@
   <body>
     <main>
       <h1>Privacy Policy</h1>
-      <p class="muted">lil health · Effective October 20, 2026</p>
+      <p class="muted">lil health · Effective October 21, 2026</p>
 
       <p>
         lil health brings your Apple Health data to the Mac. The iPhone app reads the Health data
@@ -66,8 +66,9 @@
 
       <h2>How I use it</h2>
       <p>
-        Only to provide lil health: to sync your Health data to your other devices, keep your
-        account working, and keep the service secure and within its limits.
+        Only to provide lil health: to sync your Health data to your other devices, answer the AI
+        agents you connect to your account, keep your account working, and keep the service secure
+        and within its limits.
       </p>
       <p>
         I never sell your data, never use it for advertising or marketing, and never share it with
@@ -91,7 +92,7 @@
         Google are provided by Apple and Google, under their own privacy policies.
       </p>
 
-      <h2>Command-line tools and AI agents</h2>
+      <h2>Command-line tools and AI agents on your Mac</h2>
       <p>
         lil health for Mac keeps a copy of your Health data on your Mac. Its setting “Allow
         command-line and agent access” is off unless you turn it on. While it's on, the lil-health
@@ -105,20 +106,68 @@
         access straight away, and signing out turns it off and clears the log.
       </p>
 
+      <h2 id="agents">AI agents connected to your account</h2>
+      <p>
+        You can also connect an AI agent, such as Claude, Claude Code or ChatGPT, to your lil health
+        account, so it can read your Health data from my servers, wherever it runs. This is
+        optional, and nothing can connect unless you allow it. Each time you connect an agent, lil
+        health's page asks you to sign in, shows which agent is asking, and asks for your
+        permission. Nothing is remembered between connections. How to connect one is explained at
+        <a href="/agents">lil.tech/agents</a>.
+      </p>
+      <p>
+        An agent you connect can read all of your lil health data on my servers. It can't change or
+        delete anything, and there's no way to share only some kinds of data. Agents get summaries
+        first, such as daily totals and averages, and individual records only when they ask for
+        them, a page at a time.
+      </p>
+      <p>
+        Agents send what they read to their provider's servers (for example Anthropic's or
+        OpenAI's), which may be in another country, whenever the agent asks. The provider handles it
+        under its own terms and privacy policy, not this one. I don't receive your conversations
+        with the agent or what it does with your data.
+      </p>
+      <p>What I keep about connected agents:</p>
+      <ul>
+        <li>
+          <strong>The connection,</strong> for as long as the agent stays connected: its name, the
+          website it identifies itself with (if any), where your browser returned to after you
+          allowed it, and when it connected and last read your data. A connection the agent hasn't
+          used for 90 days ends.
+        </li>
+        <li>
+          <strong>A log of what each agent read,</strong> for 90 days: which tool it used, the kinds
+          of data and dates it asked for, whether it worked, how many items went back, and when.
+          Never the answers, your Health data's values, or what it searched for. You can see the log
+          in lil health on your Mac and iPhone.
+        </li>
+        <li>
+          <strong>Your consent,</strong> each time you allow an agent or turn agent access off, as
+          proof, until you delete your account.
+        </li>
+      </ul>
+      <p>
+        To stop an agent, revoke it in lil health's settings on your Mac (Settings › Agents) or
+        iPhone (Settings › Connected Agents), or use Turn Off Agent Access to disconnect them all.
+        The agent is cut off at its next request. You can also remove it in the agent itself.
+        Revoking doesn't delete what the agent already sent to its provider: ask the provider for
+        that.
+      </p>
+
       <h2>Security</h2>
       <p>
         Your data is encrypted in transit and at rest. It isn't end-to-end encrypted: my servers can
-        read it, which is what lets them sync it between your devices. Access to it is limited to
-        running the service.
+        read it, which is what lets them sync it between your devices and answer the agents you
+        connect. Access to it is limited to running the service.
       </p>
 
       <h2>How long I keep it</h2>
       <p>
         For as long as you have an account. You can delete your account from the iPhone app (Delete
-        Account), which deletes your Health data, your account and your devices from my servers
-        straight away. Backups that allow recovery from mistakes keep it for up to 30 more days, and
-        then it's gone. Deleting your account doesn't change anything in Apple Health on your
-        iPhone.
+        Account), which deletes your Health data, your account, your devices and your connected
+        agents from my servers straight away. Backups that allow recovery from mistakes keep it for
+        up to 30 more days, and then it's gone. Deleting your account doesn't change anything in
+        Apple Health on your iPhone.
       </p>
       <p>
         Signing out of a device removes that device from your account, along with the step-count and
@@ -145,6 +194,12 @@
           withdraw it at any time in the app, or by turning off lil health's access in Settings ›
           Privacy &amp; Security › Health and deleting your account. Withdrawing doesn't affect what
           was processed before.
+        </li>
+        <li>
+          <strong>Sharing Health data with AI agents you connect:</strong> your explicit consent
+          (Articles 6(1)(a) and 9(2)(a) GDPR), which you give on lil health's page each time you
+          connect one. You can withdraw it at any time with Turn Off Agent Access in the app.
+          Withdrawing doesn't affect what was shared before.
         </li>
         <li>
           <strong>Your account and devices:</strong> providing the service you asked for (Article

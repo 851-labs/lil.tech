@@ -22,11 +22,11 @@ export const healthConsentPolicyVersion = "2026-10-15";
 
 /**
  * The privacy policy version that consent to an app's agents is recorded against, separate from
- * Health consent's, so asking for it never asks anyone to consent to Health again. The launch
- * (851-2855) moves it to the policy that describes remote agents, before prod has them.
+ * Health consent's, so asking for it never asks anyone to consent to Health again: the policy
+ * that describes agents connected to the account (851-2855).
  */
 export const agentsConsentPolicyVersions = {
-  "agents:health": "2026-10-20",
+  "agents:health": "2026-10-21",
 } as const satisfies Record<Extract<ConsentType, `agents:${string}`>, string>;
 
 /** A consent in force. */

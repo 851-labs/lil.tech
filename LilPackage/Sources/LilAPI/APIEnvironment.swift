@@ -25,15 +25,6 @@ public enum APIEnvironment: Hashable, Sendable {
     }
   }
 
-  /// Whether its MCP servers and OAuth routes are up, so agents can connect: staging and previews
-  /// now, prod at launch (851-2855).
-  public var servesAgents: Bool {
-    switch self {
-    case .prod: false
-    case .staging, .preview: true
-    }
-  }
-
   /// Whether this build may talk to a deployment other than its default. Device builds carry
   /// real Health data, which must only go to prod, so only simulator and Debug Mac builds may.
   #if targetEnvironment(simulator) || (os(macOS) && DEBUG)

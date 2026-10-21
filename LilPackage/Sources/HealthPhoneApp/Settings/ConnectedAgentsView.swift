@@ -76,10 +76,7 @@ struct ConnectedAgentsView: View {
         Text("What connected agents read, and when.")
       }
 
-      // Only where agents can connect: not prod until launch (851-2855).
-      if environment.servesAgents {
-        MCPServerSection(url: environment.mcpURL(app: ConnectedAgentsFeature.app))
-      }
+      MCPServerSection(url: environment.mcpURL(app: ConnectedAgentsFeature.app))
 
       if case .loaded = store.agents {
         Section {
