@@ -62,6 +62,9 @@ struct AgentAccessForm: View {
           ProgressView()
             .controlSize(.small)
             .frame(maxWidth: .infinity)
+        } else if store.entries.isEmpty, let logFailure = store.logFailure {
+          Text(logFailure)
+            .foregroundStyle(.red)
         } else if store.entries.isEmpty {
           Text("Nothing has read your Health data yet.")
             .foregroundStyle(.secondary)
@@ -77,6 +80,12 @@ struct AgentAccessForm: View {
           if store.isEnabled {
             Button("Turn Off Access") { store.send(.turnOffButtonTapped) }
           }
+        }
+      } footer: {
+        // Below the entries last read.
+        if !store.entries.isEmpty, let logFailure = store.logFailure {
+          Text(logFailure)
+            .foregroundStyle(.red)
         }
       }
     }

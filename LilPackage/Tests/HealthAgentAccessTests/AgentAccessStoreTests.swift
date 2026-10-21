@@ -17,8 +17,24 @@ struct AgentAccessStoreTests {
   func accessIsOffUntilTurnedOnWithoutCreatingTheFile() throws {
     #expect(try store.isEnabled() == false)
     #expect(try store.entries().isEmpty)
-    try store.reset()
+    #expect(throws: AgentAccessError.off) {
+      try store.authorize(command: "summary", process: "zsh")
+    }
     #expect(!FileManager.default.fileExists(atPath: store.url.path(percentEncoded: false)))
+  }
+
+  @Test
+  func savesThatFinishOutOfOrderEndAsThePersonLeftTheSetting() throws {
+    // Turned on, then off, but the second save is written first.
+    try store.setEnabled(false, at: date(2))
+    try store.setEnabled(true, at: date(1))
+    #expect(try store.isEnabled() == false)
+
+    // Nor does a save from before signing out undo it.
+    try store.setEnabled(true, at: date(3))
+    try store.reset(at: date(5))
+    try store.setEnabled(true, at: date(4))
+    #expect(try store.isEnabled() == false)
   }
 
   @Test
@@ -59,9 +75,9 @@ struct AgentAccessStoreTests {
 
   @Test
   func resetTurnsAccessOffAndEmptiesTheLog() throws {
-    try store.setEnabled(true)
+    try store.setEnabled(true, at: date(0))
     try store.record(command: "sleep", process: "claude")
-    try store.reset()
+    try store.reset(at: date(1))
     #expect(try store.isEnabled() == false)
     #expect(try store.entries().isEmpty)
   }
@@ -70,9 +86,9 @@ struct AgentAccessStoreTests {
   func anotherConnectionSeesTheSettingAtOnce() throws {
     // As the CLI or an MCP server would, with its own store on the same folder.
     let other = AgentAccessStore(directory: directory)
-    try store.setEnabled(true)
+    try store.setEnabled(true, at: date(0))
     #expect(try other.isEnabled())
-    try store.setEnabled(false)
+    try store.setEnabled(false, at: date(1))
     #expect(throws: AgentAccessError.off) {
       try other.authorize(command: "workouts", process: "claude")
     }
@@ -83,9 +99,11 @@ struct AgentAccessStoreTests {
     #expect(AgentAccessError.off.localizedDescription.contains("Settings"))
   }
 
-  @Test
-  func namesTheCallingProcess() {
-    #expect(AgentAccessStore.callingProcess(of: getpid())?.isEmpty == false)
-    #expect(AgentAccessStore.callingProcess(of: -1) == nil)
-  }
+  #if os(macOS)
+    @Test
+    func namesTheCallingProcess() {
+      #expect(AgentAccessStore.callingProcess(of: getpid())?.isEmpty == false)
+      #expect(AgentAccessStore.callingProcess(of: -1) == nil)
+    }
+  #endif
 }

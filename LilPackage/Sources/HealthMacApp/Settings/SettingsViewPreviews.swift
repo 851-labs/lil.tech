@@ -89,11 +89,12 @@ private let agentQueries = [
 @MainActor
 private func agents(
   isEnabled: Bool = true, entries: [AgentAccessEntry] = agentQueries, isLoading: Bool = false,
-  failure: String? = nil, isSignedIn: Bool? = true
+  failure: String? = nil, logFailure: String? = nil, isSignedIn: Bool? = true
 ) -> some View {
   var state = AppFeature.State(isSignedIn: isSignedIn)
   state.agentAccess = AgentAccessFeature.State(
-    entries: entries, failure: failure, isEnabled: isEnabled, isLoading: isLoading)
+    entries: entries, failure: failure, isEnabled: isEnabled, isLoading: isLoading,
+    logFailure: logFailure)
   // `EmptyReducer`, so the pane's task doesn't replace the state shown.
   return AgentAccessSettingsView(store: Store(initialState: state) { EmptyReducer() })
     .previewFrame(width: SettingsView.width, height: SettingsView.height)
@@ -123,6 +124,12 @@ private func agents(
   agents(
     isEnabled: false, entries: [],
     failure: "lil health couldn't read or save this setting: The disk is full.")
+}
+
+#Preview("Agents: log unreadable") {
+  agents(
+    entries: [],
+    logFailure: "lil health couldn't read the access log: The database file is locked.")
 }
 
 #Preview("Agents: signed out") {

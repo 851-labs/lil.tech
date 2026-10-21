@@ -1,6 +1,7 @@
 public import ComposableArchitecture
 import Foundation
 public import HealthAgentAccess
+import HealthDatabase
 
 /// The Settings window's Agents pane (851-2840): whether the `lil-health` command and its MCP
 /// server may read the Mac's Health data, off until the person turns it on, and the log of what
@@ -12,27 +13,31 @@ public struct AgentAccessFeature {
   public struct State: Equatable {
     /// The latest queries, newest first.
     public var entries: [AgentAccessEntry]
-    /// Why the setting or the log couldn't be read or saved.
+    /// Why the setting couldn't be read or saved.
     public var failure: String?
     public var isEnabled: Bool
-    /// Until the setting has been read.
+    /// Until the setting has been read, or couldn't be.
     public var isLoading: Bool
+    /// Why the log couldn't be read, until it can be again.
+    public var logFailure: String?
 
     public init(
       entries: [AgentAccessEntry] = [], failure: String? = nil, isEnabled: Bool = false,
-      isLoading: Bool = true
+      isLoading: Bool = true, logFailure: String? = nil
     ) {
       self.entries = entries
       self.failure = failure
       self.isEnabled = isEnabled
       self.isLoading = isLoading
+      self.logFailure = logFailure
     }
   }
 
   public enum Action {
     case accessToggled(Bool)
     case entriesLoaded([AgentAccessEntry])
-    case failed(String)
+    case logFailed(String)
+    case settingFailed(String)
     case settingLoaded(Bool)
     case task
     case turnOffButtonTapped
@@ -45,6 +50,7 @@ public struct AgentAccessFeature {
 
   @Dependency(\.agentAccess) var agentAccess
   @Dependency(\.continuousClock) var clock
+  @Dependency(\.date.now) var now
 
   public init() {}
 
@@ -56,10 +62,17 @@ public struct AgentAccessFeature {
 
       case .entriesLoaded(let entries):
         state.entries = entries
+        state.logFailure = nil
         return .none
 
-      case .failed(let message):
+      case .logFailed(let message):
+        state.logFailure = message
+        return .none
+
+      case .settingFailed(let message):
         state.failure = message
+        // The toggle works again: saving may well succeed.
+        state.isLoading = false
         return .none
 
       case .settingLoaded(let isEnabled):
@@ -73,13 +86,15 @@ public struct AgentAccessFeature {
           do {
             await send(.settingLoaded(try await agentAccess.isEnabled()))
           } catch {
-            await send(.failed(Self.message(error)))
+            await send(.settingFailed(Self.settingMessage(error)))
           }
           while !Task.isCancelled {
             do {
               await send(.entriesLoaded(try await agentAccess.entries(Self.entryLimit)))
             } catch {
-              await send(.failed(Self.message(error)))
+              await send(
+                .logFailed(
+                  "lil health couldn't read the access log: \(error.localizedDescription)"))
             }
             try await clock.sleep(for: Self.refreshInterval)
           }
@@ -91,21 +106,24 @@ public struct AgentAccessFeature {
     }
   }
 
+  /// Saves the setting, dated now: saves that finish out of order end as the person left it
+  /// (`AgentAccessStore.setEnabled(_:at:)`). One that fails shows what's saved instead.
   private func setEnabled(_ isEnabled: Bool, state: inout State) -> Effect<Action> {
-    let wasEnabled = state.isEnabled
     state.isEnabled = isEnabled
     state.failure = nil
-    return .run { [agentAccess] send in
+    return .run { [agentAccess, now] send in
       do {
-        try await agentAccess.setEnabled(isEnabled)
+        try await agentAccess.setEnabled(isEnabled, now)
       } catch {
-        await send(.settingLoaded(wasEnabled))
-        await send(.failed(Self.message(error)))
+        await send(.settingFailed(Self.settingMessage(error)))
+        if let saved = try? await agentAccess.isEnabled() {
+          await send(.settingLoaded(saved))
+        }
       }
     }
   }
 
-  private static func message(_ error: any Error) -> String {
+  private static func settingMessage(_ error: any Error) -> String {
     "lil health couldn't read or save this setting: \(error.localizedDescription)"
   }
 }
@@ -113,7 +131,8 @@ public struct AgentAccessFeature {
 /// The agent access setting and log (`AgentAccessStore`), for the app.
 struct AgentAccessClient: Sendable {
   var isEnabled: @Sendable () async throws -> Bool
-  var setEnabled: @Sendable (Bool) async throws -> Void
+  /// Saves the setting as the person changed it at `date`.
+  var setEnabled: @Sendable (_ isEnabled: Bool, _ date: Date) async throws -> Void
   /// The latest entries, newest first, at most `limit`.
   var entries: @Sendable (_ limit: Int) async throws -> [AgentAccessEntry]
   /// Turns access off and empties the log, when the account signs out.
@@ -122,10 +141,10 @@ struct AgentAccessClient: Sendable {
 
 extension AgentAccessClient: DependencyKey {
   static var liveValue: Self {
-    let store = AgentAccessStore()
+    let store = AgentAccessStore(directory: HealthDatabase.macDirectory)
     return Self(
       isEnabled: { try store.isEnabled() },
-      setEnabled: { try store.setEnabled($0) },
+      setEnabled: { try store.setEnabled($0, at: $1) },
       entries: { try store.entries(limit: $0) },
       reset: { try store.reset() }
     )

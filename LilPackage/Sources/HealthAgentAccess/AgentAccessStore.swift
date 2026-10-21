@@ -6,8 +6,8 @@ import GRDB
 /// `lil-health` command and its MCP server, which check the setting before every query and log
 /// each one.
 ///
-/// Both live in a small SQLite database of their own, `AgentAccess.sqlite`, in the app's folder
-/// in Application Support, next to the health database. A file rather than the app's user
+/// Both live in a small SQLite database of their own, `AgentAccess.sqlite`, in the Mac app's
+/// folder in Application Support (`HealthDatabase.macDirectory`), next to the health database. A file rather than the app's user
 /// defaults, so a separate executable reads and writes it the same way, and SQLite so several
 /// processes can log at once. Every call opens it and closes it again: an MCP server that runs
 /// for hours sees access turned off at its next query.
@@ -18,63 +18,45 @@ public struct AgentAccessStore: Sendable {
   /// The database's file name, in `directory`.
   public static let fileName = "AgentAccess.sqlite"
 
-  /// The app's own folder in Application Support, where the app keeps its health database. By
-  /// bundle ID, which a command-line tool doesn't have, so it's spelled out.
-  public static var defaultDirectory: URL {
-    URL.applicationSupportDirectory.appending(path: "tech.lil.health", directoryHint: .isDirectory)
-  }
-
   /// How many entries the log keeps: the oldest go as new ones come.
   public static let logLimit = 1_000
 
   /// The database file.
   public let url: URL
 
-  public init(directory: URL = Self.defaultDirectory) {
+  public init(directory: URL) {
     url = directory.appending(path: Self.fileName)
   }
 
   /// Whether access is on. Off until the app turns it on, including when there's no file yet.
   public func isEnabled() throws -> Bool {
     guard exists else { return false }
-    return try open().read { db in
-      try Bool.fetchOne(db, sql: #"SELECT "isEnabled" FROM "agentAccessSetting""#) ?? false
-    }
+    return try open().read(Self.isEnabled)
   }
 
-  /// Turns access on or off. Only the app does this.
+  /// Turns access on or off, as the person did at `date`. Only the app does this. A change from
+  /// before the one saved is ignored, so saves that finish out of order end as the person left
+  /// the setting, and one made before signing out can't undo `reset`.
   public func setEnabled(_ isEnabled: Bool, at date: Date = Date()) throws {
-    try open().write { db in
-      try db.execute(
-        sql: """
-          INSERT INTO "agentAccessSetting" ("id", "isEnabled", "changedAt") VALUES (1, ?, ?)
-          ON CONFLICT ("id") DO UPDATE SET
-            "isEnabled" = excluded."isEnabled", "changedAt" = excluded."changedAt"
-          """,
-        arguments: [isEnabled, date.timeIntervalSince1970])
-    }
+    try open().write { db in try Self.setEnabled(isEnabled, at: date, db) }
   }
 
   /// What a command-line tool or agent calls before each query: throws `AgentAccessError.off`
-  /// while access is off, otherwise logs the query. Call it for every query, not once at launch.
+  /// while access is off, otherwise logs the query, in one transaction. Call it for every query,
+  /// not once at launch.
   public func authorize(command: String, process: String, at date: Date = Date()) throws {
-    guard try isEnabled() else { throw AgentAccessError.off }
-    try record(command: command, process: process, at: date)
+    // No file: off, and nothing to create.
+    guard exists else { throw AgentAccessError.off }
+    try open().write { db in
+      guard try Self.isEnabled(db) else { throw AgentAccessError.off }
+      try Self.record(command: command, process: process, at: date, db)
+    }
   }
 
   /// Logs a query: the command or MCP tool with its arguments (never what it answered), and the
-  /// process that asked.
+  /// process that asked. `authorize` does this once it has checked access.
   public func record(command: String, process: String, at date: Date = Date()) throws {
-    try open().write { db in
-      try db.execute(
-        sql: #"INSERT INTO "agentAccessLog" ("date", "command", "process") VALUES (?, ?, ?)"#,
-        arguments: [date.timeIntervalSince1970, command, process])
-      try db.execute(
-        sql: """
-          DELETE FROM "agentAccessLog" WHERE "id" <= (SELECT max("id") FROM "agentAccessLog") - ?
-          """,
-        arguments: [Self.logLimit])
-    }
+    try open().write { db in try Self.record(command: command, process: process, at: date, db) }
   }
 
   /// The log's latest entries, newest first. Empty when there's no file yet.
@@ -98,11 +80,41 @@ public struct AgentAccessStore: Sendable {
   }
 
   /// Turns access off and empties the log, when the account signs out: the next account decides
-  /// for itself.
+  /// for itself. Creates the file if there's none, so a save from before that's still running
+  /// can't turn access on after it.
   public func reset(at date: Date = Date()) throws {
-    guard exists else { return }
-    try setEnabled(false, at: date)
-    try open().write { db in try db.execute(sql: #"DELETE FROM "agentAccessLog""#) }
+    try open().write { db in
+      try Self.setEnabled(false, at: date, db)
+      try db.execute(sql: #"DELETE FROM "agentAccessLog""#)
+    }
+  }
+
+  private static func isEnabled(_ db: Database) throws -> Bool {
+    try Bool.fetchOne(db, sql: #"SELECT "isEnabled" FROM "agentAccessSetting""#) ?? false
+  }
+
+  private static func setEnabled(_ isEnabled: Bool, at date: Date, _ db: Database) throws {
+    try db.execute(
+      sql: """
+        INSERT INTO "agentAccessSetting" ("id", "isEnabled", "changedAt") VALUES (1, ?, ?)
+        ON CONFLICT ("id") DO UPDATE SET
+          "isEnabled" = excluded."isEnabled", "changedAt" = excluded."changedAt"
+        WHERE excluded."changedAt" >= "agentAccessSetting"."changedAt"
+        """,
+      arguments: [isEnabled, date.timeIntervalSince1970])
+  }
+
+  private static func record(
+    command: String, process: String, at date: Date, _ db: Database
+  ) throws {
+    try db.execute(
+      sql: #"INSERT INTO "agentAccessLog" ("date", "command", "process") VALUES (?, ?, ?)"#,
+      arguments: [date.timeIntervalSince1970, command, process])
+    try db.execute(
+      sql: """
+        DELETE FROM "agentAccessLog" WHERE "id" <= (SELECT max("id") FROM "agentAccessLog") - ?
+        """,
+      arguments: [logLimit])
   }
 
   private var exists: Bool {
@@ -117,21 +129,18 @@ public struct AgentAccessStore: Sendable {
     configuration.busyMode = .timeout(5)
     let database = try DatabaseQueue(
       path: url.path(percentEncoded: false), configuration: configuration)
-    try Self.migrator.migrate(database)
-    return database
-  }
-
-  private static var migrator: DatabaseMigrator {
-    var migrator = DatabaseMigrator()
-    migrator.registerMigration("Create agent access") { db in
+    // `IF NOT EXISTS` rather than a migrator, whose check of what's applied isn't in the same
+    // transaction as applying it, so two processes opening a new file could both create the
+    // tables. A later change to the schema needs the same care.
+    try database.write { db in
       try db.execute(
         sql: """
-          CREATE TABLE "agentAccessSetting" (
+          CREATE TABLE IF NOT EXISTS "agentAccessSetting" (
             "id" INTEGER PRIMARY KEY NOT NULL CHECK ("id" = 1),
             "isEnabled" INTEGER NOT NULL,
             "changedAt" REAL NOT NULL
           ) STRICT;
-          CREATE TABLE "agentAccessLog" (
+          CREATE TABLE IF NOT EXISTS "agentAccessLog" (
             "id" INTEGER PRIMARY KEY AUTOINCREMENT,
             "date" REAL NOT NULL,
             "command" TEXT NOT NULL,
@@ -139,7 +148,7 @@ public struct AgentAccessStore: Sendable {
           ) STRICT;
           """)
     }
-    return migrator
+    return database
   }
 }
 
