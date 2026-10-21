@@ -1,6 +1,6 @@
 # Releasing
 
-Apps ship as signed, notarized DMGs on GitHub Releases, and update through Sparkle. See the Distribution section of `docs/DECISIONS.md` for why.
+Apps ship as signed, notarized DMGs on GitHub Releases, and update through Sparkle. See `docs/decisions/distribution.md` for why.
 
 ## One-time setup
 
