@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Option } from "effect";
+import type { ConsentType } from "../../src/core/Consents.ts";
+import { agentGrants } from "../../src/core/Schema.ts";
 import { eq } from "drizzle-orm";
 import { agentsConsentPolicyVersions, Consents } from "../../src/core/Consents.ts";
 import { sha256Hex } from "../../src/auth/Tokens.ts";
@@ -22,7 +24,7 @@ import {
   testGoogleWebClientSecret,
 } from "../auth/TestGoogle.ts";
 import { type Handler, withApi } from "../TestApi.ts";
-import { pkce, storeClaudeCode } from "./TestAgents.ts";
+import { pkce, storeClaudeCode, WithMail } from "./TestAgents.ts";
 
 const preview: Deployment["Service"] = { environment: "preview", version: "1" };
 const staging: Deployment["Service"] = { environment: "staging", version: "1" };
@@ -161,7 +163,13 @@ const decide = (
     Effect.map(({ response }) => response),
   );
 
-const exchangeCode = (handler: Handler, clientId: string, code: string, verifier: string) =>
+const exchangeCode = (
+  handler: Handler,
+  clientId: string,
+  code: string,
+  verifier: string,
+  resource = `${origin}/health`,
+) =>
   Effect.promise(async () => {
     const response = await handler(
       new Request(`${origin}/oauth/token`, {
@@ -173,7 +181,7 @@ const exchangeCode = (handler: Handler, clientId: string, code: string, verifier
           code,
           redirect_uri: redirectUri,
           code_verifier: verifier,
-          resource: `${origin}/health`,
+          resource,
         }).toString(),
       }),
     );
@@ -1277,6 +1285,214 @@ describe("Signing in with Apple and Google on the authorization page", () => {
   );
 });
 
+describe("Authorizing the combined server", () => {
+  /** The stored authorization's resource and scopes. */
+  const storedRequest = (request: string) =>
+    Effect.gen(function* () {
+      const [row] = yield* CoreDb.use((db) =>
+        db
+          .select({ resource: agentAuthorizations.resource, scopes: agentAuthorizations.scopes })
+          .from(agentAuthorizations)
+          .where(eq(agentAuthorizations.id, request as never)),
+      );
+      return row;
+    }).pipe(Effect.orDie);
+
+  /** The agents consents `e2e` has given, by type. */
+  const consentsOf = (types: ReadonlyArray<string>) =>
+    Effect.gen(function* () {
+      const user = Option.getOrThrow(yield* Users.use((users) => users.findSynthetic("e2e")));
+      const given: Record<string, string | null> = {};
+      for (const type of types) {
+        const found = yield* Consents.use((consents) =>
+          consents.current(user.id, type as ConsentType),
+        );
+        given[type] = Option.getOrNull(Option.map(found, (consent) => consent.policyVersion));
+      }
+      return given;
+    }).pipe(Effect.orDie);
+
+  it.live("lists every app, records each one's consent, and grants a token for it", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const clientId = yield* registerClient(handler);
+          const { search, verifier } = query(clientId, { resource: origin });
+          const started = yield* signedIn(handler, search);
+          assert.deepStrictEqual(yield* storedRequest(started.request), {
+            resource: origin,
+            scopes: ["health:read"],
+          });
+          assert.include(started.html, "Sign in to connect MCP Inspector to lil");
+          const html = started.consent.html;
+          assert.include(html, "Allow MCP Inspector to read your lil data?");
+          assert.include(html, "all of your data in these lil apps: lil health");
+          assert.include(html, "Agents may send what they read to their AI provider");
+          assert.include(html, "https://lil.tech/privacy#agents");
+          assert.include(html, '<ul class="apps">');
+          assert.include(html, "<span>lil health</span>");
+          assert.notInclude(html, "your other lil apps' data isn't included");
+
+          const allowed = yield* decide(handler, started, "allow");
+          assert.strictEqual(allowed.status, 303);
+          const code = location(allowed).searchParams.get("code") ?? "";
+          // Some clients send the combined server's URL with a trailing slash.
+          const tokens = yield* exchangeCode(handler, clientId, code, verifier, `${origin}/`);
+          assert.strictEqual(tokens.status, 200);
+          assert.strictEqual(tokens.body["scope"], "health:read");
+          const grants = yield* CoreDb.use((db) =>
+            db
+              .select({ resource: agentGrants.resource, scopes: agentGrants.scopes })
+              .from(agentGrants),
+          ).pipe(Effect.orDie);
+          assert.deepStrictEqual(grants, [{ resource: origin, scopes: ["health:read"] }]);
+          assert.deepStrictEqual(yield* consentsOf(["agents:health"]), {
+            "agents:health": agentsConsentPolicyVersions["agents:health"],
+          });
+        }),
+      preview,
+    ),
+  );
+
+  it.live("takes the combined server's URL with a trailing slash, stored without it", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const clientId = yield* registerClient(handler);
+          const started = yield* start(handler, query(clientId, { resource: `${origin}/` }).search);
+          assert.strictEqual(started.response.status, 200);
+          assert.deepStrictEqual(yield* storedRequest(started.request), {
+            resource: origin,
+            scopes: ["health:read"],
+          });
+          // Only one slash: anything else isn't the combined server.
+          for (const resource of [`${origin}//`, `${origin}/?`, `${origin}/x`]) {
+            const { response } = yield* fetchWith(
+              handler,
+              new Request(`${origin}/oauth/authorize?${query(clientId, { resource }).search}`),
+            );
+            assert.strictEqual(
+              location(response).searchParams.get("error"),
+              "invalid_target",
+              resource,
+            );
+          }
+        }),
+      preview,
+    ),
+  );
+
+  it.live("lets the scopes choose the apps, and records the consent of each one allowed", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const clientId = yield* registerClient(handler);
+          const cases: ReadonlyArray<
+            readonly [string | undefined, ReadonlyArray<string>, ReadonlyArray<string>]
+          > = [
+            [undefined, ["health:read", "mail:read"], ["lil health", "lil mail"]],
+            // Unknown scopes are dropped, so none left means every app's.
+            ["openid profile", ["health:read", "mail:read"], ["lil health", "lil mail"]],
+            ["mail:read", ["mail:read"], ["lil mail"]],
+            // The page lists them in the registry's order.
+            [
+              "mail:read openid health:read",
+              ["mail:read", "health:read"],
+              ["lil health", "lil mail"],
+            ],
+          ];
+          for (const [scope, scopes, apps] of cases) {
+            const started = yield* signedIn(
+              handler,
+              query(clientId, { resource: origin, scope }).search,
+            );
+            assert.deepStrictEqual(yield* storedRequest(started.request), {
+              resource: origin,
+              scopes,
+            });
+            const listed = [
+              ...started.consent.html.matchAll(/<li>.*?<span>([^<]+)<\/span><\/li>/gs),
+            ].map((match) => match[1]);
+            assert.deepStrictEqual(listed, [...apps], String(scope));
+            assert.include(
+              started.consent.html,
+              `all of your data in these lil apps: ${apps.join(", ")}`,
+            );
+          }
+
+          // Mail alone records only mail's consent.
+          const mailOnly = yield* signedIn(
+            handler,
+            query(clientId, { resource: origin, scope: "mail:read" }).search,
+          );
+          assert.strictEqual((yield* decide(handler, mailOnly, "allow")).status, 303);
+          assert.deepStrictEqual(yield* consentsOf(["agents:health", "agents:mail"]), {
+            "agents:health": null,
+            "agents:mail": "2026-11-01",
+          });
+          // Both apps, all or nothing, record both.
+          const both = yield* signedIn(handler, query(clientId, { resource: origin }).search);
+          assert.strictEqual((yield* decide(handler, both, "allow")).status, 303);
+          assert.deepStrictEqual(yield* consentsOf(["agents:health", "agents:mail"]), {
+            "agents:health": agentsConsentPolicyVersions["agents:health"],
+            "agents:mail": "2026-11-01",
+          });
+
+          // An app's own server still only reads that app, whatever else is asked for.
+          const health = yield* signedIn(
+            handler,
+            query(clientId, { scope: "health:read mail:read" }).search,
+          );
+          assert.deepStrictEqual(yield* storedRequest(health.request), {
+            resource: `${origin}/health`,
+            scopes: ["health:read"],
+          });
+          assert.include(health.consent.html, "Allow MCP Inspector to read your lil health data?");
+          assert.notInclude(health.consent.html, '<ul class="apps">');
+        }),
+      preview,
+      RateLimits.unlimited,
+      WithMail,
+    ),
+  );
+
+  it.live("isn't in prod yet", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const clientId = yield* storeClaudeCode;
+          for (const resource of ["https://mcp.lil.tech", "https://mcp.lil.tech/"]) {
+            const { response } = yield* fetchWith(
+              handler,
+              new Request(
+                `https://api.lil.tech/oauth/authorize?${
+                  query(clientId, { resource, redirect_uri: "http://localhost:4123/callback" })
+                    .search
+                }`,
+              ),
+            );
+            assert.strictEqual(response.status, 302, resource);
+            assert.strictEqual(location(response).searchParams.get("error"), "invalid_target");
+          }
+          // lil health's own server still works.
+          const { response } = yield* fetchWith(
+            handler,
+            new Request(
+              `https://api.lil.tech/oauth/authorize?${
+                query(clientId, {
+                  resource: "https://mcp.lil.tech/health",
+                  redirect_uri: "http://localhost:4123/callback",
+                }).search
+              }`,
+            ),
+          );
+          assert.strictEqual(response.status, 200);
+        }),
+      prod,
+    ),
+  );
+});
+
 describe("The authorization page's helpers", () => {
   it("lets forms redirect to the agent's origin, or its private-use scheme", () => {
     assert.strictEqual(
@@ -1304,7 +1520,12 @@ describe("The authorization page's helpers", () => {
         redirectHost: "claude.ai",
         loopback: false,
       },
-      app: { name: "lil health", privacyUrl: "https://lil.tech/privacy" },
+      app: {
+        name: "lil health",
+        combined: false,
+        apps: [{ key: "health", name: "lil health" }],
+        privacyUrl: "https://lil.tech/privacy",
+      },
       binding: { request: "aau_x", csrf: "c" },
       methods: { testAccounts: false, apple: true, google: false },
     });
