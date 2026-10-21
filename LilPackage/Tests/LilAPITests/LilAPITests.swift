@@ -89,4 +89,20 @@ struct LilAPITests {
     #expect(APIEnvironment(url: "api.staging.lil.tech") == nil)
     #expect(APIEnvironment(url: "https://api.staging.lil.tech/v1/status") == .staging)
   }
+
+  @Test
+  func eachEnvironmentHasItsMCPServers() {
+    #expect(
+      APIEnvironment.prod.mcpURL(app: "health").absoluteString == "https://mcp.lil.tech/health")
+    #expect(
+      APIEnvironment.staging.mcpURL(app: "health").absoluteString
+        == "https://mcp.staging.lil.tech/health")
+    let preview = URL(string: "https://lil-api-api-pr-57-x.851.workers.dev")!
+    #expect(
+      APIEnvironment.preview(preview).mcpURL(app: "health").absoluteString
+        == "https://lil-api-api-pr-57-x.851.workers.dev/health")
+    // Prod's servers come at launch (851-2855).
+    #expect(!APIEnvironment.prod.servesAgents)
+    #expect(APIEnvironment.staging.servesAgents)
+  }
 }

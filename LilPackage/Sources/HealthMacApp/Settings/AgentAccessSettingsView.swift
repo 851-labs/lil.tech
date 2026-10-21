@@ -1,6 +1,9 @@
 import AppKit
 import ComposableArchitecture
 import HealthAgentAccess
+import HealthCatalog
+import LilAPI
+import LilAuth
 import SwiftUI
 
 /// The Agents pane: command-line and agent access, while signed in. Signed out, the Mac has no
@@ -21,14 +24,18 @@ struct AgentAccessSettingsView: View {
         Text("Sign in to lil health to let command-line tools and agents read your Health data.")
       }
     case true:
-      AgentAccessForm(store: store.scope(\.agentAccess, action: \.agentAccess))
+      AgentAccessForm(
+        store: store.scope(\.agentAccess, action: \.agentAccess),
+        connected: store.scope(\.connectedAgents, action: \.connectedAgents))
     }
   }
 }
 
-/// The setting, with what turning it on means, and the log of what read the data.
+/// The setting, with what turning it on means, and the log of what read the data on this Mac;
+/// then the remote agents connected to the account, and what they read (851-2853).
 struct AgentAccessForm: View {
   @Bindable var store: StoreOf<AgentAccessFeature>
+  @Bindable var connected: StoreOf<ConnectedAgentsFeature>
 
   var body: some View {
     Form {
@@ -91,9 +98,13 @@ struct AgentAccessForm: View {
             .foregroundStyle(.red)
         }
       }
+
+      ConnectedAgentsSections(store: connected)
     }
     .formStyle(.grouped)
     .task { await store.send(.task).finish() }
+    .onAppear { connected.send(.appeared) }
+    .alert($connected.scope(\.alert, action: \.alert))
   }
 }
 
@@ -186,5 +197,187 @@ struct CopyableRow: View {
       }
       .help("Copy \(value)")
     }
+  }
+}
+
+/// Remote agents (851-2853): those connected to the account through lil health's MCP server,
+/// revoking them, how to connect one, and what they read.
+struct ConnectedAgentsSections: View {
+  let store: StoreOf<ConnectedAgentsFeature>
+
+  /// The deployment the app talks to, read once.
+  private static let environment = APIEnvironment.current()
+
+  var body: some View {
+    Section {
+      switch store.agents {
+      case .loading:
+        ProgressView()
+          .controlSize(.small)
+          .frame(maxWidth: .infinity)
+      case .failed(let message):
+        HStack {
+          Text(message)
+            .foregroundStyle(.red)
+          Spacer()
+          Button("Try Again") { store.send(.retryButtonTapped) }
+        }
+      case .loaded(let agents) where agents.isEmpty:
+        Text("No agents are connected.")
+          .foregroundStyle(.secondary)
+      case .loaded(let agents):
+        ForEach(agents) { agent in
+          ConnectedAgentRow(
+            agent: agent, isRevoking: store.revoking.contains(agent.id),
+            revoke: { store.send(.revokeButtonTapped(agent)) })
+        }
+      }
+    } header: {
+      HStack {
+        Text("Remote Agents")
+        Spacer()
+        if store.isTurningOff {
+          ProgressView()
+            .controlSize(.small)
+        } else if case .loaded = store.agents {
+          Button("Turn Off Agent Access…") { store.send(.turnOffButtonTapped) }
+        }
+      }
+    } footer: {
+      if let failure = store.failure {
+        Text(failure)
+          .foregroundStyle(.red)
+      } else {
+        Text(
+          "Agents you allow read all of your lil health data from lil health's servers, from anywhere, until you revoke them."
+        )
+        .foregroundStyle(.secondary)
+      }
+    }
+
+    // Only where agents can connect: not prod until launch (851-2855).
+    if Self.environment.servesAgents {
+      Section {
+        CopyableRow(
+          title: "MCP server URL",
+          value: Self.environment.mcpURL(app: "health").absoluteString)
+      } header: {
+        Text("Connect a Remote Agent")
+      } footer: {
+        Text(
+          "Add this URL to your agent as a remote MCP server (a connector), then sign in to lil health when it asks, and allow it."
+        )
+        .foregroundStyle(.secondary)
+      }
+    }
+
+    Section {
+      if store.log.isEmpty, store.isLoadingLog {
+        ProgressView()
+          .controlSize(.small)
+          .frame(maxWidth: .infinity)
+      } else if store.log.isEmpty, let failure = store.logFailure {
+        Text(failure)
+          .foregroundStyle(.red)
+      } else if store.log.isEmpty {
+        Text("No remote agent has read your data yet.")
+          .foregroundStyle(.secondary)
+      } else {
+        ForEach(store.log) { entry in
+          RemoteAccessRow(entry: entry)
+        }
+        if store.isLoadingLog {
+          ProgressView()
+            .controlSize(.small)
+            .frame(maxWidth: .infinity)
+        } else if let failure = store.logFailure {
+          Text(failure)
+            .foregroundStyle(.red)
+        } else if store.logNextBefore != nil {
+          Button("Show More") { store.send(.loadMoreLogButtonTapped) }
+            .frame(maxWidth: .infinity)
+        }
+      }
+    } header: {
+      Text("Remote Access Log")
+    }
+  }
+}
+
+/// A connected agent: its name (marked when unverified), domain, when it connected and last read,
+/// and Revoke….
+struct ConnectedAgentRow: View {
+  let agent: ConnectedAgent
+  let isRevoking: Bool
+  let revoke: () -> Void
+
+  private static let date = Date.FormatStyle.dateTime.month(.abbreviated).day().year()
+
+  var body: some View {
+    HStack(alignment: .firstTextBaseline) {
+      VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 6) {
+          Text(ConnectedAgentsFeature.name(agent))
+            .lineLimit(1)
+            .truncationMode(.tail)
+          if agent.isUnverified {
+            Text("Unverified")
+              .font(.caption.weight(.medium))
+              .foregroundStyle(.orange)
+              .padding(.horizontal, 5)
+              .padding(.vertical, 1)
+              .background(.orange.opacity(0.15), in: Capsule())
+              .help("It registered itself, so lil health can't confirm who made it.")
+          }
+        }
+        Text(agent.domain ?? "No verified website")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text("Connected \(agent.connectedAt.formatted(Self.date)) · \(lastUsed)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer()
+      if isRevoking {
+        ProgressView()
+          .controlSize(.small)
+      } else {
+        Button("Revoke…", action: revoke)
+      }
+    }
+  }
+}
+
+extension ConnectedAgentRow {
+  /// When it last read: the server gives the connection time until it first does.
+  fileprivate var lastUsed: String {
+    abs(agent.lastUsedAt.timeIntervalSince(agent.connectedAt)) < 1
+      ? "Not used yet"
+      : "Last used \(agent.lastUsedAt.formatted(.relative(presentation: .named)))"
+  }
+}
+
+/// A read in the remote access log: the tool with what it asked for, which agent, and when.
+struct RemoteAccessRow: View {
+  let entry: RemoteAgentAccess
+
+  var body: some View {
+    LabeledContent {
+      Text(entry.at, format: .dateTime.month(.abbreviated).day().hour().minute())
+        .monospacedDigit()
+    } label: {
+      Text(Self.request(entry))
+        .font(.body.monospaced())
+        .lineLimit(1)
+        .truncationMode(.middle)
+      Text(entry.outcome == "ok" ? entry.agentName : "\(entry.agentName) · \(entry.outcome)")
+    }
+  }
+
+  /// The tool and what it asked for: "get_metric Steps W".
+  static func request(_ entry: RemoteAgentAccess) -> String {
+    let types = entry.types.map { id in HealthCatalog.type(id: id)?.name ?? id }
+    return ([entry.tool] + types + [entry.range, entry.date].compactMap { $0 }).joined(
+      separator: " ")
   }
 }

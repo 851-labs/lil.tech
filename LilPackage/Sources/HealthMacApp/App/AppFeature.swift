@@ -26,6 +26,8 @@ public struct AppFeature {
     public var account = AccountFeature.State()
     /// Command-line and agent access, in the Settings window's Agents pane.
     public var agentAccess = AgentAccessFeature.State()
+    /// Remote agents connected to the account, in the Agents pane. Kept here, like `account`.
+    public var connectedAgents = ConnectedAgentsFeature.State()
     /// Pins from before they synced, moved up when sync starts (`movePinsUp`).
     @Shared(.summaryPins) var localPins: [String]
 
@@ -63,6 +65,7 @@ public struct AppFeature {
     case signIn(SignInFeature.Action)
     case account(AccountFeature.Action)
     case agentAccess(AgentAccessFeature.Action)
+    case connectedAgents(ConnectedAgentsFeature.Action)
     case signOutButtonTapped
     case summary(SummaryFeature.Action)
     case syncStatusChanged(SyncStatus)
@@ -108,6 +111,9 @@ public struct AppFeature {
     Scope(\.agentAccess, action: \.agentAccess) {
       AgentAccessFeature()
     }
+    Scope(\.connectedAgents, action: \.connectedAgents) {
+      ConnectedAgentsFeature()
+    }
     Reduce { state, action in
       switch action {
       case .binding:
@@ -131,6 +137,7 @@ public struct AppFeature {
         state.syncStatus = .idle
         state.account = AccountFeature.State()
         state.agentAccess = AgentAccessFeature.State()
+        state.connectedAgents = ConnectedAgentsFeature.State()
         // Pins are the account's choice, like its data, and leave with it.
         state.summary = SummaryFeature.State()
         state.$localPins.withLock { $0 = [] }
@@ -143,6 +150,7 @@ public struct AppFeature {
           .cancel(id: SummaryFeature.CancelID.write),
           // What the Settings window started for the account stops with it.
           AccountFeature.cancel(),
+          ConnectedAgentsFeature.cancel(),
           .run { [agentAccess, sync, blobCache] send in
             // First, so it's done even if the database can't be.
             await blobCache.removeAll()
@@ -171,6 +179,9 @@ public struct AppFeature {
         return .none
 
       case .agentAccess:
+        return .none
+
+      case .connectedAgents:
         return .none
 
       case .summary:

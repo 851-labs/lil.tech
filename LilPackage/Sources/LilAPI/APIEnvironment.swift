@@ -15,6 +15,25 @@ public enum APIEnvironment: Hashable, Sendable {
     }
   }
 
+  /// An app's remote MCP server, the URL people paste into an agent: `https://mcp.lil.tech/health`
+  /// (`mcp.staging.lil.tech` on staging, the deployment's own host on a preview).
+  public func mcpURL(app: String) -> URL {
+    switch self {
+    case .prod: URL(string: "https://mcp.lil.tech")!.appending(path: app)
+    case .staging: URL(string: "https://mcp.staging.lil.tech")!.appending(path: app)
+    case .preview(let url): url.appending(path: app)
+    }
+  }
+
+  /// Whether its MCP servers and OAuth routes are up, so agents can connect: staging and previews
+  /// now, prod at launch (851-2855).
+  public var servesAgents: Bool {
+    switch self {
+    case .prod: false
+    case .staging, .preview: true
+    }
+  }
+
   /// Whether this build may talk to a deployment other than its default. Device builds carry
   /// real Health data, which must only go to prod, so only simulator and Debug Mac builds may.
   #if targetEnvironment(simulator) || (os(macOS) && DEBUG)
