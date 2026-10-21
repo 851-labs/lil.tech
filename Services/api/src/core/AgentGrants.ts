@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Option, Schema } from "effect";
-import { and, eq, gt, inArray, isNotNull, isNull, lt, lte, notExists, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, lt, lte, notExists, or } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
 import { CoreDb, first, query } from "./CoreDb.ts";
 import { AgentAuthorizationId, AgentGrantId, UserId } from "./Ids.ts";
@@ -47,10 +47,19 @@ export class PendingAuthorization extends Schema.Class<PendingAuthorization>(
   userId: Schema.NullOr(UserId),
   /** The signed-in user's name, if they have one. */
   userName: Schema.NullOr(Schema.String),
-  decided: Schema.Boolean,
+  /** Set once it's allowed. */
+  codeHash: Schema.NullOr(Schema.String),
+  codeExpiresAt: Schema.NullOr(Schema.Number),
+  /** Set once its code is redeemed. */
+  usedAt: Schema.NullOr(Schema.Number),
   clientName: Schema.NullOr(Schema.String),
   clientKind: Schema.Literals(["cimd", "dcr"]),
-}) {}
+}) {
+  /** Whether it was allowed (Cancel deletes it). */
+  get decided() {
+    return this.codeHash !== null;
+  }
+}
 
 /** A new authorization request, before anyone has signed in. */
 export interface NewAgentAuthorization {
@@ -248,9 +257,9 @@ export class AgentGrants extends Context.Service<
                   expiresAt: agentAuthorizations.expiresAt,
                   userId: agentAuthorizations.userId,
                   userName: users.displayName,
-                  decided: sql<boolean>`${agentAuthorizations.codeHash} IS NOT NULL`.mapWith(
-                    Boolean,
-                  ),
+                  codeHash: agentAuthorizations.codeHash,
+                  codeExpiresAt: agentAuthorizations.codeExpiresAt,
+                  usedAt: agentAuthorizations.usedAt,
                   clientName: oauthClients.name,
                   clientKind: oauthClients.kind,
                 })

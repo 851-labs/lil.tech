@@ -12,6 +12,12 @@ export const requestOrigin = (request: HttpServerRequest.HttpServerRequest) => {
   }
 };
 
+/** A URL's query, without the `?`: everything after the first, since a query may hold more. */
+export const queryOf = (url: string) => {
+  const start = url.indexOf("?");
+  return start === -1 ? "" : (url.slice(start + 1).split("#", 1)[0] ?? "");
+};
+
 /** The request's path, without its query. */
 export const requestPath = (request: HttpServerRequest.HttpServerRequest) =>
   request.url.split("?", 1)[0] ?? "/";

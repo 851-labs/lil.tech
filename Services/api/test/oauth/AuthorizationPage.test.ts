@@ -6,8 +6,10 @@ import { CoreDb } from "../../src/core/CoreDb.ts";
 import { agentAuthorizations } from "../../src/core/Schema.ts";
 import { Users } from "../../src/core/Users.ts";
 import type { Deployment } from "../../src/Deployment.ts";
+import type { AgentAuthorizationId } from "../../src/core/Ids.ts";
 import { browserCookie } from "../../src/oauth/AuthorizationPage.ts";
 import { escape, formActionSource } from "../../src/oauth/AuthorizationPages.ts";
+import { queryOf } from "../../src/oauth/Requests.ts";
 import { type RateLimitCounter, RateLimits } from "../../src/RateLimits.ts";
 import { type Handler, withApi } from "../TestApi.ts";
 import { pkce, storeClaudeCode } from "./TestAgents.ts";
@@ -70,7 +72,10 @@ const binding = (html: string) => ({
   csrf: /name="csrf" value="([^"]+)"/.exec(html)?.[1] ?? "",
 });
 
-/** A browser starting an authorization: its cookie, and the sign-in page's binding. */
+/**
+ * A browser starting an authorization: its cookie (as a `Cookie` header), and the sign-in page's
+ * binding.
+ */
 const start = (handler: Handler, search: string, base = origin) =>
   Effect.gen(function* () {
     const { response, html } = yield* fetchWith(
@@ -78,7 +83,7 @@ const start = (handler: Handler, search: string, base = origin) =>
       new Request(`${base}/oauth/authorize?${search}`),
     );
     const setCookie = response.headers.get("set-cookie") ?? "";
-    const cookie = new RegExp(`${browserCookie}=([^;]+)`).exec(setCookie)?.[1] ?? "";
+    const cookie = /^(__Host-lil-agent-auth-[^=;]+=[^;]+)/.exec(setCookie)?.[1] ?? "";
     return { response, html, setCookie, cookie, ...binding(html) };
   });
 
@@ -95,7 +100,7 @@ const post = (
       method: "POST",
       headers: {
         "content-type": "application/x-www-form-urlencoded",
-        ...(cookie === null ? {} : { cookie: `${browserCookie}=${cookie}` }),
+        ...(cookie === null ? {} : { cookie }),
       },
       body: new URLSearchParams(fields).toString(),
       redirect: "manual",
@@ -106,7 +111,7 @@ const getConsent = (handler: Handler, request: string, cookie: string | null) =>
   fetchWith(
     handler,
     new Request(`${origin}/oauth/authorize/consent?request=${request}`, {
-      headers: cookie === null ? {} : { cookie: `${browserCookie}=${cookie}` },
+      headers: cookie === null ? {} : { cookie },
     }),
   );
 
@@ -170,7 +175,11 @@ describe("The authorization page", () => {
           assert.include(started.html, "Sign in to a Test Account");
           assert.include(started.html, 'value="e2e"');
           // The cookie that binds the request to this browser.
-          assert.match(started.setCookie, new RegExp(`^${browserCookie}=`));
+          assert.isTrue(
+            started.setCookie.startsWith(
+              `${browserCookie(started.request as AgentAuthorizationId)}=`,
+            ),
+          );
           for (const attribute of ["Max-Age=600", "Path=/", "HttpOnly", "Secure", "SameSite=Lax"]) {
             assert.include(started.setCookie, attribute);
           }
@@ -372,7 +381,14 @@ describe("The authorization page", () => {
           // Another browser, with its own request and cookie.
           const theirs = yield* start(handler, query(clientId).search);
           const fields = { request: mine.request, csrf: mine.csrf, account: "e2e" };
-          for (const cookie of [null, theirs.cookie, "forged"]) {
+          const myCookie = browserCookie(mine.request as AgentAuthorizationId);
+          for (const cookie of [
+            null,
+            theirs.cookie,
+            `${myCookie}=forged`,
+            // Their cookie's value under my request's name.
+            `${myCookie}=${theirs.cookie.split("=")[1]}`,
+          ]) {
             const signIn = yield* post(handler, "/oauth/authorize/sign-in", fields, cookie);
             assert.strictEqual(signIn.response.status, 400, String(cookie));
             assert.include(signIn.html, "started in another browser");
@@ -438,10 +454,9 @@ describe("The authorization page", () => {
           );
           assert.strictEqual(location(early).searchParams.get("error"), "access_denied");
 
-          // Allow works once, and every connection asks again.
+          // Once allowed, it can't be cancelled, and every connection asks again.
           const again = yield* signedIn(handler, query(clientId).search);
           assert.strictEqual((yield* decide(handler, again, "allow")).status, 303);
-          assert.strictEqual((yield* decide(handler, again, "allow")).status, 400);
           assert.strictEqual((yield* decide(handler, again, "cancel")).status, 400);
           const next = yield* start(handler, query(clientId).search);
           assert.include(next.html, "Sign in to a Test Account");
@@ -454,6 +469,55 @@ describe("The authorization page", () => {
             "allow",
           );
           assert.strictEqual(allowed.status, 400);
+        }),
+      preview,
+    ),
+  );
+
+  it.live("sends the same code again when Allow is sent twice, until it's used", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const clientId = yield* registerClient(handler);
+          const { search, verifier } = query(clientId);
+          const started = yield* signedIn(handler, search);
+          // A double click: both arrive before either answer.
+          const [first, second] = yield* Effect.all(
+            [decide(handler, started, "allow"), decide(handler, started, "allow")],
+            { concurrency: "unbounded" },
+          );
+          assert.strictEqual(first.status, 303);
+          assert.strictEqual(second.status, 303);
+          const code = location(first).searchParams.get("code") ?? "";
+          assert.strictEqual(location(second).searchParams.get("code"), code);
+          assert.strictEqual((yield* exchangeCode(handler, clientId, code, verifier)).status, 200);
+          // Used, it's never sent again.
+          assert.strictEqual((yield* decide(handler, started, "allow")).status, 400);
+        }),
+      preview,
+    ),
+  );
+
+  it.live("lets one browser have two requests going at once", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const clientId = yield* registerClient(handler);
+          const first = yield* signedIn(handler, query(clientId).search);
+          const second = yield* signedIn(handler, query(clientId).search);
+          // The browser sends both cookies with each request.
+          const both = `${first.cookie}; ${second.cookie}`;
+          for (const started of [second, first]) {
+            const allowed = yield* decide(
+              handler,
+              { cookie: both, binding: started.binding },
+              "allow",
+            );
+            assert.strictEqual(allowed.status, 303);
+            // Only its own cookie expires.
+            const expired = allowed.headers.get("set-cookie") ?? "";
+            assert.isTrue(expired.startsWith(`${started.cookie.split("=")[0]}=;`), expired);
+          }
         }),
       preview,
     ),
@@ -547,7 +611,7 @@ describe("The authorization page", () => {
             new Request(`${origin}/oauth/authorize?${query(clientId).search}`, { headers: from });
           const started = yield* fetchWith(handler, request());
           const fields = { ...binding(started.html), account: "e2e" };
-          const cookie = /=([^;]+)/.exec(started.response.headers.get("set-cookie") ?? "")?.[1];
+          const cookie = /^[^;]+/.exec(started.response.headers.get("set-cookie") ?? "")?.[0] ?? "";
           const signIn = () =>
             fetchWith(
               handler,
@@ -556,7 +620,7 @@ describe("The authorization page", () => {
                 headers: {
                   ...from,
                   "content-type": "application/x-www-form-urlencoded",
-                  cookie: `${browserCookie}=${cookie}`,
+                  cookie,
                 },
                 body: new URLSearchParams(fields).toString(),
               }),
@@ -599,6 +663,11 @@ describe("The authorization page's helpers", () => {
       "https://claude.ai",
     );
     assert.strictEqual(formActionSource("com.example.app:/oauth"), "com.example.app:");
+  });
+
+  it("reads the whole query, which may hold another ?", () => {
+    assert.strictEqual(queryOf("/oauth/authorize?state=a?b&client_id=x"), "state=a?b&client_id=x");
+    assert.strictEqual(queryOf("/oauth/authorize"), "");
   });
 
   it("escapes everything a client supplies", () => {

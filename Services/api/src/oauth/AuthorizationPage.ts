@@ -2,7 +2,7 @@ import { Clock, Duration, Effect, Option, Schema } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import type { SqlError } from "effect/sql";
 import { devSignInEnvironments, maxDevUsers, testAccount } from "../auth/DevSignIn.ts";
-import { base64url, newOpaqueToken, sha256Hex } from "../auth/Tokens.ts";
+import { base64url, sha256Hex } from "../auth/Tokens.ts";
 import { AgentGrants, type PendingAuthorization } from "../core/AgentGrants.ts";
 import { agentsConsentPolicyVersions, Consents } from "../core/Consents.ts";
 import { AgentAuthorizationId, newAgentAuthorizationId } from "../core/Ids.ts";
@@ -20,9 +20,11 @@ import {
   type AppView,
   type ClientView,
   consentPage,
+  defaultTestAccount,
   errorPage,
   type FormBinding,
   formActionSource,
+  maxAccountLength,
   pageResponse,
   signInPage,
 } from "./AuthorizationPages.ts";
@@ -34,8 +36,8 @@ import {
   resourceFor,
   resourceUrl,
 } from "./Hosts.ts";
-import { matchesRedirectUri } from "./RedirectUris.ts";
-import { readForm, readParams, requestOrigin } from "./Requests.ts";
+import { isLoopbackUri, matchesRedirectUri } from "./RedirectUris.ts";
+import { queryOf, readForm, readParams, requestOrigin } from "./Requests.ts";
 
 // The agents' authorization page (851-2849, `docs/decisions/accounts.md`, Agents):
 // `GET /oauth/authorize` checks the request and binds it to the browser, the user signs in, then
@@ -44,20 +46,18 @@ import { readForm, readParams, requestOrigin } from "./Requests.ts";
 // and every form carries a CSRF token derived from that cookie, so nobody can finish someone
 // else's request or slip theirs into someone else's browser (login CSRF).
 
-/** The cookie that binds an authorization request to the browser that started it. */
-export const browserCookie = "__Host-lil-agent-auth";
+/**
+ * The cookie that binds an authorization request to the browser that started it: one per request,
+ * so a browser can have two going at once (two agents connecting, or one that opened the page
+ * twice), and finishing one leaves the other.
+ */
+export const browserCookie = (id: AgentAuthorizationId) => `__Host-lil-agent-auth-${id}`;
 
 /** The largest form the authorization page reads. */
 const maxPageFormBytes = 4 * 1024;
 
 /** The longest `state` a client may send, which is kept and sent back. */
 export const maxStateLength = 1000;
-
-/** The longest test account name. */
-const maxAccountLength = 100;
-
-/** The test account the sign-in suggests, which the apps' test-account sign-in also uses. */
-export const defaultTestAccount = "e2e";
 
 /** An S256 PKCE challenge: a SHA-256, base64url-encoded without padding (RFC 7636 §4.2). */
 const s256Challenge = /^[A-Za-z0-9_-]{43}$/;
@@ -115,9 +115,9 @@ const backToAgent = (
   });
 };
 
-/** Sets the browser cookie, or (with `null`) expires it. */
-const withBrowserCookie = (value: string | null) =>
-  HttpServerResponse.setCookieUnsafe(browserCookie, value ?? "", {
+/** Sets a request's browser cookie, or (with `null`) expires it. */
+const withBrowserCookie = (id: AgentAuthorizationId, value: string | null) =>
+  HttpServerResponse.setCookieUnsafe(browserCookie(id), value ?? "", {
     path: "/",
     secure: true,
     httpOnly: true,
@@ -128,8 +128,8 @@ const withBrowserCookie = (value: string | null) =>
 /** A new cookie value: 32 random bytes. */
 const newBrowserSecret = Effect.sync(() => base64url(crypto.getRandomValues(new Uint8Array(32))));
 
-/** The CSRF token for a request's forms: an HMAC of its ID, keyed by the browser's cookie. */
-const csrfToken = (cookie: string, id: AgentAuthorizationId) =>
+/** An HMAC of `purpose` and a request's ID, keyed by the browser's cookie. */
+const fromCookie = (cookie: string, purpose: "csrf" | "code", id: AgentAuthorizationId) =>
   Effect.promise(async () => {
     const key = await crypto.subtle.importKey(
       "raw",
@@ -138,9 +138,19 @@ const csrfToken = (cookie: string, id: AgentAuthorizationId) =>
       false,
       ["sign"],
     );
-    const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`csrf:${id}`));
+    const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${purpose}:${id}`));
     return base64url(new Uint8Array(mac));
   });
+
+/** The CSRF token for a request's forms. */
+const csrfToken = (cookie: string, id: AgentAuthorizationId) => fromCookie(cookie, "csrf", id);
+
+/**
+ * A request's authorization code, from its browser's cookie, so allowing it twice (a double click,
+ * whose second response is the one the browser shows) sends the agent the same code again.
+ */
+const authorizationCode = (cookie: string, id: AgentAuthorizationId) =>
+  Effect.map(fromCookie(cookie, "code", id), (mac) => `lmc_${mac}`);
 
 /** Compares two strings in time that depends only on their lengths. */
 const constantTimeEquals = (a: string, b: string) => {
@@ -148,12 +158,6 @@ const constantTimeEquals = (a: string, b: string) => {
   let difference = 0;
   for (let i = 0; i < a.length; i++) difference |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return difference === 0;
-};
-
-/** Whether `uri` is `http` to this machine, so a local program gets the code. */
-const isLoopbackRedirect = (uri: string) => {
-  const url = new URL(uri);
-  return url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
 };
 
 const clientView = (
@@ -164,7 +168,7 @@ const clientView = (
   kind: client.kind,
   domain: client.kind === "cimd" ? new URL(client.id).hostname : null,
   redirectHost: redirectHost(redirectUri),
-  loopback: isLoopbackRedirect(redirectUri),
+  loopback: isLoopbackUri(redirectUri),
 });
 
 const pendingClientView = (pending: PendingAuthorization) =>
@@ -192,13 +196,15 @@ const checkRequest = Effect.fnUntraced(function* (
   hosts: AgentHosts,
   clients: OAuthClients["Service"],
 ): Effect.fn.Return<CheckedRequest, PageError | RedirectError> {
+  // Every value given, so a parameter given twice is caught even when one is empty. One without a
+  // value counts as absent (RFC 6749 §3.1).
   const values = new Map<string, Array<string>>();
   for (const [name, value] of new URLSearchParams(query)) {
-    if (value !== "") values.set(name, [...(values.get(name) ?? []), value]);
+    values.set(name, [...(values.get(name) ?? []), value]);
   }
   const one = (name: string) => {
     const given = values.get(name) ?? [];
-    return given.length === 1 ? Option.some(given[0] ?? "") : Option.none();
+    return given.length === 1 && given[0] !== "" ? Option.some(given[0] ?? "") : Option.none();
   };
   const invalid = (title: string, message: string) => pageError(400, title, message);
 
@@ -330,11 +336,10 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
     const bound = (id: string | undefined) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest;
-        const cookie = request.cookies[browserCookie];
         const decoded = Schema.decodeUnknownOption(AgentAuthorizationId)(id);
-        if (cookie === undefined || cookie === "" || Option.isNone(decoded)) {
-          return yield* notThisBrowser;
-        }
+        if (Option.isNone(decoded)) return yield* notThisBrowser;
+        const cookie = request.cookies[browserCookie(decoded.value)];
+        if (cookie === undefined || cookie === "") return yield* notThisBrowser;
         const now = yield* Clock.currentTimeMillis;
         const pending = yield* grants.findPendingAuthorization(decoded.value, now);
         if (Option.isNone(pending) || pending.value.browserHash !== (yield* sha256Hex(cookie))) {
@@ -344,7 +349,7 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
           request: pending.value.id,
           csrf: yield* csrfToken(cookie, pending.value.id),
         };
-        return { pending: pending.value, binding, now };
+        return { pending: pending.value, binding, cookie, now };
       });
 
     /** A posted step's form, if its CSRF token is its request's. */
@@ -420,7 +425,7 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
         yield* checkAddressRateLimit(limits, "signIn");
         const request = yield* HttpServerRequest.HttpServerRequest;
         const hosts = yield* hostsOf;
-        const checked = yield* checkRequest(request.url.split("?")[1] ?? "", hosts, clients);
+        const checked = yield* checkRequest(queryOf(request.url), hosts, clients);
         const now = yield* Clock.currentTimeMillis;
         const cookie = yield* newBrowserSecret;
         const id = yield* newAgentAuthorizationId;
@@ -446,7 +451,7 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
           testAccounts,
         });
         return pageResponse(html, { formActions: [formActionSource(checked.redirectUri)] }).pipe(
-          withBrowserCookie(cookie),
+          withBrowserCookie(id, cookie),
         );
       }).pipe(answerErrors),
     );
@@ -457,7 +462,7 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
       "/oauth/authorize/consent",
       Effect.gen(function* () {
         const query = yield* readParams(
-          (yield* HttpServerRequest.HttpServerRequest).url.split("?")[1] ?? "",
+          queryOf((yield* HttpServerRequest.HttpServerRequest).url),
         ).pipe(Effect.mapError(() => notThisBrowser));
         const { pending, binding } = yield* bound(query.get("request"));
         return yield* stepPage(yield* hostsOf, pending, binding);
@@ -509,13 +514,13 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
       }).pipe(answerErrors),
     );
 
-    // Allow or Cancel. Allow records the app's agents consent, then gives the request a code and
-    // sends the browser back to the agent with it. Either way, the cookie has done its job.
+    // Allow or Cancel. Allow gives the request a code, records the app's agents consent, and sends
+    // the browser back to the agent with the code. Either way, the cookie has done its job.
     yield* router.add(
       "POST",
       "/oauth/authorize/decision",
       Effect.gen(function* () {
-        const { pending, form, now } = yield* posted;
+        const { pending, form, cookie, now } = yield* posted;
         const hosts = yield* hostsOf;
         const decision = form.get("decision");
         if (decision === "cancel") {
@@ -528,28 +533,55 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
             pending.state,
             hosts.issuer,
             303,
-          ).pipe(withBrowserCookie(null));
+          ).pipe(withBrowserCookie(pending.id, null));
         }
         if (decision !== "allow") {
           return yield* pageError(400, "This form couldn't be read", "It has no decision.");
         }
-        if (pending.decided) return yield* alreadyAnswered;
-        if (pending.userId === null) return yield* notThisBrowser;
+        const userId = pending.userId;
+        if (userId === null) return yield* notThisBrowser;
         const key = yield* appOf(hosts, pending);
+        const code = yield* authorizationCode(cookie, pending.id);
+        const codeHash = yield* sha256Hex(code);
+        // What this request's code is now: just given it, or as an earlier Allow left it.
+        let current = {
+          codeHash: pending.codeHash,
+          codeExpiresAt: pending.codeExpiresAt,
+          usedAt: pending.usedAt,
+        };
+        if (!pending.decided) {
+          const approved = yield* grants.approveAuthorization({
+            id: pending.id,
+            userId,
+            grantedScopes: pending.scopes,
+            codeHash,
+            codeExpiresAt: now + authorizationCodeLifetime,
+            now,
+          });
+          if (approved) {
+            current = { codeHash, codeExpiresAt: now + authorizationCodeLifetime, usedAt: null };
+          } else {
+            // Another Allow from this browser got there first (a double click).
+            const again = yield* grants.findPendingAuthorization(pending.id, now);
+            if (Option.isNone(again)) return yield* alreadyAnswered;
+            current = again.value;
+          }
+        }
+        // Allowing twice sends the same code again, while the agent hasn't used it: the browser
+        // shows the last response, which mustn't lose the code.
+        if (
+          current.codeHash !== codeHash ||
+          current.usedAt !== null ||
+          (current.codeExpiresAt ?? 0) <= now
+        ) {
+          return yield* alreadyAnswered;
+        }
+        // Recorded once the request is allowed, so a request that wasn't has no consent. Granting
+        // again keeps the first.
         const consent = agentResources[key].consent;
-        yield* consents.grant(pending.userId, consent, agentsConsentPolicyVersions[consent]);
-        const code = yield* newOpaqueToken("lmc");
-        const approved = yield* grants.approveAuthorization({
-          id: pending.id,
-          userId: pending.userId,
-          grantedScopes: pending.scopes,
-          codeHash: yield* sha256Hex(code),
-          codeExpiresAt: now + authorizationCodeLifetime,
-          now,
-        });
-        if (!approved) return yield* alreadyAnswered;
+        yield* consents.grant(userId, consent, agentsConsentPolicyVersions[consent]);
         return backToAgent(pending.redirectUri, { code }, pending.state, hosts.issuer, 303).pipe(
-          withBrowserCookie(null),
+          withBrowserCookie(pending.id, null),
         );
       }).pipe(answerErrors),
     );

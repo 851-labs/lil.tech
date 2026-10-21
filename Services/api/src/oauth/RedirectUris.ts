@@ -44,6 +44,9 @@ export const redirectUriProblem = (uri: string): Option.Option<string> => {
     : Option.some("uses a scheme that's neither HTTPS nor reverse DNS");
 };
 
+/** Whether `uri` is `http` to this machine, so a program on it gets what's sent there. */
+export const isLoopbackUri = (uri: string) => URL.canParse(uri) && isLoopback(new URL(uri));
+
 /** Whether `uri` is a native app's: loopback or a private-use scheme. */
 export const isNativeRedirectUri = (uri: string) => {
   if (!URL.canParse(uri)) return false;

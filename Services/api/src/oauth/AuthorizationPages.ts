@@ -8,6 +8,12 @@ import { HttpServerResponse } from "effect/http";
 export const escape = (text: string) =>
   text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 
+/** The test account the sign-in suggests: the one the apps' test-account sign-in uses too. */
+export const defaultTestAccount = "e2e";
+
+/** The longest test account name. */
+export const maxAccountLength = 100;
+
 /** A form's hidden fields, which bind it to its authorization request (`AuthorizationPage.ts`). */
 export interface FormBinding {
   readonly request: string;
@@ -149,7 +155,8 @@ export const signInPage = (options: {
     ? `<section>
 <form method="post" action="/oauth/authorize/sign-in">${hidden(binding)}
 <label for="account">Test account</label>
-<input type="text" id="account" name="account" value="e2e" maxlength="100" autocomplete="off"
+<input type="text" id="account" name="account" value="${defaultTestAccount}"
+  maxlength="${maxAccountLength}" autocomplete="off"
   autocapitalize="off" spellcheck="false" required>
 <button type="submit" class="primary">Sign in to a Test Account</button>
 </form>
