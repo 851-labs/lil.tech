@@ -16,10 +16,15 @@ export class UserStoreUnavailable extends Schema.TaggedError<UserStoreUnavailabl
   { httpApiStatus: 503 },
 ) {}
 
-/** Cloudflare sets `retryable` or `overloaded` on Durable Object errors worth retrying. */
+/**
+ * Cloudflare sets `retryable` or `overloaded` on Durable Object errors worth retrying, and
+ * `durableObjectReset` on calls in flight when the object was reset (e.g. a storage operation timed
+ * out), which the next call starts again.
+ */
 const isTransient = (cause: unknown) =>
   (Predicate.hasProperty(cause, "retryable") && cause.retryable === true) ||
-  (Predicate.hasProperty(cause, "overloaded") && cause.overloaded === true);
+  (Predicate.hasProperty(cause, "overloaded") && cause.overloaded === true) ||
+  (Predicate.hasProperty(cause, "durableObjectReset") && cause.durableObjectReset === true);
 
 /** A store's methods as callers see them: every call can also fail with `UserStoreUnavailable`. */
 export type UserStoreClient = {

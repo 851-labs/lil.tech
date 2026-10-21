@@ -1,8 +1,23 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { makeHealthMcpServer } from "../../../src/health/tools/HealthMcpServer.ts";
+import { TestClock } from "effect/testing";
+import {
+  healthMcpMaxWaitMs,
+  makeHealthMcpServer,
+} from "../../../src/health/tools/HealthMcpServer.ts";
+import { storeHealthTools } from "../../../src/health/tools/StoreHealthTools.ts";
 import { agentClientHeader, agentGrantHeader } from "../../../src/mcp/AgentHeaders.ts";
-import { postMcp, sessionless, viaStore } from "../../mcp/TestMcp.ts";
+import {
+  initialize,
+  initialized,
+  inSession,
+  type McpResponse,
+  postMcp,
+  type Sender,
+  sessionless,
+  sessionProtocol,
+  viaStore,
+} from "../../mcp/TestMcp.ts";
 import { makeTestStore } from "../../store/TestUserStores.ts";
 
 // lil health's MCP server in the user's store (851-2851), called as the Worker forwards to it.
@@ -13,6 +28,35 @@ const forwarded = {
 };
 
 const summary = sessionless("tools/call", { name: "summary", arguments: {} });
+
+/** `count` calls of `summary` at once: in one `2025-11-25` session, or without sessions. */
+const callsAtOnce = (server: Sender, count: number, session: boolean) =>
+  Effect.gen(function* () {
+    let headers: Record<string, string> = forwarded;
+    if (session) {
+      const started = yield* postMcp(server, "http://store/health", initialize(), forwarded);
+      headers = {
+        ...forwarded,
+        "mcp-protocol-version": sessionProtocol,
+        "mcp-session-id": started.headers.get("mcp-session-id") ?? "",
+      };
+      yield* postMcp(server, "http://store/health", initialized, headers);
+    }
+    const params = { name: "summary", arguments: {} };
+    return yield* Effect.all(
+      Array.from({ length: count }, () => {
+        if (session) {
+          return postMcp(server, "http://store/health", inSession("tools/call", params), headers);
+        }
+        const call = sessionless("tools/call", params);
+        return postMcp(server, "http://store/health", call.body, { ...call.headers, ...headers });
+      }),
+      { concurrency: "unbounded" },
+    );
+  });
+
+const isError = (response: McpResponse) =>
+  (response.message?.["result"] as Record<string, unknown> | undefined)?.["isError"];
 
 describe("the Health MCP server in the store", () => {
   it.effect("refuses an answer over its ceiling, asking for less, and logs it", () =>
@@ -115,6 +159,86 @@ describe("the Health MCP server in the store", () => {
       const result = response.message?.["result"] as Record<string, unknown>;
       assert.isTrue(result["isError"]);
       assert.notProperty(result, "structuredContent");
+    }),
+  );
+
+  // 851-2887: on prod, an agent's eight calls at once ran back to back in one JavaScript task,
+  // which kept the store from committing their access log rows until the runtime reset it, and
+  // every call failed with a 500.
+  for (const session of [true, false]) {
+    it.effect(
+      `runs calls at once one at a time, each in a task of its own (${session ? "in a session" : "sessionless"})`,
+      () =>
+        Effect.gen(function* () {
+          const { sql, store } = makeTestStore();
+          const tools = storeHealthTools(sql);
+          let running = 0;
+          let previousTaskEnded: { ended: boolean } | undefined;
+          const calls: Array<{ readonly alone: boolean; readonly newTask: boolean }> = [];
+          const server = yield* makeHealthMcpServer({
+            sql,
+            record: store.recordAgentAccess,
+            handlers: {
+              ...tools,
+              summary: (params) =>
+                Effect.sync(() => {
+                  running++;
+                  calls.push({ alone: running === 1, newTask: previousTaskEnded?.ended ?? true });
+                  // Set when the task this call started in ends: a timer runs in a later one.
+                  const task = { ended: false };
+                  setTimeout(() => (task.ended = true), 0);
+                  previousTaskEnded = task;
+                }).pipe(
+                  Effect.andThen(tools.summary(params)),
+                  Effect.ensuring(Effect.sync(() => running--)),
+                ),
+            },
+          });
+          const responses = yield* callsAtOnce(viaStore(server), 8, session);
+          assert.deepStrictEqual(
+            responses.map((response) => [response.status, isError(response)]),
+            Array.from({ length: 8 }, () => [200, false]),
+          );
+          assert.deepStrictEqual(
+            calls,
+            Array.from({ length: 8 }, () => ({ alone: true, newTask: true })),
+          );
+          assert.lengthOf(sql.exec("SELECT id FROM agent_access_log"), 8);
+        }),
+    );
+  }
+
+  it.effect("refuses a call that waited too long for its turn, asking to try again", () =>
+    Effect.gen(function* () {
+      const { sql, store } = makeTestStore();
+      const tools = storeHealthTools(sql);
+      const server = yield* makeHealthMcpServer({
+        sql,
+        record: store.recordAgentAccess,
+        handlers: {
+          ...tools,
+          // Each call takes longer than a call may wait.
+          summary: (params) =>
+            TestClock.adjust(healthMcpMaxWaitMs + 1).pipe(Effect.andThen(tools.summary(params))),
+        },
+      });
+      const responses = yield* callsAtOnce(viaStore(server), 3, true);
+      assert.deepStrictEqual(
+        responses.map((response) => [response.status, isError(response)]),
+        [
+          [200, false],
+          [200, true],
+          [200, true],
+        ],
+      );
+      const refused = responses[1]?.message?.["result"] as Record<string, unknown>;
+      const [content] = refused["content"] as Array<{ readonly text: string }>;
+      assert.match(content!.text, /busy.*Try again/);
+      // Refused before reading anything, so not logged.
+      assert.lengthOf(sql.exec("SELECT id FROM agent_access_log"), 1);
+      // A call that comes later has its turn again.
+      const later = yield* callsAtOnce(viaStore(server), 1, false);
+      assert.strictEqual(isError(later[0]!), false);
     }),
   );
 });

@@ -10,6 +10,7 @@ import {
   Scheduler,
   Schema,
   Scope,
+  Semaphore,
 } from "effect";
 import { McpProtocol, McpServer } from "effect/ai";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
@@ -19,7 +20,7 @@ import type { AgentAccess } from "../../store/AgentAccessLog.ts";
 import type { AccountDeleted } from "../../store/Changes.ts";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { HealthToolError, type HealthToolHandlers, HealthToolkit } from "./HealthToolkit.ts";
-import { storeHealthTools } from "./StoreHealthTools.ts";
+import { type HealthToolImplementations, storeHealthTools } from "./StoreHealthTools.ts";
 import { findHealthType } from "./ToolTypes.ts";
 
 // lil health's remote MCP server (851-2851, `docs/decisions/server.md`): the Health toolkit over
@@ -43,6 +44,62 @@ export const healthMcpProtocols = [
   McpProtocol.v2025_11_25,
   McpProtocol.v2025_06_18,
 ] as const;
+
+/**
+ * How long a tool call may wait for its turn in a store (851-2887). One that waited longer is
+ * refused with a tool error asking the agent to try again, rather than run.
+ *
+ * Workers resets a store whose CPU time since its last incoming request passes 30 seconds, failing
+ * every call in flight. A call that starts within this of its own request uses at most this plus
+ * its own time before that limit, which leaves room for the longest calls (a few seconds on a
+ * year of a Watch wearer's data).
+ */
+export const healthMcpMaxWaitMs = 10_000;
+
+/** Ends the JavaScript task, so the runtime can commit the store's writes and send answers. */
+const nextTask = Effect.callback<void>((resume) => {
+  const timer = setTimeout(() => resume(Effect.void), 0);
+  return Effect.sync(() => clearTimeout(timer));
+});
+
+const busy = new HealthToolError({
+  message:
+    "lil health is busy answering other calls from your agents. " +
+    "Try again in a few seconds, with fewer calls at once.",
+});
+
+/**
+ * Runs a store's tool calls one at a time, each in a JavaScript task of its own, and refuses those
+ * that waited longer than `maxWaitMs` (851-2887).
+ *
+ * A store runs on one thread and its SQLite reads are synchronous, so calls never ran in parallel.
+ * But the server's fibers run on the sync scheduler, which continues in microtasks, so concurrent
+ * calls ran back to back in one task, with nothing else in between: the runtime only commits a
+ * store's writes (each call's access log row) and sends its answers once a task ends, and it
+ * resets a store when a storage operation waits about 30 seconds. On prod, eight calls at once
+ * took that long together, and every one failed with a 500. Waiting for the next task after each
+ * call lets its row commit and its answer go back before the next starts, and the wait limit keeps
+ * a burst of calls within the store's CPU limit (`healthMcpMaxWaitMs`).
+ */
+const makeTurns = (maxWaitMs: number) =>
+  Effect.gen(function* () {
+    const semaphore = yield* Semaphore.make(1);
+    return <A, E, R>(call: Effect.Effect<A, E, R>): Effect.Effect<A, E | HealthToolError, R> =>
+      Effect.gen(function* () {
+        const arrived = yield* Clock.currentTimeMillis;
+        const turn = Effect.gen(function* () {
+          const waited = (yield* Clock.currentTimeMillis) - arrived;
+          if (waited > maxWaitMs) {
+            yield* Effect.logWarning("Agent tool call refused: busy").pipe(
+              Effect.annotateLogs({ waitedMs: waited }),
+            );
+            return yield* busy;
+          }
+          return yield* call;
+        });
+        return yield* semaphore.withPermit(turn.pipe(Effect.ensuring(nextTask)));
+      });
+  });
 
 /** How many rows an answer holds: the items of its top-level lists. */
 const rowCount = (encoded: unknown) =>
@@ -96,6 +153,7 @@ const logged =
     run: (params: P) => Effect.Effect<A, HealthToolError>,
     record: (access: AgentAccess) => Effect.Effect<void, AccountDeleted>,
     ceiling: number,
+    turn: <B, E>(call: Effect.Effect<B, E>) => Effect.Effect<B, E | HealthToolError>,
   ) =>
   (params: P) =>
     Effect.gen(function* () {
@@ -149,7 +207,7 @@ const logged =
         }),
       );
       return yield* exit;
-    });
+    }).pipe(turn);
 
 /**
  * Shared fibers in a Durable Object run on the sync scheduler, as Effect advises for Workers, so
@@ -168,23 +226,39 @@ export const makeHealthMcpServer = (options: {
   readonly record: (access: AgentAccess) => Effect.Effect<void, AccountDeleted>;
   /** The largest answer, as JSON (`healthMcpResultCeiling`, but tests make it smaller). */
   readonly resultCeiling?: number;
+  /** How long a call may wait for its turn (`healthMcpMaxWaitMs`). */
+  readonly maxWaitMs?: number;
+  /** Each tool's implementation (`storeHealthTools`, but tests slow some down). */
+  readonly handlers?: HealthToolImplementations;
 }) =>
   Effect.gen(function* () {
-    const { sql, record, resultCeiling = healthMcpResultCeiling } = options;
-    const handlers = storeHealthTools(sql);
+    const {
+      sql,
+      record,
+      resultCeiling = healthMcpResultCeiling,
+      maxWaitMs = healthMcpMaxWaitMs,
+    } = options;
+    const handlers = options.handlers ?? storeHealthTools(sql);
     const tools = HealthToolkit.tools;
+    const turn = yield* makeTurns(maxWaitMs);
     // Every tool's handler, logged and held to the ceiling.
     const loggedHandlers: HealthToolHandlers = {
-      summary: logged(tools.summary, handlers.summary, record, resultCeiling),
-      list_types: logged(tools.list_types, handlers.list_types, record, resultCeiling),
-      metric: logged(tools.metric, handlers.metric, record, resultCeiling),
-      samples: logged(tools.samples, handlers.samples, record, resultCeiling),
-      workouts: logged(tools.workouts, handlers.workouts, record, resultCeiling),
-      sleep: logged(tools.sleep, handlers.sleep, record, resultCeiling),
-      medications: logged(tools.medications, handlers.medications, record, resultCeiling),
-      health_details: logged(tools.health_details, handlers.health_details, record, resultCeiling),
-      search: logged(tools.search, handlers.search, record, resultCeiling),
-      sync_status: logged(tools.sync_status, handlers.sync_status, record, resultCeiling),
+      summary: logged(tools.summary, handlers.summary, record, resultCeiling, turn),
+      list_types: logged(tools.list_types, handlers.list_types, record, resultCeiling, turn),
+      metric: logged(tools.metric, handlers.metric, record, resultCeiling, turn),
+      samples: logged(tools.samples, handlers.samples, record, resultCeiling, turn),
+      workouts: logged(tools.workouts, handlers.workouts, record, resultCeiling, turn),
+      sleep: logged(tools.sleep, handlers.sleep, record, resultCeiling, turn),
+      medications: logged(tools.medications, handlers.medications, record, resultCeiling, turn),
+      health_details: logged(
+        tools.health_details,
+        handlers.health_details,
+        record,
+        resultCeiling,
+        turn,
+      ),
+      search: logged(tools.search, handlers.search, record, resultCeiling, turn),
+      sync_status: logged(tools.sync_status, handlers.sync_status, record, resultCeiling, turn),
     };
     const layer = McpServer.toolkit(HealthToolkit).pipe(
       Layer.provide(HealthToolkit.toLayer(loggedHandlers)),
