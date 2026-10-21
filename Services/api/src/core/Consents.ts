@@ -1,5 +1,5 @@
 import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
 import { CoreDb, query } from "./CoreDb.ts";
 import type { UserId } from "./Ids.ts";
@@ -48,6 +48,14 @@ export class Consents extends Context.Service<
       userId: UserId,
       type: ConsentType,
     ) => Effect.Effect<Option.Option<GivenConsent>, SqlError.SqlError>;
+    /**
+     * Which of `types` the user's consent is in force for, whatever its policy version: one read
+     * for several apps' agents consents (the combined MCP server, 851-2900).
+     */
+    readonly inForce: (
+      userId: UserId,
+      types: ReadonlyArray<ConsentType>,
+    ) => Effect.Effect<ReadonlySet<ConsentType>, SqlError.SqlError>;
     /** Records consent to `policyVersion`. Consenting again to the same version keeps the first. */
     readonly grant: (
       userId: UserId,
@@ -84,6 +92,22 @@ export class Consents extends Context.Service<
       });
       return Consents.of({
         current,
+        inForce: Effect.fn("Consents.inForce")(function* (userId, types) {
+          if (types.length === 0) return new Set<ConsentType>();
+          const rows = yield* query(
+            db
+              .selectDistinct({ type: consents.type })
+              .from(consents)
+              .where(
+                and(
+                  eq(consents.userId, userId),
+                  inArray(consents.type, [...types]),
+                  isNull(consents.withdrawnAt),
+                ),
+              ),
+          );
+          return new Set(rows.map((row) => row.type as ConsentType));
+        }),
         grant: Effect.fn("Consents.grant")(function* (userId, type, policyVersion) {
           const grantedAt = yield* Clock.currentTimeMillis;
           // The `consents_active` index keeps it to one active consent, so requests that race (an

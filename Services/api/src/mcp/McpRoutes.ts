@@ -1,24 +1,37 @@
 import { Effect, Option, Schema } from "effect";
 import { Headers, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
+import type { SqlError } from "effect/sql";
+import type { AgentGrant } from "../core/AgentGrants.ts";
+import { Consents } from "../core/Consents.ts";
 import { Deployment } from "../Deployment.ts";
 import { AgentTokens, type InvalidAgentToken } from "../oauth/AgentTokens.ts";
 import {
+  type AgentApp,
+  type AgentAppRegistry,
+  AgentApps,
   agentAccessEnvironments,
   agentHosts,
-  type AgentResource,
+  type AgentHosts,
   agentResources,
-  protectedResourceMetadataPath,
-  resourceUrl,
+  appMetadataPath,
+  appsOfScopes,
+  appUrl,
+  combinedAgentEnvironments,
+  combinedResourceMetadataPath,
+  combinedResourceUrl,
+  scopesOf,
 } from "../oauth/Hosts.ts";
 import { readAtMost, requestOrigin } from "../oauth/Requests.ts";
 import { RateLimits, tooManyRequests } from "../RateLimits.ts";
 import { UserStores } from "../store/UserStores.ts";
 import { agentClientHeader, agentGrantHeader, agentScopesHeader } from "./AgentHeaders.ts";
+import { combinedMcpPath } from "./CombinedMcpServer.ts";
 
-// Each app's MCP server on the MCP host (`https://mcp.lil.tech/health`, 851-2851): the Worker
-// checks the agent's token, its grant's scope and its rate limit, then hands the request to the
-// user's store, which runs the server (`src/health/tools/HealthMcpServer.ts`). Left out of the
-// OpenAPI spec: MCP is its own protocol.
+// Each app's MCP server on the MCP host (`https://mcp.lil.tech/health`, 851-2851), and the
+// combined one at its root (`https://mcp.lil.tech`, 851-2900): the Worker checks the agent's
+// token, its grant's scopes and its rate limit, then hands the request to the user's store, which
+// runs the server (`src/mcp/StoreMcpServers.ts`). Left out of the OpenAPI spec: MCP is its own
+// protocol.
 
 /** The largest MCP request the Worker forwards. */
 export const maxMcpRequestBytes = 64 * 1024;
@@ -55,17 +68,74 @@ const tokenRefused = (reason: InvalidAgentToken["reason"]) => ({
     reason === "expired" ? "The access token expired" : "The access token is invalid or revoked",
 });
 
+/** An MCP server on the MCP host, as the Worker checks requests to it. */
+interface McpServerRoute {
+  /** Its path, on the MCP host and in the store. */
+  readonly path: `/${string}`;
+  /** Where its Protected Resource Metadata is, relative to the MCP host. */
+  readonly metadataPath: string;
+  /** Its protected resource: its tokens' audience. */
+  readonly resource: (hosts: AgentHosts) => string;
+  /** The scopes a 401's challenge asks for. */
+  readonly scopes: ReadonlyArray<string>;
+  /**
+   * The scopes of `grant` that the server may use, which the store gets: none is 403
+   * `insufficient_scope`, with `insufficient` as its description.
+   */
+  readonly usable: (grant: AgentGrant) => Effect.Effect<ReadonlyArray<string>, SqlError.SqlError>;
+  readonly insufficient: string;
+}
+
+/** One app's own server. Tokens for it always carry its scopes. */
+const appServer = (app: AgentApp): McpServerRoute => ({
+  path: app.path,
+  metadataPath: appMetadataPath(app),
+  resource: (hosts) => appUrl(hosts, app),
+  scopes: app.scopes,
+  usable: (grant) =>
+    Effect.succeed(app.scopes.every((needed) => grant.scopes.includes(needed)) ? grant.scopes : []),
+  insufficient: `This server needs ${app.scopes.join(" ")}`,
+});
+
 /**
- * One app's MCP server. Requests from browsers (with an `Origin`) are refused with 403, as the
+ * The combined server (851-2900): the apps whose scopes the grant has, less those whose agents
+ * consent (`agents:<app>`) was withdrawn since, read on every request. Turning off an app's agent
+ * access then cuts the combined grants off from it too, though they keep its scope.
+ */
+const combinedServer = (
+  registry: AgentAppRegistry,
+  consents: Consents["Service"],
+): McpServerRoute => ({
+  path: combinedMcpPath,
+  metadataPath: combinedResourceMetadataPath,
+  resource: combinedResourceUrl,
+  scopes: scopesOf(registry),
+  usable: (grant) =>
+    Effect.gen(function* () {
+      const target = { resource: "", combined: true, apps: Object.keys(registry) };
+      const apps = appsOfScopes(registry, target, grant.scopes);
+      const given = yield* consents.inForce(
+        grant.userId,
+        apps.map((key) => registry[key]!.consent),
+      );
+      const readable = apps.filter((key) => given.has(registry[key]!.consent));
+      return grant.scopes.filter((scope) =>
+        readable.some((key) => (registry[key]!.scopes as ReadonlyArray<string>).includes(scope)),
+      );
+    }),
+  insufficient: "This agent may no longer read any lil app. Connect it again to allow it.",
+});
+
+/**
+ * An MCP server's route. Requests from browsers (with an `Origin`) are refused with 403, as the
  * transport requires; only `POST` and `DELETE` (ending a legacy session) are served.
  */
-const mcpRoute = (key: AgentResource) =>
+const mcpRoute = (server: McpServerRoute) =>
   Effect.gen(function* () {
     const { environment } = yield* Deployment;
     const tokens = yield* AgentTokens;
     const stores = yield* UserStores;
     const limits = yield* RateLimits;
-    const { scopes } = agentResources[key];
     return Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
       if (request.headers["origin"] !== undefined) {
@@ -75,8 +145,8 @@ const mcpRoute = (key: AgentResource) =>
         return HttpServerResponse.empty({ status: 405, headers: { allow: "POST, DELETE" } });
       }
       const hosts = agentHosts(environment, requestOrigin(request));
-      const metadataUrl = `${hosts.mcp}${protectedResourceMetadataPath(key)}`;
-      const scope = scopes.join(" ");
+      const metadataUrl = `${hosts.mcp}${server.metadataPath}`;
+      const scope = server.scopes.join(" ");
       const refuse = (
         status: 401 | 403,
         error?: { readonly code: string; readonly description: string },
@@ -96,9 +166,11 @@ const mcpRoute = (key: AgentResource) =>
       // Only in the header (RFC 6750 §2.1), never the query string.
       const token = /^Bearer +(\S+) *$/i.exec(request.headers["authorization"] ?? "")?.[1];
       if (token === undefined) return refuse(401);
-      // Only this app's agent tokens: another app's, and the apps' own tokens, are invalid.
-      const verified = yield* tokens.verify(token, resourceUrl(hosts, key)).pipe(
-        Effect.map((grant) => ({ grant })),
+      // Only this server's agent tokens: another server's, and the apps' own tokens, are invalid.
+      const verified = yield* tokens.verify(token, server.resource(hosts)).pipe(
+        Effect.flatMap((grant) =>
+          Effect.map(server.usable(grant), (scopes) => ({ grant, scopes })),
+        ),
         Effect.catchTag("InvalidAgentToken", (error: InvalidAgentToken) =>
           Effect.succeed({ refused: tokenRefused(error.reason) }),
         ),
@@ -116,13 +188,10 @@ const mcpRoute = (key: AgentResource) =>
         );
       }
       if ("refused" in verified) return refuse(401, verified.refused);
-      const { grant } = verified;
-      // Tokens for the app always carry its scope; a grant without it can't call anything.
-      if (!scopes.every((needed) => grant.scopes.includes(needed))) {
-        return refuse(403, {
-          code: "insufficient_scope",
-          description: `This server needs ${scope}`,
-        });
+      const { grant, scopes } = verified;
+      // A grant left without a scope the server serves can't call anything.
+      if (scopes.length === 0) {
+        return refuse(403, { code: "insufficient_scope", description: server.insufficient });
       }
       yield* limits.check("agent", grant.id);
       // MCP messages are small. The store holds a body in memory, so a large one is refused here.
@@ -144,7 +213,7 @@ const mcpRoute = (key: AgentResource) =>
       const headers = Headers.setAll(Headers.remove(request.headers, "authorization"), {
         [agentGrantHeader]: grant.id,
         [agentClientHeader]: encodeURIComponent(grant.clientName ?? grant.clientId),
-        [agentScopesHeader]: grant.scopes.join(" "),
+        [agentScopesHeader]: scopes.join(" "),
       });
       const response = yield* stores.mcp(
         grant.userId,
@@ -165,13 +234,20 @@ const mcpRoute = (key: AgentResource) =>
     }).pipe(Effect.catchTag("TooManyRequests", tooManyRequests));
   });
 
-/** Every app's MCP server, only where agents may connect (`agentAccessEnvironments`). */
+/**
+ * Every app's MCP server, only where agents may connect (`agentAccessEnvironments`), and the
+ * combined one where it's allowed (`combinedAgentEnvironments`).
+ */
 export const AgentMcpRoutes = HttpRouter.use((router) =>
   Effect.gen(function* () {
     const { environment } = yield* Deployment;
     if (!agentAccessEnvironments.has(environment)) return;
-    for (const key of Object.keys(agentResources) as Array<AgentResource>) {
-      yield* router.add("*", agentResources[key].path, yield* mcpRoute(key));
+    for (const app of Object.values(agentResources)) {
+      yield* router.add("*", app.path, yield* mcpRoute(appServer(app)));
+    }
+    if (combinedAgentEnvironments.has(environment)) {
+      const server = combinedServer(yield* AgentApps, yield* Consents);
+      yield* router.add("*", server.path, yield* mcpRoute(server));
     }
   }),
 );

@@ -11,7 +11,7 @@ import {
   touchQueuedHealthBatch,
 } from "../health/HealthBatchStore.ts";
 import { DisposableBucket } from "../Deployment.ts";
-import { healthMcpPath, makeHealthMcpServer } from "../health/tools/HealthMcpServer.ts";
+import { makeStoreMcpServers } from "../mcp/StoreMcpServers.ts";
 import { requestPath } from "../oauth/Requests.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
 import { deleteObjects, listObjects, provideRuntime } from "../Runtime.ts";
@@ -639,8 +639,8 @@ export type UserStoreMethods = ReturnType<typeof makeUserStore>;
 /** A store as a Durable Object: its RPC methods, plus what the Worker forwards to it. */
 export type UserStoreShape = UserStoreMethods & {
   /**
-   * Requests the Worker forwarded, by path: lil health's MCP server (`healthMcpPath`), else a
-   * live notice connection (`GET /v1/sync/live`).
+   * Requests the Worker forwarded, by path: an MCP server (lil health's, `/health`, or the
+   * combined one, `/`), else a live notice connection (`GET /v1/sync/live`).
    */
   readonly fetch: Effect.Effect<
     HttpServerResponse.HttpServerResponse,
@@ -779,12 +779,13 @@ export const UserStoreLive = UserStore.make(
       const sql = fromDurableObjectStorage(state.raw.storage);
       // A migration that fails stops the object from starting, rather than serving an old schema.
       const store = makeUserStore(sql, entities, files, sockets, blobFiles);
-      const mcp = yield* makeHealthMcpServer({ sql, record: store.recordAgentAccess });
+      const mcpServers = yield* makeStoreMcpServers({ sql, record: store.recordAgentAccess });
       return {
         ...store,
         fetch: Effect.gen(function* () {
           const request = yield* HttpServerRequest.HttpServerRequest;
-          if (requestPath(request) === healthMcpPath) return yield* mcp;
+          const mcp = mcpServers(requestPath(request));
+          if (mcp !== undefined) return yield* mcp;
           const expiresAt = Number(request.headers[sessionExpiresHeader]);
           if (!Number.isFinite(expiresAt)) return HttpServerResponse.empty({ status: 400 });
           const [response, socket] = yield* Cloudflare.upgrade();

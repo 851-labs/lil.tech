@@ -87,7 +87,8 @@ export interface Approval {
 
 /**
  * An authorization the user allowed, as the consent page leaves it: a code for `clientId`, with an
- * S256 challenge (or `challenge`, to store another), for `resource`. Makes a user unless given one.
+ * S256 challenge (or `challenge`, to store another), for `resource` and `scopes`. Makes a user
+ * unless given one. It records no consent, which the consent page would.
  */
 export const approve = (
   options: {
@@ -96,6 +97,8 @@ export const approve = (
     readonly redirectUri?: string;
     readonly resource?: string;
     readonly challenge?: (verifier: string) => string;
+    /** The scopes asked for and granted (`health:read`). */
+    readonly scopes?: ReadonlyArray<string>;
   } = {},
 ) =>
   Effect.gen(function* () {
@@ -115,13 +118,13 @@ export const approve = (
       redirectUri,
       state: "state-1",
       codeChallenge: options.challenge?.(verifier) ?? challenge,
-      scopes: ["health:read"],
+      scopes: [...(options.scopes ?? ["health:read"])],
       resource,
       browserHash: sha256Hex("browser"),
       createdAt: now,
       expiresAt: now + 10 * 60 * 1000,
       userId,
-      grantedScopes: ["health:read"],
+      grantedScopes: [...(options.scopes ?? ["health:read"])],
       codeHash: sha256Hex(code),
       codeExpiresAt: now + authorizationCodeLifetime,
     });
