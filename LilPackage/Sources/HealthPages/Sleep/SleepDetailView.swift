@@ -6,7 +6,8 @@ import SQLiteData
 public import SwiftUI
 
 /// Sleep, as in Health: a night's stages (D) or a week of nights (W), with time asleep and in
-/// bed. Follows the local database as sync changes it.
+/// bed, the range and earlier nights in the toolbar. Follows the local database as sync changes
+/// it.
 public struct SleepDetailView: View {
   let type: HealthDataType
   @State private var range = SleepRange.day
@@ -36,9 +37,12 @@ public struct SleepDetailView: View {
 }
 
 /// D: one night. W: seven.
-enum SleepRange: String, CaseIterable, Hashable, Sendable {
+enum SleepRange: String, CaseIterable, Hashable, Sendable, PeriodRange {
   case day = "D"
   case week = "W"
+
+  /// D is a night, which runs over two days.
+  var periodName: String { self == .day ? "Night" : "Week" }
 
   var nights: Int { self == .day ? 1 : 7 }
 
@@ -86,13 +90,6 @@ struct SleepDetailContent: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
-        Picker("Range", selection: Binding(get: { range }, set: { (range, offset) = ($0, 0) })) {
-          ForEach(SleepRange.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .frame(maxWidth: 200)
-
         VStack(alignment: .leading, spacing: 12) {
           header
           chartArea
@@ -127,6 +124,8 @@ struct SleepDetailContent: View {
     }
     .background(Color.pageBackground)
     .navigationTitle(type.name)
+    // The range and ‹ Today › in the toolbar, as on other metrics (851-2866).
+    .periodControls(PagePeriod(range: $range, offset: $offset))
   }
 
   // MARK: Header
@@ -152,13 +151,6 @@ struct SleepDetailContent: View {
           .foregroundStyle(.secondary)
       }
       Spacer()
-      HStack(spacing: 4) {
-        Button("Earlier", systemImage: "chevron.left") { offset -= 1 }
-        Button("Later", systemImage: "chevron.right") { offset += 1 }
-          .disabled(offset >= 0)
-      }
-      .labelStyle(.iconOnly)
-      .buttonStyle(.borderless)
     }
   }
 
