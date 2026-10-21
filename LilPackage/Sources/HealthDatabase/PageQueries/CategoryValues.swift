@@ -1,10 +1,13 @@
 extension HealthDatabase {
   /// How Health names a category sample's value (HealthKit's raw `HKCategoryValue…`), for a day's
-  /// log: "Egg White" for cervical mucus, "Positive (LH Surge)" for an ovulation test. Nil for
-  /// types whose samples have no value to name (sexual activity, pregnancy), and for values Health
+  /// log: "Egg White" for cervical mucus, "Positive (LH Surge)" for an ovulation test, "Moderate"
+  /// for a symptom; shared by Cycle Tracking, the symptom page and Show All Data. Nil for types
+  /// whose samples have no value to name (sexual activity, pregnancy), and for values Health
   /// doesn't name (an unspecified contraceptive or bleeding level), or doesn't have yet. Flow is
   /// named as a period day is ("Period" when unspecified, `MenstrualFlow.name`).
   public static func categoryValueName(_ value: Int?, typeID: String) -> String? {
+    // Every symptom's value has a name, Present when Health has none (851-2828).
+    if let scale = SymptomScale(typeID: typeID) { return scale.name(value) }
     guard let value else { return nil }
     switch typeID {
     case "HKCategoryTypeIdentifierCervicalMucusQuality":

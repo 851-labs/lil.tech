@@ -104,6 +104,7 @@
         "All data",
         "All data, a long day",
         "All data, handwashing",
+        "All data, symptoms",
         "All data, raw steps",
         "All data, empty",
         "All data, loading",
@@ -169,6 +170,10 @@
         "A food, loading",
         "A food, failed"
       ]
+    },
+    {
+      "id": "symptom",
+      "screen": "HealthPages/SymptomViewPreviews.swift"
     },
     {
       "id": "workouts",
@@ -412,6 +417,11 @@
     },
     {
       "from": "metric",
+      "to": "symptom",
+      "label": "For a Symptom (Headache, Mood Changes…)"
+    },
+    {
+      "from": "metric",
       "to": "workouts",
       "label": "For Workouts"
     },
@@ -487,6 +497,16 @@
     },
     {
       "from": "sleep",
+      "to": "sources",
+      "label": "Data Sources"
+    },
+    {
+      "from": "symptom",
+      "to": "all-data",
+      "label": "Show All Data"
+    },
+    {
+      "from": "symptom",
       "to": "sources",
       "label": "Data Sources"
     },

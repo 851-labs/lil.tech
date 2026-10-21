@@ -35,6 +35,9 @@ struct MetricDetailView: View {
         BloodPressureView()
       } else if type.id == HealthDatabase.foodType {
         FoodView()
+      } else if type.category == .symptoms {
+        // Every symptom, with its severity over time (851-2828).
+        SymptomView(type: type)
       } else if type.kind == .workout {
         WorkoutsView()
       } else if type.kind == .workoutRoute {
@@ -207,7 +210,7 @@ struct MetricDetailContent: View {
               // Built when opened: it fetches the series.
               Lazy { HeartbeatSeriesView() }
             } label: {
-              linkRow("Beat-to-Beat Measurements")
+              PageLinkRow("Beat-to-Beat Measurements")
             }
             .buttonStyle(.plain)
             Divider().padding(.leading, 14)
@@ -215,14 +218,14 @@ struct MetricDetailContent: View {
           NavigationLink {
             AllDataView(type: type)
           } label: {
-            linkRow("Show All Data")
+            PageLinkRow("Show All Data")
           }
           .buttonStyle(.plain)
           Divider().padding(.leading, 14)
           NavigationLink {
             DataSourcesView(type: type)
           } label: {
-            linkRow("Data Sources")
+            PageLinkRow("Data Sources")
           }
           .buttonStyle(.plain)
         }
@@ -406,20 +409,5 @@ struct MetricDetailContent: View {
     let end = calendar.dateInterval(
       of: range.barUnit, for: chart.interval.end.addingTimeInterval(-1))?.end
     return (start ?? chart.interval.start)...(end ?? chart.interval.end)
-  }
-
-  // MARK: Links
-
-  private func linkRow(_ title: String) -> some View {
-    HStack {
-      Text(title)
-      Spacer()
-      Image(systemName: "chevron.right")
-        .font(.caption.bold())
-        .foregroundStyle(.tertiary)
-    }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 10)
-    .contentShape(Rectangle())
   }
 }

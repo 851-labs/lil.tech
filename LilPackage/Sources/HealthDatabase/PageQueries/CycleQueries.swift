@@ -34,7 +34,8 @@ extension HealthDatabase {
   }
 
   /// Symptoms (Health's Symptoms category), shown on the days they were logged.
-  static let symptomTypes = HealthCatalog.all.filter { $0.category == .symptoms }.map(\.id)
+  static let symptomTypes = Set(
+    HealthCatalog.all.filter { $0.category == .symptoms }.map(\.id))
 
   /// Each day in `interval` with something Cycle Tracking shows, by the day's start in
   /// `calendar`.
@@ -42,7 +43,8 @@ extension HealthDatabase {
     in interval: DateInterval, calendar: Calendar, _ db: Database
   ) throws -> [Date: CycleDay] {
     let types =
-      [menstrualFlowType, spottingType, sexualActivityType] + cycleLogTypes + symptomTypes
+      [menstrualFlowType, spottingType, sexualActivityType] + cycleLogTypes
+      + symptomTypes.sorted()
     let (lower, upper) = (interval.start.unixMilliseconds, interval.end.unixMilliseconds)
     let samples =
       try HealthSample
@@ -73,8 +75,9 @@ extension HealthDatabase {
             name: HealthCatalog.type(id: sample.type)?.name ?? sample.type,
             value: categoryValueName(sample.categoryValue, typeID: sample.type)))
       default:
-        // 1 is "not present" (or "no change" for appetite): logged as absent.
-        if sample.categoryValue != 1, let name = HealthCatalog.type(id: sample.type)?.name,
+        // Not present (no change, for appetite) is logged as absent, as the symptom page has it.
+        if SymptomScale(typeID: sample.type)?.level(sample.categoryValue) != nil,
+          let name = HealthCatalog.type(id: sample.type)?.name,
           !entry.symptoms.contains(name)
         {
           entry.symptoms.append(name)

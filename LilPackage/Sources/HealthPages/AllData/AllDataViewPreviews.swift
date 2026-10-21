@@ -58,6 +58,20 @@ private func allData(_ type: HealthDataType, _ state: AllDataContent.State) -> s
   return allData(handwashing, .loaded(samples, hasMore: false))
 }
 
+// A symptom's samples: each one's severity as Health names it (851-2828).
+#Preview("All data, symptoms") {
+  let headache = HealthCatalog.type(id: "HKCategoryTypeIdentifierHeadache")!
+  let now = Int(Date.now.timeIntervalSince1970 * 1000)
+  let samples = [3, 2, 1, 4, 0, 2].enumerated().map { index, value in
+    let start = now - index * 14_400_000
+    return HealthSample(
+      id: "synthetic-\(index)", type: headache.id, startDate: start,
+      endDate: start + (index % 2) * 3_600_000, categoryValue: value,
+      sourceName: "Synthetic iPhone", sourceBundleID: "com.example.iphone")
+  }
+  return allData(headache, .loaded(samples, hasMore: false))
+}
+
 #Preview("All data, raw steps") {
   allData(steps, .loaded(previewSamples(steps), hasMore: false))
 }
