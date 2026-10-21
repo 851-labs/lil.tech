@@ -8,11 +8,16 @@ import Synchronization
 public enum HealthAppAction: Equatable, Sendable {
   /// Brings the main window forward and shows a page.
   case open(HealthPage)
+  /// Pulls the account's changes from the server now, as Try Again does (or lets a pull already
+  /// running finish), and waits for the pull to end, at most `HealthAppActions.syncWait`
+  /// (851-2893). The Mac never uploads: the iPhone does.
+  case sync
 
   /// The action as the access log shows it, e.g. `open Steps`.
   public var command: String {
     switch self {
     case .open(let page): "open \(page.name)"
+    case .sync: "sync"
     }
   }
 }
@@ -21,6 +26,10 @@ public enum HealthAppAction: Equatable, Sendable {
 public enum HealthAppActionResult: Equatable, Sendable {
   /// Done, with nothing to say: the page is open.
   case done
+  /// Caught up with the server, as of the end of the pull.
+  case synced(at: Date)
+  /// Still pulling after `HealthAppActions.syncWait`: the app finishes in the background.
+  case stillSyncing
 }
 
 /// Why the app couldn't perform an action.
@@ -29,10 +38,16 @@ public enum HealthAppActionError: Error, Equatable, LocalizedError,
 {
   /// Signed out, or not signed in within `HealthAppActions.signInWait` of launch.
   case signedOut
+  /// The pull failed, with the sync's error message (`SyncStatus.failed`).
+  case syncFailed(String)
+  /// The pull failed because the Mac has no connection (`SyncStatus.offline`).
+  case offline
 
   public var errorDescription: String? {
     switch self {
     case .signedOut: "Sign in to lil health first."
+    case .syncFailed(let message): "Couldn't sync: \(message)"
+    case .offline: "Couldn't sync: this Mac is offline."
     }
   }
 
@@ -82,6 +97,9 @@ public struct HealthAppActions: Sendable {
   /// How long after launch an action waits for the app to be signed in: an intent that launches
   /// the app arrives before the stored session has been checked.
   public static let signInWait: Duration = .seconds(10)
+
+  /// How long Sync waits for its pull to end before answering that it's still syncing.
+  public static let syncWait: Duration = .seconds(60)
 
   /// The app's: created when the app launches (`LilHealthApp` prepares it), which starts
   /// `signInWait`.

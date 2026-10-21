@@ -630,11 +630,15 @@ struct LilSyncEngineTests {
     let running = Task { await engine.run() }
 
     // Backoff is at most 1 second after the first failure and 2 after the second.
+    let failed = SyncStatus.failed("unexpectedStatus(500)")
     try await clock.waitUntilAsleep(dueWithin: .seconds(1))
     #expect(server.state.requests.count == 1)
+    try await eventually { statuses.value.last == failed }
     clock.advance(by: .seconds(1))
     try await clock.waitUntilAsleep(dueWithin: .seconds(2))
     #expect(server.state.requests.count == 2)
+    // Failing the same way again is announced again, so whoever asked for the pull hears of it.
+    try await eventually { statuses.value.filter { $0 == failed }.count == 2 }
     clock.advance(by: .seconds(2))
     try await eventually { try storedNotes() == [Note(id: "n1", title: "One")] }
 
@@ -649,7 +653,6 @@ struct LilSyncEngineTests {
     try await eventually { statuses.value.last == .upToDate(at: syncedAt) }
     observing.cancel()
     #expect(statuses.value.first == .idle)
-    #expect(statuses.value.contains(.failed("unexpectedStatus(500)")))
   }
 
   // A hang would block the pre-commit hook: fail instead.

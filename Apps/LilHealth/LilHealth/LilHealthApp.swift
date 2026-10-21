@@ -70,8 +70,8 @@ struct LilHealthAppIntents: AppIntentsPackage {
   static var includedPackages: [any AppIntentsPackage.Type] { [HealthMacAppIntents.self] }
 }
 
-/// Phrases Siri and Spotlight offer without any setup (851-2892). Here rather than in
-/// `HealthMacApp`, with the intent: the app's App Intents metadata leaves out a package's App
+/// Phrases Siri and Spotlight offer without any setup (851-2892, 851-2893). Here rather than in
+/// `HealthMacApp`, with the intents: the app's App Intents metadata leaves out a package's App
 /// Shortcuts.
 struct LilHealthAppShortcuts: AppShortcutsProvider {
   static var appShortcuts: [AppShortcut] {
@@ -83,6 +83,12 @@ struct LilHealthAppShortcuts: AppShortcutsProvider {
       ],
       shortTitle: "Open Page",
       systemImageName: "heart.text.square"
+    )
+    AppShortcut(
+      intent: SyncHealthDataIntent(),
+      phrases: ["Sync \(.applicationName)"],
+      shortTitle: "Sync",
+      systemImageName: "arrow.triangle.2.circlepath"
     )
   }
 }

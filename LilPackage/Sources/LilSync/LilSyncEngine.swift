@@ -780,7 +780,14 @@ public actor LilSyncEngine {
   }
 
   private func setStatus(_ status: SyncStatus) {
-    guard status != self.status else { return }
+    switch status {
+    case .failed, .offline:
+      // Announced again when a pull fails as the last one did, so whoever asked for that pull
+      // (lil health's Sync intent, 851-2893) hears how it ended.
+      break
+    default:
+      guard status != self.status else { return }
+    }
     self.status = status
     for continuation in observers.values { continuation.yield(status) }
   }
