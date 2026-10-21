@@ -142,3 +142,92 @@ private func agents(
 #Preview("Agents: signed out") {
   agents(isSignedIn: false)
 }
+
+// The Agents pane's remote agents (851-2853), on their own, tall enough to see them all.
+// Synthetic agents and reads.
+
+private let remoteAgents = [
+  ConnectedAgent(
+    id: "grant-1", name: "Claude", domain: "claude.ai", app: "health",
+    connectedAt: Date(timeIntervalSince1970: 1_760_900_000),
+    lastUsedAt: Date.now.addingTimeInterval(-2 * 3600)),
+  ConnectedAgent(
+    id: "grant-2", name: "Weekly Health Digest", domain: nil, app: "health",
+    connectedAt: Date(timeIntervalSince1970: 1_760_800_000),
+    lastUsedAt: Date.now.addingTimeInterval(-3 * 86_400)),
+]
+
+private let remoteReads = (1...6).map { index in
+  RemoteAgentAccess(
+    id: 100 - index, at: Date(timeIntervalSince1970: 1_760_972_520 - Double(index) * 1_800),
+    agentID: index.isMultiple(of: 3) ? "grant-2" : "grant-1",
+    agentName: index.isMultiple(of: 3) ? "Weekly Health Digest" : "Claude",
+    tool: index.isMultiple(of: 2) ? "get_metric" : "summary",
+    types: index.isMultiple(of: 2) ? ["HKQuantityTypeIdentifierStepCount"] : [],
+    range: index.isMultiple(of: 2) ? "W" : nil, outcome: "ok", rows: 7)
+}
+
+@MainActor
+private func remote(_ state: ConnectedAgentsFeature.State) -> some View {
+  Form {
+    ConnectedAgentsSections(store: Store(initialState: state) { EmptyReducer() })
+  }
+  .formStyle(.grouped)
+  .previewFrame(width: SettingsView.width, height: 720)
+}
+
+#Preview("Remote agents") {
+  remote(ConnectedAgentsFeature.State(agents: .loaded(remoteAgents), log: remoteReads))
+}
+
+#Preview("Remote agents: none") {
+  remote(ConnectedAgentsFeature.State(agents: .loaded([])))
+}
+
+#Preview("Remote agents: loading") {
+  remote(ConnectedAgentsFeature.State(agents: .loading, isLoadingLog: true))
+}
+
+#Preview("Remote agents: failed") {
+  remote(
+    ConnectedAgentsFeature.State(
+      agents: .failed(ConnectedAgentsError.unavailable.message),
+      logFailure: ConnectedAgentsError.unavailable.message))
+}
+
+#Preview("Remote agents: revoking") {
+  remote(
+    ConnectedAgentsFeature.State(
+      agents: .loaded(remoteAgents), log: remoteReads, revoking: ["grant-1"]))
+}
+
+#Preview("Remote agents: revoke failed") {
+  remote(
+    ConnectedAgentsFeature.State(
+      agents: .loaded(remoteAgents), failure: ConnectedAgentsError.unavailable.message,
+      log: remoteReads))
+}
+
+#Preview("Remote agents: long names, more to read") {
+  remote(
+    ConnectedAgentsFeature.State(
+      agents: .loaded([
+        ConnectedAgent(
+          id: "grant-3",
+          name: "A Very Long Agent Name That Somebody Registered For Their Own Health Dashboard",
+          domain: nil, app: "health", connectedAt: Date(timeIntervalSince1970: 1_760_700_000),
+          lastUsedAt: Date(timeIntervalSince1970: 1_760_700_000)),
+        ConnectedAgent(
+          id: "grant-4", name: nil, domain: nil, app: "health",
+          connectedAt: Date(timeIntervalSince1970: 1_760_600_000),
+          lastUsedAt: Date(timeIntervalSince1970: 1_760_600_000)),
+      ]),
+      log: remoteReads
+        + remoteReads.map { read in
+          var read = read
+          read.id -= 50
+          read.at = read.at.addingTimeInterval(-86_400)
+          return read
+        },
+      logNextBefore: 44))
+}

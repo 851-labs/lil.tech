@@ -175,6 +175,7 @@ let package = Package(
         "HealthDatabase",
         "HealthPages",
         "HealthUI",
+        "LilAPI",
         "LilAuth",
         "LilSync",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),

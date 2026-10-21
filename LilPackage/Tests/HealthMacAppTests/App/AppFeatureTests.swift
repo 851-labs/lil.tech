@@ -70,6 +70,14 @@ struct AppFeatureTests {
         try? await clock.sleep(for: .seconds(3600))
         return []
       }
+      $0.connectedAgents.list = { () throws(ConnectedAgentsError) in
+        try? await clock.sleep(for: .seconds(3600))
+        return []
+      }
+      $0.connectedAgents.accessLog = { _ throws(ConnectedAgentsError) in
+        try? await clock.sleep(for: .seconds(3600))
+        return RemoteAgentAccessPage(entries: [], nextBefore: nil)
+      }
     }
 
     let task = await store.send(.task)
@@ -84,10 +92,15 @@ struct AppFeatureTests {
     await store.send(\.account.dataExport.exportButtonTapped) {
       $0.account.dataExport.status = .preparing
     }
+    // The Agents pane reads the remote agents and their log.
+    await store.send(\.connectedAgents.appeared) {
+      $0.connectedAgents.isLoadingLog = true
+    }
     session.yield(false)
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = false
       $0.account = AccountFeature.State()
+      $0.connectedAgents = ConnectedAgentsFeature.State()
     }
     await store.receive(\.signIn.readyToSignIn)
     await task.cancel()
