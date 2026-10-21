@@ -2,7 +2,7 @@ import Foundation
 import HealthDatabase
 import Testing
 
-@testable import HealthMacApp
+@testable import HealthPages
 
 struct ChartFormatTests {
   private let utc: Calendar = {

@@ -2305,3 +2305,100 @@ struct ActivityQueriesTests {
     #expect(latest == calendar.date(from: DateComponents(year: 2025, month: 10, day: 5)))
   }
 }
+
+// Synthetic data only (AGENTS.md).
+@Suite
+struct BloodPressureQueriesTests {
+  private let calendar = {
+    var c = Calendar(identifier: .gregorian)
+    c.timeZone = .gmt
+    return c
+  }()
+
+  /// October `day`, 2025, at `hour` UTC.
+  private func time(_ day: Int, _ hour: Int) -> Date {
+    calendar.date(from: DateComponents(year: 2025, month: 10, day: day, hour: hour))!
+  }
+
+  private func reading(
+    _ id: String, at date: Date, systolic: Double?, diastolic: Double?
+  ) -> (HealthCorrelation, [HealthSample]) {
+    let ms = date.unixMilliseconds
+    let correlation = HealthCorrelation(
+      id: id, type: HealthDatabase.bloodPressureType, startDate: ms, endDate: ms,
+      sourceName: "Cuff", sourceBundleID: "com.example.cuff")
+    var samples: [HealthSample] = []
+    if let systolic {
+      samples.append(
+        HealthSample(
+          id: "\(id)-s", type: "HKQuantityTypeIdentifierBloodPressureSystolic", startDate: ms,
+          endDate: ms, value: systolic, unit: "mmHg", correlationID: id, sourceName: "Cuff",
+          sourceBundleID: "com.example.cuff"))
+    }
+    if let diastolic {
+      samples.append(
+        HealthSample(
+          id: "\(id)-d", type: "HKQuantityTypeIdentifierBloodPressureDiastolic", startDate: ms,
+          endDate: ms, value: diastolic, unit: "mmHg", correlationID: id, sourceName: "Cuff",
+          sourceBundleID: "com.example.cuff"))
+    }
+    return (correlation, samples)
+  }
+
+  private func database(_ readings: [(HealthCorrelation, [HealthSample])]) throws
+    -> any DatabaseWriter
+  {
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthCorrelation.insert { readings.map(\.0) }.execute(db)
+      try HealthSample.insert { readings.flatMap(\.1) }.execute(db)
+    }
+    return database
+  }
+
+  @Test
+  func readingsPairTheirValues() throws {
+    let database = try database([
+      reading("a", at: time(14, 8), systolic: 121, diastolic: 79),
+      // Missing its diastolic.
+      reading("b", at: time(15, 8), systolic: 133, diastolic: nil),
+      reading("c", at: time(15, 21), systolic: 117, diastolic: 75),
+    ])
+    let week = calendar.dateInterval(of: .weekOfYear, for: time(15, 0))!
+    let readings = try database.read { db in
+      try HealthDatabase.bloodPressureReadings(in: week, db)
+    }
+    #expect(readings.map(\.id) == ["c", "b", "a"])
+    #expect(readings.map(\.systolic) == [117, 133, 121])
+    #expect(readings.map(\.diastolic) == [75, nil, 79])
+  }
+
+  @Test
+  func longerPeriodsChartEachValuesRange() throws {
+    let database = try database([
+      reading("a", at: time(14, 8), systolic: 121, diastolic: 79),
+      reading("b", at: time(14, 20), systolic: 129, diastolic: 83),
+      reading("c", at: time(15, 8), systolic: 133, diastolic: nil),
+    ])
+    let now = time(20, 12)
+    let month = try database.read { db in
+      try HealthDatabase.bloodPressureChart(
+        range: .month, offset: 0, now: now, calendar: calendar, db)
+    }
+    #expect(month.points.map(\.start) == [time(14, 0), time(15, 0)])
+    #expect(month.points[0].systolic == 121...129)
+    #expect(month.points[0].diastolic == 79...83)
+    #expect(month.points[1].diastolic == nil)
+    #expect(month.average?.systolic == (121 + 129 + 133) / 3.0)
+    #expect(month.average?.diastolic == 81)
+    #expect(month.span.systolic == 121...133)
+
+    // A week charts each reading, oldest first.
+    let week = try database.read { db in
+      try HealthDatabase.bloodPressureChart(
+        range: .week, offset: -1, now: now, calendar: calendar, db)
+    }
+    #expect(week.points.map(\.start) == [time(14, 8), time(14, 20), time(15, 8)])
+    #expect(week.points[0].systolic == 121...121)
+  }
+}

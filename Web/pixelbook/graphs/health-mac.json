@@ -142,6 +142,10 @@
       "screen": "HealthPages/ActivityRingsViewPreviews.swift"
     },
     {
+      "id": "blood-pressure",
+      "screen": "HealthPages/BloodPressureViewPreviews.swift"
+    },
+    {
       "id": "workouts",
       "screen": "HealthPages/WorkoutsViewPreviews.swift",
       "states": ["Workouts", "No workouts", "Workouts loading", "Workouts failed"]
@@ -311,6 +315,11 @@
       "from": "metric",
       "to": "activity-rings",
       "label": "For Activity Rings"
+    },
+    {
+      "from": "metric",
+      "to": "blood-pressure",
+      "label": "For Blood Pressure"
     },
     {
       "from": "metric",

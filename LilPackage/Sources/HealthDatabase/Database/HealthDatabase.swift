@@ -388,6 +388,13 @@ public enum HealthDatabase {
       )
       .execute(db)
     }
+    // Blood pressure readings join their samples by correlation (851-2832).
+    migrator.registerMigration("Index samples by correlation") { db in
+      try #sql(
+        #"CREATE INDEX "healthSamples_correlationID" ON "healthSamples" ("correlationID")"#
+      )
+      .execute(db)
+    }
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
