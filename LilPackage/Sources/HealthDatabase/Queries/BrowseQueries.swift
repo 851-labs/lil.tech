@@ -212,7 +212,7 @@ extension HealthDatabase {
   }
 
   /// The start of a `yyyy-MM-dd` day in `calendar`'s time zone.
-  private static func gregorianDay(_ id: String, calendar: Calendar) -> Date? {
+  static func gregorianDay(_ id: String, calendar: Calendar) -> Date? {
     let parts = id.split(separator: "-").compactMap { Int($0) }
     guard parts.count == 3 else { return nil }
     var gregorian = Calendar(identifier: .gregorian)

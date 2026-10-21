@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 public import SQLiteData
 
 /// Where a page of samples ends, for the next: the last sample's start and ID.
@@ -9,6 +9,11 @@ public struct SampleCursor: Hashable, Sendable {
   public init(after sample: HealthSample) {
     startDate = sample.startDate
     id = sample.id
+  }
+
+  public init(startDate: Int, id: String) {
+    self.startDate = startDate
+    self.id = id
   }
 }
 
@@ -121,20 +126,27 @@ extension HealthSample {
 }
 
 extension HealthDatabase {
-  /// Up to `limit` of a type's samples, newest first, after `cursor` (the previous page's end).
+  /// Up to `limit` of a type's samples, newest first, after `cursor` (the previous page's end),
+  /// and only those that start in `range` if given.
   public static func samplePage(
-    of type: String, after cursor: SampleCursor?, limit: Int, _ db: Database
+    of type: String, in range: Range<Date>? = nil, after cursor: SampleCursor?, limit: Int,
+    _ db: Database
   ) throws -> [HealthSample] {
-    try HealthSample
-      .where { sample in
-        if let cursor {
-          // The plain bound first, so SQLite can seek the (type, startDate) index to it.
-          sample.type.eq(type) && sample.startDate <= cursor.startDate
-            && (sample.startDate < cursor.startDate || sample.id < cursor.id)
-        } else {
-          sample.type.eq(type)
-        }
+    var page = HealthSample.where { sample in
+      if let cursor {
+        // The plain bound first, so SQLite can seek the (type, startDate) index to it.
+        sample.type.eq(type) && sample.startDate <= cursor.startDate
+          && (sample.startDate < cursor.startDate || sample.id < cursor.id)
+      } else {
+        sample.type.eq(type)
       }
+    }
+    if let range {
+      let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+      page = page.where { $0.startDate >= lower && $0.startDate < upper }
+    }
+    return
+      try page
       .order { ($0.startDate.desc(), $0.id.desc()) }
       .limit(limit)
       .fetchAll(db)

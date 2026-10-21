@@ -84,6 +84,23 @@ extension HealthWorkout {
 
   /// From start to end, pauses included.
   public var elapsed: TimeInterval { Double(endDate - startDate) / 1000 }
+
+  /// The kinds of distance a workout can record, the usual ones first.
+  public static let distanceTypes = [
+    "HKQuantityTypeIdentifierDistanceWalkingRunning", "HKQuantityTypeIdentifierDistanceCycling",
+    "HKQuantityTypeIdentifierDistanceSwimming", "HKQuantityTypeIdentifierDistanceWheelchair",
+    "HKQuantityTypeIdentifierDistanceDownhillSnowSports",
+    "HKQuantityTypeIdentifierDistanceCrossCountrySkiing",
+    "HKQuantityTypeIdentifierDistancePaddleSports", "HKQuantityTypeIdentifierDistanceRowing",
+    "HKQuantityTypeIdentifierDistanceSkatingSports",
+  ]
+  public static let activeEnergyType = "HKQuantityTypeIdentifierActiveEnergyBurned"
+  public static let heartRateType = "HKQuantityTypeIdentifierHeartRate"
+
+  /// The workout's distance in meters, whichever kind it recorded.
+  public static func distance(in statistics: [String: WorkoutStatistic]) -> Double? {
+    distanceTypes.lazy.compactMap { statistics[$0]?.sum }.first
+  }
 }
 
 /// One point of a workout route.
@@ -119,6 +136,32 @@ public struct RouteSplit: Equatable, Sendable {
 }
 
 extension HealthDatabase {
+  /// Up to `limit` of the workouts that start in `range`, newest first.
+  public static func workouts(in range: Range<Date>, limit: Int, _ db: Database) throws
+    -> [HealthWorkout]
+  {
+    let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    return
+      try HealthWorkout
+      .where { $0.startDate >= lower && $0.startDate < upper }
+      .order { ($0.startDate.desc(), $0.id.desc()) }
+      .limit(limit)
+      .fetchAll(db)
+  }
+
+  /// How many workouts start in `range`, and their total duration (pauses left out), in seconds.
+  public static func workoutTotals(in range: Range<Date>, _ db: Database) throws
+    -> (count: Int, duration: TimeInterval)
+  {
+    let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    let totals =
+      try HealthWorkout
+      .where { $0.startDate >= lower && $0.startDate < upper }
+      .select { ($0.id.count(), $0.duration.sum()) }
+      .fetchOne(db)
+    return (totals?.0 ?? 0, totals?.1 ?? 0)
+  }
+
   /// Up to `limit` workouts, newest first, starting before `before`.
   public static func workouts(before: Date? = nil, limit: Int, _ db: Database) throws
     -> [HealthWorkout]
