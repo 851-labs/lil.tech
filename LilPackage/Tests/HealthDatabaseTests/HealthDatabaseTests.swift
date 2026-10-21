@@ -2237,10 +2237,10 @@ struct ActivityQueriesTests {
       }
       .execute(db)
     }
-    // Late on the 31st, in the Mac's time zone: still October.
-    let late = calendar.date(from: DateComponents(year: 2025, month: 10, day: 31, hour: 23))!
+    let october = calendar.dateInterval(
+      of: .month, for: calendar.date(from: DateComponents(year: 2025, month: 10, day: 31))!)!
     let days = try database.read { db in
-      try HealthDatabase.activityDays(inMonthOf: late, calendar: calendar, db)
+      try HealthDatabase.activityDays(in: october, calendar: calendar, db)
     }
     #expect(days.keys.sorted() == ["2025-10-01", "2025-10-15", "2025-10-31"])
 
@@ -2268,10 +2268,40 @@ struct ActivityQueriesTests {
       }
       .execute(db)
     }
-    let december = calendar.date(from: DateComponents(year: 2025, month: 12, day: 5))!
+    let december = calendar.dateInterval(
+      of: .month, for: calendar.date(from: DateComponents(year: 2025, month: 12, day: 5))!)!
     let days = try database.read { db in
-      try HealthDatabase.activityDays(inMonthOf: december, calendar: calendar, db)
+      try HealthDatabase.activityDays(in: december, calendar: calendar, db)
     }
     #expect(days.keys.sorted() == ["2025-12-31"])
+  }
+
+  @Test
+  func daysAreGregorianWhateverTheMacsCalendar() throws {
+    var buddhist = Calendar(identifier: .buddhist)
+    buddhist.timeZone = .gmt
+    let date = buddhist.date(from: DateComponents(year: 2568, month: 10, day: 5))!
+    #expect(ActivityDay.key(for: date, calendar: buddhist) == "2025-10-05")
+
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthActivitySummary.insert {
+        HealthActivitySummary(id: "2025-10-05", activeEnergyBurned: 1, activeEnergyBurnedGoal: 1)
+        // Later than now: not the latest.
+        HealthActivitySummary(id: "2025-10-20", activeEnergyBurned: 1, activeEnergyBurnedGoal: 1)
+      }
+      .execute(db)
+    }
+    let month = buddhist.dateInterval(of: .month, for: date)!
+    let days = try database.read { db in
+      try HealthDatabase.activityDays(in: month, calendar: buddhist, db)
+    }
+    #expect(days.keys.sorted() == ["2025-10-05", "2025-10-20"])
+    let latest = try database.read { db in
+      try HealthDatabase.latestActivityDay(
+        by: buddhist.date(from: DateComponents(year: 2568, month: 10, day: 10))!,
+        calendar: buddhist, db)
+    }
+    #expect(latest == calendar.date(from: DateComponents(year: 2025, month: 10, day: 5)))
   }
 }

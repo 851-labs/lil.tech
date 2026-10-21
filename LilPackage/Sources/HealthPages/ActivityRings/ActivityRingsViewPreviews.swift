@@ -13,8 +13,7 @@ private func day(_ number: Int) -> Date {
 }
 
 private func key(_ number: Int) -> String {
-  let parts = calendar.dateComponents([.year, .month, .day], from: day(number))
-  return ActivityDay.key(year: parts.year!, month: parts.month!, day: parts.day!)
+  ActivityDay.key(for: day(number), calendar: calendar)
 }
 
 private func rings(

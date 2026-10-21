@@ -2,23 +2,33 @@ public import Foundation
 public import SQLiteData
 
 extension HealthDatabase {
-  /// The Activity rings of each day in `month` (any day in it, in `calendar`), keyed by the day as
-  /// summaries are: `yyyy-MM-dd` in the iPhone's calendar, not shifted to the Mac's time zone.
+  /// The Activity rings of each day in `interval` (days in `calendar`, which may not be
+  /// Gregorian), keyed by the day as summaries are: its Gregorian `yyyy-MM-dd`, the iPhone's day,
+  /// not shifted to the Mac's time zone.
   public static func activityDays(
-    inMonthOf month: Date, calendar: Calendar, _ db: Database
+    in interval: DateInterval, calendar: Calendar, _ db: Database
   ) throws -> [String: ActivityDay] {
-    let components = calendar.dateComponents([.year, .month], from: month)
-    guard let year = components.year, let number = components.month else { return [:] }
-    let first = ActivityDay.key(year: year, month: number, day: 1)
-    let next =
-      number == 12
-      ? ActivityDay.key(year: year + 1, month: 1, day: 1)
-      : ActivityDay.key(year: year, month: number + 1, day: 1)
+    let first = ActivityDay.key(for: interval.start, calendar: calendar)
+    let next = ActivityDay.key(for: interval.end, calendar: calendar)
     let summaries =
       try HealthActivitySummary
       .where { $0.id >= first && $0.id < next }
       .fetchAll(db)
     return Dictionary(uniqueKeysWithValues: summaries.map { ($0.id, ActivityDay($0)) })
+  }
+
+  /// The latest day with Activity rings up to `now`, to open on its month.
+  public static func latestActivityDay(by now: Date, calendar: Calendar, _ db: Database) throws
+    -> Date?
+  {
+    let today = ActivityDay.key(for: now, calendar: calendar)
+    let latest =
+      try HealthActivitySummary
+      .where { $0.id <= today }
+      .select { $0.id.max() }
+      .fetchOne(db)
+      .flatMap { $0 }
+    return latest.flatMap { gregorianDay($0, calendar: calendar) }
   }
 }
 
@@ -61,9 +71,13 @@ public struct ActivityDay: Equatable, Sendable {
       isPaused: summary.paused == true)
   }
 
-  /// A day's key: `2026-10-05`.
-  public static func key(year: Int, month: Int, day: Int) -> String {
-    String(format: "%04d-%02d-%02d", year, month, day)
+  /// A day's key: its Gregorian date (`2026-10-05`) in `calendar`'s time zone, as the iPhone
+  /// keys summaries whatever its calendar.
+  public static func key(for date: Date, calendar: Calendar) -> String {
+    var gregorian = Calendar(identifier: .gregorian)
+    gregorian.timeZone = calendar.timeZone
+    let parts = gregorian.dateComponents([.year, .month, .day], from: date)
+    return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
   }
 }
 

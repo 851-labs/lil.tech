@@ -1,14 +1,19 @@
+import Dependencies
 import HealthDatabase
 import HealthUI
 import SQLiteData
 public import SwiftUI
 
 /// Activity Rings, as in Fitness's calendar (851-2834): a month of days with their rings, and the
-/// selected day's rings large, with each ring's progress toward its goal. Opens on today's month.
-/// Follows the local database as sync changes it.
+/// selected day's rings large, with each ring's progress toward its goal. Opens on the month of
+/// the latest day with rings, today's if it has any. Follows the local database as sync changes
+/// it.
 public struct ActivityRingsView: View {
+  @Dependency(\.defaultDatabase) private var database
   @State private var monthOffset = 0
   @State private var selected: Date?
+  /// Whether the month to open on is known, so the first month loaded is the right one.
+  @State private var isPositioned = false
   /// Moves at midnight, so the month does too.
   @State private var today = Date.now
   @Fetch private var month: ActivityMonth? = nil
@@ -28,12 +33,40 @@ public struct ActivityRingsView: View {
       previous: { monthOffset -= 1 }, next: { monthOffset += 1 }, isLatest: monthOffset >= 0
     )
     .task(id: [String(monthOffset), today.formatted(.iso8601)]) {
+      if !isPositioned {
+        let offset = monthOffset
+        await openOnLatestDay()
+        isPositioned = true
+        // A new month runs this task again for it.
+        guard monthOffset == offset else { return }
+      }
+      let interval = ChartRange.month.interval(offset: monthOffset, now: today, calendar: .current)
       _ = try? await $month.load(
         ActivityMonthRequest(month: interval), scheduler: MainQueueScheduler())
     }
     .onReceive(calendarDayChanges()) {
       today = .now
     }
+  }
+}
+
+extension ActivityRingsView {
+  /// Shows the month of the latest day with rings, with that day selected, when it's before this
+  /// month: the iPhone may not have synced lately.
+  private func openOnLatestDay() async {
+    let calendar = Calendar.current
+    let now = Date.now
+    guard
+      let latest = try? await database.read({ db in
+        try HealthDatabase.latestActivityDay(by: now, calendar: calendar, db)
+      })
+    else { return }
+    let thisMonth = calendar.dateInterval(of: .month, for: today)?.start ?? today
+    let month = calendar.dateInterval(of: .month, for: latest)?.start ?? latest
+    let offset = calendar.dateComponents([.month], from: thisMonth, to: month).month ?? 0
+    guard offset < 0 else { return }
+    monthOffset = offset
+    selected = latest
   }
 }
 
@@ -47,8 +80,7 @@ struct ActivityMonthRequest: FetchKeyRequest {
 
   func fetch(_ db: Database) throws -> ActivityMonth? {
     ActivityMonth(
-      month: month,
-      days: try HealthDatabase.activityDays(inMonthOf: month.start, calendar: .current, db))
+      month: month, days: try HealthDatabase.activityDays(in: month, calendar: .current, db))
   }
 }
 
@@ -118,11 +150,17 @@ struct ActivityRingsContent: View {
         }
         ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
           if let day {
-            ActivityDayCell(
-              number: calendar.component(.day, from: day), day: days[key(day)],
-              isSelected: day == shownDay, isToday: calendar.isDateInToday(day)
-            )
-            .onTapGesture { selected = day }
+            // A button, so the keyboard and VoiceOver can choose a day. Days to come have none.
+            Button {
+              selected = day
+            } label: {
+              ActivityDayCell(
+                number: calendar.component(.day, from: day), day: days[key(day)],
+                isSelected: day == shownDay, isToday: calendar.isDateInToday(day),
+                isFuture: day > calendar.startOfDay(for: .now))
+            }
+            .buttonStyle(.plain)
+            .disabled(day > calendar.startOfDay(for: .now))
           } else {
             Color.clear.frame(height: 54)
           }
@@ -158,11 +196,8 @@ struct ActivityRingsContent: View {
     return days
   }
 
-  /// A day's summary key: the date as `yyyy-MM-dd`, read in the Mac's calendar.
-  private func key(_ day: Date) -> String {
-    let parts = calendar.dateComponents([.year, .month, .day], from: day)
-    return ActivityDay.key(year: parts.year ?? 0, month: parts.month ?? 0, day: parts.day ?? 0)
-  }
+  /// A day's summary key: its Gregorian `yyyy-MM-dd`, whatever the Mac's calendar.
+  private func key(_ day: Date) -> String { ActivityDay.key(for: day, calendar: calendar) }
 
   // MARK: Day
 
@@ -233,6 +268,8 @@ struct ActivityDayCell: View {
   let day: ActivityDay?
   let isSelected: Bool
   let isToday: Bool
+  /// A day to come, which has no rings yet.
+  var isFuture = false
 
   var body: some View {
     VStack(spacing: 3) {
@@ -241,13 +278,15 @@ struct ActivityDayCell: View {
         .foregroundStyle(isToday ? .red : .primary)
       Group {
         if let day {
-          ActivityRings(day: day, lineWidth: 4)
+          ActivityRings(day: day, lineWidth: 3.5)
+        } else if isFuture {
+          Color.clear
         } else {
           Circle()
-            .strokeBorder(.quaternary, lineWidth: 4)
+            .strokeBorder(.quaternary, lineWidth: 3.5)
         }
       }
-      .frame(width: 32, height: 32)
+      .frame(width: 34, height: 34)
     }
     .padding(3)
     .frame(maxWidth: .infinity, minHeight: 54)
@@ -276,8 +315,9 @@ struct ActivityRings: View {
       .compactMap { ring, color in ring.map { ($0, color) } }
     ZStack {
       ForEach(Array(rings.enumerated()), id: \.offset) { index, item in
+        // A little gap between rings, in proportion, so small ones keep their holes.
         ActivityRingShape(progress: item.0.progress, color: item.1, lineWidth: lineWidth)
-          .padding(CGFloat(index) * (lineWidth + 1.5))
+          .padding(CGFloat(index) * lineWidth * 1.2)
       }
     }
     .opacity(day.isPaused ? 0.45 : 1)
@@ -310,11 +350,17 @@ struct ActivityRingShape: View {
         .trim(from: 0, to: min(progress, 1))
         .stroke(color, style: style)
       if progress > 1 {
-        // The lap past the goal, its end shadowed over the ring below it.
+        // The last lap past the goal, ending where the progress does (a whole lap at 200%).
+        let lap = progress.truncatingRemainder(dividingBy: 1)
+        let end = lap == 0 ? 1 : lap
         Circle()
-          .trim(from: 0, to: min(progress - 1, 1))
+          .trim(from: 0, to: end)
           .stroke(color, style: style)
-          .shadow(color: .black.opacity(0.45), radius: lineWidth / 4)
+        // Its end shadowed over the lap below it, as Fitness's are.
+        Circle()
+          .trim(from: max(end - 0.02, 0), to: end)
+          .stroke(color, style: style)
+          .shadow(color: .black.opacity(0.5), radius: lineWidth / 3)
       }
     }
     .rotationEffect(.degrees(-90))
