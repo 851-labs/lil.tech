@@ -10,6 +10,11 @@ extension HealthDatabase {
       .limit(limit)
       .fetchAll(db)
   }
+
+  /// The document with this ID, or `nil` once it's no longer shared.
+  public static func healthDocument(id: String, _ db: Database) throws -> HealthDocument? {
+    try HealthDocument.find(id).fetchOne(db)
+  }
 }
 
 extension HealthDocument {

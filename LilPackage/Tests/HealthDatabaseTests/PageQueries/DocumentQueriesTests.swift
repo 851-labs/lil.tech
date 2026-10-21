@@ -191,12 +191,12 @@ struct ClinicalDocumentTests {
           "Results",
           """
           <paragraph>Within <sdtc:note>the</sdtc:note> <unknownThing>normal</unknownThing> \
-          range<sup>1</sup><footnoteRef IDREF="f1"/>.</paragraph>
+          range<footnoteRef IDREF="f1"/>.</paragraph>
           <paragraph><content revised="delete">Struck.</content>Kept.</paragraph>
           """)))
     #expect(
       document.sections.first?.blocks == [
-        .paragraph(NarrativeText("Within the normal range1.")),
+        .paragraph(NarrativeText("Within the normal range.")),
         .paragraph(NarrativeText("Kept.")),
       ])
     #expect(!document.omitsContent)
@@ -224,6 +224,117 @@ struct ClinicalDocumentTests {
       ])
     #expect(document.omitsContent)
     #expect(try !ClinicalDocument(xml: cda(section("Notes", "Fine."))).omitsContent)
+  }
+
+  @Test
+  func entriesRepeatingTheNarrativeAreNotNotedButImagesAre() throws {
+    // C-CDA's usual section: coded entries behind its narrative.
+    let coded = try ClinicalDocument(
+      xml: cda(
+        """
+        <component><section><title>Problems</title><text>Seasonal allergies.</text>
+          <entry><act><entryRelationship><observation/></entryRelationship></act></entry>
+          <entry><act/></entry>
+        </section></component>
+        """))
+    #expect(!coded.omitsContent)
+    let image = try ClinicalDocument(
+      xml: cda(
+        """
+        <component><section><title>Imaging</title><text>Chest X-ray, clear.</text>
+          <entry><observationMedia><value mediaType="image/png">iVBORw0=</value></observationMedia></entry>
+        </section></component>
+        """))
+    #expect(image.omitsContent)
+    // An empty section without entries leaves nothing out.
+    let empty = try ClinicalDocument(
+      xml: cda(section("Notes", "Fine.") + "<component><section/></component>"))
+    #expect(empty.sections.count == 1)
+    #expect(!empty.omitsContent)
+  }
+
+  @Test
+  func superscriptsAndSubscriptsStayApartFromTheTextAroundThem() throws {
+    let sections = try readSections(
+      section("Results", "<paragraph>4.5 x 10<sup>9</sup>/L, CO<sub>2</sub> normal</paragraph>"))
+    #expect(
+      sections.first?.blocks == [
+        .paragraph(
+          NarrativeText([
+            NarrativeText.Run("4.5 x 10"), NarrativeText.Run("9", position: .superscript),
+            NarrativeText.Run("/L, CO"), NarrativeText.Run("2", position: .subscript),
+            NarrativeText.Run(" normal"),
+          ]))
+      ])
+  }
+
+  @Test
+  func styleCodesApplyToParagraphsItemsRowsAndCells() throws {
+    let sections = try readSections(
+      section(
+        "Notes",
+        """
+        <paragraph styleCode="Italics">Leaning.</paragraph>
+        <list><item styleCode="Bold">Strong</item></list>
+        <table><tbody>
+          <tr styleCode="Underline"><td styleCode="Italics">Both</td><td>Under</td></tr>
+        </tbody></table>
+        """))
+    #expect(
+      sections.first?.blocks == [
+        .paragraph(NarrativeText([NarrativeText.Run("Leaning.", isItalic: true)])),
+        .list(
+          ordered: false,
+          items: [[.paragraph(NarrativeText([NarrativeText.Run("Strong", isBold: true)]))]]),
+        .table(
+          NarrativeTable(rows: [
+            NarrativeTable.Row(cells: [
+              NarrativeTable.Cell(
+                text: NarrativeText([
+                  NarrativeText.Run("Both", isItalic: true, isUnderlined: true)
+                ])),
+              NarrativeTable.Cell(
+                text: NarrativeText([NarrativeText.Run("Under", isUnderlined: true)])),
+            ])
+          ])),
+      ])
+  }
+
+  @Test
+  func carriageReturnsAndNewlinesCollapse() throws {
+    let sections = try readSections(
+      section("Notes", "<paragraph>One\r\n  two\r\nthree</paragraph>"))
+    #expect(sections.first?.blocks == [.paragraph(NarrativeText("One two three"))])
+  }
+
+  @Test
+  func spanningCellsKeepLaterCellsInTheirColumns() throws {
+    let sections = try readSections(
+      section(
+        "Spans",
+        """
+        <table><tbody>
+          <tr><td rowspan="2">A</td><td colspan="2">B</td></tr>
+          <tr><td>C</td><td>D</td></tr>
+          <tr><td>E</td><td colspan="0">F</td><td>G</td></tr>
+        </tbody></table>
+        """))
+    let text = { (string: String) in NarrativeText(string) }
+    let table = NarrativeTable(rows: [
+      NarrativeTable.Row(cells: [
+        NarrativeTable.Cell(text: text("A")), NarrativeTable.Cell(text: text("B"), columnSpan: 2),
+      ]),
+      NarrativeTable.Row(cells: [
+        NarrativeTable.Cell(text: nil), NarrativeTable.Cell(text: text("C")),
+        NarrativeTable.Cell(text: text("D")),
+      ]),
+      NarrativeTable.Row(cells: [
+        NarrativeTable.Cell(text: text("E")), NarrativeTable.Cell(text: text("F")),
+        NarrativeTable.Cell(text: text("G")),
+      ]),
+    ])
+    #expect(sections.first?.blocks == [.table(table)])
+    #expect(table.columnCount == 3)
   }
 
   @Test
@@ -255,11 +366,30 @@ struct ClinicalDocumentTests {
   }
 
   @Test
-  func textOfUTF16DocumentsIsDecoded() throws {
-    let xml = #"<ClinicalDocument xmlns="urn:hl7-org:v3"/>"#
-    let utf16 = try #require(xml.data(using: .utf16))
-    #expect(ClinicalDocument.text(of: utf16) == xml)
+  func textIsDecodedAsItsByteOrderMarkOrDeclarationSays() throws {
+    let xml = #"<ClinicalDocument xmlns="urn:hl7-org:v3"><title>Café</title></ClinicalDocument>"#
+    // Byte order marks, left out of the text.
+    #expect(ClinicalDocument.text(of: Data([0xEF, 0xBB, 0xBF] + Array(xml.utf8))) == xml)
+    let little = try #require(xml.data(using: .utf16LittleEndian))
+    let big = try #require(xml.data(using: .utf16BigEndian))
+    #expect(ClinicalDocument.text(of: Data([0xFF, 0xFE]) + little) == xml)
+    #expect(ClinicalDocument.text(of: Data([0xFE, 0xFF]) + big) == xml)
+    #expect(try ClinicalDocument.text(of: #require(xml.data(using: .utf16))) == xml)
+    // UTF-16 without a mark, from how its declaration starts.
+    let declared = #"<?xml version="1.0"?>"# + xml
+    #expect(
+      try ClinicalDocument.text(of: #require(declared.data(using: .utf16LittleEndian))) == declared)
+    #expect(
+      try ClinicalDocument.text(of: #require(declared.data(using: .utf16BigEndian))) == declared)
+    // The declared encoding.
+    let latin1 = #"<?xml version="1.0" encoding="ISO-8859-1"?>"# + xml
+    #expect(try ClinicalDocument.text(of: #require(latin1.data(using: .isoLatin1))) == latin1)
+    let utf8 = #"<?xml version='1.0' encoding='utf-8'?>"# + xml
+    #expect(ClinicalDocument.text(of: Data(utf8.utf8)) == utf8)
+    // UTF-8 when it says nothing, or names an encoding Foundation doesn't know.
     #expect(ClinicalDocument.text(of: Data(xml.utf8)) == xml)
+    let unknown = #"<?xml version="1.0" encoding="x-made-up"?>"# + xml
+    #expect(ClinicalDocument.text(of: Data(unknown.utf8)) == unknown)
   }
 }
 

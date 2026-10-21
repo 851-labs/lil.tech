@@ -5,13 +5,15 @@ public import Foundation
 /// `<section>`'s `<title>` and narrative `<text>`, as paragraphs, lists and tables. The header
 /// (patient, author, custodian) isn't read: HealthKit extracts it into the record's columns.
 ///
-/// Coded entries (`<entry>`) aren't shown, and neither are images (`<renderMultiMedia>`): a
-/// document with either says so (`omitsContent`), so the viewer can point to its XML. Other
-/// elements the narrative doesn't define show their text.
+/// Coded entries (`<entry>`) aren't shown: in C-CDA they repeat their section's narrative, so
+/// only a section with entries but no narrative counts as left out. Neither are images
+/// (`<renderMultiMedia>`, `<observationMedia>`). A document with either says so
+/// (`omitsContent`), so the viewer can point to its XML. Other elements the narrative doesn't
+/// define show their text.
 public struct ClinicalDocument: Equatable, Sendable {
   public var sections: [DocumentSection]
-  /// Whether some of the document isn't in `sections`: sections without a title or text, coded
-  /// data, or images.
+  /// Whether some of the document isn't in `sections`: sections with coded data but no
+  /// narrative, or images.
   public var omitsContent: Bool
 
   public init(sections: [DocumentSection], omitsContent: Bool = false) {
@@ -62,14 +64,41 @@ public struct ClinicalDocument: Equatable, Sendable {
     self.init(sections: sections, omitsContent: reader.omitsContent)
   }
 
-  /// A document's XML as text: UTF-8, or UTF-16 with a byte order mark.
+  /// A document's XML as text, in its encoding: as its byte order mark says (which is left
+  /// out), else as UTF-16 if it starts that way, else as its XML declaration says, else UTF-8.
+  /// Bytes the encoding can't read are replaced.
   public static func text(of xml: Data) -> String {
-    if xml.starts(with: [0xFF, 0xFE]) || xml.starts(with: [0xFE, 0xFF]),
-      let text = String(data: xml, encoding: .utf16)
-    {
-      return text
+    let marks: [(bytes: [UInt8], encoding: String.Encoding)] = [
+      ([0xEF, 0xBB, 0xBF], .utf8), ([0xFF, 0xFE], .utf16LittleEndian),
+      ([0xFE, 0xFF], .utf16BigEndian),
+    ]
+    for mark in marks where xml.starts(with: mark.bytes) {
+      return decode(xml.dropFirst(mark.bytes.count), mark.encoding)
     }
-    return String(decoding: xml, as: UTF8.self)
+    // `<?` in UTF-16 without a mark (XML 1.0, appendix F).
+    if xml.starts(with: [0x3C, 0x00, 0x3F, 0x00]) { return decode(xml, .utf16LittleEndian) }
+    if xml.starts(with: [0x00, 0x3C, 0x00, 0x3F]) { return decode(xml, .utf16BigEndian) }
+    return decode(xml, declaredEncoding(xml) ?? .utf8)
+  }
+
+  /// The encoding an XML declaration names (`<?xml version="1.0" encoding="ISO-8859-1"?>`), by
+  /// its IANA name, if it's one Foundation knows.
+  static func declaredEncoding(_ xml: Data) -> String.Encoding? {
+    let start = String(decoding: xml.prefix(200), as: UTF8.self)
+    guard start.hasPrefix("<?xml"), let end = start.range(of: "?>") else { return nil }
+    let declaration = start[..<end.lowerBound]
+    guard
+      let match = declaration.firstMatch(of: /encoding\s*=\s*["']([A-Za-z0-9._:-]+)["']/)
+    else { return nil }
+    let name = String(match.output.1)
+    let encoding = CFStringConvertIANACharSetNameToEncoding(name as CFString)
+    guard encoding != kCFStringEncodingInvalidId else { return nil }
+    return String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(encoding))
+  }
+
+  private static func decode(_ data: Data, _ encoding: String.Encoding) -> String {
+    if encoding == .utf8 { return String(decoding: data, as: UTF8.self) }
+    return String(data: data, encoding: encoding) ?? String(decoding: data, as: UTF8.self)
   }
 }
 
@@ -104,15 +133,29 @@ public struct NarrativeText: Equatable, Sendable {
     public var isBold: Bool
     public var isItalic: Bool
     public var isUnderlined: Bool
+    /// Raised (`<sup>`) or lowered (`<sub>`): "10" then a superscript "9" is 10⁹, not 109.
+    public var position: Position
 
     public init(
-      _ text: String, isBold: Bool = false, isItalic: Bool = false, isUnderlined: Bool = false
+      _ text: String, isBold: Bool = false, isItalic: Bool = false, isUnderlined: Bool = false,
+      position: Position = .baseline
     ) {
       self.text = text
       self.isBold = isBold
       self.isItalic = isItalic
       self.isUnderlined = isUnderlined
+      self.position = position
     }
+
+    /// Whether it looks the same as `other`, so the two can be one run.
+    func looksLike(_ other: Run) -> Bool {
+      isBold == other.isBold && isItalic == other.isItalic
+        && isUnderlined == other.isUnderlined && position == other.position
+    }
+  }
+
+  public enum Position: Equatable, Sendable {
+    case baseline, superscript, `subscript`
   }
 
   public var runs: [Run]
@@ -129,9 +172,7 @@ public struct NarrativeText: Equatable, Sendable {
   init(merging runs: [Run]) {
     var merged: [Run] = []
     for run in runs {
-      if let last = merged.last, last.isBold == run.isBold, last.isItalic == run.isItalic,
-        last.isUnderlined == run.isUnderlined
-      {
+      if let last = merged.last, last.looksLike(run) {
         merged[merged.count - 1].text += run.text
       } else {
         merged.append(run)
@@ -157,15 +198,19 @@ public struct NarrativeTable: Equatable, Sendable {
     }
   }
 
+  /// A `<th>` or `<td>`, or an empty one standing in for a cell spanning rows from above.
   public struct Cell: Equatable, Sendable {
     /// `nil` for an empty cell.
     public var text: NarrativeText?
     /// Whether it's a `<th>`.
     public var isHeader: Bool
+    /// How many columns it spans (`colspan`).
+    public var columnSpan: Int
 
-    public init(text: NarrativeText?, isHeader: Bool = false) {
+    public init(text: NarrativeText?, isHeader: Bool = false, columnSpan: Int = 1) {
       self.text = text
       self.isHeader = isHeader
+      self.columnSpan = columnSpan
     }
   }
 
@@ -177,8 +222,10 @@ public struct NarrativeTable: Equatable, Sendable {
     self.rows = rows
   }
 
-  /// The most cells in a row.
-  public var columnCount: Int { rows.map(\.cells.count).max() ?? 0 }
+  /// The most columns a row spans.
+  public var columnCount: Int {
+    rows.map { $0.cells.reduce(0) { $0 + $1.columnSpan } }.max() ?? 0
+  }
 }
 
 // MARK: - Reading the narrative
@@ -191,6 +238,7 @@ private struct NarrativeReader {
     var isBold = false
     var isItalic = false
     var isUnderlined = false
+    var position = NarrativeText.Position.baseline
 
     /// With a `styleCode`'s emphasis added (its tokens are space-separated).
     func adding(styleCode: String?) -> Style {
@@ -205,6 +253,11 @@ private struct NarrativeReader {
       }
       return style
     }
+
+    /// With an element's `styleCode` added.
+    func adding(_ element: XMLTree.Element) -> Style {
+      adding(styleCode: element.attributes["styleCode"])
+    }
   }
 
   /// A section, or `nil` (noted as left out) if it has no title, text or readable subsections.
@@ -213,35 +266,33 @@ private struct NarrativeReader {
     let blocks = element.child("text").map { blocks(of: $0) } ?? []
     let sections = element.children("component").compactMap { $0.child("section") }
       .compactMap { section($0) }
-    if !element.children("entry").isEmpty { omitsContent = true }
-    guard !title.isEmpty || !blocks.isEmpty || !sections.isEmpty else {
+    let entries = element.children("entry")
+    // Entries repeat the narrative, so they're only missed without one. Images are always.
+    if (blocks.isEmpty && !entries.isEmpty) || entries.contains(where: \.containsMedia) {
       omitsContent = true
-      return nil
     }
+    guard !title.isEmpty || !blocks.isEmpty || !sections.isEmpty else { return nil }
     return DocumentSection(title: title, blocks: blocks, sections: sections)
   }
 
   /// An element's content as blocks: paragraphs, lists and tables, with text between them as
   /// paragraphs of its own.
-  mutating func blocks(of element: XMLTree.Element) -> [NarrativeBlock] {
+  mutating func blocks(of element: XMLTree.Element, style: Style = Style()) -> [NarrativeBlock] {
     var blocks: [NarrativeBlock] = []
     var runs = RunBuilder()
-    add(element.children, style: Style(), to: &blocks, runs: &runs)
+    add(element.children, style: style.adding(element), to: &blocks, runs: &runs)
     if let text = runs.finish() { blocks.append(.paragraph(text)) }
     return blocks
   }
 
-  /// An element's content as one text, its blocks on lines of their own (a table cell's).
+  /// An element's content as one text, its blocks on lines of their own (a table cell's), in
+  /// `style` and the element's own.
   mutating func inlineText(of element: XMLTree.Element, style: Style = Style()) -> NarrativeText? {
-    let lines = blocks(of: element).flatMap { lines(of: $0) }
+    let lines = blocks(of: element, style: style).flatMap { lines(of: $0) }
     var runs: [NarrativeText.Run] = []
     for (index, line) in lines.enumerated() {
       if index > 0 { runs.append(NarrativeText.Run("\n")) }
-      runs += line.runs.map { run in
-        var run = run
-        run.isBold = run.isBold || style.isBold
-        return run
-      }
+      runs += line.runs
     }
     return runs.isEmpty ? nil : NarrativeText(merging: runs)
   }
@@ -289,33 +340,41 @@ private struct NarrativeReader {
     switch name {
     case "paragraph":
       flush()
-      add(element.children, style: style, to: &blocks, runs: &runs)
+      add(element.children, style: style.adding(element), to: &blocks, runs: &runs)
       flush()
     case "list":
       flush()
+      let style = style.adding(element)
+      var captionStyle = style
+      captionStyle.isBold = true
       if let caption = element.child("caption"),
-        let text = inlineText(of: caption, style: Style(isBold: true))
+        let text = inlineText(of: caption, style: captionStyle)
       {
         blocks.append(.paragraph(text))
       }
-      let items = element.children("item").map { self.blocks(of: $0) }.filter { !$0.isEmpty }
+      let items = element.children("item").map { self.blocks(of: $0, style: style) }
+        .filter { !$0.isEmpty }
       if !items.isEmpty {
         blocks.append(.list(ordered: element.attributes["listType"] == "ordered", items: items))
       }
     case "table":
       flush()
-      if let table = table(element) { blocks.append(.table(table)) }
+      if let table = table(element, style: style.adding(element)) { blocks.append(.table(table)) }
     case "br":
       runs.appendBreak()
     case "content" where element.attributes["revised"] == "delete":
       // Struck from the document: not shown.
       break
-    case "content", "linkHtml", "sub", "sup":
-      add(
-        element.children, style: style.adding(styleCode: element.attributes["styleCode"]),
-        to: &blocks, runs: &runs)
+    case "content", "linkHtml":
+      add(element.children, style: style.adding(element), to: &blocks, runs: &runs)
+    case "sup", "sub":
+      var style = style.adding(element)
+      style.position = name == "sup" ? .superscript : .subscript
+      add(element.children, style: style, to: &blocks, runs: &runs)
     case "caption":
-      add(element.children, style: Style(isBold: true), to: &blocks, runs: &runs)
+      var style = style.adding(element)
+      style.isBold = true
+      add(element.children, style: style, to: &blocks, runs: &runs)
     case "renderMultiMedia":
       omitsContent = true
     case "footnoteRef", "col", "colgroup":
@@ -326,31 +385,60 @@ private struct NarrativeReader {
     }
   }
 
-  private mutating func table(_ element: XMLTree.Element) -> NarrativeTable? {
-    var rows: [NarrativeTable.Row] = []
+  /// A table's rows, with cells spanning rows (`rowspan`) standing in for empty ones in the rows
+  /// below, so later cells stay in their columns.
+  private mutating func table(_ element: XMLTree.Element, style: Style) -> NarrativeTable? {
+    var rows: [(element: XMLTree.Element, style: Style, isHeader: Bool)] = []
     for child in element.childElements {
       switch child.name {
-      case "thead":
-        rows += child.children("tr").map { row($0, isHeader: true) }
-      case "tbody", "tfoot":
-        rows += child.children("tr").map { row($0, isHeader: false) }
+      case "thead", "tbody", "tfoot":
+        rows += child.children("tr").map {
+          (element: $0, style: style.adding(child), isHeader: child.name == "thead")
+        }
       case "tr":
-        rows.append(row(child, isHeader: false))
+        rows.append((element: child, style: style, isHeader: false))
       default:
         break
       }
     }
-    let caption = element.child("caption").flatMap { inlineText(of: $0) }
-    rows.removeAll { $0.cells.isEmpty }
-    guard !rows.isEmpty || caption != nil else { return nil }
-    return NarrativeTable(caption: caption, rows: rows)
+    let caption = element.child("caption").flatMap { inlineText(of: $0, style: style) }
+    // Rows still to come under a cell spanning rows, and its columns, by its first column.
+    var spanning: [Int: (rows: Int, columns: Int)] = [:]
+    var tableRows: [NarrativeTable.Row] = []
+    for row in rows {
+      let style = row.style.adding(row.element)
+      var cells: [NarrativeTable.Cell] = []
+      var column = 0
+      func skipSpanned() {
+        while let span = spanning[column] {
+          cells.append(NarrativeTable.Cell(text: nil, columnSpan: span.columns))
+          spanning[column] = span.rows > 1 ? (span.rows - 1, span.columns) : nil
+          column += span.columns
+        }
+      }
+      for cell in row.element.childElements where cell.name == "th" || cell.name == "td" {
+        skipSpanned()
+        let columns = Self.span(cell.attributes["colspan"])
+        cells.append(
+          NarrativeTable.Cell(
+            text: inlineText(of: cell, style: style), isHeader: cell.name == "th",
+            columnSpan: columns))
+        let rowSpan = Self.span(cell.attributes["rowspan"])
+        if rowSpan > 1 { spanning[column] = (rowSpan - 1, columns) }
+        column += columns
+      }
+      skipSpanned()
+      if !cells.isEmpty {
+        tableRows.append(NarrativeTable.Row(cells: cells, isHeader: row.isHeader))
+      }
+    }
+    guard !tableRows.isEmpty || caption != nil else { return nil }
+    return NarrativeTable(caption: caption, rows: tableRows)
   }
 
-  private mutating func row(_ element: XMLTree.Element, isHeader: Bool) -> NarrativeTable.Row {
-    let cells = element.childElements.filter { $0.name == "th" || $0.name == "td" }.map { cell in
-      NarrativeTable.Cell(text: inlineText(of: cell), isHeader: cell.name == "th")
-    }
-    return NarrativeTable.Row(cells: cells, isHeader: isHeader)
+  /// A `colspan` or `rowspan`: 1 unless it's a number above 1, and at most 100.
+  private static func span(_ value: String?) -> Int {
+    min(100, max(1, value.flatMap { Int($0.trimmingCharacters(in: .whitespaces)) } ?? 1))
   }
 }
 
@@ -362,30 +450,35 @@ private struct RunBuilder {
   private var atLineStart = true
 
   mutating func append(_ text: String, style: NarrativeReader.Style) {
-    var collapsed = ""
-    for character in text {
-      if character == " " || character == "\t" || character == "\n" || character == "\r" {
+    var collapsed = String.UnicodeScalarView()
+    // By scalar: "\r\n" is one `Character`.
+    for scalar in text.unicodeScalars {
+      if scalar == " " || scalar == "\t" || scalar == "\n" || scalar == "\r" {
         if !atLineStart { pendingSpace = true }
       } else {
         if pendingSpace {
-          // A space between runs ends the one before, so it isn't underlined or bold with the
-          // next.
-          if collapsed.isEmpty, !runs.isEmpty {
-            runs[runs.count - 1].text += " "
+          // A space between runs has only what both have: it isn't underlined, bold or raised
+          // unless both are.
+          if collapsed.isEmpty, let last = runs.last {
+            runs.append(
+              NarrativeText.Run(
+                " ", isBold: last.isBold && style.isBold, isItalic: last.isItalic && style.isItalic,
+                isUnderlined: last.isUnderlined && style.isUnderlined,
+                position: last.position == style.position ? last.position : .baseline))
           } else {
             collapsed.append(" ")
           }
         }
         pendingSpace = false
         atLineStart = false
-        collapsed.append(character)
+        collapsed.append(scalar)
       }
     }
     guard !collapsed.isEmpty else { return }
     runs.append(
       NarrativeText.Run(
-        collapsed, isBold: style.isBold, isItalic: style.isItalic,
-        isUnderlined: style.isUnderlined))
+        String(collapsed), isBold: style.isBold, isItalic: style.isItalic,
+        isUnderlined: style.isUnderlined, position: style.position))
   }
 
   mutating func appendBreak() {
@@ -416,6 +509,8 @@ enum XMLTree {
     let namespace: String?
     let attributes: [String: String]
     var children: [Node] = []
+    /// For an `<entry>`, whose content isn't kept: whether it has an image (`observationMedia`).
+    var containsMedia = false
 
     init(name: String, namespace: String?, attributes: [String: String]) {
       self.name = name
@@ -470,6 +565,8 @@ enum XMLTree {
     private var stack: [Element] = []
     /// How deep inside an `<entry>` the parser is, whose content isn't kept.
     private var skipping = 0
+    /// The entry being skipped.
+    private var entry: Element?
 
     func parser(
       _ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?,
@@ -477,6 +574,9 @@ enum XMLTree {
     ) {
       if skipping > 0 {
         skipping += 1
+        if elementName == "observationMedia", namespaceURI == ClinicalDocument.namespace {
+          entry?.containsMedia = true
+        }
         return
       }
       let element = Element(name: elementName, namespace: namespaceURI, attributes: attributes)
@@ -490,6 +590,7 @@ enum XMLTree {
         // Kept, empty, so its section knows it had one.
         stack.removeLast()
         skipping = 1
+        entry = element
       }
     }
 

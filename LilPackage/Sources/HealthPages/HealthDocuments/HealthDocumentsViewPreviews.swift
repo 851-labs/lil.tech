@@ -29,7 +29,8 @@ private let documents = [
   document(4, "", daysAgo: 400),
 ]
 
-/// A visit summary with paragraphs, emphasis, a list, a table and a nested section.
+/// A visit summary with paragraphs, emphasis, a list, a table (with superscripts and a cell
+/// spanning its columns) and a nested section.
 private let visitSummary = """
   <?xml version="1.0" encoding="UTF-8"?>
   <ClinicalDocument xmlns="urn:hl7-org:v3">
@@ -73,6 +74,8 @@ private let visitSummary = """
                   <tr><td>Blood Pressure</td><td>118/76 mmHg</td><td>Below 120/80</td></tr>
                   <tr><td>Heart Rate</td><td>64 BPM</td><td>60–100</td></tr>
                   <tr><td>Weight</td><td>70.2 kg</td><td></td></tr>
+                  <tr><td>White Cells</td><td>6.1 × 10<sup>9</sup>/L</td><td>4.0–11.0 × 10<sup>9</sup>/L</td></tr>
+                  <tr><td colspan="3"><content styleCode="Italics">Measured seated, after five minutes' rest.</content></td></tr>
                 </tbody>
               </table>
             </text>
@@ -148,7 +151,7 @@ private func list(_ state: HealthDocumentsContent.State, limit: Int = RecentHeal
 }
 
 @MainActor
-private func detail(_ document: HealthDocument, _ state: HealthDocumentDetailContent.State)
+private func detail(_ document: HealthDocument?, _ state: HealthDocumentDetailContent.State)
   -> some View
 {
   NavigationStack {
@@ -159,11 +162,7 @@ private func detail(_ document: HealthDocument, _ state: HealthDocumentDetailCon
 
 /// A document read as the viewer reads it.
 private func read(_ xml: String) -> HealthDocumentDetailContent.State {
-  do {
-    return .loaded(xml: xml, document: try ClinicalDocument(xml: Data(xml.utf8)))
-  } catch {
-    return .unreadable(xml: xml, error)
-  }
+  HealthDocumentDetailContent.State(reading: Data(xml.utf8))
 }
 
 #Preview("Health documents") {
@@ -207,7 +206,13 @@ private func read(_ xml: String) -> HealthDocumentDetailContent.State {
   detail(documents[0], .failed("The document couldn't be downloaded."))
 }
 
+#Preview("Document no longer shared") {
+  detail(nil, .loading)
+}
+
 #Preview("Document XML") {
-  DocumentXMLSheet(title: documents[0].displayTitle, xml: visitSummary)
-    .previewFrame(width: 760, height: 560)
+  DocumentXMLSheet(
+    title: documents[0].displayTitle, id: documents[0].xml, xml: Data(visitSummary.utf8)
+  )
+  .previewFrame(width: 760, height: 560)
 }

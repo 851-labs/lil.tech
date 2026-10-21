@@ -196,7 +196,8 @@
         "Some not shown",
         "Malformed document",
         "Document loading",
-        "Document failed"
+        "Document failed",
+        "Document no longer shared"
       ]
     },
     {
