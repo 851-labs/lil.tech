@@ -11,8 +11,8 @@ import SwiftUI
 #endif
 
 /// Settings › Connected Agents (851-2854): the remote agents allowed to read the account's Health
-/// data through lil health's MCP server or the combined one (851-2902), each revoked with a swipe; Recent Access, what they read;
-/// how to connect one; and Turn Off Agent Access. Revoking and turning off ask first. It reads the
+/// data through lil health's MCP server or the combined one (851-2902), each revoked with a swipe;
+/// Recent Access, what they read; how to connect one; and Turn Off Agent Access. Revoking and turning off ask first. It reads the
 /// agents and the log again each time it opens.
 struct ConnectedAgentsView: View {
   @Bindable var store: StoreOf<ConnectedAgentsFeature>
@@ -124,22 +124,10 @@ struct ConnectedAgentRow: View {
             .font(.body.weight(.medium))
             .lineLimit(2)
           if agent.isUnverified {
-            Text("Unverified")
-              .font(.caption.weight(.medium))
-              .foregroundStyle(.orange)
-              .padding(.horizontal, 6)
-              .padding(.vertical, 1)
-              .background(.orange.opacity(0.15), in: Capsule())
-              .fixedSize()
+            AgentLabel(text: "Unverified", color: .orange)
           }
           if agent.isCombined {
-            Text("All lil apps")
-              .font(.caption.weight(.medium))
-              .foregroundStyle(.blue)
-              .padding(.horizontal, 6)
-              .padding(.vertical, 1)
-              .background(.blue.opacity(0.15), in: Capsule())
-              .fixedSize()
+            AgentLabel(text: "All lil apps", color: .blue)
           }
         }
         Text(agent.domain ?? "No verified website")
@@ -155,6 +143,22 @@ struct ConnectedAgentRow: View {
       }
     }
     .accessibilityElement(children: .combine)
+  }
+}
+
+/// A short label next to an agent's name: Unverified, or All lil apps (851-2902).
+private struct AgentLabel: View {
+  let text: String
+  let color: Color
+
+  var body: some View {
+    Text(text)
+      .font(.caption.weight(.medium))
+      .foregroundStyle(color)
+      .padding(.horizontal, 6)
+      .padding(.vertical, 1)
+      .background(color.opacity(0.15), in: Capsule())
+      .fixedSize()
   }
 }
 

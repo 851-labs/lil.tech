@@ -155,7 +155,7 @@ private func agents(
 #Preview("Agents: revoke an agent on all lil apps") {
   agents(
     connected: ConnectedAgentsFeature.State(
-      agents: .loaded(remoteAgents), alert: .confirmRevoke(remoteAgents[2])))
+      agents: .loaded(remoteAgents), alert: .confirmRevoke(combinedAgent)))
 }
 
 #Preview("Agents: signed out") {
@@ -165,7 +165,16 @@ private func agents(
 // The Agents pane's remote agents (851-2853), on their own, tall enough to see them all.
 // Synthetic agents and reads.
 
+/// Connected through the combined server, to every lil app (851-2902).
+private let combinedAgent = ConnectedAgent(
+  id: "grant-5", name: "ChatGPT", domain: "chatgpt.com", app: nil, apps: ["health"],
+  connectedAt: Date(timeIntervalSince1970: 1_760_960_000),
+  firstUsedAt: nil,
+  lastUsedAt: Date(timeIntervalSince1970: 1_760_960_000))
+
+/// Most recently connected first, as the API lists them.
 private let remoteAgents = [
+  combinedAgent,
   ConnectedAgent(
     id: "grant-1", name: "Claude", domain: "claude.ai", app: "health",
     connectedAt: Date(timeIntervalSince1970: 1_760_900_000),
@@ -176,12 +185,6 @@ private let remoteAgents = [
     connectedAt: Date(timeIntervalSince1970: 1_760_800_000),
     firstUsedAt: Date(timeIntervalSince1970: 1_760_800_060),
     lastUsedAt: Date.now.addingTimeInterval(-3 * 86_400)),
-  // Connected through the combined server, to every lil app (851-2902).
-  ConnectedAgent(
-    id: "grant-5", name: "ChatGPT", domain: "chatgpt.com", app: nil, apps: ["health"],
-    connectedAt: Date(timeIntervalSince1970: 1_760_960_000),
-    firstUsedAt: nil,
-    lastUsedAt: Date(timeIntervalSince1970: 1_760_960_000)),
 ]
 
 private let remoteReads = (1...6).map { index in

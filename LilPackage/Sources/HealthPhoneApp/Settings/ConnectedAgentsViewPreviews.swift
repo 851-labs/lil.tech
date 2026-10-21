@@ -26,7 +26,8 @@ enum ConnectedAgentsPreviewData {
     firstUsedAt: nil,
     lastUsedAt: Date(timeIntervalSince1970: 1_760_960_000))
 
-  static let agents = [claude, digest, chatGPT]
+  /// Most recently connected first, as the API lists them.
+  static let agents = [chatGPT, claude, digest]
 
   /// `count` reads, newest first, every third by the digest, some of them not ok.
   static func reads(_ count: Int, from start: Int = 0) -> [RemoteAgentAccess] {
