@@ -37,6 +37,10 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   /// A hash of the vision prescriptions last uploaded, and their IDs, as for characteristics.
   public var visionPrescriptionsHash: String?
   public var visionPrescriptionIDs: Set<String> = []
+  /// The Health Documents uploaded, so only new ones are read with their XML, and one no longer
+  /// shared is deleted. Documents never change. Those too large to upload are here too, so they
+  /// aren't read again every run.
+  public var documentIDs: Set<String> = []
   /// A hash of the medications last uploaded, and their concept IDs, as for characteristics. The
   /// doses uploaded for each are in a file of their own (`HealthBackfill.medicationDosesFile`).
   public var medicationsHash: String?
@@ -73,6 +77,7 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
       String.self, forKey: .visionPrescriptionsHash)
     visionPrescriptionIDs =
       try container.decodeIfPresent(Set<String>.self, forKey: .visionPrescriptionIDs) ?? []
+    documentIDs = try container.decodeIfPresent(Set<String>.self, forKey: .documentIDs) ?? []
     medicationsHash = try container.decodeIfPresent(String.self, forKey: .medicationsHash)
     medicationIDs =
       try container.decodeIfPresent(Set<String>.self, forKey: .medicationIDs) ?? []
@@ -264,6 +269,7 @@ public actor HealthBackfill {
   private let statisticsReader: HealthStatisticsReader
   private let characteristicsReader: HealthCharacteristicsReader
   private let visionPrescriptionsReader: HealthVisionPrescriptionsReader
+  private let documentsReader: HealthDocumentsReader
   private let medicationsReader: HealthMedicationsReader
   private let activitySummaryReader: HealthActivitySummaryReader
   private let counter: HealthRecordCounter
@@ -304,6 +310,7 @@ public actor HealthBackfill {
     @Dependency(\.healthStatisticsReader) var statisticsReader
     @Dependency(\.healthCharacteristicsReader) var characteristicsReader
     @Dependency(\.healthVisionPrescriptionsReader) var visionPrescriptionsReader
+    @Dependency(\.healthDocumentsReader) var documentsReader
     @Dependency(\.healthMedicationsReader) var medicationsReader
     @Dependency(\.healthActivitySummaryReader) var activitySummaryReader
     @Dependency(\.healthRecordCounter) var counter
@@ -318,6 +325,7 @@ public actor HealthBackfill {
     self.statisticsReader = statisticsReader
     self.characteristicsReader = characteristicsReader
     self.visionPrescriptionsReader = visionPrescriptionsReader
+    self.documentsReader = documentsReader
     self.medicationsReader = medicationsReader
     self.activitySummaryReader = activitySummaryReader
     self.counter = counter
@@ -742,8 +750,8 @@ public actor HealthBackfill {
   static let activitySummaryWindow: TimeInterval = 30 * 24 * 60 * 60
 
   /// Uploads what has no anchors: the characteristics and vision prescriptions, if they changed
-  /// since they last went up, and the Activity summaries, all of them the first time and the last
-  /// 30 days' after that. A failure is kept for the next run.
+  /// since they last went up, the Activity summaries, all of them the first time and the last 30
+  /// days' after that, and the Health Documents shared since. A failure is kept for the next run.
   private func uploadExtras(_ state: inout HealthBackfillState) async throws {
     do {
       try await uploadWhole(
@@ -774,6 +782,65 @@ public actor HealthBackfill {
     } catch {
       try stopIfRunEnds(error)
       reportIssue(error, "Uploading Activity summaries; trying again next run")
+    }
+    // Last: its query may wait on Health's sheet for new documents.
+    do {
+      try await uploadDocuments(&state)
+    } catch {
+      try stopIfRunEnds(error)
+      reportIssue(error, "Uploading Health Documents; trying again next run")
+    }
+  }
+
+  /// Health Documents read with their XML and uploaded at once: each one's XML is in memory until
+  /// it's gone up, and may be megabytes.
+  static let documentPage = 10
+
+  /// Uploads the Health Documents Health shares that haven't gone up, with their XML as blobs,
+  /// and deletes those it no longer shares (851-2836). Health shares them one by one, asking the
+  /// person about new ones when they're queried, and may stop sharing one at any time, so which
+  /// ones are shared is read every run, as for vision prescriptions. They never change, so only
+  /// new ones are read with their XML, a page at a time, each page saved once it's up.
+  private func uploadDocuments(_ state: inout HealthBackfillState) async throws {
+    let shared = try await documentsReader.shared()
+    let removed = state.documentIDs.subtracting(shared)
+    if !removed.isEmpty {
+      try await uploadMutations(
+        removed.sorted().map { HealthMutation.delete(HealthEncoder.documentEntity, id: $0) })
+      state.documentIDs.subtract(removed)
+      state.lastUploadAt = now()
+      try storage.saveState(state)
+      updateCounts(state)
+    }
+    let added = shared.subtracting(state.documentIDs).sorted()
+    for start in stride(from: 0, to: added.count, by: Self.documentPage) {
+      try Task.checkCancellation()
+      let page = Array(added[start..<min(start + Self.documentPage, added.count)])
+      var rows: [HealthMutation] = []
+      var handled: [String] = []
+      for document in try await documentsReader.read(page) {
+        let (mutation, blob) = HealthEncoder.document(document)
+        handled.append(mutation.id)
+        // Skipped for good: it would be refused every time, and documents never change.
+        guard blob.count <= HealthBlob.maxBytes else {
+          reportIssue(HealthBlob.TooLarge(bytes: blob.count))
+          continue
+        }
+        // Before the row that refers to it, by its SHA-256.
+        guard case .string(let sha256)? = mutation.row?["xml"] else { continue }
+        try await notingServerFailure {
+          try await Self.retryingTransient(retryDelays, clock: clock) {
+            try await blobUploader.upload(sha256, blob)
+          }
+        }
+        rows.append(mutation)
+      }
+      try await uploadMutations(rows)
+      // Documents no longer shared since `shared` aren't read, and stay out.
+      state.documentIDs.formUnion(handled)
+      if !rows.isEmpty { state.lastUploadAt = now() }
+      try storage.saveState(state)
+      updateCounts(state)
     }
   }
 

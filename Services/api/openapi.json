@@ -3604,6 +3604,67 @@
         ],
         "additionalProperties": true
       },
+      "HealthDocument": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "endDate": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "title": {
+            "type": "string"
+          },
+          "patientName": {
+            "type": "string"
+          },
+          "authorName": {
+            "type": "string"
+          },
+          "custodianName": {
+            "type": "string"
+          },
+          "xml": {
+            "type": "string"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "sourceBundleId": {
+            "type": "string"
+          },
+          "sourceRevision": {},
+          "device": {},
+          "metadata": {},
+          "provenance": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "startDate",
+          "endDate",
+          "title",
+          "patientName",
+          "authorName",
+          "custodianName",
+          "xml",
+          "sourceName",
+          "sourceBundleId"
+        ],
+        "additionalProperties": true
+      },
       "HealthPin": {
         "type": "object",
         "properties": {

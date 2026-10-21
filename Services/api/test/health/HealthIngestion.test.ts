@@ -921,6 +921,56 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
     }),
   );
 
+  it.effect("applies Health Documents, which refer to their XML blob", () =>
+    Effect.gen(function* () {
+      const document = {
+        entity: "health_document",
+        op: "upsert",
+        id: uuid(5100),
+        row: {
+          startDate: 1760400000000,
+          endDate: 1760403600000,
+          title: "Synthetic Visit Summary",
+          patientName: "Test Patient",
+          authorName: "Dr. Example Author",
+          custodianName: "Example Clinic",
+          xml: "c".repeat(64),
+          sourceName: "Test iPhone",
+          sourceBundleId: "com.apple.Health",
+        },
+      };
+      const { batch } = yield* ingest([
+        document,
+        // HealthKit's names can be empty.
+        { ...document, id: uuid(5101), row: { ...document.row, authorName: "" } },
+        { ...document, id: uuid(5102), row: { ...document.row, xml: null } },
+        { ...document, id: uuid(5103), row: { ...document.row, xml: "not-a-hash" } },
+        { ...document, id: uuid(5104), row: { ...document.row, title: null } },
+      ]);
+      assert.deepInclude(batch, { status: "applied", applied: 2, rejected: 3 });
+      const sql = (yield* TestStores).sqlFor(userId);
+      assert.deepStrictEqual(
+        sql?.exec(
+          "SELECT title, author_name, custodian_name, xml FROM health_document ORDER BY id",
+        ),
+        [
+          {
+            title: "Synthetic Visit Summary",
+            author_name: "Dr. Example Author",
+            custodian_name: "Example Clinic",
+            xml: "c".repeat(64),
+          },
+          {
+            title: "Synthetic Visit Summary",
+            author_name: "",
+            custodian_name: "Example Clinic",
+            xml: "c".repeat(64),
+          },
+        ],
+      );
+    }),
+  );
+
   it.effect("applies heartbeat series", () =>
     Effect.gen(function* () {
       const series = {

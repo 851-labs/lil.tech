@@ -205,6 +205,7 @@ extension HealthDatabase {
         .fetchOne(db)
       return day.flatMap { gregorianDay($0, calendar: calendar) }
     case .quantity, .characteristic, .document:
+      // Documents are synced, but listed once they have a page to open (851-2837).
       milliseconds = nil
     }
     return milliseconds.map(Date.init(unixMilliseconds:))

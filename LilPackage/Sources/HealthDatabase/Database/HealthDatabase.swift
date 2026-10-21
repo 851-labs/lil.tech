@@ -307,6 +307,33 @@ public enum HealthDatabase {
       )
       .execute(db)
     }
+    migrator.registerMigration("Create documents") { db in
+      try #sql(
+        """
+        CREATE TABLE "healthDocuments" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "startDate" INTEGER NOT NULL,
+          "endDate" INTEGER NOT NULL,
+          "title" TEXT NOT NULL,
+          "patientName" TEXT NOT NULL,
+          "authorName" TEXT NOT NULL,
+          "custodianName" TEXT NOT NULL,
+          "xml" TEXT NOT NULL,
+          "sourceName" TEXT NOT NULL,
+          "sourceBundleID" TEXT NOT NULL,
+          "sourceRevision" TEXT,
+          "device" TEXT,
+          "metadata" TEXT,
+          "provenance" TEXT
+        ) STRICT
+        """
+      )
+      .execute(db)
+      try #sql(
+        #"CREATE INDEX "healthDocuments_startDate" ON "healthDocuments" ("startDate")"#
+      )
+      .execute(db)
+    }
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
@@ -537,6 +564,14 @@ public enum HealthDatabase {
         logStatus: row.logStatus, scheduleType: row.scheduleType,
         scheduledDate: row.scheduledDate, scheduledDoseQuantity: row.scheduledDoseQuantity,
         doseQuantity: row.doseQuantity, unit: row.unit, sourceName: row.sourceName,
+        sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
+        device: try json(row.device), metadata: try json(row.metadata), provenance: row.provenance)
+    },
+    entity("health_document", Components.Schemas.HealthDocument.self) { row in
+      HealthDocument(
+        id: row.id, startDate: row.startDate, endDate: row.endDate, title: row.title,
+        patientName: row.patientName, authorName: row.authorName,
+        custodianName: row.custodianName, xml: row.xml, sourceName: row.sourceName,
         sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
         device: try json(row.device), metadata: try json(row.metadata), provenance: row.provenance)
     },

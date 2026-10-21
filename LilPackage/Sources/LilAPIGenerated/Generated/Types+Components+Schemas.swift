@@ -4744,6 +4744,241 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthDocument`.
+        public struct HealthDocument: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/startDate`.
+            public var startDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/endDate`.
+            public var endDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/title`.
+            public var title: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/patientName`.
+            public var patientName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/authorName`.
+            public var authorName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/custodianName`.
+            public var custodianName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/xml`.
+            public var xml: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/sourceName`.
+            public var sourceName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/sourceBundleId`.
+            public var sourceBundleId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/sourceRevision`.
+            public var sourceRevision: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/device`.
+            public var device: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/metadata`.
+            public var metadata: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthDocument/provenance`.
+            public var provenance: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthDocument`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - startDate:
+            ///   - endDate:
+            ///   - title:
+            ///   - patientName:
+            ///   - authorName:
+            ///   - custodianName:
+            ///   - xml:
+            ///   - sourceName:
+            ///   - sourceBundleId:
+            ///   - sourceRevision:
+            ///   - device:
+            ///   - metadata:
+            ///   - provenance:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                startDate: Swift.Int,
+                endDate: Swift.Int,
+                title: Swift.String,
+                patientName: Swift.String,
+                authorName: Swift.String,
+                custodianName: Swift.String,
+                xml: Swift.String,
+                sourceName: Swift.String,
+                sourceBundleId: Swift.String,
+                sourceRevision: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                device: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                metadata: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                provenance: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.startDate = startDate
+                self.endDate = endDate
+                self.title = title
+                self.patientName = patientName
+                self.authorName = authorName
+                self.custodianName = custodianName
+                self.xml = xml
+                self.sourceName = sourceName
+                self.sourceBundleId = sourceBundleId
+                self.sourceRevision = sourceRevision
+                self.device = device
+                self.metadata = metadata
+                self.provenance = provenance
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case startDate
+                case endDate
+                case title
+                case patientName
+                case authorName
+                case custodianName
+                case xml
+                case sourceName
+                case sourceBundleId
+                case sourceRevision
+                case device
+                case metadata
+                case provenance
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.startDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .startDate
+                )
+                self.endDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .endDate
+                )
+                self.title = try container.decode(
+                    Swift.String.self,
+                    forKey: .title
+                )
+                self.patientName = try container.decode(
+                    Swift.String.self,
+                    forKey: .patientName
+                )
+                self.authorName = try container.decode(
+                    Swift.String.self,
+                    forKey: .authorName
+                )
+                self.custodianName = try container.decode(
+                    Swift.String.self,
+                    forKey: .custodianName
+                )
+                self.xml = try container.decode(
+                    Swift.String.self,
+                    forKey: .xml
+                )
+                self.sourceName = try container.decode(
+                    Swift.String.self,
+                    forKey: .sourceName
+                )
+                self.sourceBundleId = try container.decode(
+                    Swift.String.self,
+                    forKey: .sourceBundleId
+                )
+                self.sourceRevision = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .sourceRevision
+                )
+                self.device = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .device
+                )
+                self.metadata = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .metadata
+                )
+                self.provenance = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .provenance
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "startDate",
+                    "endDate",
+                    "title",
+                    "patientName",
+                    "authorName",
+                    "custodianName",
+                    "xml",
+                    "sourceName",
+                    "sourceBundleId",
+                    "sourceRevision",
+                    "device",
+                    "metadata",
+                    "provenance"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.startDate,
+                    forKey: .startDate
+                )
+                try container.encode(
+                    self.endDate,
+                    forKey: .endDate
+                )
+                try container.encode(
+                    self.title,
+                    forKey: .title
+                )
+                try container.encode(
+                    self.patientName,
+                    forKey: .patientName
+                )
+                try container.encode(
+                    self.authorName,
+                    forKey: .authorName
+                )
+                try container.encode(
+                    self.custodianName,
+                    forKey: .custodianName
+                )
+                try container.encode(
+                    self.xml,
+                    forKey: .xml
+                )
+                try container.encode(
+                    self.sourceName,
+                    forKey: .sourceName
+                )
+                try container.encode(
+                    self.sourceBundleId,
+                    forKey: .sourceBundleId
+                )
+                try container.encodeIfPresent(
+                    self.sourceRevision,
+                    forKey: .sourceRevision
+                )
+                try container.encodeIfPresent(
+                    self.device,
+                    forKey: .device
+                )
+                try container.encodeIfPresent(
+                    self.metadata,
+                    forKey: .metadata
+                )
+                try container.encodeIfPresent(
+                    self.provenance,
+                    forKey: .provenance
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthPin`.
         public struct HealthPin: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthPin/id`.

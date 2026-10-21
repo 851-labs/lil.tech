@@ -1474,6 +1474,105 @@ struct HealthBackfillTests {
   }
 
   @Test
+  func documentsFollowWhatHealthSharesWithTheirXMLAsBlobs() async throws {
+    let server = FakeServer()
+    let lines = LockIsolated<[String]>([])
+    let blobs = LockIsolated<[String: Data]>([:])
+    let reads = LockIsolated<[[String]]>([])
+    let document = { @Sendable (n: Int) -> DocumentRecord in
+      DocumentRecord(
+        id: UUID(uuidString: "6F1C2A40-0000-4000-8000-00000000D00\(n)")!,
+        title: "Synthetic \(n)", patientName: "Test Patient", authorName: "", custodianName: "",
+        xml: Data(syntheticCDA.replacingOccurrences(of: "SYNTHETIC-0001", with: "\(n)").utf8),
+        provenance: ["startDate": 1_760_400_000_000, "endDate": 1_760_400_000_000])
+    }
+    let id = { @Sendable (n: Int) in "6f1c2a40-0000-4000-8000-00000000d00\(n)" }
+    let shared = LockIsolated<Set<Int>>([1, 2, 3])
+    let backfill = withDependencies {
+      $0.healthReader = FakeHealth(pages: [:]).reader
+      $0.healthBatchUploader = HealthBatchUploader { batch, file in
+        let text = String(decoding: try Gzip.decompress(file), as: UTF8.self)
+        lines.withValue { $0 += text.split(separator: "\n").map(String.init) }
+        // Every row's blob is already up.
+        for line in text.split(separator: "\n") where line.contains("health_document") {
+          if line.contains(#""op":"upsert""#) {
+            #expect(blobs.value.keys.contains { line.contains($0) })
+          }
+        }
+        try await server.uploader.upload(batch, file)
+      }
+      $0.healthBlobUploader = HealthBlobUploader { sha256, data in
+        #expect(HealthBlob.sha256(data) == sha256)
+        blobs.withValue { $0[sha256] = data }
+      }
+      $0.healthBackfillStorage = .inMemory()
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthDocumentsReader = HealthDocumentsReader(
+        shared: { Set(shared.value.map(id)) },
+        read: { ids in
+          reads.withValue { $0.append(ids) }
+          // One no longer shared since it was listed isn't read.
+          return shared.value.map(document).filter { ids.contains(HealthEncoder.id($0.id)) }
+        })
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [])
+    }
+
+    try await backfill.run()
+    #expect(server.records.value.isSuperset(of: [id(1), id(2), id(3)]))
+    #expect(Set(blobs.value.values) == Set([1, 2, 3].map { document($0).xml }))
+    #expect(reads.value == [[id(1), id(2), id(3)]])
+    // Nothing new: none is read again.
+    lines.setValue([])
+    try await backfill.run()
+    #expect(reads.value.count == 1)
+    #expect(!lines.value.contains { $0.contains("health_document") })
+    // One shared since is read and goes up; one no longer shared is deleted.
+    shared.setValue([2, 3, 4])
+    try await backfill.run()
+    #expect(reads.value.last == [id(4)])
+    #expect(
+      lines.value.contains { $0.contains(#""op":"delete""#) && $0.contains(id(1)) })
+    #expect(
+      lines.value.contains { $0.contains(#""op":"upsert""#) && $0.contains(id(4)) })
+    #expect(!lines.value.contains { $0.contains(id(2)) })
+  }
+
+  @Test
+  func documentsGoUpAPageAtATime() async throws {
+    let reads = LockIsolated<[Int]>([])
+    let count = HealthBackfill.documentPage * 2 + 1
+    let ids = (0..<count).map { String(format: "6f1c2a40-0000-4000-8000-%012d", $0) }
+    let backfill = withDependencies {
+      $0.healthReader = FakeHealth(pages: [:]).reader
+      $0.healthBatchUploader = FakeServer().uploader
+      $0.healthBlobUploader = HealthBlobUploader { _, _ in }
+      $0.healthBackfillStorage = .inMemory()
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthDocumentsReader = HealthDocumentsReader(
+        shared: { Set(ids) },
+        read: { page in
+          reads.withValue { $0.append(page.count) }
+          return page.map {
+            DocumentRecord(
+              id: UUID(uuidString: $0)!, title: "", patientName: "", authorName: "",
+              custodianName: "", xml: Data($0.utf8), provenance: [:])
+          }
+        })
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+      $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
+    } operation: {
+      HealthBackfill(types: [])
+    }
+    try await backfill.run()
+    #expect(reads.value == [HealthBackfill.documentPage, HealthBackfill.documentPage, 1])
+  }
+
+  @Test
   func medicationsAndTheirDosesFollowWhatHealthShares() async throws {
     let health = FakeMedications()
     let lines = LockIsolated<[String]>([])

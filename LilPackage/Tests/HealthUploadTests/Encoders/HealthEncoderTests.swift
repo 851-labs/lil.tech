@@ -54,6 +54,61 @@ private final class SyntheticConcept: NSObject, NSSecureCoding {
   }
 }
 
+/// A synthetic CDA document (a Continuity of Care Document), written by hand: no real person,
+/// provider or diagnosis (AGENTS.md).
+let syntheticCDA = """
+  <?xml version="1.0" encoding="UTF-8"?>
+  <ClinicalDocument xmlns="urn:hl7-org:v3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <realmCode code="US"/>
+    <typeId root="2.16.840.1.113883.1.3" extension="POCD_HD000040"/>
+    <templateId root="2.16.840.1.113883.10.20.22.1.1"/>
+    <templateId root="2.16.840.1.113883.10.20.22.1.2"/>
+    <id root="2.16.840.1.113883.19.5.99999.1" extension="SYNTHETIC-0001"/>
+    <code code="34133-9" codeSystem="2.16.840.1.113883.6.1" displayName="Summary of episode note"/>
+    <title>Synthetic Visit Summary</title>
+    <effectiveTime value="20261014120000+0000"/>
+    <confidentialityCode code="N" codeSystem="2.16.840.1.113883.5.25"/>
+    <languageCode code="en-US"/>
+    <recordTarget>
+      <patientRole>
+        <id root="2.16.840.1.113883.19.5.99999.2" extension="PATIENT-0001"/>
+        <patient>
+          <name><given>Test</given><family>Patient</family></name>
+          <administrativeGenderCode code="UN" codeSystem="2.16.840.1.113883.5.1"/>
+          <birthTime value="19900101"/>
+        </patient>
+      </patientRole>
+    </recordTarget>
+    <author>
+      <time value="20261014120000+0000"/>
+      <assignedAuthor>
+        <id root="2.16.840.1.113883.19.5.99999.3" extension="AUTHOR-0001"/>
+        <assignedPerson>
+          <name><prefix>Dr.</prefix><given>Example</given><family>Author</family></name>
+        </assignedPerson>
+      </assignedAuthor>
+    </author>
+    <custodian>
+      <assignedCustodian>
+        <representedCustodianOrganization>
+          <id root="2.16.840.1.113883.19.5.99999.4"/>
+          <name>Example Clinic</name>
+        </representedCustodianOrganization>
+      </assignedCustodian>
+    </custodian>
+    <component>
+      <structuredBody>
+        <component>
+          <section>
+            <title>Reason for Visit</title>
+            <text>A synthetic checkup, for tests.</text>
+          </section>
+        </component>
+      </structuredBody>
+    </component>
+  </ClinicalDocument>
+  """
+
 struct HealthEncoderTests {
   /// Pinned: a sample's start is part of how the server finds it.
   @Test
@@ -387,6 +442,56 @@ struct HealthEncoderTests {
     #expect(left["baseCurve"] as? Double == 8.6)
     #expect(left["diameter"] as? Double == 14.2)
     #expect(left["prism"] == nil)
+  }
+
+  @Test
+  func documentWithItsXMLBlob() throws {
+    let xml = Data(syntheticCDA.utf8)
+    let document = DocumentRecord(
+      id: UUID(uuidString: "6F1C2A40-0000-4000-8000-0000000000C1")!,
+      title: "Synthetic Visit Summary", patientName: "Test Patient",
+      authorName: "Dr. Example Author", custodianName: "", xml: xml,
+      provenance: HealthEncoder.provenance(
+        of: HKQuantitySample(
+          type: HKQuantityType(.heartRate),
+          quantity: HKQuantity(unit: .count().unitDivided(by: .minute()), doubleValue: 1),
+          start: start, end: start.addingTimeInterval(60))))
+
+    let (mutation, blob) = HealthEncoder.document(document)
+    #expect(mutation.entity == "health_document")
+    #expect(mutation.id == "6f1c2a40-0000-4000-8000-0000000000c1")
+    // The XML as Health keeps it.
+    #expect(blob == xml)
+    // It's what the server's schema accepts, referring to the blob by its hash.
+    let decoded = try row(mutation, as: Components.Schemas.HealthDocument.self)
+    #expect(decoded.title == "Synthetic Visit Summary")
+    #expect(decoded.patientName == "Test Patient")
+    #expect(decoded.authorName == "Dr. Example Author")
+    #expect(decoded.custodianName == "")
+    #expect(decoded.xml == HealthBlob.sha256(xml))
+    #expect(decoded.startDate == 1_760_400_000_000)
+    #expect(decoded.endDate == 1_760_400_060_000)
+  }
+
+  @Test
+  func documentReadFromHealthKit() throws {
+    // HealthKit validates the XML and extracts the names from it.
+    let sample = try HKCDADocumentSample(
+      data: Data(syntheticCDA.utf8), start: start, end: start.addingTimeInterval(60),
+      metadata: nil)
+    let record = try #require(DocumentRecord(sample))
+    #expect(record.title == "Synthetic Visit Summary")
+    #expect(record.patientName.contains("Patient"))
+    #expect(record.custodianName == "Example Clinic")
+    #expect(record.xml == Data(syntheticCDA.utf8))
+  }
+
+  @Test
+  func documentsArentPagedThroughWithAnchors() {
+    // Health shares them one by one, at any time, and anchored queries never have their XML:
+    // they're read whole each run instead.
+    let types = HealthBackfillType.all(availableOn: .ios(26))
+    #expect(!types.contains { $0.id == "HKDocumentTypeIdentifierCDA" })
   }
 
   @Test
