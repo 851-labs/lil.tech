@@ -3,13 +3,13 @@
 # Set up once per clone with `lefthook install`; skip in an emergency with `LEFTHOOK=0 git commit …`
 # (or `git push`).
 
-# Before a push: publishes the pushed commit's Pixelbook snapshots, rendering them (a few minutes)
-# unless a commit with the same inputs already did (`scripts/pixelbook publish --hook`). It skips
-# with a note when it can't publish (offline, uncommitted changes, pushing something other than
-# HEAD); a preview that fails to render blocks the push, like a failing check.
+# Before a push, when it isn't paused: publishes the pushed commit's Pixelbook snapshots, rendering
+# them (a few minutes) unless a commit with the same inputs already did (`scripts/pixelbook publish
+# --hook`). It skips with a note when it can't publish (offline, uncommitted changes, pushing
+# something other than HEAD); a preview that fails to render blocks the push, like a failing check.
 #
 # Paused (851-2816): the iPhone simulator kept hanging renders, and the render lock queued pushes
-# behind each other. Remove `skip` to turn it back on.
+# behind each other. Remove `skip`, and restore `pixelbook.yml`'s triggers, to turn it back on.
 pre-push:
   jobs:
     - name: pixelbook
