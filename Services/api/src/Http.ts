@@ -11,7 +11,10 @@ import { AppleTokens, revokeAppleTokens } from "./auth/AppleTokens.ts";
 import { appleWebCallbackPath, AppleWebCallbackRoute } from "./auth/AppleWebSignIn.ts";
 import { DevSignInRoute } from "./auth/DevSignIn.ts";
 import { AgentTokens } from "./oauth/AgentTokens.ts";
+import { AgentGrants } from "./core/AgentGrants.ts";
+import { agentAccessLogPolicy } from "./store/AgentAccessLog.ts";
 import { AgentMcpRoutes } from "./mcp/McpRoutes.ts";
+import { AgentsHandlers } from "./oauth/AgentsHandlers.ts";
 import { AgentHostsMiddleware, AgentOAuthRoutes } from "./oauth/OAuthRoutes.ts";
 import {
   Authorization,
@@ -776,7 +779,10 @@ export const HealthBlobDownloadRoute = signedDownloadRoute({
 /** What an export archive says about itself. */
 const exportReadme = `This is everything your lil account holds, as of the date in this folder's name.
 
-account.json      Your account: profile, sign-in methods, devices, consents and connections.
+account.json      Your account: profile, sign-in methods, devices, consents, connections and
+                  connected agents.
+agent-access-log.json  Every call agents you connected made to read your data: when, which agent,
+                  the tool and what it asked for, never what it read. Kept 90 days.
 records/          Your synced records, by kind: gzip-compressed files of JSON, one record a line.
 records/manifest.json  The record files and how many records each holds.
 blobs/            Large health data (e.g. ECG voltages, workout routes), named by their SHA-256,
@@ -797,6 +803,7 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
     const devices = yield* Devices;
     const consents = yield* Consents;
     const connections = yield* Connections;
+    const agentGrants = yield* AgentGrants;
     yield* router.add(
       "GET",
       exportDownloadPath,
@@ -818,17 +825,27 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
         const snapshot =
           snapshotId === "-" ? null : yield* stores.forUser(userId).snapshot(snapshotId);
         if (snapshotId !== "-" && snapshot === null) return gone;
-        const [userIdentities, userDevices, healthConsent, agentsConsent, userConnections] =
-          yield* Effect.all(
-            [
-              identities.listForUser(userId),
-              devices.listForUser(userId),
-              consents.current(userId, "health"),
-              consents.current(userId, "agents:health"),
-              connections.listForUser(userId),
-            ],
-            { concurrency: "unbounded" },
-          );
+        const [
+          userIdentities,
+          userDevices,
+          healthConsent,
+          agentsConsent,
+          userConnections,
+          userAgents,
+          accessLog,
+        ] = yield* Effect.all(
+          [
+            identities.listForUser(userId),
+            devices.listForUser(userId),
+            consents.current(userId, "health"),
+            consents.current(userId, "agents:health"),
+            connections.listForUser(userId),
+            agentGrants.listForUser(userId),
+            // All of it, in one call: it's at most `agentAccessLogPolicy.maxRows` short rows.
+            stores.forUser(userId).agentAccessLog(null, agentAccessLogPolicy.maxRows),
+          ],
+          { concurrency: "unbounded" },
+        );
         const now = yield* Clock.currentTimeMillis;
         const json = (value: unknown) => new TextEncoder().encode(JSON.stringify(value, null, 2));
         const account = json({
@@ -863,7 +880,45 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
               updatedAt,
             }),
           ),
+          // Without tokens, which are only stored as hashes anyway.
+          agents: userAgents.map(
+            ({
+              id,
+              clientName,
+              clientDomain,
+              redirectHost,
+              scopes,
+              resource,
+              createdAt,
+              lastUsedAt,
+            }) => ({
+              id,
+              name: clientName,
+              domain: clientDomain,
+              redirectHost,
+              scopes,
+              resource,
+              connectedAt: createdAt,
+              lastUsedAt,
+            }),
+          ),
         });
+        // Oldest first, as a log reads.
+        const agentAccessLog = json(
+          accessLog
+            .toReversed()
+            .map(({ at, grantId, clientName, tool, types, range, date, outcome, rows }) => ({
+              at: new Date(at).toISOString(),
+              agentId: grantId,
+              agentName: clientName,
+              tool,
+              types,
+              range,
+              date,
+              outcome,
+              rows,
+            })),
+        );
         const folder = `lil-export-${new Date(Number(requestedAt)).toISOString().slice(0, 10)}`;
         const parts = yield* SnapshotParts;
         const records = (snapshot?.entities ?? []).flatMap(({ entity, parts: files }) =>
@@ -907,6 +962,11 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
         const entries: Array<ArchiveEntry> = [
           { name: `${folder}/README.txt`, size: readme.length, content: readme },
           { name: `${folder}/account.json`, size: account.length, content: account },
+          {
+            name: `${folder}/agent-access-log.json`,
+            size: agentAccessLog.length,
+            content: agentAccessLog,
+          },
           { name: `${folder}/records/manifest.json`, size: manifest.length, content: manifest },
           ...records.map(({ part, name }) => ({
             name: `${folder}/${name}`,
@@ -1018,7 +1078,14 @@ export const WorkerHttpLayer = Layer.mergeAll(
   AgentMcpRoutes,
   AgentHostsMiddleware,
 ).pipe(
-  Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),
+  Layer.provide([
+    SystemHandlers,
+    AuthHandlers,
+    MeHandlers,
+    SyncHandlers,
+    HealthHandlers,
+    AgentsHandlers,
+  ]),
   Layer.provide([
     AuthorizationLayer,
     AddressRateLimitLayer,

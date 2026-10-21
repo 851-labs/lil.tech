@@ -17,7 +17,10 @@ import { AccessTokens } from "../src/auth/Tokens.ts";
 import { Consents, healthConsentPolicyVersion } from "../src/core/Consents.ts";
 import { Devices } from "../src/core/Devices.ts";
 import { Identities } from "../src/core/Identities.ts";
-import type { UserId } from "../src/core/Ids.ts";
+import { newAgentGrantId, type UserId } from "../src/core/Ids.ts";
+import { AgentGrant, AgentGrants } from "../src/core/AgentGrants.ts";
+import { appendAgentAccess } from "../src/store/AgentAccessLog.ts";
+import { storeClaudeCode } from "./oauth/TestAgents.ts";
 import { Users } from "../src/core/Users.ts";
 import { snapshotPolicy } from "../src/store/Snapshots.ts";
 import { storageQuotaBytes } from "../src/store/UserStore.ts";
@@ -1473,6 +1476,36 @@ describe("data exports", () => {
       Effect.gen(function* () {
         const { user, tokens } = yield* signIn;
         const sql = yield* seedEveryEntity(user.id);
+        // A connected agent, and a call it made.
+        const grantId = yield* newAgentGrantId;
+        yield* (yield* AgentGrants).createGrant(
+          new AgentGrant({
+            id: grantId,
+            userId: user.id,
+            clientId: yield* storeClaudeCode,
+            clientName: "Claude Code",
+            clientDomain: "claude.ai",
+            redirectHost: "localhost",
+            scopes: ["health:read"],
+            resource: "https://mcp.lil.tech/health",
+            createdAt: 1000,
+            lastUsedAt: 2000,
+          }),
+        );
+        appendAgentAccess(
+          sql,
+          {
+            grantId,
+            clientName: "Claude Code",
+            tool: "metric",
+            types: ["HKQuantityTypeIdentifierStepCount"],
+            range: "W",
+            date: "2026-10-20",
+            outcome: "ok",
+            rows: 7,
+          },
+          Date.UTC(2026, 9, 20),
+        );
         const blob = new TextEncoder().encode("synthetic ECG voltages");
         const sha = "ab".repeat(32);
         (yield* TestHealthBlobBucket).files.set(`${healthBlobPrefix(user.id)}${sha}`, blob);
@@ -1499,6 +1532,7 @@ describe("data exports", () => {
         assert.includeMembers(names, [
           `${folder}/README.txt`,
           `${folder}/account.json`,
+          `${folder}/agent-access-log.json`,
           `${folder}/records/manifest.json`,
           `${folder}/blobs/${sha}`,
         ]);
@@ -1523,6 +1557,35 @@ describe("data exports", () => {
           "health",
           "agents:health",
         ]);
+        // Connected agents, without tokens, and every call they made.
+        assert.deepStrictEqual(account["agents"], [
+          {
+            id: grantId,
+            name: "Claude Code",
+            domain: "claude.ai",
+            redirectHost: "localhost",
+            scopes: ["health:read"],
+            resource: "https://mcp.lil.tech/health",
+            connectedAt: 1000,
+            lastUsedAt: 2000,
+          },
+        ]);
+        assert.deepStrictEqual(
+          JSON.parse(new TextDecoder().decode(files.get(`${folder}/agent-access-log.json`))),
+          [
+            {
+              at: "2026-10-20T00:00:00.000Z",
+              agentId: grantId,
+              agentName: "Claude Code",
+              tool: "metric",
+              types: ["HKQuantityTypeIdentifierStepCount"],
+              range: "W",
+              date: "2026-10-20",
+              outcome: "ok",
+              rows: 7,
+            },
+          ],
+        );
 
         // Every entity's record, in its own files.
         const exported = new Map<string, Array<Record<string, unknown>>>();

@@ -60,6 +60,44 @@ extension Components {
                 case message
             }
         }
+        /// - Remark: Generated from `#/components/schemas/AgentsConsent`.
+        public struct AgentsConsent: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AgentsConsent/given`.
+            public struct GivenPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/AgentsConsent/given/policyVersion`.
+                public var policyVersion: Swift.String
+                /// - Remark: Generated from `#/components/schemas/AgentsConsent/given/grantedAt`.
+                public var grantedAt: Swift.Int
+                /// Creates a new `GivenPayload`.
+                ///
+                /// - Parameters:
+                ///   - policyVersion:
+                ///   - grantedAt:
+                public init(
+                    policyVersion: Swift.String,
+                    grantedAt: Swift.Int
+                ) {
+                    self.policyVersion = policyVersion
+                    self.grantedAt = grantedAt
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case policyVersion
+                    case grantedAt
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/AgentsConsent/given`.
+            public var given: Components.Schemas.AgentsConsent.GivenPayload?
+            /// Creates a new `AgentsConsent`.
+            ///
+            /// - Parameters:
+            ///   - given:
+            public init(given: Components.Schemas.AgentsConsent.GivenPayload? = nil) {
+                self.given = given
+            }
+            public enum CodingKeys: String, CodingKey {
+                case given
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/UserStoreUnavailable`.
         public struct UserStoreUnavailable: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/UserStoreUnavailable/_tag`.
@@ -85,6 +123,174 @@ extension Components {
             public enum CodingKeys: String, CodingKey {
                 case _tag
                 case message
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AgentAccessLog`.
+        public struct AgentAccessLog: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AgentAccessLog/entries`.
+            public var entries: [Components.Schemas.AgentAccessEntry]
+            /// - Remark: Generated from `#/components/schemas/AgentAccessLog/nextBefore`.
+            public var nextBefore: Swift.Int?
+            /// Creates a new `AgentAccessLog`.
+            ///
+            /// - Parameters:
+            ///   - entries:
+            ///   - nextBefore:
+            public init(
+                entries: [Components.Schemas.AgentAccessEntry],
+                nextBefore: Swift.Int? = nil
+            ) {
+                self.entries = entries
+                self.nextBefore = nextBefore
+            }
+            public enum CodingKeys: String, CodingKey {
+                case entries
+                case nextBefore
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AgentAccessEntry`.
+        public struct AgentAccessEntry: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/id`.
+            public var id: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/at`.
+            public var at: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/agentId`.
+            public var agentId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/agentName`.
+            public var agentName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/tool`.
+            public var tool: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/types`.
+            public var types: [Swift.String]?
+            /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/range`.
+            public var range: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/date`.
+            public var date: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/outcome`.
+            public var outcome: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/rows`.
+            public var rows: Swift.Int
+            /// Creates a new `AgentAccessEntry`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - at:
+            ///   - agentId:
+            ///   - agentName:
+            ///   - tool:
+            ///   - types:
+            ///   - range:
+            ///   - date:
+            ///   - outcome:
+            ///   - rows:
+            public init(
+                id: Swift.Int,
+                at: Swift.Int,
+                agentId: Swift.String,
+                agentName: Swift.String,
+                tool: Swift.String,
+                types: [Swift.String]? = nil,
+                range: Swift.String? = nil,
+                date: Swift.String? = nil,
+                outcome: Swift.String,
+                rows: Swift.Int
+            ) {
+                self.id = id
+                self.at = at
+                self.agentId = agentId
+                self.agentName = agentName
+                self.tool = tool
+                self.types = types
+                self.range = range
+                self.date = date
+                self.outcome = outcome
+                self.rows = rows
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case at
+                case agentId
+                case agentName
+                case tool
+                case types
+                case range
+                case date
+                case outcome
+                case rows
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ConnectedAgents`.
+        public struct ConnectedAgents: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ConnectedAgents/agents`.
+            public var agents: [Components.Schemas.ConnectedAgent]
+            /// Creates a new `ConnectedAgents`.
+            ///
+            /// - Parameters:
+            ///   - agents:
+            public init(agents: [Components.Schemas.ConnectedAgent]) {
+                self.agents = agents
+            }
+            public enum CodingKeys: String, CodingKey {
+                case agents
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ConnectedAgent`.
+        public struct ConnectedAgent: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ConnectedAgent/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/ConnectedAgent/name`.
+            public var name: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ConnectedAgent/domain`.
+            public var domain: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ConnectedAgent/redirectHost`.
+            public var redirectHost: Swift.String
+            /// - Remark: Generated from `#/components/schemas/ConnectedAgent/resource`.
+            public var resource: Swift.String
+            /// - Remark: Generated from `#/components/schemas/ConnectedAgent/app`.
+            public var app: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ConnectedAgent/connectedAt`.
+            public var connectedAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/ConnectedAgent/lastUsedAt`.
+            public var lastUsedAt: Swift.Int
+            /// Creates a new `ConnectedAgent`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - name:
+            ///   - domain:
+            ///   - redirectHost:
+            ///   - resource:
+            ///   - app:
+            ///   - connectedAt:
+            ///   - lastUsedAt:
+            public init(
+                id: Swift.String,
+                name: Swift.String? = nil,
+                domain: Swift.String? = nil,
+                redirectHost: Swift.String,
+                resource: Swift.String,
+                app: Swift.String? = nil,
+                connectedAt: Swift.Int,
+                lastUsedAt: Swift.Int
+            ) {
+                self.id = id
+                self.name = name
+                self.domain = domain
+                self.redirectHost = redirectHost
+                self.resource = resource
+                self.app = app
+                self.connectedAt = connectedAt
+                self.lastUsedAt = lastUsedAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case name
+                case domain
+                case redirectHost
+                case resource
+                case app
+                case connectedAt
+                case lastUsedAt
             }
         }
         /// - Remark: Generated from `#/components/schemas/HealthBlobNotFound`.

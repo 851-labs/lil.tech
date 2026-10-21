@@ -74,6 +74,21 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PUT /v1/health/blobs/{sha256}`.
     /// - Remark: Generated from `#/paths//v1/health/blobs/{sha256}/put(healthUploadBlob)`.
     func healthUploadBlob(_ input: Operations.HealthUploadBlob.Input) async throws -> Operations.HealthUploadBlob.Output
+    /// - Remark: HTTP `GET /v1/me/agents`.
+    /// - Remark: Generated from `#/paths//v1/me/agents/get(connectedAgents)`.
+    func connectedAgents(_ input: Operations.ConnectedAgents.Input) async throws -> Operations.ConnectedAgents.Output
+    /// - Remark: HTTP `GET /v1/me/agents/access-log`.
+    /// - Remark: Generated from `#/paths//v1/me/agents/access-log/get(agentAccessLog)`.
+    func agentAccessLog(_ input: Operations.AgentAccessLog.Input) async throws -> Operations.AgentAccessLog.Output
+    /// - Remark: HTTP `DELETE /v1/me/agents/{id}`.
+    /// - Remark: Generated from `#/paths//v1/me/agents/{id}/delete(revokeAgent)`.
+    func revokeAgent(_ input: Operations.RevokeAgent.Input) async throws -> Operations.RevokeAgent.Output
+    /// - Remark: HTTP `GET /v1/me/consents/agents/health`.
+    /// - Remark: Generated from `#/paths//v1/me/consents/agents/health/get(healthAgentsConsent)`.
+    func healthAgentsConsent(_ input: Operations.HealthAgentsConsent.Input) async throws -> Operations.HealthAgentsConsent.Output
+    /// - Remark: HTTP `DELETE /v1/me/consents/agents/health`.
+    /// - Remark: Generated from `#/paths//v1/me/consents/agents/health/delete(withdrawHealthAgentsConsent)`.
+    func withdrawHealthAgentsConsent(_ input: Operations.WithdrawHealthAgentsConsent.Input) async throws -> Operations.WithdrawHealthAgentsConsent.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -280,6 +295,43 @@ extension APIProtocol {
             headers: headers,
             body: body
         ))
+    }
+    /// - Remark: HTTP `GET /v1/me/agents`.
+    /// - Remark: Generated from `#/paths//v1/me/agents/get(connectedAgents)`.
+    public func connectedAgents(headers: Operations.ConnectedAgents.Input.Headers = .init()) async throws -> Operations.ConnectedAgents.Output {
+        try await connectedAgents(Operations.ConnectedAgents.Input(headers: headers))
+    }
+    /// - Remark: HTTP `GET /v1/me/agents/access-log`.
+    /// - Remark: Generated from `#/paths//v1/me/agents/access-log/get(agentAccessLog)`.
+    public func agentAccessLog(
+        query: Operations.AgentAccessLog.Input.Query = .init(),
+        headers: Operations.AgentAccessLog.Input.Headers = .init()
+    ) async throws -> Operations.AgentAccessLog.Output {
+        try await agentAccessLog(Operations.AgentAccessLog.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// - Remark: HTTP `DELETE /v1/me/agents/{id}`.
+    /// - Remark: Generated from `#/paths//v1/me/agents/{id}/delete(revokeAgent)`.
+    public func revokeAgent(
+        path: Operations.RevokeAgent.Input.Path,
+        headers: Operations.RevokeAgent.Input.Headers = .init()
+    ) async throws -> Operations.RevokeAgent.Output {
+        try await revokeAgent(Operations.RevokeAgent.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// - Remark: HTTP `GET /v1/me/consents/agents/health`.
+    /// - Remark: Generated from `#/paths//v1/me/consents/agents/health/get(healthAgentsConsent)`.
+    public func healthAgentsConsent(headers: Operations.HealthAgentsConsent.Input.Headers = .init()) async throws -> Operations.HealthAgentsConsent.Output {
+        try await healthAgentsConsent(Operations.HealthAgentsConsent.Input(headers: headers))
+    }
+    /// - Remark: HTTP `DELETE /v1/me/consents/agents/health`.
+    /// - Remark: Generated from `#/paths//v1/me/consents/agents/health/delete(withdrawHealthAgentsConsent)`.
+    public func withdrawHealthAgentsConsent(headers: Operations.WithdrawHealthAgentsConsent.Input.Headers = .init()) async throws -> Operations.WithdrawHealthAgentsConsent.Output {
+        try await withdrawHealthAgentsConsent(Operations.WithdrawHealthAgentsConsent.Input(headers: headers))
     }
 }
 
