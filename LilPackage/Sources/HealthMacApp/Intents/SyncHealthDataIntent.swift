@@ -10,7 +10,8 @@ public struct SyncHealthDataIntent: AppIntent {
   public static let description = IntentDescription(
     "Gets the latest Health data your iPhone uploaded to lil health. It can't make your iPhone upload: lil health on the iPhone does that by itself. Needs Allow command-line and agent access, in lil health's Settings › Agents."
   )
-  /// Never brings the window forward.
+  /// Never brings a running app's window forward. One that wasn't running is launched to ask,
+  /// with its window, as for every intent of a SwiftUI `Window` app.
   public static let supportedModes: IntentModes = .background
 
   public init() {}
@@ -24,7 +25,8 @@ public struct SyncHealthDataIntent: AppIntent {
   static func dialog(for result: HealthAppActionResult) -> String {
     switch result {
     case .stillSyncing: "Still syncing. lil health will finish in the background."
-    case .synced, .done: "lil health is up to date."
+    case .synced: "lil health is up to date."
+    case .done: "Done."
     }
   }
 }

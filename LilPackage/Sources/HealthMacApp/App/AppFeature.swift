@@ -306,19 +306,26 @@ public struct AppFeature {
     )
   }
 
-  /// Sync, for an app action (851-2893): a new pull, as Try Again, then the first status that
-  /// says how it ended, or `.stillSyncing` after `HealthAppActions.syncWait`. Stops with the
-  /// account, which fails the request (`HealthAppActionError.signedOut`).
+  /// Sync, for an app action (851-2893): a new pull, as Try Again, unless one is running, then
+  /// the first status that says how it ended, or `.stillSyncing` after `HealthAppActions.syncWait`.
+  /// Stops with the account, which fails the request (`HealthAppActionError.signedOut`).
   private func syncForAppAction(_ request: HealthAppActionRequest) -> Effect<Action> {
     .run { [sync, clock] send in
       typealias Answer = Result<HealthAppActionResult, any Error>
       let result = await withTaskGroup(of: Answer?.self, returning: Answer?.self) { group in
         group.addTask { () -> Answer? in
           var statuses = await sync.status().makeAsyncIterator()
-          // The status from before this pull: a failure the same as the last one's is announced
-          // again (`LilSyncEngine`), so only what comes after the pull starts answers.
-          _ = await statuses.next()
-          await send(.syncRestarted)
+          // The status from before: only what comes after it answers. A failure the same as the
+          // last one's is announced again (`LilSyncEngine`).
+          switch await statuses.next() {
+          case .idle, .syncing, .bootstrapping:
+            // A pull is running (the first since signing in, a catch-up, a bootstrap): its end
+            // is the answer. Restarting it would throw away a bootstrap's progress.
+            break
+          case .upToDate, .failed, .offline, nil:
+            // Waiting for the next pull, or backing off after a failure: a new one now.
+            await send(.syncRestarted)
+          }
           while let status = await statuses.next() {
             switch status {
             case .upToDate(let date): return .success(.synced(at: date))

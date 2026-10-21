@@ -95,13 +95,39 @@ struct SyncHealthDataIntentTests {
       SyncHealthDataIntent.dialog(for: .stillSyncing)
         == "Still syncing. lil health will finish in the background.")
     #expect(SyncHealthDataIntent.dialog(for: .synced(at: synced)) == "lil health is up to date.")
+    #expect(SyncHealthDataIntent.dialog(for: .done) == "Done.")
     await store.finish()
   }
 
   @Test(.timeLimit(.minutes(1)))
-  func restartsAPullAlreadyRunning() async throws {
-    // The first pull hangs until cancelled; the next ones return.
-    let sync = FakeSync(.syncing(cursor: 1, head: 9000), hangingRuns: 1)
+  func waitsForAPullAlreadyRunning() async throws {
+    // A bootstrap that runs until cancelled.
+    let sync = FakeSync(.bootstrapping(downloadedParts: 3, totalParts: 80), hangingRuns: 1)
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
+      AppFeature()
+    } withDependencies: {
+      $0.sync = sync.client
+      $0.continuousClock = ManualClock()
+    }
+    let running = await store.send(.retrySyncButtonTapped)
+    try await eventually { sync.events.value == ["run"] }
+
+    // Not restarted, which would throw away the bootstrap's progress: its end is the answer.
+    let (request, answer) = makeRequest(.sync)
+    await store.send(.appActionRequested(request))
+    try await eventually { sync.observerCount == 1 }
+    sync.set(.bootstrapping(downloadedParts: 80, totalParts: 80))
+    sync.set(.upToDate(at: synced))
+    #expect(try await answer() == .synced(at: synced))
+    #expect(sync.events.value == ["run"])
+    await running.cancel()
+    await store.finish()
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func restartsAPullBackingOffAfterAFailure() async throws {
+    // The first pull failed, and backs off until cancelled.
+    let sync = FakeSync(.offline, hangingRuns: 1)
     let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
       AppFeature()
     } withDependencies: {
@@ -114,7 +140,7 @@ struct SyncHealthDataIntentTests {
     let (request, answer) = makeRequest(.sync)
     await store.send(.appActionRequested(request))
     await store.receive(\.syncRestarted)
-    // As Try Again: the running pull stops, and a new one starts at once.
+    // As Try Again: the backoff is cut short, and a new pull starts at once.
     try await eventually { sync.events.value.sorted() == ["run", "run", "run ended"] }
     sync.set(.upToDate(at: synced))
     #expect(try await answer() == .synced(at: synced))
@@ -232,6 +258,9 @@ private final class FakeSync: Sendable {
     self.status = LockIsolated(status)
     self.hangingRuns = hangingRuns
   }
+
+  /// How many have asked for the status.
+  var observerCount: Int { observers.value.count }
 
   /// Announces a status, as the engine does: to every observer, even if it's the same as before.
   func set(_ status: SyncStatus) {

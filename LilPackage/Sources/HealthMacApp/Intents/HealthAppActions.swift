@@ -8,9 +8,9 @@ import Synchronization
 public enum HealthAppAction: Equatable, Sendable {
   /// Brings the main window forward and shows a page.
   case open(HealthPage)
-  /// Pulls the account's changes from the server now, as Try Again does, and waits for the pull
-  /// to end, at most `HealthAppActions.syncWait` (851-2893). The Mac never uploads: the iPhone
-  /// does.
+  /// Pulls the account's changes from the server now, as Try Again does (or lets a pull already
+  /// running finish), and waits for the pull to end, at most `HealthAppActions.syncWait`
+  /// (851-2893). The Mac never uploads: the iPhone does.
   case sync
 
   /// The action as the access log shows it, e.g. `open Steps`.
