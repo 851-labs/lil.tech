@@ -123,16 +123,28 @@ struct AgentSetupSection: View {
   /// Where `lil` is installed, if it is.
   let commandLineTool: URL?
 
-  static let claudeCode = "claude mcp add --scope user lil-health -- lil health mcp"
   static let arguments = "health mcp"
+
+  /// Claude Code's command, with `lil`'s full path once it's known: an agent started from an IDE
+  /// or the Dock may not have `~/.local/bin` on its `PATH`.
+  static func claudeCode(_ lil: String) -> String {
+    "claude mcp add --scope user lil-health -- \(lil) health mcp"
+  }
 
   var body: some View {
     Section {
-      CopyableRow(title: "Claude Code", value: Self.claudeCode)
-      CopyableRow(
-        title: "Other agents: command",
-        value: commandLineTool?.path(percentEncoded: false) ?? "lil")
-      CopyableRow(title: "Other agents: arguments", value: Self.arguments)
+      if let path = commandLineTool?.path(percentEncoded: false) {
+        CopyableRow(title: "Claude Code", value: Self.claudeCode(path))
+        CopyableRow(title: "Other agents: command", value: path)
+        CopyableRow(title: "Other agents: arguments", value: Self.arguments)
+      } else {
+        CopyableRow(title: "Claude Code", value: Self.claudeCode("lil"))
+        // A bare `lil` wouldn't start from an app, which doesn't get the shell's `PATH`.
+        LabeledContent("Other agents") {
+          Text("Once lil is installed, its path appears here.")
+            .foregroundStyle(.secondary)
+        }
+      }
     } header: {
       Text("Connect an Agent")
     } footer: {

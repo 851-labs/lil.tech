@@ -45,13 +45,41 @@ struct CommandLineToolInstallerTests {
   }
 
   @Test
-  func findsWhereLilIsInstalled() throws {
+  func findsWhereOurNewestLilIsInstalled() throws {
     let shared = root.appending(path: "usr/local/bin", directoryHint: .isDirectory)
-    #expect(CommandLineToolInstaller.installedLocation(in: [shared, bin]) == nil)
+    let sharedLil = shared.appending(path: "lil")
+    // The fakes don't embed a version, so they're read from a table, as from the binary.
+    let versions = LockedVersions()
+    func located() -> URL? {
+      CommandLineToolInstaller.installedLocation(in: [shared, bin]) { versions[$0] }
+    }
+    #expect(located() == nil)
+
     _ = try fakeLil(version: 5, at: installed)
-    #expect(CommandLineToolInstaller.installedLocation(in: [shared, bin]) == installed)
-    let sharedLil = try fakeLil(version: 5, at: shared.appending(path: "lil"))
-    #expect(CommandLineToolInstaller.installedLocation(in: [shared, bin]) == sharedLil)
+    versions[installed] = 5
+    #expect(located() == installed)
+
+    // The same version in both: the first directory's.
+    _ = try fakeLil(version: 5, at: sharedLil)
+    versions[sharedLil] = 5
+    #expect(located() == sharedLil)
+
+    // An older one there, as when replacing it was declined: the newer one.
+    versions[sharedLil] = 4
+    #expect(located() == installed)
+
+    // Another command named `lil` isn't ours.
+    versions[sharedLil] = nil
+    versions[installed] = nil
+    #expect(located() == nil)
+  }
+
+  private final class LockedVersions: @unchecked Sendable {
+    private var values: [String: Int] = [:]
+    subscript(url: URL) -> Int? {
+      get { values[url.resolvingSymlinksInPath().path] }
+      set { values[url.resolvingSymlinksInPath().path] = newValue }
+    }
   }
 
   @Test

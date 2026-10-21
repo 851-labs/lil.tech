@@ -12,9 +12,9 @@ import LilCLIInstaller
 public struct AgentAccessFeature {
   @ObservableState
   public struct State: Equatable {
-    /// The latest queries, newest first.
     /// Where `lil` is installed, for how to connect an agent. Nil if it isn't (or not yet known).
     public var commandLineTool: URL?
+    /// The latest queries, newest first.
     public var entries: [AgentAccessEntry]
     /// Why the setting couldn't be read or saved.
     public var failure: String?
