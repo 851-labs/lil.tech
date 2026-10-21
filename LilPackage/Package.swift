@@ -9,6 +9,7 @@ let package = Package(
     .macOS(.v26),
   ],
   products: [
+    .library(name: "HealthAgentAccess", targets: ["HealthAgentAccess"]),
     .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
     .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
     .library(name: "HealthKitAccess", targets: ["HealthKitAccess"]),
@@ -50,6 +51,20 @@ let package = Package(
     .package(url: "https://github.com/groue/GRDB.swift", from: "7.11.1"),
   ],
   targets: [
+    // Whether command-line tools and agents may read lil health's data on the Mac, and their access
+    // log: shared by the app and the `lil-health` command.
+    .target(
+      name: "HealthAgentAccess",
+      dependencies: [
+        .product(name: "GRDB", package: "GRDB.swift")
+      ]
+    ),
+    .testTarget(
+      name: "HealthAgentAccessTests",
+      dependencies: [
+        "HealthAgentAccess"
+      ]
+    ),
     .target(
       name: "HealthCatalog"
     ),
@@ -99,6 +114,7 @@ let package = Package(
     .target(
       name: "HealthMacApp",
       dependencies: [
+        "HealthAgentAccess",
         "HealthCatalog",
         "HealthDatabase",
         "HealthPages",
@@ -112,6 +128,7 @@ let package = Package(
     .testTarget(
       name: "HealthMacAppTests",
       dependencies: [
+        "HealthAgentAccess",
         "HealthCatalog",
         "LilTestSupport",
         "HealthDatabase",

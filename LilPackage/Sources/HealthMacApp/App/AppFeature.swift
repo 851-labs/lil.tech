@@ -24,6 +24,8 @@ public struct AppFeature {
     /// Account settings, in the Settings window. Kept here rather than presented, so the window
     /// works whether or not the main one is open, and an export keeps going when it closes.
     public var account = AccountFeature.State()
+    /// Command-line and agent access, in the Settings window's Agents pane.
+    public var agentAccess = AgentAccessFeature.State()
     /// Pins from before they synced, moved up when sync starts (`movePinsUp`).
     @Shared(.summaryPins) var localPins: [String]
 
@@ -60,6 +62,7 @@ public struct AppFeature {
     case signedInChanged(Bool)
     case signIn(SignInFeature.Action)
     case account(AccountFeature.Action)
+    case agentAccess(AgentAccessFeature.Action)
     case signOutButtonTapped
     case summary(SummaryFeature.Action)
     case syncStatusChanged(SyncStatus)
@@ -74,6 +77,7 @@ public struct AppFeature {
     case sync
   }
 
+  @Dependency(\.agentAccess) var agentAccess
   @Dependency(\.auth) var auth
   @Dependency(\.authSessions) var authSessions
   @Dependency(\.blobCache) var blobCache
@@ -101,6 +105,9 @@ public struct AppFeature {
     Scope(\.account, action: \.account) {
       AccountFeature()
     }
+    Scope(\.agentAccess, action: \.agentAccess) {
+      AgentAccessFeature()
+    }
     Reduce { state, action in
       switch action {
       case .binding:
@@ -123,6 +130,7 @@ public struct AppFeature {
         state.searchText = ""
         state.syncStatus = .idle
         state.account = AccountFeature.State()
+        state.agentAccess = AgentAccessFeature.State()
         // Pins are the account's choice, like its data, and leave with it.
         state.summary = SummaryFeature.State()
         state.$localPins.withLock { $0 = [] }
@@ -135,9 +143,16 @@ public struct AppFeature {
           .cancel(id: SummaryFeature.CancelID.write),
           // What the Settings window started for the account stops with it.
           AccountFeature.cancel(),
-          .run { [sync, blobCache] send in
+          .run { [agentAccess, sync, blobCache] send in
             // First, so it's done even if the database can't be.
             await blobCache.removeAll()
+            // Whether tools and agents may read the account's data was its choice, and their log
+            // is about its data: the next account decides for itself.
+            do {
+              try await agentAccess.reset()
+            } catch {
+              reportIssue(error)
+            }
             do {
               try await sync.removeLocalData()
             } catch {
@@ -153,6 +168,9 @@ public struct AppFeature {
         return .run { [auth] _ in await auth.signOut() }
 
       case .account:
+        return .none
+
+      case .agentAccess:
         return .none
 
       case .summary:
