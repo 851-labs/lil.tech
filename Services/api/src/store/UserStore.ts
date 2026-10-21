@@ -19,6 +19,7 @@ import {
   type AgentAccess,
   appendAgentAccess,
   nextAgentAccessTrimAt,
+  readAgentAccessLog,
   trimAgentAccessLog,
 } from "./AgentAccessLog.ts";
 import { applyMutations, readChanges, readEpoch, readHead, readMeta } from "./ChangeLog.ts";
@@ -484,6 +485,12 @@ export const makeUserStore = (
         appendAgentAccess(sql, access, at);
         if (first) yield* scheduleAlarm(at);
       }),
+    /**
+     * The agents' access log for the apps (851-2852), newest first: at most `limit` rows, older
+     * than the row `before` if given.
+     */
+    agentAccessLog: (before: number | null, limit: number) =>
+      ensureNotDeleted.pipe(Effect.map(() => readAgentAccessLog(sql, before, limit))),
     /** Applies mutations in one transaction (see `apply`). */
     applyMutations: (mutations: ReadonlyArray<Mutation>) => apply(mutations),
     /**

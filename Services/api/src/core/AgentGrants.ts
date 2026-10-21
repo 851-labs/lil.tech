@@ -1,5 +1,18 @@
 import { Context, Effect, Layer, Option, Schema } from "effect";
-import { and, eq, gt, inArray, isNotNull, isNull, lt, lte, notExists, or } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  notExists,
+  or,
+} from "drizzle-orm";
 import type { SqlError } from "effect/sql";
 import { CoreDb, first, query } from "./CoreDb.ts";
 import { AgentAuthorizationId, AgentGrantId, UserId } from "./Ids.ts";
@@ -130,6 +143,7 @@ const emptyGrantAge = 24 * 60 * 60 * 1000;
 const decodeAuthorization = Schema.decodeUnknownEffect(AgentAuthorization);
 const decodePending = Schema.decodeUnknownEffect(PendingAuthorization);
 const decodeToken = Schema.decodeUnknownEffect(StoredAgentToken);
+const decodeGrants = Schema.decodeUnknownEffect(Schema.Array(AgentGrant));
 
 export class AgentGrants extends Context.Service<
   AgentGrants,
@@ -181,6 +195,35 @@ export class AgentGrants extends Context.Service<
     readonly createGrant: (grant: AgentGrant) => Effect.Effect<void, SqlError.SqlError>;
     /** Deletes a grant, and with it its tokens. */
     readonly deleteGrant: (id: AgentGrantId) => Effect.Effect<void, SqlError.SqlError>;
+    /**
+     * The user's grants that still work (with a refresh token that hasn't expired), most recently
+     * connected first. Ended ones wait for the daily cleanup, unlisted.
+     */
+    readonly listForUser: (
+      userId: UserId,
+      now: number,
+    ) => Effect.Effect<ReadonlyArray<AgentGrant>, SqlError.SqlError | Schema.SchemaError>;
+    /**
+     * Deletes one of the user's grants, and with it its tokens. Another user's, or one that's
+     * gone, is left alone.
+     */
+    readonly deleteForUser: (
+      userId: UserId,
+      id: AgentGrantId,
+    ) => Effect.Effect<void, SqlError.SqlError>;
+    /** The resources of the user's grants and authorization requests, each once. */
+    readonly resourcesForUser: (
+      userId: UserId,
+    ) => Effect.Effect<ReadonlyArray<string>, SqlError.SqlError>;
+    /**
+     * Deletes the user's grants for these MCP servers (`resource`), with their tokens. Their
+     * authorization requests go first, so a code allowed just before can't make a grant after:
+     * redeeming it finds its authorization gone and deletes the grant it made.
+     */
+    readonly deleteForResources: (
+      userId: UserId,
+      resources: ReadonlyArray<string>,
+    ) => Effect.Effect<void, SqlError.SqlError>;
     /** Records that a grant was used, unless it was after `before`. */
     readonly touchGrant: (
       id: AgentGrantId,
@@ -389,6 +432,81 @@ export class AgentGrants extends Context.Service<
         deleteGrant: Effect.fn("AgentGrants.deleteGrant")(function* (id) {
           yield* query(db.delete(agentGrants).where(eq(agentGrants.id, id)));
         }),
+        listForUser: Effect.fn("AgentGrants.listForUser")(function* (userId, now) {
+          const rows = yield* query(
+            db
+              .select()
+              .from(agentGrants)
+              .where(
+                and(
+                  eq(agentGrants.userId, userId),
+                  exists(
+                    db
+                      .select({ tokenHash: agentTokens.tokenHash })
+                      .from(agentTokens)
+                      .where(
+                        and(
+                          eq(agentTokens.grantId, agentGrants.id),
+                          eq(agentTokens.kind, "refresh"),
+                          gt(agentTokens.expiresAt, now),
+                        ),
+                      ),
+                  ),
+                ),
+              )
+              .orderBy(desc(agentGrants.createdAt), desc(agentGrants.id)),
+          );
+          return yield* decodeGrants(rows);
+        }),
+        deleteForUser: Effect.fn("AgentGrants.deleteForUser")(function* (userId, id) {
+          yield* query(
+            db
+              .delete(agentGrants)
+              .where(and(eq(agentGrants.id, id), eq(agentGrants.userId, userId))),
+          );
+        }),
+        resourcesForUser: Effect.fn("AgentGrants.resourcesForUser")(function* (userId) {
+          const [granted, asked] = yield* Effect.all(
+            [
+              query(
+                db
+                  .selectDistinct({ resource: agentGrants.resource })
+                  .from(agentGrants)
+                  .where(eq(agentGrants.userId, userId)),
+              ),
+              query(
+                db
+                  .selectDistinct({ resource: agentAuthorizations.resource })
+                  .from(agentAuthorizations)
+                  .where(eq(agentAuthorizations.userId, userId)),
+              ),
+            ],
+            { concurrency: "unbounded" },
+          );
+          return [...new Set([...granted, ...asked].map((row) => row.resource))];
+        }),
+        deleteForResources: Effect.fn("AgentGrants.deleteForResources")(
+          function* (userId, resources) {
+            if (resources.length === 0) return;
+            yield* query(
+              db
+                .delete(agentAuthorizations)
+                .where(
+                  and(
+                    eq(agentAuthorizations.userId, userId),
+                    inArray(agentAuthorizations.resource, resources),
+                  ),
+                ),
+            );
+            yield* query(
+              db
+                .delete(agentGrants)
+                .where(
+                  and(eq(agentGrants.userId, userId), inArray(agentGrants.resource, resources)),
+                ),
+            );
+          },
+        ),
         touchGrant: Effect.fn("AgentGrants.touchGrant")(function* (id, now, before) {
           yield* query(
             db

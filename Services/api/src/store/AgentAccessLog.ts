@@ -86,3 +86,46 @@ export const trimAgentAccessLog = (
 ) => {
   sql.exec("DELETE FROM agent_access_log WHERE at < ?", now - policy.retention);
 };
+
+/** A logged call as the apps read it (851-2852): its row's ID, which pages by, and its time. */
+export interface LoggedAgentAccess extends AgentAccess {
+  readonly id: number;
+  /** Unix milliseconds. */
+  readonly at: number;
+}
+
+/**
+ * The log's rows, newest first: at most `limit`, older than the row `before` if given. Rows outlive
+ * their grant, so a revoked agent's calls stay visible.
+ */
+export const readAgentAccessLog = (
+  sql: StoreSql,
+  before: number | null,
+  limit: number,
+): Array<LoggedAgentAccess> =>
+  sql
+    .exec(
+      `SELECT id, at, grant_id, client_name, tool, types, range, date, outcome, rows
+        FROM agent_access_log
+        WHERE id < ?
+        ORDER BY id DESC
+        LIMIT ?`,
+      before ?? Number.MAX_SAFE_INTEGER,
+      limit,
+    )
+    // The table is STRICT, so each column holds its declared type.
+    .map((row) => ({
+      id: row["id"] as number,
+      at: row["at"] as number,
+      grantId: row["grant_id"] as string,
+      clientName: row["client_name"] as string,
+      tool: row["tool"] as string,
+      types:
+        row["types"] === null
+          ? null
+          : (JSON.parse(row["types"] as string) as ReadonlyArray<string>),
+      range: row["range"] as string | null,
+      date: row["date"] as string | null,
+      outcome: row["outcome"] as AgentAccessOutcome,
+      rows: row["rows"] as number,
+    }));
