@@ -243,14 +243,14 @@
       "label": "The sidebar's footer"
     },
     {
-      "from": "sync-footer",
+      "from": "app",
       "to": "settings",
-      "label": "Account › Account Settings…, or ⌘,"
+      "label": "lil health › Settings…, or ⌘,"
     },
     {
-      "from": "sync-footer",
+      "from": "app",
       "to": "sign-in",
-      "label": "Account › Sign Out"
+      "label": "lil health › Sign Out"
     },
     {
       "from": "settings",
