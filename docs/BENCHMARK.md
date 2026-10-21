@@ -16,6 +16,15 @@ scripts/bench-sync --records 1000000   # a big run, about 7 minutes
 - It signs in a new synthetic user with dev sign-in (`{"account": "bench-<time>"}`), gives it consent, and deletes it at the end (`DELETE /v1/me`, which deletes its store, snapshots and blobs), also after a failure or Ctrl-C. So runs don't add up towards a stage's 1,000 users. `--keep` keeps it.
 - **Staging** has no dev sign-in. To run against it, set `LIL_BENCH_REFRESH_TOKEN` to a refresh token of a staging account whose data may grow (synthetic only, like everything on staging), with `--url https://api.staging.lil.tech`. That account is never deleted. Its next snapshot needs a quarter of its last one's records to have changed, so a run too small for that stops after applying. A refresh token works once: the run uses it up and prints the new one for the next run.
 - Other options: `--concurrency <n>` uploads at once (default 4, as many as the iPhone's backfill keeps), `--skip-mac`, `--seed <n>` to make the same data again, `--json <file>` to keep the results.
+
+The Mac's inserts alone run without a stage (851-2859), in a minute or so:
+
+```sh
+cd LilPackage
+LIL_BENCH_LOAD_RECORDS=1000000 swift test -c release --filter SyncLoadBenchmark
+```
+
+`SyncLoadBenchmark` (`LilPackage/Tests/HealthDatabaseTests`) serves `LilSyncEngine.bootstrap()` a synthetic snapshot from memory, shaped like a stage's (nine in ten records are samples, in their key order with random HealthKit UUIDs, the rest statistics), so it times only decoding and inserting. It prints the time a record, and SQLite's pages read from disk and written a record, which don't depend on how busy the Mac is.
 - Under 50,000 records it stops after applying: a store's first snapshot needs 50,000 changes (`snapshotPolicy.minChanges`).
 - Running it locally (`alchemy dev`) would measure workerd on the Mac, with local stand-ins for the queue, R2 and the Durable Object's storage, none of which behave like Cloudflare's. A personal stage runs the same Workers, queue, Durable Objects and R2 as prod, so every stage is measured on the real thing.
 
@@ -26,7 +35,7 @@ scripts/bench-sync --records 1000000   # a big run, about 7 minutes
 - **Upload:** `PUT /v1/health/batches/<id>` for every file, 4 at a time, from the first request to the last `202`. Per-batch latency (p50, p90) and retries (429, 5xx) are in the notes. It's what the iPhone's uploads cost the server, from a Mac on a fast connection: the iPhone's own network and `URLSession` aren't in it.
 - **Apply:** from the first batch's `receivedAt` to the last batch's `finishedAt`, both server time, from each batch's status (`GET /v1/health/batches/<id>`). It's the whole ingest pipeline: the queue, the consumer and the store's transactions. Uploads finish well before (the notes say how long), so this is the server's rate, not the uploads'. A failed batch or a rejected line fails the run, since the data is meant to apply.
 - **Snapshot:** a store writes a snapshot once it has been quiet for 2 minutes (`docs/SYNC.md`). From the snapshot's `createdAt` (when the store started it) to when `GET /v1/sync/snapshot` first returned it, polled every 0.5 s. The wait for quiet is policy, not throughput: it's in the notes, and left out of the wall clock's second figure.
-- **Mac download, insert, bootstrap:** `SyncBootstrapBenchmark` (`LilPackage/Tests/HealthDatabaseTests`), built and run in Release, drives the Mac's real `LilSyncEngine.bootstrap()` with lil health's entities into a new database on disk, against the stage with the synthetic user's token. Download is from the start until the last part arrived (4 at a time, each checked against its SHA-256); insert is the rest: clearing the tables, decompressing and loading every record, 5,000 per transaction. The benchmark builds it before anything is timed. It checks the new database holds exactly as many records as the snapshot, and says which tables differ if not.
+- **Mac download, insert, bootstrap:** `SyncBootstrapBenchmark` (`LilPackage/Tests/HealthDatabaseTests`), built and run in Release, drives the Mac's real `LilSyncEngine.bootstrap()` with lil health's entities into a new database on disk, against the stage with the synthetic user's token. Download is from the start until the last part arrived (4 at a time, each checked against its SHA-256); insert is the rest: clearing the tables, decompressing every record into a staging table, 5,000 per transaction, then moving them into the tables in one (851-2859). The benchmark builds it before anything is timed. It checks the new database holds exactly as many records as the snapshot, and says which tables differ if not.
 - **Wall clock:** from the first upload until the Mac finished bootstrapping, and the same without the snapshot's wait for quiet.
 
 ## Physical limits
@@ -34,7 +43,7 @@ scripts/bench-sync --records 1000000   # a big run, about 7 minutes
 - **HealthKit:** 6,700 items/s on the owner's iPhone (prod, above). Every stage after it ran faster than that. Applying (5,500–8,200 items/s) came closest, so it's what would hold a first sync back once the iPhone reads faster or several devices upload.
 - **Network:** the uploads move under 1 MB/s and the downloads up to about 10 MB/s, a small fraction of a gigabit connection, so neither is near the network's limit. Both are bound by round trips: an upload by the server's work per batch (two store calls, the R2 put, the queue send, 851-2667), a download by a few small parts at a time.
 - **The store:** a user's store is one Durable Object, one thread. Applying cost about 80 µs of CPU per sample after 851-2651 (12,500 items/s), less since grouped upserts and a change log without row copies (851-2671, 851-2673). The best one user has applied is about 9,500 items/s (851-2652, step samples only). It's the stage furthest below the others.
-- **The Mac:** SQLite on an SSD. A sample costs about 9 µs to upsert through a prepared statement (851-2649), so about 100,000 items/s for the writes alone.
+- **The Mac:** SQLite on an SSD. A sample costs about 9 µs to upsert through a prepared statement (851-2649), so about 100,000 items/s for the writes alone. Loading a snapshot costs about 30 µs a record, nearly all of it decoding JSON, at any size since 851-2859.
 
 ## Results
 
@@ -57,5 +66,20 @@ Runs 1, 2 and the 1,000,000 timed applying to the change log's last change; run 
 
 - Uploads finished 17–78 s before applying did: with 4 in flight, the queue is always full, so applying sets the pace (per batch p50 0.5–0.7 s, p90 about 1 s, no retries).
 - Applying is 14–18 times prod's 450 items/s. Prod's store held millions of rows and was re-snapshotting every few seconds, so the two aren't the same load; a run with `--records 6500000` would come closer.
-- The Mac's inserts slow down as its tables grow: 36 µs a record at 200,000, 64 µs at 1,000,000. That's the one stage that got slower with size.
+- The Mac's inserts slow down as its tables grow: 36 µs a record at 200,000, 64 µs at 1,000,000. That's the one stage that got slower with size. Fixed in 851-2859, below.
+
+**2026-10-21**, the Mac's inserts alone (851-2859), `SyncLoadBenchmark` in Release, on the same Mac, busy with other builds throughout (load averages of 300–1,000). Three runs each, the median first:
+
+| | 200,000 records | 1,000,000 records |
+| --- | ---: | ---: |
+| Before, µs a record | 89 (30, 166) | 189 (187, 190) |
+| Before, pages read and written a record | 0.03–0.09, 0.27 | 0.98, 0.67 |
+| After, µs a record | 30 (27, 30) | 30 (30, 73) |
+| After, pages read and written a record | 0.00, 0.08 | 0.14, 0.12 |
+
+- **Cause:** samples arrive in the store's key order (type, then start date), so their random HealthKit IDs land all over the primary key's index. Each 5,000-record transaction dirtied thousands of the index's pages, read most of them back from disk once the index outgrew SQLite's 2 MB page cache, wrote them to the write-ahead log, and checkpointed them (with an `F_FULLFSYNC`), since every commit wrote more than the 1,000 pages that trigger a checkpoint. A 15 s profile of a 1,000,000-record load (`sample`) had 42% of the writer's time in commits, 35% in those checkpoints (26% in the sync alone), and 18% reading index pages back. The bigger the index, the more of its pages a batch touched: 0.27 pages written a record at 200,000, 0.67 at 1,000,000, and 0.09 pages read against 0.98. A run with the samples sorted by ID, and without the other indexes, wrote 0.06.
+- **Fix:** records go to a staging table first, in the writer's temporary schema, without indexes, so each insert appends and nothing is synced. One transaction then moves them into their table in primary key order, so the table and its key's index are appended to, with the table's other indexes dropped first and built again afterwards, which sorts once. That transaction took about 7 s of the 1,000,000-record load. The write-ahead log, which grows as big as the records, is truncated afterwards.
+- A bigger page cache alone (256 MB) cut pages read to 0.29 a record but left the writes as they were.
+- Earlier, while the Mac was less busy, the old code took 30 µs a record at 200,000 and 68–89 µs at 1,000,000, like the stage's 36 and 64. Its I/O made it suffer most from a busy disk.
+
 - The snapshot's 2-minute wait for quiet is most of the wall clock at these sizes. It's policy rather than throughput: without it the store re-snapshots while ingesting, as in prod.

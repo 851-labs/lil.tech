@@ -61,7 +61,45 @@ public struct SyncEntity: Sendable {
     return entity
   }
 
+  /// Like ``decoding(_:as:upsert:delete:clear:)``, for an entity kept in one table, `table`,
+  /// whose snapshots load faster (851-2859): their records go to a staging table without indexes
+  /// first, with `insert`, then into `table` all at once, in its primary key's order, with its
+  /// other indexes built afterwards. Loaded one at a time instead, records with random IDs land
+  /// all over the primary key's index, so each batch rewrote most of it, and loading slowed down
+  /// as the table grew.
+  ///
+  /// - Parameter insert: Inserts a row into the table named by its second argument, which has
+  ///   `table`'s columns and no constraints. It must write every column of `table`: they're all
+  ///   moved into it, and one left out would be stored as null rather than its default.
+  public static func decoding<Row: Decodable & SendableMetatype>(
+    _ name: String,
+    as _: Row.Type,
+    table: String,
+    insert: @escaping @Sendable (_ row: Row, _ staging: String, _ db: Database) throws -> Void,
+    upsert: @escaping @Sendable (_ row: Row, _ db: Database) throws -> Void,
+    delete: @escaping @Sendable (_ id: String, _ db: Database) throws -> Void,
+    clear: @escaping @Sendable (_ db: Database) throws -> Void
+  ) -> Self {
+    var entity = decoding(name, as: Row.self, upsert: upsert, delete: delete, clear: clear)
+    let decoder = JSONDecoder()
+    entity.staging = Staging(table: table) { record, staging, db in
+      try insert(decoder.decode(Row.self, from: record), staging, db)
+    }
+    return entity
+  }
+
+  /// How an entity's snapshot records go through a staging table (`SnapshotStaging`).
+  struct Staging: Sendable {
+    /// The entity's table.
+    let table: String
+    /// Stores one record in the staging table named by its second argument.
+    let insert: @Sendable (_ record: Data, _ staging: String, _ db: Database) throws -> Void
+  }
+
   private var loadDecoding: (@Sendable (_ record: Data, _ db: Database) throws -> Void)?
+
+  /// Set if the entity's snapshots load through a staging table.
+  private(set) var staging: Staging?
 
   func loadRecord(_ record: Data, _ db: Database) throws {
     try (loadDecoding ?? load)(record, db)
