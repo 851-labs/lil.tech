@@ -1,6 +1,6 @@
-import AppUpdates
 import ComposableArchitecture
-import MessagesApp
+import LilUpdates
+import MessagesMacApp
 import SwiftUI
 
 @main

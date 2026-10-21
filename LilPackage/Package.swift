@@ -9,9 +9,6 @@ let package = Package(
     .macOS(.v26),
   ],
   products: [
-    .library(name: "AppUpdates", targets: ["AppUpdates"]),
-    .library(name: "ContactNames", targets: ["ContactNames"]),
-    .library(name: "ConversationListFeature", targets: ["ConversationListFeature"]),
     .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
     .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
     .library(name: "HealthKitAccess", targets: ["HealthKitAccess"]),
@@ -22,11 +19,14 @@ let package = Package(
     .library(name: "LilAPI", targets: ["LilAPI"]),
     .library(name: "LilAuth", targets: ["LilAuth"]),
     .library(name: "LilSync", targets: ["LilSync"]),
-    .library(name: "MessagesApp", targets: ["MessagesApp"]),
-    .library(name: "MessageSending", targets: ["MessageSending"]),
+    .library(name: "LilUpdates", targets: ["LilUpdates"]),
+    .library(name: "MessagesContacts", targets: ["MessagesContacts"]),
+    .library(name: "MessagesConversationList", targets: ["MessagesConversationList"]),
     .library(name: "MessagesDatabase", targets: ["MessagesDatabase"]),
-    .library(name: "MessageThreadFeature", targets: ["MessageThreadFeature"]),
-    .library(name: "OnboardingFeature", targets: ["OnboardingFeature"]),
+    .library(name: "MessagesMacApp", targets: ["MessagesMacApp"]),
+    .library(name: "MessagesOnboarding", targets: ["MessagesOnboarding"]),
+    .library(name: "MessagesSending", targets: ["MessagesSending"]),
+    .library(name: "MessagesThread", targets: ["MessagesThread"]),
   ],
   dependencies: [
     .package(
@@ -50,43 +50,6 @@ let package = Package(
     .package(url: "https://github.com/groue/GRDB.swift", from: "7.11.1"),
   ],
   targets: [
-    .target(
-      name: "AppUpdates",
-      dependencies: [
-        .product(name: "Sparkle", package: "Sparkle")
-      ]
-    ),
-    .target(
-      name: "ContactNames",
-      dependencies: [
-        .product(name: "Dependencies", package: "swift-dependencies")
-      ]
-    ),
-    .testTarget(
-      name: "ContactNamesTests",
-      dependencies: [
-        "ContactNames"
-      ]
-    ),
-    .target(
-      name: "ConversationListFeature",
-      dependencies: [
-        "ContactNames",
-        "MessagesDatabase",
-        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
-        .product(name: "SQLiteData", package: "sqlite-data"),
-        .product(name: "Tagged", package: "swift-tagged"),
-      ]
-    ),
-    .testTarget(
-      name: "ConversationListFeatureTests",
-      dependencies: [
-        "ConversationListFeature"
-      ]
-    ),
-    .target(
-      name: "GzipFiles"
-    ),
     .target(
       name: "HealthCatalog"
     ),
@@ -204,10 +167,10 @@ let package = Package(
     .target(
       name: "HealthUpload",
       dependencies: [
-        "GzipFiles",
         "HealthCatalog",
         "HealthKitAccess",
         "LilAPI",
+        "LilGzip",
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
@@ -216,9 +179,9 @@ let package = Package(
     .testTarget(
       name: "HealthUploadTests",
       dependencies: [
-        "GzipFiles",
         "HealthUpload",
         "LilAPI",
+        "LilGzip",
         "LilTestSupport",
       ]
     ),
@@ -273,10 +236,13 @@ let package = Package(
       ]
     ),
     .target(
+      name: "LilGzip"
+    ),
+    .target(
       name: "LilSync",
       dependencies: [
-        "GzipFiles",
         "LilAPI",
+        "LilGzip",
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
@@ -294,7 +260,7 @@ let package = Package(
     .testTarget(
       name: "LilSyncTests",
       dependencies: [
-        "GzipFiles",
+        "LilGzip",
         "LilSync",
         "LilTestSupport",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
@@ -303,22 +269,37 @@ let package = Package(
       ]
     ),
     .target(
-      name: "MessagesApp",
+      name: "LilUpdates",
       dependencies: [
-        "ContactNames",
-        "ConversationListFeature",
-        "MessageThreadFeature",
-        "MessagesDatabase",
-        "OnboardingFeature",
-        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
-        .product(name: "Dependencies", package: "swift-dependencies"),
-        .product(name: "SQLiteData", package: "sqlite-data"),
+        .product(name: "Sparkle", package: "Sparkle")
+      ]
+    ),
+    .target(
+      name: "MessagesContacts",
+      dependencies: [
+        .product(name: "Dependencies", package: "swift-dependencies")
       ]
     ),
     .testTarget(
-      name: "MessagesAppTests",
+      name: "MessagesContactsTests",
       dependencies: [
-        "MessagesApp"
+        "MessagesContacts"
+      ]
+    ),
+    .target(
+      name: "MessagesConversationList",
+      dependencies: [
+        "MessagesContacts",
+        "MessagesDatabase",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
+        .product(name: "Tagged", package: "swift-tagged"),
+      ]
+    ),
+    .testTarget(
+      name: "MessagesConversationListTests",
+      dependencies: [
+        "MessagesConversationList"
       ]
     ),
     .target(
@@ -338,44 +319,63 @@ let package = Package(
       ]
     ),
     .target(
-      name: "MessageSending",
+      name: "MessagesMacApp",
+      dependencies: [
+        "MessagesContacts",
+        "MessagesConversationList",
+        "MessagesDatabase",
+        "MessagesOnboarding",
+        "MessagesThread",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
+      ]
+    ),
+    .testTarget(
+      name: "MessagesMacAppTests",
+      dependencies: [
+        "MessagesMacApp"
+      ]
+    ),
+    .target(
+      name: "MessagesOnboarding",
+      dependencies: [
+        "MessagesDatabase",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+      ]
+    ),
+    .testTarget(
+      name: "MessagesOnboardingTests",
+      dependencies: [
+        "MessagesOnboarding"
+      ]
+    ),
+    .target(
+      name: "MessagesSending",
       dependencies: [
         .product(name: "Dependencies", package: "swift-dependencies")
       ]
     ),
     .testTarget(
-      name: "MessageSendingTests",
+      name: "MessagesSendingTests",
       dependencies: [
-        "MessageSending"
+        "MessagesSending"
       ]
     ),
     .target(
-      name: "MessageThreadFeature",
+      name: "MessagesThread",
       dependencies: [
-        "MessageSending",
         "MessagesDatabase",
+        "MessagesSending",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "SQLiteData", package: "sqlite-data"),
         .product(name: "Tagged", package: "swift-tagged"),
       ]
     ),
     .testTarget(
-      name: "MessageThreadFeatureTests",
+      name: "MessagesThreadTests",
       dependencies: [
-        "MessageThreadFeature"
-      ]
-    ),
-    .target(
-      name: "OnboardingFeature",
-      dependencies: [
-        "MessagesDatabase",
-        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
-      ]
-    ),
-    .testTarget(
-      name: "OnboardingFeatureTests",
-      dependencies: [
-        "OnboardingFeature"
+        "MessagesThread"
       ]
     ),
   ],
