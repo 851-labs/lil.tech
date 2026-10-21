@@ -366,7 +366,7 @@ public struct HealthTools: Sendable {
         || characteristics.contains(type.id)
     }
     let types = HealthCatalog.all
-      .filter { matches("\($0.name) \($0.category?.name ?? "") \(Self.shortID($0.id))") }
+      .filter { matches("\($0.name) \($0.category?.name ?? "") \(HealthCatalog.shortID($0.id))") }
       .sorted { a, b in
         hasData(a) != hasData(b) ? hasData(a) : Self.byCategoryThenName(a, b)
       }
@@ -406,24 +406,12 @@ public struct HealthTools: Sendable {
   /// people typing commands, by the name Health shows (`Steps`, `heart rate`) or the identifier
   /// without its prefix (`StepCount`), in any case.
   public static func dataType(_ name: String) throws -> HealthDataType {
-    if let type = HealthCatalog.type(id: name) { return type }
-    let wanted = name.trimmingCharacters(in: .whitespaces).lowercased()
-    let match =
-      HealthCatalog.all.first { $0.name.lowercased() == wanted }
-      ?? HealthCatalog.all.first { shortID($0.id).lowercased() == wanted }
-    guard let match else {
+    guard let match = HealthCatalog.type(named: name) else {
       throw HealthToolError(
         "Unknown type: \(name). Use a HealthKit identifier, e.g. "
           + "HKQuantityTypeIdentifierStepCount; search finds them.")
     }
     return match
-  }
-
-  /// An identifier without HealthKit's prefix: `StepCount` for
-  /// `HKQuantityTypeIdentifierStepCount`.
-  static func shortID(_ id: String) -> String {
-    guard let range = id.range(of: "TypeIdentifier") else { return id }
-    return String(id[range.upperBound...])
   }
 
   private static func byCategoryThenName(_ a: HealthDataType, _ b: HealthDataType) -> Bool {

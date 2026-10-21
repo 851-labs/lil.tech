@@ -17,6 +17,9 @@ public struct AppFeature {
     public var isSignedIn: Bool?
     public var signIn = SignInFeature.State()
     public var selection: SidebarItem? = .summary
+    /// The metrics opened in Summary's or a category's stack, as type IDs. Emptied when the
+    /// selection changes, so one's metric doesn't show under another.
+    public var metricPath: [String] = []
     public var searchText = ""
     /// Shown in the sidebar's footer.
     public var syncStatus: SyncStatus
@@ -32,11 +35,13 @@ public struct AppFeature {
     @Shared(.summaryPins) var localPins: [String]
 
     public init(
-      isSignedIn: Bool? = nil, selection: SidebarItem? = .summary, searchText: String = "",
-      syncStatus: SyncStatus = .idle, summary: SummaryFeature.State = SummaryFeature.State()
+      isSignedIn: Bool? = nil, selection: SidebarItem? = .summary, metricPath: [String] = [],
+      searchText: String = "", syncStatus: SyncStatus = .idle,
+      summary: SummaryFeature.State = SummaryFeature.State()
     ) {
       self.isSignedIn = isSignedIn
       self.selection = selection
+      self.metricPath = metricPath
       self.searchText = searchText
       self.syncStatus = syncStatus
       self.summary = summary
@@ -45,20 +50,17 @@ public struct AppFeature {
     /// The search, without surrounding spaces.
     public var query: String { searchText.trimmingCharacters(in: .whitespaces) }
 
-    /// The data types whose names match the search, by category order then name. Every type in
-    /// the catalog, whatever iOS version added it: the Mac shows what's synced. Characteristics,
-    /// which have no category, aren't data to browse.
+    /// The data types whose names match the search, by category order then name
+    /// (`HealthPage.browsableTypes`).
     public var searchResults: [HealthDataType] {
       guard !query.isEmpty else { return [] }
-      return HealthCategory.allCases.flatMap { category in
-        HealthCatalog.all
-          .filter { $0.category == category && $0.name.localizedStandardContains(query) }
-          .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-      }
+      return HealthPage.browsableTypes.filter { $0.name.localizedStandardContains(query) }
     }
   }
 
   public enum Action: BindableAction {
+    /// An app action an intent asked for (`HealthAppActions`), with how to answer it.
+    case appActionRequested(HealthAppActionRequest)
     case binding(BindingAction<State>)
     case retrySyncButtonTapped
     case signedInChanged(Bool)
@@ -70,6 +72,12 @@ public struct AppFeature {
     case summary(SummaryFeature.Action)
     case syncStatusChanged(SyncStatus)
     case localPinsMovedUp([String])
+    /// A stack's navigation changed its metrics: a card clicked, or Back. The stack says which
+    /// selection it shows, so one that's going away (as the selection changes) can't empty the
+    /// path the next one opens with.
+    case metricPathChanged([String], selection: SidebarItem?)
+    /// Shows a page, as the sidebar and a metric's card do: the window's part is the intent's.
+    case pageOpened(HealthPage)
     case task
   }
 
@@ -85,6 +93,7 @@ public struct AppFeature {
   @Dependency(\.authSessions) var authSessions
   @Dependency(\.blobCache) var blobCache
   @Dependency(\.defaultDatabase) var database
+  @Dependency(\.healthAppActions) var healthAppActions
   @Dependency(\.sync) var sync
 
   public init() {}
@@ -97,6 +106,10 @@ public struct AppFeature {
           state.selection =
             HealthCatalog.type(id: id)?.category.map(SidebarItem.category) ?? .summary
         }
+        return .none
+      }
+      .onChange(of: \.selection) { _, state in
+        state.metricPath = []
         return .none
       }
     Scope(\.signIn, action: \.signIn) {
@@ -116,6 +129,15 @@ public struct AppFeature {
     }
     Reduce { state, action in
       switch action {
+      case .appActionRequested(let request):
+        switch request.action {
+        case .open(let page):
+          return .run { send in
+            await send(.pageOpened(page))
+            request.finish(.success(.done))
+          }
+        }
+
       case .binding:
         return .none
 
@@ -133,6 +155,7 @@ public struct AppFeature {
         // The next account starts afresh.
         state.signIn = SignInFeature.State()
         state.selection = .summary
+        state.metricPath = []
         state.searchText = ""
         state.syncStatus = .idle
         state.account = AccountFeature.State()
@@ -196,6 +219,28 @@ public struct AppFeature {
         state.$localPins.withLock { local in local.removeAll { moved.contains($0) } }
         return .none
 
+      case .metricPathChanged(let path, let selection):
+        guard selection == state.selection else { return .none }
+        state.metricPath = path
+        return .none
+
+      case .pageOpened(let page):
+        state.searchText = ""
+        state.metricPath = []
+        switch page.kind {
+        case .summary:
+          state.selection = .summary
+        case .healthDetails:
+          state.selection = .healthDetails
+        case .category(let category):
+          state.selection = .category(category)
+        case .dataType(let type):
+          // As if its card were clicked in its category.
+          state.selection = type.category.map(SidebarItem.category) ?? .summary
+          state.metricPath = [type.id]
+        }
+        return .none
+
       case .signIn:
         // The session's updates say when signing in worked.
         return .none
@@ -238,6 +283,14 @@ public struct AppFeature {
       .run { [sync] send in
         for await status in await sync.status() {
           await send(.syncStatusChanged(status))
+        }
+      }
+      .cancellable(id: CancelID.sync),
+      // App actions are served while signed in: signing out ends the stream, which fails those
+      // still waiting.
+      .run { [healthAppActions] send in
+        for await request in healthAppActions.requests() {
+          await send(.appActionRequested(request))
         }
       }
       .cancellable(id: CancelID.sync)

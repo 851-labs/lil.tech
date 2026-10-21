@@ -69,9 +69,13 @@ private func settings(
   settings(isSignedIn: nil)
 }
 
-// The Agents pane (851-2840). Synthetic queries.
+// The Agents pane (851-2840), with what intents may do (851-2892). Synthetic queries.
 
 private let agentQueries = [
+  // An intent (851-2892).
+  AgentAccessEntry(
+    id: 5, date: Date(timeIntervalSince1970: 1_760_973_000), command: "open Steps",
+    process: "Shortcuts, Siri or Spotlight"),
   AgentAccessEntry(
     id: 4, date: Date(timeIntervalSince1970: 1_760_972_520), command: "metric Steps --range W",
     process: "claude"),

@@ -93,14 +93,15 @@ struct SidebarView: View {
 }
 
 /// What's selected: Summary's pins, Health Details, a category's metrics, or a metric found by
-/// search. A metric's card opens its detail.
+/// search. A metric's card opens its detail, in the store's `metricPath`, so an intent can open
+/// one too.
 struct DetailView: View {
   let store: StoreOf<AppFeature>
 
   var body: some View {
     switch store.selection {
     case .summary, nil:
-      NavigationStack {
+      NavigationStack(path: metricPath(for: store.selection)) {
         SummaryView(store: store.scope(\.summary, action: \.summary))
           .navigationDestination(for: String.self) { MetricDetail(typeID: $0) }
       }
@@ -109,7 +110,7 @@ struct DetailView: View {
         HealthDetailsView()
       }
     case .category(let category):
-      NavigationStack {
+      NavigationStack(path: metricPath(for: .category(category))) {
         CategoryView(category: category)
           .navigationDestination(for: String.self) { MetricDetail(typeID: $0) }
       }
@@ -121,5 +122,14 @@ struct DetailView: View {
       }
       .id(id)
     }
+  }
+
+  /// The metrics a stack shows, for the selection it shows them in: a stack going away as the
+  /// selection changes writes its path back, and that mustn't replace what the next one opens.
+  private func metricPath(for selection: SidebarItem?) -> Binding<[String]> {
+    Binding(
+      get: { store.selection == selection ? store.metricPath : [] },
+      set: { store.send(.metricPathChanged($0, selection: selection)) }
+    )
   }
 }

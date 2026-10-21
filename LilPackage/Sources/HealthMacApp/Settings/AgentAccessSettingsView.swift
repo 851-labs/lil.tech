@@ -49,6 +49,8 @@ struct AgentAccessForm: View {
           Text(
             "Lets the lil-health command, and AI agents through its MCP server, read all of your Health data on this Mac."
           )
+          // App actions (851-2892) check the same setting.
+          Text("Also lets Shortcuts, Siri and Spotlight open pages in lil health, sync and export.")
           Label {
             Text(
               "Agents usually send what they read to their AI provider, which handles it under its own terms, not lil health's privacy policy."
