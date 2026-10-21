@@ -96,13 +96,17 @@ extension HealthSample {
     }
   }
 
+  /// Its metadata as an object, empty when it has none or it isn't one.
+  var metadataObject: [String: Any] {
+    guard let metadata,
+      let object = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any]
+    else { return [:] }
+    return object
+  }
+
   /// Its metadata as key and value text, by key. Nested values are written as JSON.
   public var metadataEntries: [(key: String, value: String)] {
-    guard let metadata,
-      let object = try? JSONSerialization.jsonObject(
-        with: Data(metadata.utf8)) as? [String: Any]
-    else { return [] }
-    return object.map { key, value in
+    metadataObject.map { key, value in
       let text: String
       switch value {
       case let string as String: text = string

@@ -253,6 +253,36 @@
         "Assessments loading",
         "Assessments failed"
       ]
+    },
+    {
+      "id": "notifications",
+      "screen": "HealthPages/HealthNotificationsViewPreviews.swift",
+      "title": "Notifications",
+      "states": [
+        "High heart rate notifications",
+        "Walking steadiness notifications",
+        "Noise notifications",
+        "Low cardio fitness, missing metadata",
+        "Sleep apnea notifications",
+        "No high heart rate notifications",
+        "No walking steadiness notifications",
+        "Notifications loading",
+        "Notifications failed"
+      ]
+    },
+    {
+      "id": "notification",
+      "screen": "HealthPages/HealthNotificationsViewPreviews.swift",
+      "title": "Notification",
+      "states": [
+        "High heart rate notification",
+        "Heart rate loading",
+        "No heart rate readings",
+        "Heart rate failed",
+        "Noise notification",
+        "Irregular rhythm notification",
+        "Notification, unknown metadata"
+      ]
     }
   ],
   "edges": [
@@ -388,6 +418,11 @@
     },
     {
       "from": "metric",
+      "to": "notifications",
+      "label": "For High Heart Rate, Noise, Walking Steadiness… Notifications"
+    },
+    {
+      "from": "metric",
       "to": "all-data",
       "label": "Show All Data"
     },
@@ -450,6 +485,16 @@
       "from": "audiograms",
       "to": "audiogram",
       "label": "Choose an audiogram"
+    },
+    {
+      "from": "notifications",
+      "to": "notification",
+      "label": "Choose a notification"
+    },
+    {
+      "from": "notification",
+      "to": "beat-to-beat",
+      "label": "Beat-to-Beat Measurements (Irregular Rhythm)"
     }
   ]
 }

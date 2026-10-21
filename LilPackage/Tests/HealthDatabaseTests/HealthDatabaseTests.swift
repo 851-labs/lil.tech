@@ -2590,3 +2590,220 @@ struct FoodQueriesTests {
     #expect(nutrients.first?.unit == "kcal")
   }
 }
+
+@Suite
+struct NotificationQueriesTests {
+  // Metadata as the iPhone uploads it: HealthKit's raw keys, quantities as their descriptions.
+  private func notification(
+    _ kind: HealthNotificationKind, start: Date = utc(9), minutes: Double = 10, value: Int = 0,
+    metadata: String? = nil, id: String = UUID().uuidString.lowercased()
+  ) -> HealthSample {
+    HealthSample(
+      id: id, type: kind.rawValue, startDate: start.unixMilliseconds,
+      endDate: start.addingTimeInterval(minutes * 60).unixMilliseconds, categoryValue: value,
+      sourceName: "Apple Watch", sourceBundleID: "com.example.watch", metadata: metadata)
+  }
+
+  private func summary(_ sample: HealthSample) -> HealthNotificationSummary? {
+    HealthDatabase.notificationSummary(sample)
+  }
+
+  private var english: Calendar {
+    var english = calendar("UTC")
+    english.locale = Locale(identifier: "en_US_POSIX")
+    return english
+  }
+
+  @Test
+  func heartRateThresholds() {
+    let high = notification(
+      .highHeartRate, metadata: #"{"HKHeartRateEventThreshold":"120 count/min"}"#)
+    #expect(summary(high) == .heartRateAbove(120))
+    #expect(summary(high)?.line(calendar: english) == "Above 120 BPM")
+
+    let low = notification(
+      .lowHeartRate, metadata: #"{"HKHeartRateEventThreshold":"40 count/min"}"#)
+    #expect(summary(low)?.line(calendar: english) == "Below 40 BPM")
+
+    // A plain number is in BPM; beats per second are converted.
+    #expect(
+      summary(notification(.highHeartRate, metadata: #"{"HKHeartRateEventThreshold":110}"#))
+        == .heartRateAbove(110))
+    #expect(
+      summary(notification(.highHeartRate, metadata: #"{"HKHeartRateEventThreshold":"2 count/s"}"#))
+        == .heartRateAbove(120))
+  }
+
+  @Test
+  func heartRateWithoutAThresholdIsJustItsDate() {
+    #expect(summary(notification(.highHeartRate)) == nil)
+    #expect(summary(notification(.highHeartRate, metadata: "{}")) == nil)
+    #expect(summary(notification(.lowHeartRate, metadata: "not json")) == nil)
+    #expect(
+      summary(notification(.highHeartRate, metadata: #"{"HKHeartRateEventThreshold":"120 ms"}"#))
+        == nil)
+    #expect(
+      summary(notification(.highHeartRate, metadata: #"{"HKHeartRateEventThreshold":"high"}"#))
+        == nil)
+    #expect(
+      summary(notification(.highHeartRate, metadata: #"{"HKHeartRateEventThreshold":true}"#))
+        == nil)
+  }
+
+  @Test
+  func lowCardioFitness() {
+    let both = notification(
+      .lowCardioFitness,
+      metadata:
+        #"{"HKVO2MaxValue":"27.4 ml/kg*min","HKLowCardioFitnessEventThreshold":"30.1 ml/kg*min"}"#
+    )
+    #expect(summary(both) == .cardioFitness(vo2Max: 27.4, threshold: 30.1))
+    #expect(summary(both)?.line(calendar: english) == "27.4 VO₂ max, below 30.1")
+
+    let vo2Only = notification(.lowCardioFitness, metadata: #"{"HKVO2MaxValue":"27 ml/kg*min"}"#)
+    #expect(summary(vo2Only)?.line(calendar: english) == "27 VO₂ max")
+    #expect(summary(vo2Only) == .cardioFitness(vo2Max: 27, threshold: nil))
+    let thresholdOnly = notification(
+      .lowCardioFitness, metadata: #"{"HKLowCardioFitnessEventThreshold":"30.1 ml/kg*min"}"#)
+    #expect(summary(thresholdOnly) == .cardioFitnessThreshold(30.1))
+    #expect(summary(thresholdOnly)?.line(calendar: english) == "Below 30.1 VO₂ max")
+
+    #expect(summary(notification(.lowCardioFitness)) == nil)
+  }
+
+  @Test
+  func soundExposure() {
+    let noise = notification(
+      .noise, metadata: #"{"HKAudioExposureLevel":"96.2 dBASPL","HKAudioExposureDuration":"240 s"}"#
+    )
+    #expect(summary(noise) == .soundExposure(level: 96.2, duration: 240))
+    #expect(summary(noise)?.line(calendar: english) == "96 dB for 4 min")
+
+    let headphone = notification(
+      .headphone,
+      metadata: #"{"HKAudioExposureLevel":"88 dBASPL","HKAudioExposureDuration":"1.25 hr"}"#)
+    #expect(summary(headphone)?.line(calendar: english) == "88 dB for 1 hr 15 min")
+
+    let levelOnly = notification(.noise, metadata: #"{"HKAudioExposureLevel":"100 dBASPL"}"#)
+    #expect(summary(levelOnly)?.line(calendar: english) == "100 dB")
+    let durationOnly = notification(.noise, metadata: #"{"HKAudioExposureDuration":"45 s"}"#)
+    #expect(summary(durationOnly) == .soundDuration(45))
+    #expect(summary(durationOnly)?.line(calendar: english) == "For 45 sec")
+
+    // A duration in a unit that isn't time doesn't count.
+    #expect(summary(notification(.noise, metadata: #"{"HKAudioExposureDuration":"3 m"}"#)) == nil)
+    #expect(summary(notification(.headphone)) == nil)
+  }
+
+  @Test
+  func walkingSteadiness() {
+    let names = (1...4).map {
+      summary(notification(.walkingSteadiness, value: $0))?.line(calendar: english)
+    }
+    #expect(names == ["Low", "Very Low", "Still Low", "Still Very Low"])
+    #expect(
+      HealthDatabase.categoryValueName(
+        2, typeID: HealthNotificationKind.walkingSteadiness.rawValue) == "Very Low")
+    // Values HealthKit may add later.
+    #expect(summary(notification(.walkingSteadiness, value: 7)) == nil)
+    #expect(summary(notification(.walkingSteadiness, value: 0)) == nil)
+  }
+
+  @Test
+  func periods() {
+    for kind in [HealthNotificationKind.irregularRhythm, .sleepApnea, .hypertension] {
+      let sample = notification(kind, start: utc(0, day: 1), minutes: 30 * 24 * 60)
+      #expect(summary(sample) == .period(DateInterval(start: sample.start, end: sample.end)))
+      // Without a period to show, just its date.
+      #expect(summary(notification(kind, minutes: 0)) == nil)
+    }
+    // September 20 to October 20: days, without times.
+    let days = notification(.sleepApnea, start: utc(0, day: -10), minutes: 30 * 24 * 60)
+    let line = summary(days)?.line(calendar: english) ?? ""
+    #expect(line.contains("Sep 20") && line.contains("Oct 20") && !line.contains(":"), "\(line)")
+    // Within a day: with times.
+    let hours = notification(.irregularRhythm, start: utc(2), minutes: 5 * 60)
+    #expect(summary(hours)?.line(calendar: english).contains(":") == true)
+  }
+
+  @Test
+  func numbersNoNotificationCouldMeanDontCount() {
+    // Finite, but past what an Int holds: no line rather than a trap.
+    for metadata in [
+      #"{"HKHeartRateEventThreshold":"1e300 count/min"}"#,
+      #"{"HKHeartRateEventThreshold":1e300}"#,
+      #"{"HKHeartRateEventThreshold":"inf count/min"}"#,
+    ] {
+      #expect(summary(notification(.highHeartRate, metadata: metadata)) == nil)
+    }
+    #expect(
+      summary(notification(.noise, metadata: #"{"HKAudioExposureLevel":"1e20 dBASPL"}"#)) == nil)
+    // A duration given directly still reads, however long.
+    #expect(
+      HealthNotificationSummary.duration(1e300, locale: Locale(identifier: "en_US_POSIX"))
+        .hasSuffix(" sec"))
+    #expect(
+      HealthNotificationSummary.line(.heartRateAbove(1e300))(calendar: english).hasPrefix("Above"))
+  }
+
+  @Test
+  func otherTypesAreNotNotifications() {
+    #expect(
+      HealthDatabase.notificationSummary(
+        sample("HKCategoryTypeIdentifierHandwashingEvent", at: utc(9), value: 0)) == nil)
+  }
+
+  @Test
+  func notificationsAreNewestFirst() throws {
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthProvenance.insert {
+        HealthProvenance(id: "prov-watch", device: #"{"name":"Apple Watch"}"#)
+      }
+      .execute(db)
+      var withProvenance = notification(.highHeartRate, start: utc(8), id: "c")
+      withProvenance.provenance = "prov-watch"
+      try HealthSample.insert {
+        notification(.highHeartRate, start: utc(9, day: 10), id: "a")
+        withProvenance
+        // Same start: by ID, last first.
+        notification(.highHeartRate, start: utc(9, day: 10), id: "b")
+        notification(.highHeartRate, start: utc(7), id: "d")
+        // Another kind.
+        notification(.lowHeartRate, start: utc(10), id: "e")
+      }
+      .execute(db)
+    }
+    let notifications = try database.read { db in
+      try HealthDatabase.notifications(of: .highHeartRate, limit: 3, db)
+    }
+    #expect(notifications.map(\.id) == ["c", "d", "b"])
+    #expect(notifications.first?.sample.decodedDevice?.name == "Apple Watch")
+    // Worked out with the query.
+    #expect(notifications.first?.summary == nil)
+  }
+
+  @Test
+  func sleepApneaAndHypertensionAreListedByTheirEnd() throws {
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthSample.insert {
+        // Starts later, but ends sooner.
+        notification(.sleepApnea, start: utc(0, day: 5), minutes: 24 * 60, id: "short")
+        notification(.sleepApnea, start: utc(0, day: 1), minutes: 30 * 24 * 60, id: "long")
+      }
+      .execute(db)
+    }
+    let notifications = try database.read { db in
+      try HealthDatabase.notifications(of: .sleepApnea, limit: 10, db)
+    }
+    #expect(notifications.map(\.id) == ["long", "short"])
+    let long = try #require(notifications.first)
+    #expect(HealthNotificationKind.sleepApnea.listedDate(of: long.sample) == long.sample.end)
+    #expect(HealthNotificationKind.hypertension.listedByEnd)
+    #expect(
+      HealthNotificationKind.allCases.filter(\.listedByEnd).sorted { $0.rawValue < $1.rawValue }
+        == [.hypertension, .sleepApnea])
+    #expect(HealthNotificationKind.highHeartRate.listedDate(of: long.sample) == long.sample.start)
+  }
+}
