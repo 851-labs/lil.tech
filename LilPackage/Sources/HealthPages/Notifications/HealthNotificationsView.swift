@@ -236,7 +236,10 @@ struct NotificationDetailContent: View {
         } header: {
           Text("Heart Rate")
         } footer: {
-          Text("The shaded band is the notification's time, with 10 minutes either side.")
+          if case .loaded(let samples) = heartRates, !samples.isEmpty {
+            Text(
+              "The shaded band is the notification's time. The chart shows 10 minutes either side.")
+          }
         }
       }
       if kind == .irregularRhythm {
