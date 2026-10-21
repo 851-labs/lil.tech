@@ -186,6 +186,7 @@ struct HealthCatalogTests {
         #expect(catalog == identifiers, "\(kind)")
       }
     }
+
     /// Every `HKWorkoutActivityType` the SDK declares has a name, and the catalog names nothing
     /// else, so only values a later iOS adds read "Workout". Names follow the cases', apart from
     /// where Health's differ, which catches a name filed under the wrong raw value.
