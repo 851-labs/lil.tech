@@ -5,6 +5,7 @@ import HealthDatabase
 import LilAPI
 import LilSync
 import OpenAPIRuntime
+import OpenAPIURLSession
 import SQLiteData
 import Testing
 
@@ -44,8 +45,10 @@ struct SyncBootstrapBenchmark {
     let parts: Int
     /// Compressed bytes downloaded.
     let bytes: Int
-    /// Rows in the synced tables afterwards.
+    /// Rows in the synced tables afterwards...
     let records: Int
+    /// ...by table.
+    let tables: [String: Int]
   }
 
   /// When downloads ran, and how much they fetched.
@@ -82,9 +85,10 @@ struct SyncBootstrapBenchmark {
     }
     let engine = withDependencies {
       $0.defaultDatabase = database
-      $0.api = Client.mock { request, body in
-        try await Self.send(request, body: body, to: configuration)
-      }
+      // The live client's transport, with the synthetic user's token.
+      $0.api = Client(
+        serverURL: configuration.url, transport: URLSessionTransport(),
+        middlewares: [BearerToken(token: configuration.token)])
       $0.snapshotDownloader = downloader
       $0.continuousClock = ContinuousClock()
       $0.date = .init { Date() }
@@ -99,48 +103,45 @@ struct SyncBootstrapBenchmark {
     try await engine.bootstrap()
     let end = ContinuousClock.now
     let downloaded = await downloads.lastFinished ?? start
-    let records = try await database.read { db in
+    // Every `health…` table is a synced entity's.
+    let tables = try await database.read { db in
       try String.fetchAll(
         db, sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'health%'"
       )
-      .reduce(0) { total, table in
-        total + (try Int.fetchOne(db, sql: "SELECT count(*) FROM \"\(table)\"") ?? 0)
+      .reduce(into: [String: Int]()) { counts, table in
+        counts[table] = try Int.fetchOne(db, sql: "SELECT count(*) FROM \"\(table)\"") ?? 0
       }
     }
     let result = Result(
       downloadSeconds: Self.seconds(downloaded - start),
       insertSeconds: Self.seconds(end - downloaded),
       totalSeconds: Self.seconds(end - start),
-      parts: await downloads.parts, bytes: await downloads.bytes, records: records)
+      parts: await downloads.parts, bytes: await downloads.bytes,
+      records: tables.values.reduce(0, +), tables: tables)
     try JSONEncoder().encode(result).write(to: configuration.result)
   }
 
   private static func seconds(_ duration: Duration) -> Double {
     Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
   }
+}
 
-  /// Sends an API request to the stage with the token, over `URLSession` as the app's client does.
-  private static func send(
-    _ request: HTTPRequest, body: HTTPBody?, to configuration: BenchmarkConfiguration
+/// Adds the synthetic user's access token to every request.
+private struct BearerToken: ClientMiddleware {
+  let token: String
+
+  @concurrent func intercept(
+    _ request: HTTPRequest,
+    body: HTTPBody?,
+    baseURL: URL,
+    operationID: String,
+    next:
+      @concurrent @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (
+        HTTPResponse, HTTPBody?
+      )
   ) async throws -> (HTTPResponse, HTTPBody?) {
-    guard let url = URL(string: request.path ?? "/", relativeTo: configuration.url) else {
-      throw URLError(.badURL)
-    }
-    var urlRequest = URLRequest(url: url)
-    urlRequest.httpMethod = request.method.rawValue
-    for field in request.headerFields {
-      urlRequest.addValue(field.value, forHTTPHeaderField: field.name.rawName)
-    }
-    urlRequest.setValue("Bearer \(configuration.token)", forHTTPHeaderField: "Authorization")
-    if let body { urlRequest.httpBody = try await Data(collecting: body, upTo: 16 * 1024 * 1024) }
-    let (data, response) = try await URLSession.shared.data(for: urlRequest)
-    guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-    var fields = HTTPFields()
-    for case (let name as String, let value as String) in http.allHeaderFields {
-      if let name = HTTPField.Name(name) { fields.append(HTTPField(name: name, value: value)) }
-    }
-    return (
-      HTTPResponse(status: .init(code: http.statusCode), headerFields: fields), HTTPBody(data)
-    )
+    var request = request
+    request.headerFields[.authorization] = "Bearer \(token)"
+    return try await next(request, body, baseURL)
   }
 }

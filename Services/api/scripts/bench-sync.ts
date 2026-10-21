@@ -18,7 +18,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
 import { gzip } from "node:zlib";
-import { snapshotPolicy } from "../src/store/Snapshots.ts";
+import { snapshotPolicy, type SnapshotPolicy } from "../src/store/Snapshots.ts";
 import { syntheticBatches } from "./synthetic-health.ts";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
@@ -109,6 +109,29 @@ export const retryDelay = (
   return Math.min(30_000, 1000 * 2 ** (attempt - 1));
 };
 
+/** How long a refused request asks to wait: the body's `retryAfterSeconds`, or `Retry-After`. */
+export const retryAfterSeconds = (body: string, header: string | null) => {
+  try {
+    const parsed = JSON.parse(body) as { retryAfterSeconds?: unknown } | null;
+    if (typeof parsed?.retryAfterSeconds === "number") return parsed.retryAfterSeconds;
+  } catch {
+    // Not JSON: the header, if any.
+  }
+  const seconds = Number(header ?? Number.NaN);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
+};
+
+/**
+ * Whether a store writes a snapshot once `changes` have arrived since its latest one (holding
+ * `latestRecords`, if it has one), as `nextSnapshotAt` decides: at least `minChanges`, and a
+ * quarter of the latest's records.
+ */
+export const snapshotDue = (
+  changes: number,
+  latestRecords: number | undefined,
+  policy: Pick<SnapshotPolicy, "minChanges" | "changeShare"> = snapshotPolicy,
+) => changes >= Math.max(policy.minChanges, Math.ceil((latestRecords ?? 0) * policy.changeShare));
+
 export interface Row {
   readonly stage: string;
   readonly items: number | undefined;
@@ -173,6 +196,8 @@ class HttpError extends Error {
 /** The synthetic user's session on the stage, refreshing its access token when it's old. */
 class Stage {
   private tokens: Tokens | undefined;
+  /** The refresh in flight, shared: a refresh token works once, and reusing it ends the session. */
+  private refreshing: Promise<Tokens> | undefined;
   /** Requests retried after a 429, 5xx or network failure. */
   retries = 0;
 
@@ -186,15 +211,27 @@ class Stage {
     this.tokens = tokens;
   }
 
+  /** The current refresh token, which each refresh replaces. */
+  get refreshToken() {
+    return this.tokens?.refreshToken;
+  }
+
   /** A current access token, refreshed if it expires within `margin`. */
   async accessToken(margin = 60_000): Promise<string> {
-    if (this.tokens === undefined) throw new Error("Not signed in");
-    if (this.tokens.accessTokenExpiresAt - Date.now() < margin) {
-      this.tokens = (await this.request("POST", "/v1/auth/refresh", {
-        json: { refreshToken: this.tokens.refreshToken },
+    const tokens = this.tokens;
+    if (tokens === undefined) throw new Error("Not signed in");
+    if (tokens.accessTokenExpiresAt - Date.now() >= margin) return tokens.accessToken;
+    this.refreshing ??= (
+      this.request("POST", "/v1/auth/refresh", {
+        json: { refreshToken: tokens.refreshToken },
         authenticated: false,
-      })) as Tokens;
-    }
+        // A retry after the server refreshed would reuse the token.
+        retry: false,
+      }) as Promise<Tokens>
+    ).finally(() => {
+      this.refreshing = undefined;
+    });
+    this.tokens = await this.refreshing;
     return this.tokens.accessToken;
   }
 
@@ -209,8 +246,11 @@ class Stage {
       readonly authenticated?: boolean;
       /** Statuses answered as they are, rather than retried or thrown. */
       readonly accept?: ReadonlyArray<number>;
+      /** Whether to retry failures (default true). */
+      readonly retry?: boolean;
     } = {},
   ): Promise<unknown> {
+    const attempts = options.retry === false ? 1 : 6;
     for (let attempt = 1; ; attempt++) {
       const headers: Record<string, string> = {};
       if (options.authenticated !== false) {
@@ -232,7 +272,7 @@ class Stage {
           ...(body === undefined ? {} : { body }),
         });
       } catch (error) {
-        if (attempt >= 6) throw error;
+        if (attempt >= attempts) throw error;
         this.retries++;
         await sleep(retryDelay(0, undefined, attempt));
         continue;
@@ -242,17 +282,10 @@ class Stage {
         return text === "" ? undefined : (JSON.parse(text) as unknown);
       }
       const retryable = response.status === 429 || response.status >= 500;
-      if (!retryable || attempt >= 6)
+      if (!retryable || attempt >= attempts)
         throw new HttpError(response.status, text, `${method} ${path}`);
       this.retries++;
-      let retryAfter: number | undefined;
-      try {
-        const parsed = JSON.parse(text) as { retryAfterSeconds?: unknown };
-        if (typeof parsed.retryAfterSeconds === "number") retryAfter = parsed.retryAfterSeconds;
-      } catch {
-        const header = Number(response.headers.get("retry-after"));
-        if (Number.isFinite(header) && header > 0) retryAfter = header;
-      }
+      const retryAfter = retryAfterSeconds(text, response.headers.get("retry-after"));
       await sleep(retryDelay(response.status, retryAfter, attempt));
     }
   }
@@ -276,8 +309,40 @@ interface LatestSnapshot {
   };
 }
 
-const changesAfter = (stage: Stage, after: number) =>
-  stage.request("GET", `/v1/sync/changes?after=${after}&limit=1`) as Promise<ChangesPage>;
+type Snapshot = NonNullable<LatestSnapshot["snapshot"]>;
+
+const snapshotRecords = (snapshot: Snapshot | undefined) =>
+  snapshot?.entities.reduce(
+    (total, entity) => total + entity.parts.reduce((sum, part) => sum + part.records, 0),
+    0,
+  );
+
+/** The latest published snapshot, or `undefined` if the store has none yet. */
+const latestSnapshot = async (stage: Stage): Promise<Snapshot | undefined> => {
+  for (let attempt = 1; ; attempt++) {
+    const latest = (await stage.request("GET", "/v1/sync/snapshot", { accept: [503] })) as
+      | (LatestSnapshot & { readonly _tag?: string })
+      | undefined;
+    // 503 is also an unavailable store, which is worth asking again.
+    if (latest?._tag === undefined) return latest?.snapshot;
+    if (latest._tag === "SnapshotNotReady") return undefined;
+    if (attempt >= 6) throw new Error(`GET /v1/sync/snapshot: ${latest._tag}`);
+    await sleep(retryDelay(503, undefined, attempt));
+  }
+};
+
+/**
+ * The change log's head. Asked from the latest snapshot's `seq` on: changes it covers may have
+ * been compacted away, and asking from before them fails.
+ */
+const changeHead = async (stage: Stage) => {
+  const after = (await latestSnapshot(stage))?.seq ?? 0;
+  const page = (await stage.request(
+    "GET",
+    `/v1/sync/changes?after=${after}&limit=1`,
+  )) as ChangesPage;
+  return page.head;
+};
 
 // MARK: - Stages
 
@@ -351,6 +416,7 @@ const swiftTest = (environment: Record<string, string>, logFile: string) =>
   });
 
 interface Upload {
+  readonly id: string;
   readonly records: number;
   readonly bytes: number;
   readonly start: number;
@@ -358,8 +424,16 @@ interface Upload {
   readonly receivedAt: number;
 }
 
-/** Uploads every batch, `concurrency` at a time, as the iPhone's backfill does. */
-const uploadAll = async (stage: Stage, options: Options) => {
+/** Set to stop starting uploads: after one failed for good, or on Ctrl-C. */
+interface Stop {
+  stopped: boolean;
+}
+
+/**
+ * Uploads every batch, `concurrency` at a time, as the iPhone's backfill does. If one fails, the
+ * others stop and are waited for, so none lands after the account is deleted.
+ */
+const uploadAll = async (stage: Stage, options: Options, stop: Stop) => {
   const batches = syntheticBatches({
     records: options.records,
     seed: options.seed,
@@ -367,15 +441,14 @@ const uploadAll = async (stage: Stage, options: Options) => {
     run: randomUUID(),
   });
   const uploads: Array<Upload> = [];
-  const provenances = new Set<string>();
   let records = 0;
   let lastReport = Date.now();
+  let failure: unknown;
   const worker = async () => {
-    for (;;) {
+    while (!stop.stopped) {
       const next = batches.next();
       if (next.done === true) return;
       const file = next.value;
-      for (const id of file.provenances) provenances.add(id);
       const body = new Uint8Array(await compress(file.text));
       const id = randomUUID();
       const start = performance.now();
@@ -384,6 +457,7 @@ const uploadAll = async (stage: Stage, options: Options) => {
         contentType: "application/gzip",
       })) as { receivedAt: number };
       uploads.push({
+        id,
         records: file.records,
         bytes: body.length,
         start,
@@ -397,43 +471,71 @@ const uploadAll = async (stage: Stage, options: Options) => {
       }
     }
   };
-  await Promise.all(Array.from({ length: options.concurrency }, worker));
-  return { uploads, provenances: provenances.size };
+  await Promise.all(
+    Array.from({ length: options.concurrency }, () =>
+      worker().catch((error: unknown) => {
+        failure ??= error;
+        stop.stopped = true;
+      }),
+    ),
+  );
+  if (failure !== undefined) throw failure;
+  if (stop.stopped) throw new Error("Stopped");
+  return uploads;
 };
 
-/** Waits until the change log reaches `expected`, returning when its last change was written. */
-const waitForApply = async (stage: Stage, expected: number) => {
-  let lastHead = -1;
+interface BatchStatus {
+  readonly status: string;
+  readonly finishedAt?: number;
+  readonly rejected?: number;
+  readonly rejectedLines?: ReadonlyArray<unknown>;
+  readonly failure?: string;
+}
+
+/**
+ * Waits until every batch is applied, returning when the last one finished (server time). Asks
+ * about them in the order they were received, the order they apply in, so it asks about each
+ * about once. A failed batch, or a rejected line, fails the run: the data is meant to apply.
+ */
+const waitForApply = async (stage: Stage, uploads: ReadonlyArray<Upload>) => {
+  const ordered = [...uploads].sort((a, b) => a.receivedAt - b.receivedAt);
+  let finishedAt = 0;
   let lastProgress = Date.now();
   let lastReport = 0;
-  for (;;) {
-    const page = await changesAfter(stage, expected - 1);
-    const last = page.changes[0];
-    if (last !== undefined && last.seq === expected) return { at: last.at, head: page.head };
-    if (page.head !== lastHead) {
-      lastHead = page.head;
-      lastProgress = Date.now();
-    } else if (Date.now() - lastProgress > 5 * 60_000) {
-      throw new Error(
-        `The change log stopped at ${page.head} of ${expected} for 5 minutes: lines were rejected, or batches failed`,
-      );
+  for (const [index, upload] of ordered.entries()) {
+    for (;;) {
+      const batch = (await stage.request("GET", `/v1/health/batches/${upload.id}`)) as BatchStatus;
+      if (batch.status === "failed") {
+        throw new Error(`Batch ${upload.id} failed: ${batch.failure ?? "no reason given"}`);
+      }
+      if (batch.status === "applied") {
+        if ((batch.rejected ?? 0) > 0) {
+          throw new Error(
+            `Batch ${upload.id} rejected ${batch.rejected} lines: ${JSON.stringify(batch.rejectedLines?.slice(0, 3))}`,
+          );
+        }
+        finishedAt = Math.max(finishedAt, batch.finishedAt ?? 0);
+        lastProgress = Date.now();
+        break;
+      }
+      if (Date.now() - lastProgress > 5 * 60_000) {
+        throw new Error(`Batch ${upload.id} was still ${batch.status} after 5 minutes`);
+      }
+      if (Date.now() - lastReport > 5000) {
+        lastReport = Date.now();
+        log(`  applied ${index} of ${ordered.length} batches`);
+      }
+      await sleep(500);
     }
-    if (Date.now() - lastReport > 5000) {
-      lastReport = Date.now();
-      log(`  applied ${number(page.head)} of ${number(expected)} changes`);
-    }
-    await sleep(1000);
   }
+  return finishedAt;
 };
 
 /** Waits for a published snapshot covering `seq`, returning it and when it was first seen. */
 const waitForSnapshot = async (stage: Stage, seq: number, deadline: number) => {
   let lastReport = 0;
   for (;;) {
-    const latest = (await stage.request("GET", "/v1/sync/snapshot", {
-      accept: [503],
-    })) as LatestSnapshot | undefined;
-    const snapshot = latest?.snapshot;
+    const snapshot = await latestSnapshot(stage);
     if (snapshot !== undefined && snapshot.seq >= seq) return { snapshot, seenAt: Date.now() };
     if (Date.now() > deadline)
       throw new Error("No snapshot covering the data was published in time");
@@ -488,8 +590,12 @@ const main = async () => {
       console.error(`Couldn't delete the synthetic account: ${String(error)}`);
     }
   };
+  const stop: Stop = { stopped: false };
   process.once("SIGINT", () => {
-    void cleanUp().finally(() => process.exit(130));
+    stop.stopped = true;
+    void cleanUp()
+      .then(() => rm(scratch, { recursive: true, force: true }))
+      .finally(() => process.exit(130));
   });
 
   try {
@@ -515,22 +621,23 @@ const main = async () => {
     await stage.request("POST", "/v1/me/consents/health", {
       json: { policyVersion: consent.required },
     });
-    const startHead = (await changesAfter(stage, 0)).head;
+    // An account kept from earlier runs needs more changes for its next snapshot.
+    const previous = await latestSnapshot(stage);
 
     // Upload.
     log("Uploading…");
-    const { uploads, provenances } = await uploadAll(stage, options);
+    const retriesBefore = stage.retries;
+    const uploads = await uploadAll(stage, options, stop);
     const uploadStart = Math.min(...uploads.map((upload) => upload.start));
     const uploadEnd = Math.max(...uploads.map((upload) => upload.end));
     const uploadEndAt = Date.now() - (performance.now() - uploadEnd);
     const latencies = uploads.map((upload) => (upload.end - upload.start) / 1000);
     const bytes = uploads.reduce((sum, upload) => sum + upload.bytes, 0);
-    const uploadRetries = stage.retries;
+    const uploadRetries = stage.retries - retriesBefore;
 
-    // Apply: every record and each new provenance appends one change.
-    const expected = startHead + options.records + provenances;
-    log(`Waiting for the store to apply ${number(expected - startHead)} changes…`);
-    const applied = await waitForApply(stage, expected);
+    log(`Waiting for the store to apply ${uploads.length} batches…`);
+    const applied = { at: await waitForApply(stage, uploads) };
+    const head = await changeHead(stage);
     const firstReceived = Math.min(...uploads.map((upload) => upload.receivedAt));
 
     const rows: Array<Row> = [
@@ -550,15 +657,15 @@ const main = async () => {
         stage: "Apply",
         items: options.records,
         seconds: (applied.at - firstReceived) / 1000,
-        note: `first batch received → last change written; done ${number((applied.at - uploadEndAt) / 1000, 1)} s after the last upload`,
+        note: `first batch received → last applied; done ${number((applied.at - uploadEndAt) / 1000, 1)} s after the last upload`,
       },
     ];
     let wallEnd = applied.at;
     let quietWait: number | undefined;
 
-    if (options.records < snapshotPolicy.minChanges) {
+    if (!snapshotDue(head - (previous?.seq ?? 0), snapshotRecords(previous))) {
       log(
-        `Skipping the snapshot and the Mac: a first snapshot needs ${number(snapshotPolicy.minChanges)} changes`,
+        `Skipping the snapshot and the Mac: a snapshot needs ${number(snapshotPolicy.minChanges)} changes, and a quarter of the last one's records`,
       );
     } else {
       // Snapshot: written once the store has been quiet for `quietPeriod`.
@@ -567,16 +674,16 @@ const main = async () => {
       );
       const deadline =
         applied.at + snapshotPolicy.quietPeriod + Math.max(10 * 60_000, options.records);
-      const { snapshot, seenAt } = await waitForSnapshot(stage, expected, deadline);
+      const { snapshot, seenAt } = await waitForSnapshot(stage, head, deadline);
       const parts = snapshot.entities.flatMap((entity) => entity.parts);
-      const snapshotRecords = parts.reduce((sum, part) => sum + part.records, 0);
+      const records = snapshotRecords(snapshot) ?? 0;
       const snapshotBytes = parts.reduce((sum, part) => sum + part.bytes, 0);
       quietWait = (snapshot.createdAt - applied.at) / 1000;
       rows.push({
         stage: "Snapshot",
-        items: snapshotRecords,
+        items: records,
         seconds: (seenAt - snapshot.createdAt) / 1000,
-        note: `started → published (seen within 0.5 s); ${parts.length} parts, ${number(snapshotBytes / 1e6, 1)} MB; started ${number(quietWait, 1)} s after the last change`,
+        note: `started → published (seen within 0.5 s); ${parts.length} parts, ${number(snapshotBytes / 1e6, 1)} MB; started ${number(quietWait, 1)} s after the last batch applied`,
       });
       wallEnd = seenAt;
 
@@ -586,7 +693,8 @@ const main = async () => {
         await swiftTest(
           {
             LIL_BENCH_SYNC_URL: url,
-            LIL_BENCH_SYNC_TOKEN: await stage.accessToken(10 * 60_000),
+            // A new token, for its whole 15 minutes.
+            LIL_BENCH_SYNC_TOKEN: await stage.accessToken(Number.POSITIVE_INFINITY),
             LIL_BENCH_SYNC_RESULT: resultFile,
           },
           macLog,
@@ -598,28 +706,36 @@ const main = async () => {
           parts: number;
           bytes: number;
           records: number;
+          tables: Record<string, number>;
         };
-        if (mac.records < snapshotRecords) {
+        // A new database holds only what the snapshot brought, so every record or a bug.
+        if (mac.records !== records) {
+          const entities = Object.fromEntries(
+            snapshot.entities.map((entity) => [
+              entity.entity,
+              entity.parts.reduce((sum, part) => sum + part.records, 0),
+            ]),
+          );
           throw new Error(
-            `The Mac has ${mac.records} records of the snapshot's ${snapshotRecords}`,
+            `The Mac has ${mac.records} records of the snapshot's ${records}: ${JSON.stringify(mac.tables)} against ${JSON.stringify(entities)}`,
           );
         }
         rows.push(
           {
             stage: "Mac download",
-            items: snapshotRecords,
+            items: records,
             seconds: mac.downloadSeconds,
             note: `${mac.parts} parts, 4 at a time, ${number(mac.bytes / 1e6 / mac.downloadSeconds, 1)} MB/s, checked`,
           },
           {
             stage: "Mac insert",
-            items: snapshotRecords,
+            items: records,
             seconds: mac.insertSeconds,
             note: "decompress and load into SQLite on disk, 5,000 a transaction",
           },
           {
             stage: "Mac bootstrap",
-            items: snapshotRecords,
+            items: records,
             seconds: mac.totalSeconds,
             note: "LilSyncEngine.bootstrap(), end to end",
           },
@@ -635,7 +751,7 @@ const main = async () => {
       seconds: wall,
       note:
         quietWait === undefined
-          ? "first upload → last change"
+          ? "first upload → last batch applied"
           : `first upload → ${runMac ? "Mac bootstrapped" : "snapshot published"}, ${number(wall - quietWait, 1)} s without the snapshot's wait for quiet`,
     });
 
@@ -652,6 +768,12 @@ const main = async () => {
   } finally {
     await cleanUp();
     await rm(scratch, { recursive: true, force: true });
+    // Refreshing replaced it, and the old one now ends the session if it's used again.
+    if (options.refreshToken !== undefined && stage.refreshToken !== options.refreshToken) {
+      console.error(
+        `LIL_BENCH_REFRESH_TOKEN is used up. The account's new refresh token, for the next run:\n${stage.refreshToken}`,
+      );
+    }
   }
 };
 

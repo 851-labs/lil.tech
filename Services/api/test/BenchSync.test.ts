@@ -11,7 +11,9 @@ import {
   formatTable,
   parseOptions,
   percentile,
+  retryAfterSeconds,
   retryDelay,
+  snapshotDue,
 } from "../scripts/bench-sync.ts";
 import {
   fileRecords,
@@ -146,8 +148,8 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("synthetic
         records += file.records;
         for (const id of file.provenances) provenances.add(id);
       }
-      // Every record, and each provenance the first time, appends one change: what the
-      // benchmark waits for.
+      // Every record, and each provenance the first time, appends one change, so the snapshot
+      // the benchmark waits for holds them all.
       const sql = (yield* TestStores).sqlFor(userId);
       const changes = sql?.exec("SELECT count(*) AS count FROM changes")[0]?.["count"];
       assert.strictEqual(changes, records + provenances.size);
@@ -188,6 +190,24 @@ describe("bench-sync helpers", () => {
     assert.strictEqual(retryDelay(503, undefined, 1), 1000);
     assert.strictEqual(retryDelay(503, undefined, 3), 4000);
     assert.strictEqual(retryDelay(0, undefined, 10), 30_000);
+  });
+
+  it("reads how long to wait from the body, or else the header", () => {
+    assert.strictEqual(retryAfterSeconds('{"retryAfterSeconds":3}', "9"), 3);
+    assert.strictEqual(retryAfterSeconds('{"_tag":"Overloaded"}', "9"), 9);
+    assert.strictEqual(retryAfterSeconds("Too many requests", "2"), 2);
+    assert.isUndefined(retryAfterSeconds("", null));
+    assert.isUndefined(retryAfterSeconds("null", "soon"));
+  });
+
+  it("knows when the store writes a snapshot", () => {
+    // A new account's first needs 50,000 changes.
+    assert.isFalse(snapshotDue(49_999, undefined));
+    assert.isTrue(snapshotDue(50_000, undefined));
+    // A kept account's next needs a quarter of its last.
+    assert.isFalse(snapshotDue(200_000, 2_000_000));
+    assert.isTrue(snapshotDue(500_000, 2_000_000));
+    assert.isTrue(snapshotDue(50_000, 100_000));
   });
 
   it("reads options, with defaults and the environment", () => {
