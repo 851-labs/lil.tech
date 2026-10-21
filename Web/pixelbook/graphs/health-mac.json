@@ -138,6 +138,10 @@
       "screen": "HealthPages/CycleTrackingViewPreviews.swift"
     },
     {
+      "id": "activity-rings",
+      "screen": "HealthPages/ActivityRingsViewPreviews.swift"
+    },
+    {
       "id": "workouts",
       "screen": "HealthPages/WorkoutsViewPreviews.swift",
       "states": ["Workouts", "No workouts", "Workouts loading", "Workouts failed"]
@@ -302,6 +306,11 @@
       "from": "metric",
       "to": "cycle-tracking",
       "label": "For Period"
+    },
+    {
+      "from": "metric",
+      "to": "activity-rings",
+      "label": "For Activity Rings"
     },
     {
       "from": "metric",

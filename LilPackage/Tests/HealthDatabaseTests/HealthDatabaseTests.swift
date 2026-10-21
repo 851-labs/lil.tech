@@ -2201,3 +2201,77 @@ struct CategoryChartTests {
     }
   }
 }
+
+// Synthetic data only (AGENTS.md).
+@Suite
+struct ActivityQueriesTests {
+  private let calendar = {
+    var c = Calendar(identifier: .gregorian)
+    c.timeZone = .gmt
+    return c
+  }()
+
+  @Test
+  func aMonthOfRingsByDay() throws {
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthActivitySummary.insert {
+        // The month before and after aren't October's.
+        HealthActivitySummary(id: "2025-09-30", activeEnergyBurned: 1, activeEnergyBurnedGoal: 1)
+        HealthActivitySummary(
+          id: "2025-10-01", activeEnergyBurned: 620, activeEnergyBurnedGoal: 500,
+          appleExerciseTime: 20, appleExerciseTimeGoal: 30, appleStandHours: 12,
+          appleStandHoursGoal: 12, activityMoveMode: "activeEnergy", paused: false)
+        // Move minutes, paused.
+        HealthActivitySummary(
+          id: "2025-10-15", activeEnergyBurned: 90, activeEnergyBurnedGoal: 0,
+          appleMoveTime: 45, appleMoveTimeGoal: 30, appleExerciseTime: 10,
+          appleExerciseTimeGoal: 30, appleStandHours: 5, appleStandHoursGoal: 12,
+          activityMoveMode: "appleMoveTime", paused: true)
+        // No Watch: no Exercise or Stand goals.
+        HealthActivitySummary(
+          id: "2025-10-31", activeEnergyBurned: 300, activeEnergyBurnedGoal: 400,
+          appleExerciseTime: 0, appleExerciseTimeGoal: 0, appleStandHours: 0,
+          appleStandHoursGoal: 0, activityMoveMode: "activeEnergy", paused: false)
+        HealthActivitySummary(id: "2025-11-01", activeEnergyBurned: 1, activeEnergyBurnedGoal: 1)
+      }
+      .execute(db)
+    }
+    // Late on the 31st, in the Mac's time zone: still October.
+    let late = calendar.date(from: DateComponents(year: 2025, month: 10, day: 31, hour: 23))!
+    let days = try database.read { db in
+      try HealthDatabase.activityDays(inMonthOf: late, calendar: calendar, db)
+    }
+    #expect(days.keys.sorted() == ["2025-10-01", "2025-10-15", "2025-10-31"])
+
+    let first = try #require(days["2025-10-01"])
+    #expect(first.move == ActivityRing(value: 620, goal: 500))
+    #expect(first.move.progress == 1.24)
+    #expect(!first.movesInMinutes && !first.isPaused)
+    #expect(first.exercise == ActivityRing(value: 20, goal: 30))
+
+    let paused = try #require(days["2025-10-15"])
+    #expect(paused.movesInMinutes && paused.isPaused)
+    #expect(paused.move == ActivityRing(value: 45, goal: 30))
+
+    let noWatch = try #require(days["2025-10-31"])
+    #expect(noWatch.exercise == nil && noWatch.stand == nil)
+  }
+
+  @Test
+  func decemberRunsToTheNextYear() throws {
+    let database = try HealthDatabase.make()
+    try database.write { db in
+      try HealthActivitySummary.insert {
+        HealthActivitySummary(id: "2025-12-31", activeEnergyBurned: 1, activeEnergyBurnedGoal: 1)
+        HealthActivitySummary(id: "2026-01-01", activeEnergyBurned: 1, activeEnergyBurnedGoal: 1)
+      }
+      .execute(db)
+    }
+    let december = calendar.date(from: DateComponents(year: 2025, month: 12, day: 5))!
+    let days = try database.read { db in
+      try HealthDatabase.activityDays(inMonthOf: december, calendar: calendar, db)
+    }
+    #expect(days.keys.sorted() == ["2025-12-31"])
+  }
+}
