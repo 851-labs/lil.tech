@@ -11,7 +11,7 @@ import type { Deployment } from "../../src/Deployment.ts";
 import { agentAccessLogPageSize } from "../../src/oauth/AgentsApi.ts";
 import { type AgentAccess, appendAgentAccess } from "../../src/store/AgentAccessLog.ts";
 import { UserStores } from "../../src/store/UserStores.ts";
-import { postMcp, sessionless } from "../mcp/TestMcp.ts";
+import { inSession, postMcp, sessionless, sessionProtocol } from "../mcp/TestMcp.ts";
 import { TestStores } from "../store/TestUserStores.ts";
 import { type Handler, send, withApi } from "../TestApi.ts";
 import { approve } from "./TestAgents.ts";
@@ -165,6 +165,18 @@ describe("GET /v1/me/agents", () => {
             (yield* callMcp(handler, agent.accessToken, "tools/list")).status,
             200,
           );
+          // A call the server refuses, in a session it doesn't know, reads nothing either.
+          const refused = yield* postMcp(
+            handler,
+            healthResource,
+            inSession("tools/call", { name: "summary", arguments: {} }),
+            {
+              ...bearer(agent.accessToken),
+              "mcp-protocol-version": sessionProtocol,
+              "mcp-session-id": "00000000-0000-4000-8000-000000000000",
+            },
+          );
+          assert.strictEqual(refused.status, 404);
           const connected = yield* used;
           assert.isNull(connected.firstUsedAt);
           assert.strictEqual(connected.lastUsedAt, connected.connectedAt);

@@ -50,7 +50,8 @@ public struct ConnectedAgent: Equatable, Identifiable, Sendable {
   /// as they connect, isn't a read.
   public var isUnused: Bool { firstUsedAt == nil }
 
-  /// When it last read, for settings: "Not used yet", or "Last used 2 hours ago".
+  /// When it last used its access, for settings: "Not used yet" until it reads anything, then
+  /// "Last used 2 hours ago".
   public var lastUsedDescription: String {
     isUnused
       ? "Not used yet"
