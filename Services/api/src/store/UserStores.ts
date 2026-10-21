@@ -21,6 +21,15 @@ const isTransient = (cause: unknown) =>
   (Predicate.hasProperty(cause, "retryable") && cause.retryable === true) ||
   (Predicate.hasProperty(cause, "overloaded") && cause.overloaded === true);
 
+/**
+ * Cloudflare sets `durableObjectReset` on requests in flight when a store was reset (e.g. a
+ * storage operation timed out). The next request starts it again (851-2887). Only forwarded
+ * requests treat it as transient: they read (MCP) or connect (live notices), while an RPC call that
+ * writes may have committed before the reset.
+ */
+const isReset = (cause: unknown) =>
+  Predicate.hasProperty(cause, "durableObjectReset") && cause.durableObjectReset === true;
+
 /** A store's methods as callers see them: every call can also fail with `UserStoreUnavailable`. */
 export type UserStoreClient = {
   readonly [K in keyof UserStoreMethods]: UserStoreMethods[K] extends (
@@ -55,6 +64,7 @@ export class UserStores extends Context.Service<
    * store's own methods, but fail with `RpcCallError` when the call itself fails. That becomes
    * `UserStoreUnavailable` if Cloudflare marks the failure `retryable` or `overloaded`, and a
    * defect (a 500) otherwise, such as a bug that throws inside the store, which retrying won't fix.
+   * A forwarded request (MCP, live notices) also gets a 503 when the store was reset.
    */
   static readonly fromNamespace = (namespace: {
     readonly getByName: (name: string) => UserStoreMethods & {
@@ -73,7 +83,7 @@ export class UserStores extends Context.Service<
             const cause = Predicate.isTagged(error, "RpcCallError")
               ? (error as { readonly cause?: unknown }).cause
               : error;
-            return isTransient(cause)
+            return isTransient(cause) || isReset(cause)
               ? Effect.succeed(
                   HttpServerResponse.jsonUnsafe(
                     { _tag: "UserStoreUnavailable", message: String(cause) },

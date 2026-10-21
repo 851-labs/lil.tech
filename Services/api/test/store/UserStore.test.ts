@@ -1,5 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Exit } from "effect";
+import { HttpServerRequest } from "effect/http";
 import type { UserId } from "../../src/core/Ids.ts";
 import { migrate, type StoreMigration, storeMigrations } from "../../src/store/Migrations.ts";
 import { fromDurableObjectStorage, type StoreSql } from "../../src/store/StoreSql.ts";
@@ -341,6 +342,37 @@ describe("UserStores", () => {
       const error = yield* Effect.flip(stores.forUser(ada).schemaVersion());
       assert.strictEqual(error._tag, "UserStoreUnavailable");
       assert.include(error.message, "reset");
+    }),
+  );
+
+  // 851-2887: a store reset while calls were in flight (e.g. a storage operation timed out) is
+  // there again for the next call, so its MCP requests get a 503 rather than a 500.
+  it.effect("answers a forwarded request that a store's reset ended with a 503", () =>
+    Effect.gen(function* () {
+      const reset = Object.assign(
+        new Error(
+          "Durable Object storage operation exceeded timeout which caused object to be reset.",
+        ),
+        { durableObjectReset: true },
+      );
+      const stores = UserStores.fromNamespace({
+        getByName: () => ({
+          ...({} as UserStoreMethods),
+          fetch: () => Effect.fail({ _tag: "RpcCallError", method: "fetch", cause: reset }),
+        }),
+      });
+      const response = yield* stores.mcp(
+        ada,
+        HttpServerRequest.fromWeb(new Request("https://mcp.example/health", { method: "POST" })),
+      );
+      assert.strictEqual(response.status, 503);
+      // A store call that writes may have committed before the reset, so it isn't retried.
+      const failing = {
+        schemaVersion: () =>
+          Effect.fail({ _tag: "RpcCallError", method: "schemaVersion", cause: reset }),
+      } as unknown as UserStoreMethods;
+      const rpc = UserStores.fromNamespace({ getByName: () => ({ ...failing, fetch: noLive }) });
+      assert.isTrue(Exit.hasDies(yield* Effect.exit(rpc.forUser(ada).schemaVersion())));
     }),
   );
 
