@@ -83,11 +83,10 @@ struct SidebarView: View {
     // So ⌘← and ⌘→ move the search field's cursor rather than a metric's period.
     .searchFocused($isSearchFocused)
     .focusedSceneValue(\.isSearchFocused, isSearchFocused)
-    .safeAreaInset(edge: .bottom, spacing: 0) {
-      VStack(spacing: 0) {
-        Divider()
-        SyncFooterView(status: store.syncStatus, retry: { store.send(.retrySyncButtonTapped) })
-      }
+    // A bar, not a plain inset, so the rows scrolling under it fade out behind it (the scroll
+    // edge effect) rather than showing through its text (851-2867).
+    .safeAreaBar(edge: .bottom, spacing: 0) {
+      SyncFooterView(status: store.syncStatus, retry: { store.send(.retrySyncButtonTapped) })
     }
     .navigationSplitViewColumnWidth(min: 200, ideal: 240)
   }
