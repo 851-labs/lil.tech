@@ -1,8 +1,8 @@
 // The viewer (851-2700): the page that shows a book of snapshots, as a grid or a flowchart, or what
 // changed since a base.
 import { getRouteApi } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, type CanvasHandle, type Insets } from "../canvas/Canvas.tsx";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Canvas, type CanvasHandle } from "../canvas/Canvas.tsx";
 import { LabelNodeView } from "../canvas/LabelNode.tsx";
 import { DensityContext, SelectContext, SelectedContext, TileNodeView } from "../canvas/Tile.tsx";
 import { Button } from "../comps/Button.tsx";
@@ -16,7 +16,11 @@ import { RoutesNodeView } from "../flow/RoutesNode.tsx";
 import { ScreenNodeView } from "../flow/ScreenNode.tsx";
 import { StepContext } from "../flow/StepContext.ts";
 import { useDevicePixelRatio } from "../hooks/useDevicePixelRatio.ts";
+import { useHelpDialog } from "../hooks/useHelpDialog.ts";
+import { useShortcuts } from "../hooks/useShortcuts.ts";
+import { useShowFrame } from "../hooks/useShowFrame.ts";
 import { useSidebar } from "../hooks/useSidebar.ts";
+import { useStepScreen } from "../hooks/useStepScreen.ts";
 import { useSteps } from "../hooks/useSteps.ts";
 import { Inspector, type Summary } from "../inspector/Inspector.tsx";
 import { LayersList } from "../layers/LayersList.tsx";
@@ -26,9 +30,8 @@ import { filtersFrom, modeFrom, type SearchChange, toggle, withChange } from "..
 import { layoutFlowchart } from "../lib/Flow.ts";
 import { graphs } from "../lib/graphs.ts";
 import { layoutGrid, type Tile, tileId } from "../lib/Grid.ts";
-import { arrowDirections, inGroup, inPanel, isTyping } from "../lib/Keys.ts";
 import { flowLayers, gridLayers, type LayerState } from "../lib/Layers.ts";
-import { flowFrames, frameOf, gridFrames, neighbor } from "../lib/Selection.ts";
+import { flowFrames, gridFrames } from "../lib/Selection.ts";
 import {
   appName,
   commitUrl,
@@ -126,7 +129,7 @@ export function Viewer() {
   }, [selectedId, deselect]);
 
   const canvas = useRef<CanvasHandle>(null);
-  // What the arrow keys move between, and where the selection is.
+  // What the arrow keys move between, and what's shown and zoomed to of a selection.
   const frames = useMemo(
     () =>
       grid !== undefined
@@ -136,65 +139,15 @@ export function Viewer() {
           : [],
     [grid, flow, steps],
   );
-  const selectedFrame = frameOf(frames, search.tile);
-
   // The panels beside the canvas, which narrow windows show over it.
   const body = useRef<HTMLDivElement>(null);
-  const covered = useCallback((): Insets => {
-    let insets = { left: 0, right: 0 };
-    for (const panel of body.current?.querySelectorAll<HTMLElement>(":scope > aside") ?? []) {
-      if (getComputedStyle(panel).position !== "absolute") continue;
-      insets =
-        panel.offsetLeft === 0
-          ? { ...insets, left: panel.offsetWidth }
-          : { ...insets, right: panel.offsetWidth };
-    }
-    return insets;
-  }, []);
-  // A frame to show once the selection, and the inspector it opens, are laid out: panned to when
-  // the arrow keys select it, or zoomed to when the layers list does. `shows` counts requests, so
-  // choosing the selected frame again zooms to it too.
-  const toShow = useRef<
-    | {
-        readonly id: string;
-        readonly zoom: boolean;
-        /** What was selected when it was asked for, until the selection catches up. */
-        readonly from: string | undefined;
-      }
-    | undefined
-  >(undefined);
-  const [shows, setShows] = useState(0);
-  const show = useCallback(
-    (tile: Tile, zoom: boolean) => {
-      toShow.current = { id: tileId(tile), zoom, from: selectedId };
-      select(tile);
-      setShows((count) => count + 1);
-    },
-    [select, selectedId],
-  );
-  useEffect(() => {
-    const target = toShow.current;
-    if (target === undefined) return;
-    if (selectedId !== target.id) {
-      // Not selected yet; or selected, then something else was, so it's dropped.
-      if (selectedId !== target.from) toShow.current = undefined;
-      return;
-    }
-    toShow.current = undefined;
-    // A stepped flowchart screen's frame shows the state it was stepped to.
-    const frame = frameOf(frames, target.id);
-    if (frame === undefined) return;
-    const next = requestAnimationFrame(() =>
-      target.zoom
-        ? canvas.current?.zoomTo(frame.box, covered())
-        : canvas.current?.reveal(frame.box, covered()),
-    );
-    return () => cancelAnimationFrame(next);
-  }, [shows, selectedId, frames, covered]);
-
-  const zoomToSelection = useCallback(() => {
-    if (selectedFrame !== undefined) canvas.current?.zoomTo(selectedFrame.box, covered());
-  }, [selectedFrame, covered]);
+  const { show, zoomToSelection } = useShowFrame({
+    canvas,
+    body,
+    frames,
+    selected: selectedId,
+    select,
+  });
 
   // What the canvas shows, for the header and the inspector.
   const counts = useMemo(
@@ -245,85 +198,12 @@ export function Viewer() {
     [step, show],
   );
 
-  const [helpShown, setHelpShown] = useState(false);
-  // What had focus when `?` opened the shortcuts, which gets it back when they close: the canvas,
-  // say, rather than the header's `?` button, which gets it back when it opened them.
-  const focusBeforeHelp = useRef<Element | null>(null);
-  const openHelp = useCallback((open: boolean) => {
-    if (open) focusBeforeHelp.current = null;
-    setHelpShown(open);
-  }, []);
-  const focusAfterHelp = useCallback(() => {
-    const before = focusBeforeHelp.current;
-    if (before === null) return true;
-    return before instanceof HTMLElement && before !== document.body ? before : false;
-  }, []);
-  useEffect(() => {
-    const keydown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || isTyping(event.target)) return;
-      const view = canvas.current;
-      const direction = arrowDirections[event.key];
-      // Shortcuts with other modifiers are the browser's or the system's.
-      const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
-      if (event.key === "?" && plain) {
-        if (event.repeat) return;
-        if (!helpShown) focusBeforeHelp.current = document.activeElement;
-        setHelpShown(!helpShown);
-      } else if (helpShown) {
-        // The rest wait until the list is closed. Its dialog closes on Escape, and marks the key
-        // handled, so it doesn't deselect too.
-        return;
-      } else if (direction !== undefined && plain && !event.shiftKey) {
-        // In the sidebar or inspector, they scroll it; in a segmented control, they choose.
-        if (inPanel(event.target) || inGroup(event.target)) return;
-        // With nothing selected, the first frame.
-        const next =
-          selectedFrame === undefined ? frames[0] : neighbor(frames, selectedFrame, direction);
-        if (next === undefined) return;
-        // So Space or Enter doesn't press a tile clicked before.
-        const focused = document.activeElement;
-        if (focused instanceof HTMLElement && focused.closest(".react-flow") !== null)
-          focused.blur();
-        show(next.tile, false);
-      } else if (plain && event.shiftKey && event.code === "Digit1") {
-        view?.fit();
-      } else if (plain && event.shiftKey && event.code === "Digit2") {
-        zoomToSelection();
-      } else if ((event.key === "+" || event.key === "=") && !event.altKey) {
-        // With ⌘ too, rather than the browser zooming the page.
-        view?.zoomBy(1.5);
-      } else if ((event.key === "-" || event.key === "_") && !event.altKey) {
-        view?.zoomBy(1 / 1.5);
-      } else {
-        return;
-      }
-      event.preventDefault();
-    };
-    // Escape deselects before anything else sees it: an open tooltip (Base UI's) takes the key,
-    // which would otherwise make deselecting take two. The tooltip still closes.
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || helpShown || isTyping(event.target)) return;
-      if (search.tile !== undefined) deselect();
-    };
-    window.addEventListener("keydown", keydown);
-    window.addEventListener("keydown", escape, { capture: true });
-    return () => {
-      window.removeEventListener("keydown", keydown);
-      window.removeEventListener("keydown", escape, { capture: true });
-    };
-  }, [frames, selectedFrame, search.tile, show, deselect, helpShown, zoomToSelection]);
+  // The keyboard shortcuts, and the list of them that `?` opens.
+  const help = useHelpDialog();
+  useShortcuts({ canvas, frames, selected: selectedId, show, deselect, zoomToSelection, help });
+  // The flowchart screens' ‹ and › buttons.
+  const stepScreen = useStepScreen({ flow, selected: selectedId, step, select });
 
-  // Stepping the selected flowchart screen selects the state it steps to, which it shows.
-  const stepScreen = useCallback(
-    (key: string, to: number) => {
-      step(key, to);
-      const node = flow?.nodes.find((node) => node.key === key);
-      const tile = node?.tiles[to % node.tiles.length];
-      if (tile !== undefined && node?.tiles.some((state) => tileId(state) === search.tile))
-        select(tile);
-    },
-    [step, flow, search.tile, select],
-  );
   // Unknown until the canvas has measured itself.
   const [zoom, setZoom] = useState<number>();
 
@@ -419,7 +299,11 @@ export function Viewer() {
                 Fit
               </Button>
             </Tooltip>
-            <ShortcutsHelp open={helpShown} onOpenChange={openHelp} finalFocus={focusAfterHelp} />
+            <ShortcutsHelp
+              open={help.open}
+              onOpenChange={help.change}
+              finalFocus={help.finalFocus}
+            />
           </div>
         </header>
         <div ref={body} className="relative flex min-h-0 flex-1">

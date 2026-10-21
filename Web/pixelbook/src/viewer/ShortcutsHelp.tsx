@@ -23,7 +23,7 @@ export function ShortcutsHelp({
   finalFocus,
 }: {
   readonly open: boolean;
-  readonly onOpenChange: (open: boolean) => void;
+  readonly onOpenChange: (open: boolean, trigger: Element | undefined) => void;
   readonly finalFocus: DialogFinalFocus;
 }) {
   return (
