@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { FlowLayout, FlowNode } from "../src/lib/Flow.ts";
 import type { Tile } from "../src/lib/Grid.ts";
-import { type Frame, flowFrames, frameOf, gridFrames, neighbor } from "../src/lib/Selection.ts";
+import {
+  type Frame,
+  flowFrames,
+  frameOf,
+  frameToward,
+  gridFrames,
+  neighbor,
+  steppedTile,
+} from "../src/lib/Selection.ts";
 import type { Snapshot } from "../src/lib/Snapshots.ts";
 
 const tile = (id: string, x: number, y: number, width = 400, height = 300): Tile => {
@@ -117,5 +125,44 @@ describe("selection", () => {
     // Without routes that way, the nearest frame.
     expect(go("launch", "left")).toBeUndefined();
     expect(go("consent", "up")).toBe("sign-in");
+  });
+
+  it("selects the first frame when nothing is, and otherwise the neighbor that way", () => {
+    expect(frameToward(frames, undefined, "left")?.tile.snapshot.id).toBe("a");
+    expect(frameToward(frames, named("a"), "right")?.tile.snapshot.id).toBe("b");
+    expect(frameToward(frames, named("a"), "left")).toBeUndefined();
+    expect(frameToward([], undefined, "down")).toBeUndefined();
+  });
+
+  it("selects the state a flowchart screen steps to, if one of its states is selected", () => {
+    const screen: FlowNode = {
+      key: "health-mac/summary",
+      title: "Summary",
+      tiles: [tile("Loading", 0, 0), tile("Loaded", 0, 0), tile("Failed", 0, 0)],
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 412,
+    };
+    const layout: FlowLayout = {
+      nodes: [screen, { ...screen, key: "health-mac/empty", tiles: [] }],
+      edges: [],
+      labels: [],
+      unlinked: [],
+      width: 400,
+      height: 412,
+    };
+    const stepped = (key: string, to: number, selected: string | undefined) =>
+      steppedTile(layout, key, to, selected)?.snapshot.id;
+    expect(stepped(screen.key, 1, "health-mac/Loading/light")).toBe("Loaded");
+    // Wrapped around its states.
+    expect(stepped(screen.key, 5, "health-mac/Loaded/light")).toBe("Failed");
+    // Another screen's selected, or none.
+    expect(stepped(screen.key, 1, "health-mac/Other/light")).toBeUndefined();
+    expect(stepped(screen.key, 1, undefined)).toBeUndefined();
+    // Not a screen, or one without states.
+    expect(stepped("health-mac/nothing", 1, "health-mac/Loading/light")).toBeUndefined();
+    expect(stepped("health-mac/empty", 1, "health-mac/Loading/light")).toBeUndefined();
+    expect(steppedTile(undefined, screen.key, 1, "health-mac/Loading/light")).toBeUndefined();
   });
 });

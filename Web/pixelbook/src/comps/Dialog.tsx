@@ -19,14 +19,18 @@ export function Dialog({
 }: {
   readonly title: string;
   readonly open: boolean;
-  readonly onOpenChange: (open: boolean) => void;
+  /** With the trigger, when it opened or closed it. */
+  readonly onOpenChange: (open: boolean, trigger: Element | undefined) => void;
   readonly finalFocus?: DialogFinalFocus;
   /** The button that opens it, which takes the trigger's props and ref. */
   readonly trigger: React.ReactElement;
   readonly children: React.ReactNode;
 }) {
   return (
-    <BaseDialog.Root open={open} onOpenChange={onOpenChange}>
+    <BaseDialog.Root
+      open={open}
+      onOpenChange={(open, details) => onOpenChange(open, details.trigger)}
+    >
       <BaseDialog.Trigger render={trigger} />
       <BaseDialog.Portal>
         <BaseDialog.Popup

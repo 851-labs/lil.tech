@@ -106,3 +106,27 @@ export const neighbor = (
   }
   return best;
 };
+
+/** The frame an arrow key selects: the first, with none selected, or the neighbor that way. */
+export const frameToward = (
+  frames: ReadonlyArray<Frame>,
+  from: Frame | undefined,
+  direction: Direction,
+): Frame | undefined => (from === undefined ? frames[0] : neighbor(frames, from, direction));
+
+/**
+ * The state to select when the flowchart screen with key `key` is stepped to `to`: the one it
+ * steps to, if one of its states is selected. Wrapped, as the screen's node does, since filters
+ * can leave a screen fewer states than it was stepped through.
+ */
+export const steppedTile = (
+  layout: FlowLayout | undefined,
+  key: string,
+  to: number,
+  selected: string | undefined,
+): Tile | undefined => {
+  const node = layout?.nodes.find((node) => node.key === key);
+  if (node === undefined || !node.tiles.some((state) => tileId(state) === selected))
+    return undefined;
+  return node.tiles[to % node.tiles.length];
+};
