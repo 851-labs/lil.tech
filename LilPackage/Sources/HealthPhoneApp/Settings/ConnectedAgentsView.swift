@@ -187,7 +187,7 @@ struct MCPServerSection: View {
       Text("Connect an Agent")
     } footer: {
       Text(
-        "Add this URL to your agent as a remote MCP server (a connector), then sign in to lil health when it asks, and allow it."
+        "Add the MCP server URL to your agent as a remote MCP server (a connector), then sign in to lil health when it asks, and allow it."
       )
     }
   }

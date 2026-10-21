@@ -105,6 +105,7 @@ struct LilAPITests {
 
   @Test
   func eachEnvironmentLinksItsAgentsHelpPage() {
+    #expect(APIEnvironment.staging.siteURL.absoluteString == "https://staging.lil.tech")
     #expect(APIEnvironment.prod.agentsHelpURL.absoluteString == "https://lil.tech/agents")
     #expect(
       APIEnvironment.staging.agentsHelpURL.absoluteString == "https://staging.lil.tech/agents")
