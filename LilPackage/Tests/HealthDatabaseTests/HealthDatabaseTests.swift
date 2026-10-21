@@ -2981,3 +2981,200 @@ struct WorkoutRouteQueriesTests {
     #expect(HealthDatabase.routeDistance([]) == 0)
   }
 }
+
+// Synthetic data only (AGENTS.md).
+@Suite
+struct SymptomQueriesTests {
+  private let headache = "HKCategoryTypeIdentifierHeadache"
+  private let gmt = {
+    var c = Calendar(identifier: .gregorian)
+    c.timeZone = .gmt
+    return c
+  }()
+
+  /// October `day`, 2025, at `hour`:`minute` UTC.
+  private func time(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+    gmt.date(from: DateComponents(year: 2025, month: 10, day: day, hour: hour, minute: minute))!
+  }
+
+  private func sample(
+    _ id: String, _ type: String? = nil, at start: Date, minutes: Double = 0, value: Int
+  ) -> HealthSample {
+    HealthSample(
+      id: id, type: type ?? headache, startDate: start.unixMilliseconds,
+      endDate: start.addingTimeInterval(minutes * 60).unixMilliseconds, categoryValue: value,
+      sourceName: "Phone", sourceBundleID: "com.example.phone")
+  }
+
+  private func chart(
+    _ range: ChartRange, _ samples: [HealthSample], now: Date, offset: Int = 0,
+    calendar: Calendar? = nil, type: String? = nil
+  ) throws -> SymptomChart {
+    let database = try HealthDatabase.make()
+    try database.write { db in try HealthSample.insert { samples }.execute(db) }
+    return try database.read { db in
+      try HealthDatabase.symptomChart(
+        of: type ?? headache, range: range, offset: offset, now: now, calendar: calendar ?? gmt,
+        db)
+    }
+  }
+
+  @Test
+  func valuesAreNamedForEachKind() {
+    let name = HealthDatabase.categoryValueName
+    // Severity.
+    #expect(
+      (0...4).map { name($0, headache) }
+        == ["Present", "Not Present", "Mild", "Moderate", "Severe"])
+    #expect(name(5, headache) == nil)
+    // Presence.
+    for type in ["HKCategoryTypeIdentifierMoodChanges", "HKCategoryTypeIdentifierSleepChanges"] {
+      #expect((0...2).map { name($0, type) } == ["Present", "Not Present", nil])
+    }
+    // Appetite.
+    #expect(
+      (0...3).map { name($0, "HKCategoryTypeIdentifierAppetiteChanges") }
+        == ["Present", "No Change", "Decreased", "Increased"])
+    // Every symptom has names.
+    for type in HealthCatalog.all where type.category == .symptoms {
+      #expect(name(0, type.id) == "Present")
+      #expect(name(nil, type.id) == nil)
+    }
+  }
+
+  @Test
+  func levelsLeaveOutNotPresent() {
+    #expect(SymptomScale(typeID: headache) == .severity)
+    #expect((0...4).map { SymptomScale.severity.level($0) } == [1, nil, 2, 3, 4])
+    #expect(SymptomScale(typeID: "HKCategoryTypeIdentifierSleepChanges") == .presence)
+    #expect((0...1).map { SymptomScale.presence.level($0) } == [1, nil])
+    #expect(SymptomScale(typeID: "HKCategoryTypeIdentifierAppetiteChanges") == .appetite)
+    #expect((0...3).map { SymptomScale.appetite.level($0) } == [1, nil, 2, 3])
+    #expect(SymptomScale.appetite.levels == ["Present", "Decreased", "Increased"])
+  }
+
+  @Test
+  func aWeekChartsEachDaysHighestSeverity() throws {
+    let samples = [
+      sample("a", at: time(13, 8), value: 2),
+      sample("b", at: time(13, 14), minutes: 90, value: 4),
+      sample("c", at: time(13, 20), value: 3),
+      // Not present: listed, not charted or counted.
+      sample("d", at: time(14, 9), value: 1),
+      sample("e", at: time(15, 23, 59), value: 0),
+      // The next week, and another symptom.
+      sample("f", at: time(19, 0), value: 4),
+      sample("g", "HKCategoryTypeIdentifierNausea", at: time(14, 9), value: 4),
+    ]
+    // Sunday, October 12, to Saturday the 18th.
+    let week = try chart(.week, samples, now: time(16, 12))
+    #expect(week.interval == DateInterval(start: time(12, 0), end: time(19, 0)))
+    #expect(week.points.map(\.start) == [time(13, 0), time(15, 0)])
+    #expect(week.points.map(\.end) == [time(14, 0), time(16, 0)])
+    #expect(week.points.map(\.value) == [4, 1])
+    #expect(week.points[0].entries.map(\.id) == ["a", "b", "c"])
+    #expect(week.days == 2)
+    // Newest first, with names.
+    #expect(week.entries.map(\.id) == ["e", "d", "c", "b", "a"])
+    #expect(week.entries.map(\.name) == ["Present", "Not Present", "Moderate", "Severe", "Mild"])
+    #expect(week.entries.map(\.level) == [1, nil, 3, 4, 2])
+  }
+
+  @Test
+  func aDayChartsEachEntryOverItsHours() throws {
+    let samples = [
+      sample("a", at: time(15, 7), minutes: 150, value: 3),
+      sample("b", at: time(15, 11, 15), value: 2),
+      // Runs past midnight: its bar ends with the day.
+      sample("c", at: time(15, 22), minutes: 240, value: 4),
+      sample("d", at: time(15, 23), value: 1),
+      // The day before.
+      sample("e", at: time(14, 23), minutes: 120, value: 2),
+    ]
+    let day = try chart(.day, samples, now: time(15, 12))
+    #expect(day.points.map(\.start) == [time(15, 7), time(15, 11, 15), time(15, 22)])
+    #expect(day.points.map(\.end) == [time(15, 9, 30), time(15, 11, 15), time(16, 0)])
+    #expect(day.points.map(\.value) == [3, 2, 4])
+    #expect(day.days == 1)
+    #expect(day.entries.map(\.id) == ["d", "c", "b", "a"])
+  }
+
+  @Test
+  func longerPeriodsCountDaysPerWeekOrMonth() throws {
+    let samples = [
+      // Two on one day count it once.
+      sample("a", at: time(1, 9), value: 2),
+      sample("b", at: time(1, 18), value: 3),
+      sample("c", at: time(2, 9), value: 0),
+      sample("d", at: time(3, 9), value: 1),
+      sample("e", at: time(14, 9), value: 4),
+      sample(
+        "f", at: gmt.date(from: DateComponents(year: 2025, month: 7, day: 4, hour: 9))!,
+        value: 2),
+    ]
+    let year = try chart(.year, samples, now: time(20, 12))
+    #expect(
+      year.points.map(\.start) == [
+        gmt.date(from: DateComponents(year: 2025, month: 7, day: 1))!, time(1, 0),
+      ])
+    #expect(year.points.map(\.value) == [1, 3])
+    #expect(year.points[1].entries.map(\.id) == ["a", "b", "c", "e"])
+    #expect(year.days == 4)
+
+    let sixMonths = try chart(.sixMonths, samples, now: time(20, 12))
+    // Weeks from Sunday: September 28 has the 1st and 2nd; October 12 the 14th.
+    #expect(
+      sixMonths.points.map(\.start) == [
+        gmt.date(from: DateComponents(year: 2025, month: 6, day: 29))!,
+        gmt.date(from: DateComponents(year: 2025, month: 9, day: 28))!, time(12, 0),
+      ])
+    #expect(sixMonths.points.map(\.value) == [1, 2, 1])
+  }
+
+  @Test
+  func daysSplitInTheCalendarsTimeZone() throws {
+    var tokyo = Calendar(identifier: .gregorian)
+    tokyo.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+    let samples = [
+      // October 15 at 8 PM UTC is the 16th at 5 AM in Tokyo.
+      sample("a", at: time(15, 20), value: 2),
+      sample("b", at: time(15, 10), value: 3),
+    ]
+    let gmtWeek = try chart(.week, samples, now: time(16, 12))
+    #expect(gmtWeek.points.map(\.value) == [3])
+    #expect(gmtWeek.days == 1)
+
+    let tokyoWeek = try chart(.week, samples, now: time(16, 12), calendar: tokyo)
+    // Midnight in Tokyo is 3 PM UTC the day before.
+    #expect(tokyoWeek.points.map(\.start) == [time(14, 15), time(15, 15)])
+    #expect(tokyoWeek.points.map(\.value) == [3, 2])
+    #expect(tokyoWeek.days == 2)
+
+    // A Tokyo day: from 3 PM UTC.
+    let tokyoDay = try chart(.day, samples, now: time(16, 1), calendar: tokyo)
+    #expect(tokyoDay.interval.start == time(15, 15))
+    #expect(tokyoDay.points.map(\.start) == [time(15, 20)])
+  }
+
+  @Test
+  func presenceAndAppetiteChartTheirOwnLevels() throws {
+    let mood = "HKCategoryTypeIdentifierMoodChanges"
+    let appetite = "HKCategoryTypeIdentifierAppetiteChanges"
+    let samples = [
+      sample("a", mood, at: time(13, 9), value: 0),
+      sample("b", mood, at: time(14, 9), value: 1),
+      sample("c", appetite, at: time(13, 9), value: 3),
+      sample("d", appetite, at: time(13, 12), value: 2),
+      // No change: not charted.
+      sample("e", appetite, at: time(14, 9), value: 1),
+    ]
+    let moodWeek = try chart(.week, samples, now: time(16, 12), type: mood)
+    #expect(moodWeek.scale == .presence)
+    #expect(moodWeek.points.map(\.value) == [1])
+    #expect(moodWeek.days == 1)
+
+    let appetiteWeek = try chart(.week, samples, now: time(16, 12), type: appetite)
+    #expect(appetiteWeek.points.map(\.value) == [3])
+    #expect(appetiteWeek.entries.map(\.name) == ["No Change", "Decreased", "Increased"])
+  }
+}

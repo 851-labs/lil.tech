@@ -219,11 +219,12 @@ struct SampleRow: View {
     let formatted: (number: String, unit: String)? =
       if let value = sample.value {
         MetricFormat.value(value, unit: sample.unit ?? type.unit, typeID: type.id)
+      } else if let name = HealthDatabase.categoryValueName(sample.categoryValue, typeID: type.id) {
+        // A category sample's value as Health names it: Stood, Moderate, Egg White (851-2828).
+        (name, "")
       } else if HealthDatabase.categoryChartTypes.contains(type.id) {
-        // A charted category's sample: its value as Health names it (Stood), else how long it
-        // lasted (851-2831).
-        HealthDatabase.categoryValueName(sample.categoryValue, typeID: type.id).map { ($0, "") }
-          ?? MetricFormat.duration(sample.end.timeIntervalSince(sample.start))
+        // A charted category's sample without a value to name: how long it lasted (851-2831).
+        MetricFormat.duration(sample.end.timeIntervalSince(sample.start))
       } else {
         nil
       }

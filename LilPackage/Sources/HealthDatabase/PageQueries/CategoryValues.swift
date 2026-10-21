@@ -1,7 +1,8 @@
 extension HealthDatabase {
   /// How Health names a category sample's value (HealthKit's raw `HKCategoryValue…`), for a day's
-  /// log: "Egg White" for cervical mucus, "Positive (LH Surge)" for an ovulation test. Nil for
-  /// types whose samples have no value to name (sexual activity, pregnancy), and for values Health
+  /// log: "Egg White" for cervical mucus, "Positive (LH Surge)" for an ovulation test, "Moderate"
+  /// for a symptom; shared by Cycle Tracking, the symptom page and Show All Data. Nil for types
+  /// whose samples have no value to name (sexual activity, pregnancy), and for values Health
   /// doesn't name (an unspecified contraceptive or bleeding level), or doesn't have yet. Flow is
   /// named as a period day is ("Period" when unspecified, `MenstrualFlow.name`).
   public static func categoryValueName(_ value: Int?, typeID: String) -> String? {
@@ -26,6 +27,15 @@ extension HealthDatabase {
     case standHourType:
       // HKCategoryValueAppleStandHour.
       return [0: "Stood", 1: "Idle"][value]
+    case moodChangesType, sleepChangesType:
+      // HKCategoryValuePresence.
+      return [0: "Present", 1: "Not Present"][value]
+    case appetiteChangesType:
+      // HKCategoryValueAppetiteChanges; unspecified reads as the others' Present.
+      return [0: "Present", 1: "No Change", 2: "Decreased", 3: "Increased"][value]
+    case _ where symptomTypes.contains(typeID):
+      // HKCategoryValueSeverity; unspecified is logged as present, without a severity.
+      return [0: "Present", 1: "Not Present", 2: "Mild", 3: "Moderate", 4: "Severe"][value]
     case contraceptiveType:
       // HKCategoryValueContraceptive; 1 is unspecified.
       return [

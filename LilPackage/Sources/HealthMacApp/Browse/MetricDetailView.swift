@@ -35,6 +35,9 @@ struct MetricDetailView: View {
         BloodPressureView()
       } else if type.id == HealthDatabase.foodType {
         FoodView()
+      } else if type.category == .symptoms {
+        // Every symptom, with its severity over time (851-2828).
+        SymptomView(type: type)
       } else if type.kind == .workout {
         WorkoutsView()
       } else if type.kind == .workoutRoute {
