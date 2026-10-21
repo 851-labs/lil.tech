@@ -36,9 +36,9 @@ Every architecture and product decision made so far. This file holds the decisio
   - `<Product><Thing>`: one product's, where the product is the app's name without "lil" (`HealthDatabase`, `HealthUI`, `HealthUpload`, `MessagesDatabase`).
   - `<Product><Platform>App`: an app's shell for one platform target: its root feature, navigation and settings (`HealthMacApp`, `HealthPhoneApp`, `MessagesMacApp`). The Xcode targets stay thin entry points.
   - Screens that aren't the shell go in modules of their own when they're many (`HealthPages`). No `Feature` suffix: nearly every module has TCA features.
-- **Renames and splits** this calls for, each a mechanical PR (851-2792, 851-2793):
+- **Renames and splits** this called for, each a mechanical PR: 851-2792 the splits, 851-2793 the renames. Types inside the renamed modules kept their names (`ConversationListFeature`, `MessageThreadFeature`, the `ContactNames` client).
 
-  | Today | Becomes |
+  | Before | After |
   |---|---|
   | `HealthMacApp`'s data pages (Audiograms, Electrocardiograms, Heartbeat Series, Cycle Tracking, Sleep, Workouts, Mental Wellbeing, Health Details, Vision Prescriptions, Medications), with All Data, a sample and Data Sources | `HealthPages`, on `HealthDatabase` and `HealthUI` (done in 851-2792) |
   | `HealthMacApp`'s preview support: `PreviewFrame` | `HealthPages`, with what else the Mac's pages and shell share (851-2792) |
@@ -56,6 +56,8 @@ Every architecture and product decision made so far. This file holds the decisio
 
   How 851-2792 drew the line: `HealthMacApp` keeps the shell (the app and sidebar, Summary, Browse's category and metric screens, settings and sync) and imports `HealthPages`, which never imports it. The pages a metric opens are public views; the rest of `HealthPages` stays internal. All Data, a sample and Data Sources went with the pages rather than staying in Browse, because Sleep opens them too. What both modules use became public in `HealthPages` (`Shared/`), which the shell already imports: `MetricFormat`, `Lazy`, `calendarDayChanges`, `previewFrame` and the page colors. They're the Mac's only, so not in `HealthUI`, which the iPhone app builds too. `MainQueueScheduler` (a GRDB observation scheduler) and `preparePreviewDatabase` to `HealthDatabase`, which keeps `HealthUI` free of the database the iPhone app doesn't use. Two previews of the shell's metric screen that sat with the pages (heart rate's overlays, sound levels) moved to `MetricDetailViewPreviews.swift`.
 - **Folders:** a module past about 15 files gets folders by feature, at most two levels deep (`HealthPages/Sleep/`, `HealthMacApp/Browse/`), with each view's previews next to it. A file's name stays unique in its module, folders or not. Tests mirror their module's folders.
+  - Modules with folders: `HealthMacApp` and `HealthPages` (851-2792); `HealthDatabase` (`Database/`, `Queries/` for what the shell asks, `PageQueries/` for the data pages', `Previews/`; `HealthDatabaseTests.swift`, which tests every folder, stays at its tests' top level), `HealthUpload` (`Backfill/`, `Encoders/`, `Readers/`, `Upload/`), `HealthPhoneApp` by screen (`App/`, `Consent/`, `HealthAccess/`, `SyncStatus/`, `Settings/`, `Background/`) and `LilAuth` (`SignIn/`, `Providers/`, `Session/`, `SignInMethods/`, `Account/`, next to `Resources/`) in 851-2793. `MessagesDatabase`, at 15 files, stays flat.
+  - Graph files and snapshot IDs name a preview by module and file only, so moving it between folders changes neither.
 
 ## Platform and language
 
