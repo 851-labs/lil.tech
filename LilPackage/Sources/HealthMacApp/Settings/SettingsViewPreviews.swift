@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import HealthPages
 import HealthUI
 import LilAuth
 import SwiftUI

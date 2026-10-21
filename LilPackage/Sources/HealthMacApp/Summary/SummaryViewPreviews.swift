@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import HealthCatalog
 import HealthDatabase
+import HealthPages
 import HealthUI
 import SQLiteData
 import SwiftUI

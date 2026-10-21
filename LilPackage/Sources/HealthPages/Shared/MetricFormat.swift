@@ -1,6 +1,6 @@
 public import Foundation
 
-/// How Browse writes a metric's value and when it's from, the way Health does.
+/// How the Mac's pages and browse write a metric's value and when it's from, the way Health does.
 public enum MetricFormat {
   /// `value` (in `unit`, as stored) as Health shows it, e.g. ("8,214", "steps") or ("97", "%").
   public static func value(_ value: Double, unit: String?, typeID: String) -> (

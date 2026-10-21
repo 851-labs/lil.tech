@@ -1,6 +1,7 @@
 import Charts
 import HealthCatalog
 import HealthDatabase
+import HealthPages
 import HealthUI
 import SwiftUI
 

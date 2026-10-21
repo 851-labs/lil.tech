@@ -16,6 +16,7 @@ let package = Package(
     .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
     .library(name: "HealthKitAccess", targets: ["HealthKitAccess"]),
     .library(name: "HealthMacApp", targets: ["HealthMacApp"]),
+    .library(name: "HealthPages", targets: ["HealthPages"]),
     .library(name: "HealthPhoneApp", targets: ["HealthPhoneApp"]),
     .library(name: "HealthUpload", targets: ["HealthUpload"]),
     .library(name: "LilAPI", targets: ["LilAPI"]),
@@ -94,12 +95,6 @@ let package = Package(
       dependencies: ["HealthCatalog"]
     ),
     .testTarget(
-      name: "HealthUITests",
-      dependencies: [
-        "HealthUI"
-      ]
-    ),
-    .testTarget(
       name: "HealthCatalogTests",
       dependencies: [
         "HealthCatalog",
@@ -163,8 +158,9 @@ let package = Package(
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ]
     ),
-    // lil health for Mac's data pages: Sleep, Workouts, Medications… HealthMacApp's browse opens
-    // them.
+    // lil health for Mac's data pages (Sleep, Workouts, Medications…), which HealthMacApp's browse
+    // and sidebar open, and what the Mac's pages and shell share (page colors, MetricFormat,
+    // previewFrame).
     .target(
       name: "HealthPages",
       dependencies: [
