@@ -90,3 +90,4 @@ Every architecture and product decision made so far. This file holds the decisio
 
 - What "lil" means as a product idea, and what v1 of lil messages includes.
 - Whether App Review accepts a bridge-only iOS app (guideline 4.2). Revisit when lil health is ready to publish.
+
