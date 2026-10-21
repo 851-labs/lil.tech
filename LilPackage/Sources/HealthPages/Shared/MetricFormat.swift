@@ -10,7 +10,7 @@ public enum MetricFormat {
     // Whole numbers for counts and the like, as Health shows them (not breaths a minute).
     let whole: Set = [
       "steps", "floors", "pushes", "strokes", "times", "BPM", "RPM", "kcal", "%", "ms", "mmHg",
-      "mg/dL", "dB", "W",
+      "mg/dL", "dB", "W", "hr", "min",
     ]
     let digits = whole.contains(label) || abs(shown) >= 100 ? 0 : abs(shown) >= 10 ? 1 : 2
     return (shown.formatted(.number.precision(.fractionLength(0...digits))), label)
@@ -43,6 +43,14 @@ public enum MetricFormat {
     case let unit?: return (value, unit)
     case nil: return (value, "")
     }
+  }
+
+  /// A length of time as Health writes a session's: ("24", "sec"), or ("2", "min") from a
+  /// minute.
+  public static func duration(_ seconds: TimeInterval) -> (number: String, unit: String) {
+    guard seconds >= 60 else { return (Int(seconds.rounded()).formatted(), "sec") }
+    let minutes = seconds / 60
+    return (minutes.formatted(.number.precision(.fractionLength(0...1))), "min")
   }
 
   /// When the latest data is from: "Today" (or the time, for a moment today), "Yesterday", the

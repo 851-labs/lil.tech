@@ -70,6 +70,8 @@ public struct MetricChart: Equatable, Sendable {
     case range(minimum: Double, maximum: Double)
     /// A discrete type whose values were all the same.
     case average(Double)
+    /// Sessions' average length in seconds (handwashing, toothbrushing).
+    case averageDuration(TimeInterval)
   }
 }
 

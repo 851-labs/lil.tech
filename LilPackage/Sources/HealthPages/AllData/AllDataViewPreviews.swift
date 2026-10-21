@@ -44,6 +44,20 @@ private func allData(_ type: HealthDataType, _ state: AllDataContent.State) -> s
   return allData(heartRate, .loaded(samples, hasMore: false))
 }
 
+// A charted category's samples: each one's length (851-2831).
+#Preview("All data, handwashing") {
+  let handwashing = HealthCatalog.type(id: HealthDatabase.handwashingType)!
+  let now = Int(Date.now.timeIntervalSince1970 * 1000)
+  let samples = (0..<8).map { index in
+    let start = now - index * 5_400_000
+    return HealthSample(
+      id: "synthetic-\(index)", type: handwashing.id, startDate: start,
+      endDate: start + (14 + index * 3) * 1000, categoryValue: 0,
+      sourceName: "Synthetic Watch", sourceBundleID: "com.example.watch")
+  }
+  return allData(handwashing, .loaded(samples, hasMore: false))
+}
+
 #Preview("All data, raw steps") {
   allData(steps, .loaded(previewSamples(steps), hasMore: false))
 }

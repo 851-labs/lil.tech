@@ -216,9 +216,17 @@ struct SampleRow: View {
   }
 
   private var valueText: some View {
-    let formatted = sample.value.map {
-      MetricFormat.value($0, unit: sample.unit ?? type.unit, typeID: type.id)
-    }
+    let formatted: (number: String, unit: String)? =
+      if let value = sample.value {
+        MetricFormat.value(value, unit: sample.unit ?? type.unit, typeID: type.id)
+      } else if HealthDatabase.categoryChartTypes.contains(type.id) {
+        // A charted category's sample: its value as Health names it (Stood), else how long it
+        // lasted (851-2831).
+        HealthDatabase.categoryValueName(sample.categoryValue, typeID: type.id).map { ($0, "") }
+          ?? MetricFormat.duration(sample.end.timeIntervalSince(sample.start))
+      } else {
+        nil
+      }
     return HStack(alignment: .firstTextBaseline, spacing: 3) {
       Text(formatted?.number ?? "–")
         .font(.body.weight(.semibold))
