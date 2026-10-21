@@ -94,16 +94,24 @@ private let agentQueries = [
 private func agents(
   isEnabled: Bool = true, entries: [AgentAccessEntry] = agentQueries, isLoading: Bool = false,
   failure: String? = nil, logFailure: String? = nil, isSignedIn: Bool? = true,
-  commandLineTool: URL? = URL(filePath: "/usr/local/bin/lil")
+  commandLineTool: URL? = URL(filePath: "/usr/local/bin/lil"),
+  connected: ConnectedAgentsFeature.State = ConnectedAgentsFeature.State()
 ) -> some View {
   var state = AppFeature.State(isSignedIn: isSignedIn)
   state.agentAccess = AgentAccessFeature.State(
     commandLineTool: commandLineTool, entries: entries, failure: failure, isEnabled: isEnabled,
     isLoading: isLoading,
     logFailure: logFailure)
-  // `EmptyReducer`, so the pane's task doesn't replace the state shown.
-  return AgentAccessSettingsView(store: Store(initialState: state) { EmptyReducer() })
-    .previewFrame(width: SettingsView.width, height: SettingsView.height)
+  state.connectedAgents = connected
+  // `EmptyReducer`, so the pane's task doesn't replace the state shown. `ifLet`: closing an alert
+  // (e.g. when a snapshot's window goes) clears it, as the feature does.
+  return AgentAccessSettingsView(
+    store: Store(initialState: state) {
+      EmptyReducer<AppFeature.State, AppFeature.Action>()
+        .ifLet(\.connectedAgents.$alert, action: \.connectedAgents.alert)
+    }
+  )
+  .previewFrame(width: SettingsView.width, height: SettingsView.height)
 }
 
 #Preview("Agents: on, with a log") {
@@ -143,6 +151,13 @@ private func agents(
     logFailure: "lil health couldn't read the access log: The database file is locked.")
 }
 
+// Revoking an agent connected to every lil app disconnects it from all of them (851-2902).
+#Preview("Agents: revoke an agent on all lil apps") {
+  agents(
+    connected: ConnectedAgentsFeature.State(
+      agents: .loaded(remoteAgents), alert: .confirmRevoke(combinedAgent)))
+}
+
 #Preview("Agents: signed out") {
   agents(isSignedIn: false)
 }
@@ -150,7 +165,16 @@ private func agents(
 // The Agents pane's remote agents (851-2853), on their own, tall enough to see them all.
 // Synthetic agents and reads.
 
+/// Connected through the combined server, to every lil app (851-2902).
+private let combinedAgent = ConnectedAgent(
+  id: "grant-5", name: "ChatGPT", domain: "chatgpt.com", app: nil, apps: ["health"],
+  connectedAt: Date(timeIntervalSince1970: 1_760_960_000),
+  firstUsedAt: nil,
+  lastUsedAt: Date(timeIntervalSince1970: 1_760_960_000))
+
+/// Most recently connected first, as the API lists them.
 private let remoteAgents = [
+  combinedAgent,
   ConnectedAgent(
     id: "grant-1", name: "Claude", domain: "claude.ai", app: "health",
     connectedAt: Date(timeIntervalSince1970: 1_760_900_000),
@@ -234,7 +258,8 @@ private func remote(_ state: ConnectedAgentsFeature.State) -> some View {
         ConnectedAgent(
           id: "grant-3",
           name: "A Very Long Agent Name That Somebody Registered For Their Own Health Dashboard",
-          domain: nil, app: "health", connectedAt: Date(timeIntervalSince1970: 1_760_700_000),
+          domain: nil, app: nil, apps: ["health"],
+          connectedAt: Date(timeIntervalSince1970: 1_760_700_000),
           firstUsedAt: nil,
           lastUsedAt: Date(timeIntervalSince1970: 1_760_700_000)),
         ConnectedAgent(

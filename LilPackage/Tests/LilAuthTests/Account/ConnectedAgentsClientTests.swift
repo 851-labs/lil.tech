@@ -10,7 +10,7 @@ import Testing
 // Synthetic data only (AGENTS.md).
 struct ConnectedAgentsClientTests {
   @Test
-  func readsWhenEachAgentFirstRead() async throws {
+  func readsWhenEachAgentFirstReadAndItsApps() async throws {
     // One that read a second after connecting, and one that hasn't read anything.
     let agents = """
       {"agents":[
@@ -19,7 +19,10 @@ struct ConnectedAgentsClientTests {
          "connectedAt":1760900000000,"lastUsedAt":1760900001000,"firstUsedAt":1760900001000},
         {"id":"agr_2","name":null,"domain":null,"redirectHost":"localhost",
          "resource":"https://mcp.lil.tech/health","app":"health","apps":["health"],
-         "connectedAt":1760800000000,"lastUsedAt":1760800000000,"firstUsedAt":null}
+         "connectedAt":1760800000000,"lastUsedAt":1760800000000,"firstUsedAt":null},
+        {"id":"agr_3","name":"ChatGPT","domain":"chatgpt.com","redirectHost":"chatgpt.com",
+         "resource":"https://mcp.lil.tech","app":null,"apps":["health","mail"],
+         "connectedAt":1760700000000,"lastUsedAt":1760700000000,"firstUsedAt":null}
       ]}
       """
     let client = withDependencies {
@@ -34,7 +37,11 @@ struct ConnectedAgentsClientTests {
       ConnectedAgentsClient.liveValue
     }
     let listed = try await client.list()
-    #expect(listed.map(\.firstUsedAt) == [Date(timeIntervalSince1970: 1_760_900_001), nil])
-    #expect(listed.map(\.isUnused) == [false, true])
+    #expect(
+      listed.map(\.firstUsedAt) == [Date(timeIntervalSince1970: 1_760_900_001), nil, nil])
+    #expect(listed.map(\.isUnused) == [false, true, true])
+    // A combined agent (851-2902) names every app it reads.
+    #expect(listed.map(\.apps) == [["health"], ["health"], ["health", "mail"]])
+    #expect(listed.map(\.isCombined) == [false, false, true])
   }
 }

@@ -202,8 +202,9 @@ struct CopyableRow: View {
   }
 }
 
-/// Remote agents (851-2853): those connected to the account through lil health's MCP server,
-/// revoking them, how to connect one, and what they read.
+/// Remote agents (851-2853): those connected to the account through lil health's MCP server, or the
+/// combined one for every lil app (851-2902), revoking them, how to connect one, and what they
+/// read.
 struct ConnectedAgentsSections: View {
   let store: StoreOf<ConnectedAgentsFeature>
 
@@ -308,8 +309,8 @@ struct ConnectedAgentsSections: View {
   }
 }
 
-/// A connected agent: its name (marked when unverified), domain, when it connected and last read,
-/// and Revoke….
+/// A connected agent: its name (marked when unverified, or connected to all lil apps), domain, when
+/// it connected and last read, and Revoke….
 struct ConnectedAgentRow: View {
   let agent: ConnectedAgent
   let isRevoking: Bool
@@ -325,13 +326,14 @@ struct ConnectedAgentRow: View {
             .lineLimit(1)
             .truncationMode(.tail)
           if agent.isUnverified {
-            Text("Unverified")
-              .font(.caption.weight(.medium))
-              .foregroundStyle(.orange)
-              .padding(.horizontal, 5)
-              .padding(.vertical, 1)
-              .background(.orange.opacity(0.15), in: Capsule())
+            AgentLabel(text: "Unverified", color: .orange)
               .help("It registered itself, so lil health can't confirm who made it.")
+          }
+          if agent.isCombined {
+            AgentLabel(text: "All lil apps", color: .blue)
+              .help(
+                "It connected to every lil app at once. Revoking it disconnects it from all of them."
+              )
           }
         }
         Text(agent.domain ?? "No verified website")
@@ -349,6 +351,21 @@ struct ConnectedAgentRow: View {
         Button("Revoke…", action: revoke)
       }
     }
+  }
+}
+
+/// A short label next to an agent's name: Unverified, or All lil apps (851-2902).
+private struct AgentLabel: View {
+  let text: String
+  let color: Color
+
+  var body: some View {
+    Text(text)
+      .font(.caption.weight(.medium))
+      .foregroundStyle(color)
+      .padding(.horizontal, 5)
+      .padding(.vertical, 1)
+      .background(color.opacity(0.15), in: Capsule())
   }
 }
 

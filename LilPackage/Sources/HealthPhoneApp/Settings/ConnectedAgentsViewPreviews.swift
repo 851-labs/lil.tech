@@ -19,13 +19,15 @@ enum ConnectedAgentsPreviewData {
     connectedAt: Date(timeIntervalSince1970: 1_760_800_000),
     firstUsedAt: Date(timeIntervalSince1970: 1_760_800_060),
     lastUsedAt: Date.now.addingTimeInterval(-3 * 86_400))
+  /// Connected through the combined server, to every lil app (851-2902).
   static let chatGPT = ConnectedAgent(
-    id: "grant-3", name: "ChatGPT", domain: "chatgpt.com", app: "health",
+    id: "grant-3", name: "ChatGPT", domain: "chatgpt.com", app: nil, apps: ["health"],
     connectedAt: Date(timeIntervalSince1970: 1_760_960_000),
     firstUsedAt: nil,
     lastUsedAt: Date(timeIntervalSince1970: 1_760_960_000))
 
-  static let agents = [claude, digest, chatGPT]
+  /// Most recently connected first, as the API lists them.
+  static let agents = [chatGPT, claude, digest]
 
   /// `count` reads, newest first, every third by the digest, some of them not ok.
   static func reads(_ count: Int, from start: Int = 0) -> [RemoteAgentAccess] {
@@ -83,6 +85,14 @@ private func agents(_ state: ConnectedAgentsFeature.State) -> some View {
       alert: .confirmRevoke(ConnectedAgentsPreviewData.claude)))
 }
 
+// A combined agent's: revoking it disconnects it from every lil app (851-2902).
+#Preview("Revoke ChatGPT?") {
+  agents(
+    ConnectedAgentsFeature.State(
+      agents: .loaded(ConnectedAgentsPreviewData.agents),
+      alert: .confirmRevoke(ConnectedAgentsPreviewData.chatGPT)))
+}
+
 #Preview("Revoking") {
   agents(
     ConnectedAgentsFeature.State(
@@ -128,7 +138,8 @@ private func agents(_ state: ConnectedAgentsFeature.State) -> some View {
         ConnectedAgent(
           id: "grant-5",
           name: "A Very Long Agent Name That Somebody Registered For Their Own Health Dashboard",
-          domain: nil, app: "health", connectedAt: Date(timeIntervalSince1970: 1_760_700_000),
+          domain: nil, app: nil, apps: ["health"],
+          connectedAt: Date(timeIntervalSince1970: 1_760_700_000),
           firstUsedAt: nil,
           lastUsedAt: Date(timeIntervalSince1970: 1_760_700_000)),
         ConnectedAgent(
