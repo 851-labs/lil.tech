@@ -8,8 +8,8 @@ name: PR
 # - destroy-preview: when the PR closes, destroys its preview stage, if there is one.
 # - pixelbook: comments how many snapshots changed. Paused (851-2816).
 # - pr-ok: passes when every other job passed or was skipped. It's the one check the "Protect main"
-#   ruleset requires, since the others are skipped when a PR doesn't touch their part. Branches
-#   don't have to be up to date with main.
+#   ruleset requires, since the others are skipped when a PR doesn't touch their part. It doesn't
+#   require branches to be up to date with main.
 #
 # Fork PRs: a fork's pull request runs no workflow until a maintainer approves it, and then runs
 # its own copy of this file, so the same-repo conditions below only keep an unchanged copy off the
