@@ -45,6 +45,15 @@ public enum MetricFormat {
     }
   }
 
+  /// A length of time as Health writes a session's: ("24", "sec"), or ("2", "min") from a
+  /// minute.
+  public static func duration(_ seconds: TimeInterval) -> (number: String, unit: String) {
+    // Rounded first, so 59.7 seconds is a minute.
+    guard seconds.rounded() >= 60 else { return (Int(seconds.rounded()).formatted(), "sec") }
+    let minutes = seconds / 60
+    return (minutes.formatted(.number.precision(.fractionLength(0...1))), "min")
+  }
+
   /// When the latest data is from: "Today" (or the time, for a moment today), "Yesterday", the
   /// weekday within the last week, then the date.
   public static func date(_ date: Date, isDay: Bool, now: Date, calendar: Calendar) -> String {

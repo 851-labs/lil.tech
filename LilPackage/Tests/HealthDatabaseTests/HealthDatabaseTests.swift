@@ -2052,3 +2052,152 @@ struct CycleQueriesTests {
     #expect(factors.last?.detail == "Oral")
   }
 }
+
+// Synthetic data only (AGENTS.md).
+@Suite
+struct CategoryChartTests {
+  private let calendar = {
+    var c = Calendar(identifier: .gregorian)
+    c.timeZone = .gmt
+    return c
+  }()
+
+  /// Wednesday, October 15, 2025, at `hour`:`minute` UTC, plus `days`.
+  private func time(_ hour: Int, _ minute: Int = 0, days: Int = 0) -> Date {
+    calendar.date(
+      from: DateComponents(year: 2025, month: 10, day: 15 + days, hour: hour, minute: minute))!
+  }
+
+  private var now: Date { time(23, days: 0) }
+
+  private func sample(
+    _ id: String, _ type: String, from start: Date, to end: Date, value: Int = 0,
+    source: String = "Watch"
+  ) -> HealthSample {
+    HealthSample(
+      id: id, type: type, startDate: start.unixMilliseconds, endDate: end.unixMilliseconds,
+      categoryValue: value, sourceName: source, sourceBundleID: "com.example.\(source)")
+  }
+
+  private func chart(
+    _ type: String, _ range: ChartRange, _ samples: [HealthSample]
+  ) throws -> MetricChart {
+    let database = try HealthDatabase.make()
+    try database.write { db in try HealthSample.insert { samples }.execute(db) }
+    return try database.read { db in
+      try HealthDatabase.categoryChart(
+        of: type, range: range, offset: 0, now: now, calendar: calendar, db)
+    }
+  }
+
+  @Test
+  func standHoursCountTheHoursStood() throws {
+    let stand = HealthDatabase.standHourType
+    let samples = [
+      sample("a", stand, from: time(9), to: time(10)),
+      sample("b", stand, from: time(10), to: time(11)),
+      // Idle.
+      sample("c", stand, from: time(11), to: time(12), value: 1),
+      sample("d", stand, from: time(9, days: -1), to: time(10, days: -1)),
+    ]
+    let day = try chart(stand, .day, samples)
+    // The idle hour has a bar of none.
+    #expect(day.points.map(\.start) == [time(9), time(10), time(11)])
+    #expect(day.points.map(\.value) == [1, 1, 0])
+    #expect(day.summary == .total(2))
+
+    let week = try chart(stand, .week, samples)
+    #expect(week.points.map(\.value) == [1, 2])
+    #expect(week.summary == .dailyAverage(1.5))
+  }
+
+  @Test
+  func anHourStoodCountsOnceAndIdleDaysCount() throws {
+    let stand = HealthDatabase.standHourType
+    let samples = [
+      // Two watches recorded the same hour.
+      sample("a", stand, from: time(9), to: time(10), source: "Watch"),
+      sample("b", stand, from: time(9), to: time(10), source: "Other Watch"),
+      // A day with only idle hours.
+      sample("c", stand, from: time(9, days: -1), to: time(10, days: -1), value: 1),
+    ]
+    #expect(try chart(stand, .day, samples).summary == .total(1))
+    let week = try chart(stand, .week, samples)
+    #expect(week.points.map(\.value) == [0, 1])
+    #expect(week.summary == .dailyAverage(0.5))
+  }
+
+  @Test
+  func theSameToothbrushingSessionFromTwoSourcesCountsOnce() throws {
+    let toothbrushing = HealthDatabase.toothbrushingType
+    let samples = [
+      sample("a", toothbrushing, from: time(8), to: time(8, 2), source: "Toothbrush"),
+      sample(
+        "b", toothbrushing, from: time(8, 0).addingTimeInterval(10), to: time(8, 2), source: "Watch"
+      ),
+      sample("c", toothbrushing, from: time(21), to: time(21, 2)),
+    ]
+    let day = try chart(toothbrushing, .week, samples)
+    #expect(day.points.map(\.value) == [2])
+    #expect(day.summary == .averageDuration(120))
+  }
+
+  @Test
+  func overlappingMindfulSessionsCountOnce() throws {
+    let mindful = HealthDatabase.mindfulSessionType
+    let samples = [
+      sample("a", mindful, from: time(10), to: time(10, 20), source: "Mindfulness"),
+      // Another app's session, overlapping the first.
+      sample("b", mindful, from: time(10, 10), to: time(10, 30), source: "Journal"),
+      // Across an hour.
+      sample("c", mindful, from: time(10, 50), to: time(11, 10)),
+    ]
+    let day = try chart(mindful, .day, samples)
+    #expect(day.points.map(\.start) == [time(10), time(11)])
+    #expect(day.points.map(\.value) == [40, 10])
+    #expect(day.summary == .total(50))
+    #expect(try chart(mindful, .week, samples).points.map(\.value) == [50])
+  }
+
+  @Test
+  func handwashingCountsSessionsWithTheirAverageLength() throws {
+    let handwashing = HealthDatabase.handwashingType
+    let samples = [
+      sample("a", handwashing, from: time(8), to: time(8, 0).addingTimeInterval(20)),
+      sample("b", handwashing, from: time(12), to: time(12).addingTimeInterval(30)),
+      sample(
+        "c", handwashing, from: time(12, days: -1), to: time(12, days: -1).addingTimeInterval(10)),
+    ]
+    let week = try chart(handwashing, .week, samples)
+    #expect(week.points.map(\.value) == [1, 2])
+    #expect(week.summary == .averageDuration(20))
+    #expect(try chart(handwashing, .day, samples).summary == .averageDuration(25))
+  }
+
+  @Test
+  func longerPeriodsChartTheAverageDay() throws {
+    let toothbrushing = HealthDatabase.toothbrushingType
+    // Two sessions a day for three days in the week, one on another day of the month.
+    let samples =
+      (0..<3).flatMap { day in
+        [8, 21].map { hour in
+          sample(
+            "\(day)-\(hour)", toothbrushing, from: time(hour, days: -day),
+            to: time(hour, 2, days: -day))
+        }
+      } + [sample("x", toothbrushing, from: time(8, days: -10), to: time(8, 2, days: -10))]
+    // Six months by week: the week of the 5th (one day, one session), then this week (three
+    // days of two).
+    let sixMonths = try chart(toothbrushing, .sixMonths, samples)
+    #expect(sixMonths.points.map(\.value) == [1, 2])
+    // A year by month: October's average day, 7 sessions over 4 days.
+    #expect(try chart(toothbrushing, .year, samples).points.map(\.value) == [7.0 / 4])
+  }
+
+  @Test
+  func everyChartedTypeHasAUnit() {
+    for type in HealthDatabase.categoryChartTypes {
+      #expect(HealthDatabase.categoryChartUnit(type) != nil)
+    }
+  }
+}

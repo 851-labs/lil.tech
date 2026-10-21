@@ -23,6 +23,9 @@ extension HealthDatabase {
     case _ where bleedingTypes.contains(typeID):
       // HKCategoryValueVaginalBleeding, without a level when it's unspecified.
       return [2: "Light", 3: "Medium", 4: "Heavy", 5: "None"][value]
+    case standHourType:
+      // HKCategoryValueAppleStandHour.
+      return [0: "Stood", 1: "Idle"][value]
     case contraceptiveType:
       // HKCategoryValueContraceptive; 1 is unspecified.
       return [

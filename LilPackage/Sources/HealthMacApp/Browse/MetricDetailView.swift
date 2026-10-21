@@ -13,7 +13,7 @@ struct MetricDetailView: View {
   let type: HealthDataType
   @State private var range = ChartRange.week
   @State private var offset = 0
-  /// Loaded by the view's task, for quantity types only.
+  /// Loaded by the view's task, for quantity types and the category types charted like them.
   @Fetch private var chart: MetricChart? = nil
   /// Lines drawn over the chart, for the same period: heart rate's resting and walking averages.
   @Fetch private var overlays: [MetricOverlay] = []
@@ -45,7 +45,7 @@ struct MetricDetailView: View {
         StateOfMindView()
       } else if type.kind == .scoredAssessment, let kind = AssessmentKind(rawValue: type.id) {
         ScoredAssessmentsView(kind: kind, name: type.name)
-      } else if type.kind == .quantity {
+      } else if type.kind == .quantity || HealthDatabase.categoryChartTypes.contains(type.id) {
         MetricDetailContent(
           type: type, range: $range, offset: $offset,
           state: $chart.loadError.map { .failed($0.localizedDescription) }
@@ -59,7 +59,8 @@ struct MetricDetailView: View {
       }
     }
     .task(id: [range.rawValue, String(offset)]) {
-      guard type.kind == .quantity else { return }
+      guard type.kind == .quantity || HealthDatabase.categoryChartTypes.contains(type.id)
+      else { return }
       async let overlaid: Void = loadOverlays()
       _ = try? await $chart.load(
         MetricChartRequest(typeID: type.id, range: range, offset: offset),
@@ -89,6 +90,11 @@ struct MetricChartRequest: FetchKeyRequest {
 
   func fetch(_ db: Database) throws -> MetricChart? {
     guard let type = HealthCatalog.type(id: typeID) else { return nil }
+    if HealthDatabase.categoryChartTypes.contains(typeID) {
+      // Stand hours, mindful minutes, handwashing and toothbrushing (851-2831).
+      return try HealthDatabase.categoryChart(
+        of: typeID, range: range, offset: offset, now: .now, calendar: .current, db)
+    }
     return try HealthDatabase.metricChart(
       of: type, range: range, offset: offset, now: .now, calendar: .current, db)
   }
@@ -144,6 +150,12 @@ struct MetricDetailContent: View {
   @SwiftUI.State private var hovered: Date?
 
   private var color: Color { type.category?.color ?? .accentColor }
+  /// Totals per bucket: a cumulative type's, or a category type charted like one.
+  private var isCumulative: Bool {
+    type.aggregation?.isCumulative == true || HealthDatabase.categoryChartTypes.contains(type.id)
+  }
+  /// What the values are in: the type's unit, or a category chart's (hours, minutes, times).
+  private var unit: String? { type.unit ?? HealthDatabase.categoryChartUnit(type.id) }
 
   /// The lines to draw: those loaded for the period shown, with values, over a chart with data.
   private var shownOverlays: [MetricOverlay] {
@@ -238,7 +250,7 @@ struct MetricDetailContent: View {
   }
 
   private func label(_ chart: MetricChart?, point: ChartPoint?) -> String {
-    let cumulative = type.aggregation?.isCumulative == true
+    let cumulative = isCumulative
     if let point {
       if cumulative { return range == .sixMonths || range == .year ? "DAILY AVERAGE" : "TOTAL" }
       return point.minimum == point.maximum ? "AVERAGE" : "RANGE"
@@ -248,6 +260,7 @@ struct MetricDetailContent: View {
     case .dailyAverage: return "DAILY AVERAGE"
     case .range: return "RANGE"
     case .average: return "AVERAGE"
+    case .averageDuration: return "AVERAGE DURATION"
     case nil: return cumulative && range == .day ? "TOTAL" : cumulative ? "DAILY AVERAGE" : "RANGE"
     }
   }
@@ -260,10 +273,16 @@ struct MetricDetailContent: View {
         switch chart?.summary {
         case .total(let value), .dailyAverage(let value), .average(let value): [value]
         case .range(let low, let high): [low, high]
+        case .averageDuration(let seconds): [seconds]
         case nil: nil
         }
       }
-    let formatted = values?.map { MetricFormat.value($0, unit: type.unit, typeID: type.id) }
+    let formatted = values?.map { value in
+      if point == nil, case .averageDuration = chart?.summary {
+        return MetricFormat.duration(value)
+      }
+      return MetricFormat.value(value, unit: unit, typeID: type.id)
+    }
     return HStack(alignment: .firstTextBaseline, spacing: 3) {
       Text(formatted?.map(\.number).joined(separator: "–") ?? (chart == nil ? "–" : "No Data"))
         .font(.system(.largeTitle, design: .rounded).bold())
@@ -340,7 +359,7 @@ struct MetricDetailContent: View {
   /// A period's bar: its total for a cumulative type, otherwise its range.
   @ChartContentBuilder
   private func bar(_ point: ChartPoint, in chart: MetricChart) -> some ChartContent {
-    if type.aggregation?.isCumulative == true {
+    if isCumulative {
       BarMark(
         x: .value("Date", point.start, unit: range.barUnit),
         y: .value("Value", point.value)

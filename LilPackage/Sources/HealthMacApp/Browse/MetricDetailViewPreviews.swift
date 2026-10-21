@@ -144,3 +144,47 @@ private let heartRate = "HKQuantityTypeIdentifierHeartRate"
   }
   .previewFrame(width: 760, height: 720)
 }
+
+// Category types charted like metrics (851-2831), from made-up values.
+
+@MainActor
+private func categoryChart(
+  _ id: String, _ range: ChartRange, values: [Double], summary: MetricChart.Summary?
+) -> some View {
+  let calendar = Calendar.current
+  let interval = range.interval(offset: 0, now: .now, calendar: calendar)
+  let points = values.enumerated().compactMap { index, value -> ChartPoint? in
+    guard value > 0,
+      let start = calendar.date(byAdding: range.barUnit, value: index, to: interval.start)
+    else { return nil }
+    return ChartPoint(start: start, value: value)
+  }
+  return detail(
+    id, range,
+    state: { _ in .loaded(MetricChart(interval: interval, points: points, summary: summary)) })
+}
+
+#Preview("Stand hours, day") {
+  // Stood most hours from 7 AM to 7 PM.
+  let hours = (0..<24).map { (7...19).contains($0) && $0 != 13 && $0 != 16 ? 1.0 : 0 }
+  categoryChart(
+    HealthDatabase.standHourType, .day, values: hours, summary: .total(hours.reduce(0, +)))
+}
+
+#Preview("Mindful minutes, week") {
+  categoryChart(
+    HealthDatabase.mindfulSessionType, .week, values: [10, 0, 15, 5, 20, 0, 12],
+    summary: .dailyAverage(12.4))
+}
+
+#Preview("Handwashing, month") {
+  categoryChart(
+    HealthDatabase.handwashingType, .month,
+    values: (0..<20).map { Double(4 + ($0 * 7) % 6) }, summary: .averageDuration(23))
+}
+
+#Preview("Toothbrushing, year") {
+  categoryChart(
+    HealthDatabase.toothbrushingType, .year,
+    values: [1.8, 1.9, 2, 1.7, 2, 1.9, 2, 2, 1.6, 1.8], summary: .averageDuration(118))
+}
