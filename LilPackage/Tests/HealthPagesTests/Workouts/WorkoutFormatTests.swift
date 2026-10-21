@@ -15,6 +15,7 @@ struct WorkoutFormatTests {
     #expect(WorkoutFormat.duration(3600 + 2 * 60 + 5) == "1:02:05")
     #expect(WorkoutFormat.pace(5 * 60 + 12) == "5'12\"/km")
     #expect(WorkoutActivity.name(37) == "Running")
+    #expect(WorkoutActivity.name(65) == "Kickboxing")
     #expect(WorkoutActivity.name(9_999) == "Workout")
   }
 
@@ -22,6 +23,16 @@ struct WorkoutFormatTests {
   @Test
   func everyNamedActivityHasASymbol() {
     #expect(Set(WorkoutActivity.symbols.keys) == Set(HealthCatalog.workoutActivityNames.keys))
+  }
+
+  /// A misspelled symbol draws nothing, without an error.
+  @Test
+  func everySymbolExists() {
+    for (activityType, symbol) in WorkoutActivity.symbols {
+      #expect(
+        NSImage(systemSymbolName: symbol, accessibilityDescription: nil) != nil,
+        "\(activityType): no SF Symbol \(symbol)")
+    }
   }
 
   // Main actor: resolving a SwiftUI color to an NSColor needs it.

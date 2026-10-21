@@ -60,6 +60,7 @@ describe("HealthCatalog", () => {
   it("names workout activities as the Mac does, else Workout", () => {
     assert.strictEqual(workoutActivityName(37), "Running");
     assert.strictEqual(workoutActivityName(63), "High Intensity Interval Training");
+    assert.strictEqual(workoutActivityName(65), "Kickboxing");
     assert.strictEqual(workoutActivityName(3000), "Other");
     assert.strictEqual(workoutActivityName(9999), "Workout");
   });

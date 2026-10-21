@@ -73,6 +73,7 @@ struct HealthCatalogTests {
   @Test
   func workoutActivityNames() {
     #expect(HealthCatalog.workoutActivityName(37) == "Running")
+    #expect(HealthCatalog.workoutActivityName(49) == "Track and Field")
     #expect(HealthCatalog.workoutActivityName(3000) == "Other")
     #expect(HealthCatalog.workoutActivityName(9_999) == "Workout")
   }
@@ -185,6 +186,38 @@ struct HealthCatalogTests {
         #expect(catalog == identifiers, "\(kind)")
       }
     }
+
+    /// Every `HKWorkoutActivityType` the SDK declares has a name, and the catalog names nothing
+    /// else, so only values a later iOS adds read "Workout". Names follow the cases', apart from
+    /// where Health's differ, which catches a name filed under the wrong raw value.
+    @Test
+    func namesEveryWorkoutActivityType() throws {
+      let sdk = try SDKHeaders.load()
+      #expect(sdk.workoutActivityTypes.count > 80)
+      let unknown = Set(HealthCatalog.workoutActivityNames.keys)
+        .subtracting(sdk.workoutActivityTypes.keys)
+      #expect(unknown.isEmpty, "Not in the SDK: \(unknown.sorted())")
+
+      let healthsNames = [
+        "StairClimbing": "Stair Stepper",
+        "SkatingSports": "Skating",
+        "SurfingSports": "Surfing",
+        "SwimBikeRun": "Multisport",
+      ]
+      for (rawValue, caseName) in sdk.workoutActivityTypes.sorted(by: { $0.key < $1.key }) {
+        guard let name = HealthCatalog.workoutActivityNames[rawValue] else {
+          Issue.record("No name for HKWorkoutActivityType\(caseName) (\(rawValue))")
+          continue
+        }
+        // "Track and Field" is `TrackAndField`.
+        let expected = healthsNames[caseName] ?? caseName
+        #expect(
+          name.filter { $0 != " " }.lowercased() == expected.filter { $0 != " " }.lowercased(),
+          "\(rawValue) is HKWorkoutActivityType\(caseName), not \(name)")
+      }
+      #expect(Int(HKWorkoutActivityType.underwaterDiving.rawValue) == 84)
+      #expect(Int(HKWorkoutActivityType.other.rawValue) == 3000)
+    }
   }
 
   extension HealthDataType.Aggregation {
@@ -206,6 +239,9 @@ struct HealthCatalogTests {
     var identifiers: [String: IOSVersion] = [:]
     /// When each special type was introduced, from its identifier constant or type accessor.
     var specialTypes: [HealthDataType.Kind: IOSVersion] = [:]
+    /// `HKWorkoutActivityType`'s cases by raw value, named without the prefix (`Running`),
+    /// leaving out those the SDK marks unavailable on iOS and watchOS (Rest and Group).
+    var workoutActivityTypes: [Int: String] = [:]
 
     /// Header constants whose runtime value isn't their name, by value.
     static let constantNames = [
@@ -245,6 +281,8 @@ struct HealthCatalogTests {
         contentsOf: headers.appending(path: "HKTypeIdentifiers.h"), encoding: .utf8)
       let objectType = try String(
         contentsOf: headers.appending(path: "HKObjectType.h"), encoding: .utf8)
+      let workoutActivityType = try String(
+        contentsOf: headers.appending(path: "HKWorkoutActivityType.h"), encoding: .utf8)
 
       var sdk = Self()
       let identifier =
@@ -267,6 +305,21 @@ struct HealthCatalogTests {
           let kind = specialTypeDeclarations[String(match.output.1)]
         {
           sdk.specialTypes[kind] = IOSVersion(Int(match.output.2)!, Int(match.output.3)!)
+        }
+      }
+      // The enum's body, whose cases may wrap over lines. Availability attributes have no `=`.
+      let activityEnum =
+        /typedef NS_ENUM\(NSUInteger, HKWorkoutActivityType\) \{([^}]*)\}/
+      let activityCase = /HKWorkoutActivityType(\w+)([^=]*)=\s*(\d+)/
+      let unavailable = /API_UNAVAILABLE\(([^)]*)\)/
+      if let body = workoutActivityType.firstMatch(of: activityEnum)?.output.1 {
+        for match in body.matches(of: activityCase) {
+          // Only cases no app on the iPhone or Watch can save are left out (Rest, Group).
+          let platforms = match.output.2.firstMatch(of: unavailable).map {
+            Set($0.output.1.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+          }
+          if let platforms, platforms.isSuperset(of: ["ios", "watchos"]) { continue }
+          sdk.workoutActivityTypes[Int(match.output.3)!] = String(match.output.1)
         }
       }
       return sdk
