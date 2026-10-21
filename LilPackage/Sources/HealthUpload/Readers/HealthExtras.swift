@@ -159,6 +159,9 @@ public struct HealthDocumentsReader: Sendable {
     let id: String
   }
 
+  /// A document query that ended without results or an error, which HealthKit says it doesn't do.
+  struct QueryFailed: Error {}
+
   /// Runs an `HKDocumentQuery` for CDA documents to the end. It has no async form, and calls
   /// back on HealthKit's queue, a batch at a time. Cancelling stops it.
   static func documents(
@@ -179,24 +182,31 @@ public struct HealthDocumentsReader: Sendable {
       sortDescriptors: nil, includeDocumentData: includeXML
     ) { _, results, done, error in
       guard let results else {
-        finish(.failure(HealthReader.Locked.mapped(error ?? CancellationError())))
+        finish(.failure(error.map(HealthReader.Locked.mapped) ?? QueryFailed()))
         return
       }
       found.withValue { $0 += results.compactMap { $0 as? HKCDADocumentSample } }
       if done { finish(.success(found.value)) }
     }
+    // Starting and stopping hold the lock, so a query cancelled while it starts is stopped
+    // after it starts, or never started.
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
-        waiting.setValue(continuation)
-        if Task.isCancelled {
-          finish(.failure(CancellationError()))
-        } else {
-          store.execute(query)
+        waiting.withValue { waiting in
+          if Task.isCancelled {
+            continuation.resume(throwing: CancellationError())
+          } else {
+            waiting = continuation
+            store.execute(query)
+          }
         }
       }
     } onCancel: {
-      store.stop(query)
-      finish(.failure(CancellationError()))
+      waiting.withValue { continuation in
+        store.stop(query)
+        continuation?.resume(throwing: CancellationError())
+        continuation = nil
+      }
     }
   }
 }

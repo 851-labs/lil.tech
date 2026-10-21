@@ -750,8 +750,8 @@ public actor HealthBackfill {
   static let activitySummaryWindow: TimeInterval = 30 * 24 * 60 * 60
 
   /// Uploads what has no anchors: the characteristics and vision prescriptions, if they changed
-  /// since they last went up, the Health Documents shared since, and the Activity summaries, all
-  /// of them the first time and the last 30 days' after that. A failure is kept for the next run.
+  /// since they last went up, the Activity summaries, all of them the first time and the last 30
+  /// days' after that, and the Health Documents shared since. A failure is kept for the next run.
   private func uploadExtras(_ state: inout HealthBackfillState) async throws {
     do {
       try await uploadWhole(
@@ -770,12 +770,6 @@ public actor HealthBackfill {
       reportIssue(error, "Uploading vision prescriptions; trying again next run")
     }
     do {
-      try await uploadDocuments(&state)
-    } catch {
-      try stopIfRunEnds(error)
-      reportIssue(error, "Uploading Health Documents; trying again next run")
-    }
-    do {
       let readAt = now()
       let from = state.activitySummariesUploadedAt?.addingTimeInterval(
         -Self.activitySummaryWindow)
@@ -788,6 +782,13 @@ public actor HealthBackfill {
     } catch {
       try stopIfRunEnds(error)
       reportIssue(error, "Uploading Activity summaries; trying again next run")
+    }
+    // Last: its query may wait on Health's sheet for new documents.
+    do {
+      try await uploadDocuments(&state)
+    } catch {
+      try stopIfRunEnds(error)
+      reportIssue(error, "Uploading Health Documents; trying again next run")
     }
   }
 
@@ -825,8 +826,8 @@ public actor HealthBackfill {
           reportIssue(HealthBlob.TooLarge(bytes: blob.count))
           continue
         }
-        // Before the row that refers to it.
-        let sha256 = HealthBlob.sha256(blob)
+        // Before the row that refers to it, by its SHA-256.
+        guard case .string(let sha256)? = mutation.row?["xml"] else { continue }
         try await notingServerFailure {
           try await Self.retryingTransient(retryDelays, clock: clock) {
             try await blobUploader.upload(sha256, blob)
