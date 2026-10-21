@@ -347,7 +347,7 @@ describe("UserStores", () => {
 
   // 851-2887: a store reset while calls were in flight (e.g. a storage operation timed out) is
   // there again for the next call, so its MCP requests get a 503 rather than a 500.
-  it.effect("answers a request that a store's reset ended with a 503", () =>
+  it.effect("answers a forwarded request that a store's reset ended with a 503", () =>
     Effect.gen(function* () {
       const reset = Object.assign(
         new Error(
@@ -366,6 +366,13 @@ describe("UserStores", () => {
         HttpServerRequest.fromWeb(new Request("https://mcp.example/health", { method: "POST" })),
       );
       assert.strictEqual(response.status, 503);
+      // A store call that writes may have committed before the reset, so it isn't retried.
+      const failing = {
+        schemaVersion: () =>
+          Effect.fail({ _tag: "RpcCallError", method: "schemaVersion", cause: reset }),
+      } as unknown as UserStoreMethods;
+      const rpc = UserStores.fromNamespace({ getByName: () => ({ ...failing, fetch: noLive }) });
+      assert.isTrue(Exit.hasDies(yield* Effect.exit(rpc.forUser(ada).schemaVersion())));
     }),
   );
 

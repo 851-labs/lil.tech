@@ -46,26 +46,22 @@ export const healthMcpProtocols = [
 ] as const;
 
 /**
- * How long a tool call may wait for its turn in a store (851-2887). One that waited longer is
- * refused with a tool error asking the agent to try again, rather than run.
+ * How long a tool call may have waited for its turn in a store (851-2887). One that waited longer
+ * by the time its turn comes is refused with a tool error asking the agent to try again, rather
+ * than run.
  *
  * Workers resets a store whose CPU time since its last incoming request passes 30 seconds, failing
- * every call in flight. A call that starts within this of its own request uses at most this plus
- * its own time before that limit, which leaves room for the longest calls (a few seconds on a
- * year of a Watch wearer's data).
+ * every call in flight. Refusing calls that waited long keeps a burst of calls from adding up to
+ * that: the calls that run start within about this of their request, which leaves room for the
+ * longest ones (a few seconds on a year of a Watch wearer's data). A single call that takes 30
+ * seconds would still be too long.
  */
 export const healthMcpMaxWaitMs = 10_000;
 
-/** Ends the JavaScript task, so the runtime can commit the store's writes and send answers. */
+/** Waits for the next JavaScript task, so the runtime can commit the store's writes and send answers. */
 const nextTask = Effect.callback<void>((resume) => {
   const timer = setTimeout(() => resume(Effect.void), 0);
   return Effect.sync(() => clearTimeout(timer));
-});
-
-const busy = new HealthToolError({
-  message:
-    "lil health is busy answering other calls from your agents. " +
-    "Try again in a few seconds, with fewer calls at once.",
 });
 
 /**
@@ -77,9 +73,9 @@ const busy = new HealthToolError({
  * calls ran back to back in one task, with nothing else in between: the runtime only commits a
  * store's writes (each call's access log row) and sends its answers once a task ends, and it
  * resets a store when a storage operation waits about 30 seconds. On prod, eight calls at once
- * took that long together, and every one failed with a 500. Waiting for the next task after each
- * call lets its row commit and its answer go back before the next starts, and the wait limit keeps
- * a burst of calls within the store's CPU limit (`healthMcpMaxWaitMs`).
+ * took that long together, and every one failed with a 500. A call that gets its turn waits for
+ * the next task before it starts, so the call before it commits its row and sends its answer
+ * first.
  */
 const makeTurns = (maxWaitMs: number) =>
   Effect.gen(function* () {
@@ -93,11 +89,16 @@ const makeTurns = (maxWaitMs: number) =>
             yield* Effect.logWarning("Agent tool call refused: busy").pipe(
               Effect.annotateLogs({ waitedMs: waited }),
             );
-            return yield* busy;
+            return yield* new HealthToolError({
+              message:
+                "lil health is busy answering other calls from your agents. " +
+                "Try again in a few seconds, with fewer calls at once.",
+            });
           }
+          yield* nextTask;
           return yield* call;
         });
-        return yield* semaphore.withPermit(turn.pipe(Effect.ensuring(nextTask)));
+        return yield* semaphore.withPermit(turn);
       });
   });
 
@@ -143,9 +144,9 @@ const agentOf = (request: Option.Option<HttpServerRequest.HttpServerRequest>) =>
 };
 
 /**
- * Wraps a tool's handler: its answer is held to `ceiling` bytes, and the call is logged
- * (`record`) before anything goes back, so nothing is read without a row. Workers Logs get the
- * tool, grant, duration and size only.
+ * Wraps a tool's handler: it runs in its `turn`, its answer is held to `ceiling` bytes, and the
+ * call is logged (`record`) before anything goes back, so nothing is read without a row. Workers
+ * Logs get the tool, grant, duration and size only.
  */
 const logged =
   <P extends object, A>(
@@ -158,56 +159,54 @@ const logged =
   (params: P) =>
     Effect.gen(function* () {
       const agent = agentOf(yield* Effect.serviceOption(HttpServerRequest.HttpServerRequest));
-      const started = yield* Clock.currentTimeMillis;
-      let exit: Exit.Exit<A, HealthToolError> = yield* Effect.exit(run(params));
-      let bytes = 0;
-      let rows = 0;
-      let outcome: AgentAccess["outcome"] = "error";
-      // An answer that can't be encoded fails the call, but is still logged.
-      const answer = exit;
-      const encoded = Exit.isSuccess(answer)
-        ? yield* Effect.exit(
-            Effect.try(() => {
-              const value = Schema.encodeUnknownSync(tool.successSchema as Schema.Codec<unknown>)(
-                answer.value,
-              );
-              return { value, bytes: new TextEncoder().encode(JSON.stringify(value)).byteLength };
-            }),
-          )
-        : undefined;
-      if (encoded !== undefined && Exit.isFailure(encoded)) exit = Exit.die(encoded.cause);
-      if (encoded !== undefined && Exit.isSuccess(encoded)) {
-        bytes = encoded.value.bytes;
-        if (bytes > ceiling) {
-          outcome = "too_large";
-          exit = Exit.fail(
-            new HealthToolError({
-              message:
-                `The answer is larger than ${Math.round(ceiling / 1024)} KB. ` +
-                "Ask for a shorter range or a smaller page.",
-            }),
-          );
-        } else {
-          outcome = "ok";
-          rows = rowCount(encoded.value.value);
+      const call = Effect.gen(function* () {
+        const started = yield* Clock.currentTimeMillis;
+        let exit: Exit.Exit<A, HealthToolError> = yield* Effect.exit(run(params));
+        let bytes = 0;
+        let rows = 0;
+        let outcome: AgentAccess["outcome"] = "error";
+        // An answer that can't be encoded fails the call, but is still logged.
+        const answer = exit;
+        const encoded = Exit.isSuccess(answer)
+          ? yield* Effect.exit(
+              Effect.try(() => {
+                const value = Schema.encodeUnknownSync(tool.successSchema as Schema.Codec<unknown>)(
+                  answer.value,
+                );
+                return { value, bytes: new TextEncoder().encode(JSON.stringify(value)).byteLength };
+              }),
+            )
+          : undefined;
+        if (encoded !== undefined && Exit.isFailure(encoded)) exit = Exit.die(encoded.cause);
+        if (encoded !== undefined && Exit.isSuccess(encoded)) {
+          bytes = encoded.value.bytes;
+          if (bytes > ceiling) {
+            outcome = "too_large";
+            exit = Exit.fail(
+              new HealthToolError({
+                message:
+                  `The answer is larger than ${Math.round(ceiling / 1024)} KB. ` +
+                  "Ask for a shorter range or a smaller page.",
+              }),
+            );
+          } else {
+            outcome = "ok";
+            rows = rowCount(encoded.value.value);
+          }
         }
-      }
-      yield* record({ ...agent, tool: tool.name, ...askedFor(params), outcome, rows }).pipe(
-        Effect.catchTag("AccountDeleted", () =>
-          Effect.fail(new HealthToolError({ message: "This lil account was deleted." })),
-        ),
-      );
-      const finished = yield* Clock.currentTimeMillis;
-      yield* Effect.logInfo("Agent tool call").pipe(
-        Effect.annotateLogs({
-          tool: tool.name,
-          grant: agent.grantId,
-          durationMs: finished - started,
-          bytes,
-        }),
-      );
-      return yield* exit;
-    }).pipe(turn);
+        yield* record({ ...agent, tool: tool.name, ...askedFor(params), outcome, rows }).pipe(
+          Effect.catchTag("AccountDeleted", () =>
+            Effect.fail(new HealthToolError({ message: "This lil account was deleted." })),
+          ),
+        );
+        const finished = yield* Clock.currentTimeMillis;
+        yield* Effect.logInfo("Agent tool call").pipe(
+          Effect.annotateLogs({ durationMs: finished - started, bytes }),
+        );
+        return yield* exit;
+      });
+      return yield* call.pipe(turn, Effect.annotateLogs({ tool: tool.name, grant: agent.grantId }));
+    });
 
 /**
  * Shared fibers in a Durable Object run on the sync scheduler, as Effect advises for Workers, so
@@ -241,24 +240,22 @@ export const makeHealthMcpServer = (options: {
     const handlers = options.handlers ?? storeHealthTools(sql);
     const tools = HealthToolkit.tools;
     const turn = yield* makeTurns(maxWaitMs);
-    // Every tool's handler, logged and held to the ceiling.
+    // Every tool's handler, logged, held to the ceiling and run in turn.
+    const wrap = <P extends object, A>(
+      tool: { readonly name: string; readonly successSchema: Schema.Top },
+      run: (params: P) => Effect.Effect<A, HealthToolError>,
+    ) => logged(tool, run, record, resultCeiling, turn);
     const loggedHandlers: HealthToolHandlers = {
-      summary: logged(tools.summary, handlers.summary, record, resultCeiling, turn),
-      list_types: logged(tools.list_types, handlers.list_types, record, resultCeiling, turn),
-      metric: logged(tools.metric, handlers.metric, record, resultCeiling, turn),
-      samples: logged(tools.samples, handlers.samples, record, resultCeiling, turn),
-      workouts: logged(tools.workouts, handlers.workouts, record, resultCeiling, turn),
-      sleep: logged(tools.sleep, handlers.sleep, record, resultCeiling, turn),
-      medications: logged(tools.medications, handlers.medications, record, resultCeiling, turn),
-      health_details: logged(
-        tools.health_details,
-        handlers.health_details,
-        record,
-        resultCeiling,
-        turn,
-      ),
-      search: logged(tools.search, handlers.search, record, resultCeiling, turn),
-      sync_status: logged(tools.sync_status, handlers.sync_status, record, resultCeiling, turn),
+      summary: wrap(tools.summary, handlers.summary),
+      list_types: wrap(tools.list_types, handlers.list_types),
+      metric: wrap(tools.metric, handlers.metric),
+      samples: wrap(tools.samples, handlers.samples),
+      workouts: wrap(tools.workouts, handlers.workouts),
+      sleep: wrap(tools.sleep, handlers.sleep),
+      medications: wrap(tools.medications, handlers.medications),
+      health_details: wrap(tools.health_details, handlers.health_details),
+      search: wrap(tools.search, handlers.search),
+      sync_status: wrap(tools.sync_status, handlers.sync_status),
     };
     const layer = McpServer.toolkit(HealthToolkit).pipe(
       Layer.provide(HealthToolkit.toLayer(loggedHandlers)),
