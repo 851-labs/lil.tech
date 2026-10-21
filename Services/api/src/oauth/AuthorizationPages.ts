@@ -35,24 +35,79 @@ export interface ClientView {
   readonly loopback: boolean;
 }
 
-/** The app an agent asks for, as the page names it. */
+/** An app the agent would read, as the page lists it. */
 export interface AppView {
+  /** The app's key in the registry (`health`), which picks its icon. */
+  readonly key: string;
   readonly name: string;
+}
+
+/** What an agent asks to connect to, as the page names it: one app's server, or the combined one. */
+export interface TargetView {
+  /** An app's name ("lil health"), or "lil" for the combined server. */
+  readonly name: string;
+  /** Whether it's the combined server, which lists the apps it reads. */
+  readonly combined: boolean;
+  /** The apps the agent would read: the one app, or those its scopes chose. */
+  readonly apps: ReadonlyArray<AppView>;
   readonly privacyUrl: string;
 }
 
 /** The client's name, for sentences. */
 const agentName = (client: ClientView) => client.name ?? "An unnamed agent";
 
-/** lil health's icon (`Apps/LilHealth`), inline: the page loads nothing else. */
-const icon = `<svg class="icon" viewBox="0 0 100 100" aria-hidden="true">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#655af2"/><stop offset="1" stop-color="#3a2ba0"/>
+/** A rounded tile with a vertical gradient, and `mark` on it, as an inline SVG of `className`. */
+const tile = (className: string, id: string, colors: readonly [string, string], mark: string) =>
+  `<svg class="${className}" viewBox="0 0 100 100" aria-hidden="true">
+  <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="${colors[0]}"/><stop offset="1" stop-color="${colors[1]}"/>
   </linearGradient></defs>
-  <rect width="100" height="100" rx="22.5" fill="url(#g)"/>
-  <polyline points="22,51 38,51 44,27 52,74 60,38 64,51 78,51" fill="none" stroke="#fff"
-    stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="100" height="100" rx="22.5" fill="url(#${id})"/>
+  ${mark}
 </svg>`;
+
+/** A letter on an icon, in the system font. */
+const letters = (text: string, size: number) =>
+  `<text x="50" y="${50 + size * 0.35}" text-anchor="middle" fill="#fff" font-size="${size}"
+    font-weight="700" font-family="-apple-system, BlinkMacSystemFont, system-ui, sans-serif">` +
+  `${escape(text)}</text>`;
+
+/**
+ * An app's icon (`Apps/LilHealth` for lil health), inline: the page loads nothing else. An app
+ * without one of its own gets its initial on a gray tile.
+ */
+const appIcon = (app: AppView, className: string) => {
+  const id = `${className}-${app.key}`;
+  switch (app.key) {
+    case "health":
+      return tile(
+        className,
+        id,
+        ["#655af2", "#3a2ba0"],
+        `<polyline points="22,51 38,51 44,27 52,74 60,38 64,51 78,51" fill="none" stroke="#fff"
+    stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>`,
+      );
+    default:
+      return tile(
+        className,
+        id,
+        ["#8e8e93", "#48484a"],
+        letters(app.name.replace(/^lil /, "").slice(0, 1), 52),
+      );
+  }
+};
+
+/** lil's own icon, for the combined server, which reads every app. */
+const lilIcon = tile("icon", "icon-lil", ["#3a3a3c", "#1c1c1e"], letters("lil", 46));
+
+/** The page's icon: the app's, or lil's for the combined server. */
+const targetIcon = (target: TargetView) => {
+  const app = target.apps[0];
+  return target.combined || app === undefined ? lilIcon : appIcon(app, "icon");
+};
+
+/** lil health's icon, for pages that don't know what the agent asked for (errors). */
+const defaultIcon = appIcon({ key: "health", name: "lil health" }, "icon");
 
 const styles = `
 :root { color-scheme: light dark; --bg: #f5f5f7; --card: #fff; --text: #1d1d1f;
@@ -79,6 +134,9 @@ section p { margin: 4px 0; }
   border-radius: 6px; background: var(--badge-bg); color: var(--secondary); margin-left: 6px;
   vertical-align: 1px; }
 .muted { color: var(--secondary); font-size: 13px; }
+ul.apps { list-style: none; margin: 8px 0 10px; padding: 0; }
+ul.apps li { display: flex; align-items: center; gap: 10px; padding: 3px 0; font-weight: 600; }
+.app-icon { width: 28px; height: 28px; flex: none; }
 .warning { background: var(--warning-bg); color: var(--warning); border-radius: 10px;
   padding: 10px 12px; margin: 10px 0 0; font-size: 14px; }
 a { color: var(--accent); }
@@ -112,7 +170,12 @@ button.google img { width: 20px; height: 20px; }
 const googleFont = `@font-face { font-family: "Google Sans Medium"; font-weight: 500;
   src: url(data:font/woff2;base64,${googleSansMediumWoff2}) format("woff2"); }`;
 
-const layout = (title: string, body: string, extraStyles = "") => `<!doctype html>
+const layout = (
+  title: string,
+  body: string,
+  extraStyles = "",
+  icon = defaultIcon,
+) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -174,14 +237,23 @@ export interface SignInMethods {
 export const SignInNotice = ["apple_unknown", "google_unknown", "failed", "unavailable"] as const;
 export type SignInNotice = (typeof SignInNotice)[number];
 
-const noticeText = (notice: SignInNotice, app: AppView) => {
+/**
+ * The app whose iPhone app makes accounts, which the sign-in page sends people to: lil health's,
+ * whichever apps the agent asked for.
+ */
+const accountsApp = "lil health";
+
+const noticeText = (notice: SignInNotice, target: TargetView) => {
   switch (notice) {
     case "apple_unknown":
-      return `No ${app.name} account uses this Apple ID. Set up ${app.name} on your iPhone first.`;
+      return (
+        `No ${target.name} account uses this Apple ID. Set up ${accountsApp} on your ` +
+        `iPhone first.`
+      );
     case "google_unknown":
       return (
-        `No ${app.name} account uses this Google account. Set up ${app.name} on your iPhone ` +
-        `first.`
+        `No ${target.name} account uses this Google account. Set up ${accountsApp} on your ` +
+        `iPhone first.`
       );
     case "failed":
       return "Signing in didn't work. Try again.";
@@ -197,7 +269,7 @@ const providerForm = (binding: FormBinding, provider: "apple" | "google", label:
   `<button type="submit" class="provider ${provider}">${label}</button></form>`;
 
 /** Sign in with Apple and Google, as each brand draws its button. */
-const providerButtons = (binding: FormBinding, methods: SignInMethods, app: AppView) => {
+const providerButtons = (binding: FormBinding, methods: SignInMethods) => {
   const apple = methods.apple
     ? providerForm(
         binding,
@@ -215,13 +287,13 @@ const providerButtons = (binding: FormBinding, methods: SignInMethods, app: AppV
     : "";
   const accounts = methods.google ? "Apple ID or Google account" : "Apple ID";
   return `${apple}${google}
-<p class="muted">Use the ${accounts} you use with ${escape(app.name)} on your iPhone.</p>`;
+<p class="muted">Use the ${accounts} you use with ${escape(accountsApp)} on your iPhone.</p>`;
 };
 
 /** Signing in, before consent, with the ways `methods` allows. */
 export const signInPage = (options: {
   readonly client: ClientView;
-  readonly app: AppView;
+  readonly app: TargetView;
   readonly binding: FormBinding;
   readonly methods: SignInMethods;
   readonly notice?: SignInNotice | undefined;
@@ -234,7 +306,7 @@ export const signInPage = (options: {
       : `<p class="warning notice" role="alert">${escape(noticeText(options.notice, app))}</p>\n`;
   const providers = methods.apple || methods.google;
   const signIn = providers
-    ? `<section>${notice}${providerButtons(binding, methods, app)}</section>`
+    ? `<section>${notice}${providerButtons(binding, methods)}</section>`
     : methods.testAccounts
       ? `<section>
 <form method="post" action="/oauth/authorize/sign-in">${hidden(binding)}
@@ -255,13 +327,47 @@ ${whoIsAsking(client)}
 ${signIn}
 <div class="buttons">${cancelForm(binding)}</div>`,
     methods.google ? googleFont : "",
+    targetIcon(app),
   );
 };
 
-/** Consent: who's asking, which app, and what it gets, with Allow and Cancel. */
+/** What an agent connecting to one app's server can read. */
+const appScope = (agent: string, target: TargetView) => `<section>
+<h2>What it can read</h2>
+<p>${agent} will be able to read <strong>all of your ${escape(target.name)} data</strong>. It can't
+change or delete anything.</p>
+<p>Agents may send what they read to their AI provider, which handles it under its own terms.</p>
+<p class="muted">Only ${escape(target.name)}: your other lil apps' data isn't included. See the
+<a href="${escape(target.privacyUrl)}" target="_blank" rel="noreferrer">privacy policy</a>.</p>
+</section>`;
+
+/**
+ * What an agent connecting to the combined server can read: every app its scopes chose, all or
+ * nothing. One that should read fewer connects to each app's own server instead.
+ */
+const combinedScope = (agent: string, target: TargetView) => {
+  const names = target.apps.map((app) => escape(app.name)).join(", ");
+  const list = target.apps
+    .map((app) => `<li>${appIcon(app, "app-icon")}<span>${escape(app.name)}</span></li>`)
+    .join("\n");
+  return `<section>
+<h2>What it can read</h2>
+<ul class="apps">
+${list}
+</ul>
+<p>${agent} will be able to read <strong>all of your data in these lil apps: ${names}</strong>.
+It can't change or delete anything.</p>
+<p>Agents may send what they read to their AI provider, which handles it under its own terms.</p>
+<p class="muted">Allowing gives it every app listed. To let an agent read only one of them, connect
+it to that app's own server instead. See the
+<a href="${escape(target.privacyUrl)}" target="_blank" rel="noreferrer">privacy policy</a>.</p>
+</section>`;
+};
+
+/** Consent: who's asking, which apps, and what it gets, with Allow and Cancel. */
 export const consentPage = (options: {
   readonly client: ClientView;
-  readonly app: AppView;
+  readonly app: TargetView;
   readonly binding: FormBinding;
   /** Who's signed in, as the page names them. */
   readonly account: string;
@@ -274,17 +380,12 @@ export const consentPage = (options: {
     `<h1>${escape(title)}</h1>
 <p class="lead">Signed in as <strong>${escape(options.account)}</strong></p>
 ${whoIsAsking(client)}
-<section>
-<h2>What it can read</h2>
-<p>${agent} will be able to read <strong>all of your ${escape(app.name)} data</strong>. It can't
-change or delete anything.</p>
-<p>Agents may send what they read to their AI provider, which handles it under its own terms.</p>
-<p class="muted">Only ${escape(app.name)}: your other lil apps' data isn't included. See the
-<a href="${escape(app.privacyUrl)}" target="_blank" rel="noreferrer">privacy policy</a>.</p>
-</section>
+${app.combined ? combinedScope(agent, app) : appScope(agent, app)}
 <div class="buttons">${cancelForm(binding)}
 <form method="post" action="/oauth/authorize/decision">${hidden(binding)}
 <button type="submit" class="primary" name="decision" value="allow">Allow</button></form></div>`,
+    "",
+    targetIcon(app),
   );
 };
 

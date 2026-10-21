@@ -9,23 +9,29 @@ import { addAuthorizationPage } from "./AuthorizationPage.ts";
 import { checkRegistration, InvalidClient, supportedGrantTypes } from "./ClientMetadata.ts";
 import { InvalidForm, readAtMost, readForm, requestOrigin, requestPath } from "./Requests.ts";
 import {
+  type AgentHosts,
+  AgentApps,
   agentAccessEnvironments,
   agentHosts,
-  agentResources,
-  agentScopes,
   agentsHelpUrl,
+  appMetadataPath,
+  appUrl,
   authorizationServerMetadataPath,
+  canonicalResource,
+  combinedAgentEnvironments,
+  combinedResourceMetadataPath,
+  combinedResourceUrl,
   isAuthorizationServerPath,
   isMcpPath,
-  protectedResourceMetadataPath,
-  resourceUrl,
+  scopesOf,
 } from "./Hosts.ts";
 
 // The agents' authorization server's endpoints: its metadata (RFC 8414), each app's Protected
 // Resource Metadata (RFC 9728), dynamic client registration (RFC 7591) (851-2847), the token and
 // revocation endpoints (RFC 6749, RFC 7009) (851-2848), and the authorization page
-// (`AuthorizationPage.ts`, 851-2849). They follow their own RFCs, so they're left out of the
-// OpenAPI spec, like `/v1/auth/dev`.
+// (`AuthorizationPage.ts`, 851-2849), and the combined server's metadata at the MCP host's root
+// (851-2899). They follow their own RFCs, so they're left out of the OpenAPI spec, like
+// `/v1/auth/dev`.
 
 /** The largest registration body `POST /oauth/register` reads. */
 export const maxRegistrationBytes = 8 * 1024;
@@ -45,6 +51,7 @@ const notFound = HttpServerResponse.empty({ status: 404 });
 export const AgentHostsMiddleware = HttpRouter.middleware(
   Effect.gen(function* () {
     const { environment } = yield* Deployment;
+    const registry = yield* AgentApps;
     return <E, R>(httpEffect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>) =>
       HttpServerRequest.HttpServerRequest.use((request) => {
         const origin = requestOrigin(request);
@@ -53,8 +60,9 @@ export const AgentHostsMiddleware = HttpRouter.middleware(
         const path = requestPath(request);
         const allowed =
           origin === hosts.mcp
-            ? isMcpPath(path)
-            : !isMcpPath(path) && (origin === hosts.issuer || !isAuthorizationServerPath(path));
+            ? isMcpPath(path, registry)
+            : !isMcpPath(path, registry) &&
+              (origin === hosts.issuer || !isAuthorizationServerPath(path));
         return allowed ? httpEffect : Effect.succeed(notFound);
       });
   }),
@@ -135,13 +143,16 @@ const catchOAuthErrors = <R>(
     Effect.orDie,
   );
 
-/** `POST /oauth/token`: a code exchange or a refresh, for public clients (no authentication). */
+/**
+ * `POST /oauth/token`: a code exchange or a refresh, for public clients (no authentication). The
+ * combined server's URL with a trailing slash is the same resource as without one.
+ */
 const tokenEndpoint = (tokens: AgentTokens["Service"]) =>
   Effect.gen(function* () {
     const form = yield* readTokenForm;
     const grantType = yield* form.require("grant_type");
     const clientId = yield* form.require("client_id");
-    const resource = form.get("resource");
+    const resource = Option.map(form.get("resource"), canonicalResource);
     if (grantType === "authorization_code") {
       return tokenResponse(
         pairBody(
@@ -192,8 +203,8 @@ const revocationEndpoint = (tokens: AgentTokens["Service"]) =>
     return HttpServerResponse.empty({ status: 200, headers: { "cache-control": "no-store" } });
   }).pipe(catchOAuthErrors);
 
-/** The authorization server's metadata, on the API's host. */
-const authorizationServerMetadata = (issuer: string) => ({
+/** The authorization server's metadata, on the API's host, listing every app's scopes. */
+const authorizationServerMetadata = (issuer: string, scopes: ReadonlyArray<string>) => ({
   issuer,
   authorization_endpoint: `${issuer}/oauth/authorize`,
   token_endpoint: `${issuer}/oauth/token`,
@@ -207,7 +218,7 @@ const authorizationServerMetadata = (issuer: string) => ({
   // Claude only uses Client ID Metadata Documents when this is set, with `none` above.
   client_id_metadata_document_supported: true,
   authorization_response_iss_parameter_supported: true,
-  scopes_supported: agentScopes,
+  scopes_supported: scopes,
 });
 
 /**
@@ -222,6 +233,7 @@ export const AgentOAuthRoutes = HttpRouter.use((router) =>
     const clients = yield* OAuthClients;
     const tokens = yield* AgentTokens;
     const limits = yield* RateLimits;
+    const apps = yield* AgentApps;
     const hostsOf = HttpServerRequest.HttpServerRequest.use((request) =>
       Effect.succeed(agentHosts(environment, requestOrigin(request))),
     );
@@ -230,26 +242,50 @@ export const AgentOAuthRoutes = HttpRouter.use((router) =>
       router,
       "GET",
       authorizationServerMetadataPath,
-      Effect.map(hostsOf, (hosts) => document(authorizationServerMetadata(hosts.issuer))),
+      Effect.map(hostsOf, (hosts) =>
+        document(authorizationServerMetadata(hosts.issuer, scopesOf(apps))),
+      ),
     );
 
-    for (const key of Object.keys(agentResources) as Array<keyof typeof agentResources>) {
-      const resource = agentResources[key];
-      yield* addPublic(
+    /** A protected resource's metadata (RFC 9728), naming the one authorization server. */
+    const resourceMetadata = (
+      path: string,
+      resource: (hosts: AgentHosts) => string,
+      name: string,
+      scopes: ReadonlyArray<string>,
+    ) =>
+      addPublic(
         router,
         "GET",
-        protectedResourceMetadataPath(key),
+        path as `/${string}`,
         Effect.map(hostsOf, (hosts) =>
           document({
-            resource: resourceUrl(hosts, key),
+            resource: resource(hosts),
             // The one authorization server for every app. Claude only reads the first.
             authorization_servers: [hosts.issuer],
-            scopes_supported: resource.scopes,
+            scopes_supported: scopes,
             bearer_methods_supported: ["header"],
-            resource_name: resource.name,
+            resource_name: name,
             resource_documentation: agentsHelpUrl(environment),
           }),
         ),
+      );
+
+    for (const app of Object.values(apps)) {
+      yield* resourceMetadata(
+        appMetadataPath(app),
+        (hosts) => appUrl(hosts, app),
+        app.name,
+        app.scopes,
+      );
+    }
+    // The combined server, every app's, at the root, where agents look first.
+    if (combinedAgentEnvironments.has(environment)) {
+      yield* resourceMetadata(
+        combinedResourceMetadataPath,
+        combinedResourceUrl,
+        "lil",
+        scopesOf(apps),
       );
     }
 

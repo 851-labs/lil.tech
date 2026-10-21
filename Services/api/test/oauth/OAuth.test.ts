@@ -8,11 +8,21 @@ import {
   clientMetadataAge,
   InvalidClient,
 } from "../../src/oauth/ClientMetadata.ts";
-import { agentHosts, resourceUrl } from "../../src/oauth/Hosts.ts";
+import {
+  agentHosts,
+  agentResources,
+  canonicalResource,
+  grantFor,
+  isMcpPath,
+  resourceUrl,
+  scopesOf,
+  targetFor,
+} from "../../src/oauth/Hosts.ts";
 import { matchesRedirectUri, redirectUriProblem } from "../../src/oauth/RedirectUris.ts";
 import { type RateLimitName, RateLimits } from "../../src/RateLimits.ts";
 import { TestCore } from "../core/TestCoreDatabase.ts";
 import { type Handler, send, withApi } from "../TestApi.ts";
+import { registryWithMail, WithMail } from "./TestAgents.ts";
 
 const preview: Deployment["Service"] = { environment: "preview", version: "1" };
 const staging: Deployment["Service"] = { environment: "staging", version: "1" };
@@ -74,13 +84,25 @@ describe("OAuth metadata", () => {
             resource_name: "lil health",
             resource_documentation: "https://lil.tech/agents",
           });
-          // The root is left for a combined server later, and there's no OpenID discovery.
-          for (const path of [
-            "/.well-known/oauth-protected-resource",
-            "/.well-known/openid-configuration",
-          ]) {
-            assert.strictEqual((yield* get(handler, `${previewOrigin}${path}`)).status, 404, path);
-          }
+          // The combined server's, at the root, lists every app's scopes.
+          const combined = yield* get(
+            handler,
+            `${previewOrigin}/.well-known/oauth-protected-resource`,
+          );
+          assert.strictEqual(combined.status, 200);
+          assert.deepStrictEqual(yield* json(combined), {
+            resource: previewOrigin,
+            authorization_servers: [previewOrigin],
+            scopes_supported: ["health:read"],
+            bearer_methods_supported: ["header"],
+            resource_name: "lil",
+            resource_documentation: "https://lil.tech/agents",
+          });
+          // No OpenID discovery.
+          assert.strictEqual(
+            (yield* get(handler, `${previewOrigin}/.well-known/openid-configuration`)).status,
+            404,
+          );
         }),
       preview,
     ),
@@ -94,6 +116,7 @@ describe("OAuth metadata", () => {
           for (const path of [
             "/.well-known/oauth-authorization-server",
             "/.well-known/oauth-protected-resource/health",
+            "/.well-known/oauth-protected-resource",
           ]) {
             const response = yield* get(handler, `${previewOrigin}${path}`, origin);
             assert.strictEqual(response.headers.get("access-control-allow-origin"), "*", path);
@@ -149,9 +172,22 @@ describe("OAuth metadata", () => {
             issuer: "https://api.staging.lil.tech",
             registration_endpoint: "https://api.staging.lil.tech/oauth/register",
           });
+          const combined = yield* get(
+            handler,
+            "https://mcp.staging.lil.tech/.well-known/oauth-protected-resource",
+          );
+          assert.strictEqual(combined.status, 200);
+          assert.deepInclude(yield* json(combined), {
+            resource: "https://mcp.staging.lil.tech",
+            authorization_servers: ["https://api.staging.lil.tech"],
+            scopes_supported: ["health:read"],
+            resource_name: "lil",
+            resource_documentation: "https://staging.lil.tech/agents",
+          });
           // Neither host serves the other's routes.
           for (const url of [
             "https://api.staging.lil.tech/.well-known/oauth-protected-resource/health",
+            "https://api.staging.lil.tech/.well-known/oauth-protected-resource",
             "https://mcp.staging.lil.tech/.well-known/oauth-authorization-server",
             "https://mcp.staging.lil.tech/v1/status",
             "https://mcp.staging.lil.tech/oauth/register",
@@ -210,12 +246,129 @@ describe("OAuth metadata", () => {
             "https://api.lil.tech/.well-known/oauth-protected-resource/health",
             "https://mcp.lil.tech/.well-known/oauth-authorization-server",
             "https://mcp.lil.tech/v1/status",
+            // The combined server isn't in prod yet (851-2903).
+            "https://mcp.lil.tech/.well-known/oauth-protected-resource",
+            "https://mcp.lil.tech/",
           ]) {
             assert.strictEqual((yield* get(handler, url)).status, 404, url);
           }
           assert.strictEqual((yield* get(handler, "https://api.lil.tech/v1/status")).status, 200);
         }),
       prod,
+    ),
+  );
+});
+
+describe("The combined server's resource", () => {
+  const hosts = agentHosts("prod", "https://mcp.lil.tech");
+
+  it("is the MCP host's origin, with or without a trailing slash, where it's allowed", () => {
+    for (const resource of ["https://mcp.lil.tech", "https://mcp.lil.tech/"]) {
+      assert.deepStrictEqual(
+        targetFor(agentResources, hosts, resource, true),
+        Option.some({
+          resource: "https://mcp.lil.tech",
+          combined: true,
+          apps: ["health"],
+        }),
+      );
+      assert.isTrue(Option.isNone(targetFor(agentResources, hosts, resource, false)));
+    }
+    assert.deepStrictEqual(
+      targetFor(registryWithMail, hosts, "https://mcp.lil.tech/", true).pipe(
+        Option.map((target) => target.apps),
+      ),
+      Option.some(["health", "mail"]),
+    );
+    // An app's own server is exact, with or without the combined server.
+    for (const combined of [true, false]) {
+      assert.deepStrictEqual(
+        targetFor(registryWithMail, hosts, "https://mcp.lil.tech/mail", combined),
+        Option.some({ resource: "https://mcp.lil.tech/mail", combined: false, apps: ["mail"] }),
+      );
+      for (const resource of [
+        "https://mcp.lil.tech/health/",
+        "https://mcp.lil.tech//",
+        "https://mcp.staging.lil.tech",
+        "https://api.lil.tech",
+      ]) {
+        assert.isTrue(
+          Option.isNone(targetFor(agentResources, hosts, resource, combined)),
+          resource,
+        );
+      }
+    }
+    // An origin with a trailing slash is that origin, whichever host the request reached.
+    for (const [given, canonical] of [
+      ["https://mcp.lil.tech/", "https://mcp.lil.tech"],
+      ["https://lil-api-pr-12.example.workers.dev/", "https://lil-api-pr-12.example.workers.dev"],
+      ["https://mcp.lil.tech", "https://mcp.lil.tech"],
+      ["https://mcp.lil.tech/health", "https://mcp.lil.tech/health"],
+      ["https://mcp.lil.tech/health/", "https://mcp.lil.tech/health/"],
+      ["https://mcp.lil.tech//", "https://mcp.lil.tech//"],
+      ["https://MCP.lil.tech/", "https://MCP.lil.tech/"],
+      ["not a url/", "not a url/"],
+    ] as const) {
+      assert.strictEqual(canonicalResource(given), canonical, given);
+    }
+  });
+
+  it("lets the scopes asked for choose the apps", () => {
+    const combined = Option.getOrThrow(
+      targetFor(registryWithMail, hosts, "https://mcp.lil.tech", true),
+    );
+    assert.deepStrictEqual(grantFor(registryWithMail, combined, ""), {
+      scopes: ["health:read", "mail:read"],
+      apps: ["health", "mail"],
+    });
+    assert.deepStrictEqual(grantFor(registryWithMail, combined, "mail:read calendar:read"), {
+      scopes: ["mail:read"],
+      apps: ["mail"],
+    });
+    assert.deepStrictEqual(grantFor(registryWithMail, combined, "openid"), {
+      scopes: ["health:read", "mail:read"],
+      apps: ["health", "mail"],
+    });
+    const health = Option.getOrThrow(
+      targetFor(registryWithMail, hosts, "https://mcp.lil.tech/health", true),
+    );
+    assert.deepStrictEqual(grantFor(registryWithMail, health, "mail:read"), {
+      scopes: ["health:read"],
+      apps: ["health"],
+    });
+    assert.deepStrictEqual(scopesOf(registryWithMail), ["health:read", "mail:read"]);
+  });
+
+  it("is on the MCP host, as exact paths", () => {
+    for (const path of ["/", "/.well-known/oauth-protected-resource"]) {
+      assert.isTrue(isMcpPath(path), path);
+    }
+    for (const path of ["/v1/status", "/.well-known/oauth-protected-resource/x", "/oauth/token"]) {
+      assert.isFalse(isMcpPath(path), path);
+    }
+    // Each app's server and metadata, from the registry.
+    assert.isFalse(isMcpPath("/.well-known/oauth-protected-resource/mail"));
+    assert.isTrue(isMcpPath("/.well-known/oauth-protected-resource/mail", registryWithMail));
+    assert.isTrue(isMcpPath("/mail", registryWithMail));
+  });
+
+  it.live("lists every app's scopes in the metadata", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          for (const path of [
+            "/.well-known/oauth-protected-resource",
+            "/.well-known/oauth-authorization-server",
+          ]) {
+            const response = yield* get(handler, `${previewOrigin}${path}`);
+            assert.deepInclude(yield* json(response), {
+              scopes_supported: ["health:read", "mail:read"],
+            });
+          }
+        }),
+      preview,
+      RateLimits.unlimited,
+      WithMail,
     ),
   );
 });

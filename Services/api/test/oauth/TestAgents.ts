@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Clock, Effect, Layer } from "effect";
 import { AgentTokens, authorizationCodeLifetime } from "../../src/oauth/AgentTokens.ts";
+import type { ConsentType } from "../../src/core/Consents.ts";
+import { type AgentAppRegistry, AgentApps, agentResources } from "../../src/oauth/Hosts.ts";
 import { CoreDb } from "../../src/core/CoreDb.ts";
 import { newAgentAuthorizationId, newOAuthClientId, type UserId } from "../../src/core/Ids.ts";
 import { agentAuthorizations, oauthClients } from "../../src/core/Schema.ts";
@@ -16,6 +18,27 @@ export const healthResource = "https://mcp.lil.tech/health";
 
 /** Claude Code's Client ID Metadata Document, which its `client_id` is. */
 export const claudeCode = "https://claude.ai/oauth/claude-code-client-metadata";
+
+/** lil's combined MCP server in prod: its tokens' audience. */
+export const combinedResource = "https://mcp.lil.tech";
+
+/**
+ * The app registry with a second app, lil mail, which doesn't exist yet: for tests of what the
+ * combined server does with several apps. Its consent type isn't a real one.
+ */
+export const registryWithMail: AgentAppRegistry = {
+  ...agentResources,
+  mail: {
+    path: "/mail",
+    name: "lil mail",
+    scopes: ["mail:read"],
+    consent: "agents:mail" as ConsentType,
+    consentPolicyVersion: "2026-11-01",
+  },
+};
+
+/** Provides `registryWithMail` as the apps the authorization server knows. */
+export const WithMail = Layer.succeed(AgentApps, registryWithMail);
 
 /** `AgentTokens` over a fresh test database, without rate limits. */
 export const TestAgents = AgentTokens.layer.pipe(

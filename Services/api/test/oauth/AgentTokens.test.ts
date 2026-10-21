@@ -22,7 +22,13 @@ import {
 import { type RateLimitName, RateLimits } from "../../src/RateLimits.ts";
 import { TestSessionKey } from "../auth/TestAuth.ts";
 import { type Handler, withApi } from "../TestApi.ts";
-import { type Approval, approve, healthResource, TestAgents } from "./TestAgents.ts";
+import {
+  type Approval,
+  approve,
+  combinedResource,
+  healthResource,
+  TestAgents,
+} from "./TestAgents.ts";
 
 const minute = 60 * 1000;
 const day = 24 * 60 * minute;
@@ -116,6 +122,20 @@ describe("AgentTokens: authorization codes", () => {
         assert.match(row.tokenHash, /^[0-9a-f]{64}$/);
         assert.notInclude([pair.accessToken, pair.refreshToken], row.tokenHash);
       }
+    }).pipe(Effect.provide(TestAgents)),
+  );
+
+  it.effect("for the combined server only work there, and an app's only at the app's", () =>
+    Effect.gen(function* () {
+      const combined = yield* exchange(yield* approve({ resource: combinedResource }));
+      assert.strictEqual((yield* verify(combined, combinedResource)).resource, combinedResource);
+      yield* rejected(combined, "invalid", healthResource);
+      yield* rejected(combined, "invalid", `${combinedResource}/`);
+      yield* rejected(combined, "invalid", "https://mcp.staging.lil.tech");
+
+      const health = yield* exchange(yield* approve());
+      assert.strictEqual((yield* verify(health)).resource, healthResource);
+      yield* rejected(health, "invalid", combinedResource);
     }).pipe(Effect.provide(TestAgents)),
   );
 
@@ -559,6 +579,47 @@ describe("POST /oauth/token", () => {
           assert.strictEqual(again.status, 400);
           assert.strictEqual(again.headers.get("cache-control"), "no-store");
           assert.deepInclude(again.body, { error: "invalid_grant" });
+        }),
+      preview,
+    ),
+  );
+
+  it.live("takes the combined server's URL with or without a trailing slash", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const combined = yield* approve({ resource: previewOrigin });
+          const response = yield* post(handler, "/oauth/token", {
+            ...codeParams(combined),
+            resource: `${previewOrigin}/`,
+          });
+          assert.strictEqual(response.status, 200);
+          const token = String(response.body?.["access_token"]);
+          assert.strictEqual((yield* verifyIn(token, previewOrigin)).resource, previewOrigin);
+          const refreshToken = String(response.body?.["refresh_token"]);
+          for (const resource of [previewOrigin, `${previewOrigin}/`]) {
+            const refreshed = yield* post(handler, "/oauth/token", {
+              grant_type: "refresh_token",
+              refresh_token: refreshToken,
+              client_id: combined.clientId,
+              resource,
+            });
+            assert.strictEqual(refreshed.status, 200, resource);
+          }
+          // Not another resource's: lil health's server, or the combined one for an app's grant.
+          const toHealth = yield* post(handler, "/oauth/token", {
+            grant_type: "refresh_token",
+            refresh_token: refreshToken,
+            client_id: combined.clientId,
+            resource: previewResource,
+          });
+          assert.deepInclude(toHealth.body, { error: "invalid_target" });
+          const health = yield* approve({ resource: previewResource });
+          const healthToCombined = yield* post(handler, "/oauth/token", {
+            ...codeParams(health),
+            resource: `${previewOrigin}/`,
+          });
+          assert.deepInclude(healthToCombined.body, { error: "invalid_target" });
         }),
       preview,
     ),

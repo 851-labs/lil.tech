@@ -17,18 +17,21 @@ export type Handler = (request: Request) => Promise<Response>;
 
 /**
  * Runs `use` with a handler for the same layer the Worker serves, driven with real Requests. The
- * handler and `use` share one test database, so `use` can seed it.
+ * handler and `use` share one test database, so `use` can seed it. `overrides` provides more
+ * services to both, such as references (`AgentApps`).
  */
 export const withApi = <A, E>(
   use: (handler: Handler) => Effect.Effect<A, E, Layer.Success<typeof TestServices>>,
   deployment: Deployment["Service"] = { environment: "staging", version: "45aa829" },
   limits: RateLimits["Service"] = RateLimits.unlimited,
+  overrides: Layer.Layer<never> = Layer.empty,
 ) =>
   Effect.gen(function* () {
     const services = Layer.mergeAll(
       TestServices,
       Layer.succeed(Deployment, deployment),
       Layer.succeed(RateLimits, limits),
+      overrides,
     );
     const memoMap = yield* Layer.makeMemoMap;
     const context = yield* Layer.buildWithMemoMap(services, memoMap, yield* Effect.scope);

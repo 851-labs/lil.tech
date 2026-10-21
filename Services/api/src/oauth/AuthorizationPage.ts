@@ -8,7 +8,7 @@ import { GoogleSignIn } from "../auth/Google.ts";
 import { googleAuthorizeUrl, GoogleWebClient, googleWebOrigin } from "../auth/GoogleWeb.ts";
 import { base64url, sha256Hex } from "../auth/Tokens.ts";
 import { AgentGrants, type PendingAuthorization } from "../core/AgentGrants.ts";
-import { agentsConsentPolicyVersions, Consents } from "../core/Consents.ts";
+import { Consents } from "../core/Consents.ts";
 import { Identities } from "../core/Identities.ts";
 import { AgentAuthorizationId, newAgentAuthorizationId } from "../core/Ids.ts";
 import { type OAuthClient, OAuthClients } from "../core/OAuthClients.ts";
@@ -21,7 +21,6 @@ import {
   redirectHost,
 } from "./AgentTokens.ts";
 import {
-  type AppView,
   type ClientView,
   consentPage,
   defaultTestAccount,
@@ -32,15 +31,21 @@ import {
   pageResponse,
   SignInNotice,
   signInPage,
+  type TargetView,
 } from "./AuthorizationPages.ts";
 import {
+  type AgentAppRegistry,
+  AgentApps,
   type AgentHosts,
-  type AgentResource,
+  type AgentTarget,
   agentHosts,
-  agentResources,
-  resourceFor,
-  resourceUrl,
+  appsOfScopes,
+  appUrl,
+  combinedAgentEnvironments,
+  defaultAgentApp,
+  grantFor,
   siteUrl,
+  targetFor,
 } from "./Hosts.ts";
 import { isLoopbackUri, matchesRedirectUri } from "./RedirectUris.ts";
 import { queryOf, readForm, readParams, requestOrigin } from "./Requests.ts";
@@ -241,8 +246,10 @@ interface CheckedRequest {
   readonly redirectUri: string;
   readonly state: string | null;
   readonly codeChallenge: string;
-  readonly resource: AgentResource;
+  readonly target: AgentTarget;
   readonly scopes: ReadonlyArray<string>;
+  /** The apps the scopes cover: the one app, or those the combined server's scopes chose. */
+  readonly apps: ReadonlyArray<string>;
 }
 
 /**
@@ -253,6 +260,8 @@ const checkRequest = Effect.fnUntraced(function* (
   query: string,
   hosts: AgentHosts,
   clients: OAuthClients["Service"],
+  registry: AgentAppRegistry,
+  combined: boolean,
 ): Effect.fn.Return<CheckedRequest, PageError | RedirectError> {
   // Every value given, so a parameter given twice is caught even when one is empty. One without a
   // value counts as absent (RFC 6749 §3.1).
@@ -326,31 +335,35 @@ const checkRequest = Effect.fnUntraced(function* (
   if (!s256Challenge.test(challenge.value)) {
     return yield* fail("invalid_request", "code_challenge isn't an S256 challenge");
   }
-  const asked = one("resource");
-  // Without a resource, the health server is assumed while it's the only one.
-  const resource = Option.isNone(asked)
-    ? Option.some("health" as const)
-    : resourceFor(hosts, asked.value);
-  if (Option.isNone(resource)) {
+  // Without a resource, lil health's server is assumed, as it was before the combined server, so
+  // clients that leave it out keep working. Never the combined server.
+  const defaultApp = registry[defaultAgentApp];
+  const asked = Option.match(one("resource"), {
+    onNone: () =>
+      defaultApp === undefined ? Option.none() : Option.some(appUrl(hosts, defaultApp)),
+    onSome: Option.some,
+  });
+  const target = Option.flatMap(asked, (resource) =>
+    targetFor(registry, hosts, resource, combined),
+  );
+  if (Option.isNone(target)) {
     return yield* fail("invalid_target", `The resource isn't one of lil's MCP servers`);
   }
-  // Scopes the app's server doesn't have (another app's, or unknown) are dropped, and none at all
-  // means all of the app's.
-  const known: ReadonlyArray<string> = agentResources[resource.value].scopes;
-  const scopes = [
-    ...new Set(
-      Option.getOrElse(one("scope"), () => "")
-        .split(" ")
-        .filter((scope) => known.includes(scope)),
-    ),
-  ];
+  // Scopes the target doesn't have (another app's, or unknown) are dropped, and none at all means
+  // all of its apps'. For the combined server, the scopes asked for choose the apps.
+  const { scopes, apps } = grantFor(
+    registry,
+    target.value,
+    Option.getOrElse(one("scope"), () => ""),
+  );
   return {
     client,
     redirectUri: redirectUri.value,
     state: Option.getOrNull(state),
     codeChallenge: challenge.value,
-    resource: resource.value,
-    scopes: scopes.length === 0 ? known : scopes,
+    target: target.value,
+    scopes,
+    apps,
   };
 });
 
@@ -373,6 +386,8 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
     const apple = yield* AppleSignIn;
     const google = yield* GoogleSignIn;
     const googleWeb = yield* GoogleWebClient;
+    const registry = yield* AgentApps;
+    const combined = combinedAgentEnvironments.has(environment);
     const providerSignIn = providerSignInEnvironments.has(environment);
     const methods = {
       testAccounts: devSignInEnvironments.has(environment),
@@ -390,16 +405,26 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
       agentHosts(environment, requestOrigin(request)),
     );
 
-    /** The app a stored authorization is for, by its resource. */
-    const appOf = (hosts: AgentHosts, pending: PendingAuthorization) =>
-      Option.match(resourceFor(hosts, pending.resource), {
+    /** The apps a stored authorization reads: those of its resource that its scopes cover. */
+    const appsOf = (hosts: AgentHosts, pending: PendingAuthorization) =>
+      Option.match(targetFor(registry, hosts, pending.resource, combined), {
         onNone: () => Effect.fail(notThisBrowser),
-        onSome: (key) => Effect.succeed(key),
+        onSome: (target) =>
+          Effect.succeed({ target, apps: appsOfScopes(registry, target, pending.scopes) }),
       });
-    const appView = (key: AgentResource): AppView => ({
-      name: agentResources[key].name,
-      privacyUrl: privacyUrl(environment),
-    });
+    /** What the page says the agent connects to: one app, or lil and the apps it reads. */
+    const targetView = (target: AgentTarget, apps: ReadonlyArray<string>): TargetView => {
+      const views = apps.flatMap((key) => {
+        const app = registry[key];
+        return app === undefined ? [] : [{ key, name: app.name }];
+      });
+      return {
+        name: target.combined ? "lil" : (views[0]?.name ?? "lil"),
+        combined: target.combined,
+        apps: views,
+        privacyUrl: privacyUrl(environment),
+      };
+    };
 
     /**
      * The authorization request `id`, if this browser started it and it hasn't expired, with the
@@ -448,7 +473,8 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
     ) =>
       Effect.gen(function* () {
         if (pending.decided) return yield* alreadyAnswered;
-        const app = appView(yield* appOf(hosts, pending));
+        const { target, apps } = yield* appsOf(hosts, pending);
+        const app = targetView(target, apps);
         const client = pendingClientView(pending);
         if (pending.userId === null) {
           return pageResponse(signInPage({ client, app, binding, methods, notice }), {
@@ -594,7 +620,13 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
         yield* checkAddressRateLimit(limits, "signIn");
         const request = yield* HttpServerRequest.HttpServerRequest;
         const hosts = yield* hostsOf;
-        const checked = yield* checkRequest(queryOf(request.url), hosts, clients);
+        const checked = yield* checkRequest(
+          queryOf(request.url),
+          hosts,
+          clients,
+          registry,
+          combined,
+        );
         const now = yield* Clock.currentTimeMillis;
         const cookie = yield* newBrowserSecret;
         const id = yield* newAgentAuthorizationId;
@@ -605,7 +637,7 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
           state: checked.state,
           codeChallenge: checked.codeChallenge,
           scopes: checked.scopes,
-          resource: resourceUrl(hosts, checked.resource),
+          resource: checked.target.resource,
           browserHash: yield* sha256Hex(cookie),
           createdAt: now,
           expiresAt: now + agentAuthorizationLifetime,
@@ -615,7 +647,7 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
             { name: checked.client.name, kind: checked.client.kind, id: checked.client.clientId },
             checked.redirectUri,
           ),
-          app: appView(checked.resource),
+          app: targetView(checked.target, checked.apps),
           binding: { request: id, csrf: yield* csrfToken(cookie, id) },
           methods,
         });
@@ -855,7 +887,7 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
         }
         const userId = pending.userId;
         if (userId === null) return yield* notThisBrowser;
-        const key = yield* appOf(hosts, pending);
+        const { apps } = yield* appsOf(hosts, pending);
         const code = yield* authorizationCode(cookie, pending.id);
         const codeHash = yield* sha256Hex(code);
         // What this request's code is now: just given it, or as an earlier Allow left it.
@@ -891,10 +923,14 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
         ) {
           return yield* alreadyAnswered;
         }
-        // Recorded once the request is allowed, so a request that wasn't has no consent. Granting
-        // again keeps the first.
-        const consent = agentResources[key].consent;
-        yield* consents.grant(userId, consent, agentsConsentPolicyVersions[consent]);
+        // Recorded once the request is allowed, so a request that wasn't has no consent: each app's
+        // it reads, all of them, since the page is all or nothing. Granting again keeps the first,
+        // so an Allow sent again after one failed records the rest.
+        yield* Effect.forEach(
+          apps.flatMap((key) => registry[key] ?? []),
+          (app) => consents.grant(userId, app.consent, app.consentPolicyVersion),
+          { concurrency: "unbounded", discard: true },
+        );
         return backToAgent(pending.redirectUri, { code }, pending.state, hosts.issuer, 303).pipe(
           withBrowserCookie(pending.id, null),
         );

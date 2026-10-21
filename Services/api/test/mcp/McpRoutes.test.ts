@@ -284,6 +284,11 @@ describe("the Health MCP server", () => {
           const mail = yield* connect(handler, { resource: `${previewOrigin}/mail` });
           const other = yield* call(handler, mail.accessToken, "tools/list");
           assert.strictEqual(other.status, 401);
+          // The combined server's tokens (851-2899) are for it, not for each app's own server.
+          const combined = yield* connect(handler, { resource: previewOrigin });
+          const fromCombined = yield* call(handler, combined.accessToken, "tools/list");
+          assert.strictEqual(fromCombined.status, 401);
+          assert.include(fromCombined.headers.get("www-authenticate"), 'error="invalid_token"');
         }),
       preview,
     ),
