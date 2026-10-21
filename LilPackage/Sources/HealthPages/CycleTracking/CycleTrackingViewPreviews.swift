@@ -19,8 +19,19 @@ private let days: [Date: CycleDay] = [
   day(6): CycleDay(flow: .light, symptoms: ["Headache"]),
   day(7): CycleDay(flow: .light),
   day(11): CycleDay(sexualActivity: true),
-  day(16): CycleDay(ovulationPositive: true),
-  day(17): CycleDay(ovulationPositive: true, symptoms: ["Bloating"]),
+  day(14): CycleDay(
+    log: [
+      CycleLogEntry(name: "Cervical Mucus Quality", value: "Egg White"),
+      CycleLogEntry(name: "Ovulation Test Result", value: "Negative"),
+    ]),
+  day(16): CycleDay(
+    ovulationPositive: true,
+    log: [CycleLogEntry(name: "Ovulation Test Result", value: "Positive (LH Surge)")]),
+  day(21): CycleDay(
+    bleeding: true, log: [CycleLogEntry(name: "Bleeding After Pregnancy", value: "Light")]),
+  day(17): CycleDay(
+    ovulationPositive: true, symptoms: ["Bloating"],
+    log: [CycleLogEntry(name: "Ovulation Test Result", value: "Estrogen Surge")]),
   day(24): CycleDay(spotting: true),
   day(28): CycleDay(symptoms: ["Mood Changes", "Acne"]),
 ]
@@ -60,6 +71,13 @@ private func cycle(_ state: CycleTrackingContent.State, selected: Date? = nil) -
             since: calendar.date(byAdding: .month, value: -8, to: month.start)!)
         ])),
     selected: day(16))
+}
+
+// A day's tests and other logs, each value as Health names it (851-2830).
+#Preview("A day with tests") {
+  cycle(
+    .loaded(CycleSnapshot(month: month, days: days, periods: periods, factors: [])),
+    selected: day(14))
 }
 
 #Preview("A month without logs") {

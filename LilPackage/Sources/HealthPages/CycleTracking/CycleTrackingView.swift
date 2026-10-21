@@ -1,3 +1,4 @@
+import Dependencies
 import HealthDatabase
 import HealthUI
 import SQLiteData
@@ -8,15 +9,23 @@ public import SwiftUI
 /// predictions stay on the iPhone (HealthKit doesn't share them), so there are none here.
 /// Follows the local database as sync changes it.
 public struct CycleTrackingView: View {
+  /// The type it was opened for, whose latest sample's month and day it opens on (851-2830).
+  let typeID: String?
+  @Dependency(\.defaultDatabase) private var database
   @State private var monthOffset = 0
   @State private var selected: Date?
+  /// Whether the month to open on is known, so the first month loaded is the right one.
+  @State private var isPositioned: Bool
   /// Moves at midnight, so the months do even if nothing syncs.
   @State private var today = Date.now
   @Fetch private var days: CycleMonth? = nil
   /// Not tied to the month shown, so they load once.
   @Fetch private var history: CycleHistory? = nil
 
-  public init() {
+  public init(typeID: String? = nil) {
+    self.typeID = typeID
+    // A period opens on today's month, as it always has: its latest sample may be "no flow".
+    _isPositioned = State(initialValue: typeID == nil || typeID == HealthDatabase.menstrualFlowType)
     _history = Fetch(wrappedValue: nil, CycleHistoryRequest(), scheduler: MainQueueScheduler())
   }
 
@@ -37,11 +46,35 @@ public struct CycleTrackingView: View {
       isLatest: monthOffset >= 0
     )
     .task(id: [String(monthOffset), today.formatted(.iso8601)]) {
+      if !isPositioned {
+        let offset = monthOffset
+        await openOnLatestSample()
+        isPositioned = true
+        // A new month runs this task again for it.
+        guard monthOffset == offset else { return }
+      }
+      let month = ChartRange.month.interval(offset: monthOffset, now: today, calendar: .current)
       _ = try? await $days.load(CycleMonthRequest(month: month), scheduler: MainQueueScheduler())
     }
     .onReceive(calendarDayChanges()) {
       today = .now
     }
+  }
+
+  /// Shows the month of the type's latest sample (not one dated later than now), with its day
+  /// selected. Today's month if it has none.
+  private func openOnLatestSample() async {
+    let now = Date.now
+    guard let typeID,
+      let latest = try? await database.read({ db in
+        try HealthDatabase.latestSample(of: typeID, startedBy: now, db)?.start
+      })
+    else { return }
+    let calendar = Calendar.current
+    let thisMonth = calendar.dateInterval(of: .month, for: today)?.start ?? today
+    let month = calendar.dateInterval(of: .month, for: latest)?.start ?? latest
+    monthOffset = min(calendar.dateComponents([.month], from: thisMonth, to: month).month ?? 0, 0)
+    selected = calendar.startOfDay(for: latest)
   }
 }
 
@@ -203,7 +236,7 @@ struct CycleTrackingContent: View {
       legendItem("Period") { Circle().fill(.red) }
       legendItem("Spotting") { Circle().strokeBorder(.red, lineWidth: 1.5) }
       legendItem("Ovulation Test") { Circle().fill(.blue) }
-      legendItem("Symptoms") { Circle().fill(.purple) }
+      legendItem("Symptoms and Logs") { Circle().fill(.purple) }
       legendItem("Sexual Activity") { Circle().fill(.pink) }
     }
     .font(.caption)
@@ -238,8 +271,18 @@ struct CycleTrackingContent: View {
       if let entry, entry != CycleDay() {
         if let flow = entry.flow { Text(flow.name) }
         if entry.spotting { Text("Spotting") }
-        if entry.ovulationPositive { Text("Positive Ovulation Test") }
         if entry.sexualActivity { Text("Sexual Activity") }
+        // Each as Health names it: Cervical Mucus Quality, and Egg White on the right.
+        ForEach(Array(entry.log.enumerated()), id: \.offset) { _, item in
+          HStack {
+            Text(item.name)
+            Spacer()
+            if let value = item.value {
+              Text(value)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
         if !entry.symptoms.isEmpty {
           Text(entry.symptoms.joined(separator: ", "))
             .foregroundStyle(.purple)
@@ -324,7 +367,7 @@ struct CycleDayCell: View {
         .background {
           if let flow = entry?.flow {
             Circle().fill(.red.opacity(opacity(flow)))
-          } else if entry?.spotting == true {
+          } else if entry?.spotting == true || entry?.bleeding == true {
             Circle().strokeBorder(.red, lineWidth: 1.5)
           }
         }
@@ -333,7 +376,8 @@ struct CycleDayCell: View {
         }
       HStack(spacing: 2) {
         if entry?.ovulationPositive == true { dot(.blue) }
-        if entry?.symptoms.isEmpty == false { dot(.purple) }
+        // Anything else logged, as Health's purple dot marks it.
+        if entry?.symptoms.isEmpty == false || entry?.log.isEmpty == false { dot(.purple) }
         if entry?.sexualActivity == true { dot(.pink) }
       }
       .frame(height: 5)

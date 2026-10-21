@@ -1937,6 +1937,76 @@ struct CycleQueriesTests {
   }
 
   @Test
+  func aDaysLogNamesEachValue() throws {
+    let database = try database([
+      sample("a", "HKCategoryTypeIdentifierCervicalMucusQuality", day: 5, value: 5),
+      sample("b", "HKCategoryTypeIdentifierOvulationTestResult", day: 5, value: 1),
+      sample("c", "HKCategoryTypeIdentifierPregnancyTestResult", day: 5, value: 2),
+      sample("d", "HKCategoryTypeIdentifierBleedingDuringPregnancy", day: 6, value: 3),
+      // No bleeding isn't marked, but it's in the log.
+      sample("e", "HKCategoryTypeIdentifierBleedingAfterMenopause", day: 7, value: 5),
+      sample("f", "HKCategoryTypeIdentifierContraceptive", day: 8, value: 6, endDay: 30),
+      // Spans months: its first day says so, until it has a section (851-2871).
+      sample("g", "HKCategoryTypeIdentifierIrregularMenstrualCycles", day: 9, value: 0),
+    ])
+    let october = calendar.dateInterval(of: .month, for: day(1))!
+    let days = try database.read { db in
+      try HealthDatabase.cycleDays(in: october, calendar: calendar, db)
+    }
+    let start = { (n: Int) in self.calendar.startOfDay(for: self.day(n)) }
+    #expect(
+      days[start(5)]?.log == [
+        CycleLogEntry(name: "Cervical Mucus Quality", value: "Egg White"),
+        CycleLogEntry(name: "Ovulation Test Result", value: "Negative"),
+        CycleLogEntry(name: "Pregnancy Test Result", value: "Positive"),
+      ])
+    #expect(days[start(5)]?.ovulationPositive == false)
+    #expect(
+      days[start(6)]
+        == CycleDay(
+          bleeding: true, log: [.init(name: "Bleeding During Pregnancy", value: "Medium")]))
+    #expect(days[start(7)]?.bleeding == false)
+    #expect(days[start(7)]?.log == [.init(name: "Bleeding After Menopause", value: "None")])
+    #expect(days[start(8)]?.log == [.init(name: "Contraceptives", value: "Oral")])
+    #expect(days[start(9)]?.log == [.init(name: "Irregular Cycles", value: nil)])
+  }
+
+  @Test
+  func valuesAreNamedAsHealthNamesThem() {
+    let name = HealthDatabase.categoryValueName
+    #expect(name(4, "HKCategoryTypeIdentifierOvulationTestResult") == "Estrogen Surge")
+    #expect(name(2, "HKCategoryTypeIdentifierOvulationTestResult") == "Positive (LH Surge)")
+    #expect(name(3, "HKCategoryTypeIdentifierProgesteroneTestResult") == "Indeterminate")
+    #expect(name(1, "HKCategoryTypeIdentifierCervicalMucusQuality") == "Dry")
+    #expect(name(4, HealthDatabase.menstrualFlowType) == "Heavy Flow")
+    #expect(name(4, "HKCategoryTypeIdentifierBleedingAfterPregnancy") == "Heavy")
+    // Unspecified, or nothing to name.
+    #expect(name(1, "HKCategoryTypeIdentifierBleedingAfterPregnancy") == nil)
+    #expect(name(1, "HKCategoryTypeIdentifierContraceptive") == nil)
+    #expect(name(0, "HKCategoryTypeIdentifierSexualActivity") == nil)
+    #expect(name(nil, "HKCategoryTypeIdentifierCervicalMucusQuality") == nil)
+  }
+
+  @Test
+  func everyCycleCategoryTypeOpensCycleTrackingOnItsLatestSample() throws {
+    let cycleTypes = HealthCatalog.all.filter { $0.category == .cycleTracking }
+    let opening = cycleTypes.filter { HealthDatabase.opensCycleTracking($0.id) }.map(\.id)
+    #expect(opening.count == cycleTypes.count - 1)
+    #expect(!opening.contains("HKQuantityTypeIdentifierBasalBodyTemperature"))
+    #expect(!HealthDatabase.opensCycleTracking("HKCategoryTypeIdentifierHeadache"))
+
+    let mucus = "HKCategoryTypeIdentifierCervicalMucusQuality"
+    let database = try database([
+      sample("a", mucus, day: 3, value: 2), sample("b", mucus, day: 12, value: 4),
+    ])
+    // Not one dated later than now.
+    let latest = try database.read { db in
+      try HealthDatabase.latestSample(of: mucus, startedBy: day(10), db)?.start
+    }
+    #expect(latest == day(3))
+  }
+
+  @Test
   func periodsAreRunsOfFlowDaysWithTheirCycles() throws {
     let flow = HealthDatabase.menstrualFlowType
     let database = try database(

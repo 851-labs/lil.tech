@@ -26,8 +26,9 @@ struct MetricDetailView: View {
     Group {
       if type.id == HealthDatabase.sleepType {
         SleepDetailView(type: type)
-      } else if type.id == HealthDatabase.menstrualFlowType {
-        CycleTrackingView()
+      } else if HealthDatabase.opensCycleTracking(type.id) {
+        // Every Cycle Tracking type, on its latest sample's day (851-2830).
+        CycleTrackingView(typeID: type.id)
       } else if type.kind == .workout {
         WorkoutsView()
       } else if type.kind == .electrocardiogram {
