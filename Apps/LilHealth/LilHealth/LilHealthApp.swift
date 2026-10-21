@@ -51,8 +51,8 @@ struct LilHealthApp: App {
       CommandGroup(after: .appSettings) {
         SignOutCommand(store: Self.store)
       }
-      // A metric page's range and period, in the View menu.
-      MetricPeriodCommands()
+      // A metric's or Sleep's range and period, in the View menu.
+      PeriodCommands()
     }
     // lil health › Settings… (⌘,).
     Settings {

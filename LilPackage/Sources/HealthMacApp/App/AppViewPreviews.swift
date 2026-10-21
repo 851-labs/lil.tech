@@ -60,6 +60,12 @@ private func appView(
     AppFeature.State(isSignedIn: true, selection: .dataType("HKQuantityTypeIdentifierStepCount")))
 }
 
+// Sleep's range and nights are in the toolbar too (851-2866).
+#Preview("Sleep") {
+  appView(
+    AppFeature.State(isSignedIn: true, selection: .dataType(HealthDatabase.sleepType)))
+}
+
 // The window at its smallest, where the toolbar is most crowded and the sidebar's last rows go
 // under its footer (851-2867).
 #Preview("A metric, smallest window") {
