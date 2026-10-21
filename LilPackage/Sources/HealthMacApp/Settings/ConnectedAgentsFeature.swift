@@ -58,6 +58,7 @@ public struct ConnectedAgentsFeature {
     case appeared
     case loadMoreLogButtonTapped
     case logLoaded(Result<RemoteAgentAccessPage, ConnectedAgentsError>, isFirstPage: Bool)
+    case retryButtonTapped
     case revokeButtonTapped(ConnectedAgent)
     case revoked(id: String, Result<Void, ConnectedAgentsError>)
     case turnOffButtonTapped
@@ -71,8 +72,12 @@ public struct ConnectedAgentsFeature {
   }
 
   enum CancelID {
-    /// Everything the pane started, which signing out stops.
+    /// Revoking and turning off, which signing out stops.
     case account
+    /// Reading the list: a newer read, a revoke or turning off replaces it.
+    case list
+    /// Reading the log: reading its first page again replaces any page being read.
+    case log
   }
 
   /// lil health's agents: the API lists every app's.
@@ -133,6 +138,10 @@ public struct ConnectedAgentsFeature {
         state.isLoadingLog = true
         return .merge(loadAgents(), loadLog(before: nil, isFirstPage: true))
 
+      case .retryButtonTapped:
+        state.agents = .loading
+        return loadAgents()
+
       case .loadMoreLogButtonTapped:
         guard let before = state.logNextBefore, !state.isLoadingLog else { return .none }
         state.isLoadingLog = true
@@ -167,7 +176,8 @@ public struct ConnectedAgentsFeature {
       case .revoked(let id, .success):
         state.revoking.remove(id)
         state.agents = .loaded(state.loadedAgents.filter { $0.id != id })
-        return .none
+        // A list read before it would bring the agent back.
+        return .cancel(id: CancelID.list)
 
       case .revoked(let id, .failure(let error)):
         state.revoking.remove(id)
@@ -192,7 +202,7 @@ public struct ConnectedAgentsFeature {
       case .turnedOff(.success):
         state.isTurningOff = false
         state.agents = .loaded([])
-        return .none
+        return .cancel(id: CancelID.list)
 
       case .turnedOff(.failure(let error)):
         state.isTurningOff = false
@@ -211,7 +221,7 @@ public struct ConnectedAgentsFeature {
             try await connectedAgents.list()
           }))
     }
-    .cancellable(id: CancelID.account)
+    .cancellable(id: CancelID.list, cancelInFlight: true)
   }
 
   private func loadLog(before: Int?, isFirstPage: Bool) -> Effect<Action> {
@@ -223,7 +233,7 @@ public struct ConnectedAgentsFeature {
           },
           isFirstPage: isFirstPage))
     }
-    .cancellable(id: CancelID.account)
+    .cancellable(id: CancelID.log, cancelInFlight: true)
   }
 
   /// `body`'s value or its error.
@@ -244,6 +254,7 @@ public struct ConnectedAgentsFeature {
 
   /// Stops everything the pane started, when the account signs out.
   static func cancel<Other>() -> Effect<Other> {
-    .cancel(id: CancelID.account)
+    .merge(
+      .cancel(id: CancelID.account), .cancel(id: CancelID.list), .cancel(id: CancelID.log))
   }
 }

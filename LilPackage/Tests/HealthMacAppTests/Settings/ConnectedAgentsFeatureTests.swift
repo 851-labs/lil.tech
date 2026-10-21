@@ -173,4 +173,54 @@ struct ConnectedAgentsFeatureTests {
       $0.logFailure = ConnectedAgentsError.signedOut.message
     }
   }
+
+  @Test(.timeLimit(.minutes(1)))
+  func aListReadBeforeARevokeDoesntBringTheAgentBack() async throws {
+    let clock = ManualClock()
+    let store = TestStore(
+      initialState: ConnectedAgentsFeature.State(agents: .loaded([claude, unnamed]))
+    ) {
+      ConnectedAgentsFeature()
+    } withDependencies: { [claude, unnamed] in
+      $0.connectedAgents.list = { () throws(ConnectedAgentsError) in
+        // Read before the revoke, answered after it.
+        try? await clock.sleep(for: .seconds(5))
+        return [claude, unnamed]
+      }
+      $0.connectedAgents.accessLog = { _ throws(ConnectedAgentsError) in
+        RemoteAgentAccessPage(entries: [], nextBefore: nil)
+      }
+      $0.connectedAgents.revoke = { _ throws(ConnectedAgentsError) in }
+    }
+    store.exhaustivity = .off(showSkippedAssertions: false)
+
+    await store.send(.appeared)
+    await store.send(.revokeButtonTapped(claude))
+    await store.send(\.alert.confirmRevoke, "grant-1")
+    await store.receive(\.revoked) {
+      $0.agents = .loaded([unnamed])
+    }
+    // The revoke cancelled the read, so its answer never comes.
+    clock.advance(by: .seconds(5))
+    await store.finish()
+    #expect(store.state.agents == .loaded([unnamed]))
+  }
+
+  @Test
+  func tryAgainReadsTheListAgain() async {
+    let store = TestStore(
+      initialState: ConnectedAgentsFeature.State(agents: .failed("Offline"))
+    ) {
+      ConnectedAgentsFeature()
+    } withDependencies: { [claude] in
+      $0.connectedAgents.list = { () throws(ConnectedAgentsError) in [claude] }
+    }
+
+    await store.send(.retryButtonTapped) {
+      $0.agents = .loading
+    }
+    await store.receive(\.agentsLoaded) {
+      $0.agents = .loaded([claude])
+    }
+  }
 }

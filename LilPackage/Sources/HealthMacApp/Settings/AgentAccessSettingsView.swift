@@ -205,6 +205,9 @@ struct CopyableRow: View {
 struct ConnectedAgentsSections: View {
   let store: StoreOf<ConnectedAgentsFeature>
 
+  /// The deployment the app talks to, read once.
+  private static let environment = APIEnvironment.current()
+
   var body: some View {
     Section {
       switch store.agents {
@@ -217,7 +220,7 @@ struct ConnectedAgentsSections: View {
           Text(message)
             .foregroundStyle(.red)
           Spacer()
-          Button("Try Again") { store.send(.appeared) }
+          Button("Try Again") { store.send(.retryButtonTapped) }
         }
       case .loaded(let agents) where agents.isEmpty:
         Text("No agents are connected.")
@@ -252,17 +255,20 @@ struct ConnectedAgentsSections: View {
       }
     }
 
-    Section {
-      CopyableRow(
-        title: "MCP server URL",
-        value: APIEnvironment.current().mcpURL(app: "health").absoluteString)
-    } header: {
-      Text("Connect a Remote Agent")
-    } footer: {
-      Text(
-        "Add this URL to your agent as a remote MCP server (a connector), then sign in to lil health when it asks, and allow it."
-      )
-      .foregroundStyle(.secondary)
+    // Only where agents can connect: not prod until launch (851-2855).
+    if Self.environment.servesAgents {
+      Section {
+        CopyableRow(
+          title: "MCP server URL",
+          value: Self.environment.mcpURL(app: "health").absoluteString)
+      } header: {
+        Text("Connect a Remote Agent")
+      } footer: {
+        Text(
+          "Add this URL to your agent as a remote MCP server (a connector), then sign in to lil health when it asks, and allow it."
+        )
+        .foregroundStyle(.secondary)
+      }
     }
 
     Section {
@@ -327,11 +333,9 @@ struct ConnectedAgentRow: View {
         Text(agent.domain ?? "No verified website")
           .font(.caption)
           .foregroundStyle(.secondary)
-        Text(
-          "Connected \(agent.connectedAt.formatted(Self.date)) · Last used \(agent.lastUsedAt.formatted(.relative(presentation: .named)))"
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        Text("Connected \(agent.connectedAt.formatted(Self.date)) · \(lastUsed)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
       Spacer()
       if isRevoking {
@@ -341,6 +345,15 @@ struct ConnectedAgentRow: View {
         Button("Revoke…", action: revoke)
       }
     }
+  }
+}
+
+extension ConnectedAgentRow {
+  /// When it last read: the server gives the connection time until it first does.
+  fileprivate var lastUsed: String {
+    abs(agent.lastUsedAt.timeIntervalSince(agent.connectedAt)) < 1
+      ? "Not used yet"
+      : "Last used \(agent.lastUsedAt.formatted(.relative(presentation: .named)))"
   }
 }
 

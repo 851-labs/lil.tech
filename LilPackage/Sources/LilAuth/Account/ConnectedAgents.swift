@@ -195,6 +195,19 @@ extension ConnectedAgentsClient: DependencyKey {
     )
   }
 
+  /// None connected, and nothing read: previews give their state directly, and never reach the
+  /// network.
+  public static var previewValue: Self {
+    Self(
+      list: { () throws(ConnectedAgentsError) in [] },
+      revoke: { _ throws(ConnectedAgentsError) in },
+      accessLog: { _ throws(ConnectedAgentsError) in
+        RemoteAgentAccessPage(entries: [], nextBefore: nil)
+      },
+      turnOffHealthAgents: { () throws(ConnectedAgentsError) in }
+    )
+  }
+
   public static var testValue: Self {
     Self(
       list: { () throws(ConnectedAgentsError) in

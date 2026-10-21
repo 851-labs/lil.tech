@@ -208,6 +208,19 @@ private func remote(_ state: ConnectedAgentsFeature.State) -> some View {
       log: remoteReads))
 }
 
+#Preview("Remote agents: turning off") {
+  remote(
+    ConnectedAgentsFeature.State(
+      agents: .loaded(remoteAgents), log: remoteReads, isTurningOff: true))
+}
+
+#Preview("Remote agents: more of the log failed") {
+  remote(
+    ConnectedAgentsFeature.State(
+      agents: .loaded(remoteAgents), log: remoteReads,
+      logFailure: ConnectedAgentsError.unavailable.message, logNextBefore: 94))
+}
+
 #Preview("Remote agents: long names, more to read") {
   remote(
     ConnectedAgentsFeature.State(
