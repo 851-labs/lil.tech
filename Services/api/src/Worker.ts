@@ -58,6 +58,20 @@ const readGoogleWebClientSecret = readOptionalSecret("LIL_GOOGLE_WEB_CLIENT_SECR
 const providerSecretsRequired: ReadonlySet<string> = new Set(["staging", "prod"]);
 
 /**
+ * Workers Logs (851-2908): Alchemy's default (logs and invocation logs on), without query strings.
+ * Cloudflare records each request's URL, and ours carry secrets there: the Google callback's `code`
+ * and `state`, the agent's `state` and PKCE challenge on `/oauth/authorize`, the one-time `ticket`
+ * of `/oauth/authorize/signed-in`, and signed downloads' `token`s. Cloudflare's own setting is the
+ * only way to keep them out: a request's URL is logged before the Worker runs, and is the same for
+ * every route.
+ */
+export const apiObservability = {
+  enabled: true,
+  logs: { enabled: true, invocationLogs: true },
+  redactQueryString: true,
+};
+
+/**
  * The Worker's props. Alchemy also evaluates them inside the running Worker, where there's no
  * `Stage`, so the deploy-time work (picking the domain, checking the environment, binding the
  * secrets) only happens when a stage is present. `makeKey` makes a random key at deploy time.
@@ -93,6 +107,7 @@ export const makeApiWorkerProps = <Key, E, R>(makeKey: (id: string) => Effect.Ef
       // Keeps `fetch` on the public internet, so a Client ID Metadata Document's URL can't reach
       // Cloudflare-internal addresses (`src/oauth/ClientMetadata.ts`).
       compatibility: { flags: ["global_fetch_strictly_public"] },
+      observability: apiObservability,
       env: {
         // Generated once per stage and kept in Alchemy's state, so redeploys don't sign everyone
         // out or lose the stored Apple tokens.

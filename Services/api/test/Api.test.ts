@@ -2599,6 +2599,13 @@ describe("apiWorkerProps", () => {
       assert.deepStrictEqual((props as { compatibility?: object }).compatibility, {
         flags: ["global_fetch_strictly_public"],
       });
+      // Workers Logs keep request URLs without their query strings, where OAuth codes, states and
+      // signed downloads' tokens go (851-2908).
+      assert.deepStrictEqual((props as { observability?: object }).observability, {
+        enabled: true,
+        logs: { enabled: true, invocationLogs: true },
+        redactQueryString: true,
+      });
       assert.deepStrictEqual((props as { env?: object }).env, {
         LIL_SESSION_KEY: Redacted.make("SessionSigningKey"),
         LIL_TOKEN_KEY: Redacted.make("AppleTokenKey"),
