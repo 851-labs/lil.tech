@@ -5,10 +5,10 @@ import SQLiteData
 public import SwiftUI
 
 /// Cycle Tracking, as in Health: a month's calendar of periods, spotting, ovulation tests,
-/// symptoms and sexual activity, the factors going on now and past ones, the menopause stage, and
-/// past cycles' lengths. Health's predictions stay on the iPhone (HealthKit doesn't share them),
-/// so there are none here. Follows the local database as sync changes it, and the clock as
-/// factors and stages start and end.
+/// symptoms and sexual activity, the factors going on now and past ones, the menopause stage, the
+/// cycle deviations Health flagged, and past cycles' lengths. Health's predictions stay on the
+/// iPhone (HealthKit doesn't share them), so there are none here. Follows the local database as
+/// sync changes it, and the clock as factors and stages start and end, and deviations end.
 public struct CycleTrackingView: View {
   /// The type it was opened for, whose latest sample's month and day it opens on (851-2830).
   let typeID: String?
@@ -45,7 +45,7 @@ public struct CycleTrackingView: View {
             CycleSnapshot(
               month: month, days: days.days, periods: history.periods,
               factors: history.factors, pastFactors: history.pastFactors,
-              menopause: history.menopause))
+              menopause: history.menopause, deviations: history.deviations))
         }(),
       previous: { monthOffset -= 1 }, next: { monthOffset += 1 },
       isLatest: monthOffset >= 0
@@ -65,7 +65,8 @@ public struct CycleTrackingView: View {
       _ = try? await $history.load(
         CycleHistoryRequest(now: historyNow), scheduler: MainQueueScheduler())
     }
-    // Waits for the next factor or stage to start or end, then works them out again.
+    // Waits for the next factor or stage to start or end (or deviation to end), then works them
+    // out again.
     .task(id: history?.nextChange) {
       guard let next = history?.nextChange else { return }
       do {
@@ -98,7 +99,7 @@ public struct CycleTrackingView: View {
   }
 }
 
-/// A month's days, with the periods, factors and menopause stage around it.
+/// A month's days, with the periods, factors, menopause stage and deviations around it.
 struct CycleSnapshot: Equatable, Sendable {
   var month: DateInterval
   var days: [Date: CycleDay]
@@ -108,10 +109,13 @@ struct CycleSnapshot: Equatable, Sendable {
   /// Over, the latest to end first.
   var pastFactors: [CycleFactor] = []
   var menopause: MenopauseStage?
+  /// Newest first.
+  var deviations: [CycleDeviation] = []
 
   /// Whether there's nothing to show at all, not just this month.
   var isEmpty: Bool {
     days.isEmpty && periods.isEmpty && factors.isEmpty && pastFactors.isEmpty && menopause == nil
+      && deviations.isEmpty
   }
 }
 
@@ -133,14 +137,17 @@ struct CycleHistory: Equatable, Sendable {
   var factors: [CycleFactor]
   var pastFactors: [CycleFactor]
   var menopause: MenopauseStage?
-  /// When a factor or stage next starts or ends, to work them out again then.
+  var deviations: [CycleDeviation]
+  /// When a factor or stage next starts or ends, or a deviation ends, to work them out again then.
   var nextChange: Date?
 }
 
-/// Periods, and factors and the menopause stage as they are at `now`.
+/// Periods, and factors, the menopause stage and deviations as they are at `now`.
 struct CycleHistoryRequest: FetchKeyRequest {
   /// Past factors shown at most: years of them.
   static let pastFactorLimit = 20
+  /// Deviations shown at most: years of them, as Health flags a few a year at most.
+  static let deviationLimit = 20
 
   let now: Date
 
@@ -151,6 +158,8 @@ struct CycleHistoryRequest: FetchKeyRequest {
       pastFactors: try HealthDatabase.cycleFactorHistory(
         before: now, limit: Self.pastFactorLimit, db),
       menopause: try HealthDatabase.menopauseStage(at: now, db),
+      deviations: try HealthDatabase.cycleDeviations(
+        before: now, limit: Self.deviationLimit, db),
       nextChange: try HealthDatabase.nextCycleChange(after: now, db))
   }
 }
@@ -200,6 +209,16 @@ struct CycleTrackingContent: View {
               }
               if let stage = snapshot.menopause {
                 menopause(stage)
+              }
+              if !snapshot.deviations.isEmpty {
+                deviations(snapshot.deviations)
+                if snapshot.deviations.count >= CycleHistoryRequest.deviationLimit {
+                  Text(
+                    "Showing the \(CycleHistoryRequest.deviationLimit.formatted()) most recent cycle deviations."
+                  )
+                  .font(.footnote)
+                  .foregroundStyle(.secondary)
+                }
               }
               if !snapshot.pastFactors.isEmpty {
                 factors("Past Factors", snapshot.pastFactors)
@@ -362,6 +381,21 @@ struct CycleTrackingContent: View {
           }
         } label: {
           Text([factor.name, factor.detail].compactMap { $0 }.joined(separator: ": "))
+        }
+      }
+    }
+  }
+
+  /// Deviations Health flagged, over the months each covers (one day, if they start and end on
+  /// it).
+  private func deviations(_ deviations: [CycleDeviation]) -> some View {
+    section("Cycle Deviations") {
+      ForEach(Array(deviations.enumerated()), id: \.offset) { _, deviation in
+        LabeledContent(deviation.name) {
+          // A range can't end before it starts.
+          Text(
+            (deviation.start..<max(deviation.start, deviation.end))
+              .formatted(.interval.month(.abbreviated).day().year()))
         }
       }
     }

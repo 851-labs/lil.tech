@@ -125,6 +125,23 @@ private func monthsAgo(_ months: Int, day: Int = 1) -> Date {
     selected: day(9))
 }
 
+// Deviations Health flagged and the person confirmed, newest first, each over the months it
+// covers (851-2871). The other previews have none.
+#Preview("With cycle deviations") {
+  cycle(
+    .loaded(
+      CycleSnapshot(
+        month: month, days: days, periods: periods, factors: [],
+        deviations: [
+          CycleDeviation(name: "Irregular Cycles", start: monthsAgo(6, day: 9), end: day(2)),
+          CycleDeviation(
+            name: "Persistent Spotting", start: monthsAgo(7, day: 20), end: monthsAgo(1, day: 18)),
+          CycleDeviation(
+            name: "Prolonged Periods", start: monthsAgo(19, day: 4), end: monthsAgo(13, day: 1)),
+        ])),
+    selected: day(4))
+}
+
 // A day's tests and other logs, each value as Health names it (851-2830).
 #Preview("A day with tests") {
   cycle(

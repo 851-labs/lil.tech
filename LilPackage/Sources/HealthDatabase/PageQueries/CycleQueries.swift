@@ -18,10 +18,18 @@ extension HealthDatabase {
     "HKCategoryTypeIdentifierBleedingAfterPregnancy",
     "HKCategoryTypeIdentifierBleedingAfterMenopause",
   ]
+  /// What Health flags from the last 6 months of logged periods and spotting, once the person
+  /// confirms it (iOS 16).
+  static let cycleDeviationTypes = [
+    "HKCategoryTypeIdentifierInfrequentMenstrualCycles",
+    "HKCategoryTypeIdentifierIrregularMenstrualCycles",
+    "HKCategoryTypeIdentifierPersistentIntermenstrualBleeding",
+    "HKCategoryTypeIdentifierProlongedMenstrualPeriods",
+  ]
   /// What a day's log lists by name and value, on the day each starts: every Cycle Tracking
   /// category type but flow, spotting and sexual activity, which have their own marks (851-2830).
   /// Factors, menopause and cycle deviations go on for months: the day they start says so, though
-  /// factors and menopause have sections of their own (851-2870) and deviations will (851-2871).
+  /// each has a section of its own too (851-2870, 851-2871).
   static let cycleLogTypes = HealthCatalog.all
     .filter { $0.category == .cycleTracking && $0.kind == .category }
     .map(\.id)
@@ -191,9 +199,31 @@ extension HealthDatabase {
       since: Date(unixMilliseconds: since))
   }
 
-  /// When what `cycleFactors(at:)`, `cycleFactorHistory(before:limit:)` and
-  /// `menopauseStage(at:)` say next changes after `now`, without a sync: the first factor or
-  /// stage to start or end later. Nil if nothing does.
+  /// Cycle deviations Health flagged that ended by `now`, newest first (by start, then end), at
+  /// most `limit`. Health's are retrospective, over the months it looked at, so they've always
+  /// ended; one that ends later isn't shown until it has. All of them, not only the last 6
+  /// months': that's the window Health looks at to flag one, and each keeps its own dates.
+  public static func cycleDeviations(
+    before now: Date, limit: Int, _ db: Database
+  ) throws -> [CycleDeviation] {
+    let moment = now.unixMilliseconds
+    return
+      try HealthSample
+      .where { $0.type.in(cycleDeviationTypes) && $0.endDate <= moment }
+      .order { ($0.startDate.desc(), $0.endDate.desc()) }
+      .limit(limit)
+      .fetchAll(db)
+      .map {
+        CycleDeviation(
+          name: HealthCatalog.type(id: $0.type)?.name ?? $0.type,
+          start: Date(unixMilliseconds: $0.startDate), end: Date(unixMilliseconds: $0.endDate))
+      }
+  }
+
+  /// When what `cycleFactors(at:)`, `cycleFactorHistory(before:limit:)`,
+  /// `menopauseStage(at:)` and `cycleDeviations(before:limit:)` say next changes after `now`,
+  /// without a sync: the first factor or stage to start or end later, or deviation to end. Nil if
+  /// nothing does.
   public static func nextCycleChange(after now: Date, _ db: Database) throws -> Date? {
     let moment = now.unixMilliseconds
     let types = factorTypes + [menopausalStateType]
@@ -211,7 +241,15 @@ extension HealthDatabase {
       .limit(1)
       .fetchOne(db)?
       .endDate
-    return [start, end].compactMap { $0 }.min().map { Date(unixMilliseconds: $0) }
+    // Shown once it ends, even if it ends as it starts.
+    let deviationEnd =
+      try HealthSample
+      .where { $0.type.in(cycleDeviationTypes) && $0.endDate > moment }
+      .order(by: \.endDate)
+      .limit(1)
+      .fetchOne(db)?
+      .endDate
+    return [start, end, deviationEnd].compactMap { $0 }.min().map { Date(unixMilliseconds: $0) }
   }
 }
 
@@ -314,6 +352,20 @@ public struct CycleFactor: Equatable, Sendable {
   public init(name: String, detail: String?, start: Date, end: Date? = nil) {
     self.name = name
     self.detail = detail
+    self.start = start
+    self.end = end
+  }
+}
+
+/// A cycle deviation Health flagged, as it names it ("Irregular Cycles"), over the months it
+/// covers.
+public struct CycleDeviation: Equatable, Sendable {
+  public var name: String
+  public var start: Date
+  public var end: Date
+
+  public init(name: String, start: Date, end: Date) {
+    self.name = name
     self.start = start
     self.end = end
   }
