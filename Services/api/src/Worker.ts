@@ -1,11 +1,12 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import { Config, Effect, Layer, Option, Redacted, Stream } from "effect";
+import { Clock, Config, Effect, Layer, Option, Redacted, Stream } from "effect";
 import { HttpRouter } from "effect/http";
 import { AppleKeys } from "./auth/Apple.ts";
 import { AppleTokens, revokeAppleTokens } from "./auth/AppleTokens.ts";
 import { GoogleClients, GoogleKeys } from "./auth/Google.ts";
 import { SessionKey } from "./auth/Tokens.ts";
+import { AgentGrants } from "./core/AgentGrants.ts";
 import { AppleTokenRevocations } from "./core/AppleTokenRevocations.ts";
 import { CoreDatabase, CoreRepositories, coreDatabase } from "./core/CoreDatabase.ts";
 import { retireSignedOutDevices } from "./core/DeviceCleanup.ts";
@@ -207,6 +208,20 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
           Effect.tap((done) => Effect.log(`Finished ${done} Apple token revocations`)),
           Effect.catchCause((cause) => Effect.logError("Revoking Apple tokens failed", cause)),
         ),
+        // Before the clients, so a client whose last grant ended goes the same day.
+        Effect.flatMap(Clock.currentTimeMillis, (now) =>
+          AgentGrants.use((grants) => grants.deleteExpired(now)),
+        ).pipe(
+          Effect.tap((deleted) =>
+            Effect.log(
+              `Deleted ${deleted.tokens} expired agent tokens, ${deleted.authorizations} ` +
+                `authorizations and ${deleted.grants} ended grants`,
+            ),
+          ),
+          Effect.catchCause((cause) =>
+            Effect.logError("Deleting expired agent tokens failed", cause),
+          ),
+        ),
         OAuthClients.use((clients) => clients.deleteUnused).pipe(
           Effect.tap((deleted) => Effect.log(`Deleted ${deleted} unused OAuth clients`)),
           Effect.catchCause((cause) =>
@@ -215,9 +230,12 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
         ),
       ]).pipe(
         Effect.provide(
-          Layer.mergeAll(Devices.layer, AppleTokenRevocations.layer, OAuthClients.layer).pipe(
-            Layer.provide(core),
-          ),
+          Layer.mergeAll(
+            Devices.layer,
+            AppleTokenRevocations.layer,
+            OAuthClients.layer,
+            AgentGrants.layer,
+          ).pipe(Layer.provide(core)),
         ),
         Effect.provideService(UserStores, userStores),
         Effect.provideService(AppleTokens, appleTokens),
@@ -229,6 +247,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       user: yield* bindRateLimit("UserRateLimit", "user"),
       refresh: yield* bindRateLimit("RefreshRateLimit", "refresh"),
       clientRegistration: yield* bindRateLimit("ClientRegistrationRateLimit", "clientRegistration"),
+      agentToken: yield* bindRateLimit("AgentTokenRateLimit", "agentToken"),
     });
     const blobs = yield* Cloudflare.R2.ReadWriteBucket(yield* HealthBlobBucket);
     // Per request: the buckets' calls need the request's runtime context.

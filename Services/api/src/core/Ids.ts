@@ -34,6 +34,16 @@ export const OAuthClientId = Schema.String.pipe(
   Schema.brand("OAuthClientId"),
 );
 export type OAuthClientId = typeof OAuthClientId.Type;
+export const AgentAuthorizationId = Schema.String.pipe(
+  Schema.check(pattern("aau")),
+  Schema.brand("AgentAuthorizationId"),
+);
+export type AgentAuthorizationId = typeof AgentAuthorizationId.Type;
+export const AgentGrantId = Schema.String.pipe(
+  Schema.check(pattern("agr")),
+  Schema.brand("AgentGrantId"),
+);
+export type AgentGrantId = typeof AgentGrantId.Type;
 
 /** Makes a new ID with the given prefix, using the `Clock` for its time part. */
 export const makeId = Effect.fnUntraced(function* (prefix: string) {
@@ -55,5 +65,7 @@ export const newDeviceId = makeId("dev") as Effect.Effect<DeviceId>;
 export const newSessionId = makeId("ses") as Effect.Effect<SessionId>;
 export const newConnectionId = makeId("con") as Effect.Effect<ConnectionId>;
 export const newOAuthClientId = makeId("ocl") as Effect.Effect<OAuthClientId>;
+export const newAgentAuthorizationId = makeId("aau") as Effect.Effect<AgentAuthorizationId>;
+export const newAgentGrantId = makeId("agr") as Effect.Effect<AgentGrantId>;
 /** A client ID that dynamic client registration issues (`POST /oauth/register`). */
 export const newRegisteredClientId = makeId("cli");

@@ -1,6 +1,7 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as SQL from "alchemy/SQL/D1";
 import { Layer } from "effect";
+import { AgentGrants } from "./AgentGrants.ts";
 import { AppleTokenRevocations } from "./AppleTokenRevocations.ts";
 import { Connections } from "./Connections.ts";
 import { Consents } from "./Consents.ts";
@@ -42,4 +43,5 @@ export const CoreRepositories = Layer.mergeAll(
   Consents.layer,
   AppleTokenRevocations.layer,
   OAuthClients.layer,
+  AgentGrants.layer,
 );

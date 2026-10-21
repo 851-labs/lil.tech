@@ -1,8 +1,10 @@
-import { Effect, Option, Stream } from "effect";
+import { Effect, Option, Schema, Stream } from "effect";
 import { HttpMiddleware, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
+import { sha256Hex } from "../auth/Tokens.ts";
 import { OAuthClients } from "../core/OAuthClients.ts";
 import { Deployment } from "../Deployment.ts";
 import { checkAddressRateLimit, RateLimits, tooManyRequests } from "../RateLimits.ts";
+import { type AgentTokenPair, AgentTokens, TokenRequestError } from "./AgentTokens.ts";
 import { checkRegistration, InvalidClient, supportedGrantTypes } from "./ClientMetadata.ts";
 import {
   agentAccessEnvironments,
@@ -17,12 +19,16 @@ import {
   resourceUrl,
 } from "./Hosts.ts";
 
-// The agents' authorization server's public endpoints (851-2847): its metadata (RFC 8414), each
-// app's Protected Resource Metadata (RFC 9728), and dynamic client registration (RFC 7591). They
-// follow their own RFCs, so they're left out of the OpenAPI spec, like `/v1/auth/dev`.
+// The agents' authorization server's public endpoints: its metadata (RFC 8414), each app's
+// Protected Resource Metadata (RFC 9728), dynamic client registration (RFC 7591) (851-2847), and
+// the token and revocation endpoints (RFC 6749, RFC 7009) (851-2848). They follow their own RFCs,
+// so they're left out of the OpenAPI spec, like `/v1/auth/dev`.
 
 /** The largest registration body `POST /oauth/register` reads. */
 export const maxRegistrationBytes = 8 * 1024;
+
+/** The largest form `POST /oauth/token` and `POST /oauth/revoke` read. */
+export const maxTokenRequestBytes = 8 * 1024;
 
 /** The request's origin, as the client used it. */
 const requestOrigin = (request: HttpServerRequest.HttpServerRequest) => {
@@ -125,9 +131,137 @@ const oauthError = (status: number, error: string, description: string) =>
     { status, headers: { "cache-control": "no-store" } },
   );
 
+/** A response to a token request, which mustn't be cached (RFC 6749 §5.1). */
+const tokenResponse = (body: object) =>
+  HttpServerResponse.jsonUnsafe(body, {
+    headers: { "cache-control": "no-store", pragma: "no-cache" },
+  });
+
+/** A form a token or revocation request couldn't be read as. */
+class InvalidForm extends Schema.TaggedError<InvalidForm>()("InvalidForm", {
+  description: Schema.String,
+}) {}
+
 /**
- * The authorization server's metadata, on the API's host. Its endpoints come in later tickets
- * (851-2848, 851-2849).
+ * The request's `application/x-www-form-urlencoded` parameters (RFC 6749 §3.2). A parameter
+ * without a value counts as absent, and one sent twice is refused (§3.1).
+ */
+const readForm = Effect.gen(function* () {
+  const request = yield* HttpServerRequest.HttpServerRequest;
+  const contentType = (request.headers["content-type"] ?? "").split(";", 1)[0]?.trim();
+  if (contentType?.toLowerCase() !== "application/x-www-form-urlencoded") {
+    return yield* new InvalidForm({
+      description: "The request must be application/x-www-form-urlencoded",
+    });
+  }
+  const tooLarge = new InvalidForm({
+    description: `The request is larger than ${maxTokenRequestBytes} bytes`,
+  });
+  if (Number(request.headers["content-length"] ?? 0) > maxTokenRequestBytes) {
+    return yield* tooLarge;
+  }
+  const body = yield* readAtMost(request.stream, maxTokenRequestBytes).pipe(
+    Effect.mapError(() => new InvalidForm({ description: "The request couldn't be read" })),
+  );
+  if (Option.isNone(body)) return yield* tooLarge;
+  const params = new Map<string, string>();
+  for (const [name, value] of new URLSearchParams(body.value)) {
+    if (params.has(name)) {
+      return yield* new InvalidForm({ description: `${name} is given more than once` });
+    }
+    if (value !== "") params.set(name, value);
+  }
+  return {
+    get: (name: string) => Option.fromNullishOr(params.get(name)),
+    require: (name: string) =>
+      Option.match(Option.fromNullishOr(params.get(name)), {
+        onNone: () =>
+          Effect.fail(
+            new TokenRequestError({ error: "invalid_request", description: `${name} is missing` }),
+          ),
+        onSome: Effect.succeed,
+      }),
+  };
+});
+
+/** `POST /oauth/token`: a code exchange or a refresh, for public clients (no authentication). */
+const tokenEndpoint = (tokens: AgentTokens["Service"], limits: RateLimits["Service"]) =>
+  Effect.gen(function* () {
+    const form = yield* readForm;
+    const grantType = yield* form.require("grant_type");
+    const clientId = yield* form.require("client_id");
+    const resource = form.get("resource");
+    if (grantType === "authorization_code") {
+      // Per client: the code's grant doesn't exist yet. Hashed, since a client ID can be a long URL.
+      yield* limits.check("agentToken", `client:${yield* sha256Hex(clientId)}`);
+      return tokenResponse(
+        pairBody(
+          yield* tokens.exchangeCode({
+            code: yield* form.require("code"),
+            clientId,
+            redirectUri: yield* form.require("redirect_uri"),
+            codeVerifier: yield* form.require("code_verifier"),
+            resource,
+          }),
+        ),
+      );
+    }
+    if (grantType === "refresh_token") {
+      return tokenResponse(
+        pairBody(
+          yield* tokens.refresh({
+            refreshToken: yield* form.require("refresh_token"),
+            clientId,
+            resource,
+            scope: form.get("scope"),
+          }),
+        ),
+      );
+    }
+    return yield* new TokenRequestError({
+      error: "unsupported_grant_type",
+      description: "Only authorization_code and refresh_token are supported",
+    });
+  }).pipe(
+    Effect.catchTags({
+      InvalidForm: (error: InvalidForm) =>
+        Effect.succeed(oauthError(400, "invalid_request", error.description)),
+      TokenRequestError: (error: TokenRequestError) =>
+        Effect.succeed(oauthError(400, error.error, error.description)),
+      TooManyRequests: tooManyRequests,
+    }),
+    Effect.orDie,
+  );
+
+const pairBody = (pair: AgentTokenPair) => ({
+  access_token: pair.accessToken,
+  token_type: "Bearer",
+  expires_in: pair.expiresIn,
+  refresh_token: pair.refreshToken,
+  scope: pair.scope,
+});
+
+/**
+ * `POST /oauth/revoke` (RFC 7009): answers 200 whether or not the token was known, so it can't be
+ * used to probe for tokens.
+ */
+const revocationEndpoint = (tokens: AgentTokens["Service"]) =>
+  Effect.gen(function* () {
+    const form = yield* readForm;
+    yield* tokens.revoke(yield* form.require("token"), form.get("client_id"));
+    return HttpServerResponse.empty({ status: 200, headers: { "cache-control": "no-store" } });
+  }).pipe(
+    Effect.catchTags({
+      InvalidForm: (error: InvalidForm) =>
+        Effect.succeed(oauthError(400, "invalid_request", error.description)),
+      TokenRequestError: (error: TokenRequestError) =>
+        Effect.succeed(oauthError(400, error.error, error.description)),
+    }),
+    Effect.orDie,
+  );
+
+/**
+ * The authorization server's metadata, on the API's host. `/oauth/authorize` comes in 851-2849.
  */
 const authorizationServerMetadata = (issuer: string) => ({
   issuer,
@@ -147,14 +281,15 @@ const authorizationServerMetadata = (issuer: string) => ({
 });
 
 /**
- * The agents' metadata documents and `POST /oauth/register`, only where agents may connect
- * (`agentAccessEnvironments`); elsewhere they're a 404.
+ * The agents' metadata documents, `POST /oauth/register`, `/oauth/token` and `/oauth/revoke`, only
+ * where agents may connect (`agentAccessEnvironments`); elsewhere they're a 404.
  */
 export const AgentOAuthRoutes = HttpRouter.use((router) =>
   Effect.gen(function* () {
     const { environment } = yield* Deployment;
     if (!agentAccessEnvironments.has(environment)) return;
     const clients = yield* OAuthClients;
+    const tokens = yield* AgentTokens;
     const limits = yield* RateLimits;
     const hostsOf = HttpServerRequest.HttpServerRequest.use((request) =>
       Effect.succeed(agentHosts(environment, requestOrigin(request))),
@@ -234,5 +369,8 @@ export const AgentOAuthRoutes = HttpRouter.use((router) =>
         ),
       ),
     );
+
+    yield* addPublic(router, "POST", "/oauth/token", tokenEndpoint(tokens, limits));
+    yield* addPublic(router, "POST", "/oauth/revoke", revocationEndpoint(tokens));
   }),
 );

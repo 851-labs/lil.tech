@@ -87,7 +87,7 @@ export class AccessTokens extends Context.Service<
   );
 }
 
-const base64url = (bytes: Uint8Array) =>
+export const base64url = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes))
     .replaceAll("+", "-")
     .replaceAll("/", "_")
@@ -96,10 +96,12 @@ const base64url = (bytes: Uint8Array) =>
 const hex = (bytes: Uint8Array) =>
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 
+/** A new opaque token: `prefix`, an underscore, then 32 random bytes, base64url-encoded. */
+export const newOpaqueToken = (prefix: string) =>
+  Effect.sync(() => `${prefix}_${base64url(crypto.getRandomValues(new Uint8Array(32)))}`);
+
 /** A new opaque refresh token: `lrt_` plus 32 random bytes, base64url-encoded. */
-export const newRefreshToken = Effect.sync(
-  () => `lrt_${base64url(crypto.getRandomValues(new Uint8Array(32)))}`,
-);
+export const newRefreshToken = newOpaqueToken("lrt");
 
 /** The SHA-256 of a string, as lowercase hex. */
 export const sha256Hex = (value: string) =>

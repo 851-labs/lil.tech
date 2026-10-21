@@ -1,5 +1,5 @@
 import { Clock, Context, Effect, Layer, Option, Schema } from "effect";
-import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, lt, notExists, or, sql } from "drizzle-orm";
 import type { SqlError } from "effect/sql";
 import {
   type ClientMetadata,
@@ -9,7 +9,7 @@ import {
 } from "../oauth/ClientMetadata.ts";
 import { CoreDb, excluded, first, query } from "./CoreDb.ts";
 import { newOAuthClientId, newRegisteredClientId, OAuthClientId } from "./Ids.ts";
-import { oauthClients } from "./Schema.ts";
+import { agentGrants, oauthClients } from "./Schema.ts";
 
 const OAuthClientRow = Schema.Struct({
   id: OAuthClientId,
@@ -32,10 +32,10 @@ const decodeRow = Schema.decodeUnknownEffect(OAuthClientRow);
  */
 export type OAuthClient = typeof OAuthClientRow.Type;
 
-/** How long a registered client may go without being used before it's deleted. */
+/** How long a registered client without a grant may go unused before it's deleted. */
 export const unusedRegistrationAge = 24 * 60 * 60 * 1000;
 
-/** How long any client may go unused before it's deleted. */
+/** How long any client without a grant may go unused before it's deleted. */
 export const unusedClientAge = 90 * 24 * 60 * 60 * 1000;
 
 /** How often, at most, a client's `last_used_at` is updated, to save writes. */
@@ -55,9 +55,9 @@ export class OAuthClients extends Context.Service<
     /** Registers a client (dynamic client registration), issuing it a `cli_…` ID. */
     readonly register: (metadata: ClientMetadata) => Effect.Effect<OAuthClient, SqlError.SqlError>;
     /**
-     * Deletes registered clients never used in the day after registering, and any client unused
-     * for 90 days, returning how many. Until there are grants (851-2848), "used" is
-     * `last_used_at`.
+     * Deletes clients without a grant: registered ones once they're a day old and haven't been used
+     * for a day (so not one in the middle of an authorization), and any unused for 90 days.
+     * Returns how many.
      */
     readonly deleteUnused: Effect.Effect<number, SqlError.SqlError>;
   }
@@ -154,19 +154,21 @@ export class OAuthClients extends Context.Service<
         }),
         deleteUnused: Effect.gen(function* () {
           const now = yield* Clock.currentTimeMillis;
+          const lastUsed = sql`coalesce(${oauthClients.lastUsedAt}, ${oauthClients.createdAt})`;
           const rows = yield* query(
             db
               .delete(oauthClients)
               .where(
-                or(
-                  and(
-                    eq(oauthClients.kind, "dcr"),
-                    isNull(oauthClients.lastUsedAt),
-                    lt(oauthClients.createdAt, now - unusedRegistrationAge),
+                and(
+                  notExists(
+                    db
+                      .select({ id: agentGrants.id })
+                      .from(agentGrants)
+                      .where(eq(agentGrants.clientId, oauthClients.clientId)),
                   ),
-                  lt(
-                    sql`coalesce(${oauthClients.lastUsedAt}, ${oauthClients.createdAt})`,
-                    now - unusedClientAge,
+                  or(
+                    and(eq(oauthClients.kind, "dcr"), lt(lastUsed, now - unusedRegistrationAge)),
+                    lt(lastUsed, now - unusedClientAge),
                   ),
                 ),
               )

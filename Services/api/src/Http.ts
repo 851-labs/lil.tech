@@ -10,6 +10,7 @@ import { ProviderSignIn, type VerifiedIdentity } from "./auth/ProviderSignIn.ts"
 import { AppleTokens, revokeAppleTokens } from "./auth/AppleTokens.ts";
 import { appleWebCallbackPath, AppleWebCallbackRoute } from "./auth/AppleWebSignIn.ts";
 import { DevSignInRoute } from "./auth/DevSignIn.ts";
+import { AgentTokens } from "./oauth/AgentTokens.ts";
 import { AgentHostsMiddleware, AgentOAuthRoutes } from "./oauth/OAuthRoutes.ts";
 import {
   Authorization,
@@ -1018,7 +1019,7 @@ export const WorkerHttpLayer = Layer.mergeAll(
     BlobUploadSizeLimitLayer,
   ]),
   Layer.provide([AppleSignIn.layer, GoogleSignIn.layer, ProviderSignIn.layer]),
-  Layer.provide([Auth.layer, PartUrls.layer]),
+  Layer.provide([Auth.layer, PartUrls.layer, AgentTokens.layer]),
   Layer.provide(AccessTokens.layer),
   Layer.provide(Http.Platform),
 );
