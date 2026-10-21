@@ -120,6 +120,110 @@ struct CommandLineToolInstallerTests {
   }
 
   @Test
+  func decidesWhatRefreshingDoes() {
+    typealias Installer = CommandLineToolInstaller
+    for writable in [true, false] {
+      // Never installs where there's no `lil`, never downgrades, never touches another command.
+      #expect(Installer.refresh(bundledVersion: 5, existing: .none, writable: writable) == .none)
+      #expect(
+        Installer.refresh(bundledVersion: 5, existing: .lil(version: 5), writable: writable)
+          == .none
+      )
+      #expect(
+        Installer.refresh(bundledVersion: 5, existing: .lil(version: 6), writable: writable)
+          == .none
+      )
+      #expect(Installer.refresh(bundledVersion: 5, existing: .other, writable: writable) == .none)
+    }
+    #expect(
+      Installer.refresh(bundledVersion: 5, existing: .lil(version: 4), writable: true)
+        == .replace(version: 4)
+    )
+    // Replacing it would ask for a password, so it's offered instead.
+    #expect(
+      Installer.refresh(bundledVersion: 5, existing: .lil(version: 4), writable: false)
+        == .offer(version: 4)
+    )
+  }
+
+  @Test
+  func offersOncePerBundledVersion() {
+    let outdated = CommandLineToolInstaller.Outdated(
+      directory: bin,
+      version: 4,
+      bundledVersion: 5
+    )
+    #expect(CommandLineToolInstaller.shouldOffer(outdated, lastOfferedVersion: 0))
+    #expect(CommandLineToolInstaller.shouldOffer(outdated, lastOfferedVersion: 4))
+    #expect(!CommandLineToolInstaller.shouldOffer(outdated, lastOfferedVersion: 5))
+    #expect(!CommandLineToolInstaller.shouldOffer(outdated, lastOfferedVersion: 6))
+  }
+
+  @Test
+  func refreshReplacesAnOlderLilItCanWrite() async throws {
+    let bundled = try fakeLil(version: 5, at: root.appending(path: "app/lil"))
+    _ = try fakeLil(version: 4, at: installed)
+
+    let result = await CommandLineToolInstaller.refreshInstalled(bundled, in: [bin])
+
+    #expect(result == .init(replaced: [installed], outdated: []))
+    #expect(CommandLineToolInstaller.existing(at: installed) == .lil(version: 5))
+  }
+
+  @Test
+  func refreshOffersToReplaceAnOlderLilItCantWrite() async throws {
+    let bundled = try fakeLil(version: 5, at: root.appending(path: "app/lil"))
+    let shared = root.appending(path: "usr/local/bin", directoryHint: .isDirectory)
+    let sharedLil = try fakeLil(version: 3, at: shared.appending(path: "lil"))
+    try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: shared.path)
+    defer {
+      try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: shared.path)
+    }
+    _ = try fakeLil(version: 4, at: installed)
+
+    let result = await CommandLineToolInstaller.refreshInstalled(bundled, in: [shared, bin])
+
+    #expect(
+      result
+        == .init(
+          replaced: [installed],
+          outdated: [.init(directory: shared, version: 3, bundledVersion: 5)]
+        )
+    )
+    #expect(CommandLineToolInstaller.existing(at: sharedLil) == .lil(version: 3))
+    #expect(CommandLineToolInstaller.existing(at: installed) == .lil(version: 5))
+  }
+
+  @Test
+  func refreshLeavesTheRestAlone() async throws {
+    let bundled = try fakeLil(version: 5, at: root.appending(path: "app/lil"))
+    let newer = root.appending(path: "newer", directoryHint: .isDirectory)
+    _ = try fakeLil(version: 6, at: newer.appending(path: "lil"))
+    let other = root.appending(path: "other", directoryHint: .isDirectory)
+    let otherContents = try Data(
+      contentsOf: script("echo 'Lilypond helper'", at: other.appending(path: "lil")))
+    let empty = root.appending(path: "empty", directoryHint: .isDirectory)
+
+    let result = await CommandLineToolInstaller.refreshInstalled(
+      bundled, in: [newer, other, empty])
+
+    #expect(result == .init())
+    #expect(CommandLineToolInstaller.existing(at: newer.appending(path: "lil")) == .lil(version: 6))
+    #expect(try Data(contentsOf: other.appending(path: "lil")) == otherContents)
+    // It doesn't install where there was no `lil`.
+    #expect(!FileManager.default.fileExists(atPath: empty.appending(path: "lil").path))
+  }
+
+  @Test
+  func refreshDoesNothingWithoutAnInstalledLil() async throws {
+    // A bundled tool that doesn't run: refreshing doesn't run it when nothing is installed.
+    let bundled = try script("touch \"$0.ran\"", at: root.appending(path: "app/lil"))
+
+    #expect(await CommandLineToolInstaller.refreshInstalled(bundled, in: [bin]) == .init())
+    #expect(!FileManager.default.fileExists(atPath: bundled.path + ".ran"))
+  }
+
+  @Test
   func writabilityLooksAtTheClosestExistingDirectory() throws {
     #expect(CommandLineToolInstaller.isWritable(bin))
     #expect(!CommandLineToolInstaller.isWritable(URL(filePath: "/System/lil-tests/bin")))

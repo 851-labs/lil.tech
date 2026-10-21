@@ -16,19 +16,13 @@
     }
   }
 
-  /// Whether an install is under way, so choosing the menu item again meanwhile does nothing.
+  /// Whether an install is under way, so starting another meanwhile does nothing.
   @MainActor private var isInstalling = false
 
   /// Asks where to install `lil`, installs it, and says how that went. Alerts rather than SwiftUI
   /// presentation: a menu command has no view to present from.
   @MainActor
   private func installCommandLineTool() async {
-    guard !isInstalling else { return }
-    isInstalling = true
-    defer { isInstalling = false }
-    let appName =
-      Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-      ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "the app"
     guard let bundled = Bundle.main.url(forAuxiliaryExecutable: "lil") else {
       showAlert(
         "The command line tool is missing",
@@ -58,13 +52,22 @@
       return
     }
 
+    await install(bundled, into: destination.directory)
+  }
+
+  /// Installs `bundled` into `directory`, and says how that went.
+  @MainActor
+  func install(_ bundled: URL, into directory: URL) async {
+    guard !isInstalling else { return }
+    isInstalling = true
+    defer { isInstalling = false }
     do {
-      switch try await CommandLineToolInstaller.install(bundled, into: destination.directory) {
+      switch try await CommandLineToolInstaller.install(bundled, into: directory) {
       case .installed(let url, let replacedVersion):
         let replaced = replacedVersion.map { " It replaced an older lil (version \($0))." } ?? ""
         let path =
-          destination == .user
-          ? " If your shell can’t find it, add \(user) to your PATH." : ""
+          directory == CommandLineToolInstaller.Destination.user.directory
+          ? " If your shell can’t find it, add ~/.local/bin to your PATH." : ""
         showAlert("lil is installed", "lil is at \(url.path).\(replaced)\(path)")
       case .upToDate(let url, let version):
         showAlert(
@@ -85,6 +88,13 @@
     } catch {
       showAlert("lil couldn’t be installed", error.localizedDescription)
     }
+  }
+
+  /// The app's name, as the menu bar shows it.
+  @MainActor
+  var appName: String {
+    Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+      ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "the app"
   }
 
   @MainActor

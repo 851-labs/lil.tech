@@ -37,6 +37,8 @@ struct LilHealthApp: App {
     // One window: the app has one store, and one session to follow.
     Window("lil health", id: "main") {
       AppView(store: Self.store)
+        // Replaces an installed `lil` older than the bundled one, after an update.
+        .refreshesCommandLineTool()
     }
     .commands {
       #if !DEBUG
