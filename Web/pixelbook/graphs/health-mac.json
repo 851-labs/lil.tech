@@ -146,6 +146,10 @@
       "screen": "HealthPages/BloodPressureViewPreviews.swift"
     },
     {
+      "id": "food",
+      "screen": "HealthPages/FoodViewPreviews.swift"
+    },
+    {
       "id": "workouts",
       "screen": "HealthPages/WorkoutsViewPreviews.swift",
       "states": ["Workouts", "No workouts", "Workouts loading", "Workouts failed"]
@@ -320,6 +324,11 @@
       "from": "metric",
       "to": "blood-pressure",
       "label": "For Blood Pressure"
+    },
+    {
+      "from": "metric",
+      "to": "food",
+      "label": "For Food"
     },
     {
       "from": "metric",

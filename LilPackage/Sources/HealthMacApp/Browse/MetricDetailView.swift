@@ -33,6 +33,8 @@ struct MetricDetailView: View {
         ActivityRingsView()
       } else if type.id == HealthDatabase.bloodPressureType {
         BloodPressureView()
+      } else if type.id == HealthDatabase.foodType {
+        FoodView()
       } else if type.kind == .workout {
         WorkoutsView()
       } else if type.kind == .electrocardiogram {
