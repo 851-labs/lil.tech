@@ -248,6 +248,7 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       refresh: yield* bindRateLimit("RefreshRateLimit", "refresh"),
       clientRegistration: yield* bindRateLimit("ClientRegistrationRateLimit", "clientRegistration"),
       agentToken: yield* bindRateLimit("AgentTokenRateLimit", "agentToken"),
+      agent: yield* bindRateLimit("AgentRateLimit", "agent"),
     });
     const blobs = yield* Cloudflare.R2.ReadWriteBucket(yield* HealthBlobBucket);
     // Per request: the buckets' calls need the request's runtime context.

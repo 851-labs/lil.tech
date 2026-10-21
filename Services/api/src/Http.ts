@@ -11,6 +11,7 @@ import { AppleTokens, revokeAppleTokens } from "./auth/AppleTokens.ts";
 import { appleWebCallbackPath, AppleWebCallbackRoute } from "./auth/AppleWebSignIn.ts";
 import { DevSignInRoute } from "./auth/DevSignIn.ts";
 import { AgentTokens } from "./oauth/AgentTokens.ts";
+import { AgentMcpRoutes } from "./mcp/McpRoutes.ts";
 import { AgentHostsMiddleware, AgentOAuthRoutes } from "./oauth/OAuthRoutes.ts";
 import {
   Authorization,
@@ -1014,6 +1015,7 @@ export const WorkerHttpLayer = Layer.mergeAll(
   ExportDownloadRoute,
   LiveRoute,
   AgentOAuthRoutes,
+  AgentMcpRoutes,
   AgentHostsMiddleware,
 ).pipe(
   Layer.provide([SystemHandlers, AuthHandlers, MeHandlers, SyncHandlers, HealthHandlers]),

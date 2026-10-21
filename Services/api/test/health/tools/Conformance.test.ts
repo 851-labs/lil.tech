@@ -11,11 +11,17 @@ import {
   HealthToolkit,
   withUnimplementedTools,
 } from "../../../src/health/tools/HealthToolkit.ts";
+import {
+  makeHealthMcpServer,
+  RemoteHealthToolkit,
+} from "../../../src/health/tools/HealthMcpServer.ts";
 import { healthSummary } from "../../../src/health/tools/Summary.ts";
+import { appendAgentAccess } from "../../../src/store/AgentAccessLog.ts";
 import type { StoreSql } from "../../../src/store/StoreSql.ts";
 import { UserStores } from "../../../src/store/UserStores.ts";
 import { TestCore } from "../../core/TestCoreDatabase.ts";
 import { TestStores, TestUserStores } from "../../store/TestUserStores.ts";
+import { postMcp, sessionless, viaStore } from "../../mcp/TestMcp.ts";
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "../TestHealthIngestion.ts";
 
 // The Health toolkit's conformance harness (851-2841). `conformance/dataset.json` is a synthetic
@@ -23,7 +29,8 @@ import { batchFile, TestHealthIngestion, TestHealthOutbox } from "../TestHealthI
 // give. This side ingests the dataset as the server does (an iPhone's uploads through
 // `ingestHealthBatch`) and calls the server's implementation through the toolkit, so arguments
 // and outputs go through the tools' schemas. The Mac's `lil-health mcp` (851-2844) runs the same
-// cases on the same dataset after a sync.
+// cases on the same dataset after a sync. The remote MCP server (851-2851) runs them too, over
+// Streamable HTTP, for the tools it serves.
 
 const Iso = Schema.String.annotate({ description: "An ISO 8601 time" });
 const millis = (iso: string) => Date.parse(iso);
@@ -212,6 +219,43 @@ describe("Health toolkit conformance cases", () => {
           if (!matches(result.output, testCase.expected)) {
             // Shows the difference.
             assert.deepStrictEqual(result.output, testCase.expected);
+          }
+        }),
+    );
+  }
+
+  for (const testCase of cases) {
+    const tool = testCase.tool as ToolName;
+    (tool in RemoteHealthToolkit.tools ? it.effect : it.effect.skip)(
+      `the remote MCP server: ${testCase.name}`,
+      () =>
+        Effect.gen(function* () {
+          const sql = yield* storeWithDataset(testCase.pins);
+          yield* TestClock.setTime(millis(testCase.now));
+          const server = yield* makeHealthMcpServer({
+            sql,
+            record: (access) => Effect.sync(() => appendAgentAccess(sql, access, 0)),
+          });
+          const request = sessionless("tools/call", { name: tool, arguments: testCase.arguments });
+          const response = yield* postMcp(
+            viaStore(server),
+            "http://store/health",
+            request.body,
+            request.headers,
+          );
+          assert.strictEqual(response.status, 200);
+          const result = response.message?.["result"] as Record<string, unknown> | undefined;
+          assert.isDefined(result, JSON.stringify(response.message));
+          if (testCase.expectedError === true) {
+            assert.isTrue(result!["isError"], JSON.stringify(result));
+            return;
+          }
+          assert.isFalse(result!["isError"], JSON.stringify(result));
+          // The output as structured content, and the same as text.
+          const [content] = result!["content"] as Array<{ readonly text: string }>;
+          assert.deepStrictEqual(JSON.parse(content!.text), result!["structuredContent"]);
+          if (!matches(result!["structuredContent"], testCase.expected)) {
+            assert.deepStrictEqual(result!["structuredContent"], testCase.expected);
           }
         }),
     );

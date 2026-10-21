@@ -288,6 +288,24 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       CREATE INDEX health_document_start ON health_document (start_date);
     `,
   },
+  {
+    version: 24,
+    name: "agent_access_log",
+    // Agents' tool calls at the MCP servers (851-2851, `src/store/AgentAccessLog.ts`). Not an
+    // entity: it isn't synced. Rows are added in time order, so the rowid orders them.
+    sql: `CREATE TABLE agent_access_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      at INTEGER NOT NULL,
+      grant_id TEXT NOT NULL,
+      client_name TEXT NOT NULL,
+      tool TEXT NOT NULL,
+      types TEXT,
+      range TEXT,
+      date TEXT,
+      outcome TEXT NOT NULL,
+      rows INTEGER NOT NULL
+    ) STRICT;`,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

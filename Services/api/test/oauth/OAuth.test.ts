@@ -413,6 +413,7 @@ describe("POST /oauth/register", () => {
       refresh: counter("refresh", Infinity),
       clientRegistration: counter("clientRegistration", 1),
       agentToken: counter("agentToken", Infinity),
+      agent: counter("agent", Infinity),
     });
     const body = { redirect_uris: ["https://example.com/cb"] };
     return withApi(

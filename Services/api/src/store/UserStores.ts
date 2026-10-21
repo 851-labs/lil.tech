@@ -40,6 +40,14 @@ export class UserStores extends Context.Service<
       userId: UserId,
       request: HttpServerRequest.HttpServerRequest,
     ) => Effect.Effect<HttpServerResponse.HttpServerResponse>;
+    /**
+     * Hands a request to one of the user's MCP servers (`src/mcp/McpRoutes.ts`), whose path is
+     * the app's. The caller has checked the agent and set its trusted headers.
+     */
+    readonly mcp: (
+      userId: UserId,
+      request: HttpServerRequest.HttpServerRequest,
+    ) => Effect.Effect<HttpServerResponse.HttpServerResponse>;
   }
 >()("lil/api/store/UserStores") {
   /**
@@ -54,28 +62,30 @@ export class UserStores extends Context.Service<
         request: HttpServerRequest.HttpServerRequest,
       ) => Effect.Effect<HttpServerResponse.HttpServerResponse, unknown>;
     };
-  }) =>
-    UserStores.of({
-      // A transient failure is a 503, like the store's other calls; anything else a 500.
-      live: (userId, request) =>
-        namespace
-          .getByName(userStoreName(userId))
-          .fetch(request)
-          .pipe(
-            Effect.catch((error) => {
-              const cause = Predicate.isTagged(error, "RpcCallError")
-                ? (error as { readonly cause?: unknown }).cause
-                : error;
-              return isTransient(cause)
-                ? Effect.succeed(
-                    HttpServerResponse.jsonUnsafe(
-                      { _tag: "UserStoreUnavailable", message: String(cause) },
-                      { status: 503 },
-                    ),
-                  )
-                : Effect.die(error);
-            }),
-          ),
+  }) => {
+    // A transient failure is a 503, like the store's other calls; anything else a 500.
+    const forward = (userId: UserId, request: HttpServerRequest.HttpServerRequest) =>
+      namespace
+        .getByName(userStoreName(userId))
+        .fetch(request)
+        .pipe(
+          Effect.catch((error) => {
+            const cause = Predicate.isTagged(error, "RpcCallError")
+              ? (error as { readonly cause?: unknown }).cause
+              : error;
+            return isTransient(cause)
+              ? Effect.succeed(
+                  HttpServerResponse.jsonUnsafe(
+                    { _tag: "UserStoreUnavailable", message: String(cause) },
+                    { status: 503 },
+                  ),
+                )
+              : Effect.die(error);
+          }),
+        );
+    return UserStores.of({
+      live: forward,
+      mcp: forward,
       forUser: (userId) => {
         const stub = namespace.getByName(userStoreName(userId));
         return new Proxy({} as UserStoreClient, {
@@ -103,4 +113,5 @@ export class UserStores extends Context.Service<
         });
       },
     });
+  };
 }
