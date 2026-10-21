@@ -5,6 +5,7 @@ import { HttpRouter } from "effect/http";
 import { AppleKeys } from "./auth/Apple.ts";
 import { AppleTokens, revokeAppleTokens } from "./auth/AppleTokens.ts";
 import { GoogleClients, GoogleKeys } from "./auth/Google.ts";
+import { GoogleWebClient } from "./auth/GoogleWeb.ts";
 import { SessionKey } from "./auth/Tokens.ts";
 import { AgentGrants } from "./core/AgentGrants.ts";
 import { AppleTokenRevocations } from "./core/AppleTokenRevocations.ts";
@@ -35,23 +36,34 @@ import { type OpenedPart, type PartRange, SnapshotParts } from "./sync/SnapshotP
 import { UserStores } from "./store/UserStores.ts";
 
 /**
- * The Sign in with Apple key, if set. An empty one counts as unset: that's what CI gets for a
- * missing secret.
+ * A secret from the deploy's environment, if set. An empty one counts as unset: that's what CI
+ * gets for a missing secret.
  */
-const readAppleSignInKey = Config.Redacted("LIL_APPLE_SIGN_IN_KEY").pipe(
-  Config.option,
-  Config.map(Option.filter((key) => Redacted.value(key).trim() !== "")),
-);
+const readOptionalSecret = (name: string) =>
+  Config.Redacted(name).pipe(
+    Config.option,
+    Config.map(Option.filter((secret) => Redacted.value(secret).trim() !== "")),
+  );
 
-/** Deployments that must be able to revoke Sign in with Apple tokens (`AppleTokens.ts`). */
-const appleSignInKeyRequired: ReadonlySet<string> = new Set(["staging", "prod"]);
+/** The Sign in with Apple key (`AppleTokens.ts`), if set. */
+const readAppleSignInKey = readOptionalSecret("LIL_APPLE_SIGN_IN_KEY");
+
+/** The secret of the authorization page's Google client (`GoogleWeb.ts`, 851-2850), if set. */
+const readGoogleWebClientSecret = readOptionalSecret("LIL_GOOGLE_WEB_CLIENT_SECRET");
+
+/**
+ * Deployments that must be able to revoke Sign in with Apple tokens (`AppleTokens.ts`) and sign in
+ * with Google on the agents' authorization page.
+ */
+const providerSecretsRequired: ReadonlySet<string> = new Set(["staging", "prod"]);
 
 /**
  * The Worker's props. Alchemy also evaluates them inside the running Worker, where there's no
  * `Stage`, so the deploy-time work (picking the domain, checking the environment, binding the
  * secrets) only happens when a stage is present. `makeKey` makes a random key at deploy time.
- * The Sign in with Apple key comes from the deploy's `LIL_APPLE_SIGN_IN_KEY` (a PKCS #8 PEM),
- * which staging and prod need.
+ * The Sign in with Apple key comes from the deploy's `LIL_APPLE_SIGN_IN_KEY` (a PKCS #8 PEM), and
+ * the authorization page's Google client secret from `LIL_GOOGLE_WEB_CLIENT_SECRET`. Staging and
+ * prod need both.
  */
 export const makeApiWorkerProps = <Key, E, R>(makeKey: (id: string) => Effect.Effect<Key, E, R>) =>
   Effect.gen(function* () {
@@ -66,8 +78,12 @@ export const makeApiWorkerProps = <Key, E, R>(makeKey: (id: string) => Effect.Ef
       );
     }
     const appleSignInKey = yield* readAppleSignInKey;
-    if (Option.isNone(appleSignInKey) && appleSignInKeyRequired.has(environment)) {
+    if (Option.isNone(appleSignInKey) && providerSecretsRequired.has(environment)) {
       return yield* Effect.die(`LIL_APPLE_SIGN_IN_KEY is needed to deploy ${environment}`);
+    }
+    const googleWebClientSecret = yield* readGoogleWebClientSecret;
+    if (Option.isNone(googleWebClientSecret) && providerSecretsRequired.has(environment)) {
+      return yield* Effect.die(`LIL_GOOGLE_WEB_CLIENT_SECRET is needed to deploy ${environment}`);
     }
     const domains = stageDomains[stage.value];
     return {
@@ -83,6 +99,9 @@ export const makeApiWorkerProps = <Key, E, R>(makeKey: (id: string) => Effect.Ef
         LIL_SESSION_KEY: yield* makeKey("SessionSigningKey"),
         LIL_TOKEN_KEY: yield* makeKey("AppleTokenKey"),
         ...(Option.isSome(appleSignInKey) ? { LIL_APPLE_SIGN_IN_KEY: appleSignInKey.value } : {}),
+        ...(Option.isSome(googleWebClientSecret)
+          ? { LIL_GOOGLE_WEB_CLIENT_SECRET: googleWebClientSecret.value }
+          : {}),
       },
     };
   });
@@ -277,7 +296,12 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
         Layer.provide(Layer.succeed(Deployment, deployment)),
         Layer.provide(Layer.succeed(SessionKey, key)),
         Layer.provide(Layer.succeed(AppleTokens, appleTokens)),
-        Layer.provide([AppleKeys.layer, GoogleKeys.layer, GoogleClients.layer]),
+        Layer.provide(
+          GoogleWebClient.layer({ clientSecret: yield* readGoogleWebClientSecret }).pipe(
+            Layer.provideMerge(GoogleClients.layer),
+          ),
+        ),
+        Layer.provide([AppleKeys.layer, GoogleKeys.layer]),
         Layer.provide(Layer.succeed(UserStores, userStores)),
         Layer.provide(Layer.succeed(RateLimits, limits)),
         Layer.provide(CoreRepositories.pipe(Layer.provideMerge(core))),

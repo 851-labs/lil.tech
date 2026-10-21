@@ -57,6 +57,10 @@ export class PendingAuthorization extends Schema.Class<PendingAuthorization>(
   resource: Schema.String,
   browserHash: Schema.String,
   expiresAt: Schema.Number,
+  /** Set while the user is signing in with Apple or Google, until they have. */
+  signInProvider: Schema.NullOr(Schema.Literals(["apple", "google"])),
+  signInStateHash: Schema.NullOr(Schema.String),
+  signInNonce: Schema.NullOr(Schema.String),
   userId: Schema.NullOr(UserId),
   /** The signed-in user's name, if they have one. */
   userName: Schema.NullOr(Schema.String),
@@ -86,6 +90,15 @@ export interface NewAgentAuthorization {
   readonly browserHash: string;
   readonly createdAt: number;
   readonly expiresAt: number;
+}
+
+/** Signing in to an authorization request with Apple or Google, as it's started. */
+export interface ProviderSignInStart {
+  readonly provider: "apple" | "google";
+  /** The SHA-256 hex of the `state` sent to the provider. */
+  readonly stateHash: string;
+  /** The nonce whose SHA-256 the provider's ID token must carry. */
+  readonly nonce: string;
 }
 
 /** What allowing an authorization records: the scopes granted and the code's hash. */
@@ -166,6 +179,26 @@ export class AgentGrants extends Context.Service<
      */
     readonly signInAuthorization: (
       id: AgentAuthorizationId,
+      userId: UserId,
+      now: number,
+    ) => Effect.Effect<boolean, SqlError.SqlError>;
+    /**
+     * Starts signing in to an authorization request with Apple or Google, replacing any sign-in
+     * started before, unless someone has signed in, it was decided, or it expired. Whether it did.
+     */
+    readonly startProviderSignIn: (
+      id: AgentAuthorizationId,
+      start: ProviderSignInStart,
+      now: number,
+    ) => Effect.Effect<boolean, SqlError.SqlError>;
+    /**
+     * Records who signed in with the provider sign-in whose state hashes to `stateHash`, and
+     * forgets that sign-in, so its callback works once. Unless someone already signed in, it was
+     * decided, or it expired. Whether it did.
+     */
+    readonly finishProviderSignIn: (
+      id: AgentAuthorizationId,
+      stateHash: string,
       userId: UserId,
       now: number,
     ) => Effect.Effect<boolean, SqlError.SqlError>;
@@ -306,6 +339,9 @@ export class AgentGrants extends Context.Service<
                   resource: agentAuthorizations.resource,
                   browserHash: agentAuthorizations.browserHash,
                   expiresAt: agentAuthorizations.expiresAt,
+                  signInProvider: agentAuthorizations.signInProvider,
+                  signInStateHash: agentAuthorizations.signInStateHash,
+                  signInNonce: agentAuthorizations.signInNonce,
                   userId: agentAuthorizations.userId,
                   userName: users.displayName,
                   codeHash: agentAuthorizations.codeHash,
@@ -331,6 +367,49 @@ export class AgentGrants extends Context.Service<
                 .where(
                   and(
                     eq(agentAuthorizations.id, id),
+                    isNull(agentAuthorizations.userId),
+                    isNull(agentAuthorizations.codeHash),
+                    gt(agentAuthorizations.expiresAt, now),
+                  ),
+                )
+                .returning({ id: agentAuthorizations.id }),
+            );
+            return rows.length === 1;
+          },
+        ),
+        startProviderSignIn: Effect.fn("AgentGrants.startProviderSignIn")(
+          function* (id, start, now) {
+            const rows = yield* query(
+              db
+                .update(agentAuthorizations)
+                .set({
+                  signInProvider: start.provider,
+                  signInStateHash: start.stateHash,
+                  signInNonce: start.nonce,
+                })
+                .where(
+                  and(
+                    eq(agentAuthorizations.id, id),
+                    isNull(agentAuthorizations.userId),
+                    isNull(agentAuthorizations.codeHash),
+                    gt(agentAuthorizations.expiresAt, now),
+                  ),
+                )
+                .returning({ id: agentAuthorizations.id }),
+            );
+            return rows.length === 1;
+          },
+        ),
+        finishProviderSignIn: Effect.fn("AgentGrants.finishProviderSignIn")(
+          function* (id, stateHash, userId, now) {
+            const rows = yield* query(
+              db
+                .update(agentAuthorizations)
+                .set({ userId, signInProvider: null, signInStateHash: null, signInNonce: null })
+                .where(
+                  and(
+                    eq(agentAuthorizations.id, id),
+                    eq(agentAuthorizations.signInStateHash, stateHash),
                     isNull(agentAuthorizations.userId),
                     isNull(agentAuthorizations.codeHash),
                     gt(agentAuthorizations.expiresAt, now),

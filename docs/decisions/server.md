@@ -74,7 +74,7 @@
   - The policies are account-wide, not per stage, so they live in `Services/api/scripts/notifications.ts` rather than the Alchemy stack. That also keeps the CI deploy token free of notification permissions.
   - To change them, edit the script, then run `node scripts/notifications.ts` from `Services/api` (add `--dry-run` to preview). Don't use `vp run`, whose tasks are cached and don't see your environment. It matches policies by name and leaves others alone. It needs `CLOUDFLARE_API_TOKEN` with Notifications: Edit, or an Alchemy OAuth login that was granted the notifications scopes, which "Basic Scopes" doesn't include.
 - **Rate limits** (`src/RateLimits.ts`), counted with the Workers rate limiting binding:
-  - Sign-ins: 60 a minute per IP address (`cf-connecting-ip`), shared by Apple, Google and dev sign-in, and the agents' authorization page (starting a request and signing in each count). They're unauthenticated and create accounts, so the address is the only key there is.
+  - Sign-ins: 60 a minute per IP address (`cf-connecting-ip`), shared by Apple, Google and dev sign-in, and the agents' authorization page (starting a request, signing in, and Apple's and Google's callbacks each count). They're unauthenticated and create accounts, so the address is the only key there is.
   - Refreshes: 600 a minute per IP address, separately, so sign-in attempts can't block refreshes, and every device behind a carrier NAT can still refresh.
   - An IPv6 address counts by its /64, since one client usually has a whole /64.
   - Dynamic client registrations for agents (`POST /oauth/register`): 300 a minute per IP address, separately. High, because hosted agents register from shared egress ranges: Claude registers a client per connection, from `160.79.104.0/21`.

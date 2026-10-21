@@ -6,7 +6,7 @@ import { RateLimits } from "../src/RateLimits.ts";
 import { TestAppleKeys } from "./auth/TestApple.ts";
 import { TestAppleTokens } from "./auth/TestAppleTokens.ts";
 import { TestAuth } from "./auth/TestAuth.ts";
-import { TestGoogleClients, TestGoogleKeys } from "./auth/TestGoogle.ts";
+import { TestGoogleClients, TestGoogleKeys, TestGoogleWebClient } from "./auth/TestGoogle.ts";
 import { TestHealthBlobs } from "./health/TestHealthBlobs.ts";
 import { TestHealthIngestion } from "./health/TestHealthIngestion.ts";
 import { TestUserStores } from "./store/TestUserStores.ts";
@@ -46,6 +46,7 @@ export const TestServices = Layer.mergeAll(
   TestAppleTokens,
   TestGoogleKeys,
   TestGoogleClients,
+  TestGoogleWebClient,
   TestUserStores,
   TestHealthIngestion,
   TestHealthBlobs,

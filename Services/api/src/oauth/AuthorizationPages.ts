@@ -1,4 +1,5 @@
 import { HttpServerResponse } from "effect/http";
+import { appleLogoPath, googleLogoPng, googleSansMediumWoff2 } from "./SignInButtons.ts";
 
 // The agents' authorization page (`/oauth/authorize`, 851-2849): server-rendered HTML with no
 // JavaScript and no remote resources, in a plain system look that follows light and dark. Every
@@ -92,16 +93,33 @@ button { width: 100%; font: inherit; font-weight: 600; padding: 10px 14px; borde
 button.primary { background: var(--accent); border-color: var(--accent);
   color: var(--accent-text); }
 footer { margin-top: 18px; text-align: center; }
+.notice { margin: 0 0 12px; }
+form.provider { margin: 0 0 10px; }
+button.provider { display: flex; align-items: center; justify-content: center; height: 44px;
+  padding: 0 12px; border-radius: 8px; }
+button.apple { gap: 6px; background: #000; border-color: #000; color: #fff;
+  font: 500 17px/1 -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif; }
+button.apple svg { width: 15px; height: 19px; margin-top: -3px; fill: currentColor; }
+button.google { gap: 10px; background: #fff; border-color: #747775; color: #1f1f1f;
+  font: 500 14px/20px "Google Sans Medium", Roboto, system-ui, sans-serif; }
+button.google img { width: 20px; height: 20px; }
+@media (prefers-color-scheme: dark) {
+  button.apple { background: #fff; border-color: #fff; color: #000; }
+  button.google { background: #131314; border-color: #8e918f; color: #e3e3e3; } }
 `;
 
-const layout = (title: string, body: string) => `<!doctype html>
+/** Google Sans, for Google's button only: it has just that label's letters. */
+const googleFont = `@font-face { font-family: "Google Sans Medium"; font-weight: 500;
+  src: url(data:font/woff2;base64,${googleSansMediumWoff2}) format("woff2"); }`;
+
+const layout = (title: string, body: string, extraStyles = "") => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>${escape(title)}</title>
-<style>${styles}</style>
+<style>${styles}${extraStyles}</style>
 </head>
 <body>
 <main>
@@ -142,17 +160,83 @@ const cancelForm = (binding: FormBinding) =>
   `<form method="post" action="/oauth/authorize/decision">${hidden(binding)}` +
   `<button type="submit" name="decision" value="cancel">Cancel</button></form>`;
 
-/** Signing in, before consent. `testAccounts` offers the test-account sign-in (previews). */
+/** How someone can sign in on the page. */
+export interface SignInMethods {
+  /** The test-account sign-in (previews and `alchemy dev`). */
+  readonly testAccounts: boolean;
+  /** Sign in with Apple (staging and prod). */
+  readonly apple: boolean;
+  /** Sign in with Google (staging and prod, where its web client is set up). */
+  readonly google: boolean;
+}
+
+/** Why the sign-in page is shown again, after a sign-in with Apple or Google that didn't work. */
+export const SignInNotice = ["apple_unknown", "google_unknown", "failed", "unavailable"] as const;
+export type SignInNotice = (typeof SignInNotice)[number];
+
+const noticeText = (notice: SignInNotice, app: AppView) => {
+  switch (notice) {
+    case "apple_unknown":
+      return `No ${app.name} account uses this Apple ID. Set up ${app.name} on your iPhone first.`;
+    case "google_unknown":
+      return (
+        `No ${app.name} account uses this Google account. Set up ${app.name} on your iPhone ` +
+        `first.`
+      );
+    case "failed":
+      return "Signing in didn't work. Try again.";
+    case "unavailable":
+      return "Signing in isn't available right now. Try again in a minute.";
+  }
+};
+
+/** A form that starts signing in with `provider`. */
+const providerForm = (binding: FormBinding, provider: "apple" | "google", label: string) =>
+  `<form class="provider" method="post" action="/oauth/authorize/sign-in">${hidden(binding)}` +
+  `<input type="hidden" name="provider" value="${provider}">` +
+  `<button type="submit" class="provider ${provider}">${label}</button></form>`;
+
+/** Sign in with Apple and Google, as each brand draws its button. */
+const providerButtons = (binding: FormBinding, methods: SignInMethods, app: AppView) => {
+  const apple = methods.apple
+    ? providerForm(
+        binding,
+        "apple",
+        `<svg viewBox="20.5 16 15 19" aria-hidden="true"><path d="${appleLogoPath}"/></svg>` +
+          `Sign in with Apple`,
+      )
+    : "";
+  const google = methods.google
+    ? providerForm(
+        binding,
+        "google",
+        `<img src="data:image/png;base64,${googleLogoPng}" alt="">Sign in with Google`,
+      )
+    : "";
+  const accounts = methods.google ? "Apple ID or Google account" : "Apple ID";
+  return `${apple}${google}
+<p class="muted">Use the ${accounts} you use with ${escape(app.name)} on your iPhone.</p>`;
+};
+
+/** Signing in, before consent, with the ways `methods` allows. */
 export const signInPage = (options: {
   readonly client: ClientView;
   readonly app: AppView;
   readonly binding: FormBinding;
-  readonly testAccounts: boolean;
+  readonly methods: SignInMethods;
+  readonly notice?: SignInNotice | undefined;
 }) => {
-  const { client, app, binding } = options;
+  const { client, app, binding, methods } = options;
   const title = `Sign in to connect ${agentName(client)} to ${app.name}`;
-  const signIn = options.testAccounts
-    ? `<section>
+  const notice =
+    options.notice === undefined
+      ? ""
+      : `<p class="warning notice" role="alert">${escape(noticeText(options.notice, app))}</p>\n`;
+  const providers = methods.apple || methods.google;
+  const signIn = providers
+    ? `<section>${notice}${providerButtons(binding, methods, app)}</section>`
+    : methods.testAccounts
+      ? `<section>
 <form method="post" action="/oauth/authorize/sign-in">${hidden(binding)}
 <label for="account">Test account</label>
 <input type="text" id="account" name="account" value="${defaultTestAccount}"
@@ -162,7 +246,7 @@ export const signInPage = (options: {
 </form>
 <p class="muted">This is a preview, so it only has synthetic test accounts.</p>
 </section>`
-    : `<section><p>Signing in on the web isn't available here yet.</p></section>`;
+      : `<section><p>Signing in on the web isn't available here yet.</p></section>`;
   return layout(
     title,
     `<h1>${escape(title)}</h1>
@@ -170,6 +254,7 @@ export const signInPage = (options: {
 ${whoIsAsking(client)}
 ${signIn}
 <div class="buttons">${cancelForm(binding)}</div>`,
+    methods.google ? googleFont : "",
   );
 };
 
@@ -224,7 +309,8 @@ export const formActionSource = (redirectUri: string) => {
 
 /**
  * An authorization page response: never cached, framed or sent with a referrer, and with no CORS
- * headers (it uses a cookie). Its forms may post to this origin, and redirect to `formActions`.
+ * headers (it uses a cookie). Its forms may post to this origin, and redirect to `formActions`
+ * (the agent, and Apple's and Google's sign-in pages).
  */
 export const pageResponse = (
   html: string,
@@ -234,8 +320,9 @@ export const pageResponse = (
     status: options.status ?? 200,
     contentType: "text/html; charset=utf-8",
     headers: {
+      // Images and fonts only as `data:` URLs: the sign-in buttons' marks and Google's font.
       "content-security-policy":
-        `default-src 'none'; style-src 'unsafe-inline'; ` +
+        `default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; ` +
         `form-action ${["'self'", ...(options.formActions ?? [])].join(" ")}; ` +
         `frame-ancestors 'none'`,
       "referrer-policy": "no-referrer",

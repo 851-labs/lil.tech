@@ -229,6 +229,12 @@ export const agentAuthorizations = sqliteTable(
     browserHash: text("browser_hash").notNull(),
     createdAt: integer("created_at").notNull(),
     expiresAt: integer("expires_at").notNull(),
+    // Set when the user starts signing in with Apple or Google (851-2850): which, the SHA-256 hex
+    // of the `state` sent to it, and the nonce whose SHA-256 its ID token must carry. Starting
+    // again replaces them; signing in clears them, so a callback works once.
+    signInProvider: text("sign_in_provider"), // apple, google
+    signInStateHash: text("sign_in_state_hash"),
+    signInNonce: text("sign_in_nonce"),
     // Set when the user signs in on the authorization page.
     userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
     // Set when they allow it.

@@ -19,12 +19,18 @@ export const googleIssuers = ["https://accounts.google.com", "accounts.google.co
  *
  * - `apps`: the apps' client IDs, which Google puts in the token's `azp` (or `aud`). One iOS-type
  *   client serves the iPhone and the Mac: they share the bundle ID `tech.lil.health`.
+ * - `web`: the Web application client the agents' authorization page signs in with (851-2850,
+ *   `GoogleWeb.ts`), whose ID is in `aud` and `azp`. Its secret is the deploy's
+ *   `LIL_GOOGLE_WEB_CLIENT_SECRET`.
  * - `server`: a server client ID, which Google would put in `aud` if the apps asked for one. They
  *   don't (they sign in without Google's SDK, `GoogleOAuth.swift`), so it's empty.
  */
 export const googleClientIds = {
   apps: [
     "43230766631-5mdd1j3o2dlugafcl2jj2ci39i4a8ski.apps.googleusercontent.com",
+  ] as ReadonlyArray<string>,
+  web: [
+    "43230766631-d4cte9lfc5qitim1d69cqdf1u9c5v2e0.apps.googleusercontent.com",
   ] as ReadonlyArray<string>,
   server: [] as ReadonlyArray<string>,
 };
@@ -55,7 +61,7 @@ const GoogleClaims = Schema.Struct({
   name: Schema.optionalKey(Schema.String),
 });
 
-/** Verifies Google ID tokens from the apps' native sign-in. */
+/** Verifies Google ID tokens from the apps' sign-in and the authorization page's. */
 export class GoogleSignIn extends Context.Service<
   GoogleSignIn,
   {
@@ -76,12 +82,14 @@ export class GoogleSignIn extends Context.Service<
       const keys = yield* GoogleKeys;
       const clients = yield* GoogleClients;
       const tokenUses = yield* IdentityTokenUses;
-      const audience = [...clients.apps, ...clients.server];
+      // The clients that ask Google for tokens themselves: the apps, and the authorization page.
+      const requesters = [...clients.apps, ...clients.web];
+      const audience = [...requesters, ...clients.server];
       const invalid = (message: string) => new InvalidIdentityToken({ message });
 
       return GoogleSignIn.of({
         verify: Effect.fn("GoogleSignIn.verify")(function* (idToken, nonce) {
-          if (clients.apps.length === 0) {
+          if (requesters.length === 0) {
             return yield* new SignInUnavailable({ message: "Google sign-in isn't set up yet" });
           }
           const now = yield* Clock.currentTimeMillis;
@@ -95,8 +103,8 @@ export class GoogleSignIn extends Context.Service<
             now,
             claims: GoogleClaims,
           });
-          // A token for our server client must have been requested by one of our apps.
-          if (claims.azp !== undefined && !clients.apps.includes(claims.azp)) {
+          // A token for our server client must have been requested by one of our clients.
+          if (claims.azp !== undefined && !requesters.includes(claims.azp)) {
             return yield* invalid("The Google token was issued to another app");
           }
           yield* checkNonce("Google", claims.nonce, nonce);

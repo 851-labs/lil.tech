@@ -1,10 +1,15 @@
 import { Clock, Duration, Effect, Option, Schema } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import type { SqlError } from "effect/sql";
+import { AppleSignIn, appleWebServicesId } from "../auth/Apple.ts";
+import { appleWebOrigin, maxAppleWebPostBytes } from "../auth/AppleWebSignIn.ts";
 import { devSignInEnvironments, maxDevUsers, testAccount } from "../auth/DevSignIn.ts";
+import { GoogleSignIn } from "../auth/Google.ts";
+import { googleAuthorizeUrl, GoogleWebClient, googleWebOrigin } from "../auth/GoogleWeb.ts";
 import { base64url, sha256Hex } from "../auth/Tokens.ts";
 import { AgentGrants, type PendingAuthorization } from "../core/AgentGrants.ts";
 import { agentsConsentPolicyVersions, Consents } from "../core/Consents.ts";
+import { Identities } from "../core/Identities.ts";
 import { AgentAuthorizationId, newAgentAuthorizationId } from "../core/Ids.ts";
 import { type OAuthClient, OAuthClients } from "../core/OAuthClients.ts";
 import { Users } from "../core/Users.ts";
@@ -26,6 +31,7 @@ import {
   formActionSource,
   maxAccountLength,
   pageResponse,
+  SignInNotice,
   signInPage,
 } from "./AuthorizationPages.ts";
 import {
@@ -45,6 +51,25 @@ import { queryOf, readForm, readParams, requestOrigin } from "./Requests.ts";
 // bound to the browser that started it by a `__Host-` cookie whose hash the authorization keeps,
 // and every form carries a CSRF token derived from that cookie, so nobody can finish someone
 // else's request or slip theirs into someone else's browser (login CSRF).
+//
+// Staging and prod sign in with Apple or Google (851-2850), on their web pages, for accounts that
+// already exist: nothing is created here. Each sign-in's `state` names the request and carries a
+// random secret whose hash the request keeps, with the nonce its ID token must carry. Apple posts
+// its answer cross-site, which a `SameSite=Lax` cookie doesn't come with, so its callback finds the
+// request by `state` alone; the page it redirects to then checks the cookie. Google's answer is a
+// redirect, which does bring the cookie, and its PKCE verifier is derived from it.
+
+/** Where Apple and Google sign in (`providerSignIn`): only these hosts can be registered with them. */
+export const providerSignInEnvironments: ReadonlySet<Environment> = new Set(["staging", "prod"]);
+
+/** Where Apple posts its sign-in's answer, on the issuer's host. */
+export const appleCallbackPath = "/oauth/apple/callback";
+
+/** Where Google redirects with its sign-in's answer, on the issuer's host. */
+export const googleCallbackPath = "/oauth/google/callback";
+
+/** Apple's sign-in page. */
+const appleAuthorizeUrl = "https://appleid.apple.com/auth/authorize";
 
 /**
  * The cookie that binds an authorization request to the browser that started it: one per request,
@@ -129,7 +154,7 @@ const withBrowserCookie = (id: AgentAuthorizationId, value: string | null) =>
 const newBrowserSecret = Effect.sync(() => base64url(crypto.getRandomValues(new Uint8Array(32))));
 
 /** An HMAC of `purpose` and a request's ID, keyed by the browser's cookie. */
-const fromCookie = (cookie: string, purpose: "csrf" | "code", id: AgentAuthorizationId) =>
+const fromCookie = (cookie: string, purpose: "csrf" | "code" | "pkce", id: AgentAuthorizationId) =>
   Effect.promise(async () => {
     const key = await crypto.subtle.importKey(
       "raw",
@@ -151,6 +176,34 @@ const csrfToken = (cookie: string, id: AgentAuthorizationId) => fromCookie(cooki
  */
 const authorizationCode = (cookie: string, id: AgentAuthorizationId) =>
   Effect.map(fromCookie(cookie, "code", id), (mac) => `lmc_${mac}`);
+
+/** The PKCE verifier for a request's Google sign-in, from its browser's cookie (43 characters). */
+const googleCodeVerifier = (cookie: string, id: AgentAuthorizationId) =>
+  fromCookie(cookie, "pkce", id);
+
+/** A PKCE S256 challenge for `verifier` (RFC 7636 §4.2). */
+const s256 = (verifier: string) =>
+  Effect.promise(async () =>
+    base64url(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))),
+    ),
+  );
+
+/** A sign-in's `state`: the request's ID, and a secret only the request's hash of it matches. */
+const newSignInState = (id: AgentAuthorizationId) =>
+  Effect.sync(() => `${id}.${base64url(crypto.getRandomValues(new Uint8Array(32)))}`);
+
+/** The request a sign-in's `state` names, if it names one. */
+const requestOfState = (state: string | undefined) =>
+  Schema.decodeUnknownOption(AgentAuthorizationId)(state?.split(".", 1)[0]);
+
+/** A provider's answer that isn't a request's: unknown, used, replaced, or expired. */
+const badSignIn = pageError(
+  400,
+  "This sign-in can't continue",
+  "It has expired, was already used, or was started again. Connections must finish within 10 " +
+    "minutes, in the browser the agent opened.",
+);
 
 /** Compares two strings in time that depends only on their lengths. */
 const constantTimeEquals = (a: string, b: string) => {
@@ -311,8 +364,23 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
     const clients = yield* OAuthClients;
     const consents = yield* Consents;
     const users = yield* Users;
+    const identities = yield* Identities;
     const limits = yield* RateLimits;
-    const testAccounts = devSignInEnvironments.has(environment);
+    const apple = yield* AppleSignIn;
+    const google = yield* GoogleSignIn;
+    const googleWeb = yield* GoogleWebClient;
+    const providerSignIn = providerSignInEnvironments.has(environment);
+    const methods = {
+      testAccounts: devSignInEnvironments.has(environment),
+      apple: providerSignIn,
+      google: providerSignIn && Option.isSome(googleWeb.clientId),
+    };
+    /** Where the sign-in page's forms may redirect: the agent, and Apple's and Google's pages. */
+    const signInFormActions = (redirectUri: string) => [
+      formActionSource(redirectUri),
+      ...(methods.apple ? [appleWebOrigin] : []),
+      ...(methods.google ? [googleWebOrigin] : []),
+    ];
 
     const hostsOf = Effect.map(HttpServerRequest.HttpServerRequest, (request) =>
       agentHosts(environment, requestOrigin(request)),
@@ -364,23 +432,95 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
       return { ...step, form };
     });
 
-    /** The page for where a request is: sign-in, or consent once someone has signed in. */
-    const stepPage = (hosts: AgentHosts, pending: PendingAuthorization, binding: FormBinding) =>
+    /**
+     * The page for where a request is: sign-in (with `notice`, after a sign-in that didn't work),
+     * or consent once someone has signed in.
+     */
+    const stepPage = (
+      hosts: AgentHosts,
+      pending: PendingAuthorization,
+      binding: FormBinding,
+      notice: SignInNotice | undefined,
+    ) =>
       Effect.gen(function* () {
         if (pending.decided) return yield* alreadyAnswered;
         const app = appView(yield* appOf(hosts, pending));
         const client = pendingClientView(pending);
-        const html =
-          pending.userId === null
-            ? signInPage({ client, app, binding, testAccounts })
-            : consentPage({
-                client,
-                app,
-                binding,
-                account: pending.userName ?? "your account",
-              });
+        if (pending.userId === null) {
+          return pageResponse(signInPage({ client, app, binding, methods, notice }), {
+            formActions: signInFormActions(pending.redirectUri),
+          });
+        }
+        const html = consentPage({
+          client,
+          app,
+          binding,
+          account: pending.userName ?? "your account",
+        });
         return pageResponse(html, { formActions: [formActionSource(pending.redirectUri)] });
       });
+
+    /** The redirect to a request's page, after signing in (or not), with a `notice`. */
+    const toStep = (id: AgentAuthorizationId, notice?: SignInNotice) =>
+      HttpServerResponse.redirect(
+        `/oauth/authorize/consent?request=${encodeURIComponent(id)}` +
+          (notice === undefined ? "" : `&notice=${notice}`),
+        { status: 303, headers: { "cache-control": "no-store", "referrer-policy": "no-referrer" } },
+      );
+
+    /**
+     * Signs the identity `provider` and `subject` in to a request through the sign-in whose state
+     * hashes to `stateHash`, if an account has that identity, and redirects to the request's page.
+     */
+    const signInIdentity = (
+      pending: PendingAuthorization,
+      stateHash: string,
+      provider: "apple" | "google",
+      subject: string,
+      now: number,
+    ) =>
+      Effect.gen(function* () {
+        const identity = yield* identities.find(provider, subject);
+        if (Option.isNone(identity)) return toStep(pending.id, `${provider}_unknown`);
+        // Not signed in only when someone already did, or it was started again: either way, its
+        // page says where it is.
+        yield* grants.finishProviderSignIn(pending.id, stateHash, identity.value.userId, now);
+        return toStep(pending.id);
+      });
+
+    /**
+     * The request a provider's answer is for, with its sign-in's state hash: the request its
+     * `state` names, still waiting for this provider's sign-in with that state.
+     */
+    const answered = (provider: "apple" | "google", state: string | undefined, now: number) =>
+      Effect.gen(function* () {
+        const id = requestOfState(state);
+        if (Option.isNone(id) || state === undefined) return yield* badSignIn;
+        const pending = yield* grants.findPendingAuthorization(id.value, now);
+        if (Option.isNone(pending)) return yield* badSignIn;
+        const stateHash = yield* sha256Hex(state);
+        if (
+          pending.value.signInProvider !== provider ||
+          pending.value.signInNonce === null ||
+          !constantTimeEquals(pending.value.signInStateHash ?? "", stateHash)
+        ) {
+          return yield* badSignIn;
+        }
+        return { pending: pending.value, stateHash, nonce: pending.value.signInNonce };
+      });
+
+    /** What a provider's ID token that didn't sign in says to the person. */
+    const signInFailed = (id: AgentAuthorizationId) => ({
+      InvalidIdentityToken: (error: { readonly message: string }) =>
+        Effect.logWarning("Signing in to an agent's authorization failed", error.message).pipe(
+          Effect.as(toStep(id, "failed")),
+        ),
+      SignInUnavailable: (error: { readonly message: string }) =>
+        Effect.logWarning(
+          "Signing in to an agent's authorization is unavailable",
+          error.message,
+        ).pipe(Effect.as(toStep(id, "unavailable"))),
+    });
 
     /** Answers the page's errors: a page, or a redirect back to the agent. */
     const answerErrors = <R>(
@@ -448,9 +588,9 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
           ),
           app: appView(checked.resource),
           binding: { request: id, csrf: yield* csrfToken(cookie, id) },
-          testAccounts,
+          methods,
         });
-        return pageResponse(html, { formActions: [formActionSource(checked.redirectUri)] }).pipe(
+        return pageResponse(html, { formActions: signInFormActions(checked.redirectUri) }).pipe(
           withBrowserCookie(id, cookie),
         );
       }).pipe(answerErrors),
@@ -465,30 +605,78 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
           queryOf((yield* HttpServerRequest.HttpServerRequest).url),
         ).pipe(Effect.mapError(() => notThisBrowser));
         const { pending, binding } = yield* bound(query.get("request"));
-        return yield* stepPage(yield* hostsOf, pending, binding);
+        // Only the page's own notices: anything else is ignored.
+        const notice = SignInNotice.find((known) => known === query.get("notice"));
+        return yield* stepPage(yield* hostsOf, pending, binding, notice);
       }).pipe(answerErrors),
     );
 
-    // Signs in to a test account (previews and `alchemy dev` only), then shows consent.
+    // Signs in: starts signing in with Apple or Google (`provider`, staging and prod), or signs in
+    // to a test account (previews and `alchemy dev`), then shows consent.
     yield* router.add(
       "POST",
       "/oauth/authorize/sign-in",
       Effect.gen(function* () {
         yield* checkAddressRateLimit(limits, "signIn");
-        const { pending, form, now } = yield* posted;
-        if (!testAccounts) {
-          return yield* pageError(
-            404,
-            "Signing in isn't available here",
-            "This stage has no sign-in on the web yet.",
-          );
+        const { pending, form, cookie, now } = yield* posted;
+        const provider = form.get("provider");
+        const unavailable = pageError(
+          404,
+          "Signing in isn't available here",
+          "This stage has no sign-in on the web yet.",
+        );
+        const offered =
+          provider === undefined
+            ? methods.testAccounts
+            : (provider === "apple" || provider === "google") && methods[provider];
+        if (!offered) {
+          return yield* unavailable;
         }
         if (pending.decided) return yield* alreadyAnswered;
-        const consent = HttpServerResponse.redirect(
-          `/oauth/authorize/consent?request=${encodeURIComponent(pending.id)}`,
-          { status: 303, headers: { "cache-control": "no-store" } },
-        );
+        const consent = toStep(pending.id);
         if (pending.userId !== null) return consent;
+        if (provider === "apple" || provider === "google") {
+          const hosts = yield* hostsOf;
+          const state = yield* newSignInState(pending.id);
+          const nonce = yield* newBrowserSecret;
+          const started = yield* grants.startProviderSignIn(
+            pending.id,
+            { provider, stateHash: yield* sha256Hex(state), nonce },
+            now,
+          );
+          if (!started) return yield* notThisBrowser;
+          // The provider's token carries the nonce's SHA-256, as the apps' do.
+          const url = new URL(provider === "apple" ? appleAuthorizeUrl : googleAuthorizeUrl);
+          const params: Record<string, string> =
+            provider === "apple"
+              ? {
+                  client_id: appleWebServicesId,
+                  redirect_uri: `${hosts.issuer}${appleCallbackPath}`,
+                  // No scopes: only existing accounts sign in here, so no name or email.
+                  response_type: "code id_token",
+                  response_mode: "form_post",
+                }
+              : {
+                  client_id: Option.getOrElse(googleWeb.clientId, () => ""),
+                  redirect_uri: `${hosts.issuer}${googleCallbackPath}`,
+                  response_type: "code",
+                  scope: "openid email",
+                  code_challenge: yield* s256(yield* googleCodeVerifier(cookie, pending.id)),
+                  code_challenge_method: "S256",
+                  prompt: "select_account",
+                };
+          for (const [name, value] of Object.entries({
+            ...params,
+            state,
+            nonce: yield* sha256Hex(nonce),
+          })) {
+            url.searchParams.set(name, value);
+          }
+          return HttpServerResponse.redirect(url, {
+            status: 303,
+            headers: { "cache-control": "no-store", "referrer-policy": "no-referrer" },
+          });
+        }
         const account = (form.get("account") ?? defaultTestAccount).trim();
         if (account === "" || account.length > maxAccountLength) {
           return yield* pageError(
@@ -513,6 +701,75 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
         return consent;
       }).pipe(answerErrors),
     );
+
+    if (providerSignIn) {
+      // Apple's answer, posted from its page (`response_mode=form_post`). Cross-site, so without
+      // the cookie: the page it redirects to checks that.
+      yield* router.add(
+        "POST",
+        appleCallbackPath,
+        Effect.gen(function* () {
+          yield* checkAddressRateLimit(limits, "signIn");
+          const request = yield* HttpServerRequest.HttpServerRequest;
+          const origin = request.headers["origin"];
+          if (origin !== undefined && origin !== appleWebOrigin) return yield* badSignIn;
+          const form = yield* readForm(maxAppleWebPostBytes).pipe(Effect.mapError(() => badSignIn));
+          const now = yield* Clock.currentTimeMillis;
+          const { pending, stateHash, nonce } = yield* answered("apple", form.get("state"), now);
+          // Cancelled on Apple's page, or something went wrong there: back to signing in.
+          const idToken = form.get("id_token");
+          if (form.has("error") || idToken === undefined) return toStep(pending.id);
+          return yield* apple.verify(idToken, nonce, undefined).pipe(
+            Effect.flatMap((identity) =>
+              // Apple signs it for the Services ID; the iPhone's App ID would be another sign-in.
+              identity.clientId === appleWebServicesId
+                ? signInIdentity(pending, stateHash, "apple", identity.subject, now)
+                : Effect.succeed(toStep(pending.id, "failed")),
+            ),
+            Effect.catchTags(signInFailed(pending.id)),
+          );
+        }).pipe(answerErrors),
+      );
+
+      // Google's answer, a redirect with a code, which comes with the cookie.
+      yield* router.add(
+        "GET",
+        googleCallbackPath,
+        Effect.gen(function* () {
+          yield* checkAddressRateLimit(limits, "signIn");
+          const query = yield* readParams(
+            queryOf((yield* HttpServerRequest.HttpServerRequest).url),
+          ).pipe(Effect.mapError(() => badSignIn));
+          const state = query.get("state");
+          const { cookie, now } = yield* bound(Option.getOrUndefined(requestOfState(state))).pipe(
+            Effect.catchTag("PageError", () => Effect.fail(badSignIn)),
+          );
+          const { pending, stateHash, nonce } = yield* answered("google", state, now);
+          const code = query.get("code");
+          if (query.has("error") || code === undefined) return toStep(pending.id);
+          const hosts = yield* hostsOf;
+          return yield* googleWeb
+            .redeem({
+              code,
+              codeVerifier: yield* googleCodeVerifier(cookie, pending.id),
+              redirectUri: `${hosts.issuer}${googleCallbackPath}`,
+            })
+            .pipe(
+              Effect.flatMap((idToken) => google.verify(idToken, nonce)),
+              Effect.flatMap((identity) =>
+                signInIdentity(pending, stateHash, "google", identity.subject, now),
+              ),
+              Effect.catchTags({
+                ...signInFailed(pending.id),
+                GoogleCodeRedemptionFailed: (error) =>
+                  Effect.logWarning("Redeeming Google's code failed", error.message).pipe(
+                    Effect.as(toStep(pending.id, "failed")),
+                  ),
+              }),
+            );
+        }).pipe(answerErrors),
+      );
+    }
 
     // Allow or Cancel. Allow gives the request a code, records the app's agents consent, and sends
     // the browser back to the agent with the code. Either way, the cookie has done its job.

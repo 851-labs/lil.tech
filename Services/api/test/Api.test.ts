@@ -2587,6 +2587,7 @@ describe("apiWorkerProps", () => {
           LIL_ENVIRONMENT: "staging",
           LIL_VERSION: "45aa829",
           LIL_APPLE_SIGN_IN_KEY: "apple-key",
+          LIL_GOOGLE_WEB_CLIENT_SECRET: "google-secret",
         }),
       );
       // The MCP servers' host is the same Worker's (`src/oauth/Hosts.ts`).
@@ -2602,30 +2603,34 @@ describe("apiWorkerProps", () => {
         LIL_SESSION_KEY: Redacted.make("SessionSigningKey"),
         LIL_TOKEN_KEY: Redacted.make("AppleTokenKey"),
         LIL_APPLE_SIGN_IN_KEY: Redacted.make("apple-key"),
+        LIL_GOOGLE_WEB_CLIENT_SECRET: Redacted.make("google-secret"),
       });
     }),
   );
 
-  it.effect("needs the Sign in with Apple key for staging and prod, but not previews", () =>
+  it.effect.each([
+    ["LIL_APPLE_SIGN_IN_KEY", "LIL_GOOGLE_WEB_CLIENT_SECRET"],
+    ["LIL_GOOGLE_WEB_CLIENT_SECRET", "LIL_APPLE_SIGN_IN_KEY"],
+  ] as const)("needs %s for staging and prod, but not previews", ([needed, other]) =>
     Effect.gen(function* () {
-      const exit = yield* apiWorkerProps.pipe(
-        Effect.provideService(Alchemy.Stage, "prod"),
-        withEnv({ LIL_ENVIRONMENT: "prod", LIL_VERSION: "45aa829" }),
-        Effect.exit,
-      );
-      assert.isTrue(Exit.isFailure(exit));
+      const deploy = (stage: string, env: Record<string, string>) =>
+        apiWorkerProps.pipe(
+          Effect.provideService(Alchemy.Stage, stage),
+          withEnv({ LIL_VERSION: "45aa829", [other]: "set", ...env }),
+          Effect.exit,
+        );
+      for (const stage of ["staging", "prod"]) {
+        assert.isTrue(Exit.isFailure(yield* deploy(stage, { LIL_ENVIRONMENT: stage })));
+        // CI gets an empty string for a missing secret.
+        assert.isTrue(
+          Exit.isFailure(yield* deploy(stage, { LIL_ENVIRONMENT: stage, [needed]: " " })),
+        );
+      }
       const preview = yield* apiWorkerProps.pipe(
         Effect.provideService(Alchemy.Stage, "pr-12"),
         withEnv({ LIL_ENVIRONMENT: "preview", LIL_VERSION: "45aa829" }),
       );
-      assert.notProperty((preview as { env?: object }).env, "LIL_APPLE_SIGN_IN_KEY");
-      // CI gets an empty string for a missing secret.
-      const empty = yield* apiWorkerProps.pipe(
-        Effect.provideService(Alchemy.Stage, "prod"),
-        withEnv({ LIL_ENVIRONMENT: "prod", LIL_VERSION: "45aa829", LIL_APPLE_SIGN_IN_KEY: " " }),
-        Effect.exit,
-      );
-      assert.isTrue(Exit.isFailure(empty));
+      assert.notProperty((preview as { env?: object }).env, needed);
     }),
   );
 

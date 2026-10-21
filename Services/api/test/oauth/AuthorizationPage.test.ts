@@ -1,16 +1,26 @@
+import { createHash } from "node:crypto";
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Option } from "effect";
 import { eq } from "drizzle-orm";
 import { agentsConsentPolicyVersions, Consents } from "../../src/core/Consents.ts";
+import { sha256Hex } from "../../src/auth/Tokens.ts";
 import { CoreDb } from "../../src/core/CoreDb.ts";
+import { Identities } from "../../src/core/Identities.ts";
 import { agentAuthorizations } from "../../src/core/Schema.ts";
 import { Users } from "../../src/core/Users.ts";
 import type { Deployment } from "../../src/Deployment.ts";
 import type { AgentAuthorizationId } from "../../src/core/Ids.ts";
 import { browserCookie } from "../../src/oauth/AuthorizationPage.ts";
-import { escape, formActionSource } from "../../src/oauth/AuthorizationPages.ts";
+import { escape, formActionSource, signInPage } from "../../src/oauth/AuthorizationPages.ts";
 import { queryOf } from "../../src/oauth/Requests.ts";
 import { type RateLimitCounter, RateLimits } from "../../src/RateLimits.ts";
+import { appleIdentityToken } from "../auth/TestApple.ts";
+import {
+  googleIdToken,
+  testGoogleClients,
+  TestGoogleTokenEndpoint,
+  testGoogleWebClientSecret,
+} from "../auth/TestGoogle.ts";
 import { type Handler, withApi } from "../TestApi.ts";
 import { pkce, storeClaudeCode } from "./TestAgents.ts";
 
@@ -24,8 +34,8 @@ const origin = "https://lil-api-pr-12.example.workers.dev";
 const redirectUri = "http://127.0.0.1:33418/oauth/callback";
 
 const csp =
-  "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' http://127.0.0.1:33418; " +
-  "frame-ancestors 'none'";
+  "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; " +
+  "form-action 'self' http://127.0.0.1:33418; frame-ancestors 'none'";
 
 const fetchWith = (handler: Handler, request: Request) =>
   Effect.promise(async () => {
@@ -111,6 +121,14 @@ const getConsent = (handler: Handler, request: string, cookie: string | null) =>
   fetchWith(
     handler,
     new Request(`${origin}/oauth/authorize/consent?request=${request}`, {
+      headers: cookie === null ? {} : { cookie },
+    }),
+  );
+
+const getConsentOn = (base: string, handler: Handler, request: string, cookie: string | null) =>
+  fetchWith(
+    handler,
+    new Request(`${base}/oauth/authorize/consent?request=${request}`, {
       headers: cookie === null ? {} : { cookie },
     }),
   );
@@ -548,50 +566,6 @@ describe("The authorization page", () => {
     ),
   );
 
-  it.live("has no sign-in in staging yet, on the issuer's host only", () =>
-    withApi(
-      (handler) =>
-        Effect.gen(function* () {
-          const issuer = "https://api.staging.lil.tech";
-          const registered = yield* Effect.promise(async () => {
-            const response = await handler(
-              new Request(`${issuer}/oauth/register`, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ redirect_uris: [redirectUri] }),
-              }),
-            );
-            return (await response.json()) as { client_id: string };
-          });
-          const { search } = query(registered.client_id, { resource: undefined });
-          const started = yield* start(handler, search, issuer);
-          assert.strictEqual(started.response.status, 200);
-          assert.include(started.html, "isn't available here yet");
-          assert.notInclude(started.html, "Sign in to a Test Account");
-          const signIn = yield* post(
-            handler,
-            "/oauth/authorize/sign-in",
-            { request: started.request, csrf: started.csrf, account: "e2e" },
-            started.cookie,
-            issuer,
-          );
-          assert.strictEqual(signIn.response.status, 404);
-          // Staging's resource is its MCP host's.
-          const [row] = yield* (yield* CoreDb)
-            .select({ resource: agentAuthorizations.resource })
-            .from(agentAuthorizations)
-            .where(eq(agentAuthorizations.id, started.request as never));
-          assert.strictEqual(row?.resource, "https://mcp.staging.lil.tech/health");
-          const onMcp = yield* fetchWith(
-            handler,
-            new Request(`https://mcp.staging.lil.tech/oauth/authorize?${search}`),
-          );
-          assert.strictEqual(onMcp.response.status, 404);
-        }).pipe(Effect.orDie),
-      staging,
-    ),
-  );
-
   it.live("counts starting and signing in against the sign-in limit, per IP address", () => {
     let count = 0;
     const allowed: RateLimitCounter = () => Effect.succeed(true);
@@ -653,6 +627,546 @@ describe("The authorization page", () => {
   );
 });
 
+/** Staging's API host: the issuer, and where Apple and Google send their answers. */
+const issuer = "https://api.staging.lil.tech";
+
+/** Registers a client (DCR) on staging. */
+const registerOnStaging = (handler: Handler) =>
+  Effect.promise(async () => {
+    const response = await handler(
+      new Request(`${issuer}/oauth/register`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ client_name: "MCP Inspector", redirect_uris: [redirectUri] }),
+      }),
+    );
+    return ((await response.json()) as { client_id: string }).client_id;
+  });
+
+/** A lil health account that signs in with `provider`'s account `subject`. */
+const account = (provider: "apple" | "google", subject: string, displayName = "Ada") =>
+  Effect.gen(function* () {
+    const user = yield* (yield* Users).create({ displayName });
+    yield* (yield* Identities).create({
+      userId: user.id,
+      provider,
+      subject,
+      email: null,
+      emailVerified: false,
+    });
+    return user;
+  });
+
+/** Starts an authorization on staging, then signing in with `provider`: the redirect to it. */
+const startProvider = (handler: Handler, provider: "apple" | "google") =>
+  Effect.gen(function* () {
+    const clientId = yield* registerOnStaging(handler);
+    const { search, verifier } = query(clientId, { resource: undefined });
+    const started = yield* start(handler, search, issuer);
+    const { response } = yield* post(
+      handler,
+      "/oauth/authorize/sign-in",
+      { request: started.request, csrf: started.csrf, provider },
+      started.cookie,
+      issuer,
+    );
+    assert.strictEqual(response.status, 303);
+    const to = new URL(response.headers.get("location") ?? "");
+    const [row] = yield* (yield* CoreDb)
+      .select({ nonce: agentAuthorizations.signInNonce })
+      .from(agentAuthorizations)
+      .where(eq(agentAuthorizations.id, started.request as never));
+    return {
+      ...started,
+      clientId,
+      verifier,
+      to,
+      state: to.searchParams.get("state") ?? "",
+      nonce: row?.nonce ?? "",
+    };
+  });
+
+/** Apple's `form_post` to its callback, from Apple's page: cross-site, so without the cookie. */
+const applePost = (
+  handler: Handler,
+  fields: Record<string, string>,
+  origin: string | null = "https://appleid.apple.com",
+) =>
+  fetchWith(
+    handler,
+    new Request(`${issuer}/oauth/apple/callback`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        ...(origin === null ? {} : { origin }),
+      },
+      body: new URLSearchParams(fields).toString(),
+      redirect: "manual",
+    }),
+  );
+
+/** Google's redirect to its callback, which comes with the cookie. */
+const googleRedirect = (handler: Handler, params: Record<string, string>, cookie: string | null) =>
+  fetchWith(
+    handler,
+    new Request(`${issuer}/oauth/google/callback?${new URLSearchParams(params).toString()}`, {
+      headers: cookie === null ? {} : { cookie },
+      redirect: "manual",
+    }),
+  );
+
+/** The request's page after a provider's answer, as the browser follows the redirect to it. */
+const stepAfter = (handler: Handler, response: Response, cookie: string) =>
+  fetchWith(
+    handler,
+    new Request(new URL(response.headers.get("location") ?? "", issuer), { headers: { cookie } }),
+  );
+
+/** The sign-in page's notice for `notice`, as `stepAfter` shows it. */
+const expectNotice = (
+  handler: Handler,
+  response: Response,
+  cookie: string,
+  notice: string,
+  text: string,
+) =>
+  Effect.gen(function* () {
+    assert.strictEqual(response.status, 303);
+    assert.strictEqual(location(response).searchParams.get("notice"), notice);
+    const page = yield* stepAfter(handler, response, cookie);
+    assert.strictEqual(page.response.status, 200);
+    assert.include(page.html, escape(text));
+    assert.include(page.html, "Sign in with Apple");
+  });
+
+const s256 = (verifier: string) => createHash("sha256").update(verifier).digest("base64url");
+
+describe("Signing in with Apple and Google on the authorization page", () => {
+  it.live("offers Apple and Google in staging, on the issuer's host only", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const clientId = yield* registerOnStaging(handler);
+          const { search } = query(clientId, { resource: undefined });
+          const started = yield* start(handler, search, issuer);
+          assert.strictEqual(started.response.status, 200);
+          assert.include(started.html, "Sign in with Apple");
+          assert.include(started.html, "Sign in with Google");
+          assert.include(started.html, 'name="provider" value="apple"');
+          assert.include(started.html, 'name="provider" value="google"');
+          assert.include(started.html, "Use the Apple ID or Google account you use with");
+          assert.notInclude(started.html, "Sign in to a Test Account");
+          // The forms' redirects to Apple and Google are allowed, and nothing else.
+          assert.include(
+            started.response.headers.get("content-security-policy") ?? "",
+            "form-action 'self' http://127.0.0.1:33418 https://appleid.apple.com " +
+              "https://accounts.google.com;",
+          );
+          // No test accounts here.
+          const testSignIn = yield* post(
+            handler,
+            "/oauth/authorize/sign-in",
+            { request: started.request, csrf: started.csrf, account: "e2e" },
+            started.cookie,
+            issuer,
+          );
+          assert.strictEqual(testSignIn.response.status, 404);
+          const unknown = yield* post(
+            handler,
+            "/oauth/authorize/sign-in",
+            { request: started.request, csrf: started.csrf, provider: "github" },
+            started.cookie,
+            issuer,
+          );
+          assert.strictEqual(unknown.response.status, 404);
+          // Staging's resource is its MCP host's.
+          const [row] = yield* (yield* CoreDb)
+            .select({ resource: agentAuthorizations.resource })
+            .from(agentAuthorizations)
+            .where(eq(agentAuthorizations.id, started.request as never));
+          assert.strictEqual(row?.resource, "https://mcp.staging.lil.tech/health");
+          for (const request of [
+            new Request(`https://mcp.staging.lil.tech/oauth/authorize?${search}`),
+            new Request("https://mcp.staging.lil.tech/oauth/apple/callback", { method: "POST" }),
+            new Request("https://mcp.staging.lil.tech/oauth/google/callback"),
+          ]) {
+            assert.strictEqual((yield* fetchWith(handler, request)).response.status, 404);
+          }
+        }).pipe(Effect.orDie),
+      staging,
+    ),
+  );
+
+  it.live("signs in with Apple through its web page, then asks for consent", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const subject = `apple-${crypto.randomUUID()}`;
+          yield* account("apple", subject, "Ada Apple");
+          const started = yield* startProvider(handler, "apple");
+          // Apple's page, for the Services ID, posting back to staging, with no scopes.
+          assert.strictEqual(
+            `${started.to.origin}${started.to.pathname}`,
+            "https://appleid.apple.com/auth/authorize",
+          );
+          const params = Object.fromEntries(started.to.searchParams);
+          assert.deepStrictEqual(
+            { ...params, state: undefined, nonce: undefined },
+            {
+              client_id: "tech.lil.health.web",
+              redirect_uri: "https://api.staging.lil.tech/oauth/apple/callback",
+              response_type: "code id_token",
+              response_mode: "form_post",
+              state: undefined,
+              nonce: undefined,
+            },
+          );
+          assert.isTrue(started.state.startsWith(`${started.request}.`));
+          assert.isAbove(started.state.length, started.request.length + 40);
+          // Apple gets the nonce's SHA-256, which its token carries.
+          assert.strictEqual(params["nonce"], yield* sha256Hex(started.nonce));
+
+          const answer = yield* applePost(handler, {
+            state: started.state,
+            code: "c.apple-code",
+            id_token: yield* appleIdentityToken(
+              { sub: subject, nonce: started.nonce },
+              { audience: "tech.lil.health.web" },
+            ),
+          });
+          assert.strictEqual(answer.response.status, 303);
+          assert.strictEqual(
+            answer.response.headers.get("location"),
+            `/oauth/authorize/consent?request=${started.request}`,
+          );
+          const consent = yield* stepAfter(handler, answer.response, started.cookie);
+          assert.strictEqual(consent.response.status, 200);
+          assert.include(consent.html, "Signed in as <strong>Ada Apple</strong>");
+          // Only the browser that started it can go on.
+          const elsewhere = yield* getConsentOn(issuer, handler, started.request, null);
+          assert.strictEqual(elsewhere.response.status, 400);
+
+          const allowed = yield* post(
+            handler,
+            "/oauth/authorize/decision",
+            { ...binding(consent.html), decision: "allow" },
+            started.cookie,
+            issuer,
+          );
+          assert.strictEqual(allowed.response.status, 303);
+          const back = location(allowed.response);
+          assert.match(back.searchParams.get("code") ?? "", /^lmc_/);
+          assert.strictEqual(back.searchParams.get("iss"), issuer);
+
+          // Apple's answer works once.
+          const again = yield* applePost(handler, {
+            state: started.state,
+            id_token: yield* appleIdentityToken(
+              { sub: subject, nonce: started.nonce },
+              { audience: "tech.lil.health.web" },
+            ),
+          });
+          assert.strictEqual(again.response.status, 400);
+        }).pipe(Effect.orDie),
+      staging,
+    ),
+  );
+
+  it.live("refuses Apple answers with a bad state, origin, nonce or audience", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const subject = `apple-${crypto.randomUUID()}`;
+          yield* account("apple", subject);
+          const started = yield* startProvider(handler, "apple");
+          const token = (nonce: string, audience = "tech.lil.health.web") =>
+            appleIdentityToken({ sub: subject, nonce }, { audience });
+
+          // A state that isn't the request's, or names no request, is an error page.
+          for (const state of [
+            `${started.request}.forged`,
+            "aau_00000000000000000000000000.x",
+            "",
+          ]) {
+            const forged = yield* applePost(handler, {
+              state,
+              id_token: yield* token(started.nonce),
+            });
+            assert.strictEqual(forged.response.status, 400);
+            assert.include(forged.html, escape("This sign-in can't continue"));
+          }
+          // So is a post from another web page.
+          const posted = yield* applePost(
+            handler,
+            { state: started.state, id_token: yield* token(started.nonce) },
+            "https://evil.example",
+          );
+          assert.strictEqual(posted.response.status, 400);
+          // Google's state isn't Apple's.
+          const google = yield* startProvider(handler, "google");
+          const crossed = yield* applePost(handler, {
+            state: google.state,
+            id_token: yield* token(google.nonce),
+          });
+          assert.strictEqual(crossed.response.status, 400);
+
+          // A token for another nonce, or for the iPhone's App ID, doesn't sign in.
+          const wrongNonce = yield* applePost(handler, {
+            state: started.state,
+            id_token: yield* token("another nonce"),
+          });
+          yield* expectNotice(
+            handler,
+            wrongNonce.response,
+            started.cookie,
+            "failed",
+            "Signing in didn't work",
+          );
+          const appId = yield* applePost(handler, {
+            state: started.state,
+            id_token: yield* token(started.nonce, "tech.lil.health"),
+          });
+          yield* expectNotice(handler, appId.response, started.cookie, "failed", "didn't work");
+
+          // Cancelled on Apple's page: back to signing in, with nothing to say.
+          const cancelled = yield* applePost(handler, {
+            state: started.state,
+            error: "user_cancelled_authorize",
+          });
+          assert.strictEqual(cancelled.response.status, 303);
+          assert.isNull(location(cancelled.response).searchParams.get("notice"));
+          const page = yield* stepAfter(handler, cancelled.response, started.cookie);
+          assert.include(page.html, "Sign in with Apple");
+        }).pipe(Effect.orDie),
+      staging,
+    ),
+  );
+
+  it.live("only signs in existing accounts, and each Apple token once", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const subject = `apple-${crypto.randomUUID()}`;
+          const started = yield* startProvider(handler, "apple");
+          const idToken = yield* appleIdentityToken(
+            { sub: subject, nonce: started.nonce },
+            { audience: "tech.lil.health.web" },
+          );
+          const unknown = yield* applePost(handler, { state: started.state, id_token: idToken });
+          yield* expectNotice(
+            handler,
+            unknown.response,
+            started.cookie,
+            "apple_unknown",
+            "No lil health account uses this Apple ID. Set up lil health on your iPhone first.",
+          );
+          // Nothing was made.
+          assert.isTrue(Option.isNone(yield* (yield* Identities).find("apple", subject)));
+          // Once there's an account, the same token still doesn't sign in: it was used.
+          yield* account("apple", subject);
+          const replayed = yield* applePost(handler, { state: started.state, id_token: idToken });
+          yield* expectNotice(handler, replayed.response, started.cookie, "failed", "didn't work");
+        }).pipe(Effect.orDie),
+      staging,
+    ),
+  );
+
+  it.live("signs in with Google with PKCE and a nonce, redeeming the code with the secret", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const subject = `google-${crypto.randomUUID()}`;
+          yield* account("google", subject, "Ada Google");
+          const endpoint = yield* TestGoogleTokenEndpoint;
+          const started = yield* startProvider(handler, "google");
+          assert.strictEqual(
+            `${started.to.origin}${started.to.pathname}`,
+            "https://accounts.google.com/o/oauth2/v2/auth",
+          );
+          const params = Object.fromEntries(started.to.searchParams);
+          const challenge = params["code_challenge"] ?? "";
+          assert.deepStrictEqual(
+            { ...params, state: undefined, nonce: undefined, code_challenge: undefined },
+            {
+              client_id: testGoogleClients.web[0],
+              redirect_uri: "https://api.staging.lil.tech/oauth/google/callback",
+              response_type: "code",
+              scope: "openid email",
+              code_challenge: undefined,
+              code_challenge_method: "S256",
+              prompt: "select_account",
+              state: undefined,
+              nonce: undefined,
+            },
+          );
+          assert.match(challenge, /^[A-Za-z0-9_-]{43}$/);
+          assert.strictEqual(params["nonce"], yield* sha256Hex(started.nonce));
+          assert.isTrue(started.state.startsWith(`${started.request}.`));
+
+          const idToken = yield* googleIdToken(
+            { sub: subject, nonce: started.nonce, azp: testGoogleClients.web[0] },
+            { audience: testGoogleClients.web[0] ?? "" },
+          );
+          endpoint.answerWith(({ form }) =>
+            form["code"] === "google-code" &&
+            s256(form["code_verifier"] ?? "") === challenge &&
+            form["client_secret"] === testGoogleWebClientSecret
+              ? { status: 200, body: JSON.stringify({ id_token: idToken }) }
+              : { status: 400, body: JSON.stringify({ error: "invalid_grant" }) },
+          );
+          const answer = yield* googleRedirect(
+            handler,
+            { state: started.state, code: "google-code", scope: "openid email" },
+            started.cookie,
+          );
+          assert.strictEqual(answer.response.status, 303);
+          assert.strictEqual(
+            answer.response.headers.get("location"),
+            `/oauth/authorize/consent?request=${started.request}`,
+          );
+          const call = endpoint.calls.at(-1)?.form;
+          assert.deepStrictEqual(
+            { ...call, code_verifier: undefined },
+            {
+              grant_type: "authorization_code",
+              code: "google-code",
+              code_verifier: undefined,
+              redirect_uri: "https://api.staging.lil.tech/oauth/google/callback",
+              client_id: testGoogleClients.web[0],
+              client_secret: testGoogleWebClientSecret,
+            },
+          );
+          const consent = yield* stepAfter(handler, answer.response, started.cookie);
+          assert.include(consent.html, "Signed in as <strong>Ada Google</strong>");
+          // Google's answer works once.
+          const again = yield* googleRedirect(
+            handler,
+            { state: started.state, code: "google-code" },
+            started.cookie,
+          );
+          assert.strictEqual(again.response.status, 400);
+        }).pipe(Effect.orDie),
+      staging,
+    ),
+  );
+
+  it.live("refuses Google answers with a bad state, browser, code, nonce or reused token", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const subject = `google-${crypto.randomUUID()}`;
+          const endpoint = yield* TestGoogleTokenEndpoint;
+          const started = yield* startProvider(handler, "google");
+          const web = testGoogleClients.web[0] ?? "";
+          const answerWithToken = (nonce: string) =>
+            Effect.gen(function* () {
+              const idToken = yield* googleIdToken(
+                { sub: subject, nonce, azp: web },
+                { audience: web },
+              );
+              endpoint.answerWith(() => ({
+                status: 200,
+                body: JSON.stringify({ id_token: idToken }),
+              }));
+              return idToken;
+            });
+          const redirect = (
+            params: Record<string, string>,
+            cookie: string | null = started.cookie,
+          ) =>
+            googleRedirect(handler, { code: "c", ...params }, cookie).pipe(
+              Effect.map(({ response, html }) => ({ response, html })),
+            );
+
+          yield* answerWithToken(started.nonce);
+          // Another browser, or a state that isn't the request's.
+          assert.strictEqual(
+            (yield* redirect({ state: started.state }, null)).response.status,
+            400,
+          );
+          const other = yield* start(handler, query(started.clientId).search, issuer);
+          assert.strictEqual(
+            (yield* redirect({ state: started.state }, other.cookie)).response.status,
+            400,
+          );
+          const forged = yield* redirect({ state: `${started.request}.forged` });
+          assert.strictEqual(forged.response.status, 400);
+          assert.include(forged.html, escape("This sign-in can't continue"));
+          assert.strictEqual((yield* redirect({})).response.status, 400);
+
+          // Cancelled on Google's page.
+          const cancelled = yield* redirect({ state: started.state, error: "access_denied" });
+          assert.strictEqual(cancelled.response.status, 303);
+          assert.isNull(location(cancelled.response).searchParams.get("notice"));
+
+          // A code Google refuses.
+          endpoint.answerWith(() => ({
+            status: 400,
+            body: JSON.stringify({ error: "invalid_grant" }),
+          }));
+          const refused = yield* redirect({ state: started.state });
+          yield* expectNotice(handler, refused.response, started.cookie, "failed", "didn't work");
+
+          // A token for another nonce.
+          yield* answerWithToken("another nonce");
+          const wrongNonce = yield* redirect({ state: started.state });
+          yield* expectNotice(
+            handler,
+            wrongNonce.response,
+            started.cookie,
+            "failed",
+            "didn't work",
+          );
+
+          // An account nobody has, then the same token again once someone does.
+          yield* answerWithToken(started.nonce);
+          const unknown = yield* redirect({ state: started.state });
+          yield* expectNotice(
+            handler,
+            unknown.response,
+            started.cookie,
+            "google_unknown",
+            "No lil health account uses this Google account. Set up lil health on your iPhone " +
+              "first.",
+          );
+          yield* account("google", subject);
+          const replayed = yield* redirect({ state: started.state });
+          yield* expectNotice(handler, replayed.response, started.cookie, "failed", "didn't work");
+        }).pipe(Effect.orDie),
+      staging,
+    ),
+  );
+
+  it.live("keeps test accounts in previews, with no Apple or Google", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const clientId = yield* registerClient(handler);
+          const started = yield* start(handler, query(clientId).search);
+          assert.include(started.html, "Sign in to a Test Account");
+          assert.notInclude(started.html, "Sign in with Apple");
+          assert.notInclude(started.html, "Sign in with Google");
+          for (const provider of ["apple", "google"]) {
+            const { response } = yield* post(
+              handler,
+              "/oauth/authorize/sign-in",
+              { request: started.request, csrf: started.csrf, provider },
+              started.cookie,
+            );
+            assert.strictEqual(response.status, 404);
+          }
+          for (const request of [
+            new Request(`${origin}/oauth/apple/callback`, { method: "POST" }),
+            new Request(`${origin}/oauth/google/callback`),
+          ]) {
+            assert.strictEqual((yield* fetchWith(handler, request)).response.status, 404);
+          }
+        }),
+      preview,
+    ),
+  );
+});
+
 describe("The authorization page's helpers", () => {
   it("lets forms redirect to the agent's origin, or its private-use scheme", () => {
     assert.strictEqual(
@@ -669,6 +1183,25 @@ describe("The authorization page's helpers", () => {
   it("reads the whole query, which may hold another ?", () => {
     assert.strictEqual(queryOf("/oauth/authorize?state=a?b&client_id=x"), "state=a?b&client_id=x");
     assert.strictEqual(queryOf("/oauth/authorize"), "");
+  });
+
+  it("hides the Google button where its web client isn't set up", () => {
+    const html = signInPage({
+      client: {
+        name: "Claude",
+        kind: "cimd",
+        domain: "claude.ai",
+        redirectHost: "claude.ai",
+        loopback: false,
+      },
+      app: { name: "lil health", privacyUrl: "https://lil.tech/privacy" },
+      binding: { request: "aau_x", csrf: "c" },
+      methods: { testAccounts: false, apple: true, google: false },
+    });
+    assert.include(html, "Sign in with Apple");
+    assert.notInclude(html, "Sign in with Google");
+    assert.notInclude(html, "@font-face");
+    assert.include(html, "Use the Apple ID you use with lil health on your iPhone.");
   });
 
   it("escapes everything a client supplies", () => {

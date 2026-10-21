@@ -1064,7 +1064,7 @@ const OpenApiRoute = HttpRouter.add(
  * Every route of the API, with the platform services a Worker can provide: Alchemy's
  * `Http.Platform` stubs file responses and gives `HttpApiBuilder` a no-op `FileSystem`, since
  * Workers have no file system. Needs `Deployment`, `SessionKey`, `AppleKeys`, `AppleTokens`, `GoogleKeys`,
- * `GoogleClients`, the core repositories, `UserStores` and `RateLimits`, and `HealthBatchFiles`,
+ * `GoogleClients`, `GoogleWebClient`, the core repositories, `UserStores` and `RateLimits`, and `HealthBatchFiles`,
  * `HealthBatchQueue` and `SnapshotParts` per request.
  */
 export const WorkerHttpLayer = Layer.mergeAll(
