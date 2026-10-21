@@ -82,7 +82,7 @@ private func previewLocations(of route: HealthWorkoutRoute) -> [RouteLocation] {
 }
 
 @MainActor
-private func route(_ locations: (HealthWorkoutRoute) -> WorkoutDetailContent.Route)
+private func route(_ locations: (HealthWorkoutRoute) -> RouteState)
   -> some View
 {
   let route = previewOtherRoutes[0]
@@ -93,7 +93,7 @@ private func route(_ locations: (HealthWorkoutRoute) -> WorkoutDetailContent.Rou
 }
 
 #Preview("Other route") {
-  route { .loaded(previewLocations(of: $0)) }
+  route { .loaded(LoadedRoute(previewLocations(of: $0))) }
 }
 
 #Preview("Other route loading") {

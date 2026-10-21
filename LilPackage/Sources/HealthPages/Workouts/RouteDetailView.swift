@@ -9,50 +9,29 @@ import SwiftUI
 struct RouteDetailView: View {
   let route: HealthWorkoutRoute
   @Dependency(\.blobCache) private var blobCache
-  @State private var locations = WorkoutDetailContent.Route.loading
+  @State private var locations = RouteState.loading
 
   var body: some View {
     RouteDetailContent(route: route, locations: locations)
-      .task(id: route.id) {
-        locations = await loadLocations()
+      // Again if sync gives the route other locations.
+      .task(id: route.locations) {
+        locations = .loading
+        locations = await .load(route.locations, from: blobCache)
       }
-  }
-
-  private func loadLocations() async -> WorkoutDetailContent.Route {
-    guard let sha256 = route.locations else { return .none }
-    do {
-      return .loaded(HealthDatabase.routeLocations(try await blobCache.data(for: sha256)))
-    } catch {
-      return .failed(error.localizedDescription)
-    }
   }
 }
 
 /// What a route's page shows, however it got its locations.
 struct RouteDetailContent: View {
   let route: HealthWorkoutRoute
-  let locations: WorkoutDetailContent.Route
-  /// Worked out once, not on every render.
-  private let distance: Double?
-
-  init(route: HealthWorkoutRoute, locations: WorkoutDetailContent.Route) {
-    self.route = route
-    self.locations = locations
-    if case .loaded(let points) = locations, points.count > 1 {
-      distance = HealthDatabase.routeDistance(points)
-    } else {
-      distance = nil
-    }
-  }
-
-  private var elapsed: TimeInterval { Double(route.endDate - route.startDate) / 1000 }
+  let locations: RouteState
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
         summary
-        map
+        RouteMapCard(route: locations, height: 420, saysWhenEmpty: true)
       }
       .padding(20)
       .frame(maxWidth: 760)
@@ -87,11 +66,11 @@ struct RouteDetailContent: View {
   /// Its time, and its distance once its locations are here.
   private var summary: some View {
     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-      figure("Time", WorkoutFormat.duration(elapsed), .yellow)
-      if let distance {
+      figure("Time", WorkoutFormat.duration(route.elapsed), .yellow)
+      if case .loaded(let loaded) = locations, loaded.hasMap {
         figure(
-          "Distance", (distance / 1000).formatted(.number.precision(.fractionLength(2))) + " km",
-          .cyan)
+          "Distance",
+          (loaded.distance / 1000).formatted(.number.precision(.fractionLength(2))) + " km", .cyan)
       }
     }
     .padding(16)
@@ -109,30 +88,6 @@ struct RouteDetailContent: View {
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
-
-  private var map: some View {
-    Group {
-      switch locations {
-      case .loading:
-        ProgressView()
-          .frame(maxWidth: .infinity, minHeight: 360)
-      case .failed(let reason):
-        ContentUnavailableView(
-          "Couldn't Load the Route", systemImage: "map", description: Text(reason))
-      case .loaded(let points) where points.count > 1:
-        RouteMap(locations: points)
-          .frame(height: 420)
-          .clipShape(RoundedRectangle(cornerRadius: 8))
-      case .none, .loaded:
-        ContentUnavailableView(
-          "No Locations", systemImage: "map",
-          description: Text("This route has no locations to show."))
-      }
-    }
-    .frame(maxWidth: .infinity)
-    .padding(12)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-  }
 }
 
 /// A route in Other Routes: how long it took, and when.
@@ -149,7 +104,7 @@ struct OtherRouteRow: View {
       VStack(alignment: .leading, spacing: 2) {
         Text("Route")
           .font(.headline)
-        Text(WorkoutFormat.duration(Double(route.endDate - route.startDate) / 1000))
+        Text(WorkoutFormat.duration(route.elapsed))
           .font(.system(.title3, design: .rounded).weight(.semibold))
           .foregroundStyle(.green)
       }

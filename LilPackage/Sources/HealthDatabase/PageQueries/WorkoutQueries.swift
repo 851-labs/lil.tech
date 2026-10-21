@@ -103,6 +103,44 @@ extension HealthWorkout {
   }
 }
 
+extension HealthWorkoutRoute {
+  /// From the route's start to its end.
+  public var elapsed: TimeInterval { Double(endDate - startDate) / 1000 }
+}
+
+/// A workout's or a route's times, all ``HealthDatabase/workoutRoutes(limit:_:)`` needs of them.
+struct RouteSpan {
+  let id: String
+  /// The workout a route is linked to.
+  let workout: String?
+  let startDate: Int
+  let endDate: Int
+  let locationCount: Int
+
+  /// Whether a workout would show this route rather than `other`: it has more locations, or as
+  /// many and comes first by ID.
+  func isPicked(over other: RouteSpan) -> Bool {
+    locationCount != other.locationCount ? locationCount > other.locationCount : id < other.id
+  }
+
+  static func newerFirst(_ a: RouteSpan, _ b: RouteSpan) -> Bool {
+    (a.startDate, a.id) > (b.startDate, b.id)
+  }
+}
+
+extension Array {
+  /// The first index whose element is `true` for `predicate`, which is `false` for a prefix of
+  /// the array and `true` for the rest.
+  fileprivate func partitioningIndex(where predicate: (Element) -> Bool) -> Int {
+    var (low, high) = (0, count)
+    while low < high {
+      let middle = (low + high) / 2
+      if predicate(self[middle]) { high = middle } else { low = middle + 1 }
+    }
+    return low
+  }
+}
+
 /// One point of a workout route.
 public struct RouteLocation: Equatable, Sendable {
   public var time: Date
@@ -175,61 +213,95 @@ extension HealthDatabase {
       .fetchAll(db)
   }
 
-  /// The route of a workout, if it has one: the one HealthKit linked, or else one recorded
-  /// during it. With several, the one with the most locations.
+  /// The route of a workout, if it has one with locations: the one HealthKit linked, or else
+  /// one recorded during it. With several, the one with the most locations (then the first by
+  /// ID, as ``workoutRoutes(limit:_:)`` picks).
   public static func route(of workout: HealthWorkout, _ db: Database) throws
     -> HealthWorkoutRoute?
   {
     let linked =
       try HealthWorkoutRoute
-      .where { $0.workout.eq(workout.id) }
-      .order { $0.locationCount.desc() }
+      .where { $0.workout.eq(workout.id) && $0.locations.isNot(nil) }
+      .order { ($0.locationCount.desc(), $0.id) }
       .fetchOne(db)
     if let linked { return linked }
     return
       try HealthWorkoutRoute
       .where {
-        $0.workout.is(nil) && $0.startDate < workout.endDate && $0.endDate > workout.startDate
+        $0.workout.is(nil) && $0.locations.isNot(nil) && $0.startDate < workout.endDate
+          && $0.endDate > workout.startDate
       }
-      .order { $0.locationCount.desc() }
+      .order { ($0.locationCount.desc(), $0.id) }
       .fetchOne(db)
   }
 
-  /// Up to `limit` of the workouts with a route, newest first: those ``route(of:_:)`` finds one
-  /// for, linked or recorded during them.
-  public static func workoutsWithRoutes(limit: Int, _ db: Database) throws -> [HealthWorkout] {
-    // Each a list SQLite builds once, rather than a search of the routes for every workout.
-    let linked = HealthWorkoutRoute.where { $0.workout.isNot(nil) }.select { $0.workout ?? "" }
-    let recordedDuring =
-      HealthWorkoutRoute
-      .where { $0.workout.is(nil) }
-      .join(HealthWorkout.all) { route, workout in
-        workout.startDate < route.endDate && workout.endDate > route.startDate
-      }
-      .select { $1.id }
-    return
-      try HealthWorkout
-      .where { $0.id.in(linked) || $0.id.in(recordedDuring) }
-      .order { ($0.startDate.desc(), $0.id.desc()) }
-      .limit(limit)
+  /// What Workout Routes lists, each newest first: up to `limit` of the workouts with a route,
+  /// and up to `limit` of the routes no workout's page shows (those ``route(of:_:)`` picks for
+  /// none). Only routes with locations count, so each opens on a map.
+  public static func workoutRoutes(limit: Int, _ db: Database) throws
+    -> (workouts: [HealthWorkout], otherRoutes: [HealthWorkoutRoute])
+  {
+    // Every workout's and route's times, to pick in memory the route each workout shows, as
+    // `route(of:)` does: a few columns of each, rather than a search of the routes for every
+    // workout.
+    let workoutTimes: [(String, Int, Int)] =
+      try HealthWorkout.all.select { ($0.id, $0.startDate, $0.endDate) }.fetchAll(db)
+    let routeTimes: [(String, String?, Int, Int, Int)] =
+      try HealthWorkoutRoute
+      .where { $0.locations.isNot(nil) }
+      .select { ($0.id, $0.workout, $0.startDate, $0.endDate, $0.locationCount) }
       .fetchAll(db)
+    let workouts = workoutTimes.map {
+      RouteSpan(id: $0.0, workout: nil, startDate: $0.1, endDate: $0.2, locationCount: 0)
+    }
+    let routes = routeTimes.map {
+      RouteSpan(id: $0.0, workout: $0.1, startDate: $0.2, endDate: $0.3, locationCount: $0.4)
+    }
+    let shown = shownRoutes(workouts: workouts, routes: routes)
+    let withRoutes = workouts.filter { shown[$0.id] != nil }
+      .sorted(by: RouteSpan.newerFirst).prefix(limit).map(\.id)
+    let shownIDs = Set(shown.values)
+    let others = routes.filter { !shownIDs.contains($0.id) }
+      .sorted(by: RouteSpan.newerFirst).prefix(limit).map(\.id)
+    return (
+      try HealthWorkout
+        .where { $0.id.in(withRoutes) }
+        .order { ($0.startDate.desc(), $0.id.desc()) }
+        .fetchAll(db),
+      try HealthWorkoutRoute
+        .where { $0.id.in(others) }
+        .order { ($0.startDate.desc(), $0.id.desc()) }
+        .fetchAll(db)
+    )
   }
 
-  /// Up to `limit` of the routes no workout shows, newest first: linked to none and recorded
-  /// while no workout was, or linked to a workout that isn't here.
-  public static func otherRoutes(limit: Int, _ db: Database) throws -> [HealthWorkoutRoute] {
-    try HealthWorkoutRoute
-      .where { route in
-        (route.workout.is(nil)
-          && !HealthWorkout.where {
-            $0.startDate < route.endDate && $0.endDate > route.startDate
-          }.exists())
-          || (route.workout.isNot(nil)
-            && !HealthWorkout.where { route.workout.eq($0.id) }.exists())
+  /// The route each workout shows, by workout ID: its linked route with the most locations, or
+  /// else the unlinked one recorded during it with the most.
+  static func shownRoutes(workouts: [RouteSpan], routes: [RouteSpan]) -> [String: String] {
+    var shown: [String: RouteSpan] = [:]
+    let workoutIDs = Set(workouts.map(\.id))
+    for route in routes {
+      guard let workout = route.workout, workoutIDs.contains(workout) else { continue }
+      if shown[workout].map(route.isPicked(over:)) ?? true { shown[workout] = route }
+    }
+    // Unlinked routes by start. One that starts more than the longest one's length before a
+    // workout ends before it, so each workout looks at only the few that could overlap it.
+    let unlinked = routes.filter { $0.workout == nil }.sorted { $0.startDate < $1.startDate }
+    let longest = unlinked.map { $0.endDate - $0.startDate }.max() ?? 0
+    for workout in workouts where shown[workout.id] == nil {
+      let earliest = workout.startDate - longest
+      var index = unlinked.partitioningIndex { $0.startDate > earliest }
+      var best: RouteSpan?
+      while index < unlinked.count, unlinked[index].startDate < workout.endDate {
+        let route = unlinked[index]
+        if route.endDate > workout.startDate, best.map(route.isPicked(over:)) ?? true {
+          best = route
+        }
+        index += 1
       }
-      .order { ($0.startDate.desc(), $0.id.desc()) }
-      .limit(limit)
-      .fetchAll(db)
+      shown[workout.id] = best
+    }
+    return shown.mapValues(\.id)
   }
 
   /// How far a route goes, in meters: the distance between each point and the next.

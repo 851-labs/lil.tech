@@ -48,9 +48,8 @@ struct RecentWorkouts: FetchKeyRequest {
     guard onlyWithRoutes else {
       return WorkoutList(workouts: try HealthDatabase.workouts(limit: Self.limit, db))
     }
-    return WorkoutList(
-      workouts: try HealthDatabase.workoutsWithRoutes(limit: Self.limit, db),
-      otherRoutes: try HealthDatabase.otherRoutes(limit: Self.limit, db))
+    let (workouts, otherRoutes) = try HealthDatabase.workoutRoutes(limit: Self.limit, db)
+    return WorkoutList(workouts: workouts, otherRoutes: otherRoutes)
   }
 }
 
@@ -88,11 +87,10 @@ struct WorkoutsContent: View {
             description: Text("Workouts from your Apple Watch and fitness apps will appear here."))
         }
       case .loaded(let workouts, let otherRoutes):
+        let months = monthSections(workouts, calendar: calendar, startDate: \.startDate)
         List {
-          ForEach(
-            monthSections(workouts, calendar: calendar, startDate: \.startDate), id: \.month
-          ) { section in
-            Section(section.month.formatted(.dateTime.month(.wide).year())) {
+          ForEach(months, id: \.month) { section in
+            Section {
               ForEach(section.records) { workout in
                 NavigationLink {
                   WorkoutDetailView(workout: workout)
@@ -100,19 +98,17 @@ struct WorkoutsContent: View {
                   WorkoutRow(workout: workout)
                 }
               }
+            } header: {
+              Text(section.month.formatted(.dateTime.month(.wide).year()))
+            } footer: {
+              // Under the workouts, not at the end of the page, which Other Routes may follow.
+              if section.month == months.last?.month, workouts.count >= RecentWorkouts.limit {
+                limitNote(onlyWithRoutes ? "workouts with routes" : "workouts")
+              }
             }
           }
-          if workouts.count >= RecentWorkouts.limit {
-            Text(
-              onlyWithRoutes
-                ? "Showing the \(RecentWorkouts.limit.formatted()) most recent workouts with routes."
-                : "Showing the \(RecentWorkouts.limit.formatted()) most recent workouts."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-          }
           if !otherRoutes.isEmpty {
-            Section("Other Routes") {
+            Section {
               ForEach(otherRoutes) { route in
                 NavigationLink {
                   RouteDetailView(route: route)
@@ -120,12 +116,25 @@ struct WorkoutsContent: View {
                   OtherRouteRow(route: route)
                 }
               }
+            } header: {
+              Text("Other Routes")
+            } footer: {
+              if otherRoutes.count >= RecentWorkouts.limit {
+                limitNote("other routes")
+              }
             }
           }
         }
       }
     }
     .navigationTitle(onlyWithRoutes ? "Workout Routes" : "Workouts")
+  }
+
+  /// That a list stops at the limit: "Showing the 2,000 most recent workouts."
+  private func limitNote(_ what: String) -> some View {
+    Text("Showing the \(RecentWorkouts.limit.formatted()) most recent \(what).")
+      .font(.footnote)
+      .foregroundStyle(.secondary)
   }
 }
 
