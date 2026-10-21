@@ -105,14 +105,14 @@ struct SleepDetailContent: View {
           NavigationLink {
             AllDataView(type: type)
           } label: {
-            linkRow("Show All Data")
+            PageLinkRow("Show All Data")
           }
           .buttonStyle(.plain)
           Divider().padding(.leading, 14)
           NavigationLink {
             DataSourcesView(type: type)
           } label: {
-            linkRow("Data Sources")
+            PageLinkRow("Data Sources")
           }
           .buttonStyle(.plain)
         }
@@ -225,19 +225,6 @@ struct SleepDetailContent: View {
         AxisValueLabel(format: .dateTime.hour())
       }
     }
-  }
-
-  private func linkRow(_ title: String) -> some View {
-    HStack {
-      Text(title)
-      Spacer()
-      Image(systemName: "chevron.right")
-        .font(.caption.bold())
-        .foregroundStyle(.tertiary)
-    }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 10)
-    .contentShape(Rectangle())
   }
 
   /// Each night's time asleep, by stage, with a slot for every night of the week.

@@ -32,9 +32,9 @@ public struct SymptomView: View {
             return .loading
           }
           return .loaded(chart)
-        }()
+        }(), now: today
     )
-    .task(id: [range.rawValue, String(offset), today.formatted(.iso8601)]) {
+    .task(id: [type.id, range.rawValue, String(offset), today.formatted(.iso8601)]) {
       _ = try? await $chart.load(
         SymptomRequest(typeID: type.id, range: range, offset: offset, now: today),
         scheduler: MainQueueScheduler())
@@ -70,12 +70,14 @@ struct SymptomContent: View {
   @Binding var range: ChartRange
   @Binding var offset: Int
   let state: State
+  /// Today, as the page loads it, for the period shown while it loads.
+  var now = Date.now
   var calendar = Calendar.current
   @SwiftUI.State private var hovered: Date?
 
   /// How many of the period's entries the list shows.
   static let entryLimit = 100
-  /// An entry shorter than this is a thin bar at its start, rather than a bar over its time.
+  /// An entry shorter than this is a thin mark at its start, rather than a bar over its time.
   static let shortEntry: TimeInterval = 20 * 60
 
   private var color: Color { type.category?.color ?? .accentColor }
@@ -101,14 +103,14 @@ struct SymptomContent: View {
           NavigationLink {
             AllDataView(type: type)
           } label: {
-            linkRow("Show All Data")
+            PageLinkRow("Show All Data")
           }
           .buttonStyle(.plain)
           Divider().padding(.leading, 14)
           NavigationLink {
             DataSourcesView(type: type)
           } label: {
-            linkRow("Data Sources")
+            PageLinkRow("Data Sources")
           }
           .buttonStyle(.plain)
         }
@@ -126,31 +128,40 @@ struct SymptomContent: View {
   // MARK: Header
 
   private var header: some View {
-    let point = chart.flatMap { hoveredPoint(in: $0) }
-    let value: String? =
-      if let point {
-        // An entry's or a day's level by name, or a week's or month's days.
+    let points = chart.map { hoveredPoints(in: $0) } ?? []
+    // The big line, and whether it's data (else it's secondary).
+    let value: (text: String, isData: Bool) =
+      if let point = points.first, let chart {
+        // A week's or month's days, else each level hovered by name: an entry's, a day's highest,
+        // or every appetite change a day has.
         range == .sixMonths || range == .year
-          ? SymptomFormat.days(point.value) : chart?.scale.levels[safe: point.value - 1]
+          ? (SymptomFormat.days(point.value), true)
+          : (
+            points.map { chart.scale.levels[safe: $0.value - 1] ?? "Present" }
+              .joined(separator: ", "), true
+          )
       } else if let chart {
-        chart.entries.isEmpty ? nil : SymptomFormat.days(chart.days)
+        chart.days > 0
+          ? (SymptomFormat.days(chart.days), true)
+          // Entries saying it wasn't there are listed, not counted.
+          : (chart.entries.isEmpty ? "No Data" : "Not Present", false)
       } else {
-        "–"
+        ("–", false)
       }
     let detail =
-      if let point {
+      if let point = points.first {
         range == .day
           ? SymptomFormat.time(point.entries[0], calendar: calendar)
           : ChartFormat.bucket(point.start, range: range, calendar: calendar)
       } else {
         ChartFormat.span(
-          chart?.interval ?? range.interval(offset: offset, now: .now, calendar: calendar),
+          chart?.interval ?? range.interval(offset: offset, now: now, calendar: calendar),
           range: range, calendar: calendar)
       }
     return VStack(alignment: .leading, spacing: 2) {
-      Text(value ?? "No Data")
+      Text(value.text)
         .font(.system(.largeTitle, design: .rounded).bold())
-        .foregroundStyle(value == nil || value == "–" ? .secondary : .primary)
+        .foregroundStyle(value.isData ? .primary : .secondary)
       Text(detail)
         .foregroundStyle(.secondary)
     }
@@ -170,33 +181,62 @@ struct SymptomContent: View {
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .loaded(let chart):
-      let hoveredPoint = hoveredPoint(in: chart)
-      Chart {
-        ForEach(Array(chart.points.enumerated()), id: \.offset) { _, point in
-          bar(point, isHovered: point == hoveredPoint)
-        }
+      let hovered = hoveredPoints(in: chart)
+      if isCategorical(chart) {
+        decorated(
+          Chart {
+            ForEach(Array(chart.points.enumerated()), id: \.offset) { _, point in
+              change(point, in: chart.scale, isHovered: hovered.contains(point))
+            }
+          }
+          // Kinds of change as rows, in the scale's order.
+          .chartYScale(domain: chart.scale.levels)
+          .chartYAxis { AxisMarks(position: .trailing) },
+          chart)
+      } else {
+        decorated(
+          Chart {
+            ForEach(Array(chart.points.enumerated()), id: \.offset) { _, point in
+              bar(point, isHovered: hovered.contains(point))
+            }
+          }
+          .chartYScale(domain: yDomain(chart))
+          .chartYAxis {
+            if range == .sixMonths || range == .year {
+              AxisMarks(position: .trailing)
+            } else {
+              // Levels by name: Present, Mild, Moderate, Severe.
+              AxisMarks(position: .trailing, values: Array(1...chart.scale.levels.count)) {
+                value in
+                AxisGridLine()
+                AxisValueLabel {
+                  if let level = value.as(Int.self),
+                    let name = chart.scale.levels[safe: level - 1]
+                  {
+                    Text(name)
+                  }
+                }
+              }
+            }
+          },
+          chart)
       }
+    }
+  }
+
+  /// Whether the chart's levels are rows of kinds rather than heights: appetite's, for D, W, M.
+  private func isCategorical(_ chart: SymptomChart) -> Bool {
+    !chart.scale.isOrdered && range != .sixMonths && range != .year
+  }
+
+  /// What either chart has: its span and axis, hover, and a note when there's nothing to chart.
+  private func decorated(_ content: some View, _ chart: SymptomChart) -> some View {
+    content
       .chartXScale(domain: domain(chart))
-      .chartYScale(domain: yDomain(chart))
       .chartXAxis {
         AxisMarks(values: .automatic(desiredCount: range == .day ? 6 : 7)) { _ in
           AxisGridLine()
           AxisValueLabel(format: axisFormat)
-        }
-      }
-      .chartYAxis {
-        if range == .sixMonths || range == .year {
-          AxisMarks(position: .trailing)
-        } else {
-          // Levels by name: Present, Mild, Moderate, Severe.
-          AxisMarks(position: .trailing, values: Array(1...chart.scale.levels.count)) { value in
-            AxisGridLine()
-            AxisValueLabel {
-              if let level = value.as(Int.self), let name = chart.scale.levels[safe: level - 1] {
-                Text(name)
-              }
-            }
-          }
         }
       }
       .chartOverlay { proxy in
@@ -222,7 +262,6 @@ struct SymptomContent: View {
             .foregroundStyle(.secondary)
         }
       }
-    }
   }
 
   /// A bar: an entry over its time (a day), a day's highest level, or a week's or month's days.
@@ -254,6 +293,33 @@ struct SymptomContent: View {
     }
   }
 
+  /// An appetite change in its row: over an entry's time (a day), or a day's cell.
+  @ChartContentBuilder
+  private func change(
+    _ point: SymptomPoint, in scale: SymptomScale, isHovered: Bool
+  ) -> some ChartContent {
+    let style = color.opacity(isHovered ? 1 : 0.8)
+    let row = PlottableValue.value("Change", scale.levels[safe: point.value - 1] ?? "Present")
+    if range == .day {
+      if point.end.timeIntervalSince(point.start) >= Self.shortEntry {
+        BarMark(
+          xStart: .value("Start", point.start), xEnd: .value("End", point.end), y: row,
+          height: .ratio(0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 3))
+        .foregroundStyle(style)
+      } else {
+        PointMark(x: .value("Time", point.start), y: row)
+          .symbolSize(80)
+          .foregroundStyle(style)
+      }
+    } else {
+      BarMark(x: .value("Date", point.start, unit: range.barUnit), y: row, height: .ratio(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 3))
+        .foregroundStyle(style)
+    }
+  }
+
   private var axisFormat: Date.FormatStyle {
     let style = Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone)
     switch range {
@@ -279,9 +345,10 @@ struct SymptomContent: View {
     return 0...max(chart.points.map(\.value).max() ?? 0, 7)
   }
 
-  /// The bar under the pointer: the entry nearest it on a day, else its day, week or month.
-  private func hoveredPoint(in chart: SymptomChart) -> SymptomPoint? {
-    guard let hovered else { return nil }
+  /// The marks under the pointer: the entry nearest it on a day, else its day's, week's or
+  /// month's (each of a day's appetite changes).
+  private func hoveredPoints(in chart: SymptomChart) -> [SymptomPoint] {
+    guard let hovered else { return [] }
     if range == .day {
       func distance(_ point: SymptomPoint) -> TimeInterval {
         if hovered < point.start { return point.start.timeIntervalSince(hovered) }
@@ -290,9 +357,10 @@ struct SymptomContent: View {
       return chart.points
         .filter { distance($0) < Self.shortEntry }
         .min { distance($0) < distance($1) }
+        .map { [$0] } ?? []
     }
-    guard let bar = calendar.dateInterval(of: range.barUnit, for: hovered) else { return nil }
-    return chart.points.first { $0.start == bar.start }
+    guard let bar = calendar.dateInterval(of: range.barUnit, for: hovered) else { return [] }
+    return chart.points.filter { $0.start == bar.start }
   }
 
   // MARK: Entries
@@ -332,18 +400,6 @@ struct SymptomContent: View {
     }
   }
 
-  private func linkRow(_ title: String) -> some View {
-    HStack {
-      Text(title)
-      Spacer()
-      Image(systemName: "chevron.right")
-        .font(.caption.bold())
-        .foregroundStyle(.tertiary)
-    }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 10)
-    .contentShape(Rectangle())
-  }
 }
 
 /// How a symptom's page writes days and times.

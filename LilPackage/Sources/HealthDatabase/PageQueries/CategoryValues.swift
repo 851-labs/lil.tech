@@ -6,6 +6,8 @@ extension HealthDatabase {
   /// doesn't name (an unspecified contraceptive or bleeding level), or doesn't have yet. Flow is
   /// named as a period day is ("Period" when unspecified, `MenstrualFlow.name`).
   public static func categoryValueName(_ value: Int?, typeID: String) -> String? {
+    // Every symptom's value has a name, Present when Health has none (851-2828).
+    if let scale = SymptomScale(typeID: typeID) { return scale.name(value) }
     guard let value else { return nil }
     switch typeID {
     case "HKCategoryTypeIdentifierCervicalMucusQuality":
@@ -27,15 +29,6 @@ extension HealthDatabase {
     case standHourType:
       // HKCategoryValueAppleStandHour.
       return [0: "Stood", 1: "Idle"][value]
-    case moodChangesType, sleepChangesType:
-      // HKCategoryValuePresence.
-      return [0: "Present", 1: "Not Present"][value]
-    case appetiteChangesType:
-      // HKCategoryValueAppetiteChanges; unspecified reads as the others' Present.
-      return [0: "Present", 1: "No Change", 2: "Decreased", 3: "Increased"][value]
-    case _ where symptomTypes.contains(typeID):
-      // HKCategoryValueSeverity; unspecified is logged as present, without a severity.
-      return [0: "Present", 1: "Not Present", 2: "Mild", 3: "Moderate", 4: "Severe"][value]
     case contraceptiveType:
       // HKCategoryValueContraceptive; 1 is unspecified.
       return [

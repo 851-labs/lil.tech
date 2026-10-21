@@ -3026,20 +3026,23 @@ struct SymptomQueriesTests {
     #expect(
       (0...4).map { name($0, headache) }
         == ["Present", "Not Present", "Mild", "Moderate", "Severe"])
-    #expect(name(5, headache) == nil)
+    // One Health doesn't name yet, or none, reads as present, as the page charts it.
+    #expect(name(5, headache) == "Present")
+    #expect(name(nil, headache) == "Present")
     // Presence.
     for type in ["HKCategoryTypeIdentifierMoodChanges", "HKCategoryTypeIdentifierSleepChanges"] {
-      #expect((0...2).map { name($0, type) } == ["Present", "Not Present", nil])
+      #expect((0...2).map { name($0, type) } == ["Present", "Not Present", "Present"])
     }
     // Appetite.
     #expect(
       (0...3).map { name($0, "HKCategoryTypeIdentifierAppetiteChanges") }
         == ["Present", "No Change", "Decreased", "Increased"])
-    // Every symptom has names.
+    // Every symptom has names, from its scale.
     for type in HealthCatalog.all where type.category == .symptoms {
-      #expect(name(0, type.id) == "Present")
-      #expect(name(nil, type.id) == nil)
+      let scale = try! #require(SymptomScale(typeID: type.id))
+      #expect((0...4).map { name($0, type.id) } == (0...4).map { scale.name($0) })
     }
+    #expect(SymptomScale(typeID: HealthDatabase.standHourType) == nil)
   }
 
   @Test
@@ -3051,6 +3054,7 @@ struct SymptomQueriesTests {
     #expect(SymptomScale(typeID: "HKCategoryTypeIdentifierAppetiteChanges") == .appetite)
     #expect((0...3).map { SymptomScale.appetite.level($0) } == [1, nil, 2, 3])
     #expect(SymptomScale.appetite.levels == ["Present", "Decreased", "Increased"])
+    #expect(!SymptomScale.appetite.isOrdered && SymptomScale.severity.isOrdered)
   }
 
   @Test
@@ -3088,8 +3092,8 @@ struct SymptomQueriesTests {
       // Runs past midnight: its bar ends with the day.
       sample("c", at: time(15, 22), minutes: 240, value: 4),
       sample("d", at: time(15, 23), value: 1),
-      // The day before.
-      sample("e", at: time(14, 23), minutes: 120, value: 2),
+      // The day before, ending as the day starts.
+      sample("e", at: time(14, 23), minutes: 60, value: 2),
     ]
     let day = try chart(.day, samples, now: time(15, 12))
     #expect(day.points.map(\.start) == [time(15, 7), time(15, 11, 15), time(15, 22)])
@@ -3157,6 +3161,48 @@ struct SymptomQueriesTests {
   }
 
   @Test
+  func entriesThatRunIntoThePeriodCountForEachDayTheyCover() throws {
+    let samples = [
+      // 10 PM to 4 AM, into the 15th.
+      sample("a", at: time(14, 22), minutes: 360, value: 3),
+      // Ends at midnight: only its own day.
+      sample("b", at: time(15, 22), minutes: 120, value: 2),
+      // Three days long, from Saturday the 11th, before the week.
+      sample("c", at: time(11, 12), minutes: 3 * 1440, value: 4),
+      // Over before the 15th, and a moment on the 14th.
+      sample("d", at: time(14, 20), minutes: 60, value: 2),
+      sample("e", at: time(14, 23, 59), value: 2),
+      // Starts a week and more before: not found, though it runs into the week and the day.
+      sample(
+        "f", at: gmt.date(from: DateComponents(year: 2025, month: 9, day: 20))!,
+        minutes: 30 * 1440, value: 4),
+    ]
+    let day = try chart(.day, samples, now: time(15, 12))
+    #expect(day.entries.map(\.id) == ["b", "a"])
+    // Clipped to the day.
+    #expect(day.points.map(\.start) == [time(15, 0), time(15, 22)])
+    #expect(day.points.map(\.end) == [time(15, 4), time(16, 0)])
+    #expect(day.days == 1)
+
+    // Sunday the 12th to Saturday the 18th.
+    let week = try chart(.week, samples, now: time(15, 12))
+    #expect(week.entries.map(\.id) == ["b", "e", "a", "d", "c"])
+    #expect(week.points.map(\.start) == [time(12, 0), time(13, 0), time(14, 0), time(15, 0)])
+    #expect(week.points.map(\.value) == [4, 4, 4, 3])
+    #expect(week.points[2].entries.map(\.id) == ["c", "d", "a", "e"])
+    #expect(week.points[3].entries.map(\.id) == ["a", "b"])
+    #expect(week.days == 4)
+
+    // A month counts each day once, however many entries cover it (the year starts long
+    // before the long one, so it's left out here).
+    let year = try chart(.year, Array(samples.dropLast()), now: time(15, 12))
+    #expect(year.points.map(\.start) == [time(1, 0)])
+    #expect(year.points.map(\.value) == [5])
+    #expect(year.days == 5)
+    #expect(year.points[0].entries.map(\.id) == ["c", "d", "a", "e", "b"])
+  }
+
+  @Test
   func presenceAndAppetiteChartTheirOwnLevels() throws {
     let mood = "HKCategoryTypeIdentifierMoodChanges"
     let appetite = "HKCategoryTypeIdentifierAppetiteChanges"
@@ -3173,8 +3219,12 @@ struct SymptomQueriesTests {
     #expect(moodWeek.points.map(\.value) == [1])
     #expect(moodWeek.days == 1)
 
+    // Kinds of change, not an order: a day with both has a mark for each.
     let appetiteWeek = try chart(.week, samples, now: time(16, 12), type: appetite)
-    #expect(appetiteWeek.points.map(\.value) == [3])
+    #expect(appetiteWeek.points.map(\.start) == [time(13, 0), time(13, 0)])
+    #expect(appetiteWeek.points.map(\.value) == [2, 3])
+    #expect(appetiteWeek.points.map { $0.entries.map(\.id) } == [["d"], ["c"]])
+    #expect(appetiteWeek.days == 1)
     #expect(appetiteWeek.entries.map(\.name) == ["No Change", "Decreased", "Increased"])
   }
 }
