@@ -1,0 +1,356 @@
+{
+  "notes": [
+    "The Health toolkit's conformance cases (851-2841): each runs one tool call on dataset.json, with the clock at `now`, after the Mac pushes `pins` (if any), and both MCP servers must answer `expected` (or fail, with `expectedError`).",
+    "Outputs match as JSON, except that numbers may differ by a relative 1e-9 (sums added in another order).",
+    "Write expected outputs by hand, from the dataset and the tools' descriptions, not by copying what an implementation returns."
+  ],
+  "cases": [
+    {
+      "name": "summary in UTC, the remote default",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {},
+      "expected": {
+        "timeZone": "UTC",
+        "date": "2026-10-20",
+        "pinned": false,
+        "metrics": [
+          {
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "unit": "count",
+            "latest": {
+              "start": "2026-10-20T14:10:00+00:00",
+              "end": "2026-10-20T14:15:00+00:00",
+              "value": 412,
+              "categoryValue": null
+            },
+            "today": 3200,
+            "last7Days": 8500
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "unit": "count/min",
+            "latest": {
+              "start": "2026-10-20T14:45:30+00:00",
+              "end": "2026-10-20T14:45:30+00:00",
+              "value": 72,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+            "unit": "kcal",
+            "latest": {
+              "start": "2026-10-20T08:10:00+00:00",
+              "end": "2026-10-20T08:20:00+00:00",
+              "value": 12.5,
+              "categoryValue": null
+            },
+            "today": 120.5,
+            "last7Days": 420.75
+          },
+          {
+            "type": "HKQuantityTypeIdentifierDistanceWalkingRunning",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "unit": "count/min",
+            "latest": {
+              "start": "2026-10-19T07:00:00+00:00",
+              "end": "2026-10-19T07:00:00+00:00",
+              "value": 58,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "unit": "kg",
+            "latest": {
+              "start": "2026-10-17T07:30:00+00:00",
+              "end": "2026-10-17T07:30:00+00:00",
+              "value": 70.5,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          }
+        ],
+        "workouts": {
+          "count": 2,
+          "duration": 4500
+        }
+      }
+    },
+    {
+      "name": "summary in London, where today starts an hour earlier",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "timeZone": "Europe/London",
+        "date": "2026-10-20",
+        "pinned": false,
+        "metrics": [
+          {
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "unit": "count",
+            "latest": {
+              "start": "2026-10-20T15:10:00+01:00",
+              "end": "2026-10-20T15:15:00+01:00",
+              "value": 412,
+              "categoryValue": null
+            },
+            "today": 3500,
+            "last7Days": 8500
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "unit": "count/min",
+            "latest": {
+              "start": "2026-10-20T15:45:30+01:00",
+              "end": "2026-10-20T15:45:30+01:00",
+              "value": 72,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+            "unit": "kcal",
+            "latest": {
+              "start": "2026-10-20T09:10:00+01:00",
+              "end": "2026-10-20T09:20:00+01:00",
+              "value": 12.5,
+              "categoryValue": null
+            },
+            "today": 120.5,
+            "last7Days": 420.75
+          },
+          {
+            "type": "HKQuantityTypeIdentifierDistanceWalkingRunning",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "unit": "count/min",
+            "latest": {
+              "start": "2026-10-19T08:00:00+01:00",
+              "end": "2026-10-19T08:00:00+01:00",
+              "value": 58,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "unit": "kg",
+            "latest": {
+              "start": "2026-10-17T08:30:00+01:00",
+              "end": "2026-10-17T08:30:00+01:00",
+              "value": 70.5,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          }
+        ],
+        "workouts": {
+          "count": 2,
+          "duration": 4500
+        }
+      }
+    },
+    {
+      "name": "summary in Los Angeles, where the week starts later",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "timeZone": "America/Los_Angeles",
+        "date": "2026-10-20",
+        "pinned": false,
+        "metrics": [
+          {
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "unit": "count",
+            "latest": {
+              "start": "2026-10-20T07:10:00-07:00",
+              "end": "2026-10-20T07:15:00-07:00",
+              "value": 412,
+              "categoryValue": null
+            },
+            "today": 3200,
+            "last7Days": 7500
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "unit": "count/min",
+            "latest": {
+              "start": "2026-10-20T07:45:30-07:00",
+              "end": "2026-10-20T07:45:30-07:00",
+              "value": 72,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+            "unit": "kcal",
+            "latest": {
+              "start": "2026-10-20T01:10:00-07:00",
+              "end": "2026-10-20T01:20:00-07:00",
+              "value": 12.5,
+              "categoryValue": null
+            },
+            "today": 120.5,
+            "last7Days": 420.75
+          },
+          {
+            "type": "HKQuantityTypeIdentifierDistanceWalkingRunning",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "unit": "count/min",
+            "latest": {
+              "start": "2026-10-19T00:00:00-07:00",
+              "end": "2026-10-19T00:00:00-07:00",
+              "value": 58,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "unit": "kg",
+            "latest": {
+              "start": "2026-10-17T00:30:00-07:00",
+              "end": "2026-10-17T00:30:00-07:00",
+              "value": 70.5,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          }
+        ],
+        "workouts": {
+          "count": 1,
+          "duration": 1800
+        }
+      }
+    },
+    {
+      "name": "summary of the pinned metrics, in their order",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "pins": [
+        {
+          "id": "HKQuantityTypeIdentifierHeartRate",
+          "position": 1
+        },
+        {
+          "id": "HKCategoryTypeIdentifierSleepAnalysis",
+          "position": 0
+        },
+        {
+          "id": "HKQuantityTypeIdentifierVO2Max",
+          "position": 2
+        }
+      ],
+      "arguments": {
+        "timeZone": "UTC"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "date": "2026-10-20",
+        "pinned": true,
+        "metrics": [
+          {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "unit": null,
+            "latest": {
+              "start": "2026-10-20T00:00:00+00:00",
+              "end": "2026-10-20T01:30:00+00:00",
+              "value": null,
+              "categoryValue": 3
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "unit": "count/min",
+            "latest": {
+              "start": "2026-10-20T14:45:30+00:00",
+              "end": "2026-10-20T14:45:30+00:00",
+              "value": 72,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierVO2Max",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          }
+        ],
+        "workouts": {
+          "count": 2,
+          "duration": 4500
+        }
+      }
+    },
+    {
+      "name": "summary with an unknown time zone fails",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "Mars/Olympus_Mons"
+      },
+      "expectedError": true
+    },
+    {
+      "name": "summary with a time zone in the wrong case fails",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "europe/london"
+      },
+      "expectedError": true
+    },
+    {
+      "name": "summary with a UTC offset instead of a time zone fails",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "+01:00"
+      },
+      "expectedError": true
+    }
+  ]
+}

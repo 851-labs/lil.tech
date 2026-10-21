@@ -3619,6 +3619,1057 @@
           "position"
         ],
         "additionalProperties": true
+      },
+      "HealthSummaryMetric": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them."
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The HealthKit unit of the values, e.g. count, kcal or count/min. Null for category types."
+          },
+          "latest": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "start": {
+                "type": "string",
+                "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+              },
+              "end": {
+                "type": "string",
+                "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+              },
+              "value": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "A quantity's value, in `unit`. Null for category types."
+              },
+              "categoryValue": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "A category sample's HealthKit value (HKCategoryValue…). Null for quantities."
+              }
+            },
+            "required": [
+              "start",
+              "end",
+              "value",
+              "categoryValue"
+            ],
+            "additionalProperties": true,
+            "description": "The most recent sample that has started, or null if there's none."
+          },
+          "today": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "For types that add up (steps, energy, distance): today's total, as Health counts it. Null for other types, or with nothing recorded today."
+          },
+          "last7Days": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "For types that add up: the total over today and the 6 days before. Null for other types, or with nothing recorded in those days."
+          }
+        },
+        "required": [
+          "type",
+          "unit",
+          "latest",
+          "today",
+          "last7Days"
+        ],
+        "additionalProperties": true
+      },
+      "HealthSummaryResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "date": {
+            "type": "string",
+            "description": "Today."
+          },
+          "pinned": {
+            "type": "boolean",
+            "description": "Whether `metrics` are the ones the person pinned to Summary in lil health; if not, they're everyday defaults."
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthSummaryMetric"
+            },
+            "description": "The metrics, in the order Summary shows them."
+          },
+          "workouts": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "duration": {
+                "type": "number",
+                "description": "Seconds of activity, excluding pauses."
+              }
+            },
+            "required": [
+              "count",
+              "duration"
+            ],
+            "additionalProperties": true,
+            "description": "Workouts that started today (by now) or in the 6 days before."
+          }
+        },
+        "required": [
+          "timeZone",
+          "date",
+          "pinned",
+          "metrics",
+          "workouts"
+        ],
+        "additionalProperties": true
+      },
+      "HealthTypeInfo": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name Health shows, e.g. Steps."
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Browse category, e.g. Activity or Heart. Null for characteristics."
+          },
+          "kind": {
+            "type": "string",
+            "description": "What kind of data it is: quantity, category, workout, medication, electrocardiogram…"
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A quantity type's HealthKit unit, e.g. count/min. Null for other kinds."
+          },
+          "cumulative": {
+            "type": "boolean",
+            "description": "Whether values add up (steps, energy), so metric's default statistic is a sum rather than an average."
+          },
+          "first": {
+            "type": "string",
+            "description": "When the earliest record starts."
+          },
+          "last": {
+            "type": "string",
+            "description": "When the latest record starts."
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "category",
+          "kind",
+          "unit",
+          "cumulative",
+          "first",
+          "last"
+        ],
+        "additionalProperties": true
+      },
+      "HealthTypesResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthTypeInfo"
+            },
+            "description": "Every type with data, by category, then name."
+          }
+        },
+        "required": [
+          "timeZone",
+          "types"
+        ],
+        "additionalProperties": true
+      },
+      "HealthMetricBucket": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The statistic over the bucket, in `unit`, or null without data."
+          }
+        },
+        "required": [
+          "start",
+          "value"
+        ],
+        "additionalProperties": true
+      },
+      "HealthMetricResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "range": {
+            "type": "string",
+            "description": "The range asked for: D, W, M, 6M or Y."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the period starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When the period ends (exclusive)."
+          },
+          "type": {
+            "type": "string",
+            "description": "A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them."
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The values' HealthKit unit."
+          },
+          "statistic": {
+            "type": "string",
+            "description": "The statistic: sum, average, minimum or maximum."
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The statistic over the whole period, or null without data."
+          },
+          "buckets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthMetricBucket"
+            },
+            "description": "The period's hours, days, weeks or months, oldest first."
+          }
+        },
+        "required": [
+          "timeZone",
+          "range",
+          "start",
+          "end",
+          "type",
+          "unit",
+          "statistic",
+          "value",
+          "buckets"
+        ],
+        "additionalProperties": true
+      },
+      "HealthSampleItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "HealthKit's UUID for the sample."
+          },
+          "start": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "end": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "A quantity's value, in `unit`. Null for category types."
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "categoryValue": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "A category sample's HealthKit value (HKCategoryValue…). Null for quantities."
+          },
+          "source": {
+            "type": "string",
+            "description": "The app or device that recorded it, e.g. an Apple Watch's name."
+          }
+        },
+        "required": [
+          "id",
+          "start",
+          "end",
+          "value",
+          "unit",
+          "categoryValue",
+          "source"
+        ],
+        "additionalProperties": true
+      },
+      "HealthSamplesResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "range": {
+            "type": "string",
+            "description": "The range asked for: D, W, M, 6M or Y."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the period starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When the period ends (exclusive)."
+          },
+          "type": {
+            "type": "string",
+            "description": "A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them."
+          },
+          "samples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthSampleItem"
+            },
+            "description": "Samples that start in the period, newest first."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass it as `cursor` for the next, older page; null on the last page."
+          }
+        },
+        "required": [
+          "timeZone",
+          "range",
+          "start",
+          "end",
+          "type",
+          "samples",
+          "nextCursor"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "HealthKit's UUID for the workout."
+          },
+          "activityType": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "HKWorkoutActivityType's raw value, e.g. 37 for running."
+          },
+          "activity": {
+            "type": "string",
+            "description": "The activity's name, e.g. Running."
+          },
+          "start": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "end": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "duration": {
+            "type": "number",
+            "description": "Seconds of activity, excluding pauses."
+          },
+          "activeEnergy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Kilocalories."
+          },
+          "distance": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters."
+          },
+          "averageHeartRate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Beats per minute."
+          },
+          "source": {
+            "type": "string",
+            "description": "The app or device that recorded it."
+          }
+        },
+        "required": [
+          "id",
+          "activityType",
+          "activity",
+          "start",
+          "end",
+          "duration",
+          "activeEnergy",
+          "distance",
+          "averageHeartRate",
+          "source"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutsResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "range": {
+            "type": "string",
+            "description": "The range asked for: D, W, M, 6M or Y."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the period starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When the period ends (exclusive)."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Workouts in the period, all of them."
+          },
+          "duration": {
+            "type": "number",
+            "description": "Their total duration, in seconds."
+          },
+          "workouts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthWorkoutItem"
+            },
+            "description": "The workouts, newest first, at most 100."
+          }
+        },
+        "required": [
+          "timeZone",
+          "range",
+          "start",
+          "end",
+          "count",
+          "duration",
+          "workouts"
+        ],
+        "additionalProperties": true
+      },
+      "HealthSleepNight": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "The day the night ends on."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the night's first sleep sample starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When its last sleep sample ends."
+          },
+          "inBed": {
+            "type": "number",
+            "description": "Seconds in bed."
+          },
+          "asleep": {
+            "type": "number",
+            "description": "Seconds asleep, in any stage."
+          },
+          "awake": {
+            "type": "number",
+            "description": "Seconds awake during the night."
+          },
+          "core": {
+            "type": "number",
+            "description": "Seconds of core sleep."
+          },
+          "deep": {
+            "type": "number",
+            "description": "Seconds of deep sleep."
+          },
+          "rem": {
+            "type": "number",
+            "description": "Seconds of REM sleep."
+          },
+          "unspecified": {
+            "type": "number",
+            "description": "Seconds asleep without a stage (sources that don't track stages)."
+          }
+        },
+        "required": [
+          "date",
+          "start",
+          "end",
+          "inBed",
+          "asleep",
+          "awake",
+          "core",
+          "deep",
+          "rem",
+          "unspecified"
+        ],
+        "additionalProperties": true
+      },
+      "HealthSleepResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "range": {
+            "type": "string",
+            "description": "The range asked for: D, W, M, 6M or Y."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the period starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When the period ends (exclusive)."
+          },
+          "nights": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthSleepNight"
+            },
+            "description": "Each night that ends in the period, oldest first."
+          }
+        },
+        "required": [
+          "timeZone",
+          "range",
+          "start",
+          "end",
+          "nights"
+        ],
+        "additionalProperties": true
+      },
+      "HealthMedicationItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name the person gave it, else Health's."
+          },
+          "healthName": {
+            "type": "string",
+            "description": "The name Health shows for it."
+          },
+          "form": {
+            "type": "string",
+            "description": "Its general form, as HealthKit names it, e.g. tablet or capsule."
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "scheduled": {
+            "type": "boolean",
+            "description": "Whether it's taken on a schedule, rather than as needed."
+          },
+          "last7Days": {
+            "type": "object",
+            "properties": {
+              "scheduled": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Scheduled doses that were due."
+              },
+              "taken": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Of those, how many were logged as taken."
+              },
+              "asNeeded": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Doses taken as needed."
+              }
+            },
+            "required": [
+              "scheduled",
+              "taken",
+              "asNeeded"
+            ],
+            "additionalProperties": true,
+            "description": "Adherence over today and the 6 days before."
+          },
+          "last30Days": {
+            "type": "object",
+            "properties": {
+              "scheduled": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Scheduled doses that were due."
+              },
+              "taken": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Of those, how many were logged as taken."
+              },
+              "asNeeded": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Doses taken as needed."
+              }
+            },
+            "required": [
+              "scheduled",
+              "taken",
+              "asNeeded"
+            ],
+            "additionalProperties": true,
+            "description": "Adherence over today and the 29 days before."
+          },
+          "lastTaken": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When a dose was last logged as taken, or null."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "healthName",
+          "form",
+          "archived",
+          "scheduled",
+          "last7Days",
+          "last30Days",
+          "lastTaken"
+        ],
+        "additionalProperties": true
+      },
+      "HealthMedicationsResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "medications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthMedicationItem"
+            },
+            "description": "Current medications, then archived ones, by name."
+          }
+        },
+        "required": [
+          "timeZone",
+          "medications"
+        ],
+        "additionalProperties": true
+      },
+      "HealthVisionPrescriptionItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "glasses or contacts."
+          },
+          "issued": {
+            "type": "string",
+            "description": "A day in the output's `timeZone`, as YYYY-MM-DD."
+          },
+          "expires": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A day in the output's `timeZone`, as YYYY-MM-DD."
+          },
+          "brand": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A contacts lens brand."
+          },
+          "rightEye": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "sphere": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Diopters."
+              },
+              "cylinder": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Diopters."
+              },
+              "axis": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Degrees."
+              },
+              "addPower": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Diopters."
+              }
+            },
+            "required": [
+              "sphere",
+              "cylinder",
+              "axis",
+              "addPower"
+            ],
+            "additionalProperties": true,
+            "description": "The right eye (OD), or null if not covered."
+          },
+          "leftEye": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "sphere": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Diopters."
+              },
+              "cylinder": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Diopters."
+              },
+              "axis": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Degrees."
+              },
+              "addPower": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Diopters."
+              }
+            },
+            "required": [
+              "sphere",
+              "cylinder",
+              "axis",
+              "addPower"
+            ],
+            "additionalProperties": true,
+            "description": "The left eye (OS), or null if not covered."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "issued",
+          "expires",
+          "brand",
+          "rightEye",
+          "leftEye"
+        ],
+        "additionalProperties": true
+      },
+      "HealthDetailsResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "dateOfBirth": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A day in the output's `timeZone`, as YYYY-MM-DD."
+          },
+          "age": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Years, as of today."
+          },
+          "sex": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "As Health records it: female, male or other. Null if not set."
+          },
+          "bloodType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "E.g. A+ or O-."
+          },
+          "fitzpatrickSkinType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "I to VI."
+          },
+          "wheelchairUse": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "visionPrescriptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthVisionPrescriptionItem"
+            },
+            "description": "Glasses and contacts prescriptions the person shares, newest first."
+          }
+        },
+        "required": [
+          "timeZone",
+          "dateOfBirth",
+          "age",
+          "sex",
+          "bloodType",
+          "fitzpatrickSkinType",
+          "wheelchairUse",
+          "visionPrescriptions"
+        ],
+        "additionalProperties": true
+      },
+      "HealthSearchType": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them."
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hasData": {
+            "type": "boolean",
+            "description": "Whether the person has any of it."
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "category",
+          "hasData"
+        ],
+        "additionalProperties": true
+      },
+      "HealthSearchMedication": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": true
+      },
+      "HealthSearchResult": {
+        "type": "object",
+        "properties": {
+          "types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthSearchType"
+            },
+            "description": "Data types whose name or category matches, those with data first."
+          },
+          "medications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthSearchMedication"
+            },
+            "description": "Medications whose name matches."
+          }
+        },
+        "required": [
+          "types",
+          "medications"
+        ],
+        "additionalProperties": true
+      },
+      "HealthSyncIPhone": {
+        "type": "object",
+        "properties": {
+          "device": {
+            "type": "string",
+            "description": "lil's ID for the iPhone."
+          },
+          "pairedWithWatch": {
+            "type": "boolean"
+          },
+          "lastReported": {
+            "type": "string",
+            "description": "When its last upload of statistics was applied."
+          },
+          "statisticsSource": {
+            "type": "boolean",
+            "description": "Whether totals come from this iPhone's statistics."
+          }
+        },
+        "required": [
+          "device",
+          "pairedWithWatch",
+          "lastReported",
+          "statisticsSource"
+        ],
+        "additionalProperties": true
+      },
+      "HealthSyncStatusResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "latestSample": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the most recent sample that has started starts, or null without data."
+          },
+          "iPhones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthSyncIPhone"
+            },
+            "description": "The iPhones uploading Health data, most recently reported first."
+          }
+        },
+        "required": [
+          "timeZone",
+          "latestSample",
+          "iPhones"
+        ],
+        "additionalProperties": true
       }
     },
     "securitySchemes": {

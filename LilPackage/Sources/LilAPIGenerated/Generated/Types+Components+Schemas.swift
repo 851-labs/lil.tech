@@ -4799,5 +4799,3016 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthSummaryMetric`.
+        public struct HealthSummaryMetric: Codable, Hashable, Sendable {
+            /// A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSummaryMetric/type`.
+            public var _type: Swift.String
+            /// The HealthKit unit of the values, e.g. count, kcal or count/min. Null for category types.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSummaryMetric/unit`.
+            public var unit: Swift.String?
+            /// The most recent sample that has started, or null if there's none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSummaryMetric/latest`.
+            public struct LatestPayload: Codable, Hashable, Sendable {
+                /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthSummaryMetric/latest/start`.
+                public var start: Swift.String
+                /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthSummaryMetric/latest/end`.
+                public var end: Swift.String
+                /// A quantity's value, in `unit`. Null for category types.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthSummaryMetric/latest/value`.
+                public var value: Swift.Double?
+                /// A category sample's HealthKit value (HKCategoryValue…). Null for quantities.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthSummaryMetric/latest/categoryValue`.
+                public var categoryValue: Swift.Int?
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `LatestPayload`.
+                ///
+                /// - Parameters:
+                ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+                ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+                ///   - value: A quantity's value, in `unit`. Null for category types.
+                ///   - categoryValue: A category sample's HealthKit value (HKCategoryValue…). Null for quantities.
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    start: Swift.String,
+                    end: Swift.String,
+                    value: Swift.Double? = nil,
+                    categoryValue: Swift.Int? = nil,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.start = start
+                    self.end = end
+                    self.value = value
+                    self.categoryValue = categoryValue
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case start
+                    case end
+                    case value
+                    case categoryValue
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.start = try container.decode(
+                        Swift.String.self,
+                        forKey: .start
+                    )
+                    self.end = try container.decode(
+                        Swift.String.self,
+                        forKey: .end
+                    )
+                    self.value = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .value
+                    )
+                    self.categoryValue = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .categoryValue
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "start",
+                        "end",
+                        "value",
+                        "categoryValue"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.start,
+                        forKey: .start
+                    )
+                    try container.encode(
+                        self.end,
+                        forKey: .end
+                    )
+                    try container.encodeIfPresent(
+                        self.value,
+                        forKey: .value
+                    )
+                    try container.encodeIfPresent(
+                        self.categoryValue,
+                        forKey: .categoryValue
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// The most recent sample that has started, or null if there's none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSummaryMetric/latest`.
+            public var latest: Components.Schemas.HealthSummaryMetric.LatestPayload?
+            /// For types that add up (steps, energy, distance): today's total, as Health counts it. Null for other types, or with nothing recorded today.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSummaryMetric/today`.
+            public var today: Swift.Double?
+            /// For types that add up: the total over today and the 6 days before. Null for other types, or with nothing recorded in those days.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSummaryMetric/last7Days`.
+            public var last7Days: Swift.Double?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSummaryMetric`.
+            ///
+            /// - Parameters:
+            ///   - _type: A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
+            ///   - unit: The HealthKit unit of the values, e.g. count, kcal or count/min. Null for category types.
+            ///   - latest: The most recent sample that has started, or null if there's none.
+            ///   - today: For types that add up (steps, energy, distance): today's total, as Health counts it. Null for other types, or with nothing recorded today.
+            ///   - last7Days: For types that add up: the total over today and the 6 days before. Null for other types, or with nothing recorded in those days.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                _type: Swift.String,
+                unit: Swift.String? = nil,
+                latest: Components.Schemas.HealthSummaryMetric.LatestPayload? = nil,
+                today: Swift.Double? = nil,
+                last7Days: Swift.Double? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self._type = _type
+                self.unit = unit
+                self.latest = latest
+                self.today = today
+                self.last7Days = last7Days
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _type = "type"
+                case unit
+                case latest
+                case today
+                case last7Days
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self._type = try container.decode(
+                    Swift.String.self,
+                    forKey: ._type
+                )
+                self.unit = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .unit
+                )
+                self.latest = try container.decodeIfPresent(
+                    Components.Schemas.HealthSummaryMetric.LatestPayload.self,
+                    forKey: .latest
+                )
+                self.today = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .today
+                )
+                self.last7Days = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .last7Days
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "type",
+                    "unit",
+                    "latest",
+                    "today",
+                    "last7Days"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self._type,
+                    forKey: ._type
+                )
+                try container.encodeIfPresent(
+                    self.unit,
+                    forKey: .unit
+                )
+                try container.encodeIfPresent(
+                    self.latest,
+                    forKey: .latest
+                )
+                try container.encodeIfPresent(
+                    self.today,
+                    forKey: .today
+                )
+                try container.encodeIfPresent(
+                    self.last7Days,
+                    forKey: .last7Days
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthSummaryResult`.
+        public struct HealthSummaryResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/timeZone`.
+            public var timeZone: Swift.String
+            /// Today.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/date`.
+            public var date: Swift.String
+            /// Whether `metrics` are the ones the person pinned to Summary in lil health; if not, they're everyday defaults.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/pinned`.
+            public var pinned: Swift.Bool
+            /// The metrics, in the order Summary shows them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/metrics`.
+            public var metrics: [Components.Schemas.HealthSummaryMetric]
+            /// Workouts that started today (by now) or in the 6 days before.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/workouts`.
+            public struct WorkoutsPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/workouts/count`.
+                public var count: Swift.Int
+                /// Seconds of activity, excluding pauses.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/workouts/duration`.
+                public var duration: Swift.Double
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `WorkoutsPayload`.
+                ///
+                /// - Parameters:
+                ///   - count:
+                ///   - duration: Seconds of activity, excluding pauses.
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    count: Swift.Int,
+                    duration: Swift.Double,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.count = count
+                    self.duration = duration
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case count
+                    case duration
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .count
+                    )
+                    self.duration = try container.decode(
+                        Swift.Double.self,
+                        forKey: .duration
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "count",
+                        "duration"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.count,
+                        forKey: .count
+                    )
+                    try container.encode(
+                        self.duration,
+                        forKey: .duration
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// Workouts that started today (by now) or in the 6 days before.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/workouts`.
+            public var workouts: Components.Schemas.HealthSummaryResult.WorkoutsPayload
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSummaryResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - date: Today.
+            ///   - pinned: Whether `metrics` are the ones the person pinned to Summary in lil health; if not, they're everyday defaults.
+            ///   - metrics: The metrics, in the order Summary shows them.
+            ///   - workouts: Workouts that started today (by now) or in the 6 days before.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                date: Swift.String,
+                pinned: Swift.Bool,
+                metrics: [Components.Schemas.HealthSummaryMetric],
+                workouts: Components.Schemas.HealthSummaryResult.WorkoutsPayload,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.date = date
+                self.pinned = pinned
+                self.metrics = metrics
+                self.workouts = workouts
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case date
+                case pinned
+                case metrics
+                case workouts
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.date = try container.decode(
+                    Swift.String.self,
+                    forKey: .date
+                )
+                self.pinned = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .pinned
+                )
+                self.metrics = try container.decode(
+                    [Components.Schemas.HealthSummaryMetric].self,
+                    forKey: .metrics
+                )
+                self.workouts = try container.decode(
+                    Components.Schemas.HealthSummaryResult.WorkoutsPayload.self,
+                    forKey: .workouts
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "date",
+                    "pinned",
+                    "metrics",
+                    "workouts"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.date,
+                    forKey: .date
+                )
+                try container.encode(
+                    self.pinned,
+                    forKey: .pinned
+                )
+                try container.encode(
+                    self.metrics,
+                    forKey: .metrics
+                )
+                try container.encode(
+                    self.workouts,
+                    forKey: .workouts
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthTypeInfo`.
+        public struct HealthTypeInfo: Codable, Hashable, Sendable {
+            /// A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthTypeInfo/type`.
+            public var _type: Swift.String
+            /// The name Health shows, e.g. Steps.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthTypeInfo/name`.
+            public var name: Swift.String
+            /// The Browse category, e.g. Activity or Heart. Null for characteristics.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthTypeInfo/category`.
+            public var category: Swift.String?
+            /// What kind of data it is: quantity, category, workout, medication, electrocardiogram…
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthTypeInfo/kind`.
+            public var kind: Swift.String
+            /// A quantity type's HealthKit unit, e.g. count/min. Null for other kinds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthTypeInfo/unit`.
+            public var unit: Swift.String?
+            /// Whether values add up (steps, energy), so metric's default statistic is a sum rather than an average.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthTypeInfo/cumulative`.
+            public var cumulative: Swift.Bool
+            /// When the earliest record starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthTypeInfo/first`.
+            public var first: Swift.String
+            /// When the latest record starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthTypeInfo/last`.
+            public var last: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthTypeInfo`.
+            ///
+            /// - Parameters:
+            ///   - _type: A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
+            ///   - name: The name Health shows, e.g. Steps.
+            ///   - category: The Browse category, e.g. Activity or Heart. Null for characteristics.
+            ///   - kind: What kind of data it is: quantity, category, workout, medication, electrocardiogram…
+            ///   - unit: A quantity type's HealthKit unit, e.g. count/min. Null for other kinds.
+            ///   - cumulative: Whether values add up (steps, energy), so metric's default statistic is a sum rather than an average.
+            ///   - first: When the earliest record starts.
+            ///   - last: When the latest record starts.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                _type: Swift.String,
+                name: Swift.String,
+                category: Swift.String? = nil,
+                kind: Swift.String,
+                unit: Swift.String? = nil,
+                cumulative: Swift.Bool,
+                first: Swift.String,
+                last: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self._type = _type
+                self.name = name
+                self.category = category
+                self.kind = kind
+                self.unit = unit
+                self.cumulative = cumulative
+                self.first = first
+                self.last = last
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _type = "type"
+                case name
+                case category
+                case kind
+                case unit
+                case cumulative
+                case first
+                case last
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self._type = try container.decode(
+                    Swift.String.self,
+                    forKey: ._type
+                )
+                self.name = try container.decode(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.category = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .category
+                )
+                self.kind = try container.decode(
+                    Swift.String.self,
+                    forKey: .kind
+                )
+                self.unit = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .unit
+                )
+                self.cumulative = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .cumulative
+                )
+                self.first = try container.decode(
+                    Swift.String.self,
+                    forKey: .first
+                )
+                self.last = try container.decode(
+                    Swift.String.self,
+                    forKey: .last
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "type",
+                    "name",
+                    "category",
+                    "kind",
+                    "unit",
+                    "cumulative",
+                    "first",
+                    "last"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self._type,
+                    forKey: ._type
+                )
+                try container.encode(
+                    self.name,
+                    forKey: .name
+                )
+                try container.encodeIfPresent(
+                    self.category,
+                    forKey: .category
+                )
+                try container.encode(
+                    self.kind,
+                    forKey: .kind
+                )
+                try container.encodeIfPresent(
+                    self.unit,
+                    forKey: .unit
+                )
+                try container.encode(
+                    self.cumulative,
+                    forKey: .cumulative
+                )
+                try container.encode(
+                    self.first,
+                    forKey: .first
+                )
+                try container.encode(
+                    self.last,
+                    forKey: .last
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthTypesResult`.
+        public struct HealthTypesResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthTypesResult/timeZone`.
+            public var timeZone: Swift.String
+            /// Every type with data, by category, then name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthTypesResult/types`.
+            public var types: [Components.Schemas.HealthTypeInfo]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthTypesResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - types: Every type with data, by category, then name.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                types: [Components.Schemas.HealthTypeInfo],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.types = types
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case types
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.types = try container.decode(
+                    [Components.Schemas.HealthTypeInfo].self,
+                    forKey: .types
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "types"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.types,
+                    forKey: .types
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthMetricBucket`.
+        public struct HealthMetricBucket: Codable, Hashable, Sendable {
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMetricBucket/start`.
+            public var start: Swift.String
+            /// The statistic over the bucket, in `unit`, or null without data.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMetricBucket/value`.
+            public var value: Swift.Double?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthMetricBucket`.
+            ///
+            /// - Parameters:
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - value: The statistic over the bucket, in `unit`, or null without data.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                start: Swift.String,
+                value: Swift.Double? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.start = start
+                self.value = value
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case start
+                case value
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.value = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .value
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "start",
+                    "value"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encodeIfPresent(
+                    self.value,
+                    forKey: .value
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthMetricResult`.
+        public struct HealthMetricResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMetricResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMetricResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMetricResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMetricResult/end`.
+            public var end: Swift.String
+            /// A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMetricResult/type`.
+            public var _type: Swift.String
+            /// The values' HealthKit unit.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMetricResult/unit`.
+            public var unit: Swift.String?
+            /// The statistic: sum, average, minimum or maximum.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMetricResult/statistic`.
+            public var statistic: Swift.String
+            /// The statistic over the whole period, or null without data.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMetricResult/value`.
+            public var value: Swift.Double?
+            /// The period's hours, days, weeks or months, oldest first.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMetricResult/buckets`.
+            public var buckets: [Components.Schemas.HealthMetricBucket]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthMetricResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - _type: A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
+            ///   - unit: The values' HealthKit unit.
+            ///   - statistic: The statistic: sum, average, minimum or maximum.
+            ///   - value: The statistic over the whole period, or null without data.
+            ///   - buckets: The period's hours, days, weeks or months, oldest first.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                _type: Swift.String,
+                unit: Swift.String? = nil,
+                statistic: Swift.String,
+                value: Swift.Double? = nil,
+                buckets: [Components.Schemas.HealthMetricBucket],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self._type = _type
+                self.unit = unit
+                self.statistic = statistic
+                self.value = value
+                self.buckets = buckets
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case _type = "type"
+                case unit
+                case statistic
+                case value
+                case buckets
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self._type = try container.decode(
+                    Swift.String.self,
+                    forKey: ._type
+                )
+                self.unit = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .unit
+                )
+                self.statistic = try container.decode(
+                    Swift.String.self,
+                    forKey: .statistic
+                )
+                self.value = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .value
+                )
+                self.buckets = try container.decode(
+                    [Components.Schemas.HealthMetricBucket].self,
+                    forKey: .buckets
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "type",
+                    "unit",
+                    "statistic",
+                    "value",
+                    "buckets"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self._type,
+                    forKey: ._type
+                )
+                try container.encodeIfPresent(
+                    self.unit,
+                    forKey: .unit
+                )
+                try container.encode(
+                    self.statistic,
+                    forKey: .statistic
+                )
+                try container.encodeIfPresent(
+                    self.value,
+                    forKey: .value
+                )
+                try container.encode(
+                    self.buckets,
+                    forKey: .buckets
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthSampleItem`.
+        public struct HealthSampleItem: Codable, Hashable, Sendable {
+            /// HealthKit's UUID for the sample.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/id`.
+            public var id: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/start`.
+            public var start: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/end`.
+            public var end: Swift.String
+            /// A quantity's value, in `unit`. Null for category types.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/value`.
+            public var value: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/unit`.
+            public var unit: Swift.String?
+            /// A category sample's HealthKit value (HKCategoryValue…). Null for quantities.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/categoryValue`.
+            public var categoryValue: Swift.Int?
+            /// The app or device that recorded it, e.g. an Apple Watch's name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/source`.
+            public var source: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSampleItem`.
+            ///
+            /// - Parameters:
+            ///   - id: HealthKit's UUID for the sample.
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - value: A quantity's value, in `unit`. Null for category types.
+            ///   - unit:
+            ///   - categoryValue: A category sample's HealthKit value (HKCategoryValue…). Null for quantities.
+            ///   - source: The app or device that recorded it, e.g. an Apple Watch's name.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                value: Swift.Double? = nil,
+                unit: Swift.String? = nil,
+                categoryValue: Swift.Int? = nil,
+                source: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.start = start
+                self.end = end
+                self.value = value
+                self.unit = unit
+                self.categoryValue = categoryValue
+                self.source = source
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case start
+                case end
+                case value
+                case unit
+                case categoryValue
+                case source
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.value = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .value
+                )
+                self.unit = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .unit
+                )
+                self.categoryValue = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .categoryValue
+                )
+                self.source = try container.decode(
+                    Swift.String.self,
+                    forKey: .source
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "start",
+                    "end",
+                    "value",
+                    "unit",
+                    "categoryValue",
+                    "source"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encodeIfPresent(
+                    self.value,
+                    forKey: .value
+                )
+                try container.encodeIfPresent(
+                    self.unit,
+                    forKey: .unit
+                )
+                try container.encodeIfPresent(
+                    self.categoryValue,
+                    forKey: .categoryValue
+                )
+                try container.encode(
+                    self.source,
+                    forKey: .source
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthSamplesResult`.
+        public struct HealthSamplesResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/end`.
+            public var end: Swift.String
+            /// A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/type`.
+            public var _type: Swift.String
+            /// Samples that start in the period, newest first.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/samples`.
+            public var samples: [Components.Schemas.HealthSampleItem]
+            /// Pass it as `cursor` for the next, older page; null on the last page.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/nextCursor`.
+            public var nextCursor: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSamplesResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - _type: A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
+            ///   - samples: Samples that start in the period, newest first.
+            ///   - nextCursor: Pass it as `cursor` for the next, older page; null on the last page.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                _type: Swift.String,
+                samples: [Components.Schemas.HealthSampleItem],
+                nextCursor: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self._type = _type
+                self.samples = samples
+                self.nextCursor = nextCursor
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case _type = "type"
+                case samples
+                case nextCursor
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self._type = try container.decode(
+                    Swift.String.self,
+                    forKey: ._type
+                )
+                self.samples = try container.decode(
+                    [Components.Schemas.HealthSampleItem].self,
+                    forKey: .samples
+                )
+                self.nextCursor = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .nextCursor
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "type",
+                    "samples",
+                    "nextCursor"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self._type,
+                    forKey: ._type
+                )
+                try container.encode(
+                    self.samples,
+                    forKey: .samples
+                )
+                try container.encodeIfPresent(
+                    self.nextCursor,
+                    forKey: .nextCursor
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem`.
+        public struct HealthWorkoutItem: Codable, Hashable, Sendable {
+            /// HealthKit's UUID for the workout.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/id`.
+            public var id: Swift.String
+            /// HKWorkoutActivityType's raw value, e.g. 37 for running.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/activityType`.
+            public var activityType: Swift.Int
+            /// The activity's name, e.g. Running.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/activity`.
+            public var activity: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/start`.
+            public var start: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/end`.
+            public var end: Swift.String
+            /// Seconds of activity, excluding pauses.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/duration`.
+            public var duration: Swift.Double
+            /// Kilocalories.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/activeEnergy`.
+            public var activeEnergy: Swift.Double?
+            /// Meters.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/distance`.
+            public var distance: Swift.Double?
+            /// Beats per minute.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/averageHeartRate`.
+            public var averageHeartRate: Swift.Double?
+            /// The app or device that recorded it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/source`.
+            public var source: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutItem`.
+            ///
+            /// - Parameters:
+            ///   - id: HealthKit's UUID for the workout.
+            ///   - activityType: HKWorkoutActivityType's raw value, e.g. 37 for running.
+            ///   - activity: The activity's name, e.g. Running.
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - duration: Seconds of activity, excluding pauses.
+            ///   - activeEnergy: Kilocalories.
+            ///   - distance: Meters.
+            ///   - averageHeartRate: Beats per minute.
+            ///   - source: The app or device that recorded it.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                activityType: Swift.Int,
+                activity: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                duration: Swift.Double,
+                activeEnergy: Swift.Double? = nil,
+                distance: Swift.Double? = nil,
+                averageHeartRate: Swift.Double? = nil,
+                source: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.activityType = activityType
+                self.activity = activity
+                self.start = start
+                self.end = end
+                self.duration = duration
+                self.activeEnergy = activeEnergy
+                self.distance = distance
+                self.averageHeartRate = averageHeartRate
+                self.source = source
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case activityType
+                case activity
+                case start
+                case end
+                case duration
+                case activeEnergy
+                case distance
+                case averageHeartRate
+                case source
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.activityType = try container.decode(
+                    Swift.Int.self,
+                    forKey: .activityType
+                )
+                self.activity = try container.decode(
+                    Swift.String.self,
+                    forKey: .activity
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.duration = try container.decode(
+                    Swift.Double.self,
+                    forKey: .duration
+                )
+                self.activeEnergy = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .activeEnergy
+                )
+                self.distance = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .distance
+                )
+                self.averageHeartRate = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .averageHeartRate
+                )
+                self.source = try container.decode(
+                    Swift.String.self,
+                    forKey: .source
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "activityType",
+                    "activity",
+                    "start",
+                    "end",
+                    "duration",
+                    "activeEnergy",
+                    "distance",
+                    "averageHeartRate",
+                    "source"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.activityType,
+                    forKey: .activityType
+                )
+                try container.encode(
+                    self.activity,
+                    forKey: .activity
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.duration,
+                    forKey: .duration
+                )
+                try container.encodeIfPresent(
+                    self.activeEnergy,
+                    forKey: .activeEnergy
+                )
+                try container.encodeIfPresent(
+                    self.distance,
+                    forKey: .distance
+                )
+                try container.encodeIfPresent(
+                    self.averageHeartRate,
+                    forKey: .averageHeartRate
+                )
+                try container.encode(
+                    self.source,
+                    forKey: .source
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutsResult`.
+        public struct HealthWorkoutsResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutsResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutsResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutsResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutsResult/end`.
+            public var end: Swift.String
+            /// Workouts in the period, all of them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutsResult/count`.
+            public var count: Swift.Int
+            /// Their total duration, in seconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutsResult/duration`.
+            public var duration: Swift.Double
+            /// The workouts, newest first, at most 100.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutsResult/workouts`.
+            public var workouts: [Components.Schemas.HealthWorkoutItem]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutsResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - count: Workouts in the period, all of them.
+            ///   - duration: Their total duration, in seconds.
+            ///   - workouts: The workouts, newest first, at most 100.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                count: Swift.Int,
+                duration: Swift.Double,
+                workouts: [Components.Schemas.HealthWorkoutItem],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self.count = count
+                self.duration = duration
+                self.workouts = workouts
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case count
+                case duration
+                case workouts
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.duration = try container.decode(
+                    Swift.Double.self,
+                    forKey: .duration
+                )
+                self.workouts = try container.decode(
+                    [Components.Schemas.HealthWorkoutItem].self,
+                    forKey: .workouts
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "count",
+                    "duration",
+                    "workouts"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encode(
+                    self.duration,
+                    forKey: .duration
+                )
+                try container.encode(
+                    self.workouts,
+                    forKey: .workouts
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthSleepNight`.
+        public struct HealthSleepNight: Codable, Hashable, Sendable {
+            /// The day the night ends on.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/date`.
+            public var date: Swift.String
+            /// When the night's first sleep sample starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/start`.
+            public var start: Swift.String
+            /// When its last sleep sample ends.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/end`.
+            public var end: Swift.String
+            /// Seconds in bed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/inBed`.
+            public var inBed: Swift.Double
+            /// Seconds asleep, in any stage.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/asleep`.
+            public var asleep: Swift.Double
+            /// Seconds awake during the night.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/awake`.
+            public var awake: Swift.Double
+            /// Seconds of core sleep.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/core`.
+            public var core: Swift.Double
+            /// Seconds of deep sleep.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/deep`.
+            public var deep: Swift.Double
+            /// Seconds of REM sleep.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/rem`.
+            public var rem: Swift.Double
+            /// Seconds asleep without a stage (sources that don't track stages).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/unspecified`.
+            public var unspecified: Swift.Double
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSleepNight`.
+            ///
+            /// - Parameters:
+            ///   - date: The day the night ends on.
+            ///   - start: When the night's first sleep sample starts.
+            ///   - end: When its last sleep sample ends.
+            ///   - inBed: Seconds in bed.
+            ///   - asleep: Seconds asleep, in any stage.
+            ///   - awake: Seconds awake during the night.
+            ///   - core: Seconds of core sleep.
+            ///   - deep: Seconds of deep sleep.
+            ///   - rem: Seconds of REM sleep.
+            ///   - unspecified: Seconds asleep without a stage (sources that don't track stages).
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                date: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                inBed: Swift.Double,
+                asleep: Swift.Double,
+                awake: Swift.Double,
+                core: Swift.Double,
+                deep: Swift.Double,
+                rem: Swift.Double,
+                unspecified: Swift.Double,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.date = date
+                self.start = start
+                self.end = end
+                self.inBed = inBed
+                self.asleep = asleep
+                self.awake = awake
+                self.core = core
+                self.deep = deep
+                self.rem = rem
+                self.unspecified = unspecified
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case date
+                case start
+                case end
+                case inBed
+                case asleep
+                case awake
+                case core
+                case deep
+                case rem
+                case unspecified
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.date = try container.decode(
+                    Swift.String.self,
+                    forKey: .date
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.inBed = try container.decode(
+                    Swift.Double.self,
+                    forKey: .inBed
+                )
+                self.asleep = try container.decode(
+                    Swift.Double.self,
+                    forKey: .asleep
+                )
+                self.awake = try container.decode(
+                    Swift.Double.self,
+                    forKey: .awake
+                )
+                self.core = try container.decode(
+                    Swift.Double.self,
+                    forKey: .core
+                )
+                self.deep = try container.decode(
+                    Swift.Double.self,
+                    forKey: .deep
+                )
+                self.rem = try container.decode(
+                    Swift.Double.self,
+                    forKey: .rem
+                )
+                self.unspecified = try container.decode(
+                    Swift.Double.self,
+                    forKey: .unspecified
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "date",
+                    "start",
+                    "end",
+                    "inBed",
+                    "asleep",
+                    "awake",
+                    "core",
+                    "deep",
+                    "rem",
+                    "unspecified"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.date,
+                    forKey: .date
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.inBed,
+                    forKey: .inBed
+                )
+                try container.encode(
+                    self.asleep,
+                    forKey: .asleep
+                )
+                try container.encode(
+                    self.awake,
+                    forKey: .awake
+                )
+                try container.encode(
+                    self.core,
+                    forKey: .core
+                )
+                try container.encode(
+                    self.deep,
+                    forKey: .deep
+                )
+                try container.encode(
+                    self.rem,
+                    forKey: .rem
+                )
+                try container.encode(
+                    self.unspecified,
+                    forKey: .unspecified
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthSleepResult`.
+        public struct HealthSleepResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepResult/end`.
+            public var end: Swift.String
+            /// Each night that ends in the period, oldest first.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepResult/nights`.
+            public var nights: [Components.Schemas.HealthSleepNight]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSleepResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - nights: Each night that ends in the period, oldest first.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                nights: [Components.Schemas.HealthSleepNight],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self.nights = nights
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case nights
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.nights = try container.decode(
+                    [Components.Schemas.HealthSleepNight].self,
+                    forKey: .nights
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "nights"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.nights,
+                    forKey: .nights
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthMedicationItem`.
+        public struct HealthMedicationItem: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/id`.
+            public var id: Swift.String
+            /// The name the person gave it, else Health's.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/name`.
+            public var name: Swift.String
+            /// The name Health shows for it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/healthName`.
+            public var healthName: Swift.String
+            /// Its general form, as HealthKit names it, e.g. tablet or capsule.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/form`.
+            public var form: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/archived`.
+            public var archived: Swift.Bool
+            /// Whether it's taken on a schedule, rather than as needed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/scheduled`.
+            public var scheduled: Swift.Bool
+            /// Adherence over today and the 6 days before.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/last7Days`.
+            public struct Last7DaysPayload: Codable, Hashable, Sendable {
+                /// Scheduled doses that were due.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/last7Days/scheduled`.
+                public var scheduled: Swift.Int
+                /// Of those, how many were logged as taken.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/last7Days/taken`.
+                public var taken: Swift.Int
+                /// Doses taken as needed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/last7Days/asNeeded`.
+                public var asNeeded: Swift.Int
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `Last7DaysPayload`.
+                ///
+                /// - Parameters:
+                ///   - scheduled: Scheduled doses that were due.
+                ///   - taken: Of those, how many were logged as taken.
+                ///   - asNeeded: Doses taken as needed.
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    scheduled: Swift.Int,
+                    taken: Swift.Int,
+                    asNeeded: Swift.Int,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.scheduled = scheduled
+                    self.taken = taken
+                    self.asNeeded = asNeeded
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case scheduled
+                    case taken
+                    case asNeeded
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.scheduled = try container.decode(
+                        Swift.Int.self,
+                        forKey: .scheduled
+                    )
+                    self.taken = try container.decode(
+                        Swift.Int.self,
+                        forKey: .taken
+                    )
+                    self.asNeeded = try container.decode(
+                        Swift.Int.self,
+                        forKey: .asNeeded
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "scheduled",
+                        "taken",
+                        "asNeeded"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.scheduled,
+                        forKey: .scheduled
+                    )
+                    try container.encode(
+                        self.taken,
+                        forKey: .taken
+                    )
+                    try container.encode(
+                        self.asNeeded,
+                        forKey: .asNeeded
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// Adherence over today and the 6 days before.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/last7Days`.
+            public var last7Days: Components.Schemas.HealthMedicationItem.Last7DaysPayload
+            /// Adherence over today and the 29 days before.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/last30Days`.
+            public struct Last30DaysPayload: Codable, Hashable, Sendable {
+                /// Scheduled doses that were due.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/last30Days/scheduled`.
+                public var scheduled: Swift.Int
+                /// Of those, how many were logged as taken.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/last30Days/taken`.
+                public var taken: Swift.Int
+                /// Doses taken as needed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/last30Days/asNeeded`.
+                public var asNeeded: Swift.Int
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `Last30DaysPayload`.
+                ///
+                /// - Parameters:
+                ///   - scheduled: Scheduled doses that were due.
+                ///   - taken: Of those, how many were logged as taken.
+                ///   - asNeeded: Doses taken as needed.
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    scheduled: Swift.Int,
+                    taken: Swift.Int,
+                    asNeeded: Swift.Int,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.scheduled = scheduled
+                    self.taken = taken
+                    self.asNeeded = asNeeded
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case scheduled
+                    case taken
+                    case asNeeded
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.scheduled = try container.decode(
+                        Swift.Int.self,
+                        forKey: .scheduled
+                    )
+                    self.taken = try container.decode(
+                        Swift.Int.self,
+                        forKey: .taken
+                    )
+                    self.asNeeded = try container.decode(
+                        Swift.Int.self,
+                        forKey: .asNeeded
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "scheduled",
+                        "taken",
+                        "asNeeded"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.scheduled,
+                        forKey: .scheduled
+                    )
+                    try container.encode(
+                        self.taken,
+                        forKey: .taken
+                    )
+                    try container.encode(
+                        self.asNeeded,
+                        forKey: .asNeeded
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// Adherence over today and the 29 days before.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/last30Days`.
+            public var last30Days: Components.Schemas.HealthMedicationItem.Last30DaysPayload
+            /// When a dose was last logged as taken, or null.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/lastTaken`.
+            public var lastTaken: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthMedicationItem`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - name: The name the person gave it, else Health's.
+            ///   - healthName: The name Health shows for it.
+            ///   - form: Its general form, as HealthKit names it, e.g. tablet or capsule.
+            ///   - archived:
+            ///   - scheduled: Whether it's taken on a schedule, rather than as needed.
+            ///   - last7Days: Adherence over today and the 6 days before.
+            ///   - last30Days: Adherence over today and the 29 days before.
+            ///   - lastTaken: When a dose was last logged as taken, or null.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                name: Swift.String,
+                healthName: Swift.String,
+                form: Swift.String,
+                archived: Swift.Bool,
+                scheduled: Swift.Bool,
+                last7Days: Components.Schemas.HealthMedicationItem.Last7DaysPayload,
+                last30Days: Components.Schemas.HealthMedicationItem.Last30DaysPayload,
+                lastTaken: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.name = name
+                self.healthName = healthName
+                self.form = form
+                self.archived = archived
+                self.scheduled = scheduled
+                self.last7Days = last7Days
+                self.last30Days = last30Days
+                self.lastTaken = lastTaken
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case name
+                case healthName
+                case form
+                case archived
+                case scheduled
+                case last7Days
+                case last30Days
+                case lastTaken
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.name = try container.decode(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.healthName = try container.decode(
+                    Swift.String.self,
+                    forKey: .healthName
+                )
+                self.form = try container.decode(
+                    Swift.String.self,
+                    forKey: .form
+                )
+                self.archived = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .archived
+                )
+                self.scheduled = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .scheduled
+                )
+                self.last7Days = try container.decode(
+                    Components.Schemas.HealthMedicationItem.Last7DaysPayload.self,
+                    forKey: .last7Days
+                )
+                self.last30Days = try container.decode(
+                    Components.Schemas.HealthMedicationItem.Last30DaysPayload.self,
+                    forKey: .last30Days
+                )
+                self.lastTaken = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .lastTaken
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "name",
+                    "healthName",
+                    "form",
+                    "archived",
+                    "scheduled",
+                    "last7Days",
+                    "last30Days",
+                    "lastTaken"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.name,
+                    forKey: .name
+                )
+                try container.encode(
+                    self.healthName,
+                    forKey: .healthName
+                )
+                try container.encode(
+                    self.form,
+                    forKey: .form
+                )
+                try container.encode(
+                    self.archived,
+                    forKey: .archived
+                )
+                try container.encode(
+                    self.scheduled,
+                    forKey: .scheduled
+                )
+                try container.encode(
+                    self.last7Days,
+                    forKey: .last7Days
+                )
+                try container.encode(
+                    self.last30Days,
+                    forKey: .last30Days
+                )
+                try container.encodeIfPresent(
+                    self.lastTaken,
+                    forKey: .lastTaken
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthMedicationsResult`.
+        public struct HealthMedicationsResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationsResult/timeZone`.
+            public var timeZone: Swift.String
+            /// Current medications, then archived ones, by name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationsResult/medications`.
+            public var medications: [Components.Schemas.HealthMedicationItem]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthMedicationsResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - medications: Current medications, then archived ones, by name.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                medications: [Components.Schemas.HealthMedicationItem],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.medications = medications
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case medications
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.medications = try container.decode(
+                    [Components.Schemas.HealthMedicationItem].self,
+                    forKey: .medications
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "medications"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.medications,
+                    forKey: .medications
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem`.
+        public struct HealthVisionPrescriptionItem: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/id`.
+            public var id: Swift.String
+            /// glasses or contacts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/kind`.
+            public var kind: Swift.String
+            /// A day in the output's `timeZone`, as YYYY-MM-DD.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/issued`.
+            public var issued: Swift.String
+            /// A day in the output's `timeZone`, as YYYY-MM-DD.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/expires`.
+            public var expires: Swift.String?
+            /// A contacts lens brand.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/brand`.
+            public var brand: Swift.String?
+            /// The right eye (OD), or null if not covered.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/rightEye`.
+            public struct RightEyePayload: Codable, Hashable, Sendable {
+                /// Diopters.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/rightEye/sphere`.
+                public var sphere: Swift.Double?
+                /// Diopters.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/rightEye/cylinder`.
+                public var cylinder: Swift.Double?
+                /// Degrees.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/rightEye/axis`.
+                public var axis: Swift.Double?
+                /// Diopters.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/rightEye/addPower`.
+                public var addPower: Swift.Double?
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `RightEyePayload`.
+                ///
+                /// - Parameters:
+                ///   - sphere: Diopters.
+                ///   - cylinder: Diopters.
+                ///   - axis: Degrees.
+                ///   - addPower: Diopters.
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    sphere: Swift.Double? = nil,
+                    cylinder: Swift.Double? = nil,
+                    axis: Swift.Double? = nil,
+                    addPower: Swift.Double? = nil,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.sphere = sphere
+                    self.cylinder = cylinder
+                    self.axis = axis
+                    self.addPower = addPower
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case sphere
+                    case cylinder
+                    case axis
+                    case addPower
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.sphere = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .sphere
+                    )
+                    self.cylinder = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .cylinder
+                    )
+                    self.axis = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .axis
+                    )
+                    self.addPower = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .addPower
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "sphere",
+                        "cylinder",
+                        "axis",
+                        "addPower"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encodeIfPresent(
+                        self.sphere,
+                        forKey: .sphere
+                    )
+                    try container.encodeIfPresent(
+                        self.cylinder,
+                        forKey: .cylinder
+                    )
+                    try container.encodeIfPresent(
+                        self.axis,
+                        forKey: .axis
+                    )
+                    try container.encodeIfPresent(
+                        self.addPower,
+                        forKey: .addPower
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// The right eye (OD), or null if not covered.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/rightEye`.
+            public var rightEye: Components.Schemas.HealthVisionPrescriptionItem.RightEyePayload?
+            /// The left eye (OS), or null if not covered.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/leftEye`.
+            public struct LeftEyePayload: Codable, Hashable, Sendable {
+                /// Diopters.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/leftEye/sphere`.
+                public var sphere: Swift.Double?
+                /// Diopters.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/leftEye/cylinder`.
+                public var cylinder: Swift.Double?
+                /// Degrees.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/leftEye/axis`.
+                public var axis: Swift.Double?
+                /// Diopters.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/leftEye/addPower`.
+                public var addPower: Swift.Double?
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `LeftEyePayload`.
+                ///
+                /// - Parameters:
+                ///   - sphere: Diopters.
+                ///   - cylinder: Diopters.
+                ///   - axis: Degrees.
+                ///   - addPower: Diopters.
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    sphere: Swift.Double? = nil,
+                    cylinder: Swift.Double? = nil,
+                    axis: Swift.Double? = nil,
+                    addPower: Swift.Double? = nil,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.sphere = sphere
+                    self.cylinder = cylinder
+                    self.axis = axis
+                    self.addPower = addPower
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case sphere
+                    case cylinder
+                    case axis
+                    case addPower
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.sphere = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .sphere
+                    )
+                    self.cylinder = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .cylinder
+                    )
+                    self.axis = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .axis
+                    )
+                    self.addPower = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .addPower
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "sphere",
+                        "cylinder",
+                        "axis",
+                        "addPower"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encodeIfPresent(
+                        self.sphere,
+                        forKey: .sphere
+                    )
+                    try container.encodeIfPresent(
+                        self.cylinder,
+                        forKey: .cylinder
+                    )
+                    try container.encodeIfPresent(
+                        self.axis,
+                        forKey: .axis
+                    )
+                    try container.encodeIfPresent(
+                        self.addPower,
+                        forKey: .addPower
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// The left eye (OS), or null if not covered.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthVisionPrescriptionItem/leftEye`.
+            public var leftEye: Components.Schemas.HealthVisionPrescriptionItem.LeftEyePayload?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthVisionPrescriptionItem`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - kind: glasses or contacts.
+            ///   - issued: A day in the output's `timeZone`, as YYYY-MM-DD.
+            ///   - expires: A day in the output's `timeZone`, as YYYY-MM-DD.
+            ///   - brand: A contacts lens brand.
+            ///   - rightEye: The right eye (OD), or null if not covered.
+            ///   - leftEye: The left eye (OS), or null if not covered.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                kind: Swift.String,
+                issued: Swift.String,
+                expires: Swift.String? = nil,
+                brand: Swift.String? = nil,
+                rightEye: Components.Schemas.HealthVisionPrescriptionItem.RightEyePayload? = nil,
+                leftEye: Components.Schemas.HealthVisionPrescriptionItem.LeftEyePayload? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.kind = kind
+                self.issued = issued
+                self.expires = expires
+                self.brand = brand
+                self.rightEye = rightEye
+                self.leftEye = leftEye
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case kind
+                case issued
+                case expires
+                case brand
+                case rightEye
+                case leftEye
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.kind = try container.decode(
+                    Swift.String.self,
+                    forKey: .kind
+                )
+                self.issued = try container.decode(
+                    Swift.String.self,
+                    forKey: .issued
+                )
+                self.expires = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .expires
+                )
+                self.brand = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .brand
+                )
+                self.rightEye = try container.decodeIfPresent(
+                    Components.Schemas.HealthVisionPrescriptionItem.RightEyePayload.self,
+                    forKey: .rightEye
+                )
+                self.leftEye = try container.decodeIfPresent(
+                    Components.Schemas.HealthVisionPrescriptionItem.LeftEyePayload.self,
+                    forKey: .leftEye
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "kind",
+                    "issued",
+                    "expires",
+                    "brand",
+                    "rightEye",
+                    "leftEye"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.kind,
+                    forKey: .kind
+                )
+                try container.encode(
+                    self.issued,
+                    forKey: .issued
+                )
+                try container.encodeIfPresent(
+                    self.expires,
+                    forKey: .expires
+                )
+                try container.encodeIfPresent(
+                    self.brand,
+                    forKey: .brand
+                )
+                try container.encodeIfPresent(
+                    self.rightEye,
+                    forKey: .rightEye
+                )
+                try container.encodeIfPresent(
+                    self.leftEye,
+                    forKey: .leftEye
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthDetailsResult`.
+        public struct HealthDetailsResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDetailsResult/timeZone`.
+            public var timeZone: Swift.String
+            /// A day in the output's `timeZone`, as YYYY-MM-DD.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDetailsResult/dateOfBirth`.
+            public var dateOfBirth: Swift.String?
+            /// Years, as of today.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDetailsResult/age`.
+            public var age: Swift.Int?
+            /// As Health records it: female, male or other. Null if not set.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDetailsResult/sex`.
+            public var sex: Swift.String?
+            /// E.g. A+ or O-.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDetailsResult/bloodType`.
+            public var bloodType: Swift.String?
+            /// I to VI.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDetailsResult/fitzpatrickSkinType`.
+            public var fitzpatrickSkinType: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HealthDetailsResult/wheelchairUse`.
+            public var wheelchairUse: Swift.Bool?
+            /// Glasses and contacts prescriptions the person shares, newest first.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDetailsResult/visionPrescriptions`.
+            public var visionPrescriptions: [Components.Schemas.HealthVisionPrescriptionItem]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthDetailsResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - dateOfBirth: A day in the output's `timeZone`, as YYYY-MM-DD.
+            ///   - age: Years, as of today.
+            ///   - sex: As Health records it: female, male or other. Null if not set.
+            ///   - bloodType: E.g. A+ or O-.
+            ///   - fitzpatrickSkinType: I to VI.
+            ///   - wheelchairUse:
+            ///   - visionPrescriptions: Glasses and contacts prescriptions the person shares, newest first.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                dateOfBirth: Swift.String? = nil,
+                age: Swift.Int? = nil,
+                sex: Swift.String? = nil,
+                bloodType: Swift.String? = nil,
+                fitzpatrickSkinType: Swift.String? = nil,
+                wheelchairUse: Swift.Bool? = nil,
+                visionPrescriptions: [Components.Schemas.HealthVisionPrescriptionItem],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.dateOfBirth = dateOfBirth
+                self.age = age
+                self.sex = sex
+                self.bloodType = bloodType
+                self.fitzpatrickSkinType = fitzpatrickSkinType
+                self.wheelchairUse = wheelchairUse
+                self.visionPrescriptions = visionPrescriptions
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case dateOfBirth
+                case age
+                case sex
+                case bloodType
+                case fitzpatrickSkinType
+                case wheelchairUse
+                case visionPrescriptions
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.dateOfBirth = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .dateOfBirth
+                )
+                self.age = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .age
+                )
+                self.sex = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .sex
+                )
+                self.bloodType = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .bloodType
+                )
+                self.fitzpatrickSkinType = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .fitzpatrickSkinType
+                )
+                self.wheelchairUse = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .wheelchairUse
+                )
+                self.visionPrescriptions = try container.decode(
+                    [Components.Schemas.HealthVisionPrescriptionItem].self,
+                    forKey: .visionPrescriptions
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "dateOfBirth",
+                    "age",
+                    "sex",
+                    "bloodType",
+                    "fitzpatrickSkinType",
+                    "wheelchairUse",
+                    "visionPrescriptions"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encodeIfPresent(
+                    self.dateOfBirth,
+                    forKey: .dateOfBirth
+                )
+                try container.encodeIfPresent(
+                    self.age,
+                    forKey: .age
+                )
+                try container.encodeIfPresent(
+                    self.sex,
+                    forKey: .sex
+                )
+                try container.encodeIfPresent(
+                    self.bloodType,
+                    forKey: .bloodType
+                )
+                try container.encodeIfPresent(
+                    self.fitzpatrickSkinType,
+                    forKey: .fitzpatrickSkinType
+                )
+                try container.encodeIfPresent(
+                    self.wheelchairUse,
+                    forKey: .wheelchairUse
+                )
+                try container.encode(
+                    self.visionPrescriptions,
+                    forKey: .visionPrescriptions
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthSearchType`.
+        public struct HealthSearchType: Codable, Hashable, Sendable {
+            /// A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSearchType/type`.
+            public var _type: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthSearchType/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthSearchType/category`.
+            public var category: Swift.String?
+            /// Whether the person has any of it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSearchType/hasData`.
+            public var hasData: Swift.Bool
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSearchType`.
+            ///
+            /// - Parameters:
+            ///   - _type: A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
+            ///   - name:
+            ///   - category:
+            ///   - hasData: Whether the person has any of it.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                _type: Swift.String,
+                name: Swift.String,
+                category: Swift.String? = nil,
+                hasData: Swift.Bool,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self._type = _type
+                self.name = name
+                self.category = category
+                self.hasData = hasData
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _type = "type"
+                case name
+                case category
+                case hasData
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self._type = try container.decode(
+                    Swift.String.self,
+                    forKey: ._type
+                )
+                self.name = try container.decode(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.category = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .category
+                )
+                self.hasData = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .hasData
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "type",
+                    "name",
+                    "category",
+                    "hasData"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self._type,
+                    forKey: ._type
+                )
+                try container.encode(
+                    self.name,
+                    forKey: .name
+                )
+                try container.encodeIfPresent(
+                    self.category,
+                    forKey: .category
+                )
+                try container.encode(
+                    self.hasData,
+                    forKey: .hasData
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthSearchMedication`.
+        public struct HealthSearchMedication: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthSearchMedication/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthSearchMedication/name`.
+            public var name: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSearchMedication`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - name:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                name: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.name = name
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case name
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.name = try container.decode(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "name"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.name,
+                    forKey: .name
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthSearchResult`.
+        public struct HealthSearchResult: Codable, Hashable, Sendable {
+            /// Data types whose name or category matches, those with data first.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSearchResult/types`.
+            public var types: [Components.Schemas.HealthSearchType]
+            /// Medications whose name matches.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSearchResult/medications`.
+            public var medications: [Components.Schemas.HealthSearchMedication]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSearchResult`.
+            ///
+            /// - Parameters:
+            ///   - types: Data types whose name or category matches, those with data first.
+            ///   - medications: Medications whose name matches.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                types: [Components.Schemas.HealthSearchType],
+                medications: [Components.Schemas.HealthSearchMedication],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.types = types
+                self.medications = medications
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case types
+                case medications
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.types = try container.decode(
+                    [Components.Schemas.HealthSearchType].self,
+                    forKey: .types
+                )
+                self.medications = try container.decode(
+                    [Components.Schemas.HealthSearchMedication].self,
+                    forKey: .medications
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "types",
+                    "medications"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.types,
+                    forKey: .types
+                )
+                try container.encode(
+                    self.medications,
+                    forKey: .medications
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthSyncIPhone`.
+        public struct HealthSyncIPhone: Codable, Hashable, Sendable {
+            /// lil's ID for the iPhone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSyncIPhone/device`.
+            public var device: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthSyncIPhone/pairedWithWatch`.
+            public var pairedWithWatch: Swift.Bool
+            /// When its last upload of statistics was applied.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSyncIPhone/lastReported`.
+            public var lastReported: Swift.String
+            /// Whether totals come from this iPhone's statistics.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSyncIPhone/statisticsSource`.
+            public var statisticsSource: Swift.Bool
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSyncIPhone`.
+            ///
+            /// - Parameters:
+            ///   - device: lil's ID for the iPhone.
+            ///   - pairedWithWatch:
+            ///   - lastReported: When its last upload of statistics was applied.
+            ///   - statisticsSource: Whether totals come from this iPhone's statistics.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                device: Swift.String,
+                pairedWithWatch: Swift.Bool,
+                lastReported: Swift.String,
+                statisticsSource: Swift.Bool,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.device = device
+                self.pairedWithWatch = pairedWithWatch
+                self.lastReported = lastReported
+                self.statisticsSource = statisticsSource
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case device
+                case pairedWithWatch
+                case lastReported
+                case statisticsSource
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.device = try container.decode(
+                    Swift.String.self,
+                    forKey: .device
+                )
+                self.pairedWithWatch = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .pairedWithWatch
+                )
+                self.lastReported = try container.decode(
+                    Swift.String.self,
+                    forKey: .lastReported
+                )
+                self.statisticsSource = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .statisticsSource
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "device",
+                    "pairedWithWatch",
+                    "lastReported",
+                    "statisticsSource"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.device,
+                    forKey: .device
+                )
+                try container.encode(
+                    self.pairedWithWatch,
+                    forKey: .pairedWithWatch
+                )
+                try container.encode(
+                    self.lastReported,
+                    forKey: .lastReported
+                )
+                try container.encode(
+                    self.statisticsSource,
+                    forKey: .statisticsSource
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthSyncStatusResult`.
+        public struct HealthSyncStatusResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSyncStatusResult/timeZone`.
+            public var timeZone: Swift.String
+            /// When the most recent sample that has started starts, or null without data.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSyncStatusResult/latestSample`.
+            public var latestSample: Swift.String?
+            /// The iPhones uploading Health data, most recently reported first.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSyncStatusResult/iPhones`.
+            public var iPhones: [Components.Schemas.HealthSyncIPhone]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSyncStatusResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - latestSample: When the most recent sample that has started starts, or null without data.
+            ///   - iPhones: The iPhones uploading Health data, most recently reported first.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                latestSample: Swift.String? = nil,
+                iPhones: [Components.Schemas.HealthSyncIPhone],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.latestSample = latestSample
+                self.iPhones = iPhones
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case latestSample
+                case iPhones
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.latestSample = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .latestSample
+                )
+                self.iPhones = try container.decode(
+                    [Components.Schemas.HealthSyncIPhone].self,
+                    forKey: .iPhones
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "latestSample",
+                    "iPhones"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encodeIfPresent(
+                    self.latestSample,
+                    forKey: .latestSample
+                )
+                try container.encode(
+                    self.iPhones,
+                    forKey: .iPhones
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
     }
 }

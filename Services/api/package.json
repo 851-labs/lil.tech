@@ -12,6 +12,8 @@
     "deploy:prod": "LIL_ENVIRONMENT=prod LIL_VERSION=$(git describe --always --dirty --exclude '*') alchemy deploy --stage prod",
     "openapi": "node scripts/openapi.ts",
     "openapi:check": "node scripts/openapi.ts --check",
+    "mcp-tools": "node scripts/mcp-tools.ts",
+    "mcp-tools:check": "node scripts/mcp-tools.ts --check",
     "migrations": "node scripts/migrations.ts",
     "migrations:check": "node scripts/migrations.ts --check"
   },

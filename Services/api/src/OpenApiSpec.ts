@@ -1,6 +1,7 @@
-import { Schema } from "effect";
+import { JsonSchema, Schema } from "effect";
 import { type HttpApi, type HttpApiGroup, OpenApi } from "effect/http-api";
 import { Api } from "./Api.ts";
+import { HealthToolkit, healthToolResultNames } from "./health/tools/HealthToolkit.ts";
 import { entities } from "./store/Registry.ts";
 
 /**
@@ -43,7 +44,7 @@ export const makeOpenApiSpec = <Id extends string, Groups extends HttpApiGroup.C
       return claim(source.split("/").at(-1) ?? source, source);
     },
   });
-  return normalize(withEntitySchemas(spec, claim));
+  return normalize(withToolSchemas(withEntitySchemas(spec, claim), claim));
 };
 
 /**
@@ -63,6 +64,48 @@ const withEntitySchemas = <S extends { components: { schemas: Record<string, unk
     }
     // Keyed by entity name, so two entities whose names map to the same schema name collide.
     schemas[claim(entity.schemaName, `entity ${entity.name}`)] = document.definitions[identifier];
+  }
+  return { ...spec, components: { ...spec.components, schemas } };
+};
+
+/**
+ * Adds the Health toolkit's outputs (`src/health/tools/HealthToolkit.ts`) to the spec's components,
+ * each named by `healthToolResultNames`, with the schemas they're made of, so the Swift client gets
+ * their types. No endpoint returns them: MCP servers do (851-2841).
+ */
+const withToolSchemas = <S extends { components: { schemas: Record<string, unknown> } }>(
+  spec: S,
+  claim: (short: string, source: string) => string,
+): S => {
+  const schemas = { ...spec.components.schemas };
+  const added = new Map<string, string>();
+  for (const [name, tool] of Object.entries(HealthToolkit.tools)) {
+    const document = Schema.toJsonSchemaDocument(tool.successSchema);
+    // Rewrites references from `#/$defs/…` to `#/components/schemas/…`.
+    const {
+      schemas: [result],
+      definitions,
+    } = JsonSchema.toMultiDocumentOpenApi3_1({
+      dialect: document.dialect,
+      schemas: [document.schema],
+      definitions: document.definitions,
+    });
+    // Tools may share a schema, but two different schemas can't have one name.
+    for (const [key, definition] of Object.entries(definitions)) {
+      const json = JSON.stringify(definition);
+      const previous = added.get(key);
+      if (previous !== undefined && previous !== json) {
+        throw new Error(`Health tools have two different schemas named "${key}"`);
+      }
+      added.set(key, json);
+      schemas[claim(key, `health tool schema ${key}`)] = definition;
+    }
+    schemas[
+      claim(
+        healthToolResultNames[name as keyof typeof healthToolResultNames],
+        `health tool ${name}`,
+      )
+    ] = result;
   }
   return { ...spec, components: { ...spec.components, schemas } };
 };
