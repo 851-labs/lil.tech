@@ -1,9 +1,9 @@
-import { Effect } from "effect";
+import { Effect, Option, Stream } from "effect";
 import { HttpMiddleware, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { OAuthClients } from "../core/OAuthClients.ts";
 import { Deployment } from "../Deployment.ts";
 import { checkAddressRateLimit, RateLimits, tooManyRequests } from "../RateLimits.ts";
-import { checkRegistration, InvalidClient } from "./ClientMetadata.ts";
+import { checkRegistration, InvalidClient, supportedGrantTypes } from "./ClientMetadata.ts";
 import {
   agentAccessEnvironments,
   agentHosts,
@@ -11,6 +11,7 @@ import {
   agentScopes,
   agentsHelpUrl,
   authorizationServerMetadataPath,
+  isAuthorizationServerPath,
   isMcpPath,
   protectedResourceMetadataPath,
   resourceUrl,
@@ -40,28 +41,40 @@ const notFound = HttpServerResponse.empty({ status: 404 });
 
 /**
  * Keeps the API and the MCP servers on their own hosts in prod and staging: the MCP host
- * (`mcp.lil.tech`) serves only the MCP servers and their metadata, and other hosts never serve
- * those. Everything else 404s. On workers.dev, which has one host, every route is on it.
+ * (`mcp.lil.tech`) serves only the MCP servers and their metadata, other hosts never serve those,
+ * and the authorization server is only on its issuer's host (so not on the Worker's workers.dev
+ * URL, whose documents would name another issuer). Everything else 404s. On workers.dev, which has
+ * one host, every route is on it.
  */
 export const AgentHostsMiddleware = HttpRouter.middleware(
   Effect.gen(function* () {
     const { environment } = yield* Deployment;
     return <E, R>(httpEffect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>) =>
       HttpServerRequest.HttpServerRequest.use((request) => {
-        const hosts = agentHosts(environment, requestOrigin(request));
+        const origin = requestOrigin(request);
+        const hosts = agentHosts(environment, origin);
         if (hosts.shared) return httpEffect;
-        const onMcpHost = requestOrigin(request) === hosts.mcp;
-        return onMcpHost === isMcpPath(requestPath(request))
-          ? httpEffect
-          : Effect.succeed(notFound);
+        const path = requestPath(request);
+        const allowed =
+          origin === hosts.mcp
+            ? isMcpPath(path)
+            : !isMcpPath(path) && (origin === hosts.issuer || !isAuthorizationServerPath(path));
+        return allowed ? httpEffect : Effect.succeed(notFound);
       });
   }),
   { global: true },
 );
 
-/** Lets any origin call a route, without credentials, answering `OPTIONS` preflights. */
+/**
+ * Lets any origin call a route, without credentials, answering `OPTIONS` preflights. `Retry-After`
+ * is readable, for a rate-limited registration.
+ */
 const cors = (method: "GET" | "POST") =>
-  HttpMiddleware.cors({ allowedMethods: [method], maxAge: 24 * 60 * 60 });
+  HttpMiddleware.cors({
+    allowedMethods: [method],
+    exposedHeaders: ["retry-after"],
+    maxAge: 24 * 60 * 60,
+  });
 
 /** Adds a route that any web origin may call (and its preflight), as browser-based clients do. */
 const addPublic = <E, R>(
@@ -73,6 +86,32 @@ const addPublic = <E, R>(
   Effect.gen(function* () {
     yield* router.add(method, path, cors(method)(handler));
     yield* router.add("OPTIONS", path, cors(method)(handler));
+  });
+
+/**
+ * Reads a body of at most `limit` bytes, stopping as soon as it's longer, so a chunked body without
+ * a `Content-Length` can't make us hold all of it. `None` if it's too long.
+ */
+const readAtMost = <E>(body: Stream.Stream<Uint8Array, E>, limit: number) =>
+  Effect.gen(function* () {
+    const chunks: Array<Uint8Array> = [];
+    let size = 0;
+    yield* Stream.runForEachWhile(body, (chunk) =>
+      Effect.sync(() => {
+        size += chunk.byteLength;
+        if (size > limit) return false;
+        chunks.push(chunk);
+        return true;
+      }),
+    );
+    if (size > limit) return Option.none();
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return Option.some(new TextDecoder().decode(bytes));
   });
 
 /** A metadata document, which clients may cache for a while. */
@@ -161,10 +200,17 @@ export const AgentOAuthRoutes = HttpRouter.use((router) =>
           `The registration is larger than ${maxRegistrationBytes} bytes`,
         );
         if (Number(request.headers["content-length"] ?? 0) > maxRegistrationBytes) return tooLarge;
-        const body = yield* request.text.pipe(Effect.orDie);
-        // Sent without a length (chunked): checked once read.
-        if (new TextEncoder().encode(body).byteLength > maxRegistrationBytes) return tooLarge;
-        const metadata = yield* checkRegistration(body);
+        const body = yield* readAtMost(request.stream, maxRegistrationBytes).pipe(
+          Effect.mapError(
+            () =>
+              new InvalidClient({
+                error: "invalid_client_metadata",
+                description: "The registration couldn't be read",
+              }),
+          ),
+        );
+        if (Option.isNone(body)) return tooLarge;
+        const metadata = yield* checkRegistration(body.value);
         const client = yield* clients.register(metadata).pipe(Effect.orDie);
         return HttpServerResponse.jsonUnsafe(
           {
@@ -173,7 +219,8 @@ export const AgentOAuthRoutes = HttpRouter.use((router) =>
             ...(client.name === null ? {} : { client_name: client.name }),
             ...(client.clientUri === null ? {} : { client_uri: client.clientUri }),
             redirect_uris: client.redirectUris,
-            grant_types: metadata.grantTypes,
+            // Every client may refresh: RFC 7591 lets the server replace what was asked for.
+            grant_types: supportedGrantTypes,
             response_types: ["code"],
             token_endpoint_auth_method: "none",
             application_type: client.applicationType,

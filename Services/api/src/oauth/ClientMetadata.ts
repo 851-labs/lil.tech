@@ -42,7 +42,6 @@ export interface ClientMetadata {
   readonly clientUri: string | null;
   readonly redirectUris: ReadonlyArray<string>;
   readonly applicationType: ApplicationType;
-  readonly grantTypes: ReadonlyArray<(typeof supportedGrantTypes)[number]>;
 }
 
 /**
@@ -69,7 +68,7 @@ const invalidMetadata = (description: string) =>
 /**
  * Checks a client's metadata. Both kinds of client need one to ten acceptable redirect URIs, and
  * no client authentication but `none`. A metadata document must also name the client; a
- * registration may leave the name out, and must ask only for the code flow.
+ * registration may leave the name out. Both may ask only for the code flow.
  */
 const checkMetadata = (
   fields: ClientMetadataFields,
@@ -109,21 +108,20 @@ const checkMetadata = (
         'Only public clients are supported: token_endpoint_auth_method must be "none"',
       );
     }
-    let grantTypes: ClientMetadata["grantTypes"] = supportedGrantTypes;
-    if (kind === "dcr") {
-      if (fields.grant_types !== undefined) {
-        const asked = fields.grant_types;
-        if (!asked.includes("authorization_code") || !asked.every(isSupportedGrantType)) {
-          return yield* invalidMetadata(
-            "grant_types must include authorization_code, and may add only refresh_token",
-          );
-        }
-        grantTypes = supportedGrantTypes.filter((type) => asked.includes(type));
-      }
-      const responseTypes = fields.response_types;
-      if (responseTypes !== undefined && responseTypes.some((type) => type !== "code")) {
-        return yield* invalidMetadata('response_types may only be ["code"]');
-      }
+    // Every client may use both grant types, so only the code flow may be asked for.
+    const grantTypes = fields.grant_types;
+    if (
+      grantTypes !== undefined &&
+      (!grantTypes.includes("authorization_code") ||
+        !grantTypes.every((type) => (supportedGrantTypes as ReadonlyArray<string>).includes(type)))
+    ) {
+      return yield* invalidMetadata(
+        "grant_types must include authorization_code, and may add only refresh_token",
+      );
+    }
+    const responseTypes = fields.response_types;
+    if (responseTypes !== undefined && responseTypes.some((type) => type !== "code")) {
+      return yield* invalidMetadata('response_types may only be ["code"]');
     }
     const applicationType = fields.application_type;
     if (
@@ -139,18 +137,14 @@ const checkMetadata = (
       redirectUris: uris,
       // Unsaid, a client whose redirects all stay on the device is a native app.
       applicationType: applicationType ?? (uris.every(isNativeRedirectUri) ? "native" : "web"),
-      grantTypes,
     };
   });
 
-const isSupportedGrantType = (type: string): type is (typeof supportedGrantTypes)[number] =>
-  (supportedGrantTypes as ReadonlyArray<string>).includes(type);
-
-const isHttpsUrl = (value: string) =>
-  value.length <= maxClientUrlLength &&
-  URL.canParse(value) &&
-  new URL(value).protocol === "https:" &&
-  new URL(value).hostname !== "";
+const isHttpsUrl = (value: string) => {
+  if (value.length > maxClientUrlLength || !URL.canParse(value)) return false;
+  const url = new URL(value);
+  return url.protocol === "https:" && url.hostname !== "";
+};
 
 /** A dynamic registration's body (RFC 7591 §3.1), checked. */
 export const checkRegistration = (body: string) =>
@@ -186,6 +180,8 @@ export const clientIdUrlProblem = (clientId: string): Option.Option<string> => {
   if (url.hostname.startsWith("[") || /^\d+\.\d+\.\d+\.\d+$/.test(url.hostname)) {
     return Option.some("The client ID URL's host is an IP address");
   }
+  // `api.lil.tech.` is the same host as `api.lil.tech`.
+  if (url.hostname.endsWith(".")) return Option.some("The client ID URL's host ends with a dot");
   if (isOwnHost(url.hostname)) return Option.some("The client ID URL is on a lil.tech host");
   return Option.none();
 };

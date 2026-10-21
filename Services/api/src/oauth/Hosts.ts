@@ -77,6 +77,10 @@ export const isMcpPath = (path: string) =>
       path === `/.well-known/oauth-protected-resource${resource.path}`,
   );
 
+/** Whether `path` is one of the authorization server's, which only its issuer's host serves. */
+export const isAuthorizationServerPath = (path: string) =>
+  path === authorizationServerMetadataPath || path.startsWith("/oauth/");
+
 /** The help page that Protected Resource Metadata's `resource_documentation` points to (851-2855). */
 export const agentsHelpUrl = (environment: Environment) =>
   `https://${stageDomains[environment]?.site ?? "lil.tech"}/agents`;

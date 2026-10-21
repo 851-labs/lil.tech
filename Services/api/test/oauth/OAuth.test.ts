@@ -155,6 +155,8 @@ describe("OAuth metadata", () => {
             "https://mcp.staging.lil.tech/.well-known/oauth-authorization-server",
             "https://mcp.staging.lil.tech/v1/status",
             "https://mcp.staging.lil.tech/oauth/register",
+            // The Worker's workers.dev URL isn't the issuer, so it has no authorization server.
+            "https://lil-api-staging.example.workers.dev/.well-known/oauth-authorization-server",
           ]) {
             assert.strictEqual((yield* get(handler, url)).status, 404, url);
           }
@@ -242,7 +244,11 @@ describe("POST /oauth/register", () => {
             redirectUris: ["http://localhost:6274/oauth/callback"],
           });
           // The fewest fields: no name, and the defaults.
-          const bare = yield* register(handler, { redirect_uris: ["https://example.com/cb"] });
+          // Every client may refresh, even one that asked only for codes.
+          const bare = yield* register(handler, {
+            redirect_uris: ["https://example.com/cb"],
+            grant_types: ["authorization_code"],
+          });
           assert.strictEqual(bare.status, 201);
           assert.notProperty(bare.body, "client_name");
           assert.deepInclude(bare.body, {
@@ -331,6 +337,24 @@ describe("POST /oauth/register", () => {
           const response = yield* register(handler, big);
           assert.strictEqual(response.status, 413);
           assert.propertyVal(response.body, "error", "invalid_client_metadata");
+          // Without a length, it stops reading at the limit.
+          let sent = 0;
+          const chunked = yield* send(
+            handler,
+            new Request(`${previewOrigin}/oauth/register`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: new ReadableStream<Uint8Array>({
+                pull(controller) {
+                  sent += 1024;
+                  controller.enqueue(new Uint8Array(1024).fill(32));
+                },
+              }),
+              duplex: "half",
+            } as RequestInit),
+          );
+          assert.strictEqual(chunked.status, 413);
+          assert.isBelow(sent, 64 * 1024);
         }),
       preview,
     ),
@@ -368,6 +392,8 @@ describe("POST /oauth/register", () => {
           assert.strictEqual(response.status, 201);
           assert.strictEqual(response.headers.get("access-control-allow-origin"), "*");
           assert.isNull(response.headers.get("access-control-allow-credentials"));
+          // So a rate-limited client can see when to try again.
+          assert.strictEqual(response.headers.get("access-control-expose-headers"), "retry-after");
         }),
       preview,
     ),
@@ -500,6 +526,16 @@ describe("Client ID Metadata Documents", () => {
         "invalid_client_metadata",
       );
       yield* refused(
+        answer({ ...claudeCodeDocument, grant_types: ["client_credentials"] }),
+        claudeCode,
+        "invalid_client_metadata",
+      );
+      yield* refused(
+        answer({ ...claudeCodeDocument, response_types: ["token"] }),
+        claudeCode,
+        "invalid_client_metadata",
+      );
+      yield* refused(
         answer({ ...claudeCodeDocument, redirect_uris: ["http://example.com/callback"] }),
         claudeCode,
         "invalid_redirect_uri",
@@ -570,6 +606,7 @@ describe("Client ID Metadata Documents", () => {
         "https://0x7f000001/meta",
         "https://lil.tech/meta",
         "https://api.lil.tech/meta",
+        "https://api.lil.tech./meta",
         `https://claude.ai/${"x".repeat(2000)}`,
       ]) {
         yield* refused(fetch, id, "invalid_client");
@@ -646,7 +683,6 @@ describe("OAuthClients.deleteUnused", () => {
     clientUri: null,
     redirectUris: ["http://localhost:6274/oauth/callback"],
     applicationType: "native" as const,
-    grantTypes: ["authorization_code", "refresh_token"] as const,
   };
 
   it.effect("deletes registrations never used, and clients unused for 90 days", () =>
