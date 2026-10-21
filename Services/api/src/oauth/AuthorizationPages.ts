@@ -237,19 +237,22 @@ export interface SignInMethods {
 export const SignInNotice = ["apple_unknown", "google_unknown", "failed", "unavailable"] as const;
 export type SignInNotice = (typeof SignInNotice)[number];
 
-/** The app whose iPhone app makes accounts, as the sign-in page names it. */
-const setUpApp = (target: TargetView) => target.apps[0]?.name ?? "lil health";
+/**
+ * The app whose iPhone app makes accounts, which the sign-in page sends people to: lil health's,
+ * whichever apps the agent asked for.
+ */
+const accountsApp = "lil health";
 
 const noticeText = (notice: SignInNotice, target: TargetView) => {
   switch (notice) {
     case "apple_unknown":
       return (
-        `No ${target.name} account uses this Apple ID. Set up ${setUpApp(target)} on your ` +
+        `No ${target.name} account uses this Apple ID. Set up ${accountsApp} on your ` +
         `iPhone first.`
       );
     case "google_unknown":
       return (
-        `No ${target.name} account uses this Google account. Set up ${setUpApp(target)} on your ` +
+        `No ${target.name} account uses this Google account. Set up ${accountsApp} on your ` +
         `iPhone first.`
       );
     case "failed":
@@ -266,7 +269,7 @@ const providerForm = (binding: FormBinding, provider: "apple" | "google", label:
   `<button type="submit" class="provider ${provider}">${label}</button></form>`;
 
 /** Sign in with Apple and Google, as each brand draws its button. */
-const providerButtons = (binding: FormBinding, methods: SignInMethods, target: TargetView) => {
+const providerButtons = (binding: FormBinding, methods: SignInMethods) => {
   const apple = methods.apple
     ? providerForm(
         binding,
@@ -284,7 +287,7 @@ const providerButtons = (binding: FormBinding, methods: SignInMethods, target: T
     : "";
   const accounts = methods.google ? "Apple ID or Google account" : "Apple ID";
   return `${apple}${google}
-<p class="muted">Use the ${accounts} you use with ${escape(setUpApp(target))} on your iPhone.</p>`;
+<p class="muted">Use the ${accounts} you use with ${escape(accountsApp)} on your iPhone.</p>`;
 };
 
 /** Signing in, before consent, with the ways `methods` allows. */
@@ -303,7 +306,7 @@ export const signInPage = (options: {
       : `<p class="warning notice" role="alert">${escape(noticeText(options.notice, app))}</p>\n`;
   const providers = methods.apple || methods.google;
   const signIn = providers
-    ? `<section>${notice}${providerButtons(binding, methods, app)}</section>`
+    ? `<section>${notice}${providerButtons(binding, methods)}</section>`
     : methods.testAccounts
       ? `<section>
 <form method="post" action="/oauth/authorize/sign-in">${hidden(binding)}

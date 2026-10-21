@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Option } from "effect";
+import { Effect, Layer, Option } from "effect";
 import type { ConsentType } from "../../src/core/Consents.ts";
 import { agentGrants } from "../../src/core/Schema.ts";
 import { eq } from "drizzle-orm";
@@ -24,7 +24,8 @@ import {
   testGoogleWebClientSecret,
 } from "../auth/TestGoogle.ts";
 import { type Handler, withApi } from "../TestApi.ts";
-import { pkce, storeClaudeCode, WithMail } from "./TestAgents.ts";
+import { pkce, registryWithMail, storeClaudeCode, WithMail } from "./TestAgents.ts";
+import { AgentApps } from "../../src/oauth/Hosts.ts";
 
 const preview: Deployment["Service"] = { environment: "preview", version: "1" };
 const staging: Deployment["Service"] = { environment: "staging", version: "1" };
@@ -1455,6 +1456,53 @@ describe("Authorizing the combined server", () => {
       WithMail,
     ),
   );
+
+  it.live("never assumes the combined server when there's no resource", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const clientId = yield* registerClient(handler);
+          const { response } = yield* fetchWith(
+            handler,
+            new Request(
+              `${origin}/oauth/authorize?${query(clientId, { resource: undefined }).search}`,
+            ),
+          );
+          assert.strictEqual(location(response).searchParams.get("error"), "invalid_target");
+        }),
+      preview,
+      RateLimits.unlimited,
+      // A registry without lil health, the app a request without a resource is for.
+      Layer.succeed(AgentApps, { mail: registryWithMail["mail"]! }),
+    ),
+  );
+
+  it("sends people to lil health to make an account, whichever apps were asked for", () => {
+    const html = signInPage({
+      client: {
+        name: "Claude",
+        kind: "cimd",
+        domain: "claude.ai",
+        redirectHost: "claude.ai",
+        loopback: false,
+      },
+      app: {
+        name: "lil",
+        combined: true,
+        apps: [{ key: "mail", name: "lil mail" }],
+        privacyUrl: "https://lil.tech/privacy",
+      },
+      binding: { request: "aau_x", csrf: "c" },
+      methods: { testAccounts: false, apple: true, google: true },
+      notice: "apple_unknown",
+    });
+    assert.include(
+      html,
+      "No lil account uses this Apple ID. Set up lil health on your iPhone first.",
+    );
+    assert.include(html, "you use with lil health on your iPhone");
+    assert.include(html, "Sign in to connect Claude to lil");
+  });
 
   it.live("isn't in prod yet", () =>
     withApi(

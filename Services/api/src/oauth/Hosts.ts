@@ -77,10 +77,14 @@ export const scopesOf = (registry: AgentAppRegistry): ReadonlyArray<string> =>
 
 /** Where an app's Protected Resource Metadata (RFC 9728) is, relative to the MCP host. */
 export const protectedResourceMetadataPath = (resource: AgentResource) =>
-  `/.well-known/oauth-protected-resource${agentResources[resource].path}` as const;
+  appMetadataPath(agentResources[resource]);
 
 /** Where the combined server's Protected Resource Metadata is: the root that RFC 9728 gives it. */
 export const combinedResourceMetadataPath = "/.well-known/oauth-protected-resource";
+
+/** Where `app`'s Protected Resource Metadata is, relative to the MCP host. */
+export const appMetadataPath = (app: AgentApp) =>
+  `${combinedResourceMetadataPath}${app.path}` as const;
 
 export const authorizationServerMetadataPath = "/.well-known/oauth-authorization-server";
 
@@ -107,7 +111,10 @@ export const agentHosts = (environment: Environment, requestOrigin: string): Age
 
 /** The URL of an app's MCP server: its protected resource, and its tokens' audience. */
 export const resourceUrl = (hosts: AgentHosts, resource: AgentResource) =>
-  `${hosts.mcp}${agentResources[resource].path}`;
+  appUrl(hosts, agentResources[resource]);
+
+/** The URL of `app`'s MCP server, on these hosts. */
+export const appUrl = (hosts: AgentHosts, app: AgentApp) => `${hosts.mcp}${app.path}`;
 
 /**
  * The app whose MCP server `resource` is, on these hosts, if it's one. Exactly its URL, as its
@@ -127,12 +134,16 @@ export const resourceFor = (hosts: AgentHosts, resource: string): Option.Option<
 export const combinedResourceUrl = (hosts: AgentHosts) => hosts.mcp;
 
 /**
- * `resource` in its canonical form: the combined server's URL with a trailing slash, as some
- * clients send it once they've parsed it, is the same resource without one. Anything else is as
- * given, since resources are compared as strings.
+ * `resource` in its canonical form: an origin with a trailing slash (the combined server's URL as
+ * some clients send it, once they've parsed it) is that origin. Anything else is as given, since
+ * resources are compared as strings. It doesn't depend on the request's host, so a token request
+ * that reaches another origin than its authorization (`alchemy dev` behind a tunnel) still matches.
  */
-export const canonicalResource = (hosts: AgentHosts, resource: string) =>
-  resource === `${combinedResourceUrl(hosts)}/` ? combinedResourceUrl(hosts) : resource;
+export const canonicalResource = (resource: string) => {
+  if (!resource.endsWith("/") || !URL.canParse(resource)) return resource;
+  const { origin } = new URL(resource);
+  return resource === `${origin}/` ? origin : resource;
+};
 
 /** What an authorization is for: a resource, and the apps its tokens may read there. */
 export interface AgentTarget {
@@ -154,7 +165,7 @@ export const targetFor = (
   resource: string,
   combined: boolean,
 ): Option.Option<AgentTarget> => {
-  const canonical = canonicalResource(hosts, resource);
+  const canonical = canonicalResource(resource);
   if (canonical === combinedResourceUrl(hosts)) {
     return combined
       ? Option.some({ resource: canonical, combined: true, apps: Object.keys(registry) })
@@ -162,7 +173,10 @@ export const targetFor = (
   }
   return Option.map(
     Option.fromNullishOr(
-      Object.keys(registry).find((key) => `${hosts.mcp}${registry[key]?.path}` === canonical),
+      Object.keys(registry).find((key) => {
+        const app = registry[key];
+        return app !== undefined && appUrl(hosts, app) === canonical;
+      }),
     ),
     (key) => ({ resource: canonical, combined: false, apps: [key] }),
   );
@@ -217,14 +231,11 @@ export const appOfResource = (resource: string): Option.Option<AgentResource> =>
  * Whether `path` belongs on the MCP host: an app's MCP server, or its metadata, or the combined
  * server's (the root, `/`, and the root metadata, as exact paths).
  */
-export const isMcpPath = (path: string) =>
+export const isMcpPath = (path: string, registry: AgentAppRegistry = agentResources) =>
   path === "/" ||
   path === combinedResourceMetadataPath ||
-  Object.values(agentResources).some(
-    (resource) =>
-      path === resource.path ||
-      path.startsWith(`${resource.path}/`) ||
-      path === `/.well-known/oauth-protected-resource${resource.path}`,
+  Object.values(registry).some(
+    (app) => path === app.path || path.startsWith(`${app.path}/`) || path === appMetadataPath(app),
   );
 
 /** Whether `path` is one of the authorization server's, which only its issuer's host serves. */

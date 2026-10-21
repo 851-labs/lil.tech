@@ -40,6 +40,7 @@ import {
   type AgentTarget,
   agentHosts,
   appsOfScopes,
+  appUrl,
   combinedAgentEnvironments,
   defaultAgentApp,
   grantFor,
@@ -335,12 +336,16 @@ const checkRequest = Effect.fnUntraced(function* (
     return yield* fail("invalid_request", "code_challenge isn't an S256 challenge");
   }
   // Without a resource, lil health's server is assumed, as it was before the combined server, so
-  // clients that leave it out keep working.
-  const asked = Option.getOrElse(
-    one("resource"),
-    () => `${hosts.mcp}${registry[defaultAgentApp]?.path ?? ""}`,
+  // clients that leave it out keep working. Never the combined server.
+  const defaultApp = registry[defaultAgentApp];
+  const asked = Option.match(one("resource"), {
+    onNone: () =>
+      defaultApp === undefined ? Option.none() : Option.some(appUrl(hosts, defaultApp)),
+    onSome: Option.some,
+  });
+  const target = Option.flatMap(asked, (resource) =>
+    targetFor(registry, hosts, resource, combined),
   );
-  const target = targetFor(registry, hosts, asked, combined);
   if (Option.isNone(target)) {
     return yield* fail("invalid_target", `The resource isn't one of lil's MCP servers`);
   }
@@ -919,13 +924,13 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
           return yield* alreadyAnswered;
         }
         // Recorded once the request is allowed, so a request that wasn't has no consent: each app's
-        // it reads, all of them, since the page is all or nothing. Granting again keeps the first.
-        for (const key of apps) {
-          const app = registry[key];
-          if (app !== undefined) {
-            yield* consents.grant(userId, app.consent, app.consentPolicyVersion);
-          }
-        }
+        // it reads, all of them, since the page is all or nothing. Granting again keeps the first,
+        // so an Allow sent again after one failed records the rest.
+        yield* Effect.forEach(
+          apps.flatMap((key) => registry[key] ?? []),
+          (app) => consents.grant(userId, app.consent, app.consentPolicyVersion),
+          { concurrency: "unbounded", discard: true },
+        );
         return backToAgent(pending.redirectUri, { code }, pending.state, hosts.issuer, 303).pipe(
           withBrowserCookie(pending.id, null),
         );

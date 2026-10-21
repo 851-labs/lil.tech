@@ -4,7 +4,6 @@ import type { SqlError } from "effect/sql";
 import { OAuthClients } from "../core/OAuthClients.ts";
 import { Deployment } from "../Deployment.ts";
 import { checkAddressRateLimit, RateLimits, tooManyRequests } from "../RateLimits.ts";
-import type { Environment } from "../Status.ts";
 import { type AgentTokenPair, AgentTokens, TokenRequestError } from "./AgentTokens.ts";
 import { addAuthorizationPage } from "./AuthorizationPage.ts";
 import { checkRegistration, InvalidClient, supportedGrantTypes } from "./ClientMetadata.ts";
@@ -15,6 +14,8 @@ import {
   agentAccessEnvironments,
   agentHosts,
   agentsHelpUrl,
+  appMetadataPath,
+  appUrl,
   authorizationServerMetadataPath,
   canonicalResource,
   combinedAgentEnvironments,
@@ -50,6 +51,7 @@ const notFound = HttpServerResponse.empty({ status: 404 });
 export const AgentHostsMiddleware = HttpRouter.middleware(
   Effect.gen(function* () {
     const { environment } = yield* Deployment;
+    const registry = yield* AgentApps;
     return <E, R>(httpEffect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>) =>
       HttpServerRequest.HttpServerRequest.use((request) => {
         const origin = requestOrigin(request);
@@ -58,8 +60,9 @@ export const AgentHostsMiddleware = HttpRouter.middleware(
         const path = requestPath(request);
         const allowed =
           origin === hosts.mcp
-            ? isMcpPath(path)
-            : !isMcpPath(path) && (origin === hosts.issuer || !isAuthorizationServerPath(path));
+            ? isMcpPath(path, registry)
+            : !isMcpPath(path, registry) &&
+              (origin === hosts.issuer || !isAuthorizationServerPath(path));
         return allowed ? httpEffect : Effect.succeed(notFound);
       });
   }),
@@ -144,16 +147,12 @@ const catchOAuthErrors = <R>(
  * `POST /oauth/token`: a code exchange or a refresh, for public clients (no authentication). The
  * combined server's URL with a trailing slash is the same resource as without one.
  */
-const tokenEndpoint = (tokens: AgentTokens["Service"], environment: Environment) =>
+const tokenEndpoint = (tokens: AgentTokens["Service"]) =>
   Effect.gen(function* () {
     const form = yield* readTokenForm;
     const grantType = yield* form.require("grant_type");
     const clientId = yield* form.require("client_id");
-    const hosts = agentHosts(
-      environment,
-      requestOrigin(yield* HttpServerRequest.HttpServerRequest),
-    );
-    const resource = Option.map(form.get("resource"), (given) => canonicalResource(hosts, given));
+    const resource = Option.map(form.get("resource"), canonicalResource);
     if (grantType === "authorization_code") {
       return tokenResponse(
         pairBody(
@@ -274,8 +273,8 @@ export const AgentOAuthRoutes = HttpRouter.use((router) =>
 
     for (const app of Object.values(apps)) {
       yield* resourceMetadata(
-        `${combinedResourceMetadataPath}${app.path}`,
-        (hosts) => `${hosts.mcp}${app.path}`,
+        appMetadataPath(app),
+        (hosts) => appUrl(hosts, app),
         app.name,
         app.scopes,
       );
@@ -338,7 +337,7 @@ export const AgentOAuthRoutes = HttpRouter.use((router) =>
       ),
     );
 
-    yield* addPublic(router, "POST", "/oauth/token", tokenEndpoint(tokens, environment));
+    yield* addPublic(router, "POST", "/oauth/token", tokenEndpoint(tokens));
     yield* addPublic(router, "POST", "/oauth/revoke", revocationEndpoint(tokens));
 
     // Not public: the page uses a cookie, so it has no CORS.

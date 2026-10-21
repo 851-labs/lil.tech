@@ -298,11 +298,19 @@ describe("The combined server's resource", () => {
         );
       }
     }
-    assert.strictEqual(canonicalResource(hosts, "https://mcp.lil.tech/"), "https://mcp.lil.tech");
-    assert.strictEqual(
-      canonicalResource(hosts, "https://mcp.lil.tech/health"),
-      "https://mcp.lil.tech/health",
-    );
+    // An origin with a trailing slash is that origin, whichever host the request reached.
+    for (const [given, canonical] of [
+      ["https://mcp.lil.tech/", "https://mcp.lil.tech"],
+      ["https://lil-api-pr-12.example.workers.dev/", "https://lil-api-pr-12.example.workers.dev"],
+      ["https://mcp.lil.tech", "https://mcp.lil.tech"],
+      ["https://mcp.lil.tech/health", "https://mcp.lil.tech/health"],
+      ["https://mcp.lil.tech/health/", "https://mcp.lil.tech/health/"],
+      ["https://mcp.lil.tech//", "https://mcp.lil.tech//"],
+      ["https://MCP.lil.tech/", "https://MCP.lil.tech/"],
+      ["not a url/", "not a url/"],
+    ] as const) {
+      assert.strictEqual(canonicalResource(given), canonical, given);
+    }
   });
 
   it("lets the scopes asked for choose the apps", () => {
@@ -338,6 +346,10 @@ describe("The combined server's resource", () => {
     for (const path of ["/v1/status", "/.well-known/oauth-protected-resource/x", "/oauth/token"]) {
       assert.isFalse(isMcpPath(path), path);
     }
+    // Each app's server and metadata, from the registry.
+    assert.isFalse(isMcpPath("/.well-known/oauth-protected-resource/mail"));
+    assert.isTrue(isMcpPath("/.well-known/oauth-protected-resource/mail", registryWithMail));
+    assert.isTrue(isMcpPath("/mail", registryWithMail));
   });
 
   it.live("lists every app's scopes in the metadata", () =>
