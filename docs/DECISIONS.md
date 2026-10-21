@@ -40,8 +40,9 @@ Every architecture and product decision made so far. This file holds the decisio
 
   | Today | Becomes |
   |---|---|
-  | `HealthMacApp`'s data pages (Audiograms, Electrocardiograms, Heartbeat Series, Cycle Tracking, Sleep, Workouts, Mental Wellbeing, Health Details, Vision Prescriptions, Medications) | `HealthPages`, on `HealthDatabase` and `HealthUI` |
-  | `HealthMacApp`'s preview support (`PreviewFrame`, `PreviewDatabase`) | `HealthUI` |
+  | `HealthMacApp`'s data pages (Audiograms, Electrocardiograms, Heartbeat Series, Cycle Tracking, Sleep, Workouts, Mental Wellbeing, Health Details, Vision Prescriptions, Medications), with All Data, a sample and Data Sources | `HealthPages`, on `HealthDatabase` and `HealthUI` (done in 851-2792) |
+  | `HealthMacApp`'s preview support: `PreviewFrame` | `HealthUI` (851-2792) |
+  | `HealthMacApp`'s `PreviewDatabase` | `HealthDatabase`, next to the preview data it prepares (851-2792) |
   | `AppUpdates` | `LilUpdates` |
   | `GzipFiles` | `LilGzip` |
   | `MessagesApp` | `MessagesMacApp` |
@@ -51,8 +52,10 @@ Every architecture and product decision made so far. This file holds the decisio
   | `MessageSending` | `MessagesSending` |
   | `ContactNames` | `MessagesContacts` |
 
-  `HealthCatalog`, `HealthKitAccess`, `LilAPIGenerated` and `LilTestSupport` keep their names. Renaming a module with previews changes its snapshots' IDs (`<Module>_<File>_<State>`), so Pixelbook's comparisons across that commit show them as removed and added, once.
-- **Folders:** a module past about 15 files gets folders by feature, at most two levels deep (`Pages/Sleep/`), with each view's previews next to it. A file's name stays unique in its module, folders or not. Tests mirror their module's folders.
+  `HealthCatalog`, `HealthKitAccess`, `LilAPIGenerated` and `LilTestSupport` keep their names. Renaming a module with previews changes its snapshots' IDs (`<Module>_<File>_<State>`), so Pixelbook's comparisons across that commit show them as removed and added, once. Moving previews to another module does too (851-2792's pages).
+
+  How 851-2792 drew the line: `HealthMacApp` keeps the shell (the app and sidebar, Summary, Browse's category and metric screens, settings and sync) and imports `HealthPages`, which never imports it. The pages a metric opens are public views; the rest of `HealthPages` stays internal. All Data, a sample and Data Sources went with the pages rather than staying in Browse, because Sleep opens them too. What both modules use moved down and became public: `MetricFormat`, `Lazy`, `calendarDayChanges`, `previewFrame` and the page colors (Mac-only, behind `#if os(macOS)`) to `HealthUI`; `MainQueueScheduler` (a GRDB observation scheduler) and `preparePreviewDatabase` to `HealthDatabase`, which keeps `HealthUI` free of the database the iPhone app doesn't use. Two previews of the shell's metric screen that sat with the pages (heart rate's overlays, sound levels) moved to `MetricDetailViewPreviews.swift`.
+- **Folders:** a module past about 15 files gets folders by feature, at most two levels deep (`HealthPages/Sleep/`, `HealthMacApp/Browse/`), with each view's previews next to it. A file's name stays unique in its module, folders or not. Tests mirror their module's folders.
 
 ## Platform and language
 
