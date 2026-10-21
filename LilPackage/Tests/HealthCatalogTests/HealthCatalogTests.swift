@@ -194,7 +194,9 @@ struct HealthCatalogTests {
     func namesEveryWorkoutActivityType() throws {
       let sdk = try SDKHeaders.load()
       #expect(sdk.workoutActivityTypes.count > 80)
-      #expect(Set(HealthCatalog.workoutActivityNames.keys) == Set(sdk.workoutActivityTypes.keys))
+      let unknown = Set(HealthCatalog.workoutActivityNames.keys)
+        .subtracting(sdk.workoutActivityTypes.keys)
+      #expect(unknown.isEmpty, "Not in the SDK: \(unknown.sorted())")
 
       let healthsNames = [
         "StairClimbing": "Stair Stepper",
@@ -202,8 +204,11 @@ struct HealthCatalogTests {
         "SurfingSports": "Surfing",
         "SwimBikeRun": "Multisport",
       ]
-      for (rawValue, caseName) in sdk.workoutActivityTypes {
-        guard let name = HealthCatalog.workoutActivityNames[rawValue] else { continue }
+      for (rawValue, caseName) in sdk.workoutActivityTypes.sorted(by: { $0.key < $1.key }) {
+        guard let name = HealthCatalog.workoutActivityNames[rawValue] else {
+          Issue.record("No name for HKWorkoutActivityType\(caseName) (\(rawValue))")
+          continue
+        }
         // "Track and Field" is `TrackAndField`.
         let expected = healthsNames[caseName] ?? caseName
         #expect(
@@ -235,7 +240,7 @@ struct HealthCatalogTests {
     /// When each special type was introduced, from its identifier constant or type accessor.
     var specialTypes: [HealthDataType.Kind: IOSVersion] = [:]
     /// `HKWorkoutActivityType`'s cases by raw value, named without the prefix (`Running`),
-    /// leaving out those the SDK marks unavailable everywhere (Rest and Group).
+    /// leaving out those the SDK marks unavailable on iOS and watchOS (Rest and Group).
     var workoutActivityTypes: [Int: String] = [:]
 
     /// Header constants whose runtime value isn't their name, by value.
@@ -302,11 +307,19 @@ struct HealthCatalogTests {
           sdk.specialTypes[kind] = IOSVersion(Int(match.output.2)!, Int(match.output.3)!)
         }
       }
-      let activityCase = /^\s*HKWorkoutActivityType(\w+)\b.*= (\d+),/
-      for line in workoutActivityType.split(separator: "\n") where !line.contains("API_UNAVAILABLE")
-      {
-        if let match = line.firstMatch(of: activityCase) {
-          sdk.workoutActivityTypes[Int(match.output.2)!] = String(match.output.1)
+      // The enum's body, whose cases may wrap over lines. Availability attributes have no `=`.
+      let activityEnum =
+        /typedef NS_ENUM\(NSUInteger, HKWorkoutActivityType\) \{([^}]*)\}/
+      let activityCase = /HKWorkoutActivityType(\w+)([^=]*)=\s*(\d+)/
+      let unavailable = /API_UNAVAILABLE\(([^)]*)\)/
+      if let body = workoutActivityType.firstMatch(of: activityEnum)?.output.1 {
+        for match in body.matches(of: activityCase) {
+          // Only cases no app on the iPhone or Watch can save are left out (Rest, Group).
+          let platforms = match.output.2.firstMatch(of: unavailable).map {
+            Set($0.output.1.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+          }
+          if let platforms, platforms.isSuperset(of: ["ios", "watchos"]) { continue }
+          sdk.workoutActivityTypes[Int(match.output.3)!] = String(match.output.1)
         }
       }
       return sdk
