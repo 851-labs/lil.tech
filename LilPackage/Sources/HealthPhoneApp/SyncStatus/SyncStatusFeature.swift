@@ -69,9 +69,9 @@ public struct SyncStatusFeature {
     public var hasConsent: Bool { consentedPolicyVersion == HealthConsentClient.policyVersion }
 
     /// Whether the Settings sheet has something in progress: withdrawing consent, deleting the
-    /// account, or linking or unlinking a sign-in method.
+    /// account, linking or unlinking a sign-in method, or revoking agents.
     public var isSettingsBusy: Bool {
-      isWithdrawingConsent || isDeletingAccount || signInMethods.isBusy
+      isWithdrawingConsent || isDeletingAccount || signInMethods.isBusy || connectedAgents.isBusy
     }
 
     public var status: Status {

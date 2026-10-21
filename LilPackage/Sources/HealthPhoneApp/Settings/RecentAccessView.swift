@@ -16,8 +16,11 @@ struct RecentAccessView: View {
           ProgressView()
             .frame(maxWidth: .infinity)
         } else if store.log.isEmpty, let failure = store.logFailure {
-          Text(failure)
-            .foregroundStyle(.red)
+          VStack(alignment: .leading, spacing: 8) {
+            Text(failure)
+              .foregroundStyle(.red)
+            Button("Try Again") { store.send(.retryLogButtonTapped) }
+          }
         } else if store.log.isEmpty {
           Text("No agent has read your data yet.")
             .foregroundStyle(.secondary)
@@ -59,12 +62,12 @@ struct RecentAccessRow: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 3) {
-      Text(Self.request(entry))
+      Text(entry.request { id in HealthCatalog.type(id: id)?.name ?? id })
         .font(.callout.monospaced())
         .lineLimit(1)
         .truncationMode(.middle)
       HStack(alignment: .firstTextBaseline) {
-        Text(entry.outcome == "ok" ? entry.agentName : "\(entry.agentName) · \(entry.outcome)")
+        Text(entry.agentAndOutcome)
           .lineLimit(1)
         Spacer()
         Text(entry.at, format: .dateTime.month(.abbreviated).day().hour().minute())
@@ -74,12 +77,5 @@ struct RecentAccessRow: View {
       .foregroundStyle(.secondary)
     }
     .accessibilityElement(children: .combine)
-  }
-
-  /// The tool and what it asked for: "get_metric Steps W", as the Mac shows it.
-  static func request(_ entry: RemoteAgentAccess) -> String {
-    let types = entry.types.map { id in HealthCatalog.type(id: id)?.name ?? id }
-    return ([entry.tool] + types + [entry.range, entry.date].compactMap { $0 }).joined(
-      separator: " ")
   }
 }

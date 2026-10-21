@@ -40,9 +40,17 @@ public struct ConnectedAgent: Equatable, Identifiable, Sendable {
   /// Whether its name is its own claim: no verified domain backs it.
   public var isUnverified: Bool { domain == nil }
 
-  /// Whether it hasn't read anything yet: the server gives its connection time as its last use
-  /// until it first does.
-  public var isUnused: Bool { abs(lastUsedAt.timeIntervalSince(connectedAt)) < 1 }
+  /// Whether it hasn't read anything yet, as far as the server recorded: it gives the connection
+  /// time as the last use until then. Uses are recorded at most every 5 minutes, counted from the
+  /// connection, so one that read in its first 5 minutes and not since still counts as unused.
+  public var isUnused: Bool { lastUsedAt == connectedAt }
+
+  /// When it last read, for settings: "Not used yet", or "Last used 2 hours ago".
+  public var lastUsedDescription: String {
+    isUnused
+      ? "Not used yet"
+      : "Last used \(lastUsedAt.formatted(.relative(presentation: .named)))"
+  }
 }
 
 /// A read a connected agent made, from the account's remote access log.
@@ -77,6 +85,17 @@ public struct RemoteAgentAccess: Equatable, Identifiable, Sendable {
     self.date = date
     self.outcome = outcome
     self.rows = rows
+  }
+
+  /// The tool and what it asked for, as settings show it: "get_metric Steps W". `typeName` names
+  /// a data type from its ID, which only the app's catalog knows.
+  public func request(typeName: (String) -> String = { $0 }) -> String {
+    ([tool] + types.map(typeName) + [range, date].compactMap { $0 }).joined(separator: " ")
+  }
+
+  /// Who read, and how it went unless it went fine: "Claude", "Claude · too_large".
+  public var agentAndOutcome: String {
+    outcome == "ok" ? agentName : "\(agentName) · \(outcome)"
   }
 
   init(_ entry: Components.Schemas.AgentAccessEntry) {

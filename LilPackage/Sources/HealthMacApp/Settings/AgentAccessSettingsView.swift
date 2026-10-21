@@ -277,8 +277,12 @@ struct ConnectedAgentsSections: View {
           .controlSize(.small)
           .frame(maxWidth: .infinity)
       } else if store.log.isEmpty, let failure = store.logFailure {
-        Text(failure)
-          .foregroundStyle(.red)
+        HStack {
+          Text(failure)
+            .foregroundStyle(.red)
+          Spacer()
+          Button("Try Again") { store.send(.retryLogButtonTapped) }
+        }
       } else if store.log.isEmpty {
         Text("No remote agent has read your data yet.")
           .foregroundStyle(.secondary)
@@ -333,7 +337,7 @@ struct ConnectedAgentRow: View {
         Text(agent.domain ?? "No verified website")
           .font(.caption)
           .foregroundStyle(.secondary)
-        Text("Connected \(agent.connectedAt.formatted(Self.date)) · \(lastUsed)")
+        Text("Connected \(agent.connectedAt.formatted(Self.date)) · \(agent.lastUsedDescription)")
           .font(.caption)
           .foregroundStyle(.secondary)
       }
@@ -348,15 +352,6 @@ struct ConnectedAgentRow: View {
   }
 }
 
-extension ConnectedAgentRow {
-  /// When it last read: the server gives the connection time until it first does.
-  fileprivate var lastUsed: String {
-    agent.isUnused
-      ? "Not used yet"
-      : "Last used \(agent.lastUsedAt.formatted(.relative(presentation: .named)))"
-  }
-}
-
 /// A read in the remote access log: the tool with what it asked for, which agent, and when.
 struct RemoteAccessRow: View {
   let entry: RemoteAgentAccess
@@ -366,18 +361,11 @@ struct RemoteAccessRow: View {
       Text(entry.at, format: .dateTime.month(.abbreviated).day().hour().minute())
         .monospacedDigit()
     } label: {
-      Text(Self.request(entry))
+      Text(entry.request { id in HealthCatalog.type(id: id)?.name ?? id })
         .font(.body.monospaced())
         .lineLimit(1)
         .truncationMode(.middle)
-      Text(entry.outcome == "ok" ? entry.agentName : "\(entry.agentName) · \(entry.outcome)")
+      Text(entry.agentAndOutcome)
     }
-  }
-
-  /// The tool and what it asked for: "get_metric Steps W".
-  static func request(_ entry: RemoteAgentAccess) -> String {
-    let types = entry.types.map { id in HealthCatalog.type(id: id)?.name ?? id }
-    return ([entry.tool] + types + [entry.range, entry.date].compactMap { $0 }).joined(
-      separator: " ")
   }
 }

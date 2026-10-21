@@ -137,7 +137,7 @@ struct ConnectedAgentRow: View {
         Text(agent.domain ?? "No verified website")
           .font(.subheadline)
           .foregroundStyle(.secondary)
-        Text("Connected \(agent.connectedAt.formatted(Self.date)) · \(lastUsed)")
+        Text("Connected \(agent.connectedAt.formatted(Self.date)) · \(agent.lastUsedDescription)")
           .font(.subheadline)
           .foregroundStyle(.secondary)
       }
@@ -147,13 +147,6 @@ struct ConnectedAgentRow: View {
       }
     }
     .accessibilityElement(children: .combine)
-  }
-
-  /// When it last read: the server gives the connection time until it first does.
-  private var lastUsed: String {
-    agent.isUnused
-      ? "Not used yet"
-      : "Last used \(agent.lastUsedAt.formatted(.relative(presentation: .named)))"
   }
 }
 
@@ -181,6 +174,12 @@ struct MCPServerSection: View {
           isCopied = true
         }
         .buttonStyle(.borderless)
+        // Back to Copy after a moment, so a second copy shows too.
+        .task(id: isCopied) {
+          guard isCopied else { return }
+          try? await Task.sleep(for: .seconds(2))
+          isCopied = false
+        }
       }
     } header: {
       Text("Connect an Agent")

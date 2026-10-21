@@ -47,6 +47,10 @@ public struct ConnectedAgentsFeature {
       case failed(String)
     }
 
+    /// Whether revoking or turning off is in progress, whose answer (a failure) shows with the
+    /// list.
+    public var isBusy: Bool { !revoking.isEmpty || isTurningOff }
+
     /// The agents listed, once loaded.
     public var loadedAgents: [ConnectedAgent] {
       if case .loaded(let agents) = agents { agents } else { [] }
@@ -58,6 +62,8 @@ public struct ConnectedAgentsFeature {
     case alert(PresentationAction<Alert>)
     case appeared
     case loadMoreLogButtonTapped
+    /// Try Again, after the log's first page couldn't be read.
+    case retryLogButtonTapped
     case logLoaded(Result<RemoteAgentAccessPage, ConnectedAgentsError>, isFirstPage: Bool)
     case retryButtonTapped
     case revokeButtonTapped(ConnectedAgent)
@@ -134,6 +140,8 @@ public struct ConnectedAgentsFeature {
 
       case .appeared:
         // Past results go, and both are read again: an agent may have connected or read since.
+        // A list that failed shows progress meanwhile, rather than its old error.
+        if case .failed = state.agents { state.agents = .loading }
         state.failure = nil
         state.logFailure = nil
         state.isLoadingLog = true
@@ -142,6 +150,13 @@ public struct ConnectedAgentsFeature {
       case .retryButtonTapped:
         state.agents = .loading
         return loadAgents()
+
+      case .retryLogButtonTapped:
+        // Only before a page was read: after one, Show More reads the next.
+        guard state.log.isEmpty, !state.isLoadingLog else { return .none }
+        state.isLoadingLog = true
+        state.logFailure = nil
+        return loadLog(before: nil, isFirstPage: true)
 
       case .loadMoreLogButtonTapped:
         guard let before = state.logNextBefore, !state.isLoadingLog else { return .none }

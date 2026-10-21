@@ -206,6 +206,85 @@ struct ConnectedAgentsFeatureTests {
   }
 
   @Test
+  func openingAgainAfterAFailureShowsProgressNotTheOldError() async {
+    let store = TestStore(
+      initialState: ConnectedAgentsFeature.State(
+        agents: .failed("Offline"), logFailure: "Offline")
+    ) {
+      ConnectedAgentsFeature()
+    } withDependencies: { [claude] in
+      $0.connectedAgents.list = { () throws(ConnectedAgentsError) in [claude] }
+      $0.connectedAgents.accessLog = { _ throws(ConnectedAgentsError) in
+        RemoteAgentAccessPage(entries: [Self.access(1)], nextBefore: nil)
+      }
+    }
+
+    await store.send(.appeared) {
+      $0.agents = .loading
+      $0.logFailure = nil
+      $0.isLoadingLog = true
+    }
+    await store.receive(\.agentsLoaded) {
+      $0.agents = .loaded([claude])
+    }
+    await store.receive(\.logLoaded) {
+      $0.isLoadingLog = false
+      $0.log = [Self.access(1)]
+    }
+  }
+
+  @Test
+  func tryAgainReadsTheLogsFirstPageAgain() async {
+    let store = TestStore(
+      initialState: ConnectedAgentsFeature.State(
+        agents: .loaded([claude]), logFailure: ConnectedAgentsError.unavailable.message)
+    ) {
+      ConnectedAgentsFeature()
+    } withDependencies: {
+      $0.connectedAgents.accessLog = { before throws(ConnectedAgentsError) in
+        #expect(before == nil)
+        return RemoteAgentAccessPage(entries: [Self.access(1), Self.access(2)], nextBefore: 2)
+      }
+    }
+
+    // Show More can't: there's no page to read on from.
+    await store.send(.loadMoreLogButtonTapped)
+    await store.send(.retryLogButtonTapped) {
+      $0.isLoadingLog = true
+      $0.logFailure = nil
+    }
+    await store.receive(\.logLoaded) {
+      $0.isLoadingLog = false
+      $0.log = [Self.access(1), Self.access(2)]
+      $0.logNextBefore = 2
+    }
+    // Once a page is read, Show More reads on instead.
+    await store.send(.retryLogButtonTapped)
+  }
+
+  @Test
+  func isBusyWhileRevokingOrTurningOff() {
+    #expect(!ConnectedAgentsFeature.State(agents: .loaded([claude])).isBusy)
+    #expect(ConnectedAgentsFeature.State(revoking: ["grant-1"]).isBusy)
+    #expect(ConnectedAgentsFeature.State(isTurningOff: true).isBusy)
+  }
+
+  @Test
+  func describesAgentsAndReads() {
+    #expect(unnamed.isUnused)
+    #expect(unnamed.lastUsedDescription == "Not used yet")
+    #expect(!claude.isUnused)
+    #expect(claude.lastUsedDescription.hasPrefix("Last used "))
+    let read = Self.access(1)
+    #expect(read.request() == "get_metric HKQuantityTypeIdentifierStepCount W")
+    #expect(read.request { _ in "Steps" } == "get_metric Steps W")
+    #expect(read.agentAndOutcome == "Claude")
+    var tooLarge = read
+    tooLarge.outcome = "too_large"
+    #expect(tooLarge.agentAndOutcome == "Claude · too_large")
+  }
+
+  @Test
   func tryAgainReadsTheListAgain() async {
     let store = TestStore(
       initialState: ConnectedAgentsFeature.State(agents: .failed("Offline"))

@@ -135,6 +135,25 @@ struct SyncStatusFeatureTests {
   }
 
   @Test
+  func settingsStayOpenWhileAnAgentIsRevoked() async {
+    var state = SyncStatusFeature.State(isShowingSettings: true)
+    state.connectedAgents.revoking = ["grant-1"]
+    let store = TestStore(initialState: state) {
+      SyncStatusFeature()
+    }
+
+    // A failure to revoke shows in the sheet, so Done and swiping it away wait.
+    await store.send(.settingsPresented(false))
+    await store.send(.connectedAgents(.revoked(id: "grant-1", .success(())))) {
+      $0.connectedAgents.revoking = []
+      $0.connectedAgents.agents = .loaded([])
+    }
+    await store.send(.settingsPresented(false)) {
+      $0.isShowingSettings = false
+    }
+  }
+
+  @Test
   func buttons() async {
     let chosen = LockIsolated<[PerObjectHealthType]>([])
     let signedOut = LockIsolated(false)
