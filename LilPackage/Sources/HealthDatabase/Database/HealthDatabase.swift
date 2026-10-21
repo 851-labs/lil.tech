@@ -8,6 +8,14 @@ public import SQLiteData
 /// The Mac's local copy of the user's health data, synced with LilSync. Every screen queries
 /// only this.
 public enum HealthDatabase {
+  /// The Mac app's own folder in Application Support, where it keeps `Health.sqlite` and the
+  /// agent access setting and log (`AgentAccessStore`). The app isn't sandboxed, so the folder is
+  /// shared with every app otherwise. Spelled out rather than taken from the bundle ID, so the
+  /// `lil-health` command, which has none, finds the same folder.
+  public static var macDirectory: URL {
+    URL.applicationSupportDirectory.appending(path: "tech.lil.health", directoryHint: .isDirectory)
+  }
+
   /// Opens (or creates) the database at `url`, or SQLiteData's default location, and migrates
   /// it.
   public static func make(at url: URL? = nil) throws -> any DatabaseWriter {

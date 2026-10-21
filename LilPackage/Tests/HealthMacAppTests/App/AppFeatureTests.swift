@@ -21,6 +21,7 @@ struct AppFeatureTests {
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     } withDependencies: {
+      $0.agentAccess.reset = {}
       $0.auth.signedInUpdates = { updates }
       $0.sync = .constant(.idle)
     }
@@ -57,6 +58,7 @@ struct AppFeatureTests {
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     } withDependencies: {
+      $0.agentAccess.reset = {}
       $0.auth.signedInUpdates = { updates }
       $0.sync = .constant(.idle)
       $0.continuousClock = clock
@@ -128,6 +130,7 @@ struct AppFeatureTests {
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     } withDependencies: {
+      $0.agentAccess.reset = { events.withValue { $0.append("agent access reset") } }
       $0.auth.signedInUpdates = { updates }
       $0.sync = SyncClient(
         run: {
@@ -184,6 +187,8 @@ struct AppFeatureTests {
     #expect(events.value.filter { $0 == "run ended" }.count == 2)
     #expect(events.value.contains("listen ended"))
     #expect(events.value.contains("removed"))
+    // Access for tools and agents is off again, and their log empty, for the next account.
+    #expect(events.value.contains("agent access reset"))
     #expect(!FileManager.default.fileExists(atPath: blobs.path(percentEncoded: false)))
   }
 

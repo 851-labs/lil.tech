@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import HealthAgentAccess
 import HealthPages
 import HealthUI
 import LilAuth
@@ -66,4 +67,71 @@ private func settings(
 
 #Preview("Checking the session") {
   settings(isSignedIn: nil)
+}
+
+// The Agents pane (851-2840). Synthetic queries.
+
+private let agentQueries = [
+  AgentAccessEntry(
+    id: 4, date: Date(timeIntervalSince1970: 1_760_972_520), command: "metric Steps --range W",
+    process: "claude"),
+  AgentAccessEntry(
+    id: 3, date: Date(timeIntervalSince1970: 1_760_972_460), command: "summary",
+    process: "claude"),
+  AgentAccessEntry(
+    id: 2, date: Date(timeIntervalSince1970: 1_760_965_200),
+    command: "samples HeartRate --from 2025-10-13 --to 2025-10-20", process: "Codex"),
+  AgentAccessEntry(
+    id: 1, date: Date(timeIntervalSince1970: 1_760_961_600), command: "sleep --json",
+    process: "zsh"),
+]
+
+@MainActor
+private func agents(
+  isEnabled: Bool = true, entries: [AgentAccessEntry] = agentQueries, isLoading: Bool = false,
+  failure: String? = nil, logFailure: String? = nil, isSignedIn: Bool? = true
+) -> some View {
+  var state = AppFeature.State(isSignedIn: isSignedIn)
+  state.agentAccess = AgentAccessFeature.State(
+    entries: entries, failure: failure, isEnabled: isEnabled, isLoading: isLoading,
+    logFailure: logFailure)
+  // `EmptyReducer`, so the pane's task doesn't replace the state shown.
+  return AgentAccessSettingsView(store: Store(initialState: state) { EmptyReducer() })
+    .previewFrame(width: SettingsView.width, height: SettingsView.height)
+}
+
+#Preview("Agents: on, with a log") {
+  agents()
+}
+
+#Preview("Agents: on, empty log") {
+  agents(entries: [])
+}
+
+#Preview("Agents: off, with a log") {
+  agents(isEnabled: false)
+}
+
+#Preview("Agents: off") {
+  agents(isEnabled: false, entries: [])
+}
+
+#Preview("Agents: loading") {
+  agents(isEnabled: false, entries: [], isLoading: true)
+}
+
+#Preview("Agents: failed") {
+  agents(
+    isEnabled: false, entries: [],
+    failure: "lil health couldn't read or save this setting: The disk is full.")
+}
+
+#Preview("Agents: log unreadable") {
+  agents(
+    entries: [],
+    logFailure: "lil health couldn't read the access log: The database file is locked.")
+}
+
+#Preview("Agents: signed out") {
+  agents(isSignedIn: false)
 }

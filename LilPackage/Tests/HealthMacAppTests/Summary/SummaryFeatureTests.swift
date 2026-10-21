@@ -128,6 +128,7 @@ struct SummaryFeatureTests {
     let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
       AppFeature()
     } withDependencies: {
+      $0.agentAccess.reset = {}
       $0.auth.signedInUpdates = { updates }
       $0.sync = .constant(.idle)
       // The pin's write waits, and signing out cancels it.
