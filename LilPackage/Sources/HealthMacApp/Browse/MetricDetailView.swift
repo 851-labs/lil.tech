@@ -185,16 +185,6 @@ struct MetricDetailContent: View {
         .padding(16)
         .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
 
-        section("Highlights") {
-          Text("Highlights and trends for \(type.name) will appear here.")
-            .foregroundStyle(.secondary)
-        }
-        section("About \(type.name)") {
-          Text(
-            "\(type.name) comes from your iPhone, Apple Watch and the apps that write it to Health, synced from your iPhone."
-          )
-          .foregroundStyle(.secondary)
-        }
         VStack(spacing: 0) {
           if HealthDatabase.heartRateVariabilityTypes.contains(type.id) {
             NavigationLink {
@@ -400,18 +390,7 @@ struct MetricDetailContent: View {
     return (start ?? chart.interval.start)...(end ?? chart.interval.end)
   }
 
-  // MARK: Sections
-
-  private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text(title)
-        .font(.title3.bold())
-      content()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-    }
-  }
+  // MARK: Links
 
   private func linkRow(_ title: String) -> some View {
     HStack {
