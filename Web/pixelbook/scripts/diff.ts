@@ -1,4 +1,4 @@
-// Pixelbook's comment on a pull request (`.github/workflows/pixelbook.yml`): how many snapshots
+// Pixelbook's comment on a pull request (`.github/workflows/pr.yml`): how many snapshots
 // changed since the PR's base, linked to the comparison. Prints the comment's Markdown.
 //   node Web/pixelbook/scripts/diff.ts --base <sha> --head <sha>
 import { describeChanges, diffBooks, summarize } from "../src/lib/Diff.ts";

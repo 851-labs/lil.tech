@@ -1,0 +1,40 @@
+name: Changes
+description: >-
+  Which parts of the repo changed since a commit, so pr.yml and main.yml run only the jobs they
+  affect. Needs a checkout with the base commit in it (`fetch-depth: 0`).
+inputs:
+  base:
+    description: The commit to compare HEAD with. If it's missing or unknown, everything counts as changed.
+    required: false
+    default: ""
+outputs:
+  swift:
+    description: '"true" if the Swift checks (`scripts/check --swift`) are affected.'
+    value: ${{ steps.diff.outputs.swift }}
+  services:
+    description: '"true" if the TypeScript workspace, which the services deploy, is affected.'
+    value: ${{ steps.diff.outputs.services }}
+runs:
+  using: composite
+  steps:
+    - id: diff
+      shell: bash
+      env:
+        BASE: ${{ inputs.base }}
+        # The paths `scripts/check --swift` checks, and the CI files that run it.
+        SWIFT: '^(LilPackage/|Apps/|Tools/|Lil\.xcworkspace/|\.swift-format$|scripts/(format|check)$|\.github/workflows/(pr|main|swift-check)\.yml$|\.github/actions/changes/)'
+        # The TypeScript workspace, the scripts and generated client the deploys use, and the CI
+        # files that deploy it.
+        SERVICES: '^(Services/|Web/|package\.json$|pnpm-workspace\.yaml$|pnpm-lock\.yaml$|\.node-version$|vite\.config\.ts$|tsconfig\.json$|tsconfig\.base\.json$|scripts/(check-deploy|generate-api-client)$|LilPackage/Sources/LilAPIGenerated/|\.github/workflows/(pr|main)\.yml$|\.github/actions/(setup-services|changes|comment)/)'
+      run: |
+        # No base, or one that isn't in the checkout (a run by hand, a force push): check everything.
+        if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+          echo "swift=true" >> "$GITHUB_OUTPUT"
+          echo "services=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        files=$(git diff --name-only "$BASE" HEAD)
+        affected() { if grep -qE "$1" <<< "$files"; then echo true; else echo false; fi; }
+        echo "swift=$(affected "$SWIFT")" >> "$GITHUB_OUTPUT"
+        echo "services=$(affected "$SERVICES")" >> "$GITHUB_OUTPUT"
+        cat "$GITHUB_OUTPUT"
