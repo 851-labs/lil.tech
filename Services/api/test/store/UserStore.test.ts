@@ -249,7 +249,7 @@ describe("fromDurableObjectStorage", () => {
         sql: {
           exec: (query, ...bindings) => {
             calls.push(`exec ${query} ${JSON.stringify(bindings)}`);
-            return { toArray: () => [{ n: 1 }] };
+            return { toArray: () => [{ n: 1 }], raw: () => [[1]].values() };
           },
           databaseSize: 4096,
         },
@@ -272,6 +272,7 @@ describe("fromDurableObjectStorage", () => {
         },
       });
       assert.deepStrictEqual(sql.exec("SELECT ?", 1), [{ n: 1 }]);
+      assert.deepStrictEqual(sql.rows("SELECT ?", 2), [[1]]);
       assert.strictEqual(sql.databaseSize(), 4096);
       sql.script("CREATE TABLE t (x);");
       assert.strictEqual(
@@ -283,6 +284,7 @@ describe("fromDurableObjectStorage", () => {
       yield* Effect.promise(() => sql.setAlarm(9));
       assert.deepStrictEqual(calls, [
         "exec SELECT ? [1]",
+        "exec SELECT ? [2]",
         "exec CREATE TABLE t (x); []",
         "transactionSync",
         "deleteAlarm",

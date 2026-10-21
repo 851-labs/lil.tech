@@ -3,6 +3,7 @@ import type { StoreSql } from "../../store/StoreSql.ts";
 import { samplesOverlapping } from "./HealthQueries.ts";
 import type { HealthToolkit } from "./HealthToolkit.ts";
 import {
+  dayStarts,
   hourMillis,
   localDate,
   localTime,
@@ -111,9 +112,11 @@ const sleepNights = (sql: StoreSql, firstDay: number, lastDay: number, zone: Dat
     .filter(({ segment }) => segment.stage === stages.inBed)
     .map(({ segment }) => segment);
   const byNight = new Map<number, Array<(typeof records)[number]>>();
+  // Each day's bounds once, as records come by start (851-2906).
+  const dayOf = dayStarts(zone);
   for (const record of records) {
     if (record.segment.stage === stages.inBed || record.segment.start < lower) continue;
-    const day = startOfDay(record.segment.start + nightStartOffset, zone);
+    const day = dayOf(record.segment.start + nightStartOffset);
     const night = byNight.get(day);
     if (night === undefined) byNight.set(day, [record]);
     else night.push(record);

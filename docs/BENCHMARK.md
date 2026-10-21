@@ -83,3 +83,34 @@ Runs 1, 2 and the 1,000,000 timed applying to the change log's last change; run 
 - Earlier, while the Mac was less busy, the old code took 30 µs a record at 200,000 and 68–89 µs at 1,000,000, like the stage's 36 and 64. Its I/O made it suffer most from a busy disk.
 
 - The snapshot's 2-minute wait for quiet is most of the wall clock at these sizes. It's policy rather than throughput: without it the store re-snapshots while ingesting, as in prod.
+
+## Agent tool calls
+
+What the remote MCP server's heaviest calls cost a user's store (851-2906). A store is reset when its CPU time since its last incoming request passes 30 seconds (`docs/decisions/server.md`, MCP servers), so one call must stay far below that.
+
+**Measuring it:** a stage of its own (`alchemy deploy --stage <name>`, preview environment), 1,000,000 records from `scripts/bench-sync --url <stage> --skip-mac --keep`, an agent connected to the benchmark's account through `/oauth/authorize` with test-account sign-in, then each call one at a time, three rounds. CPU time is the store's, from each `/health` request's event in Workers Logs (`cpuTimeMs`). The benchmark's data has the iPhone's 30-minute sums but no statistics device, so steps and energy come from their samples: the most a call can read, as for an account whose iPhone hasn't reported statistics.
+
+**2026-10-21**, stage `perf-2906`, the same store before (`main` at cb7ecff) and after the change. CPU per call in ms, per round:
+
+| Call | Samples read | Before | After |
+| --- | ---: | ---: | ---: |
+| `metric` heart rate, Y (average) | 105,000 | 881, 576 | 474, 312, 432 |
+| `metric` heart rate, Y (maximum) | 105,000 | 594, 466 | 405, 335, 263 |
+| `metric` heart rate, 6M | 52,000 | 276, 226 | 171, 133, 231 |
+| `metric` steps, Y | 81,600 | 7,194, 7,262 | 226, 201, 315 |
+| `metric` steps, 6M (average) | 81,600 | 6,573 | 329, 296, 220 |
+| `metric` active energy, Y | 204,000 | 18,384, 18,403 | 652, 648, 449 |
+| `metric` basal energy, Y | 142,900 | not run | 431, 422, 288 |
+| `sleep`, Y | 25,500 | 1,870, 2,254 | 394, 332 |
+| `samples` heart rate, Y (500) | 500 | 58, 64 | 50, 43, 84 |
+| `workouts`, Y | 360 | 25, 20 | 26, 50, 22 |
+| `summary`, `search` | | 6–18 | 6–12 |
+
+Rounds missing from Workers Logs are left out. Every answer was the same before and after.
+
+**Where the time went**, profiled locally (Node, the same 1,000,000 records ingested through the real ingestion, thread CPU time, Apple M1 Pro):
+
+- **Time-zone math per row:** a year of steps cost 2.3–2.7 s, of which reading its 81,632 samples took 0.1 s and the rest was `startOfDay` for every sample (30–35 µs each, through Effect's `DateTime` in the call's time zone). Active and basal energy, with more samples, cost more in proportion; prod's 5.8 s calls and the benchmark's 7 s steps were this. `sleep` did the same per record. Now `dayStarts` works out each day's start and end once, and rows, which come in time order, are placed by comparison: under 400 time-zone calculations for a year. A year of steps went to 0.11–0.13 s.
+- **Reading rows:** most of what's left. A year of heart rate (105,000 samples) took 0.14 s of its 0.17 s locally. Statistics now read rows as arrays of values (`StoreSql.rows`, workerd's `raw()`), not an object per row, and cumulative types read only the start and value. On the stage that took a year of heart rate from about 0.5 s to 0.3–0.5 s, and active energy's year from about 0.75 s to 0.45–0.65 s.
+- **Bucketing and weighting:** not buckets × readings before either (each bucket found its readings by binary search), but each bucket copied its readings and weighed them again. Now one pass over the readings adds each to its bucket and to the period, with each source's next reading found once. A time-weighted reading's weight still depends on whether its source's next reading starts within an hour of its bucket's end, as the Mac weighs each bucket on its own, and sums are added in the same order, so answers are identical: all 37 conformance cases, and the old and new code compared on the 1,000,000 records for heart rate, steps and basal energy, every range, six time zones (Lord Howe's half-hour change included) and days around changes of offset.
+- **The Mac** (`HealthDatabase`) already walks a period at a time (`Periods`), reads each bucket with its own query, and uses Foundation's calendar, so it had no such loop and is unchanged.
