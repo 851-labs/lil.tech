@@ -42,6 +42,24 @@ const nextTask = Effect.callback<void>((resume) => {
 });
 
 /**
+ * Runs `effect` and tells how long it took, in milliseconds, reading the clock in the next
+ * JavaScript task after it ends (851-2907).
+ *
+ * Workers freezes its clock while code runs, as a Spectre mitigation: `Date.now()` (and Effect's
+ * clock on it) only moves at I/O and when a new task starts. A tool call reads the store's SQLite
+ * synchronously, so a clock read as it ends gave its start, and every call logged 0. The next task
+ * starts once the call's has ended, so it sees the time the call took (and the moment the runtime
+ * took to end its task), not the time it waited for its turn.
+ */
+export const timedToNextTask = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  Effect.gen(function* () {
+    const started = yield* Clock.currentTimeMillis;
+    const result = yield* effect;
+    yield* nextTask;
+    return { result, durationMs: (yield* Clock.currentTimeMillis) - started };
+  });
+
+/**
  * Runs a store's tool calls one at a time, each in a JavaScript task of its own, and refuses those
  * that waited longer than `maxWaitMs` (851-2887).
  *
@@ -129,7 +147,8 @@ const agentOf = (request: Option.Option<HttpServerRequest.HttpServerRequest>) =>
 /**
  * Wraps a tool's handler: it runs in its `turn`, its answer is held to `ceiling` bytes, and the
  * call is logged (`record`) before anything goes back, so nothing is read without a row. Workers
- * Logs get the tool, grant, duration and size only.
+ * Logs get the tool, grant, duration and size only: the duration is the call's own, from its turn
+ * to its row (`timedToNextTask`), without its wait.
  */
 const logged =
   <P extends object, A>(
@@ -143,7 +162,6 @@ const logged =
     Effect.gen(function* () {
       const agent = agentOf(yield* Effect.serviceOption(HttpServerRequest.HttpServerRequest));
       const call = Effect.gen(function* () {
-        const started = yield* Clock.currentTimeMillis;
         let exit: Exit.Exit<A, HealthToolError> = yield* Effect.exit(run(params));
         let bytes = 0;
         let rows = 0;
@@ -182,13 +200,20 @@ const logged =
             Effect.fail(new HealthToolError({ message: "This lil account was deleted." })),
           ),
         );
-        const finished = yield* Clock.currentTimeMillis;
-        yield* Effect.logInfo("Agent tool call").pipe(
-          Effect.annotateLogs({ durationMs: finished - started, bytes }),
-        );
+        return { exit, bytes };
+      });
+      const logCall = Effect.gen(function* () {
+        const {
+          result: { exit, bytes },
+          durationMs,
+        } = yield* timedToNextTask(call);
+        yield* Effect.logInfo("Agent tool call").pipe(Effect.annotateLogs({ durationMs, bytes }));
         return yield* exit;
       });
-      return yield* call.pipe(turn, Effect.annotateLogs({ tool: tool.name, grant: agent.grantId }));
+      return yield* logCall.pipe(
+        turn,
+        Effect.annotateLogs({ tool: tool.name, grant: agent.grantId }),
+      );
     });
 
 /** What lil health's server tells agents when they connect, and the combined server under its name. */
