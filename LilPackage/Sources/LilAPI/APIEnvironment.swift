@@ -25,6 +25,16 @@ public enum APIEnvironment: Hashable, Sendable {
     }
   }
 
+  /// The help page on connecting an agent, `https://lil.tech/agents` (`Web/site/public/agents`,
+  /// 851-2855): staging's own on staging, and prod's on a preview, as the API's `agentsHelpUrl`
+  /// links them.
+  public var agentsHelpURL: URL {
+    switch self {
+    case .prod, .preview: URL(string: "https://lil.tech/agents")!
+    case .staging: URL(string: "https://staging.lil.tech/agents")!
+    }
+  }
+
   /// Whether this build may talk to a deployment other than its default. Device builds carry
   /// real Health data, which must only go to prod, so only simulator and Debug Mac builds may.
   #if targetEnvironment(simulator) || (os(macOS) && DEBUG)

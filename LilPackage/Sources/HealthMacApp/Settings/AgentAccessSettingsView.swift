@@ -259,6 +259,7 @@ struct ConnectedAgentsSections: View {
       CopyableRow(
         title: "MCP server URL",
         value: Self.environment.mcpURL(app: "health").absoluteString)
+      Link("How to Connect an Agent", destination: Self.environment.agentsHelpURL)
     } header: {
       Text("Connect a Remote Agent")
     } footer: {

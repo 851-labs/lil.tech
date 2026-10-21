@@ -76,7 +76,9 @@ struct ConnectedAgentsView: View {
         Text("What connected agents read, and when.")
       }
 
-      MCPServerSection(url: environment.mcpURL(app: ConnectedAgentsFeature.app))
+      MCPServerSection(
+        url: environment.mcpURL(app: ConnectedAgentsFeature.app),
+        helpURL: environment.agentsHelpURL)
 
       if case .loaded = store.agents {
         Section {
@@ -147,9 +149,11 @@ struct ConnectedAgentRow: View {
   }
 }
 
-/// lil health's MCP server URL, the one agents are given, to copy.
+/// lil health's MCP server URL, the one agents are given, to copy, and the help page on
+/// connecting one (851-2877).
 struct MCPServerSection: View {
   let url: URL
+  let helpURL: URL
 
   @State private var isCopied = false
 
@@ -178,6 +182,7 @@ struct MCPServerSection: View {
           isCopied = false
         }
       }
+      Link("How to Connect an Agent", destination: helpURL)
     } header: {
       Text("Connect an Agent")
     } footer: {
