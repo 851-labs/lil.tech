@@ -127,16 +127,19 @@ private func monthsAgo(_ months: Int, day: Int = 1) -> Date {
 }
 
 // Deviations Health flagged and the person confirmed, newest first, each over the months it
-// covers (851-2871). The other previews have none.
+// covers (851-2871). The other previews have none. Ends at the following midnight (Irregular
+// Cycles, Prolonged Periods) and at a day's last second (Persistent Spotting) both end on that
+// day (851-2904): Oct 3, Sep 17 and Aug 31.
 #Preview("With cycle deviations") {
   cycle(
     .loaded(
       CycleSnapshot(
         month: month, days: days, periods: periods, factors: [],
         deviations: [
-          CycleDeviation(name: "Irregular Cycles", start: monthsAgo(6, day: 9), end: day(2)),
+          CycleDeviation(name: "Irregular Cycles", start: monthsAgo(6, day: 9), end: day(4)),
           CycleDeviation(
-            name: "Persistent Spotting", start: monthsAgo(7, day: 20), end: monthsAgo(1, day: 18)),
+            name: "Persistent Spotting", start: monthsAgo(7, day: 20),
+            end: monthsAgo(1, day: 18).addingTimeInterval(-1)),
           CycleDeviation(
             name: "Prolonged Periods", start: monthsAgo(19, day: 4), end: monthsAgo(13, day: 1)),
         ])),
