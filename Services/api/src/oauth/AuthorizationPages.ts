@@ -143,7 +143,7 @@ const whoIsAsking = (client: ClientView) => {
       ? `<p class="muted">Identified by <strong>${escape(client.domain)}</strong></p>`
       : `<p class="muted">This agent named itself; lil can't check who made it.</p>`;
   const loopback = client.loopback
-    ? `<p class="warning">This is a program on this computer. Only allow it if you just started ` +
+    ? `<p class="warning">This agent is a program on your computer. Only allow it if you just started ` +
       `connecting it yourself.</p>`
     : "";
   return `<section>
