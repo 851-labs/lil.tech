@@ -3,7 +3,8 @@
     "Synthetic data only (AGENTS.md). One account, uploaded by two iPhones: ph1 is paired with an Apple Watch, ph2 isn't and reported later.",
     "Each batch is applied as the server ingests an iPhone's upload (device-scoped records are stamped with the batch's device, and reportedAt with receivedAt), and as the Mac then syncs it.",
     "Times in lines are Unix milliseconds. The conformance cases are in cases.json.",
-    "A workout dated later today (16:30, after the cases' 15:00) hasn't happened, so it doesn't count yet."
+    "A workout dated later today (16:30, after the cases' 15:00) hasn't happened, so it doesn't count yet.",
+    "Heart rate on 20 October comes from the Watch and the iPhone, with gaps over an hour, so time-weighted averages depend on each source's next reading. Sleep has the Watch's stages and the iPhone's estimates; medications a schedule, as-needed doses and an archived one; Health Details one characteristic Not Set."
   ],
   "batches": [
     {
@@ -299,7 +300,32 @@
             "duration": 1800,
             "activities": [],
             "events": [],
-            "statistics": {},
+            "statistics": {
+              "HKQuantityTypeIdentifierActiveEnergyBurned": {
+                "unit": "kcal",
+                "sum": 310.5,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierDistanceWalkingRunning": {
+                "unit": "m",
+                "sum": 5000,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierHeartRate": {
+                "unit": "count/min",
+                "sum": null,
+                "average": 152.5,
+                "minimum": 120,
+                "maximum": 171,
+                "mostRecent": 160
+              }
+            },
             "sourceName": "Test Apple Watch",
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
           }
@@ -318,6 +344,579 @@
             "statistics": {},
             "sourceName": "Test Apple Watch",
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_statistic",
+          "op": "upsert",
+          "id": "HKQuantityTypeIdentifierStepCount@1773576000000",
+          "row": {
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "bucketStart": 1773576000000,
+            "sum": 6000,
+            "unit": "count"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000101",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792490400000,
+            "endDate": 1792490400000,
+            "value": 60,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000102",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792491000000,
+            "endDate": 1792491000000,
+            "value": 90,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000103",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792491600000,
+            "endDate": 1792491600000,
+            "value": 120,
+            "unit": "count/min",
+            "sourceName": "Test iPhone",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000002"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000104",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792499400000,
+            "endDate": 1792499400000,
+            "value": 80,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000111",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792449600000,
+            "endDate": 1792451400000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000112",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792451400000,
+            "endDate": 1792452600000,
+            "categoryValue": 4,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000113",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792452600000,
+            "endDate": 1792453800000,
+            "categoryValue": 5,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000114",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792453800000,
+            "endDate": 1792454400000,
+            "categoryValue": 2,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000115",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792450800000,
+            "endDate": 1792458000000,
+            "categoryValue": 1,
+            "sourceName": "Test iPhone",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000002"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000116",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792278000000,
+            "endDate": 1792303200000,
+            "categoryValue": 1,
+            "sourceName": "Test iPhone",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000002"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000117",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792332000000,
+            "endDate": 1792333800000,
+            "categoryValue": 1,
+            "sourceName": "Test iPhone",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000002"
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000014",
+          "row": {
+            "activityType": 13,
+            "startDate": 1790960400000,
+            "endDate": 1790964600000,
+            "duration": 3900,
+            "activities": [],
+            "events": [
+              {
+                "type": 1,
+                "startDate": 1790962200000,
+                "endDate": 1790962200000,
+                "metadata": null
+              },
+              {
+                "type": 2,
+                "startDate": 1790962800000,
+                "endDate": 1790962800000,
+                "metadata": null
+              }
+            ],
+            "statistics": {
+              "HKQuantityTypeIdentifierActiveEnergyBurned": {
+                "unit": "kcal",
+                "sum": 450,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierDistanceCycling": {
+                "unit": "m",
+                "sum": 20000.5,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              }
+            },
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_medication",
+          "op": "upsert",
+          "id": "00000000000000000000000000000000000000000000000000000000000000a1",
+          "row": {
+            "name": "Atorvastatin",
+            "nickname": null,
+            "generalForm": "tablet",
+            "isArchived": false,
+            "hasSchedule": true,
+            "codings": []
+          }
+        },
+        {
+          "entity": "health_medication",
+          "op": "upsert",
+          "id": "00000000000000000000000000000000000000000000000000000000000000b2",
+          "row": {
+            "name": "Ibuprofen",
+            "nickname": "Pain relief",
+            "generalForm": "capsule",
+            "isArchived": false,
+            "hasSchedule": false,
+            "codings": []
+          }
+        },
+        {
+          "entity": "health_medication",
+          "op": "upsert",
+          "id": "00000000000000000000000000000000000000000000000000000000000000c3",
+          "row": {
+            "name": "Amoxicillin",
+            "nickname": "  ",
+            "generalForm": "capsule",
+            "isArchived": true,
+            "hasSchedule": true,
+            "codings": []
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000121",
+          "row": {
+            "startDate": 1792483500000,
+            "endDate": 1792483500000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "logStatus": 4,
+            "scheduleType": 2,
+            "scheduledDate": 1792483200000,
+            "scheduledDoseQuantity": 1,
+            "doseQuantity": 1,
+            "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000122",
+          "row": {
+            "startDate": 1792396830000,
+            "endDate": 1792396830000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "logStatus": 3,
+            "scheduleType": 2,
+            "scheduledDate": 1792396800000,
+            "scheduledDoseQuantity": 1,
+            "doseQuantity": null,
+            "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000123",
+          "row": {
+            "startDate": 1792398000000,
+            "endDate": 1792398000000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "logStatus": 4,
+            "scheduleType": 2,
+            "scheduledDate": 1792396800000,
+            "scheduledDoseQuantity": 1,
+            "doseQuantity": 1,
+            "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000124",
+          "row": {
+            "startDate": 1792314000000,
+            "endDate": 1792314000000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "logStatus": 5,
+            "scheduleType": 2,
+            "scheduledDate": 1792310400000,
+            "scheduledDoseQuantity": 1,
+            "doseQuantity": null,
+            "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000125",
+          "row": {
+            "startDate": 1792231200000,
+            "endDate": 1792231200000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "logStatus": 1,
+            "scheduleType": 2,
+            "scheduledDate": 1792224000000,
+            "scheduledDoseQuantity": 1,
+            "doseQuantity": null,
+            "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000126",
+          "row": {
+            "startDate": 1791937800000,
+            "endDate": 1791937800000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "logStatus": 4,
+            "scheduleType": 2,
+            "scheduledDate": 1791932400000,
+            "scheduledDoseQuantity": 1,
+            "doseQuantity": 1,
+            "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000127",
+          "row": {
+            "startDate": 1791619260000,
+            "endDate": 1791619260000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "logStatus": 4,
+            "scheduleType": 2,
+            "scheduledDate": 1791619200000,
+            "scheduledDoseQuantity": 1,
+            "doseQuantity": 1,
+            "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000128",
+          "row": {
+            "startDate": 1789459320000,
+            "endDate": 1789459320000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "logStatus": 4,
+            "scheduleType": 2,
+            "scheduledDate": 1789459200000,
+            "scheduledDoseQuantity": 1,
+            "doseQuantity": 1,
+            "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000131",
+          "row": {
+            "startDate": 1792414800000,
+            "endDate": 1792414800000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000b2",
+            "logStatus": 4,
+            "scheduleType": 1,
+            "scheduledDate": null,
+            "scheduledDoseQuantity": null,
+            "doseQuantity": 1,
+            "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000132",
+          "row": {
+            "startDate": 1792141200000,
+            "endDate": 1792141200000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000b2",
+            "logStatus": 6,
+            "scheduleType": 1,
+            "scheduledDate": null,
+            "scheduledDoseQuantity": null,
+            "doseQuantity": null,
+            "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000133",
+          "row": {
+            "startDate": 1791838800000,
+            "endDate": 1791838800000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000b2",
+            "logStatus": 4,
+            "scheduleType": 1,
+            "scheduledDate": null,
+            "scheduledDoseQuantity": null,
+            "doseQuantity": 1,
+            "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000141",
+          "row": {
+            "startDate": 1788249600000,
+            "endDate": 1788249600000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000c3",
+            "logStatus": 4,
+            "scheduleType": 2,
+            "scheduledDate": 1788249600000,
+            "scheduledDoseQuantity": 1,
+            "doseQuantity": 1,
+            "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_characteristic",
+          "op": "upsert",
+          "id": "HKCharacteristicTypeIdentifierDateOfBirth",
+          "row": {
+            "value": {
+              "year": 1990,
+              "month": 10,
+              "day": 21
+            }
+          }
+        },
+        {
+          "entity": "health_characteristic",
+          "op": "upsert",
+          "id": "HKCharacteristicTypeIdentifierBiologicalSex",
+          "row": {
+            "value": "female"
+          }
+        },
+        {
+          "entity": "health_characteristic",
+          "op": "upsert",
+          "id": "HKCharacteristicTypeIdentifierBloodType",
+          "row": {
+            "value": "abNegative"
+          }
+        },
+        {
+          "entity": "health_characteristic",
+          "op": "upsert",
+          "id": "HKCharacteristicTypeIdentifierFitzpatrickSkinType",
+          "row": {
+            "value": "notSet"
+          }
+        },
+        {
+          "entity": "health_characteristic",
+          "op": "upsert",
+          "id": "HKCharacteristicTypeIdentifierWheelchairUse",
+          "row": {
+            "value": "no"
+          }
+        },
+        {
+          "entity": "health_vision_prescription",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000151",
+          "row": {
+            "startDate": 1741608000000,
+            "endDate": 1741608000000,
+            "prescriptionType": 1,
+            "expirationDate": 1804680000000,
+            "brand": null,
+            "rightEye": {
+              "sphere": -1.25,
+              "cylinder": -0.5,
+              "axis": 90,
+              "addPower": null,
+              "vertexDistance": 12,
+              "prism": {
+                "amount": 0.5,
+                "angle": 90,
+                "verticalAmount": 0.5,
+                "verticalBase": 1,
+                "horizontalAmount": null,
+                "horizontalBase": 0
+              }
+            },
+            "leftEye": {
+              "sphere": -1,
+              "cylinder": null,
+              "axis": null,
+              "addPower": null
+            },
+            "sourceName": "Test iPhone",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000002"
+          }
+        },
+        {
+          "entity": "health_vision_prescription",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000152",
+          "row": {
+            "startDate": 1780308000000,
+            "endDate": 1780308000000,
+            "prescriptionType": 2,
+            "expirationDate": 1811844000000,
+            "brand": "Test Lenses",
+            "rightEye": {
+              "sphere": -1.5,
+              "baseCurve": 8.4,
+              "diameter": 14
+            },
+            "leftEye": null,
+            "sourceName": "Test iPhone",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000002"
+          }
+        },
+        {
+          "entity": "health_activity_summary",
+          "op": "upsert",
+          "id": "2026-10-19",
+          "row": {
+            "activeEnergyBurned": 420.75,
+            "activeEnergyBurnedGoal": 500,
+            "appleExerciseTime": 40,
+            "appleExerciseTimeGoal": 30,
+            "appleStandHours": 10,
+            "appleStandHoursGoal": 12,
+            "activityMoveMode": "activeEnergy",
+            "paused": false
           }
         }
       ]

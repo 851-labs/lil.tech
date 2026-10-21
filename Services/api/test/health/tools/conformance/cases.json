@@ -351,6 +351,1469 @@
         "timeZone": "+01:00"
       },
       "expectedError": true
+    },
+    {
+      "name": "list_types in UTC: types with data, by category then name",
+      "tool": "list_types",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {},
+      "expected": {
+        "timeZone": "UTC",
+        "types": [
+          {
+            "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+            "name": "Active Energy",
+            "category": "Activity",
+            "kind": "quantity",
+            "unit": "kcal",
+            "cumulative": true,
+            "first": "2026-10-20T08:10:00+00:00",
+            "last": "2026-10-20T08:10:00+00:00"
+          },
+          {
+            "type": "HKActivitySummaryTypeIdentifier",
+            "name": "Activity Rings",
+            "category": "Activity",
+            "kind": "activitySummary",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-19T00:00:00+00:00",
+            "last": "2026-10-19T00:00:00+00:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "name": "Steps",
+            "category": "Activity",
+            "kind": "quantity",
+            "unit": "count",
+            "cumulative": true,
+            "first": "2026-10-20T14:10:00+00:00",
+            "last": "2026-10-20T16:00:00+00:00"
+          },
+          {
+            "type": "HKWorkoutTypeIdentifier",
+            "name": "Workouts",
+            "category": "Activity",
+            "kind": "workout",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-02T17:00:00+00:00",
+            "last": "2026-10-20T16:30:00+00:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "name": "Weight",
+            "category": "Body Measurements",
+            "kind": "quantity",
+            "unit": "kg",
+            "cumulative": false,
+            "first": "2026-10-17T07:30:00+00:00",
+            "last": "2026-10-17T07:30:00+00:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "name": "Heart Rate",
+            "category": "Heart",
+            "kind": "quantity",
+            "unit": "count/min",
+            "cumulative": false,
+            "first": "2026-10-19T09:00:00+00:00",
+            "last": "2026-10-20T14:45:30+00:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "name": "Resting Heart Rate",
+            "category": "Heart",
+            "kind": "quantity",
+            "unit": "count/min",
+            "cumulative": false,
+            "first": "2026-10-19T07:00:00+00:00",
+            "last": "2026-10-19T07:00:00+00:00"
+          },
+          {
+            "type": "HKMedicationDoseEventTypeIdentifierMedicationDoseEvent",
+            "name": "Medication Doses",
+            "category": "Medications",
+            "kind": "medicationDoseEvent",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-09-01T08:00:00+00:00",
+            "last": "2026-10-20T08:05:00+00:00"
+          },
+          {
+            "type": "HKDataTypeUserAnnotatedMedicationConcept",
+            "name": "Medications",
+            "category": "Medications",
+            "kind": "medication",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-09-01T08:00:00+00:00",
+            "last": "2026-10-20T08:05:00+00:00"
+          },
+          {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "name": "Sleep",
+            "category": "Sleep",
+            "kind": "category",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-17T23:00:00+00:00",
+            "last": "2026-10-20T00:00:00+00:00"
+          },
+          {
+            "type": "HKVisionPrescriptionTypeIdentifier",
+            "name": "Vision Prescriptions",
+            "category": "Other Data",
+            "kind": "visionPrescription",
+            "unit": null,
+            "cumulative": false,
+            "first": "2025-03-10T12:00:00+00:00",
+            "last": "2026-06-01T10:00:00+00:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "list_types in Los Angeles, where Activity Rings start at local midnight",
+      "tool": "list_types",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "timeZone": "America/Los_Angeles",
+        "types": [
+          {
+            "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+            "name": "Active Energy",
+            "category": "Activity",
+            "kind": "quantity",
+            "unit": "kcal",
+            "cumulative": true,
+            "first": "2026-10-20T01:10:00-07:00",
+            "last": "2026-10-20T01:10:00-07:00"
+          },
+          {
+            "type": "HKActivitySummaryTypeIdentifier",
+            "name": "Activity Rings",
+            "category": "Activity",
+            "kind": "activitySummary",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-19T00:00:00-07:00",
+            "last": "2026-10-19T00:00:00-07:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "name": "Steps",
+            "category": "Activity",
+            "kind": "quantity",
+            "unit": "count",
+            "cumulative": true,
+            "first": "2026-10-20T07:10:00-07:00",
+            "last": "2026-10-20T09:00:00-07:00"
+          },
+          {
+            "type": "HKWorkoutTypeIdentifier",
+            "name": "Workouts",
+            "category": "Activity",
+            "kind": "workout",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-02T10:00:00-07:00",
+            "last": "2026-10-20T09:30:00-07:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "name": "Weight",
+            "category": "Body Measurements",
+            "kind": "quantity",
+            "unit": "kg",
+            "cumulative": false,
+            "first": "2026-10-17T00:30:00-07:00",
+            "last": "2026-10-17T00:30:00-07:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "name": "Heart Rate",
+            "category": "Heart",
+            "kind": "quantity",
+            "unit": "count/min",
+            "cumulative": false,
+            "first": "2026-10-19T02:00:00-07:00",
+            "last": "2026-10-20T07:45:30-07:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "name": "Resting Heart Rate",
+            "category": "Heart",
+            "kind": "quantity",
+            "unit": "count/min",
+            "cumulative": false,
+            "first": "2026-10-19T00:00:00-07:00",
+            "last": "2026-10-19T00:00:00-07:00"
+          },
+          {
+            "type": "HKMedicationDoseEventTypeIdentifierMedicationDoseEvent",
+            "name": "Medication Doses",
+            "category": "Medications",
+            "kind": "medicationDoseEvent",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-09-01T01:00:00-07:00",
+            "last": "2026-10-20T01:05:00-07:00"
+          },
+          {
+            "type": "HKDataTypeUserAnnotatedMedicationConcept",
+            "name": "Medications",
+            "category": "Medications",
+            "kind": "medication",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-09-01T01:00:00-07:00",
+            "last": "2026-10-20T01:05:00-07:00"
+          },
+          {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "name": "Sleep",
+            "category": "Sleep",
+            "kind": "category",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-17T16:00:00-07:00",
+            "last": "2026-10-19T17:00:00-07:00"
+          },
+          {
+            "type": "HKVisionPrescriptionTypeIdentifier",
+            "name": "Vision Prescriptions",
+            "category": "Other Data",
+            "kind": "visionPrescription",
+            "unit": null,
+            "cumulative": false,
+            "first": "2025-03-10T05:00:00-07:00",
+            "last": "2026-06-01T03:00:00-07:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "metric: a week of steps in UTC, from the source's statistics then the samples past them",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "W",
+        "date": "2026-10-20"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "unit": "count",
+        "statistic": "sum",
+        "value": 8550,
+        "buckets": [
+          {
+            "start": "2026-10-14T00:00:00+00:00",
+            "value": 1000
+          },
+          {
+            "start": "2026-10-15T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-16T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-17T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-18T00:00:00+00:00",
+            "value": 4000
+          },
+          {
+            "start": "2026-10-19T00:00:00+00:00",
+            "value": 300
+          },
+          {
+            "start": "2026-10-20T00:00:00+00:00",
+            "value": 3250
+          }
+        ]
+      }
+    },
+    {
+      "name": "metric: today's steps by the hour in Kolkata, whose hours start at half past in UTC",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "D",
+        "timeZone": "Asia/Kolkata"
+      },
+      "expected": {
+        "timeZone": "Asia/Kolkata",
+        "range": "D",
+        "start": "2026-10-20T00:00:00+05:30",
+        "end": "2026-10-21T00:00:00+05:30",
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "unit": "count",
+        "statistic": "sum",
+        "value": 3550,
+        "buckets": [
+          {
+            "start": "2026-10-20T00:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T01:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T02:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T03:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T04:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T05:00:00+05:30",
+            "value": 300
+          },
+          {
+            "start": "2026-10-20T06:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T07:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T08:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T09:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T10:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T11:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T12:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T13:00:00+05:30",
+            "value": 2500
+          },
+          {
+            "start": "2026-10-20T14:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T15:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T16:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T17:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T18:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T19:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T20:00:00+05:30",
+            "value": 700
+          },
+          {
+            "start": "2026-10-20T21:00:00+05:30",
+            "value": 50
+          },
+          {
+            "start": "2026-10-20T22:00:00+05:30",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T23:00:00+05:30",
+            "value": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "metric: a year of steps by name, as the average day of each month",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "steps",
+        "range": "Y",
+        "statistic": "average",
+        "date": "2026-10-20"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "Y",
+        "start": "2025-11-01T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "unit": "count",
+        "statistic": "average",
+        "value": 3258.3333333333335,
+        "buckets": [
+          {
+            "start": "2025-11-01T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2025-12-01T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-01-01T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-02-01T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-03-01T00:00:00+00:00",
+            "value": 6000
+          },
+          {
+            "start": "2026-04-01T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-05-01T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-06-01T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-07-01T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-08-01T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-09-01T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-01T00:00:00+00:00",
+            "value": 2710
+          }
+        ]
+      }
+    },
+    {
+      "name": "metric: a day of heart rate, each reading weighted until its source's next, up to an hour",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "D",
+        "date": "2026-10-20"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-20T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "unit": "count/min",
+        "statistic": "average",
+        "value": 83.08023583696487,
+        "buckets": [
+          {
+            "start": "2026-10-20T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T01:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T02:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T03:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T04:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T05:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T06:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T07:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T08:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T09:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T10:00:00+00:00",
+            "value": 60.14950166112957
+          },
+          {
+            "start": "2026-10-20T11:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T12:00:00+00:00",
+            "value": 80
+          },
+          {
+            "start": "2026-10-20T13:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T14:00:00+00:00",
+            "value": 72
+          },
+          {
+            "start": "2026-10-20T15:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T16:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T17:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T18:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T19:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T20:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T21:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T22:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-20T23:00:00+00:00",
+            "value": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "metric: the week's highest heart rate per day in London",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "W",
+        "statistic": "maximum",
+        "date": "2026-10-20",
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "timeZone": "Europe/London",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+01:00",
+        "end": "2026-10-21T00:00:00+01:00",
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "unit": "count/min",
+        "statistic": "maximum",
+        "value": 120,
+        "buckets": [
+          {
+            "start": "2026-10-14T00:00:00+01:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-15T00:00:00+01:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-16T00:00:00+01:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-17T00:00:00+01:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-18T00:00:00+01:00",
+            "value": null
+          },
+          {
+            "start": "2026-10-19T00:00:00+01:00",
+            "value": 65
+          },
+          {
+            "start": "2026-10-20T00:00:00+01:00",
+            "value": 120
+          }
+        ]
+      }
+    },
+    {
+      "name": "metric: heart rate doesn't add up, so its sum fails",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "W",
+        "statistic": "sum"
+      },
+      "expectedError": true
+    },
+    {
+      "name": "metric of a category type fails",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKCategoryTypeIdentifierSleepAnalysis",
+        "range": "W"
+      },
+      "expectedError": true
+    },
+    {
+      "name": "metric of an unknown type fails",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierMadeUp",
+        "range": "W"
+      },
+      "expectedError": true
+    },
+    {
+      "name": "samples: the newest of today's steps, a page of one",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "D",
+        "date": "2026-10-20",
+        "limit": 1
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-20T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000003",
+            "start": "2026-10-20T16:00:00+00:00",
+            "end": "2026-10-20T16:05:00+00:00",
+            "value": 50,
+            "unit": "count",
+            "categoryValue": null,
+            "source": "Test Apple Watch"
+          }
+        ],
+        "nextCursor": "1792512000000_0c0f0000-0000-4000-8000-000000000003"
+      }
+    },
+    {
+      "name": "samples: the next page, without the deleted sample",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "D",
+        "date": "2026-10-20",
+        "limit": 1,
+        "cursor": "1792512000000_0c0f0000-0000-4000-8000-000000000003"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-20T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000002",
+            "start": "2026-10-20T14:10:00+00:00",
+            "end": "2026-10-20T14:15:00+00:00",
+            "value": 412,
+            "unit": "count",
+            "categoryValue": null,
+            "source": "Test Apple Watch"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "samples of a category type: a week of sleep, newest first",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKCategoryTypeIdentifierSleepAnalysis",
+        "range": "W",
+        "date": "2026-10-20",
+        "limit": 3
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "type": "HKCategoryTypeIdentifierSleepAnalysis",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000010",
+            "start": "2026-10-20T00:00:00+00:00",
+            "end": "2026-10-20T01:30:00+00:00",
+            "value": null,
+            "unit": null,
+            "categoryValue": 3,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000114",
+            "start": "2026-10-19T23:50:00+00:00",
+            "end": "2026-10-20T00:00:00+00:00",
+            "value": null,
+            "unit": null,
+            "categoryValue": 2,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000113",
+            "start": "2026-10-19T23:30:00+00:00",
+            "end": "2026-10-19T23:50:00+00:00",
+            "value": null,
+            "unit": null,
+            "categoryValue": 5,
+            "source": "Test Apple Watch"
+          }
+        ],
+        "nextCursor": "1792452600000_0c0f0000-0000-4000-8000-000000000113"
+      }
+    },
+    {
+      "name": "samples with a cursor that isn't one fails",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "D",
+        "cursor": "page-2"
+      },
+      "expectedError": true
+    },
+    {
+      "name": "samples of workouts fails: they have their own tool",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKWorkoutTypeIdentifier",
+        "range": "W"
+      },
+      "expectedError": true
+    },
+    {
+      "name": "workouts of a week in UTC, newest first, with their statistics",
+      "tool": "workouts",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "date": "2026-10-20"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 3,
+        "duration": 6300,
+        "workouts": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000099",
+            "activityType": 37,
+            "activity": "Running",
+            "start": "2026-10-20T16:30:00+00:00",
+            "end": "2026-10-20T17:00:00+00:00",
+            "duration": 1800,
+            "activeEnergy": null,
+            "distance": null,
+            "averageHeartRate": null,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000013",
+            "activityType": 37,
+            "activity": "Running",
+            "start": "2026-10-18T07:00:00+00:00",
+            "end": "2026-10-18T07:30:00+00:00",
+            "duration": 1800,
+            "activeEnergy": 310.5,
+            "distance": 5000,
+            "averageHeartRate": 152.5,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000012",
+            "activityType": 37,
+            "activity": "Running",
+            "start": "2026-10-14T03:00:00+00:00",
+            "end": "2026-10-14T03:45:00+00:00",
+            "duration": 2700,
+            "activeEnergy": null,
+            "distance": null,
+            "averageHeartRate": null,
+            "source": "Test Apple Watch"
+          }
+        ]
+      }
+    },
+    {
+      "name": "workouts of a month in Los Angeles, with a ride's distance",
+      "tool": "workouts",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "M",
+        "date": "2026-10-20",
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "timeZone": "America/Los_Angeles",
+        "range": "M",
+        "start": "2026-09-21T00:00:00-07:00",
+        "end": "2026-10-21T00:00:00-07:00",
+        "count": 5,
+        "duration": 12600,
+        "workouts": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000099",
+            "activityType": 37,
+            "activity": "Running",
+            "start": "2026-10-20T09:30:00-07:00",
+            "end": "2026-10-20T10:00:00-07:00",
+            "duration": 1800,
+            "activeEnergy": null,
+            "distance": null,
+            "averageHeartRate": null,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000013",
+            "activityType": 37,
+            "activity": "Running",
+            "start": "2026-10-18T00:00:00-07:00",
+            "end": "2026-10-18T00:30:00-07:00",
+            "duration": 1800,
+            "activeEnergy": 310.5,
+            "distance": 5000,
+            "averageHeartRate": 152.5,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000012",
+            "activityType": 37,
+            "activity": "Running",
+            "start": "2026-10-13T20:00:00-07:00",
+            "end": "2026-10-13T20:45:00-07:00",
+            "duration": 2700,
+            "activeEnergy": null,
+            "distance": null,
+            "averageHeartRate": null,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000011",
+            "activityType": 37,
+            "activity": "Running",
+            "start": "2026-10-13T11:00:00-07:00",
+            "end": "2026-10-13T11:40:00-07:00",
+            "duration": 2400,
+            "activeEnergy": null,
+            "distance": null,
+            "averageHeartRate": null,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000014",
+            "activityType": 13,
+            "activity": "Cycling",
+            "start": "2026-10-02T10:00:00-07:00",
+            "end": "2026-10-02T11:10:00-07:00",
+            "duration": 3900,
+            "activeEnergy": 450,
+            "distance": 20000.5,
+            "averageHeartRate": null,
+            "source": "Test Apple Watch"
+          }
+        ]
+      }
+    },
+    {
+      "name": "sleep of a week in UTC: each night from the source with the most sleep, without naps",
+      "tool": "sleep",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "date": "2026-10-20"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "nights": [
+          {
+            "date": "2026-10-18",
+            "start": "2026-10-17T23:00:00+00:00",
+            "end": "2026-10-18T06:00:00+00:00",
+            "inBed": 25200,
+            "asleep": 25200,
+            "awake": 0,
+            "core": 0,
+            "deep": 0,
+            "rem": 0,
+            "unspecified": 25200
+          },
+          {
+            "date": "2026-10-20",
+            "start": "2026-10-19T22:40:00+00:00",
+            "end": "2026-10-20T01:30:00+00:00",
+            "inBed": 27900,
+            "asleep": 9600,
+            "awake": 600,
+            "core": 7200,
+            "deep": 1200,
+            "rem": 1200,
+            "unspecified": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "sleep of a week in Los Angeles, where nights fall on other days",
+      "tool": "sleep",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "date": "2026-10-20",
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "timeZone": "America/Los_Angeles",
+        "range": "W",
+        "start": "2026-10-14T00:00:00-07:00",
+        "end": "2026-10-21T00:00:00-07:00",
+        "nights": [
+          {
+            "date": "2026-10-17",
+            "start": "2026-10-17T16:00:00-07:00",
+            "end": "2026-10-17T23:00:00-07:00",
+            "inBed": 25200,
+            "asleep": 25200,
+            "awake": 0,
+            "core": 0,
+            "deep": 0,
+            "rem": 0,
+            "unspecified": 25200
+          },
+          {
+            "date": "2026-10-18",
+            "start": "2026-10-18T07:00:00-07:00",
+            "end": "2026-10-18T07:30:00-07:00",
+            "inBed": 1800,
+            "asleep": 1800,
+            "awake": 0,
+            "core": 0,
+            "deep": 0,
+            "rem": 0,
+            "unspecified": 1800
+          },
+          {
+            "date": "2026-10-19",
+            "start": "2026-10-19T15:40:00-07:00",
+            "end": "2026-10-19T18:30:00-07:00",
+            "inBed": 27900,
+            "asleep": 9600,
+            "awake": 600,
+            "core": 7200,
+            "deep": 1200,
+            "rem": 1200,
+            "unspecified": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "medications: current ones then archived, with adherence and the last dose taken",
+      "tool": "medications",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {},
+      "expected": {
+        "timeZone": "UTC",
+        "medications": [
+          {
+            "id": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "name": "Atorvastatin",
+            "healthName": "Atorvastatin",
+            "form": "tablet",
+            "archived": false,
+            "scheduled": true,
+            "last7Days": {
+              "scheduled": 4,
+              "taken": 2,
+              "asNeeded": 0
+            },
+            "last30Days": {
+              "scheduled": 6,
+              "taken": 4,
+              "asNeeded": 0
+            },
+            "lastTaken": "2026-10-20T08:05:00+00:00"
+          },
+          {
+            "id": "00000000000000000000000000000000000000000000000000000000000000b2",
+            "name": "Pain relief",
+            "healthName": "Ibuprofen",
+            "form": "capsule",
+            "archived": false,
+            "scheduled": false,
+            "last7Days": {
+              "scheduled": 0,
+              "taken": 0,
+              "asNeeded": 1
+            },
+            "last30Days": {
+              "scheduled": 0,
+              "taken": 0,
+              "asNeeded": 2
+            },
+            "lastTaken": "2026-10-19T13:00:00+00:00"
+          },
+          {
+            "id": "00000000000000000000000000000000000000000000000000000000000000c3",
+            "name": "Amoxicillin",
+            "healthName": "Amoxicillin",
+            "form": "capsule",
+            "archived": true,
+            "scheduled": true,
+            "last7Days": {
+              "scheduled": 0,
+              "taken": 0,
+              "asNeeded": 0
+            },
+            "last30Days": {
+              "scheduled": 0,
+              "taken": 0,
+              "asNeeded": 0
+            },
+            "lastTaken": "2026-09-01T08:00:00+00:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "health_details in UTC, the day before a birthday",
+      "tool": "health_details",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {},
+      "expected": {
+        "timeZone": "UTC",
+        "dateOfBirth": "1990-10-21",
+        "age": 35,
+        "sex": "female",
+        "bloodType": "AB-",
+        "fitzpatrickSkinType": null,
+        "wheelchairUse": false,
+        "visionPrescriptions": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000152",
+            "kind": "contacts",
+            "issued": "2026-06-01",
+            "expires": "2027-06-01",
+            "brand": "Test Lenses",
+            "rightEye": {
+              "sphere": -1.5,
+              "cylinder": null,
+              "axis": null,
+              "addPower": null
+            },
+            "leftEye": null
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000151",
+            "kind": "glasses",
+            "issued": "2025-03-10",
+            "expires": "2027-03-10",
+            "brand": null,
+            "rightEye": {
+              "sphere": -1.25,
+              "cylinder": -0.5,
+              "axis": 90,
+              "addPower": null
+            },
+            "leftEye": {
+              "sphere": -1,
+              "cylinder": null,
+              "axis": null,
+              "addPower": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "health_details in Auckland, where the birthday has come",
+      "tool": "health_details",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "Pacific/Auckland"
+      },
+      "expected": {
+        "timeZone": "Pacific/Auckland",
+        "dateOfBirth": "1990-10-21",
+        "age": 36,
+        "sex": "female",
+        "bloodType": "AB-",
+        "fitzpatrickSkinType": null,
+        "wheelchairUse": false,
+        "visionPrescriptions": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000152",
+            "kind": "contacts",
+            "issued": "2026-06-01",
+            "expires": "2027-06-01",
+            "brand": "Test Lenses",
+            "rightEye": {
+              "sphere": -1.5,
+              "cylinder": null,
+              "axis": null,
+              "addPower": null
+            },
+            "leftEye": null
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000151",
+            "kind": "glasses",
+            "issued": "2025-03-11",
+            "expires": "2027-03-11",
+            "brand": null,
+            "rightEye": {
+              "sphere": -1.25,
+              "cylinder": -0.5,
+              "axis": 90,
+              "addPower": null
+            },
+            "leftEye": {
+              "sphere": -1,
+              "cylinder": null,
+              "axis": null,
+              "addPower": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "search: types with data first, then by category and name",
+      "tool": "search",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "query": "heart rate"
+      },
+      "expected": {
+        "types": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "name": "Heart Rate",
+            "category": "Heart",
+            "hasData": true
+          },
+          {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "name": "Resting Heart Rate",
+            "category": "Heart",
+            "hasData": true
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRateRecoveryOneMinute",
+            "name": "Cardio Recovery",
+            "category": "Heart",
+            "hasData": false
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "name": "Heart Rate Variability",
+            "category": "Heart",
+            "hasData": false
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilityRMSSD",
+            "name": "Heart Rate Variability (RMSSD)",
+            "category": "Heart",
+            "hasData": false
+          },
+          {
+            "type": "HKCategoryTypeIdentifierHighHeartRateEvent",
+            "name": "High Heart Rate Notifications",
+            "category": "Heart",
+            "hasData": false
+          },
+          {
+            "type": "HKCategoryTypeIdentifierLowHeartRateEvent",
+            "name": "Low Heart Rate Notifications",
+            "category": "Heart",
+            "hasData": false
+          },
+          {
+            "type": "HKQuantityTypeIdentifierWalkingHeartRateAverage",
+            "name": "Walking Heart Rate Average",
+            "category": "Heart",
+            "hasData": false
+          }
+        ],
+        "medications": []
+      }
+    },
+    {
+      "name": "search across categories",
+      "tool": "search",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "query": "sleep"
+      },
+      "expected": {
+        "types": [
+          {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "name": "Sleep",
+            "category": "Sleep",
+            "hasData": true
+          },
+          {
+            "type": "HKQuantityTypeIdentifierAppleSleepingWristTemperature",
+            "name": "Wrist Temperature",
+            "category": "Body Measurements",
+            "hasData": false
+          },
+          {
+            "type": "HKQuantityTypeIdentifierAppleSleepingBreathingDisturbances",
+            "name": "Breathing Disturbances",
+            "category": "Respiratory",
+            "hasData": false
+          },
+          {
+            "type": "HKCategoryTypeIdentifierSleepApneaEvent",
+            "name": "Sleep Apnea Notifications",
+            "category": "Respiratory",
+            "hasData": false
+          },
+          {
+            "type": "HKCategoryTypeIdentifierSleepChanges",
+            "name": "Sleep Changes",
+            "category": "Symptoms",
+            "hasData": false
+          }
+        ],
+        "medications": []
+      }
+    },
+    {
+      "name": "search matches identifiers, in any case",
+      "tool": "search",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "query": "VO2"
+      },
+      "expected": {
+        "types": [
+          {
+            "type": "HKQuantityTypeIdentifierVO2Max",
+            "name": "Cardio Fitness",
+            "category": "Heart",
+            "hasData": false
+          }
+        ],
+        "medications": []
+      }
+    },
+    {
+      "name": "search finds medications by the name they show and Health's",
+      "tool": "search",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "query": "pain"
+      },
+      "expected": {
+        "types": [
+          {
+            "type": "HKCategoryTypeIdentifierBreastPain",
+            "name": "Breast Pain",
+            "category": "Symptoms",
+            "hasData": false
+          },
+          {
+            "type": "HKCategoryTypeIdentifierChestTightnessOrPain",
+            "name": "Chest Tightness or Pain",
+            "category": "Symptoms",
+            "hasData": false
+          },
+          {
+            "type": "HKCategoryTypeIdentifierLowerBackPain",
+            "name": "Lower Back Pain",
+            "category": "Symptoms",
+            "hasData": false
+          },
+          {
+            "type": "HKCategoryTypeIdentifierPelvicPain",
+            "name": "Pelvic Pain",
+            "category": "Symptoms",
+            "hasData": false
+          }
+        ],
+        "medications": [
+          {
+            "id": "00000000000000000000000000000000000000000000000000000000000000b2",
+            "name": "Pain relief"
+          }
+        ]
+      }
+    },
+    {
+      "name": "search: medications have data through their doses",
+      "tool": "search",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "query": "medication"
+      },
+      "expected": {
+        "types": [
+          {
+            "type": "HKMedicationDoseEventTypeIdentifierMedicationDoseEvent",
+            "name": "Medication Doses",
+            "category": "Medications",
+            "hasData": true
+          },
+          {
+            "type": "HKDataTypeUserAnnotatedMedicationConcept",
+            "name": "Medications",
+            "category": "Medications",
+            "hasData": true
+          }
+        ],
+        "medications": []
+      }
+    },
+    {
+      "name": "search for only spaces fails",
+      "tool": "search",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "query": "   "
+      },
+      "expectedError": true
+    },
+    {
+      "name": "sync_status: the newest sample that has started, and each iPhone",
+      "tool": "sync_status",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {},
+      "expected": {
+        "timeZone": "UTC",
+        "latestSample": "2026-10-20T14:45:30+00:00",
+        "iPhones": [
+          {
+            "device": "dev_00000000000000000000000ph2",
+            "pairedWithWatch": false,
+            "lastReported": "2026-10-20T14:00:00+00:00",
+            "statisticsSource": false
+          },
+          {
+            "device": "dev_00000000000000000000000ph1",
+            "pairedWithWatch": true,
+            "lastReported": "2026-10-20T13:00:00+00:00",
+            "statisticsSource": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "sync_status weeks later: with no iPhone recent, totals come from the latest",
+      "tool": "sync_status",
+      "now": "2026-11-10T00:00:00Z",
+      "arguments": {
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "timeZone": "Europe/London",
+        "latestSample": "2026-10-20T17:00:00+01:00",
+        "iPhones": [
+          {
+            "device": "dev_00000000000000000000000ph2",
+            "pairedWithWatch": false,
+            "lastReported": "2026-10-20T15:00:00+01:00",
+            "statisticsSource": true
+          },
+          {
+            "device": "dev_00000000000000000000000ph1",
+            "pairedWithWatch": true,
+            "lastReported": "2026-10-20T14:00:00+01:00",
+            "statisticsSource": false
+          }
+        ]
+      }
     }
   ]
 }
