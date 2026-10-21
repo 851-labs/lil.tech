@@ -70,6 +70,9 @@ public struct AppFeature {
     case connectedAgents(ConnectedAgentsFeature.Action)
     case signOutButtonTapped
     case summary(SummaryFeature.Action)
+    /// A new pull for the Sync app action, as Try Again starts one. Sent once the action is
+    /// watching the status, so it can't miss how the pull ends.
+    case syncRestarted
     case syncStatusChanged(SyncStatus)
     case localPinsMovedUp([String])
     /// A stack's navigation changed its metrics: a card clicked, or Back. The stack says which
@@ -92,6 +95,7 @@ public struct AppFeature {
   @Dependency(\.auth) var auth
   @Dependency(\.authSessions) var authSessions
   @Dependency(\.blobCache) var blobCache
+  @Dependency(\.continuousClock) var clock
   @Dependency(\.defaultDatabase) var database
   @Dependency(\.healthAppActions) var healthAppActions
   @Dependency(\.sync) var sync
@@ -136,6 +140,8 @@ public struct AppFeature {
             await send(.pageOpened(page))
             request.finish(.success(.done))
           }
+        case .sync:
+          return syncForAppAction(request)
         }
 
       case .binding:
@@ -209,6 +215,9 @@ public struct AppFeature {
 
       case .summary:
         return .none
+
+      case .syncRestarted:
+        return pull()
 
       case .syncStatusChanged(let status):
         state.syncStatus = status
@@ -295,6 +304,52 @@ public struct AppFeature {
       }
       .cancellable(id: CancelID.sync)
     )
+  }
+
+  /// Sync, for an app action (851-2893): a new pull, as Try Again, then the first status that
+  /// says how it ended, or `.stillSyncing` after `HealthAppActions.syncWait`. Stops with the
+  /// account, which fails the request (`HealthAppActionError.signedOut`).
+  private func syncForAppAction(_ request: HealthAppActionRequest) -> Effect<Action> {
+    .run { [sync, clock] send in
+      typealias Answer = Result<HealthAppActionResult, any Error>
+      let result = await withTaskGroup(of: Answer?.self, returning: Answer?.self) { group in
+        group.addTask { () -> Answer? in
+          var statuses = await sync.status().makeAsyncIterator()
+          // The status from before this pull: a failure the same as the last one's is announced
+          // again (`LilSyncEngine`), so only what comes after the pull starts answers.
+          _ = await statuses.next()
+          await send(.syncRestarted)
+          while let status = await statuses.next() {
+            switch status {
+            case .upToDate(let date): return .success(.synced(at: date))
+            case .failed(let message): return .failure(HealthAppActionError.syncFailed(message))
+            case .offline: return .failure(HealthAppActionError.offline)
+            case .idle, .syncing, .bootstrapping: continue
+            }
+          }
+          return nil
+        }
+        group.addTask { () -> Answer? in
+          do {
+            try await clock.sleep(for: HealthAppActions.syncWait)
+            return .success(.stillSyncing)
+          } catch {
+            return nil
+          }
+        }
+        // The first answer: the status stream ending (or being cancelled) gives none.
+        for await answer in group {
+          guard let answer else { continue }
+          group.cancelAll()
+          return answer
+        }
+        return nil
+      }
+      // Cancelled by signing out: the request fails as the stream of requests ends.
+      guard let result, !Task.isCancelled else { return }
+      request.finish(result)
+    }
+    .cancellable(id: CancelID.sync)
   }
 
   private func pull() -> Effect<Action> {
