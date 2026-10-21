@@ -3,8 +3,8 @@ import type { StoreSql } from "../../store/StoreSql.ts";
 import type { HealthAggregation } from "../HealthCatalog.ts";
 import { statisticsBucketMillis } from "../HealthEntities.ts";
 import {
+  sampleReadings,
   sampleSums,
-  sampleValues,
   statisticBuckets,
   statisticsDevices,
   statisticsSource,
@@ -108,13 +108,17 @@ interface Reading {
 
 /** One statistic's running totals, added to a reading at a time, in order. */
 class Accumulator {
+  readonly aggregation: HealthAggregation;
   count = 0;
   least = Infinity;
   most = -Infinity;
   totalWeight = 0;
   weighted = 0;
 
-  constructor(readonly aggregation: HealthAggregation) {}
+  // Not a parameter property, which Node's type stripping can't run.
+  constructor(aggregation: HealthAggregation) {
+    this.aggregation = aggregation;
+  }
 
   add(value: number, weight: number) {
     this.count++;
@@ -161,8 +165,8 @@ const discreteStatistics = (
   statistic: Exclude<Statistic, "sum">,
 ): { readonly value: number | null; readonly buckets: ReadonlyArray<number | null> } => {
   const timeWeighted = aggregation === "discreteTemporallyWeighted";
-  // When each reading's source has its next one (NaN for its last).
-  const nextStarts = new Float64Array(readings.length).fill(Number.NaN);
+  // When each reading's source has its next one (NaN for its last), for time-weighted types.
+  const nextStarts = new Float64Array(timeWeighted ? readings.length : 0);
   if (timeWeighted) {
     const nextStart = new Map<string, number>();
     for (let index = readings.length - 1; index >= 0; index--) {
@@ -198,8 +202,13 @@ const discreteStatistics = (
       bucket++;
       bucketReach = reach(period.buckets[bucket + 1] ?? period.end);
     }
-    buckets[bucket]!.add(reading.value, weight(index, bucketReach));
-    whole.add(reading.value, weight(index, wholeReach));
+    const bucketWeight = weight(index, bucketReach);
+    buckets[bucket]!.add(reading.value, bucketWeight);
+    // Only a time-weighted reading's weight depends on how far the readings reach.
+    whole.add(
+      reading.value,
+      timeWeighted && bucketReach !== wholeReach ? weight(index, wholeReach) : bucketWeight,
+    );
   }
   return {
     value: whole.result(statistic),
@@ -269,12 +278,7 @@ export const healthMetric = Effect.fn("healthMetric")(function* (
       });
     }
     // An hour past the end, for time-weighted readings near it.
-    const readings = sampleValues(
-      sql,
-      type.id,
-      period.start,
-      period.end + maxSampleWeightMillis,
-    ).filter((sample): sample is Reading => sample.value !== null);
+    const readings = sampleReadings(sql, type.id, period.start, period.end + maxSampleWeightMillis);
     ({ value, buckets } = discreteStatistics(readings, period, aggregation, statistic));
   }
   const result: MetricResult = {
