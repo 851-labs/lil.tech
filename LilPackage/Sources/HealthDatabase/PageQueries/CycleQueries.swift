@@ -199,41 +199,46 @@ extension HealthDatabase {
       since: Date(unixMilliseconds: since))
   }
 
-  /// Cycle deviations Health flagged that ended by `now`, newest first (by start, then end), at
-  /// most `limit`. Health's are retrospective, over the months it looked at, so they've always
-  /// ended; one that ends later isn't shown until it has. All of them, not only the last 6
-  /// months': that's the window Health looks at to flag one, and each keeps its own dates.
+  /// Cycle deviations Health flagged that started by `now`, newest first (by start, then end), at
+  /// most `limit`. Health's are retrospective, over the months it looked at, so they've usually
+  /// ended, but one dated to the end of today, or a Mac clock behind the iPhone's, would put its
+  /// end after `now`: it's shown anyway, as the day it starts already says. All of them, not only
+  /// the last 6 months': that's the window Health looks at to flag one, and each keeps its own
+  /// dates. The same deviation from two sources, or confirmed twice, is listed once.
   public static func cycleDeviations(
-    before now: Date, limit: Int, _ db: Database
+    startedBy now: Date, limit: Int, _ db: Database
   ) throws -> [CycleDeviation] {
     let moment = now.unixMilliseconds
     return
       try HealthSample
-      .where { $0.type.in(cycleDeviationTypes) && $0.endDate <= moment }
-      .order { ($0.startDate.desc(), $0.endDate.desc()) }
+      .where { $0.type.in(cycleDeviationTypes) && $0.startDate <= moment }
+      .group { ($0.type, $0.startDate, $0.endDate) }
+      .order { ($0.startDate.desc(), $0.endDate.desc(), $0.type) }
+      .select { ($0.type, $0.startDate, $0.endDate) }
       .limit(limit)
       .fetchAll(db)
-      .map {
+      .map { type, start, end in
         CycleDeviation(
-          name: HealthCatalog.type(id: $0.type)?.name ?? $0.type,
-          start: Date(unixMilliseconds: $0.startDate), end: Date(unixMilliseconds: $0.endDate))
+          name: HealthCatalog.type(id: type)?.name ?? type,
+          start: Date(unixMilliseconds: start), end: Date(unixMilliseconds: end))
       }
   }
 
   /// When what `cycleFactors(at:)`, `cycleFactorHistory(before:limit:)`,
-  /// `menopauseStage(at:)` and `cycleDeviations(before:limit:)` say next changes after `now`,
-  /// without a sync: the first factor or stage to start or end later, or deviation to end. Nil if
-  /// nothing does.
+  /// `menopauseStage(at:)` and `cycleDeviations(startedBy:limit:)` say next changes after `now`,
+  /// without a sync: the first factor, stage or deviation to start later, or factor or stage to
+  /// end. Nil if nothing does.
   public static func nextCycleChange(after now: Date, _ db: Database) throws -> Date? {
     let moment = now.unixMilliseconds
     let types = factorTypes + [menopausalStateType]
     let start =
       try HealthSample
-      .where { $0.type.in(types) && $0.startDate > moment }
+      .where { $0.type.in(types + cycleDeviationTypes) && $0.startDate > moment }
       .order(by: \.startDate)
       .limit(1)
       .fetchOne(db)?
       .startDate
+    // A deviation's end changes nothing: it's shown from its start.
     let end =
       try HealthSample
       .where { $0.type.in(types) && $0.endDate > moment && $0.endDate > $0.startDate }
@@ -241,15 +246,7 @@ extension HealthDatabase {
       .limit(1)
       .fetchOne(db)?
       .endDate
-    // Shown once it ends, even if it ends as it starts.
-    let deviationEnd =
-      try HealthSample
-      .where { $0.type.in(cycleDeviationTypes) && $0.endDate > moment }
-      .order(by: \.endDate)
-      .limit(1)
-      .fetchOne(db)?
-      .endDate
-    return [start, end, deviationEnd].compactMap { $0 }.min().map { Date(unixMilliseconds: $0) }
+    return [start, end].compactMap { $0 }.min().map { Date(unixMilliseconds: $0) }
   }
 }
 

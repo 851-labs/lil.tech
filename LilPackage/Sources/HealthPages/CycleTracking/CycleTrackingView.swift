@@ -8,7 +8,8 @@ public import SwiftUI
 /// symptoms and sexual activity, the factors going on now and past ones, the menopause stage, the
 /// cycle deviations Health flagged, and past cycles' lengths. Health's predictions stay on the
 /// iPhone (HealthKit doesn't share them), so there are none here. Follows the local database as
-/// sync changes it, and the clock as factors and stages start and end, and deviations end.
+/// sync changes it, and the clock as factors, stages and deviations start, and factors and
+/// stages end.
 public struct CycleTrackingView: View {
   /// The type it was opened for, whose latest sample's month and day it opens on (851-2830).
   let typeID: String?
@@ -20,8 +21,8 @@ public struct CycleTrackingView: View {
   @State private var isPositioned: Bool
   /// Moves at midnight, so the months do even if nothing syncs.
   @State private var today = Date.now
-  /// When factors and the menopause stage are worked out for: moved on at midnight, and when one
-  /// starts or ends.
+  /// When factors, the menopause stage and deviations are worked out for: moved on at midnight,
+  /// and when one starts (or a factor or stage ends).
   @State private var historyNow = Date.now
   @Fetch private var days: CycleMonth? = nil
   /// Not tied to the month shown.
@@ -45,7 +46,8 @@ public struct CycleTrackingView: View {
             CycleSnapshot(
               month: month, days: days.days, periods: history.periods,
               factors: history.factors, pastFactors: history.pastFactors,
-              menopause: history.menopause, deviations: history.deviations))
+              morePastFactors: history.morePastFactors, menopause: history.menopause,
+              deviations: history.deviations, moreDeviations: history.moreDeviations))
         }(),
       previous: { monthOffset -= 1 }, next: { monthOffset += 1 },
       isLatest: monthOffset >= 0
@@ -65,8 +67,8 @@ public struct CycleTrackingView: View {
       _ = try? await $history.load(
         CycleHistoryRequest(now: historyNow), scheduler: MainQueueScheduler())
     }
-    // Waits for the next factor or stage to start or end (or deviation to end), then works them
-    // out again.
+    // Waits for the next factor, stage or deviation to start (or factor or stage to end), then
+    // works them out again.
     .task(id: history?.nextChange) {
       guard let next = history?.nextChange else { return }
       do {
@@ -74,7 +76,8 @@ public struct CycleTrackingView: View {
       } catch {
         return
       }
-      historyNow = .now
+      // Not before it: the clock can wake a little early, and the same change would come back.
+      historyNow = max(.now, next)
     }
     .onReceive(calendarDayChanges()) {
       today = .now
@@ -108,9 +111,13 @@ struct CycleSnapshot: Equatable, Sendable {
   var factors: [CycleFactor]
   /// Over, the latest to end first.
   var pastFactors: [CycleFactor] = []
+  /// Whether there are more past factors than the page shows.
+  var morePastFactors = false
   var menopause: MenopauseStage?
   /// Newest first.
   var deviations: [CycleDeviation] = []
+  /// Whether there are more deviations than the page shows.
+  var moreDeviations = false
 
   /// Whether there's nothing to show at all, not just this month.
   var isEmpty: Bool {
@@ -136,9 +143,12 @@ struct CycleHistory: Equatable, Sendable {
   var periods: [Period]
   var factors: [CycleFactor]
   var pastFactors: [CycleFactor]
+  var morePastFactors: Bool
   var menopause: MenopauseStage?
   var deviations: [CycleDeviation]
-  /// When a factor or stage next starts or ends, or a deviation ends, to work them out again then.
+  var moreDeviations: Bool
+  /// When a factor, stage or deviation next starts, or a factor or stage ends, to work them out
+  /// again then.
   var nextChange: Date?
 }
 
@@ -152,14 +162,19 @@ struct CycleHistoryRequest: FetchKeyRequest {
   let now: Date
 
   func fetch(_ db: Database) throws -> CycleHistory? {
-    CycleHistory(
+    // One more than shown, to know whether there are more.
+    let pastFactors = try HealthDatabase.cycleFactorHistory(
+      before: now, limit: Self.pastFactorLimit + 1, db)
+    let deviations = try HealthDatabase.cycleDeviations(
+      startedBy: now, limit: Self.deviationLimit + 1, db)
+    return CycleHistory(
       periods: try HealthDatabase.periods(limit: 12, calendar: .current, db),
       factors: try HealthDatabase.cycleFactors(at: now, db),
-      pastFactors: try HealthDatabase.cycleFactorHistory(
-        before: now, limit: Self.pastFactorLimit, db),
+      pastFactors: Array(pastFactors.prefix(Self.pastFactorLimit)),
+      morePastFactors: pastFactors.count > Self.pastFactorLimit,
       menopause: try HealthDatabase.menopauseStage(at: now, db),
-      deviations: try HealthDatabase.cycleDeviations(
-        before: now, limit: Self.deviationLimit, db),
+      deviations: Array(deviations.prefix(Self.deviationLimit)),
+      moreDeviations: deviations.count > Self.deviationLimit,
       nextChange: try HealthDatabase.nextCycleChange(after: now, db))
   }
 }
@@ -212,22 +227,14 @@ struct CycleTrackingContent: View {
               }
               if !snapshot.deviations.isEmpty {
                 deviations(snapshot.deviations)
-                if snapshot.deviations.count >= CycleHistoryRequest.deviationLimit {
-                  Text(
-                    "Showing the \(CycleHistoryRequest.deviationLimit.formatted()) most recent cycle deviations."
-                  )
-                  .font(.footnote)
-                  .foregroundStyle(.secondary)
+                if snapshot.moreDeviations {
+                  moreNote(CycleHistoryRequest.deviationLimit, "cycle deviations")
                 }
               }
               if !snapshot.pastFactors.isEmpty {
                 factors("Past Factors", snapshot.pastFactors)
-                if snapshot.pastFactors.count >= CycleHistoryRequest.pastFactorLimit {
-                  Text(
-                    "Showing the \(CycleHistoryRequest.pastFactorLimit.formatted()) most recent past factors."
-                  )
-                  .font(.footnote)
-                  .foregroundStyle(.secondary)
+                if snapshot.morePastFactors {
+                  moreNote(CycleHistoryRequest.pastFactorLimit, "past factors")
                 }
               }
               history(snapshot.periods)
@@ -410,6 +417,13 @@ struct CycleTrackingContent: View {
         Text(stage.name ?? "Stage Logged")
       }
     }
+  }
+
+  /// Under a section that shows only the most recent `limit` of its `things`.
+  private func moreNote(_ limit: Int, _ things: String) -> some View {
+    Text("Showing the \(limit.formatted()) most recent \(things).")
+      .font(.footnote)
+      .foregroundStyle(.secondary)
   }
 
   /// A titled card of rows.
