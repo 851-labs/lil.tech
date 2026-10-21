@@ -18,10 +18,18 @@ extension HealthDatabase {
     "HKCategoryTypeIdentifierBleedingAfterPregnancy",
     "HKCategoryTypeIdentifierBleedingAfterMenopause",
   ]
+  /// What Health flags from the last 6 months of logged periods and spotting, once the person
+  /// confirms it (iOS 16).
+  static let cycleDeviationTypes = [
+    "HKCategoryTypeIdentifierInfrequentMenstrualCycles",
+    "HKCategoryTypeIdentifierIrregularMenstrualCycles",
+    "HKCategoryTypeIdentifierPersistentIntermenstrualBleeding",
+    "HKCategoryTypeIdentifierProlongedMenstrualPeriods",
+  ]
   /// What a day's log lists by name and value, on the day each starts: every Cycle Tracking
   /// category type but flow, spotting and sexual activity, which have their own marks (851-2830).
   /// Factors, menopause and cycle deviations go on for months: the day they start says so, though
-  /// factors and menopause have sections of their own (851-2870) and deviations will (851-2871).
+  /// each has a section of its own too (851-2870, 851-2871).
   static let cycleLogTypes = HealthCatalog.all
     .filter { $0.category == .cycleTracking && $0.kind == .category }
     .map(\.id)
@@ -191,19 +199,46 @@ extension HealthDatabase {
       since: Date(unixMilliseconds: since))
   }
 
-  /// When what `cycleFactors(at:)`, `cycleFactorHistory(before:limit:)` and
-  /// `menopauseStage(at:)` say next changes after `now`, without a sync: the first factor or
-  /// stage to start or end later. Nil if nothing does.
+  /// Cycle deviations Health flagged that started by `now`, newest first (by start, then end), at
+  /// most `limit`. Health's are retrospective, over the months it looked at, so they've usually
+  /// ended, but one dated to the end of today, or a Mac clock behind the iPhone's, would put its
+  /// end after `now`: it's shown anyway, as the day it starts already says. All of them, not only
+  /// the last 6 months': that's the window Health looks at to flag one, and each keeps its own
+  /// dates. The same deviation from two sources, or confirmed twice, is listed once.
+  public static func cycleDeviations(
+    startedBy now: Date, limit: Int, _ db: Database
+  ) throws -> [CycleDeviation] {
+    let moment = now.unixMilliseconds
+    return
+      try HealthSample
+      .where { $0.type.in(cycleDeviationTypes) && $0.startDate <= moment }
+      .group { ($0.type, $0.startDate, $0.endDate) }
+      .order { ($0.startDate.desc(), $0.endDate.desc(), $0.type) }
+      .select { ($0.type, $0.startDate, $0.endDate) }
+      .limit(limit)
+      .fetchAll(db)
+      .map { type, start, end in
+        CycleDeviation(
+          name: HealthCatalog.type(id: type)?.name ?? type,
+          start: Date(unixMilliseconds: start), end: Date(unixMilliseconds: end))
+      }
+  }
+
+  /// When what `cycleFactors(at:)`, `cycleFactorHistory(before:limit:)`,
+  /// `menopauseStage(at:)` and `cycleDeviations(startedBy:limit:)` say next changes after `now`,
+  /// without a sync: the first factor, stage or deviation to start later, or factor or stage to
+  /// end. Nil if nothing does.
   public static func nextCycleChange(after now: Date, _ db: Database) throws -> Date? {
     let moment = now.unixMilliseconds
     let types = factorTypes + [menopausalStateType]
     let start =
       try HealthSample
-      .where { $0.type.in(types) && $0.startDate > moment }
+      .where { $0.type.in(types + cycleDeviationTypes) && $0.startDate > moment }
       .order(by: \.startDate)
       .limit(1)
       .fetchOne(db)?
       .startDate
+    // A deviation's end changes nothing: it's shown from its start.
     let end =
       try HealthSample
       .where { $0.type.in(types) && $0.endDate > moment && $0.endDate > $0.startDate }
@@ -314,6 +349,20 @@ public struct CycleFactor: Equatable, Sendable {
   public init(name: String, detail: String?, start: Date, end: Date? = nil) {
     self.name = name
     self.detail = detail
+    self.start = start
+    self.end = end
+  }
+}
+
+/// A cycle deviation Health flagged, as it names it ("Irregular Cycles"), over the months it
+/// covers.
+public struct CycleDeviation: Equatable, Sendable {
+  public var name: String
+  public var start: Date
+  public var end: Date
+
+  public init(name: String, start: Date, end: Date) {
+    self.name = name
     self.start = start
     self.end = end
   }

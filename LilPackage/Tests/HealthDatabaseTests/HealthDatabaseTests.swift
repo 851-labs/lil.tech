@@ -1946,7 +1946,7 @@ struct CycleQueriesTests {
       // No bleeding isn't marked, but it's in the log.
       sample("e", "HKCategoryTypeIdentifierBleedingAfterMenopause", day: 7, value: 5),
       sample("f", "HKCategoryTypeIdentifierContraceptive", day: 8, value: 6, endDay: 30),
-      // Spans months: its first day says so, until it has a section (851-2871).
+      // Spans months: its first day says so, as well as its section (851-2871).
       sample("g", "HKCategoryTypeIdentifierIrregularMenstrualCycles", day: 9, value: 0),
       // Menopause has a section, and its first day still says so (851-2870).
       sample("h", "HKCategoryTypeIdentifierMenopausalState", day: 10, value: 2),
@@ -2148,6 +2148,76 @@ struct CycleQueriesTests {
   }
 
   @Test
+  func cycleDeviationsAreThoseThatStartedNewestFirst() throws {
+    let irregular = "HKCategoryTypeIdentifierIrregularMenstrualCycles"
+    let database = try database([
+      sample("a", "HKCategoryTypeIdentifierInfrequentMenstrualCycles", day: 1, value: 0, endDay: 6),
+      sample("b", "HKCategoryTypeIdentifierProlongedMenstrualPeriods", day: 3, value: 0, endDay: 4),
+      // Starts with b, and ends later: first of the two.
+      sample(
+        "c", "HKCategoryTypeIdentifierPersistentIntermenstrualBleeding", day: 3, value: 0,
+        endDay: 9),
+      // Ends as it starts.
+      sample("d", irregular, day: 7, value: 0),
+      // Ends after the 10th (dated to the end of a day, or by a clock ahead): still shown.
+      sample("e", irregular, day: 8, value: 0, endDay: 12),
+      // Not started by the 10th.
+      sample("f", irregular, day: 11, value: 0, endDay: 13),
+      // Not a deviation.
+      sample("g", "HKCategoryTypeIdentifierIntermenstrualBleeding", day: 9, value: 0),
+    ])
+    let deviations = try database.read { db in
+      try HealthDatabase.cycleDeviations(startedBy: day(10), limit: 10, db)
+    }
+    #expect(
+      deviations == [
+        CycleDeviation(name: "Irregular Cycles", start: day(8), end: day(12)),
+        CycleDeviation(name: "Irregular Cycles", start: day(7), end: day(7)),
+        CycleDeviation(name: "Persistent Spotting", start: day(3), end: day(9)),
+        CycleDeviation(name: "Prolonged Periods", start: day(3), end: day(4)),
+        CycleDeviation(name: "Infrequent Periods", start: day(1), end: day(6)),
+      ])
+    // Not only the last 6 months'.
+    let yearsLater = calendar.date(byAdding: .year, value: 3, to: day(10))!
+    let all = try database.read { db in
+      try HealthDatabase.cycleDeviations(startedBy: yearsLater, limit: 10, db)
+    }
+    #expect(all.count == 6)
+  }
+
+  @Test
+  func aDeviationLoggedTwiceIsListedOnce() throws {
+    let irregular = "HKCategoryTypeIdentifierIrregularMenstrualCycles"
+    let database = try database([
+      sample("a", irregular, day: 1, value: 0, endDay: 6),
+      // The same one again, from another source.
+      HealthSample(
+        id: "b", type: irregular, startDate: day(1).unixMilliseconds,
+        endDate: day(6).unixMilliseconds, categoryValue: 0, sourceName: "Cycles",
+        sourceBundleID: "com.example.cycles"),
+      sample("c", irregular, day: 1, value: 0, endDay: 6),
+      // Another type, or other dates: not the same.
+      sample("d", "HKCategoryTypeIdentifierProlongedMenstrualPeriods", day: 1, value: 0, endDay: 6),
+      sample("e", irregular, day: 1, value: 0, endDay: 7),
+    ])
+    let deviations = try database.read { db in
+      try HealthDatabase.cycleDeviations(startedBy: day(10), limit: 10, db)
+    }
+    #expect(
+      deviations == [
+        CycleDeviation(name: "Irregular Cycles", start: day(1), end: day(7)),
+        CycleDeviation(name: "Irregular Cycles", start: day(1), end: day(6)),
+        CycleDeviation(name: "Prolonged Periods", start: day(1), end: day(6)),
+      ])
+    // Duplicates don't use up the limit: the page asks for one more than it shows, to know
+    // whether there are more.
+    let two = try database.read { db in
+      try HealthDatabase.cycleDeviations(startedBy: day(10), limit: 2, db)
+    }
+    #expect(two == Array(deviations.prefix(2)))
+  }
+
+  @Test
   func theNextChangeIsTheFirstFactorOrStageToStartOrEnd() throws {
     let next = { (database: any DatabaseWriter, n: Int) in
       try database.read { db in try HealthDatabase.nextCycleChange(after: self.day(n), db) }
@@ -2157,12 +2227,30 @@ struct CycleQueriesTests {
       // No end: it never changes on its own.
       sample("b", "HKCategoryTypeIdentifierPregnancy", day: 2, value: 0),
       sample("c", "HKCategoryTypeIdentifierMenopausalState", day: 15, value: 2),
-      // Not a factor or stage.
-      sample("d", "HKCategoryTypeIdentifierIrregularMenstrualCycles", day: 3, value: 0, endDay: 12),
+      // Not a factor, stage or deviation.
+      sample("d", "HKCategoryTypeIdentifierIntermenstrualBleeding", day: 12, value: 0),
     ])
     #expect(try next(database, 10) == day(15))
     #expect(try next(database, 15) == day(20))
     #expect(try next(database, 20) == nil)
+  }
+
+  @Test
+  func theNextChangeIncludesTheNextDeviationToStart() throws {
+    let next = { (database: any DatabaseWriter, n: Int) in
+      try database.read { db in try HealthDatabase.nextCycleChange(after: self.day(n), db) }
+    }
+    let irregular = "HKCategoryTypeIdentifierIrregularMenstrualCycles"
+    let database = try database([
+      sample("a", "HKCategoryTypeIdentifierContraceptive", day: 1, value: 6, endDay: 20),
+      // Its end changes nothing: it's shown from its start.
+      sample("b", irregular, day: 11, value: 0, endDay: 14),
+      // Ends as it starts.
+      sample("c", irregular, day: 16, value: 0),
+    ])
+    #expect(try next(database, 10) == day(11))
+    #expect(try next(database, 11) == day(16))
+    #expect(try next(database, 16) == day(20))
   }
 
 }

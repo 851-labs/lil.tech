@@ -100,7 +100,7 @@ private func monthsAgo(_ months: Int, day: Int = 1) -> Date {
     selected: day(4))
 }
 
-// As many past factors as the page shows, with a note that there may be more.
+// As many past factors as the page shows, with a note that there are more.
 #Preview("Past factors at the limit") {
   let kinds = ["Oral", "Patch", "Intravaginal Ring", "Injection"]
   cycle(
@@ -111,7 +111,8 @@ private func monthsAgo(_ months: Int, day: Int = 1) -> Date {
           CycleFactor(
             name: "Contraceptives", detail: kinds[index % kinds.count],
             start: monthsAgo(6 * index + 9, day: 4), end: monthsAgo(6 * index + 3, day: 20))
-        })))
+        },
+        morePastFactors: true)))
 }
 
 // The stage going on, and since when its run of logs started (851-2870).
@@ -123,6 +124,52 @@ private func monthsAgo(_ months: Int, day: Int = 1) -> Date {
         periods: Array(periods.dropFirst()), factors: [],
         menopause: MenopauseStage(name: "Perimenopause", since: monthsAgo(7, day: 14)))),
     selected: day(9))
+}
+
+// Deviations Health flagged and the person confirmed, newest first, each over the months it
+// covers (851-2871). The other previews have none.
+#Preview("With cycle deviations") {
+  cycle(
+    .loaded(
+      CycleSnapshot(
+        month: month, days: days, periods: periods, factors: [],
+        deviations: [
+          CycleDeviation(name: "Irregular Cycles", start: monthsAgo(6, day: 9), end: day(2)),
+          CycleDeviation(
+            name: "Persistent Spotting", start: monthsAgo(7, day: 20), end: monthsAgo(1, day: 18)),
+          CycleDeviation(
+            name: "Prolonged Periods", start: monthsAgo(19, day: 4), end: monthsAgo(13, day: 1)),
+        ])),
+    selected: day(4))
+}
+
+// Deviations, and nothing else logged: the page isn't empty.
+#Preview("Only cycle deviations") {
+  cycle(
+    .loaded(
+      CycleSnapshot(
+        month: month, days: [:], periods: [], factors: [],
+        deviations: [
+          CycleDeviation(
+            name: "Infrequent Periods", start: monthsAgo(6, day: 14), end: monthsAgo(0, day: 12))
+        ])))
+}
+
+// As many deviations as the page shows, with a note that there are more.
+#Preview("Cycle deviations at the limit") {
+  let names = [
+    "Irregular Cycles", "Prolonged Periods", "Persistent Spotting", "Infrequent Periods",
+  ]
+  cycle(
+    .loaded(
+      CycleSnapshot(
+        month: month, days: [:], periods: periods, factors: [],
+        deviations: (0..<CycleHistoryRequest.deviationLimit).map { index in
+          CycleDeviation(
+            name: names[index % names.count], start: monthsAgo(3 * index + 6, day: 10),
+            end: monthsAgo(3 * index, day: 8))
+        },
+        moreDeviations: true)))
 }
 
 // A day's tests and other logs, each value as Health names it (851-2830).
