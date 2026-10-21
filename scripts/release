@@ -18,12 +18,16 @@
 set -euo pipefail
 
 usage="usage: scripts/release <app> <version> [--skip-notarize | --skip-upload]"
-if [ $# -lt 2 ]; then
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
   echo "$usage" >&2
   exit 64
 fi
 app=$1
 version=$2
+if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "version must look like 0.1.0: $version" >&2
+  exit 64
+fi
 notarize=true
 upload=true
 case "${3:-}" in
@@ -42,6 +46,7 @@ case "$app" in
     product="lil messages"
     dmg_name=lil-messages
     info_plist=Apps/LilMessages/Info.plist
+    destination='generic/platform=macOS'
     # Signed with the Developer ID certificate alone: it claims no entitlements.
     provisioned=false
     ;;
@@ -50,6 +55,7 @@ case "$app" in
     product="lil health"
     dmg_name=lil-health
     info_plist=Apps/LilHealth/LilHealth-Info.plist
+    destination='generic/platform=macOS'
     # Its keychain access group (the data protection Keychain holds the session) needs a
     # Developer ID provisioning profile, which Xcode makes and renews.
     provisioned=true
@@ -57,6 +63,7 @@ case "$app" in
   health-ios)
     scheme=LilHealthiOS
     product="lil health for iOS"
+    destination='generic/platform=iOS'
     # Exported with Apple Distribution through Xcode's account: cloud signing needs permissions
     # an App Store Connect API key doesn't have.
     provisioned=true
@@ -78,10 +85,18 @@ if ! $ios && ! $upload; then
   echo "--skip-upload is for health-ios; the Mac apps take --skip-notarize" >&2
   exit 64
 fi
-# An upload is numbered after HEAD's commit count, so it must be built from that commit alone.
-if $ios && $upload && [ -n "$(git status --porcelain)" ]; then
-  echo "uncommitted changes: upload from a clean tree, or pass --skip-upload" >&2
-  exit 1
+# An upload is numbered after HEAD's commit count, so it must be built from that commit alone,
+# and from main: pull requests are squashed, so a branch's count is a number main reaches later
+# with other code, and App Store Connect takes each build number once per version.
+if $ios && $upload; then
+  if [ -n "$(git status --porcelain)" ]; then
+    echo "uncommitted changes: upload from a clean tree, or pass --skip-upload" >&2
+    exit 1
+  fi
+  if ! git merge-base --is-ancestor HEAD origin/main; then
+    echo "HEAD isn't on origin/main: upload a commit on main, or pass --skip-upload" >&2
+    exit 1
+  fi
 fi
 signing_style=manual
 provisioning=()
@@ -130,8 +145,6 @@ $ios || check_sparkle_key "$info_plist"
 # In its own derived data: a release builds from scratch, so nothing stale from Xcode's builds
 # (such as a package graph it has cached) can break or end up in it. Package checkouts are kept
 # between releases, apart from Xcode's.
-destination='generic/platform=macOS'
-$ios && destination='generic/platform=iOS'
 echo "==> Archiving $product $version ($build_number)"
 xcodebuild archive \
   -workspace Lil.xcworkspace \

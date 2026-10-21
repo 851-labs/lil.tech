@@ -39,8 +39,6 @@ scripts/release messages 0.1.0
 scripts/release health 0.1.0   # lil health for Mac
 ```
 
-lil health for iOS goes to TestFlight instead, with `scripts/release health-ios <version>` (see [below](#lil-health-on-ios-testflight)).
-
 This:
 
 1. checks that the app's `SUPublicEDKey` is the public half of its signing key (`lil-<app>`), before building anything and again on the exported app (851-2692);
@@ -54,6 +52,8 @@ This:
 The DMG is written to `build/releases/<app>/<version>/`.
 
 Pass `--skip-notarize` to test everything except notarization.
+
+lil health for iOS goes to TestFlight instead, with `scripts/release health-ios <version>` (see [below](#lil-health-on-ios-testflight)).
 
 Don't hand out a build before it's published: its build number is the commit count, and Sparkle only offers an installed copy releases with a higher one. Debug builds have no updater.
 
@@ -88,7 +88,7 @@ The iOS app ships through App Store Connect. Testers get builds through TestFlig
 
 ### Uploading a build
 
-From a clean tree, at the commit to ship:
+From a clean tree, at a commit on `main` (usually the Mac release's):
 
 ```
 scripts/release health-ios 0.2.0
@@ -99,7 +99,7 @@ This:
 1. archives `LilHealthiOS` with that marketing version and a build number equal to the commit count, in its own derived data, like the Mac apps;
 2. exports it for App Store Connect and uploads it, with `LilHealthiOS-ExportOptions.plist` and `-allowProvisioningUpdates`.
 
-The archive goes to `build/releases/health-ios/<version>/`. Pass `--skip-upload` to stop after the archive, e.g. to check its version (`plutil -p build/releases/health-ios/<version>/LilHealthiOS.xcarchive/Products/Applications/lil\ health.app/Info.plist`). The script refuses to upload with uncommitted changes.
+The archive goes to `build/releases/health-ios/<version>/`. Pass `--skip-upload` to stop after the archive, e.g. to check its version (`plutil -p build/releases/health-ios/<version>/LilHealthiOS.xcarchive/Products/Applications/lil\ health.app/Info.plist`). The script refuses to upload with uncommitted changes, or from a commit that isn't on `origin/main`: pull requests are squashed, so a branch's commit count is a build number `main` reaches later with other code.
 
 - **Use the Mac's version.** lil health's platforms share one version (`health/v<version>`), so upload with the version of the Mac release cut from the same commit. The project's `MARKETING_VERSION` is only what local builds show: releases always set it on the command line. Builds 194, 195 and 236 were uploaded without it and went out as 0.1.0 (851-2817).
 - `LilHealthiOS-ExportOptions.plist` keeps Xcode from renumbering the build.
