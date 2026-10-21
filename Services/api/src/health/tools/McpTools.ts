@@ -1,6 +1,6 @@
 import { Effect, Layer, Schema } from "effect";
 import { McpSchema, McpServer } from "effect/ai";
-import { type HealthToolHandlers, HealthToolkit } from "./HealthToolkit.ts";
+import { HealthToolkit, withUnimplementedTools } from "./HealthToolkit.ts";
 
 /**
  * The Health toolkit's tools as an MCP server lists them (`tools/list`), which
@@ -27,11 +27,7 @@ export const makeMcpTools = (): ReadonlyArray<typeof McpSchema.Tool.Encoded> =>
         Layer.mergeAll(
           McpServer.McpServer.layer,
           // Registering needs handlers, but listing never calls them.
-          HealthToolkit.toLayer(
-            Object.fromEntries(
-              Object.keys(HealthToolkit.tools).map((name) => [name, () => Effect.die("Unused")]),
-            ) as unknown as HealthToolHandlers,
-          ),
+          HealthToolkit.toLayer(withUnimplementedTools({})),
         ),
       ),
     ),

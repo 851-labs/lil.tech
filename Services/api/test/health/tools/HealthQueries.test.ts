@@ -1,9 +1,10 @@
 import { assert, describe, it } from "@effect/vitest";
-import { DateTime, Option } from "effect";
+import { DateTime, Exit, Option, Schema } from "effect";
 import {
   statisticsSource,
   statisticsSourceStalenessMillis,
 } from "../../../src/health/tools/HealthQueries.ts";
+import { HealthToolkit } from "../../../src/health/tools/HealthToolkit.ts";
 import { localDate, localTime, startOfDay } from "../../../src/health/tools/ToolTime.ts";
 
 const day = 24 * 60 * 60 * 1000;
@@ -69,5 +70,17 @@ describe("tool times", () => {
     assert.strictEqual(startOfDay(sunday, london), Date.parse("2026-10-24T23:00:00Z"));
     assert.strictEqual(startOfDay(sunday, london, 1), Date.parse("2026-10-26T00:00:00Z"));
     assert.strictEqual(startOfDay(sunday, london, -6), Date.parse("2026-10-18T23:00:00Z"));
+  });
+});
+
+describe("the toolkit's dates", () => {
+  const decode = Schema.decodeUnknownExit(HealthToolkit.tools.metric.parametersSchema);
+  const call = (date: string) => ({ type: "HKQuantityTypeIdentifierStepCount", range: "W", date });
+
+  it("are days that exist", () => {
+    assert.isTrue(Exit.isSuccess(decode(call("2028-02-29"))));
+    assert.isTrue(Exit.isFailure(decode(call("2026-02-29"))));
+    assert.isTrue(Exit.isFailure(decode(call("2026-13-01"))));
+    assert.isTrue(Exit.isFailure(decode(call("20261020"))));
   });
 });

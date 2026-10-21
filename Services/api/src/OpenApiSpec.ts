@@ -78,6 +78,7 @@ const withToolSchemas = <S extends { components: { schemas: Record<string, unkno
   claim: (short: string, source: string) => string,
 ): S => {
   const schemas = { ...spec.components.schemas };
+  const added = new Map<string, string>();
   for (const [name, tool] of Object.entries(HealthToolkit.tools)) {
     const document = Schema.toJsonSchemaDocument(tool.successSchema);
     // Rewrites references from `#/$defs/…` to `#/components/schemas/…`.
@@ -89,8 +90,14 @@ const withToolSchemas = <S extends { components: { schemas: Record<string, unkno
       schemas: [document.schema],
       definitions: document.definitions,
     });
-    // A schema two tools share is claimed by both under the same source, so it's added once.
+    // Tools may share a schema, but two different schemas can't have one name.
     for (const [key, definition] of Object.entries(definitions)) {
+      const json = JSON.stringify(definition);
+      const previous = added.get(key);
+      if (previous !== undefined && previous !== json) {
+        throw new Error(`Health tools have two different schemas named "${key}"`);
+      }
+      added.set(key, json);
       schemas[claim(key, `health tool schema ${key}`)] = definition;
     }
     schemas[

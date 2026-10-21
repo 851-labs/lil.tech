@@ -2,7 +2,8 @@
   "notes": [
     "Synthetic data only (AGENTS.md). One account, uploaded by two iPhones: ph1 is paired with an Apple Watch, ph2 isn't and reported later.",
     "Each batch is applied as the server ingests an iPhone's upload (device-scoped records are stamped with the batch's device, and reportedAt with receivedAt), and as the Mac then syncs it.",
-    "Times in lines are Unix milliseconds. The conformance cases are in cases.json."
+    "Times in lines are Unix milliseconds. The conformance cases are in cases.json.",
+    "A workout dated later today (16:30, after the cases' 15:00) hasn't happened, so it doesn't count yet."
   ],
   "batches": [
     {
@@ -295,6 +296,22 @@
             "activityType": 37,
             "startDate": 1792306800000,
             "endDate": 1792308600000,
+            "duration": 1800,
+            "activities": [],
+            "events": [],
+            "statistics": {},
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000099",
+          "row": {
+            "activityType": 37,
+            "startDate": 1792513800000,
+            "endDate": 1792515600000,
             "duration": 1800,
             "activities": [],
             "events": [],

@@ -9,6 +9,7 @@ import {
   HealthToolError,
   type HealthToolHandlers,
   HealthToolkit,
+  withUnimplementedTools,
 } from "../../../src/health/tools/HealthToolkit.ts";
 import { healthSummary } from "../../../src/health/tools/Summary.ts";
 import type { StoreSql } from "../../../src/store/StoreSql.ts";
@@ -135,12 +136,11 @@ const callTool = (
     ),
     Effect.provide(
       HealthToolkit.toLayer(
-        Object.fromEntries(
-          Object.keys(HealthToolkit.tools).map((tool) => [
-            tool,
-            serverImplementation[tool as ToolName]?.(sql) ?? (() => Effect.die("Not implemented")),
-          ]),
-        ) as unknown as HealthToolHandlers,
+        withUnimplementedTools(
+          Object.fromEntries(
+            Object.entries(serverImplementation).map(([tool, implement]) => [tool, implement(sql)]),
+          ),
+        ),
       ),
     ),
   );

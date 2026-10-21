@@ -5022,7 +5022,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/metrics`.
             public var metrics: [Components.Schemas.HealthSummaryMetric]
-            /// Workouts that started today or in the 6 days before.
+            /// Workouts that started today (by now) or in the 6 days before.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/workouts`.
             public struct WorkoutsPayload: Codable, Hashable, Sendable {
@@ -5081,7 +5081,7 @@ extension Components {
                     try encoder.encodeAdditionalProperties(additionalProperties)
                 }
             }
-            /// Workouts that started today or in the 6 days before.
+            /// Workouts that started today (by now) or in the 6 days before.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/workouts`.
             public var workouts: Components.Schemas.HealthSummaryResult.WorkoutsPayload
@@ -5094,7 +5094,7 @@ extension Components {
             ///   - date: Today.
             ///   - pinned: Whether `metrics` are the ones the person pinned to Summary in lil health; if not, they're everyday defaults.
             ///   - metrics: The metrics, in the order Summary shows them.
-            ///   - workouts: Workouts that started today or in the 6 days before.
+            ///   - workouts: Workouts that started today (by now) or in the 6 days before.
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 timeZone: Swift.String,

@@ -1,7 +1,7 @@
 import { Clock, Effect } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import {
-  cumulativeTotal,
+  cumulativeTotals,
   latestSample,
   statisticsDevices,
   statisticsSource,
@@ -17,13 +17,13 @@ type SummaryResult = (typeof HealthToolkit.tools.summary.successSchema)["Type"];
  * The `summary` tool from the user's store: for each pinned type (else `summaryDefaultTypes`), its
  * latest sample that has started, and from the statistics source its total today and over the
  * last 7 days (today and the 6 days before, in the call's time zone), plus the workouts that
- * started in those 7 days.
+ * started in those 7 days, by now.
  */
 export const healthSummary = Effect.fn("healthSummary")(function* (
   sql: StoreSql,
   input: { readonly timeZone?: string | undefined },
 ) {
-  const zone = yield* toolTimeZone(input.timeZone);
+  const { zone, name } = yield* toolTimeZone(input.timeZone);
   const now = yield* Clock.currentTimeMillis;
   const today = startOfDay(now, zone);
   const tomorrow = startOfDay(now, zone, 1);
@@ -32,11 +32,13 @@ export const healthSummary = Effect.fn("healthSummary")(function* (
   const source = statisticsSource(statisticsDevices(sql), now);
   const metrics = (pins.length > 0 ? pins : summaryDefaultTypes).map((type) => {
     const latest = latestSample(sql, type, now);
-    const day = source === null ? null : cumulativeTotal(sql, source, type, today, tomorrow);
-    const week = source === null ? null : cumulativeTotal(sql, source, type, weekStart, tomorrow);
+    const totals =
+      source === null
+        ? null
+        : cumulativeTotals(sql, source, type, { from: weekStart, recentFrom: today, to: tomorrow });
     return {
       type,
-      unit: latest?.unit ?? week?.unit ?? null,
+      unit: latest?.unit ?? totals?.unit ?? null,
       latest:
         latest === null
           ? null
@@ -46,16 +48,16 @@ export const healthSummary = Effect.fn("healthSummary")(function* (
               value: latest.value,
               categoryValue: latest.categoryValue,
             },
-      today: day?.sum ?? null,
-      last7Days: week?.sum ?? null,
+      today: totals?.recent ?? null,
+      last7Days: totals?.total ?? null,
     };
   });
   const result: SummaryResult = {
-    timeZone: zone.id,
+    timeZone: name,
     date: localDate(now, zone),
     pinned: pins.length > 0,
     metrics,
-    workouts: workoutTotals(sql, weekStart, tomorrow),
+    workouts: workoutTotals(sql, weekStart, tomorrow, now),
   };
   return result;
 });

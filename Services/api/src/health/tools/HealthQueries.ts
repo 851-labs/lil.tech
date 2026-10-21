@@ -88,42 +88,63 @@ export const latestSample = (sql: StoreSql, type: string, now: number): LatestSa
   };
 };
 
+export interface CumulativeTotals {
+  /** The sum over `[from, to)`, or null without a nonzero bucket. */
+  readonly total: number | null;
+  /** The sum over `[recentFrom, to)`, or null without a nonzero bucket. */
+  readonly recent: number | null;
+  readonly unit: string | null;
+}
+
 /**
- * A cumulative type's total from one iPhone's 30-minute statistics, over the buckets that start
- * in `[from, to)`, or null without a nonzero bucket (the iPhone sends zeros to overwrite sums that
- * are gone, as the Mac's `cumulativeStatistics` skips). The ID range uses the primary key:
- * statistics' IDs are `<device>/<type>@<bucketStart>`, and bucket starts have 13 digits from 2001
- * to 2286, so they sort as numbers.
+ * A cumulative type's totals from one iPhone's 30-minute statistics, by when buckets start: over
+ * `[from, to)`, and over the part of it from `recentFrom` (e.g. a week and its last day), in one
+ * pass. Zero buckets don't count (the iPhone sends zeros to overwrite sums that are gone, which
+ * the Mac's `cumulativeStatistics` skips too). The ID range uses the primary key: statistics' IDs
+ * are `<device>/<type>@<bucketStart>`, and bucket starts have 13 digits from 2001 to 2286, so
+ * they sort as numbers.
  */
-export const cumulativeTotal = (
+export const cumulativeTotals = (
   sql: StoreSql,
   device: string,
   type: string,
-  from: number,
-  to: number,
-): { readonly sum: number; readonly unit: string } | null => {
+  range: { readonly from: number; readonly recentFrom: number; readonly to: number },
+): CumulativeTotals => {
   const row = sql.exec(
-    `SELECT total(sum) AS sum, count(*) AS buckets, min(unit) AS unit FROM health_statistic
+    `SELECT total(sum) AS total, count(*) AS buckets,
+      total(CASE WHEN bucket_start >= ? THEN sum END) AS recent,
+      count(CASE WHEN bucket_start >= ? THEN 1 END) AS recent_buckets,
+      min(unit) AS unit
+    FROM health_statistic
     WHERE id >= ? AND id < ? AND device = ? AND type = ?
       AND bucket_start >= ? AND bucket_start < ? AND sum > 0`,
-    `${device}/${type}@${from}`,
-    `${device}/${type}@${to}`,
+    range.recentFrom,
+    range.recentFrom,
+    `${device}/${type}@${range.from}`,
+    `${device}/${type}@${range.to}`,
     device,
     type,
-    from,
-    to,
+    range.from,
+    range.to,
   )[0];
-  if (row === undefined || Number(row["buckets"]) === 0) return null;
-  return { sum: Number(row["sum"]), unit: row["unit"] as string };
+  return {
+    total: Number(row?.["buckets"] ?? 0) > 0 ? Number(row?.["total"]) : null,
+    recent: Number(row?.["recent_buckets"] ?? 0) > 0 ? Number(row?.["recent"]) : null,
+    unit: stringOrNull(row?.["unit"]),
+  };
 };
 
-/** How many workouts started in `[from, to)`, and their total duration in seconds. */
-export const workoutTotals = (sql: StoreSql, from: number, to: number) => {
+/**
+ * How many workouts started in `[from, to)` and by `now` (a workout an app dated later today
+ * hasn't happened), and their total duration in seconds.
+ */
+export const workoutTotals = (sql: StoreSql, from: number, to: number, now: number) => {
   const row = sql.exec(
     `SELECT count(*) AS count, total(duration) AS duration FROM health_workout
-    WHERE start_date >= ? AND start_date < ?`,
+    WHERE start_date >= ? AND start_date < ? AND start_date <= ?`,
     from,
     to,
+    now,
   )[0];
   return { count: Number(row?.["count"] ?? 0), duration: Number(row?.["duration"] ?? 0) };
 };

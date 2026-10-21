@@ -8,17 +8,34 @@ import { HealthToolError } from "./HealthToolkit.ts";
 /** The time zone the remote server uses when a call doesn't give one. */
 export const defaultToolTimeZone = "UTC";
 
-/** The named time zone a call asked for, or UTC; an unknown name is the call's error. */
-export const toolTimeZone = (name: string | undefined) =>
-  Option.match(DateTime.zoneMakeNamed(name ?? defaultToolTimeZone), {
+/** An IANA name's shape: no UTC offsets such as `+01:00`, which `Intl` would also accept. */
+const ianaName = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/;
+
+/**
+ * The time zone a call asked for, or UTC, with the name outputs give: the one asked for, as is,
+ * so both servers echo the same string (`Intl` would turn some aliases into their canonical
+ * names). Anything but an IANA name in its proper case is the call's error.
+ */
+export const toolTimeZone = (requested: string | undefined) => {
+  const name = requested ?? defaultToolTimeZone;
+  const zone = ianaName.test(name) ? DateTime.zoneMakeNamed(name) : Option.none();
+  return Option.match(zone, {
     onNone: () =>
       Effect.fail(
         new HealthToolError({
           message: `Unknown time zone: ${name}. Use an IANA name, e.g. Europe/London.`,
         }),
       ),
-    onSome: Effect.succeed,
+    onSome: (zone) =>
+      zone.id !== name && zone.id.toLowerCase() === name.toLowerCase()
+        ? Effect.fail(
+            new HealthToolError({
+              message: `Unknown time zone: ${name}. Did you mean ${zone.id}?`,
+            }),
+          )
+        : Effect.succeed({ zone, name }),
   });
+};
 
 const zoned = (millis: number, zone: DateTime.TimeZone) =>
   DateTime.makeZonedUnsafe(millis, { timeZone: zone });

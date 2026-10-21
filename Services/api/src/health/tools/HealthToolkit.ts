@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 import { Tool, Toolkit } from "effect/ai";
 
 // The Health toolkit: the tools agents use to read a person's lil health data (851-2841). It's
@@ -35,8 +35,17 @@ const range = Schema.Literals(["D", "W", "M", "6M", "Y"]).annotate({
     "ends with `date`).",
 });
 
+/** Whether a `YYYY-MM-DD` string is a day that exists (not 2026-02-31). */
+const isDay = (day: string) => {
+  const parsed = new Date(`${day}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(day);
+};
+
 const date = Schema.optionalKey(
-  Schema.String.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/)).annotate({
+  Schema.String.check(
+    Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/),
+    Schema.makeFilter((day: string) => isDay(day) || "must be a day that exists"),
+  ).annotate({
     description: "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today.",
   }),
 );
@@ -146,7 +155,7 @@ export const HealthSummaryResult = Schema.Struct({
     count: Schema.Int,
     duration: Schema.Finite.annotate({ description: "Seconds of activity, excluding pauses." }),
   }).annotate({
-    description: "Workouts that started today or in the 6 days before.",
+    description: "Workouts that started today (by now) or in the 6 days before.",
   }),
 });
 
@@ -156,7 +165,8 @@ export const Summary = readOnly(
       "Start here. An overview of the person's Apple Health data, as lil health's Summary " +
       "shows it: for each metric they pinned (or everyday defaults: steps, heart rate, active " +
       "energy, walking + running distance, resting heart rate, weight), the latest sample and, " +
-      "for types that add up, today's and the last 7 days' totals; plus this week's workouts.",
+      "for types that add up, today's and the last 7 days' totals; plus the workouts of the " +
+      "last 7 days (today and the 6 days before).",
     parameters: Schema.Struct({ timeZone }),
     success: HealthSummaryResult,
     failure: HealthToolError,
@@ -618,3 +628,16 @@ export const healthToolResultNames: Record<keyof typeof HealthToolkit.tools, str
 
 /** Handlers for every tool, as an implementation provides them (`HealthToolkit.toLayer`). */
 export type HealthToolHandlers = Toolkit.HandlersFrom<typeof HealthToolkit.tools>;
+
+/**
+ * `handlers` completed with a handler that dies for every tool they leave out, for an
+ * implementation that has some of the tools so far, or none (listing tools never calls them).
+ */
+export const withUnimplementedTools = (handlers: Partial<HealthToolHandlers>): HealthToolHandlers =>
+  Object.fromEntries(
+    Object.keys(HealthToolkit.tools).map((name) => [
+      name,
+      handlers[name as keyof HealthToolHandlers] ??
+        (() => Effect.die(`The ${name} tool isn't implemented yet`)),
+    ]),
+  ) as unknown as HealthToolHandlers;

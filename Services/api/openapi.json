@@ -3738,7 +3738,7 @@
               "duration"
             ],
             "additionalProperties": true,
-            "description": "Workouts that started today or in the 6 days before."
+            "description": "Workouts that started today (by now) or in the 6 days before."
           }
         },
         "required": [

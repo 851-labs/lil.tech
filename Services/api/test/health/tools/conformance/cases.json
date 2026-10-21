@@ -333,6 +333,24 @@
         "timeZone": "Mars/Olympus_Mons"
       },
       "expectedError": true
+    },
+    {
+      "name": "summary with a time zone in the wrong case fails",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "europe/london"
+      },
+      "expectedError": true
+    },
+    {
+      "name": "summary with a UTC offset instead of a time zone fails",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "+01:00"
+      },
+      "expectedError": true
     }
   ]
 }

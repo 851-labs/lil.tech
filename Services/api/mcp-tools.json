@@ -1,7 +1,7 @@
 [
   {
     "name": "summary",
-    "description": "Start here. An overview of the person's Apple Health data, as lil health's Summary shows it: for each metric they pinned (or everyday defaults: steps, heart rate, active energy, walking + running distance, resting heart rate, weight), the latest sample and, for types that add up, today's and the last 7 days' totals; plus this week's workouts.",
+    "description": "Start here. An overview of the person's Apple Health data, as lil health's Summary shows it: for each metric they pinned (or everyday defaults: steps, heart rate, active energy, walking + running distance, resting heart rate, weight), the latest sample and, for types that add up, today's and the last 7 days' totals; plus the workouts of the last 7 days (today and the 6 days before).",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -52,7 +52,7 @@
             "duration"
           ],
           "additionalProperties": true,
-          "description": "Workouts that started today or in the 6 days before."
+          "description": "Workouts that started today (by now) or in the 6 days before."
         }
       },
       "required": [
@@ -316,8 +316,7 @@
           "description": "Defaults to sum for types that add up (steps, energy), and average for others."
         },
         "date": {
-          "type": "string",
-          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
+          "type": "string"
         },
         "timeZone": {
           "type": "string",
@@ -458,8 +457,7 @@
           "description": "The period, ending on `date`: D is that day, in hours; W the 7 days ending that day, in days; M the 30 days ending that day, in days; 6M the 26 weeks ending that day, in 7-day weeks; Y the 12 calendar months ending with that day's month, in months (the last one ends with `date`)."
         },
         "date": {
-          "type": "string",
-          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
+          "type": "string"
         },
         "timeZone": {
           "type": "string",
@@ -629,8 +627,7 @@
           "description": "The period, ending on `date`: D is that day, in hours; W the 7 days ending that day, in days; M the 30 days ending that day, in days; 6M the 26 weeks ending that day, in 7-day weeks; Y the 12 calendar months ending with that day's month, in months (the last one ends with `date`)."
         },
         "date": {
-          "type": "string",
-          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
+          "type": "string"
         },
         "timeZone": {
           "type": "string",
@@ -800,8 +797,7 @@
           "description": "The period, ending on `date`: D is that day, in hours; W the 7 days ending that day, in days; M the 30 days ending that day, in days; 6M the 26 weeks ending that day, in 7-day weeks; Y the 12 calendar months ending with that day's month, in months (the last one ends with `date`)."
         },
         "date": {
-          "type": "string",
-          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
+          "type": "string"
         },
         "timeZone": {
           "type": "string",
