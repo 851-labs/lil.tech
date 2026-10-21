@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import HealthMacApp
 import LilAuth
+import LilCLIInstaller
 import LilUpdates
 import SwiftUI
 
@@ -41,6 +42,8 @@ struct LilHealthApp: App {
       #if !DEBUG
         CheckForUpdatesCommands(updater: updater)
       #endif
+      // Installs the `lil` command, bundled in Contents/MacOS.
+      InstallCommandLineToolCommands()
       CommandGroup(after: .appSettings) {
         SignOutCommand(store: Self.store)
       }
