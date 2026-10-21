@@ -97,12 +97,14 @@ struct FoodContent: View {
     return ScrollView {
       LazyVStack(alignment: .leading, spacing: 0) {
         ForEach(days, id: \.day) { section in
-          // The last day may go on in the next page, so its card stays open while that loads,
-          // and its total, which would leave those foods out, waits for them.
-          let isOpen = hasMore && !moreFailed && section.day == days.last?.day
+          // The last day may go on in the next page, so its card stays open while that loads.
+          // Its total, which would leave those foods out, waits for them, even once loading
+          // more failed.
+          let isLastDay = section.day == days.last?.day
+          let isOpen = hasMore && !moreFailed && isLastDay
           Text(
             FoodFormat.dayHeader(
-              section, isComplete: !isOpen, now: now, calendar: calendar)
+              section, isComplete: !(hasMore && isLastDay), now: now, calendar: calendar)
           )
           .font(.subheadline.weight(.semibold))
           .foregroundStyle(.secondary)
@@ -305,10 +307,10 @@ enum FoodFormat {
       Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone).hour().minute())
   }
 
-  /// "62 g", or "–" for a nutrient without a value.
+  /// "62 g".
   static func nutrient(_ nutrient: FoodNutrient) -> String {
-    guard let value = nutrient.value else { return "–" }
-    let (number, unit) = MetricFormat.value(value, unit: nutrient.unit, typeID: nutrient.typeID)
+    let (number, unit) = MetricFormat.value(
+      nutrient.value, unit: nutrient.unit, typeID: nutrient.typeID)
     return unit.isEmpty ? number : "\(number) \(unit)"
   }
 }

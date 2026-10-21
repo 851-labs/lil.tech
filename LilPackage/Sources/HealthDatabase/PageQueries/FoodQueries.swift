@@ -54,7 +54,7 @@ extension HealthDatabase {
       let nutrients = values[correlation.id] ?? [:]
       return Food(
         id: correlation.id, name: foodName(metadata: correlation.metadata),
-        startDate: correlation.startDate, endDate: correlation.endDate,
+        startDate: correlation.startDate,
         energy: nutrients[dietaryEnergyType], carbohydrates: nutrients[dietaryCarbohydratesType],
         protein: nutrients[dietaryProteinType], fat: nutrients[dietaryFatType],
         sourceName: correlation.sourceName)
@@ -79,16 +79,18 @@ extension HealthDatabase {
   }
 
   /// Every nutrient of one food (its samples), in the catalog's order of their types, then any
-  /// type the catalog doesn't know, by identifier.
+  /// type the catalog doesn't know, by identifier. Nutrients are quantity samples, which always
+  /// have a value; a row without one is left out.
   public static func foodNutrients(of foodID: String, _ db: Database) throws -> [FoodNutrient] {
     try HealthSample
       .where { $0.correlationID.eq(foodID) }
       .fetchAll(db)
-      .map { sample in
+      .compactMap { sample in
+        guard let value = sample.value else { return nil }
         let type = HealthCatalog.type(id: sample.type)
         return FoodNutrient(
-          id: sample.id, typeID: sample.type, name: type?.name ?? sample.type,
-          value: sample.value, unit: sample.unit ?? type?.unit)
+          id: sample.id, typeID: sample.type, name: type?.name ?? sample.type, value: value,
+          unit: sample.unit ?? type?.unit)
       }
       .sorted { lhs, rhs in
         let (left, right) = (catalogOrder[lhs.typeID], catalogOrder[rhs.typeID])
@@ -123,7 +125,6 @@ public struct Food: Equatable, Identifiable, Sendable {
   /// The name the app gave it (`HKFoodType`), if any.
   public var name: String?
   public var startDate: Int
-  public var endDate: Int
   /// In kilocalories.
   public var energy: Double?
   /// In grams.
@@ -133,13 +134,12 @@ public struct Food: Equatable, Identifiable, Sendable {
   public var sourceName: String
 
   public init(
-    id: String, name: String?, startDate: Int, endDate: Int, energy: Double? = nil,
+    id: String, name: String?, startDate: Int, energy: Double? = nil,
     carbohydrates: Double? = nil, protein: Double? = nil, fat: Double? = nil, sourceName: String
   ) {
     self.id = id
     self.name = name
     self.startDate = startDate
-    self.endDate = endDate
     self.energy = energy
     self.carbohydrates = carbohydrates
     self.protein = protein
@@ -151,7 +151,6 @@ public struct Food: Equatable, Identifiable, Sendable {
   public var title: String { name ?? "Food" }
 
   public var start: Date { Date(unixMilliseconds: startDate) }
-  public var end: Date { Date(unixMilliseconds: endDate) }
 
   /// Where the page after the one ending with this food starts.
   public var cursor: SampleCursor { SampleCursor(startDate: startDate, id: id) }
@@ -182,10 +181,10 @@ public struct FoodNutrient: Equatable, Identifiable, Sendable {
   public var typeID: String
   /// The catalog's name for the type, else its identifier.
   public var name: String
-  public var value: Double?
+  public var value: Double
   public var unit: String?
 
-  public init(id: String, typeID: String, name: String, value: Double?, unit: String?) {
+  public init(id: String, typeID: String, name: String, value: Double, unit: String?) {
     self.id = id
     self.typeID = typeID
     self.name = name

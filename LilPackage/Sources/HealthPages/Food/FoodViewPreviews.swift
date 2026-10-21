@@ -15,7 +15,7 @@ private func food(
   let day = calendar.date(byAdding: .day, value: -daysAgo, to: calendar.startOfDay(for: .now))!
   let start = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day)!
   return Food(
-    id: id, name: name, startDate: start.unixMilliseconds, endDate: start.unixMilliseconds,
+    id: id, name: name, startDate: start.unixMilliseconds,
     energy: energy, carbohydrates: carbohydrates, protein: protein, fat: fat, sourceName: source)
 }
 
@@ -66,7 +66,14 @@ private func foodPage(_ state: FoodContent.State, moreFailed: Bool = false) -> s
   foodPage(.failed("The database couldn't be read."))
 }
 
-// The next page failed: the last day's card closes, with a button to try again.
+// The next page is loading: the last day's card stays open, and its total waits for its other
+// foods.
+#Preview("Food, loading more") {
+  foodPage(.loaded(Array(foods.prefix(5)), hasMore: true))
+}
+
+// The next page failed: the last day's card closes, with a button to try again, and its total
+// still waits.
 #Preview("Food, more failed") {
   foodPage(.loaded(Array(foods.prefix(5)), hasMore: true), moreFailed: true)
 }
@@ -78,23 +85,45 @@ private func nutrient(_ typeID: String, _ name: String, _ value: Double, _ unit:
     id: typeID, typeID: "HKQuantityTypeIdentifier\(typeID)", name: name, value: value, unit: unit)
 }
 
-#Preview("A food") {
+@MainActor
+private func foodDetail(_ food: Food, _ state: FoodDetailContent.State) -> some View {
   NavigationStack {
-    FoodDetailContent(
-      food: foods[1],
-      state: .loaded([
-        nutrient("DietaryEnergyConsumed", "Dietary Energy", 540, "kcal"),
-        nutrient("DietaryCarbohydrates", "Carbohydrates", 18, "g"),
-        nutrient("DietaryFiber", "Fiber", 4.2, "g"),
-        nutrient("DietarySugar", "Dietary Sugar", 3.1, "g"),
-        nutrient("DietaryProtein", "Protein", 38, "g"),
-        nutrient("DietaryFatTotal", "Total Fat", 34, "g"),
-        nutrient("DietaryFatSaturated", "Saturated Fat", 8.4, "g"),
-        nutrient("DietaryCholesterol", "Dietary Cholesterol", 95, "mg"),
-        nutrient("DietarySodium", "Sodium", 1_120, "mg"),
-        nutrient("DietaryCalcium", "Calcium", 210, "mg"),
-        nutrient("DietaryVitaminC", "Vitamin C", 22, "mg"),
-      ]))
+    FoodDetailContent(food: food, state: state)
   }
   .previewFrame(width: 560, height: 620)
+}
+
+#Preview("A food") {
+  foodDetail(
+    foods[1],
+    .loaded([
+      nutrient("DietaryEnergyConsumed", "Dietary Energy", 540, "kcal"),
+      nutrient("DietaryCarbohydrates", "Carbohydrates", 18, "g"),
+      nutrient("DietaryFiber", "Fiber", 4.2, "g"),
+      nutrient("DietarySugar", "Dietary Sugar", 3.1, "g"),
+      nutrient("DietaryProtein", "Protein", 38, "g"),
+      nutrient("DietaryFatTotal", "Total Fat", 34, "g"),
+      nutrient("DietaryFatSaturated", "Saturated Fat", 8.4, "g"),
+      nutrient("DietaryCholesterol", "Dietary Cholesterol", 95, "mg"),
+      nutrient("DietarySodium", "Sodium", 1_120, "mg"),
+      nutrient("DietaryCalcium", "Calcium", 210, "mg"),
+      nutrient("DietaryVitaminC", "Vitamin C", 22, "mg"),
+    ]))
+}
+
+// A quick-added entry: no name, only its energy.
+#Preview("A food without a name") {
+  foodDetail(foods[3], .loaded([nutrient("DietaryEnergyConsumed", "Dietary Energy", 250, "kcal")]))
+}
+
+#Preview("A food, no nutrients") {
+  foodDetail(foods[7], .loaded([]))
+}
+
+#Preview("A food, loading") {
+  foodDetail(foods[1], .loading)
+}
+
+#Preview("A food, failed") {
+  foodDetail(foods[1], .failed("The database couldn't be read."))
 }

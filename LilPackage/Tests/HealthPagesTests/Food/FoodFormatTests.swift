@@ -20,7 +20,7 @@ struct FoodFormatTests {
     fat: Double? = nil
   ) -> Food {
     Food(
-      id: "f", name: nil, startDate: 1_760_529_600_000, endDate: 1_760_529_600_000,
+      id: "f", name: nil, startDate: 1_760_529_600_000,
       energy: energy, carbohydrates: carbohydrates, protein: protein, fat: fat,
       sourceName: "Food Log")
   }

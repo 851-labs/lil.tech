@@ -2526,21 +2526,19 @@ struct FoodQueriesTests {
   func daysGroupFoodsAtTheirEdgesWithEnergyTotals() throws {
     let foods = [
       Food(
-        id: "a", name: "Late Snack", startDate: time(15, 23, 59, 59).unixMilliseconds,
-        endDate: time(15, 23, 59, 59).unixMilliseconds, energy: 200, sourceName: "Food Log"),
-      Food(
-        id: "b", name: nil, startDate: time(15, 12).unixMilliseconds,
-        endDate: time(15, 12).unixMilliseconds, energy: 640.5, protein: 30,
+        id: "a", name: "Late Snack", startDate: time(15, 23, 59, 59).unixMilliseconds, energy: 200,
         sourceName: "Food Log"),
       Food(
-        id: "c", name: "Coffee", startDate: time(15, 0).unixMilliseconds,
-        endDate: time(15, 0).unixMilliseconds, sourceName: "Food Log"),
+        id: "b", name: nil, startDate: time(15, 12).unixMilliseconds, energy: 640.5, protein: 30,
+        sourceName: "Food Log"),
+      Food(
+        id: "c", name: "Coffee", startDate: time(15, 0).unixMilliseconds, sourceName: "Food Log"),
       Food(
         id: "d", name: "Dinner", startDate: time(14, 23, 59, 59).unixMilliseconds,
-        endDate: time(14, 23, 59, 59).unixMilliseconds, sourceName: "Food Log"),
+        sourceName: "Food Log"),
       Food(
-        id: "e", name: "Toast", startDate: time(12, 8).unixMilliseconds,
-        endDate: time(12, 8).unixMilliseconds, energy: 180, sourceName: "Food Log"),
+        id: "e", name: "Toast", startDate: time(12, 8).unixMilliseconds, energy: 180,
+        sourceName: "Food Log"),
     ]
     let days = HealthDatabase.foodDays(foods, calendar: calendar)
     #expect(days.map(\.day) == [time(15, 0), time(14, 0), time(12, 0)])
