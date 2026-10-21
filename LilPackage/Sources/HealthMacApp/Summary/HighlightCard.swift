@@ -38,7 +38,7 @@ struct HighlightCard: View {
     return VStack(alignment: .leading, spacing: 8) {
       // Rolling weeks ending yesterday, as the sentence says, not calendar weeks.
       comparisonRow(
-        "7 Days Before", highlight.previous, longest: longest, color: Color.gray.opacity(0.35))
+        "7 Days Before", highlight.previous, longest: longest, color: Self.earlierColor)
       comparisonRow("Last 7 Days", highlight.current, longest: longest, color: color)
     }
   }
@@ -46,31 +46,36 @@ struct HighlightCard: View {
   private func comparisonRow(
     _ label: String, _ value: Double, longest: Double, color: some ShapeStyle
   ) -> some View {
-    let (number, unit) = MetricFormat.value(value, unit: type.unit, typeID: type.id)
-    let share = longest > 0 ? min(max(value / longest, 0), 1) : 0
+    // Nothing for a week of nothing, or a value that isn't one.
+    let share = longest > 0 && value > 0 ? min(value / longest, 1) : 0
     return VStack(alignment: .leading, spacing: 4) {
       HStack(alignment: .firstTextBaseline) {
         Text(label)
           .foregroundStyle(.secondary)
+          .lineLimit(1)
         Spacer()
-        Text(unit.isEmpty ? number : "\(number) \(unit)")
+        // The average stays whole; the name gives way.
+        Text(HighlightText.text(value, type))
           .fontWeight(.semibold)
           .foregroundStyle(.secondary)
           .monospacedDigit()
+          .fixedSize()
+          .layoutPriority(1)
       }
       .font(.caption)
       GeometryReader { proxy in
-        // At least a dot, so a week of almost nothing still shows.
+        // At least a dot, so a week of very little still shows.
         Capsule()
           .fill(color)
-          .frame(width: max(proxy.size.width * share, Self.barHeight))
+          .frame(width: share > 0 ? max(proxy.size.width * share, Self.barHeight) : 0)
       }
       .frame(height: Self.barHeight)
     }
-    .accessibilityElement(children: .combine)
   }
 
   private static let barHeight: CGFloat = 18
+  /// The earlier period, in both kinds of highlight.
+  private static let earlierColor = Color.gray.opacity(0.35)
 
   /// Each week's average, the last 4 in color, with both periods' averages as lines.
   private var trend: some View {
@@ -87,7 +92,7 @@ struct HighlightCard: View {
           x: .value("Week", String(index(week.day))), yStart: .value("Floor", floor),
           yEnd: .value("Average", week.value), width: .ratio(0.7)
         )
-        .foregroundStyle(week.day >= highlight.recentStart ? color : Color.gray.opacity(0.35))
+        .foregroundStyle(week.day >= highlight.recentStart ? color : Self.earlierColor)
       }
       RuleMark(y: .value("Before", highlight.previous))
         .foregroundStyle(Color.gray)
@@ -136,7 +141,8 @@ enum HighlightText {
     }
   }
 
-  private static func text(_ value: Double, _ type: HealthDataType) -> String {
+  /// A value with its unit, if it has one.
+  static func text(_ value: Double, _ type: HealthDataType) -> String {
     let (number, unit) = MetricFormat.value(value, unit: type.unit, typeID: type.id)
     return unit.isEmpty ? number : "\(number) \(unit)"
   }
