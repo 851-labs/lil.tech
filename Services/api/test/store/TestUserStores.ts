@@ -1,6 +1,7 @@
 import { Clock, Context, Effect, Layer, Option, type Scope } from "effect";
 import { HttpEffect, HttpServerRequest, HttpServerResponse } from "effect/http";
-import { healthMcpPath, makeHealthMcpServer } from "../../src/health/tools/HealthMcpServer.ts";
+import { makeStoreMcpServers } from "../../src/mcp/StoreMcpServers.ts";
+import type { StoreMcpHandler } from "../../src/mcp/StoreMcpServer.ts";
 import { requestPath } from "../../src/oauth/Requests.ts";
 import type { UserId } from "../../src/core/Ids.ts";
 import { Column, createEntityTable, defineEntity } from "../../src/store/Entities.ts";
@@ -21,6 +22,8 @@ import {
 } from "../../src/store/UserStore.ts";
 import { UserStores, userStoreName } from "../../src/store/UserStores.ts";
 import { makeTestStoreSql, type TestStoreSql } from "./TestStoreSql.ts";
+import { testMailApp } from "../mcp/TestMailApp.ts";
+import { registryWithMail } from "../oauth/TestAgents.ts";
 
 /** An entity for tests, with every column type. */
 export const testNote = defineEntity("test_note", {
@@ -96,12 +99,11 @@ export const servedLikeFetch = (
 interface OpenedStore {
   readonly sql: TestStoreSql;
   readonly store: UserStoreMethods;
-  /** lil health's MCP server, as the store's `fetch` serves it. */
-  readonly mcp: Effect.Effect<
-    HttpServerResponse.HttpServerResponse,
-    never,
-    HttpServerRequest.HttpServerRequest
-  >;
+  /**
+   * The store's MCP server at a path, as its `fetch` serves it: lil health's, or the combined one,
+   * which also has a fake lil mail (`testMailApp`) for grants with its scope.
+   */
+  readonly mcp: (path: string) => StoreMcpHandler | undefined;
 }
 
 /** `UserStores` over in-memory test stores, opened on first use like Durable Objects. */
@@ -111,8 +113,15 @@ export const makeTestUserStores = (files?: SnapshotFiles) => {
     const existing = opened.get(name);
     if (existing !== undefined) return existing;
     const { sql, store } = makeTestStore(files);
-    const server = Effect.runSync(makeHealthMcpServer({ sql, record: store.recordAgentAccess }));
-    const created = { sql, store, mcp: servedLikeFetch(server) };
+    const mcp = Effect.runSync(
+      makeStoreMcpServers({
+        sql,
+        record: store.recordAgentAccess,
+        registry: registryWithMail,
+        otherApps: { mail: testMailApp },
+      }),
+    );
+    const created = { sql, store, mcp };
     opened.set(name, created);
     return created;
   };
@@ -121,16 +130,20 @@ export const makeTestUserStores = (files?: SnapshotFiles) => {
       const existing = open(name);
       return {
         ...asOverRpc(existing.store),
-        fetch: (request) =>
-          requestPath(request) === healthMcpPath
-            ? existing.mcp.pipe(Effect.provideService(HttpServerRequest.HttpServerRequest, request))
+        fetch: (request) => {
+          const mcp = existing.mcp(requestPath(request));
+          return mcp !== undefined
+            ? servedLikeFetch(mcp).pipe(
+                Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+              )
             : // A live connection can't be upgraded in tests; this answers with what the store got.
               Effect.succeed(
                 HttpServerResponse.jsonUnsafe({
                   store: name,
                   expiresAt: request.headers[sessionExpiresHeader],
                 }),
-              ),
+              );
+        },
       };
     },
   });

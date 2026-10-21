@@ -1,20 +1,8 @@
-import {
-  Clock,
-  Context,
-  Duration,
-  Effect,
-  Exit,
-  Layer,
-  Option,
-  Predicate,
-  Scheduler,
-  Schema,
-  Scope,
-  Semaphore,
-} from "effect";
-import { McpProtocol, McpServer } from "effect/ai";
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
+import { Clock, Effect, Exit, Option, Predicate, Schema, Semaphore } from "effect";
+import { McpServer } from "effect/ai";
+import { HttpServerRequest } from "effect/http";
 import { agentClientHeader, agentGrantHeader } from "../../mcp/AgentHeaders.ts";
+import { serveStoreMcp, type StoreMcpApp } from "../../mcp/StoreMcpServer.ts";
 import { agentResources } from "../../oauth/Hosts.ts";
 import type { AgentAccess } from "../../store/AgentAccessLog.ts";
 import type { AccountDeleted } from "../../store/Changes.ts";
@@ -33,17 +21,6 @@ export const healthMcpPath = agentResources.health.path;
 
 /** The largest answer a tool may give, as JSON. Over it, the call fails and asks for less. */
 export const healthMcpResultCeiling = 256 * 1024;
-
-/**
- * The protocols the server speaks: `2026-07-28`, which needs no session, and the two before it for
- * clients that haven't moved yet, whose sessions (`Mcp-Session-Id`) Effect keeps in memory. A
- * store evicted while idle forgets them, and the client starts a new one after a 404.
- */
-export const healthMcpProtocols = [
-  McpProtocol.v2026_07_28,
-  McpProtocol.v2025_11_25,
-  McpProtocol.v2025_06_18,
-] as const;
 
 /**
  * How long a tool call may have waited for its turn in a store (851-2887). One that waited longer
@@ -77,7 +54,7 @@ const nextTask = Effect.callback<void>((resume) => {
  * the next task before it starts, so the call before it commits its row and sends its answer
  * first.
  */
-const makeTurns = (maxWaitMs: number) =>
+export const makeTurns = (maxWaitMs: number = healthMcpMaxWaitMs) =>
   Effect.gen(function* () {
     const semaphore = yield* Semaphore.make(1);
     return <A, E, R>(call: Effect.Effect<A, E, R>): Effect.Effect<A, E | HealthToolError, R> =>
@@ -101,6 +78,12 @@ const makeTurns = (maxWaitMs: number) =>
         return yield* semaphore.withPermit(turn);
       });
   });
+
+/**
+ * A store's queue of tool calls (`makeTurns`): the one its every MCP server shares, lil health's
+ * own and the combined one, as they share its one thread.
+ */
+export type Turns = Effect.Success<ReturnType<typeof makeTurns>>;
 
 /** How many rows an answer holds: the items of its top-level lists. */
 const rowCount = (encoded: unknown) =>
@@ -208,100 +191,72 @@ const logged =
       return yield* call.pipe(turn, Effect.annotateLogs({ tool: tool.name, grant: agent.grantId }));
     });
 
-/**
- * Shared fibers in a Durable Object run on the sync scheduler, as Effect advises for Workers, so
- * no request's timers hold up another's work.
- */
-const syncScheduler = new Scheduler.MixedScheduler("sync");
+/** What lil health's server tells agents when they connect, and the combined server under its name. */
+export const healthMcpInstructions =
+  "Read-only access to the user's lil health data: Apple Health, synced from their " +
+  "iPhone. Times are in UTC unless a call gives a timeZone.";
 
 /**
- * The server for one store, as an HTTP handler for `POST`, `DELETE` and the rest at
- * `healthMcpPath`. It's built on the first request and lives as long as the store's object, which
- * is where legacy sessions are kept. Requests with an `Origin` get 403: no browser origins are
- * allowed, as the transport requires.
+ * lil health's tools for a store's MCP servers: each one's handler logged, held to the ceiling
+ * and run in the store's `turns`.
  */
-export const makeHealthMcpServer = (options: {
+export const healthMcpApp = (options: {
   readonly sql: StoreSql;
   readonly record: (access: AgentAccess) => Effect.Effect<void, AccountDeleted>;
+  readonly turns: Turns;
   /** The largest answer, as JSON (`healthMcpResultCeiling`, but tests make it smaller). */
   readonly resultCeiling?: number;
-  /** How long a call may wait for its turn (`healthMcpMaxWaitMs`). */
-  readonly maxWaitMs?: number;
   /** Each tool's implementation (`storeHealthTools`, but tests slow some down). */
   readonly handlers?: HealthToolImplementations;
-}) =>
+}): StoreMcpApp => {
+  const { record, turns, resultCeiling = healthMcpResultCeiling } = options;
+  const handlers = options.handlers ?? storeHealthTools(options.sql);
+  const tools = HealthToolkit.tools;
+  const wrap = <P extends object, A>(
+    tool: { readonly name: string; readonly successSchema: Schema.Top },
+    run: (params: P) => Effect.Effect<A, HealthToolError>,
+  ) => logged(tool, run, record, resultCeiling, turns);
+  const loggedHandlers: HealthToolHandlers = {
+    summary: wrap(tools.summary, handlers.summary),
+    list_types: wrap(tools.list_types, handlers.list_types),
+    metric: wrap(tools.metric, handlers.metric),
+    samples: wrap(tools.samples, handlers.samples),
+    workouts: wrap(tools.workouts, handlers.workouts),
+    sleep: wrap(tools.sleep, handlers.sleep),
+    medications: wrap(tools.medications, handlers.medications),
+    health_details: wrap(tools.health_details, handlers.health_details),
+    search: wrap(tools.search, handlers.search),
+    sync_status: wrap(tools.sync_status, handlers.sync_status),
+  };
+  return {
+    instructions: healthMcpInstructions,
+    register: McpServer.registerToolkit(HealthToolkit).pipe(
+      Effect.provide(HealthToolkit.toLayer(loggedHandlers)),
+    ),
+  };
+};
+
+/**
+ * lil health's own server for one store, at `healthMcpPath` (`serveStoreMcp`). The store passes
+ * its `turns`, which the combined server shares; tests get a queue of their own.
+ */
+export const makeHealthMcpServer = (
+  options: Omit<Parameters<typeof healthMcpApp>[0], "turns"> & {
+    readonly turns?: Turns;
+    /** How long a call may wait for its turn (`healthMcpMaxWaitMs`), without `turns`. */
+    readonly maxWaitMs?: number;
+  },
+) =>
   Effect.gen(function* () {
-    const {
-      sql,
-      record,
-      resultCeiling = healthMcpResultCeiling,
-      maxWaitMs = healthMcpMaxWaitMs,
-    } = options;
-    const handlers = options.handlers ?? storeHealthTools(sql);
-    const tools = HealthToolkit.tools;
-    const turn = yield* makeTurns(maxWaitMs);
-    // Every tool's handler, logged, held to the ceiling and run in turn.
-    const wrap = <P extends object, A>(
-      tool: { readonly name: string; readonly successSchema: Schema.Top },
-      run: (params: P) => Effect.Effect<A, HealthToolError>,
-    ) => logged(tool, run, record, resultCeiling, turn);
-    const loggedHandlers: HealthToolHandlers = {
-      summary: wrap(tools.summary, handlers.summary),
-      list_types: wrap(tools.list_types, handlers.list_types),
-      metric: wrap(tools.metric, handlers.metric),
-      samples: wrap(tools.samples, handlers.samples),
-      workouts: wrap(tools.workouts, handlers.workouts),
-      sleep: wrap(tools.sleep, handlers.sleep),
-      medications: wrap(tools.medications, handlers.medications),
-      health_details: wrap(tools.health_details, handlers.health_details),
-      search: wrap(tools.search, handlers.search),
-      sync_status: wrap(tools.sync_status, handlers.sync_status),
-    };
-    const layer = McpServer.toolkit(HealthToolkit).pipe(
-      Layer.provide(HealthToolkit.toLayer(loggedHandlers)),
-      Layer.provideMerge(
-        McpServer.layerHttp({
-          name: "lil health",
-          version: "1.0.0",
-          instructions:
-            "Read-only access to the user's lil health data: Apple Health, synced from their " +
-            "iPhone. Times are in UTC unless a call gives a timeZone.",
-          path: healthMcpPath,
-          protocols: healthMcpProtocols,
-          // Ends a legacy session on request. Only the user's own agents reach this store.
-          allowSessionTermination: true,
-          // The tools never change, so there's nothing to subscribe to, and no stream is kept open.
-          allowSubscriptions: false,
-        }),
-      ),
-      Layer.provide(Layer.succeed(Scheduler.Scheduler, syncScheduler)),
-    );
-    // Never closed: the server lives until the object is evicted.
-    const scope = yield* Scope.make();
-    // Built on its own, with its own router, outside the request that first needs it: its fibers
-    // outlive that request, and mustn't keep its services. Only the clock is the store's.
-    const clock = yield* Clock.Clock;
-    const build = Layer.buildWithMemoMap(
-      Layer.provideMerge(layer, HttpRouter.layer),
-      Layer.makeMemoMapUnsafe(),
-      scope,
-    ).pipe(
-      Effect.map((context) => Context.get(context, HttpRouter.HttpRouter).asHttpEffect()),
-      Effect.provideContext(Context.make(Clock.Clock, clock)),
-      Effect.orDie,
-    );
-    // Kept once built; a build that failed is tried again on the next request.
-    const handler = yield* Effect.cachedWithTTL(build, (exit) =>
-      Exit.isSuccess(exit) ? Duration.infinity : Duration.zero,
-    );
-    return handler.pipe(
-      Effect.flatMap((handle) => handle),
-      Effect.catch((error) =>
-        // Only a path the server doesn't have.
-        Predicate.isTagged(error, "HttpServerError")
-          ? Effect.succeed(HttpServerResponse.empty({ status: 404 }))
-          : Effect.die(error),
-      ),
-      Effect.provideService(Scheduler.Scheduler, syncScheduler),
-    );
+    const turns = options.turns ?? (yield* makeTurns(options.maxWaitMs));
+    return yield* serveHealthMcp(healthMcpApp({ ...options, turns }));
+  });
+
+/** lil health's own server, serving `app` (`healthMcpApp`) at `healthMcpPath`. */
+export const serveHealthMcp = (app: StoreMcpApp) =>
+  serveStoreMcp({
+    name: "lil health",
+    instructions: app.instructions,
+    path: healthMcpPath,
+    register: app.register,
   });

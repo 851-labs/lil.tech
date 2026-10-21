@@ -6,9 +6,16 @@ import { TestClock } from "effect/testing";
 import type { DeviceId, UserId } from "../../../src/core/Ids.ts";
 import { healthBatchKey, ingestHealthBatch } from "../../../src/health/HealthIngestion.ts";
 import { HealthToolError, HealthToolkit } from "../../../src/health/tools/HealthToolkit.ts";
-import { makeHealthMcpServer } from "../../../src/health/tools/HealthMcpServer.ts";
+import {
+  healthMcpApp,
+  makeHealthMcpServer,
+  makeTurns,
+} from "../../../src/health/tools/HealthMcpServer.ts";
 import { storeHealthTools } from "../../../src/health/tools/StoreHealthTools.ts";
-import { appendAgentAccess } from "../../../src/store/AgentAccessLog.ts";
+import { agentScopesHeader } from "../../../src/mcp/AgentHeaders.ts";
+import { makeCombinedMcpServer } from "../../../src/mcp/CombinedMcpServer.ts";
+import { agentResources } from "../../../src/oauth/Hosts.ts";
+import { type AgentAccess, appendAgentAccess } from "../../../src/store/AgentAccessLog.ts";
 import type { StoreSql } from "../../../src/store/StoreSql.ts";
 import { UserStores } from "../../../src/store/UserStores.ts";
 import { TestCore } from "../../core/TestCoreDatabase.ts";
@@ -21,8 +28,8 @@ import { batchFile, TestHealthIngestion, TestHealthOutbox } from "../TestHealthI
 // give. This side ingests the dataset as the server does (an iPhone's uploads through
 // `ingestHealthBatch`) and calls the server's implementation through the toolkit, so arguments
 // and outputs go through the tools' schemas. The Mac's `lil-health mcp` (851-2844) runs the same
-// cases on the same dataset after a sync. The remote MCP server (851-2851) runs them too, over
-// Streamable HTTP.
+// cases on the same dataset after a sync. The remote MCP server (851-2851) and the combined one
+// (851-2900) run them too, over Streamable HTTP.
 
 const Iso = Schema.String.annotate({ description: "An ISO 8601 time" });
 const millis = (iso: string) => Date.parse(iso);
@@ -196,38 +203,62 @@ describe("Health toolkit conformance cases", () => {
     );
   }
 
-  for (const testCase of cases) {
-    const tool = testCase.tool as ToolName;
-    it.effect(`the remote MCP server: ${testCase.name}`, () =>
-      Effect.gen(function* () {
-        const sql = yield* storeWithDataset(testCase.pins);
-        yield* TestClock.setTime(millis(testCase.now));
-        const server = yield* makeHealthMcpServer({
-          sql,
-          record: (access) => Effect.sync(() => appendAgentAccess(sql, access, 0)),
-        });
-        const request = sessionless("tools/call", { name: tool, arguments: testCase.arguments });
-        const response = yield* postMcp(
-          viaStore(server),
-          "http://store/health",
-          request.body,
-          request.headers,
-        );
-        assert.strictEqual(response.status, 200);
-        const result = response.message?.["result"] as Record<string, unknown> | undefined;
-        assert.isDefined(result, JSON.stringify(response.message));
-        if (testCase.expectedError === true) {
-          assert.isTrue(result!["isError"], JSON.stringify(result));
-          return;
-        }
-        assert.isFalse(result!["isError"], JSON.stringify(result));
-        // The output as structured content, and the same as text.
-        const [content] = result!["content"] as Array<{ readonly text: string }>;
-        assert.deepStrictEqual(JSON.parse(content!.text), result!["structuredContent"]);
-        if (!matches(result!["structuredContent"], testCase.expected)) {
-          assert.deepStrictEqual(result!["structuredContent"], testCase.expected);
-        }
-      }),
-    );
+  // Over Streamable HTTP: lil health's own server, and the combined one (851-2900), where the
+  // tools are `health.<tool>`.
+  const servers = [
+    {
+      label: "the remote MCP server",
+      url: "http://store/health",
+      name: (tool: string) => tool,
+      make: (sql: StoreSql, record: (access: AgentAccess) => Effect.Effect<void>) =>
+        makeHealthMcpServer({ sql, record }),
+    },
+    {
+      label: "the combined MCP server",
+      url: "http://store/",
+      name: (tool: string) => `health.${tool}`,
+      make: (sql: StoreSql, record: (access: AgentAccess) => Effect.Effect<void>) =>
+        Effect.flatMap(makeTurns(), (turns) =>
+          makeCombinedMcpServer({
+            registry: agentResources,
+            apps: { health: healthMcpApp({ sql, record, turns }) },
+          }),
+        ),
+    },
+  ];
+  for (const server of servers) {
+    for (const testCase of cases) {
+      it.effect(`${server.label}: ${testCase.name}`, () =>
+        Effect.gen(function* () {
+          const sql = yield* storeWithDataset(testCase.pins);
+          yield* TestClock.setTime(millis(testCase.now));
+          const handler = yield* server.make(sql, (access) =>
+            Effect.sync(() => appendAgentAccess(sql, access, 0)),
+          );
+          const request = sessionless("tools/call", {
+            name: server.name(testCase.tool),
+            arguments: testCase.arguments,
+          });
+          const response = yield* postMcp(viaStore(handler), server.url, request.body, {
+            ...request.headers,
+            [agentScopesHeader]: "health:read",
+          });
+          assert.strictEqual(response.status, 200);
+          const result = response.message?.["result"] as Record<string, unknown> | undefined;
+          assert.isDefined(result, JSON.stringify(response.message));
+          if (testCase.expectedError === true) {
+            assert.isTrue(result!["isError"], JSON.stringify(result));
+            return;
+          }
+          assert.isFalse(result!["isError"], JSON.stringify(result));
+          // The output as structured content, and the same as text.
+          const [content] = result!["content"] as Array<{ readonly text: string }>;
+          assert.deepStrictEqual(JSON.parse(content!.text), result!["structuredContent"]);
+          if (!matches(result!["structuredContent"], testCase.expected)) {
+            assert.deepStrictEqual(result!["structuredContent"], testCase.expected);
+          }
+        }),
+      );
+    }
   }
 });
