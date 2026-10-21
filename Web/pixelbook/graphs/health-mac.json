@@ -176,6 +176,36 @@
       "screen": "HealthPages/SymptomViewPreviews.swift"
     },
     {
+      "id": "health-documents",
+      "screen": "HealthPages/HealthDocumentsViewPreviews.swift",
+      "title": "Health Documents",
+      "states": [
+        "Health documents",
+        "Health documents, at the limit",
+        "No health documents",
+        "Health documents loading",
+        "Health documents failed"
+      ]
+    },
+    {
+      "id": "health-document",
+      "screen": "HealthPages/HealthDocumentsViewPreviews.swift",
+      "title": "Health Document",
+      "states": [
+        "Visit summary",
+        "Some not shown",
+        "Malformed document",
+        "Document loading",
+        "Document failed"
+      ]
+    },
+    {
+      "id": "health-document-xml",
+      "screen": "HealthPages/HealthDocumentsViewPreviews.swift",
+      "title": "Document XML",
+      "states": ["Document XML"]
+    },
+    {
       "id": "workouts",
       "screen": "HealthPages/WorkoutsViewPreviews.swift",
       "states": ["Workouts", "No workouts", "Workouts loading", "Workouts failed"]
@@ -422,6 +452,11 @@
     },
     {
       "from": "metric",
+      "to": "health-documents",
+      "label": "For Health Documents (CDA)"
+    },
+    {
+      "from": "metric",
       "to": "workouts",
       "label": "For Workouts"
     },
@@ -539,6 +574,16 @@
       "from": "ecgs",
       "to": "ecg",
       "label": "Choose a recording"
+    },
+    {
+      "from": "health-documents",
+      "to": "health-document",
+      "label": "Choose a document"
+    },
+    {
+      "from": "health-document",
+      "to": "health-document-xml",
+      "label": "Show XML"
     },
     {
       "from": "audiograms",
