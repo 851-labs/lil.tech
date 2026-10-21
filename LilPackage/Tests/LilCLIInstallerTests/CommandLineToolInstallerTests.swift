@@ -1,4 +1,5 @@
 import Foundation
+import LilCLI
 import Testing
 
 @testable import LilCLIInstaller
@@ -148,15 +149,25 @@ struct CommandLineToolInstallerTests {
 
   @Test
   func offersOncePerBundledVersion() {
-    let outdated = CommandLineToolInstaller.Outdated(
-      directory: bin,
-      version: 4,
-      bundledVersion: 5
-    )
+    let outdated = [
+      CommandLineToolInstaller.Outdated(directory: bin, version: 4, bundledVersion: 5)
+    ]
+    #expect(!CommandLineToolInstaller.shouldOffer([], lastOfferedVersion: 0))
     #expect(CommandLineToolInstaller.shouldOffer(outdated, lastOfferedVersion: 0))
     #expect(CommandLineToolInstaller.shouldOffer(outdated, lastOfferedVersion: 4))
     #expect(!CommandLineToolInstaller.shouldOffer(outdated, lastOfferedVersion: 5))
     #expect(!CommandLineToolInstaller.shouldOffer(outdated, lastOfferedVersion: 6))
+  }
+
+  /// Refreshes with the fakes' `--version`, since they're scripts without an embedded info
+  /// section (`embeddedVersion(of:)`, tested on its own).
+  func refresh(_ bundled: URL, in directories: [URL]) async
+    -> CommandLineToolInstaller
+    .RefreshResult
+  {
+    await CommandLineToolInstaller.refreshInstalled(bundled, in: directories) {
+      LilCLI.version(of: $0)
+    }
   }
 
   @Test
@@ -164,9 +175,7 @@ struct CommandLineToolInstallerTests {
     let bundled = try fakeLil(version: 5, at: root.appending(path: "app/lil"))
     _ = try fakeLil(version: 4, at: installed)
 
-    let result = await CommandLineToolInstaller.refreshInstalled(bundled, in: [bin])
-
-    #expect(result == .init(replaced: [installed], outdated: []))
+    #expect(await refresh(bundled, in: [bin]) == .init(replaced: [installed], outdated: []))
     #expect(CommandLineToolInstaller.existing(at: installed) == .lil(version: 5))
   }
 
@@ -181,10 +190,8 @@ struct CommandLineToolInstallerTests {
     }
     _ = try fakeLil(version: 4, at: installed)
 
-    let result = await CommandLineToolInstaller.refreshInstalled(bundled, in: [shared, bin])
-
     #expect(
-      result
+      await refresh(bundled, in: [shared, bin])
         == .init(
           replaced: [installed],
           outdated: [.init(directory: shared, version: 3, bundledVersion: 5)]
@@ -201,13 +208,11 @@ struct CommandLineToolInstallerTests {
     _ = try fakeLil(version: 6, at: newer.appending(path: "lil"))
     let other = root.appending(path: "other", directoryHint: .isDirectory)
     let otherContents = try Data(
-      contentsOf: script("echo 'Lilypond helper'", at: other.appending(path: "lil")))
+      contentsOf: script("echo 'Lilypond helper'", at: other.appending(path: "lil"))
+    )
     let empty = root.appending(path: "empty", directoryHint: .isDirectory)
 
-    let result = await CommandLineToolInstaller.refreshInstalled(
-      bundled, in: [newer, other, empty])
-
-    #expect(result == .init())
+    #expect(await refresh(bundled, in: [newer, other, empty]) == .init())
     #expect(CommandLineToolInstaller.existing(at: newer.appending(path: "lil")) == .lil(version: 6))
     #expect(try Data(contentsOf: other.appending(path: "lil")) == otherContents)
     // It doesn't install where there was no `lil`.
@@ -215,12 +220,72 @@ struct CommandLineToolInstallerTests {
   }
 
   @Test
-  func refreshDoesNothingWithoutAnInstalledLil() async throws {
-    // A bundled tool that doesn't run: refreshing doesn't run it when nothing is installed.
-    let bundled = try script("touch \"$0.ran\"", at: root.appending(path: "app/lil"))
+  func refreshLeavesLinksAlone() async throws {
+    let bundled = try fakeLil(version: 5, at: root.appending(path: "app/lil"))
+    // A link to an older `lil`, as Homebrew or the user might make.
+    let older = try fakeLil(version: 4, at: root.appending(path: "Cellar/lil/4/bin/lil"))
+    try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(at: installed, withDestinationURL: older)
 
-    #expect(await CommandLineToolInstaller.refreshInstalled(bundled, in: [bin]) == .init())
+    #expect(await refresh(bundled, in: [bin]) == .init())
+    let type = try FileManager.default.attributesOfItem(atPath: installed.path)[.type]
+    #expect(type as? FileAttributeType == .typeSymbolicLink)
+  }
+
+  @Test
+  func refreshRunsNothing() async throws {
+    // Tools that note when they run: refreshing reads versions without running them.
+    let bundled = try script("touch \"$0.ran\"", at: root.appending(path: "app/lil"))
+    let other = try script("touch \"$0.ran\"", at: installed)
+
+    #expect(
+      await CommandLineToolInstaller.refreshInstalled(bundled, in: [bin]) {
+        $0 == bundled ? 5 : CommandLineToolInstaller.embeddedVersion(of: $0)
+      } == .init()
+    )
     #expect(!FileManager.default.fileExists(atPath: bundled.path + ".ran"))
+    #expect(!FileManager.default.fileExists(atPath: other.path + ".ran"))
+  }
+
+  @Test
+  func readsTheEmbeddedVersionWithoutRunning() throws {
+    // A tiny binary with an info section like the apps' `lil` target's, and one with another ID.
+    func binary(identifier: String, version: String) throws -> URL {
+      let directory = root.appending(path: identifier, directoryHint: .isDirectory)
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      let plist = directory.appending(path: "Info.plist")
+      try PropertyListSerialization.data(
+        fromPropertyList: ["CFBundleIdentifier": identifier, "CFBundleVersion": version],
+        format: .xml,
+        options: 0
+      ).write(to: plist)
+      let source = directory.appending(path: "main.c")
+      try Data("int main(void) { return 1; }\n".utf8).write(to: source)
+      let output = directory.appending(path: "lil")
+      let process = Process()
+      process.executableURL = URL(filePath: "/usr/bin/xcrun")
+      process.arguments = [
+        "clang", source.path, "-o", output.path,
+        "-Wl,-sectcreate,__TEXT,__info_plist,\(plist.path)",
+      ]
+      try process.run()
+      process.waitUntilExit()
+      try #require(process.terminationStatus == 0)
+      return output
+    }
+
+    #expect(
+      CommandLineToolInstaller.embeddedVersion(
+        of: try binary(identifier: "tech.lil.cli", version: "42"))
+        == 42
+    )
+    #expect(
+      CommandLineToolInstaller.embeddedVersion(
+        of: try binary(identifier: "com.example.lil", version: "42"))
+        == nil
+    )
+    #expect(
+      CommandLineToolInstaller.embeddedVersion(of: try fakeLil(version: 5, at: installed)) == nil)
   }
 
   @Test

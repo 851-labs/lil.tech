@@ -100,44 +100,49 @@ public enum CommandLineToolInstaller {
   /// without an administrator's password, and reports the rest. For the app to call when it opens,
   /// so a `lil` installed from an older version follows the app's updates.
   ///
-  /// Runs nothing when no `lil` is installed, so apps whose `lil` was never installed pay nothing.
+  /// Unlike installing, which the user asks for, this runs nothing: it reads versions from the
+  /// info section the apps' `lil` target embeds (`version`), so another command named `lil` isn't
+  /// run every time the app opens. It leaves links alone too: whoever made one (Homebrew, the
+  /// user) manages that `lil`, and a link into an app follows its updates already.
   public static func refreshInstalled(
     _ bundled: URL,
-    in directories: [URL] = Destination.allCases.map(\.directory)
+    in directories: [URL] = Destination.allCases.map(\.directory),
+    version: @escaping @Sendable (URL) -> Int? = embeddedVersion(of:)
   ) async -> RefreshResult {
     await withCheckedContinuation { continuation in
       DispatchQueue.global(qos: .utility).async {
-        continuation.resume(returning: refreshInstalledNow(bundled, in: directories))
+        continuation.resume(
+          returning: refreshInstalledNow(bundled, in: directories, version: version)
+        )
       }
     }
   }
 
-  private static func refreshInstalledNow(_ bundled: URL, in directories: [URL]) -> RefreshResult {
+  private static func refreshInstalledNow(
+    _ bundled: URL,
+    in directories: [URL],
+    version: (URL) -> Int?
+  ) -> RefreshResult {
     var result = RefreshResult()
-    let installed = directories.filter {
-      FileManager.default.fileExists(atPath: $0.appending(component: "lil").path)
-    }
-    guard !installed.isEmpty, let bundledVersion = LilCLI.version(of: bundled) else {
-      return result
-    }
-    for directory in installed {
+    guard let bundledVersion = version(bundled) else { return result }
+    for directory in directories {
       let destination = directory.appending(component: "lil")
+      guard
+        let type = try? FileManager.default.attributesOfItem(atPath: destination.path)[.type]
+          as? FileAttributeType,
+        type == .typeRegular
+      else { continue }
       switch refresh(
         bundledVersion: bundledVersion,
-        existing: existing(at: destination),
+        existing: version(destination).map(Existing.lil(version:)) ?? .other,
         writable: isWritable(directory)
       ) {
       case .none:
         break
-      case .replace(let version):
-        do {
-          try copy(bundled, into: directory)
+      case .replace:
+        // If that fails after all (an immutable file, say), the menu item is still there.
+        if (try? copy(bundled, into: directory)) != nil {
           result.replaced.append(destination)
-        } catch {
-          // Writable a moment ago, so offer to replace it the other way.
-          result.outdated.append(
-            Outdated(directory: directory, version: version, bundledVersion: bundledVersion)
-          )
         }
       case .offer(let version):
         result.outdated.append(
@@ -148,10 +153,21 @@ public enum CommandLineToolInstaller {
     return result
   }
 
+  /// The version of the `lil` at `url`, from the info section the apps' `lil` target embeds in
+  /// the binary (`CFBundleVersion`, which `lil --version` prints), without running it. Nil if it
+  /// isn't a `lil` (`tech.lil.cli`).
+  public static func embeddedVersion(of url: URL) -> Int? {
+    guard
+      let info = CFBundleCopyInfoDictionaryForURL(url as CFURL) as? [String: Any],
+      info["CFBundleIdentifier"] as? String == "tech.lil.cli"
+    else { return nil }
+    return (info["CFBundleVersion"] as? String).flatMap { Int($0) }
+  }
+
   /// Whether to offer to replace `outdated`, given the bundled version last offered: once per
   /// version, so declining isn't asked again until the app updates.
-  public static func shouldOffer(_ outdated: Outdated, lastOfferedVersion: Int) -> Bool {
-    outdated.bundledVersion > lastOfferedVersion
+  public static func shouldOffer(_ outdated: [Outdated], lastOfferedVersion: Int) -> Bool {
+    outdated.contains { $0.bundledVersion > lastOfferedVersion }
   }
 
   public enum Outcome: Equatable, Sendable {

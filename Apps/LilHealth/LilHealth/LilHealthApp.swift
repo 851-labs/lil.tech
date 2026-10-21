@@ -31,13 +31,15 @@ struct LilHealthApp: App {
     // Here rather than in the main window, so the session is followed while it's closed too,
     // for the Settings window.
     Task { await Self.store.send(.task).finish() }
+    // Replaces an installed `lil` older than the bundled one, after an update.
+    CommandLineToolRefresh.start()
   }
 
   var body: some Scene {
     // One window: the app has one store, and one session to follow.
     Window("lil health", id: "main") {
       AppView(store: Self.store)
-        // Replaces an installed `lil` older than the bundled one, after an update.
+        // Offers to update an installed `lil` only an administrator can replace.
         .refreshesCommandLineTool()
     }
     .commands {

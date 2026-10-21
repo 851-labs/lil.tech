@@ -23,6 +23,8 @@
   /// presentation: a menu command has no view to present from.
   @MainActor
   private func installCommandLineTool() async {
+    // Before asking where: an install already under way would ignore the answer.
+    guard !isInstalling else { return }
     guard let bundled = Bundle.main.url(forAuxiliaryExecutable: "lil") else {
       showAlert(
         "The command line tool is missing",
