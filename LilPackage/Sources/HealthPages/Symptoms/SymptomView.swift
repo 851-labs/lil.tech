@@ -189,9 +189,18 @@ struct SymptomContent: View {
               change(point, in: chart.scale, isHovered: hovered.contains(point))
             }
           }
-          // Kinds of change as rows, in the scale's order.
-          .chartYScale(domain: chart.scale.levels)
-          .chartYAxis { AxisMarks(position: .trailing) },
+          // Kinds of change as rows, the scale's first at the bottom.
+          .chartYScale(domain: 0.5...(Double(chart.scale.levels.count) + 0.5))
+          .chartYAxis {
+            AxisMarks(position: .trailing, values: Array(1...chart.scale.levels.count)) { value in
+              AxisGridLine()
+              AxisValueLabel {
+                if let row = value.as(Int.self), let name = chart.scale.levels[safe: row - 1] {
+                  Text(name)
+                }
+              }
+            }
+          },
           chart)
       } else {
         decorated(
@@ -299,24 +308,28 @@ struct SymptomContent: View {
     _ point: SymptomPoint, in scale: SymptomScale, isHovered: Bool
   ) -> some ChartContent {
     let style = color.opacity(isHovered ? 1 : 0.8)
-    let row = PlottableValue.value("Change", scale.levels[safe: point.value - 1] ?? "Present")
+    // A row per kind, numbered from 1 at the bottom, so the axis keeps room for its names.
+    let row = Double(min(max(point.value, 1), scale.levels.count))
     if range == .day {
       if point.end.timeIntervalSince(point.start) >= Self.shortEntry {
-        BarMark(
-          xStart: .value("Start", point.start), xEnd: .value("End", point.end), y: row,
-          height: .ratio(0.5)
+        RectangleMark(
+          xStart: .value("Start", point.start), xEnd: .value("End", point.end),
+          yStart: .value("Change", row - 0.25), yEnd: .value("Change", row + 0.25)
         )
         .clipShape(RoundedRectangle(cornerRadius: 3))
         .foregroundStyle(style)
       } else {
-        PointMark(x: .value("Time", point.start), y: row)
+        PointMark(x: .value("Time", point.start), y: .value("Change", row))
           .symbolSize(80)
           .foregroundStyle(style)
       }
     } else {
-      BarMark(x: .value("Date", point.start, unit: range.barUnit), y: row, height: .ratio(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 3))
-        .foregroundStyle(style)
+      BarMark(
+        x: .value("Date", point.start, unit: range.barUnit),
+        yStart: .value("Change", row - 0.25), yEnd: .value("Change", row + 0.25)
+      )
+      .clipShape(RoundedRectangle(cornerRadius: 3))
+      .foregroundStyle(style)
     }
   }
 
