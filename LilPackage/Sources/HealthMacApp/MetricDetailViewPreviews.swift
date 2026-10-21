@@ -1,9 +1,11 @@
 import HealthCatalog
 import HealthDatabase
+import HealthUI
 import SQLiteData
 import SwiftUI
 
-// Synthetic data only (AGENTS.md): `makePreviewHealthDatabase()`.
+// Synthetic data only (AGENTS.md): `makePreviewHealthDatabase()`, and made-up overlays and sound
+// levels.
 
 @MainActor
 private func detail(
@@ -80,4 +82,55 @@ private let heartRate = "HKQuantityTypeIdentifierHeartRate"
 
 #Preview("Failed") {
   detail(steps, .week, state: { _ in .failed("The database couldn't be read.") })
+}
+
+#Preview("Heart rate with resting and walking") {
+  preparePreviewDatabase()
+  let type = HealthCatalog.type(id: HealthDatabase.heartRateType)!
+  let chart = try! makePreviewHealthDatabase().read { db in
+    // Last week: the preview data's two weeks end today.
+    try HealthDatabase.metricChart(
+      of: type, range: .week, offset: -1, now: .now, calendar: .current, db)
+  }
+  // Made-up daily averages for the same week.
+  let resting = MetricOverlay(
+    name: "Resting", color: .blue,
+    points: chart.points.enumerated().map { index, point in
+      ChartPoint(start: point.start, value: 56 + Double(index % 3))
+    }, range: .week, offset: -1)
+  let walking = MetricOverlay(
+    name: "Walking Average", color: .orange,
+    points: chart.points.enumerated().map { index, point in
+      ChartPoint(start: point.start, value: 96 + Double((index * 5) % 9))
+    }, range: .week, offset: -1)
+  return NavigationStack {
+    MetricDetailContent(
+      type: type, range: .constant(.week), offset: .constant(-1), state: .loaded(chart),
+      overlays: [resting, walking])
+  }
+  .previewFrame(width: 760, height: 720)
+}
+
+#Preview("Environmental sound levels, week") {
+  preparePreviewDatabase()
+  // A week of daily ranges, two days loud.
+  let calendar = Calendar.current
+  let today = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_760_400_000))
+  let days = (0..<7).map { calendar.date(byAdding: .day, value: $0 - 6, to: today)! }
+  let ranges: [(Double, Double)] = [
+    (42, 71), (45, 86), (40, 68), (38, 74), (44, 91), (41, 66), (39, 70),
+  ]
+  let points = zip(days, ranges).map { day, range in
+    ChartPoint(start: day, value: (range.0 + range.1) / 2, minimum: range.0, maximum: range.1)
+  }
+  let chart = MetricChart(
+    interval: DateInterval(
+      start: days[0], end: calendar.date(byAdding: .day, value: 1, to: today)!),
+    points: points, summary: .range(minimum: 38, maximum: 91))
+  return NavigationStack {
+    MetricDetailContent(
+      type: HealthCatalog.type(id: "HKQuantityTypeIdentifierEnvironmentalAudioExposure")!,
+      range: .constant(.week), offset: .constant(0), state: .loaded(chart))
+  }
+  .previewFrame(width: 760, height: 720)
 }

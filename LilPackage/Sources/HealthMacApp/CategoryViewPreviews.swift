@@ -1,5 +1,6 @@
 import HealthCatalog
 import HealthDatabase
+import HealthUI
 import SQLiteData
 import SwiftUI
 

@@ -27,15 +27,6 @@ struct CategoryView: View {
   }
 }
 
-/// Fetches in the background and delivers on the main queue, even the first value.
-struct MainQueueScheduler: ValueObservationScheduler, Hashable {
-  func immediateInitialValue() -> Bool { false }
-
-  func schedule(_ action: @escaping @Sendable () -> Void) {
-    DispatchQueue.main.async(execute: action)
-  }
-}
-
 /// A category's summaries, as of when they're fetched.
 struct CategorySummaries: FetchKeyRequest {
   let category: HealthCategory

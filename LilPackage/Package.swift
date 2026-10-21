@@ -94,6 +94,12 @@ let package = Package(
       dependencies: ["HealthCatalog"]
     ),
     .testTarget(
+      name: "HealthUITests",
+      dependencies: [
+        "HealthUI"
+      ]
+    ),
+    .testTarget(
       name: "HealthCatalogTests",
       dependencies: [
         "HealthCatalog",
@@ -106,6 +112,7 @@ let package = Package(
         "HealthCatalog",
         "LilAPI",
         "LilSync",
+        .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "GRDB", package: "GRDB.swift"),
         .product(name: "SQLiteData", package: "sqlite-data"),
       ]
@@ -136,6 +143,7 @@ let package = Package(
       dependencies: [
         "HealthCatalog",
         "HealthDatabase",
+        "HealthPages",
         "HealthUI",
         "LilAuth",
         "LilSync",
@@ -153,6 +161,26 @@ let package = Package(
         "LilAuth",
         "LilSync",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+      ]
+    ),
+    // lil health for Mac's data pages: Sleep, Workouts, Medications… HealthMacApp's browse opens
+    // them.
+    .target(
+      name: "HealthPages",
+      dependencies: [
+        "HealthCatalog",
+        "HealthDatabase",
+        "HealthUI",
+        "LilSync",
+        .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
+      ]
+    ),
+    .testTarget(
+      name: "HealthPagesTests",
+      dependencies: [
+        "HealthDatabase",
+        "HealthPages",
       ]
     ),
     .target(

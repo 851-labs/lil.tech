@@ -50,17 +50,29 @@
     },
     {
       "id": "metric",
-      "screen": "HealthMacApp/MetricDetailViewPreviews.swift"
+      "screen": "HealthMacApp/MetricDetailViewPreviews.swift",
+      "states": [
+        "Steps, week",
+        "Steps, day",
+        "Heart rate, month",
+        "Heart rate, day",
+        "Steps, 6 months",
+        "Heart rate, year",
+        "Not a quantity",
+        "No data",
+        "Loading",
+        "Failed"
+      ]
     },
     {
       "id": "heart-rate",
-      "screen": "HealthMacApp/HeartbeatSeriesViewPreviews.swift",
+      "screen": "HealthMacApp/MetricDetailViewPreviews.swift",
       "title": "Heart Rate",
       "states": ["Heart rate with resting and walking"]
     },
     {
       "id": "beat-to-beat",
-      "screen": "HealthMacApp/HeartbeatSeriesViewPreviews.swift",
+      "screen": "HealthPages/HeartbeatSeriesViewPreviews.swift",
       "title": "Beat-to-Beat Measurements",
       "states": [
         "Beat-to-beat measurements",
@@ -72,13 +84,13 @@
     },
     {
       "id": "heartbeat-series",
-      "screen": "HealthMacApp/HeartbeatSeriesViewPreviews.swift",
+      "screen": "HealthPages/HeartbeatSeriesViewPreviews.swift",
       "title": "Heartbeat Series",
       "states": ["A minute of beats", "Beats with a gap", "Too few beats"]
     },
     {
       "id": "all-data",
-      "screen": "HealthMacApp/AllDataViewPreviews.swift",
+      "screen": "HealthPages/AllDataViewPreviews.swift",
       "states": [
         "All data",
         "All data, raw steps",
@@ -90,13 +102,13 @@
     },
     {
       "id": "sample",
-      "screen": "HealthMacApp/AllDataViewPreviews.swift",
+      "screen": "HealthPages/AllDataViewPreviews.swift",
       "title": "Sample",
       "states": ["Sample", "Sample without device"]
     },
     {
       "id": "sources",
-      "screen": "HealthMacApp/AllDataViewPreviews.swift",
+      "screen": "HealthPages/AllDataViewPreviews.swift",
       "title": "Data Sources",
       "states": [
         "Sources",
@@ -108,31 +120,31 @@
     },
     {
       "id": "sleep",
-      "screen": "HealthMacApp/SleepDetailViewPreviews.swift"
+      "screen": "HealthPages/SleepDetailViewPreviews.swift"
     },
     {
       "id": "cycle-tracking",
-      "screen": "HealthMacApp/CycleTrackingViewPreviews.swift"
+      "screen": "HealthPages/CycleTrackingViewPreviews.swift"
     },
     {
       "id": "workouts",
-      "screen": "HealthMacApp/WorkoutsViewPreviews.swift",
+      "screen": "HealthPages/WorkoutsViewPreviews.swift",
       "states": ["Workouts", "No workouts", "Workouts loading", "Workouts failed"]
     },
     {
       "id": "workout",
-      "screen": "HealthMacApp/WorkoutsViewPreviews.swift",
+      "screen": "HealthPages/WorkoutsViewPreviews.swift",
       "title": "Workout",
       "states": ["Run with route", "Strength, no route", "Route loading", "Route failed"]
     },
     {
       "id": "ecgs",
-      "screen": "HealthMacApp/ElectrocardiogramsViewPreviews.swift",
+      "screen": "HealthPages/ElectrocardiogramsViewPreviews.swift",
       "states": ["ECGs", "ECGs, at the limit", "No ECGs", "ECGs loading", "ECGs failed"]
     },
     {
       "id": "ecg",
-      "screen": "HealthMacApp/ElectrocardiogramsViewPreviews.swift",
+      "screen": "HealthPages/ElectrocardiogramsViewPreviews.swift",
       "title": "ECG",
       "states": [
         "Sinus rhythm",
@@ -146,7 +158,7 @@
     },
     {
       "id": "audiograms",
-      "screen": "HealthMacApp/AudiogramsViewPreviews.swift",
+      "screen": "HealthPages/AudiogramsViewPreviews.swift",
       "states": [
         "Audiograms",
         "Audiograms, at the limit",
@@ -157,7 +169,7 @@
     },
     {
       "id": "audiogram",
-      "screen": "HealthMacApp/AudiogramsViewPreviews.swift",
+      "screen": "HealthPages/AudiogramsViewPreviews.swift",
       "title": "Audiogram",
       "states": [
         "Little to no hearing loss",
@@ -169,13 +181,13 @@
     },
     {
       "id": "sound-levels",
-      "screen": "HealthMacApp/AudiogramsViewPreviews.swift",
+      "screen": "HealthMacApp/MetricDetailViewPreviews.swift",
       "title": "Environmental Sound Levels",
       "states": ["Environmental sound levels, week"]
     },
     {
       "id": "state-of-mind",
-      "screen": "HealthMacApp/MentalWellbeingViewsPreviews.swift",
+      "screen": "HealthPages/MentalWellbeingViewsPreviews.swift",
       "title": "State of Mind",
       "states": [
         "State of Mind",
@@ -188,7 +200,7 @@
     },
     {
       "id": "assessments",
-      "screen": "HealthMacApp/MentalWellbeingViewsPreviews.swift",
+      "screen": "HealthPages/MentalWellbeingViewsPreviews.swift",
       "title": "Assessments",
       "states": [
         "GAD-7",
