@@ -32,7 +32,7 @@ struct PagePeriodTests {
 
     let sleep = period(Box(SleepRange.day))
     #expect(sleep.ranges.map(\.label) == ["D", "W"])
-    #expect(sleep.name == "Day")
+    #expect(sleep.name == "Night")
   }
 
   @Test
@@ -41,6 +41,27 @@ struct PagePeriodTests {
     period(box).select(2)
     #expect(box.range == .month)
     #expect(box.offset == 0)
+  }
+
+  @Test
+  func theToolbarsPickerChoosesARange() {
+    let box = Box(ChartRange.week)
+    period(box).rangeSelection.wrappedValue = 4
+    #expect(box.range == .year)
+    #expect(box.offset == 0)
+    #expect(period(box).rangeSelection.wrappedValue == 4)
+  }
+
+  @Test
+  func pressesFasterThanThePageRedrawsEachCount() {
+    // One period, as the menu holds it until the page publishes a new one.
+    let box = Box(ChartRange.week)
+    let stale = period(box)
+    stale.previous()
+    stale.previous()
+    #expect(box.offset == -5)
+    stale.next()
+    #expect(box.offset == -4)
   }
 
   @Test

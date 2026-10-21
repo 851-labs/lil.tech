@@ -2,7 +2,7 @@ public import HealthDatabase
 public import SwiftUI
 
 /// A page's ranges, such as D, W, M, 6M and Y (`ChartRange`) or Sleep's D and W.
-public protocol PeriodRange: CaseIterable, Hashable, RawRepresentable<String> {
+public protocol PeriodRange: CaseIterable, Hashable, RawRepresentable<String>, Sendable {
   /// What one of the range's periods is called, e.g. "Week" for W.
   var periodName: String { get }
 }
@@ -30,21 +30,29 @@ public struct PagePeriod: Equatable {
   }
 
   public let ranges: [Range]
-  /// The index in `ranges` of the one shown.
+  /// The index in `ranges` of the one shown, when this was made. What's shown and compared; the
+  /// actions read the page's state itself, so presses that come faster than the page redraws
+  /// (a held ⌘←) each count.
   public let selected: Int
-  /// 0 is the current period, -1 the one before.
+  /// 0 is the current period, -1 the one before, when this was made.
   public let offset: Int
-  private let choose: (Int) -> Void
-  private let move: (Int) -> Void
+  /// The page's range, as an index in `ranges`. Setting it starts at the range's current period,
+  /// in the same change, so it loads once.
+  let rangeSelection: Binding<Int>
+  private let liveOffset: Binding<Int>
 
   public init<R: PeriodRange>(range: Binding<R>, offset: Binding<Int>) {
     let all = Array(R.allCases)
     ranges = all.map { Range(label: $0.rawValue, name: $0.periodName) }
     selected = all.firstIndex(of: range.wrappedValue) ?? 0
     self.offset = offset.wrappedValue
-    // A new range starts at its current period, in the same change, so it loads once.
-    choose = { index in (range.wrappedValue, offset.wrappedValue) = (all[index], 0) }
-    move = { offset.wrappedValue = $0 }
+    rangeSelection = Binding(
+      get: { all.firstIndex(of: range.wrappedValue) ?? 0 },
+      set: { index in
+        guard all.indices.contains(index), all[index] != range.wrappedValue else { return }
+        (range.wrappedValue, offset.wrappedValue) = (all[index], 0)
+      })
+    liveOffset = offset
   }
 
   /// The name of the shown range's periods, e.g. "Week".
@@ -52,15 +60,14 @@ public struct PagePeriod: Equatable {
 
   /// Shows the range at `index`, from its current period. Choosing the one shown changes nothing.
   public func select(_ index: Int) {
-    guard index != selected, ranges.indices.contains(index) else { return }
-    choose(index)
+    rangeSelection.wrappedValue = index
   }
 
-  public func previous() { move(offset - 1) }
-  public func today() { move(0) }
+  public func previous() { liveOffset.wrappedValue -= 1 }
+  public func today() { liveOffset.wrappedValue = 0 }
   public func next() {
-    guard canGoForward else { return }
-    move(offset + 1)
+    guard liveOffset.wrappedValue < 0 else { return }
+    liveOffset.wrappedValue += 1
   }
 
   public var isCurrent: Bool { offset == 0 }
@@ -95,9 +102,7 @@ private struct PeriodControls: ViewModifier {
       .toolbar {
         if period.ranges.count > 1 {
           ToolbarItem(placement: .principal) {
-            Picker(
-              "Range", selection: Binding(get: { period.selected }, set: { period.select($0) })
-            ) {
+            Picker("Range", selection: period.rangeSelection) {
               ForEach(period.ranges.indices, id: \.self) { index in
                 Text(period.ranges[index].label).tag(index)
               }

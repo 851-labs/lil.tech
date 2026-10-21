@@ -41,7 +41,8 @@ enum SleepRange: String, CaseIterable, Hashable, Sendable, PeriodRange {
   case day = "D"
   case week = "W"
 
-  var periodName: String { self == .day ? "Day" : "Week" }
+  /// D is a night, which runs over two days.
+  var periodName: String { self == .day ? "Night" : "Week" }
 
   var nights: Int { self == .day ? 1 : 7 }
 
