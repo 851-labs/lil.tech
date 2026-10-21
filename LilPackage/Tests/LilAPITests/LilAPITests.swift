@@ -102,4 +102,15 @@ struct LilAPITests {
       APIEnvironment.preview(preview).mcpURL(app: "health").absoluteString
         == "https://lil-api-api-pr-57-x.851.workers.dev/health")
   }
+
+  @Test
+  func eachEnvironmentLinksItsAgentsHelpPage() {
+    #expect(APIEnvironment.staging.siteURL.absoluteString == "https://staging.lil.tech")
+    #expect(APIEnvironment.prod.agentsHelpURL.absoluteString == "https://lil.tech/agents")
+    #expect(
+      APIEnvironment.staging.agentsHelpURL.absoluteString == "https://staging.lil.tech/agents")
+    let preview = URL(string: "https://lil-api-api-pr-57-x.851.workers.dev")!
+    #expect(
+      APIEnvironment.preview(preview).agentsHelpURL.absoluteString == "https://lil.tech/agents")
+  }
 }

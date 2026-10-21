@@ -25,6 +25,20 @@ public enum APIEnvironment: Hashable, Sendable {
     }
   }
 
+  /// The deployment's website (`Web/site/public`): `https://lil.tech`, `https://staging.lil.tech`
+  /// on staging, and prod's on a preview, whose own site's host the app can't tell. The API's
+  /// `siteUrl` picks it the same way.
+  public var siteURL: URL {
+    switch self {
+    case .prod, .preview: URL(string: "https://lil.tech")!
+    case .staging: URL(string: "https://staging.lil.tech")!
+    }
+  }
+
+  /// The help page on connecting an agent (`Web/site/public/agents`, 851-2855), which the API's
+  /// Protected Resource Metadata links too (`agentsHelpUrl`).
+  public var agentsHelpURL: URL { siteURL.appending(path: "agents") }
+
   /// Whether this build may talk to a deployment other than its default. Device builds carry
   /// real Health data, which must only go to prod, so only simulator and Debug Mac builds may.
   #if targetEnvironment(simulator) || (os(macOS) && DEBUG)
