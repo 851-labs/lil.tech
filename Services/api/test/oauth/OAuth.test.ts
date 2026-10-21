@@ -412,6 +412,7 @@ describe("POST /oauth/register", () => {
       user: counter("user", Infinity),
       refresh: counter("refresh", Infinity),
       clientRegistration: counter("clientRegistration", 1),
+      agentToken: counter("agentToken", Infinity),
     });
     const body = { redirect_uris: ["https://example.com/cb"] };
     return withApi(
@@ -685,7 +686,7 @@ describe("OAuthClients.deleteUnused", () => {
     applicationType: "native" as const,
   };
 
-  it.effect("deletes registrations never used, and clients unused for 90 days", () =>
+  it.effect("deletes registrations a day after their last use, and others after 90 days", () =>
     Effect.gen(function* () {
       const clients = yield* OAuthClients;
       const unused = yield* clients.register(metadata);
@@ -702,20 +703,18 @@ describe("OAuthClients.deleteUnused", () => {
         ),
       );
 
+      // Neither registration got a grant (the grants' tests cover clients that do).
       yield* TestClock.adjust(day - 1);
       assert.strictEqual(yield* clients.deleteUnused, 0);
       yield* TestClock.adjust(2);
-      assert.strictEqual(yield* clients.deleteUnused, 1);
+      assert.strictEqual(yield* clients.deleteUnused, 2);
       assert.isTrue(Exit.isFailure(yield* clients.resolve(unused.clientId).pipe(Effect.exit)));
 
-      // Used again at day 60, it lasts until 90 days after that.
-      yield* TestClock.adjust(59 * day);
-      yield* clients.resolve(used.clientId);
-      yield* TestClock.adjust(31 * day);
-      assert.strictEqual(yield* clients.deleteUnused, 1, "the document's cached copy");
-      yield* TestClock.adjust(unusedClientAge - 31 * day + 1);
-      assert.strictEqual(yield* clients.deleteUnused, 1);
+      // The document's cached copy lasts until 90 days after it was last used.
+      yield* TestClock.adjust(unusedClientAge - day - 2);
       assert.strictEqual(yield* clients.deleteUnused, 0);
+      yield* TestClock.adjust(2);
+      assert.strictEqual(yield* clients.deleteUnused, 1);
     }).pipe(Effect.provide(TestCore)),
   );
 });

@@ -32,6 +32,12 @@ export const rateLimits = {
    * agents register from shared egress ranges: Claude registers a client per connection.
    */
   clientRegistration: { namespace: 4, limit: 300, periodSeconds: 60 },
+  /**
+   * Agents' token requests (`POST /oauth/token`): per grant for refreshes, per client for code
+   * exchanges. Not per IP address, since hosted agents (Claude, ChatGPT) refresh from shared
+   * egress ranges.
+   */
+  agentToken: { namespace: 5, limit: 60, periodSeconds: 60 },
 } as const satisfies Record<
   string,
   { readonly namespace: number; readonly limit: number; readonly periodSeconds: 10 | 60 }
@@ -78,6 +84,7 @@ export class RateLimits extends Context.Service<
     user: () => Effect.succeed(true),
     refresh: () => Effect.succeed(true),
     clientRegistration: () => Effect.succeed(true),
+    agentToken: () => Effect.succeed(true),
   });
 }
 

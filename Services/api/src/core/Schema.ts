@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnySQLiteColumn,
   foreignKey,
   index,
   integer,
@@ -206,3 +207,99 @@ export const oauthClients = sqliteTable("oauth_clients", {
   // When the client was last resolved for an authorization or token request. Null until then.
   lastUsedAt: integer("last_used_at"),
 });
+
+// An agent's request to connect (`/oauth/authorize`), kept 10 minutes, and once the user allows
+// it on the consent page, its authorization code (`docs/decisions/accounts.md`, Agents). The code
+// is single-use: redeeming it sets `used_at` and the grant it made, so redeeming it again can
+// delete that grant.
+export const agentAuthorizations = sqliteTable(
+  "agent_authorizations",
+  {
+    id: text().primaryKey(), // aau_…
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: "cascade" }),
+    redirectUri: text("redirect_uri").notNull(),
+    state: text(),
+    codeChallenge: text("code_challenge").notNull(), // S256 only
+    // JSON array of the scopes asked for.
+    scopes: text({ mode: "json" }).$type<ReadonlyArray<string>>().notNull(),
+    resource: text().notNull(), // the app's MCP server, e.g. https://mcp.lil.tech/health
+    // SHA-256 hex of the `__Host-` cookie that binds the request to its browser.
+    browserHash: text("browser_hash").notNull(),
+    createdAt: integer("created_at").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+    // Set when the user allows it.
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+    grantedScopes: text("granted_scopes", { mode: "json" }).$type<ReadonlyArray<string>>(),
+    codeHash: text("code_hash").unique(), // SHA-256 hex of the authorization code
+    codeExpiresAt: integer("code_expires_at"),
+    // Set when the code is redeemed.
+    usedAt: integer("used_at"),
+    grantId: text("grant_id"), // the grant the code made
+  },
+  (table) => [
+    index("agent_authorizations_expires_at").on(table.expiresAt),
+    index("agent_authorizations_client_id").on(table.clientId),
+    index("agent_authorizations_user_id").on(table.userId),
+  ],
+);
+
+// Connected agents: one per authorization a user allowed, for one app's MCP server (`resource`).
+// Revoking deletes the row, and its tokens with it.
+export const agentGrants = sqliteTable(
+  "agent_grants",
+  {
+    id: text().primaryKey(), // agr_…
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: "cascade" }),
+    // The client as the consent page showed it: its name, its metadata document's domain (null
+    // for a registered client) and the host it redirected to.
+    clientName: text("client_name"),
+    clientDomain: text("client_domain"),
+    redirectHost: text("redirect_host").notNull(),
+    scopes: text({ mode: "json" }).$type<ReadonlyArray<string>>().notNull(),
+    resource: text().notNull(),
+    createdAt: integer("created_at").notNull(),
+    lastUsedAt: integer("last_used_at").notNull(),
+  },
+  (table) => [
+    index("agent_grants_user_id").on(table.userId),
+    index("agent_grants_client_id").on(table.clientId),
+  ],
+);
+
+// Agents' opaque tokens, stored only as SHA-256 hashes: access tokens (`lma_…`, 1 hour) and
+// rotating refresh tokens (`lmr_…`, 90 days). Each rotation's pair is a refresh token, which
+// `replaces` the one presented, and an access token that names it (`refresh_token_hash`).
+// `used_at` is when the token was first used; on a refresh token, when its pair was, which ends
+// the grace of the token it replaced.
+export const agentTokens = sqliteTable(
+  "agent_tokens",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    grantId: text("grant_id")
+      .notNull()
+      .references(() => agentGrants.id, { onDelete: "cascade" }),
+    kind: text().notNull(), // access, refresh
+    // A refresh token's predecessor, which it replaced. Null for a code exchange's.
+    replaces: text(),
+    // An access token's refresh token, issued with it. Deleting that deletes this.
+    refreshTokenHash: text("refresh_token_hash").references(
+      (): AnySQLiteColumn => agentTokens.tokenHash,
+      { onDelete: "cascade" },
+    ),
+    expiresAt: integer("expires_at").notNull(),
+    usedAt: integer("used_at"),
+  },
+  (table) => [
+    index("agent_tokens_grant_id").on(table.grantId),
+    index("agent_tokens_replaces").on(table.replaces),
+    index("agent_tokens_refresh_token_hash").on(table.refreshTokenHash),
+    index("agent_tokens_expires_at").on(table.expiresAt),
+  ],
+);
