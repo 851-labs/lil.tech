@@ -35,7 +35,9 @@ public struct AppView: View {
         }
       }
     }
-    .frame(minWidth: 720, minHeight: 480)
+    // Wide enough for a metric's toolbar beside the sidebar: its title, range and periods
+    // (851-2821).
+    .frame(minWidth: 800, minHeight: 480)
   }
 }
 
@@ -43,6 +45,7 @@ public struct AppView: View {
 /// data types.
 struct SidebarView: View {
   @Bindable var store: StoreOf<AppFeature>
+  @FocusState private var isSearchFocused: Bool
 
   var body: some View {
     List(selection: $store.selection) {
@@ -77,6 +80,9 @@ struct SidebarView: View {
       }
     }
     .searchable(text: $store.searchText, placement: .sidebar, prompt: "Search")
+    // So ⌘← and ⌘→ move the search field's cursor rather than a metric's period.
+    .searchFocused($isSearchFocused)
+    .focusedSceneValue(\.isSearchFocused, isSearchFocused)
     .safeAreaInset(edge: .bottom, spacing: 0) {
       VStack(spacing: 0) {
         Divider()

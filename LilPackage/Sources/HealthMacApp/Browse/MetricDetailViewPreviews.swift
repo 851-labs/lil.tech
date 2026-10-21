@@ -10,23 +10,27 @@ import SwiftUI
 
 @MainActor
 private func detail(
-  _ id: String, _ range: ChartRange, state: ((HealthDataType) -> MetricDetailContent.State)? = nil
+  _ id: String, _ range: ChartRange, offset: Int = 0,
+  state: ((HealthDataType) -> MetricDetailContent.State)? = nil
 ) -> some View {
   preparePreviewDatabase()
   let type = HealthCatalog.type(id: id)!
-  let loaded = state?(type) ?? .loaded(previewChart(type, range))
+  let loaded = state?(type) ?? .loaded(previewChart(type, range, offset: offset))
   return NavigationStack {
-    MetricDetailContent(type: type, range: .constant(range), offset: .constant(0), state: loaded)
+    MetricDetailContent(
+      type: type, range: .constant(range), offset: .constant(offset), state: loaded)
   }
   .previewFrame(width: 760, height: 820)
 }
 
 @MainActor
-private func previewChart(_ type: HealthDataType, _ range: ChartRange) -> MetricChart {
+private func previewChart(
+  _ type: HealthDataType, _ range: ChartRange, offset: Int = 0
+) -> MetricChart {
   let database = makePreviewHealthDatabase()
   return try! database.read { db in
     try HealthDatabase.metricChart(
-      of: type, range: range, offset: 0, now: .now, calendar: .current, db)
+      of: type, range: range, offset: offset, now: .now, calendar: .current, db)
   }
 }
 
@@ -35,6 +39,11 @@ private let heartRate = "HKQuantityTypeIdentifierHeartRate"
 
 #Preview("Steps, week") {
   detail(steps, .week)
+}
+
+// Today and the next week are available (851-2821).
+#Preview("Steps, the week before") {
+  detail(steps, .week, offset: -1)
 }
 
 #Preview("Steps, day") {
