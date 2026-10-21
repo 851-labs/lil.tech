@@ -1,14 +1,15 @@
 #!/bin/sh
 # Formats every Swift file with swift-format, and the TypeScript workspace (Services/, Web/)
-# with Vite+ (Oxfmt), and regenerates the API's OpenAPI spec, its MCP tool definitions and the
-# Swift client.
+# with Vite+ (Oxfmt), and regenerates the server's copy of the Health catalog, the API's OpenAPI
+# spec, its MCP tool definitions and the Swift client.
 # Usage: scripts/format [--lint] [--swift | --services]
-#   --lint   Check without changing files: swift-format lint, plus `vp check`
+#   --lint   Check without changing files: swift-format lint and a check that
+#            Services/api/health-catalog.json is up to date, plus `vp check`
 #            (format, lint and type check) for the workspace, plus a check that
 #            Services/api/openapi.json, Services/api/mcp-tools.json, the core D1
 #            migrations and the generated Swift client are up to date. Runs every check
 #            and exits non-zero if any fails.
-#   --swift     Only the Swift part.
+#   --swift     Only the Swift part, with the Health catalog.
 #   --services  Only the TypeScript workspace, with the spec, tools and client.
 set -u
 
@@ -45,8 +46,11 @@ if $services_only; then
   :
 elif $lint; then
   xcrun swift-format lint --strict --parallel $files || status=1
+  scripts/generate-health-catalog --check || status=1
 else
   xcrun swift-format format --in-place --parallel $files || status=1
+  # The server's copy of the Health catalog, generated from the Swift one (851-2857).
+  scripts/generate-health-catalog || status=1
 fi
 
 if $swift_only; then

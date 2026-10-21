@@ -55,6 +55,27 @@ struct HealthCatalogTests {
     #expect(!standard.contains("HKQuantityTypeIdentifierNikeFuel"))
   }
 
+  /// The server's copy (851-2857) is generated from this catalog, so the two can't drift.
+  @Test
+  func serverCatalogMatches() throws {
+    let path = URL(filePath: #filePath)
+      .deletingLastPathComponent()
+      .appending(path: "../../../Services/api/health-catalog.json")
+      .standardized
+    let committed = try String(contentsOf: path, encoding: .utf8)
+    #expect(
+      committed == (try HealthCatalog.json()),
+      "Services/api/health-catalog.json is out of date. Run scripts/format to regenerate it."
+    )
+  }
+
+  @Test
+  func workoutActivityNames() {
+    #expect(HealthCatalog.workoutActivityName(37) == "Running")
+    #expect(HealthCatalog.workoutActivityName(3000) == "Other")
+    #expect(HealthCatalog.workoutActivityName(9_999) == "Workout")
+  }
+
   @Test
   func availabilityFiltersNewerTypes() {
     let onIOS26 = Set(HealthCatalog.types(availableOn: .ios(26)).map(\.id))

@@ -2,7 +2,8 @@
 # Runs our checks (`docs/DECISIONS.md`). The pre-commit hook (`lefthook.yml`) runs the services and
 # Pixelbook parts a commit touches; GitHub runs the Swift part on our Mac minis (`swift-check.yml`).
 # Usage: scripts/check [--hook] [--swift] [--services] [--pixelbook]   (every part when none is given)
-#   --swift     Swift lint, the package's tests, and the apps' builds.
+#   --swift     Swift lint (with a check that the server's copy of the Health catalog is fresh),
+#               the package's tests, and the apps' builds.
 #   --services  Format, lint and type checks (`scripts/format --lint --services`, which also checks
 #               the OpenAPI spec is fresh), the generated Swift client regenerated and compared,
 #               and every workspace package's tests.
@@ -48,7 +49,7 @@ step() {
   "$@" || status=1
 }
 
-swift_paths="LilPackage Apps Tools Lil.xcworkspace .swift-format scripts"
+swift_paths="LilPackage Apps Tools Lil.xcworkspace .swift-format scripts Services/api/health-catalog.json"
 # The TypeScript workspace, with its root config, plus what the generated client depends on.
 services_paths="Services Web Apps/LilHealth/LilHealth-Info.plist Apps/LilHealth/LilHealthiOS-Info.plist package.json pnpm-workspace.yaml pnpm-lock.yaml .node-version vite.config.ts tsconfig.json tsconfig.base.json Tools LilPackage/Sources/LilAPIGenerated scripts"
 pixelbook_paths="LilPackage/Sources Web/pixelbook/graphs Web/pixelbook/src/lib/Graph.ts Web/pixelbook/scripts"
