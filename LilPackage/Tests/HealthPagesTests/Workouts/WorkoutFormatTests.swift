@@ -1,6 +1,7 @@
 import AppKit
 import CoreLocation
 import Foundation
+import HealthCatalog
 import HealthDatabase
 import SwiftUI
 import Testing
@@ -15,6 +16,12 @@ struct WorkoutFormatTests {
     #expect(WorkoutFormat.pace(5 * 60 + 12) == "5'12\"/km")
     #expect(WorkoutActivity.name(37) == "Running")
     #expect(WorkoutActivity.name(9_999) == "Workout")
+  }
+
+  /// Names come from the catalog and symbols from here, so each activity needs both.
+  @Test
+  func everyNamedActivityHasASymbol() {
+    #expect(Set(WorkoutActivity.symbols.keys) == Set(HealthCatalog.workoutActivityNames.keys))
   }
 
   // Main actor: resolving a SwiftUI color to an NSColor needs it.

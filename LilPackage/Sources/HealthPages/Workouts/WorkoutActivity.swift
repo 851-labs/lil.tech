@@ -16,7 +16,8 @@ enum WorkoutActivity {
     [37, 52, 24, 70, 71].contains(activityType)
   }
 
-  private static let symbols: [Int: String] = [
+  /// Every activity the catalog names, and only those (`WorkoutFormatTests`).
+  static let symbols: [Int: String] = [
     13: "figure.outdoor.cycle",
     14: "figure.dance",
     16: "figure.elliptical",

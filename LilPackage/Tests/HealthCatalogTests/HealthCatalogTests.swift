@@ -1,6 +1,7 @@
 import Foundation
-import HealthCatalog
 import Testing
+
+@testable import HealthCatalog
 
 struct HealthCatalogTests {
   @Test

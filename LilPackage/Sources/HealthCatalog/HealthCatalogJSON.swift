@@ -6,8 +6,19 @@ extension HealthCatalog {
   /// catalog is the source of truth: `scripts/generate-health-catalog` writes the file from this,
   /// and `HealthCatalogTests` checks the committed file matches.
   ///
-  /// One entry per line, with fields in a fixed order, so changes diff by entry.
-  public static func json() throws -> String {
+  /// One entry per line, with fields in a fixed order, so changes diff by entry. Internal: the
+  /// generator compiles it into the module, and the apps don't need it.
+  static func json() throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    func value(_ value: any Encodable) throws -> String {
+      String(decoding: try encoder.encode(value), as: UTF8.self)
+    }
+    func object(_ fields: KeyValuePairs<String, any Encodable>) throws -> String {
+      let pairs = try fields.map { key, field in "\(try value(key)): \(try value(field))" }
+      return "{ \(pairs.joined(separator: ", ")) }"
+    }
+
     let categories = try HealthCategory.allCases.map { category in
       try object(["id": category.rawValue, "name": category.name])
     }
@@ -38,18 +49,8 @@ extension HealthCatalog {
       """
   }
 
-  private static func object(_ fields: KeyValuePairs<String, any Encodable>) throws -> String {
-    let pairs = try fields.map { key, field in "\(try value(key)): \(try value(field))" }
-    return "{ \(pairs.joined(separator: ", ")) }"
-  }
-
   private static func array(_ lines: [String]) -> String {
     "[\n" + lines.map { "    \($0)" }.joined(separator: ",\n") + "\n  ]"
   }
 
-  private static func value(_ value: any Encodable) throws -> String {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    return String(decoding: try encoder.encode(value), as: UTF8.self)
-  }
 }
