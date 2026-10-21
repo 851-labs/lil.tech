@@ -146,7 +146,7 @@ extension HealthDatabase {
   /// A cumulative type's totals per period, from the statistics source's 30-minute buckets and,
   /// past the last of them (no statistics at all, or samples synced before their buckets), the
   /// samples' own totals, as Browse shows them.
-  static func cumulativeTotals(
+  public static func cumulativeTotals(
     of type: String, in range: Range<Date>, by period: StatisticsPeriod, now: Date,
     calendar: Calendar, _ db: Database
   ) throws -> [CumulativeStatistic] {

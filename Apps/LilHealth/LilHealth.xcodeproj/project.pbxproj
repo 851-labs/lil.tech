@@ -13,6 +13,8 @@
 		1A0000000000000000000018 /* LilCLIInstaller in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0000000000000000000019 /* LilCLIInstaller */; };
 		1B000000000000000000000A /* HealthPhoneApp in Frameworks */ = {isa = PBXBuildFile; productRef = 1B000000000000000000000B /* HealthPhoneApp */; };
 		1C000000000000000000000A /* LilCLI in Frameworks */ = {isa = PBXBuildFile; productRef = 1C000000000000000000000B /* LilCLI */; };
+		1D0000000000000000000001 /* lil-health in Embed Command Line Tool */ = {isa = PBXBuildFile; fileRef = 1D0000000000000000000004 /* lil-health */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		1D000000000000000000000A /* HealthCLI in Frameworks */ = {isa = PBXBuildFile; productRef = 1D000000000000000000000B /* HealthCLI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -22,6 +24,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 1C0000000000000000000006;
 			remoteInfo = lil;
+		};
+		1D0000000000000000000003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1A0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1D0000000000000000000006;
+			remoteInfo = "lil-health";
 		};
 /* End PBXContainerItemProxy section */
 
@@ -33,6 +42,7 @@
 			dstSubfolderSpec = 6;
 			files = (
 				1A0000000000000000000015 /* lil in Embed Command Line Tool */,
+				1D0000000000000000000001 /* lil-health in Embed Command Line Tool */,
 			);
 			name = "Embed Command Line Tool";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -43,6 +53,7 @@
 		1A0000000000000000000004 /* lil health.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "lil health.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		1B0000000000000000000004 /* lil health.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "lil health.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		1C0000000000000000000004 /* lil */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = lil; sourceTree = BUILT_PRODUCTS_DIR; };
+		1D0000000000000000000004 /* lil-health */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "lil-health"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -60,6 +71,12 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			name = lil;
 			path = ../../LilPackage/Sources/lil;
+			sourceTree = "<group>";
+		};
+		1D0000000000000000000005 /* lil-health */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			name = "lil-health";
+			path = "../../LilPackage/Sources/lil-health";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -91,6 +108,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		1D0000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1D000000000000000000000A /* HealthCLI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -100,6 +125,7 @@
 				1A0000000000000000000005 /* LilHealth */,
 				1B0000000000000000000005 /* LilHealthiOS */,
 				1C0000000000000000000005 /* lil */,
+				1D0000000000000000000005 /* lil-health */,
 				1A0000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -110,6 +136,7 @@
 				1A0000000000000000000004 /* lil health.app */,
 				1B0000000000000000000004 /* lil health.app */,
 				1C0000000000000000000004 /* lil */,
+				1D0000000000000000000004 /* lil-health */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -130,6 +157,7 @@
 			);
 			dependencies = (
 				1A0000000000000000000016 /* PBXTargetDependency */,
+				1D0000000000000000000002 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				1A0000000000000000000005 /* LilHealth */,
@@ -189,6 +217,28 @@
 			productReference = 1C0000000000000000000004 /* lil */;
 			productType = "com.apple.product-type.tool";
 		};
+		1D0000000000000000000006 /* lil-health */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1D000000000000000000000F /* Build configuration list for PBXNativeTarget "lil-health" */;
+			buildPhases = (
+				1D0000000000000000000007 /* Sources */,
+				1D0000000000000000000008 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				1D0000000000000000000005 /* lil-health */,
+			);
+			name = "lil-health";
+			packageProductDependencies = (
+				1D000000000000000000000B /* HealthCLI */,
+			);
+			productName = "lil-health";
+			productReference = 1D0000000000000000000004 /* lil-health */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -206,6 +256,9 @@
 						CreatedOnToolsVersion = 27.0;
 					};
 					1C0000000000000000000006 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					1D0000000000000000000006 = {
 						CreatedOnToolsVersion = 27.0;
 					};
 				};
@@ -227,6 +280,7 @@
 				1A0000000000000000000006 /* LilHealth */,
 				1B0000000000000000000006 /* LilHealthiOS */,
 				1C0000000000000000000006 /* lil */,
+				1D0000000000000000000006 /* lil-health */,
 			);
 		};
 /* End PBXProject section */
@@ -270,6 +324,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		1D0000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -277,6 +338,11 @@
 			isa = PBXTargetDependency;
 			target = 1C0000000000000000000006 /* lil */;
 			targetProxy = 1A0000000000000000000017 /* PBXContainerItemProxy */;
+		};
+		1D0000000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1D0000000000000000000006 /* lil-health */;
+			targetProxy = 1D0000000000000000000003 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -475,6 +541,38 @@
 			};
 			name = Release;
 		};
+		1D0000000000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "lil-health";
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.health.cli;
+				PRODUCT_NAME = "lil-health";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		1D0000000000000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "lil-health";
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				OTHER_CODE_SIGN_FLAGS = "--timestamp";
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.health.cli;
+				PRODUCT_NAME = "lil-health";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -514,6 +612,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		1D000000000000000000000F /* Build configuration list for PBXNativeTarget "lil-health" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1D0000000000000000000010 /* Debug */,
+				1D0000000000000000000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -536,6 +643,10 @@
 		1C000000000000000000000B /* LilCLI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = LilCLI;
+		};
+		1D000000000000000000000B /* HealthCLI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthCLI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

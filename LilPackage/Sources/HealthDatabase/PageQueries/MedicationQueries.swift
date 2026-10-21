@@ -11,6 +11,19 @@ extension HealthDatabase {
     }
   }
 
+  /// When a dose of the medication was last logged as taken, or `nil` if none was.
+  public static func lastTaken(medication id: String, _ db: Database) throws -> Date? {
+    let taken = MedicationDoseStatus.taken.rawValue
+    return
+      try HealthMedicationDose
+      .where { $0.medication.eq(id) && $0.logStatus.eq(taken) }
+      .order { $0.startDate.desc() }
+      .select(\.startDate)
+      .limit(1)
+      .fetchOne(db)
+      .map(Date.init(unixMilliseconds:))
+  }
+
   /// A medication, its adherence over the last 7 and 30 days, and its latest `limit` doses by
   /// day, as of `now` in `calendar`. `nil` once it's no longer shared.
   public static func medicationDetail(

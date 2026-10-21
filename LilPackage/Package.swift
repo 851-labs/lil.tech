@@ -11,11 +11,13 @@ let package = Package(
   products: [
     .library(name: "HealthAgentAccess", targets: ["HealthAgentAccess"]),
     .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
+    .library(name: "HealthCLI", targets: ["HealthCLI"]),
     .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
     .library(name: "HealthKitAccess", targets: ["HealthKitAccess"]),
     .library(name: "HealthMacApp", targets: ["HealthMacApp"]),
     .library(name: "HealthPages", targets: ["HealthPages"]),
     .library(name: "HealthPhoneApp", targets: ["HealthPhoneApp"]),
+    .library(name: "HealthTools", targets: ["HealthTools"]),
     .library(name: "HealthUpload", targets: ["HealthUpload"]),
     .library(name: "LilAPI", targets: ["LilAPI"]),
     .library(name: "LilAuth", targets: ["LilAuth"]),
@@ -32,6 +34,7 @@ let package = Package(
     .library(name: "MessagesThread", targets: ["MessagesThread"]),
   ],
   dependencies: [
+    .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.0"),
     .package(
       url: "https://github.com/pointfreeco/swift-composable-architecture",
       from: "1.26.0",
@@ -73,6 +76,39 @@ let package = Package(
     .target(
       name: "HealthUI",
       dependencies: ["HealthCatalog"]
+    ),
+    // `lil-health`, lil health for Mac's command-line tool: the Health toolkit's queries on the
+    // Mac's database, read-only, while command-line and agent access is on (851-2843).
+    .target(
+      name: "HealthCLI",
+      dependencies: [
+        "HealthAgentAccess",
+        "HealthCatalog",
+        "HealthDatabase",
+        "HealthTools",
+        .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        .product(name: "GRDB", package: "GRDB.swift"),
+      ]
+    ),
+    // `lil-health` for `swift run lil-health-dev` and HealthCLITests. The app bundles the same
+    // main.swift, built by an Xcode tool target of its own (`lil-health` in LilHealth.xcodeproj),
+    // as `lil` is.
+    .executableTarget(
+      name: "lil-health-dev",
+      dependencies: ["HealthCLI"],
+      path: "Sources/lil-health"
+    ),
+    .testTarget(
+      name: "HealthCLITests",
+      dependencies: [
+        "HealthAgentAccess",
+        "HealthCLI",
+        "HealthDatabase",
+        "HealthTools",
+        "lil-health-dev",
+        .product(name: "GRDB", package: "GRDB.swift"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
+      ]
     ),
     .testTarget(
       name: "HealthCatalogTests",
@@ -161,6 +197,7 @@ let package = Package(
     .testTarget(
       name: "HealthPagesTests",
       dependencies: [
+        "HealthCatalog",
         "HealthDatabase",
         "HealthPages",
       ]
@@ -185,6 +222,26 @@ let package = Package(
         "HealthUpload",
         "LilAuth",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+      ]
+    ),
+    // The Health toolkit (`Services/api/src/health/tools/HealthToolkit.ts`, 851-2841) on the Mac's
+    // database: each tool's answer, as the toolkit's output schemas have it. `lil-health`'s
+    // commands, and its MCP server, use them.
+    .target(
+      name: "HealthTools",
+      dependencies: [
+        "HealthCatalog",
+        "HealthDatabase",
+        .product(name: "GRDB", package: "GRDB.swift"),
+      ]
+    ),
+    .testTarget(
+      name: "HealthToolsTests",
+      dependencies: [
+        "HealthCatalog",
+        "HealthDatabase",
+        "HealthTools",
+        .product(name: "SQLiteData", package: "sqlite-data"),
       ]
     ),
     .target(

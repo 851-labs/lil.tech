@@ -43,7 +43,7 @@ This:
 
 1. checks that the app's `SUPublicEDKey` is the public half of its signing key (`lil-<app>`), before building anything and again on the exported app (851-2692);
 2. archives the app with that marketing version and a build number equal to the commit count;
-3. exports it with Developer ID, and checks that the `lil` command lil health bundles is signed with Developer ID, the hardened runtime and a secure timestamp (851-2842);
+3. exports it with Developer ID, and checks that the command line tools lil health bundles, `lil` and `lil-health`, are signed with Developer ID, the hardened runtime and a secure timestamp (851-2842, 851-2843);
 4. packages it into a DMG and signs that;
 5. notarizes and staples the DMG;
 6. verifies it with Gatekeeper;

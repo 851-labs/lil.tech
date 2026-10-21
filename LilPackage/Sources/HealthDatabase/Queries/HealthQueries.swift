@@ -138,6 +138,21 @@ extension HealthDatabase {
     of type: String, in range: Range<Date>, by period: StatisticsPeriod, calendar: Calendar,
     _ db: Database
   ) throws -> [DiscreteStatistic] {
+    try discreteStatistics(of: type, in: range, periods: Periods(period, calendar), db)
+  }
+
+  /// A discrete type's average, minimum and maximum over all of `range`, weighted as
+  /// `discreteStatistics(of:in:by:calendar:_:)` weighs each period's. `nil` without samples.
+  public static func discreteStatistic(
+    of type: String, in range: Range<Date>, _ db: Database
+  ) throws -> DiscreteStatistic? {
+    try discreteStatistics(of: type, in: range, periods: Periods(whole: range), db).first
+  }
+
+  private static func discreteStatistics(
+    of type: String, in range: Range<Date>, periods: Periods, _ db: Database
+  ) throws -> [DiscreteStatistic] {
+    var periods = periods
     let aggregation = HealthCatalog.type(id: type)?.aggregation ?? .discreteArithmetic
     let lower = range.lowerBound.unixMilliseconds
     let upper = range.upperBound.unixMilliseconds
@@ -155,7 +170,6 @@ extension HealthDatabase {
       }
     let weights = Self.weights(of: rows, aggregation)
 
-    var periods = Periods(period, calendar)
     var groups: [(start: Date, values: [Double], weights: [Double])] = []
     for (reading, weight) in zip(rows, weights) where reading.start < upper {
       let start = periods.start(of: Date(unixMilliseconds: reading.start))
@@ -228,6 +242,13 @@ private struct Periods {
   init(_ period: StatisticsPeriod, _ calendar: Calendar) {
     self.component = period.component
     self.calendar = calendar
+  }
+
+  /// One period: all of `range`.
+  init(whole range: Range<Date>) {
+    self.component = .era
+    self.calendar = Calendar(identifier: .gregorian)
+    current = DateInterval(start: range.lowerBound, end: range.upperBound)
   }
 
   mutating func start(of date: Date) -> Date {

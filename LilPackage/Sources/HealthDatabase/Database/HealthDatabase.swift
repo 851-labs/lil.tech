@@ -21,11 +21,65 @@ public enum HealthDatabase {
   public static func make(at url: URL? = nil) throws -> any DatabaseWriter {
     // A temporary database in previews and tests.
     let database = try SQLiteData.defaultDatabase(path: url?.path(percentEncoded: false))
+    try migrator.migrate(database)
+    return database
+  }
+
+  /// Every migration of the database, sync's and the health tables'.
+  public static var migrator: DatabaseMigrator {
     var migrator = DatabaseMigrator()
     LilSyncEngine.registerMigrations(in: &migrator)
     registerMigrations(in: &migrator)
-    try migrator.migrate(database)
+    return migrator
+  }
+
+  /// Opens the database at `url` to read it, alongside the app, as `lil-health` does (851-2843).
+  /// It's read-only: the app's database is in WAL mode, so reads see its last commit while it
+  /// writes. It never migrates, so it refuses a database migrated by a newer release, whose
+  /// tables this one may misread, and one the app hasn't migrated yet.
+  public static func openForReading(at url: URL) throws -> any DatabaseReader {
+    guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
+      throw ReadError.missing
+    }
+    var configuration = Configuration()
+    configuration.readonly = true
+    // The app may be checkpointing or writing a large sync batch.
+    configuration.busyMode = .timeout(5)
+    configuration.prepareDatabase { db in
+      db.add(collation: .canonical)
+    }
+    let database = try DatabasePool(
+      path: url.path(percentEncoded: false), configuration: configuration)
+    try database.read { db in
+      let migrator = Self.migrator
+      if try migrator.hasBeenSuperseded(db) { throw ReadError.newerSchema }
+      if try !migrator.hasCompletedMigrations(db) { throw ReadError.olderSchema }
+    }
     return database
+  }
+
+  /// Why `openForReading(at:)` couldn't open the database.
+  public enum ReadError: LocalizedError, Equatable {
+    /// There's no database: lil health hasn't run on this Mac.
+    case missing
+    /// A newer release of lil health migrated it.
+    case newerSchema
+    /// lil health hasn't migrated it since an update.
+    case olderSchema
+
+    public var errorDescription: String? {
+      switch self {
+      case .missing:
+        "There's no lil health data on this Mac yet. Open lil health, sign in, and let it sync."
+      case .newerSchema:
+        """
+        lil health's data on this Mac is from a newer version of lil health than this command. \
+        Use the lil-health inside the latest lil health.app.
+        """
+      case .olderSchema:
+        "lil health's data on this Mac needs updating. Open lil health once, then try again."
+      }
+    }
   }
 
   public static func registerMigrations(in migrator: inout DatabaseMigrator) {

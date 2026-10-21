@@ -135,22 +135,13 @@ struct WorkoutRow: View {
 
 /// How workouts' figures read.
 enum WorkoutFormat {
-  /// The kinds of distance a workout can record, the usual ones first.
-  static let distances = [
-    "HKQuantityTypeIdentifierDistanceWalkingRunning", "HKQuantityTypeIdentifierDistanceCycling",
-    "HKQuantityTypeIdentifierDistanceSwimming", "HKQuantityTypeIdentifierDistanceWheelchair",
-    "HKQuantityTypeIdentifierDistanceDownhillSnowSports",
-    "HKQuantityTypeIdentifierDistanceCrossCountrySkiing",
-    "HKQuantityTypeIdentifierDistancePaddleSports", "HKQuantityTypeIdentifierDistanceRowing",
-    "HKQuantityTypeIdentifierDistanceSkatingSports",
-  ]
-  static let activeEnergy = "HKQuantityTypeIdentifierActiveEnergyBurned"
+  static let activeEnergy = HealthWorkout.activeEnergyType
   static let basalEnergy = "HKQuantityTypeIdentifierBasalEnergyBurned"
-  static let heartRate = "HKQuantityTypeIdentifierHeartRate"
+  static let heartRate = HealthWorkout.heartRateType
 
   /// The workout's distance in meters, whichever kind it recorded.
   static func distance(_ statistics: [String: WorkoutStatistic]) -> Double? {
-    distances.lazy.compactMap { statistics[$0]?.sum }.first
+    HealthWorkout.distance(in: statistics)
   }
 
   /// Distance if it has one, otherwise active energy, otherwise its time.
