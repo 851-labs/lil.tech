@@ -8,6 +8,7 @@ import { CoreDb } from "./CoreDb.ts";
 import { Devices } from "./Devices.ts";
 import { Identities } from "./Identities.ts";
 import { IdentityTokenUses } from "./IdentityTokenUses.ts";
+import { OAuthClients } from "./OAuthClients.ts";
 import { Sessions } from "./Sessions.ts";
 import { Users } from "./Users.ts";
 
@@ -40,4 +41,5 @@ export const CoreRepositories = Layer.mergeAll(
   IdentityTokenUses.layer,
   Consents.layer,
   AppleTokenRevocations.layer,
+  OAuthClients.layer,
 );

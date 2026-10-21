@@ -187,3 +187,22 @@ export const appleTokenRevocations = sqliteTable(
   },
   (table) => [index("apple_token_revocations_next").on(table.nextAttemptAt)],
 );
+
+// OAuth clients of the agents' authorization server (`docs/decisions/accounts.md`, Agents): each
+// one either a Client ID Metadata Document, cached here (`cimd`, whose `client_id` is the
+// document's URL), or registered dynamically (`dcr`, `cli_…`). Public clients only, so there are
+// no secrets. No logos: the consent page loads no remote images.
+export const oauthClients = sqliteTable("oauth_clients", {
+  id: text().primaryKey(), // ocl_…
+  clientId: text("client_id").notNull().unique(),
+  kind: text().notNull(), // cimd, dcr
+  name: text(), // client_name; a dynamically registered client may have none
+  clientUri: text("client_uri"),
+  redirectUris: text("redirect_uris", { mode: "json" }).$type<ReadonlyArray<string>>().notNull(),
+  applicationType: text("application_type").notNull(), // web, native
+  // When a cached metadata document must be fetched again. Null for registered clients.
+  expiresAt: integer("expires_at"),
+  createdAt: integer("created_at").notNull(),
+  // When the client was last resolved for an authorization or token request. Null until then.
+  lastUsedAt: integer("last_used_at"),
+});

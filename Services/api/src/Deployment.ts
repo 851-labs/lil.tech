@@ -20,17 +20,31 @@ export class Deployment extends Context.Service<
   });
 }
 
-/** The environment an Alchemy stage deploys. `alchemy dev` stages are named `dev_<user>`. */
 /**
- * Custom domains per stage, for the API, the website and Pixelbook. Other stages (PR previews,
- * personal stages) use workers.dev.
+ * Custom domains per stage, for the API, the MCP servers for agents (another host of the API's
+ * Worker, `src/oauth/Hosts.ts`), the website and Pixelbook. Other stages (PR previews, personal
+ * stages) use workers.dev.
  */
 export const stageDomains: Partial<
-  Record<string, { readonly api: string; readonly site: string; readonly pixelbook: string }>
+  Record<
+    string,
+    {
+      readonly api: string;
+      readonly mcp: string;
+      readonly site: string;
+      readonly pixelbook: string;
+    }
+  >
 > = {
-  prod: { api: "api.lil.tech", site: "lil.tech", pixelbook: "pixelbook.lil.tech" },
+  prod: {
+    api: "api.lil.tech",
+    mcp: "mcp.lil.tech",
+    site: "lil.tech",
+    pixelbook: "pixelbook.lil.tech",
+  },
   staging: {
     api: "api.staging.lil.tech",
+    mcp: "mcp.staging.lil.tech",
     site: "staging.lil.tech",
     pixelbook: "pixelbook.staging.lil.tech",
   },
@@ -43,6 +57,7 @@ export const stageDomains: Partial<
 export const pixelbookBucketName = "lil-pixelbook";
 export const pixelbookAssetsDomain = "pixelbook-assets.lil.tech";
 
+/** The environment an Alchemy stage deploys. `alchemy dev` stages are named `dev_<user>`. */
 export const environmentForStage = (stage: string): Environment => {
   if (stage === "prod" || stage === "staging") return stage;
   return stage.startsWith("dev_") ? "local" : "preview";

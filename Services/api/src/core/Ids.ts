@@ -29,6 +29,11 @@ export const ConnectionId = Schema.String.pipe(
   Schema.brand("ConnectionId"),
 );
 export type ConnectionId = typeof ConnectionId.Type;
+export const OAuthClientId = Schema.String.pipe(
+  Schema.check(pattern("ocl")),
+  Schema.brand("OAuthClientId"),
+);
+export type OAuthClientId = typeof OAuthClientId.Type;
 
 /** Makes a new ID with the given prefix, using the `Clock` for its time part. */
 export const makeId = Effect.fnUntraced(function* (prefix: string) {
@@ -49,3 +54,6 @@ export const newIdentityId = makeId("idt") as Effect.Effect<IdentityId>;
 export const newDeviceId = makeId("dev") as Effect.Effect<DeviceId>;
 export const newSessionId = makeId("ses") as Effect.Effect<SessionId>;
 export const newConnectionId = makeId("con") as Effect.Effect<ConnectionId>;
+export const newOAuthClientId = makeId("ocl") as Effect.Effect<OAuthClientId>;
+/** A client ID that dynamic client registration issues (`POST /oauth/register`). */
+export const newRegisteredClientId = makeId("cli");

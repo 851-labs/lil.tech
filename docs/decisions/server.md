@@ -4,6 +4,7 @@
 
 - **One API for every app:** a monolith at `api.lil.tech`, used by lil health now and by lil mail and lil calendar later.
   - Environments: prod (`api.lil.tech`), staging (`api.staging.lil.tech`), and a preview per PR.
+  - **`mcp.lil.tech`** (`mcp.staging.lil.tech`), the MCP servers for agents (`accounts.md`, Agents), is another custom domain of the same Worker (an alias in `stageDomains`): no second Worker or deploy. The Worker sends each host only its own routes. Previews and personal stages serve both on their workers.dev host.
   - Staging and previews hold synthetic data only. Simulator builds use them; builds on your own iPhone, with your real Health data, use prod under your own account.
 - **Hosting:** Cloudflare only for now, on Workers Paid. `lil.tech` is registered at Namecheap, with DNS on Cloudflare.
 - **Stack:** Effect 4, Vite+, and [Alchemy](https://alchemy.run) v2 for infrastructure as code (`alchemy.run.ts`).
@@ -67,6 +68,7 @@
   - Sign-ins: 60 a minute per IP address (`cf-connecting-ip`), shared by Apple, Google and dev sign-in. They're unauthenticated and create accounts, so the address is the only key there is.
   - Refreshes: 600 a minute per IP address, separately, so sign-in attempts can't block refreshes, and every device behind a carrier NAT can still refresh.
   - An IPv6 address counts by its /64, since one client usually has a whole /64.
+  - Dynamic client registrations for agents (`POST /oauth/register`): 300 a minute per IP address, separately. High, because hosted agents register from shared egress ranges: Claude registers a client per connection, from `160.79.104.0/21`.
   - Authenticated requests: 600 a minute per user, counted after the access token is verified, so a bad token costs nobody's budget. That includes the live socket. Signing out isn't counted, because a refused sign-out would leave the refresh token working.
   - Over a limit, the API answers 429 `TooManyRequests` with `retryAfterSeconds` (and `Retry-After` on routes outside the HttpApi). The apps wait it out. The Mac's sync waits at least `retryAfterSeconds` before trying again. The iPhone's backfill pauses (it isn't a failure) and keeps its page: syncs for changes wait until the time is up, while a run of everything (opening the app, Continue, a background task) waits it out, showing as running, and carries on, including when the 429 comes partway through. A rate-limited refresh keeps the session.
   - Counting is approximate and per Cloudflare location. It's also permissive: on a preview, a burst got a few hundred requests past a limit of 60 before 429s began. That's still enough to bound abuse. A Durable Object would count exactly, but would add a hop to every request.
