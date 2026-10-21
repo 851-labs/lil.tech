@@ -18,7 +18,7 @@
 ## iOS apps
 
 - **TestFlight and the App Store**, which HealthKit requires. Release builds are signed with Apple Distribution and uploaded to App Store Connect.
-- **Uploads:** `scripts/release health-ios <version>` archives with the version, shared with the Mac app, and the commit count as the build number, then uploads with the Apple account signed in to Xcode (cloud signing), not an API key, whose export fails on cloud signing permissions. Releases always set the version on the command line; the projects' `MARKETING_VERSION` is a placeholder for local builds (851-2817).
+- **Uploads:** `scripts/release health-ios <version>` archives with the version, shared with the Mac app, and the commit count as the build number, then uploads with the Apple account signed in to Xcode (cloud signing), not an API key. Cloud signing needs an Admin key: an App Manager key's export fails on cloud signing permissions. The Admin team key "lil.tech CI" replaced the App Manager one in October 2026 (851-2827). Releases always set the version on the command line; the projects' `MARKETING_VERSION` is a placeholder for local builds (851-2817).
 - **Export compliance:** `ITSAppUsesNonExemptEncryption` is `NO` in the iOS app's Info.plist, so builds don't wait for the question in App Store Connect. The app only uses exempt encryption: HTTPS, the Keychain, and SHA-256 hashing.
 
 ## Everywhere

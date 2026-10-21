@@ -64,8 +64,8 @@ case "$app" in
     scheme=LilHealthiOS
     product="lil health for iOS"
     destination='generic/platform=iOS'
-    # Exported with Apple Distribution through Xcode's account: cloud signing needs permissions
-    # an App Store Connect API key doesn't have.
+    # Exported with Apple Distribution through Xcode's account. Cloud signing with an App Store
+    # Connect API key needs the Admin role; an App Manager key lacks the permissions.
     provisioned=true
     ;;
   *)
@@ -165,8 +165,8 @@ if $ios; then
     echo "==> Skipping the upload: $archive"
     exit 0
   fi
-  # The export options upload the build and keep its version and build number. No API key: with
-  # one, the export fails on cloud signing permissions.
+  # The export options upload the build and keep its version and build number. Xcode's account
+  # signs, not an API key: only an Admin key has cloud signing permissions.
   echo "==> Uploading to App Store Connect"
   xcodebuild -exportArchive \
     -archivePath "$archive" \

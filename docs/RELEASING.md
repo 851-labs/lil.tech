@@ -85,6 +85,7 @@ The iOS app ships through App Store Connect. Testers get builds through TestFlig
 
 1. **App ID and app record.** The App ID `tech.lil.health` needs HealthKit (with background delivery) and Sign in with Apple, which is 851-2538. Create the app in App Store Connect with that bundle ID.
 2. **Xcode account.** Sign in to Xcode (Settings › Accounts) with an Apple account in team `WH4QW9ND3J` that can upload, e.g. with the App Manager role. Uploads sign and upload through it, with Apple Distribution and cloud signing. Not with an App Store Connect API key: with one, the export fails on cloud signing permissions.
+3. **API key.** For exports without Xcode's account (`-authenticationKeyPath`, `-authenticationKeyID`, `-authenticationKeyIssuerID`), use the team key "lil.tech CI" (`89CC3JS2Q9`), with the Admin role. Keep its `.p8` in `~/.appstoreconnect/private_keys/`, and back it up in 1Password. Cloud signing needs Admin: an App Manager key's export fails on cloud signing permissions, which is why "lil tech uploads" (`6VGL7L277A`) was revoked in October 2026 (851-2827).
 
 ### Uploading a build
 
