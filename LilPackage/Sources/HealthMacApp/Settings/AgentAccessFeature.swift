@@ -1,7 +1,8 @@
 public import ComposableArchitecture
-import Foundation
+public import Foundation
 public import HealthAgentAccess
 import HealthDatabase
+import LilCLIInstaller
 
 /// The Settings window's Agents pane (851-2840): whether the `lil-health` command and its MCP
 /// server may read the Mac's Health data, off until the person turns it on, and the log of what
@@ -11,6 +12,8 @@ import HealthDatabase
 public struct AgentAccessFeature {
   @ObservableState
   public struct State: Equatable {
+    /// Where `lil` is installed, for how to connect an agent. Nil if it isn't (or not yet known).
+    public var commandLineTool: URL?
     /// The latest queries, newest first.
     public var entries: [AgentAccessEntry]
     /// Why the setting couldn't be read or saved.
@@ -22,9 +25,11 @@ public struct AgentAccessFeature {
     public var logFailure: String?
 
     public init(
-      entries: [AgentAccessEntry] = [], failure: String? = nil, isEnabled: Bool = false,
+      commandLineTool: URL? = nil, entries: [AgentAccessEntry] = [], failure: String? = nil,
+      isEnabled: Bool = false,
       isLoading: Bool = true, logFailure: String? = nil
     ) {
+      self.commandLineTool = commandLineTool
       self.entries = entries
       self.failure = failure
       self.isEnabled = isEnabled
@@ -35,6 +40,7 @@ public struct AgentAccessFeature {
 
   public enum Action {
     case accessToggled(Bool)
+    case commandLineToolLocated(URL?)
     case entriesLoaded([AgentAccessEntry])
     case logFailed(String)
     case settingFailed(String)
@@ -60,6 +66,10 @@ public struct AgentAccessFeature {
       case .accessToggled(let isEnabled):
         return setEnabled(isEnabled, state: &state)
 
+      case .commandLineToolLocated(let url):
+        state.commandLineTool = url
+        return .none
+
       case .entriesLoaded(let entries):
         state.entries = entries
         state.logFailure = nil
@@ -81,14 +91,21 @@ public struct AgentAccessFeature {
         return .none
 
       case .task:
-        // Only the app changes the setting, so it's read once. The command writes the log.
+        // Only the app changes the setting, so it's read once. The command writes the log, and
+        // `lil` may be installed while the pane is open, so both are read again.
         return .run { [agentAccess, clock] send in
           do {
             await send(.settingLoaded(try await agentAccess.isEnabled()))
           } catch {
             await send(.settingFailed(Self.settingMessage(error)))
           }
+          var located: URL??
           while !Task.isCancelled {
+            let tool = await agentAccess.commandLineTool()
+            if located != .some(tool) {
+              located = tool
+              await send(.commandLineToolLocated(tool))
+            }
             do {
               await send(.entriesLoaded(try await agentAccess.entries(Self.entryLimit)))
             } catch {
@@ -137,6 +154,8 @@ struct AgentAccessClient: Sendable {
   var entries: @Sendable (_ limit: Int) async throws -> [AgentAccessEntry]
   /// Turns access off and empties the log, when the account signs out.
   var reset: @Sendable () async throws -> Void
+  /// Where `lil` is installed, for how to connect an agent.
+  var commandLineTool: @Sendable () async -> URL?
 }
 
 extension AgentAccessClient: DependencyKey {
@@ -146,7 +165,8 @@ extension AgentAccessClient: DependencyKey {
       isEnabled: { try store.isEnabled() },
       setEnabled: { try store.setEnabled($0, at: $1) },
       entries: { try store.entries(limit: $0) },
-      reset: { try store.reset() }
+      reset: { try store.reset() },
+      commandLineTool: { CommandLineToolInstaller.installedLocation() }
     )
   }
 
@@ -155,7 +175,8 @@ extension AgentAccessClient: DependencyKey {
       isEnabled: unimplemented("AgentAccessClient.isEnabled"),
       setEnabled: unimplemented("AgentAccessClient.setEnabled"),
       entries: unimplemented("AgentAccessClient.entries"),
-      reset: unimplemented("AgentAccessClient.reset")
+      reset: unimplemented("AgentAccessClient.reset"),
+      commandLineTool: unimplemented("AgentAccessClient.commandLineTool", placeholder: nil)
     )
   }
 }

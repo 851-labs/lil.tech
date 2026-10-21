@@ -170,6 +170,7 @@ let package = Package(
       name: "HealthMacApp",
       dependencies: [
         "HealthAgentAccess",
+        "LilCLIInstaller",
         "HealthCatalog",
         "HealthDatabase",
         "HealthPages",

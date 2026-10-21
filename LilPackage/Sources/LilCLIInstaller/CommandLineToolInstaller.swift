@@ -153,6 +153,20 @@ public enum CommandLineToolInstaller {
     return result
   }
 
+  /// Where our `lil` is installed among `directories` (a copy or a link), for an app to show in
+  /// how to set up an agent: the newest, then the first. Another command named `lil` doesn't
+  /// count. Nil if there's none.
+  public static func installedLocation(
+    in directories: [URL] = Destination.allCases.map(\.directory),
+    version: (URL) -> Int? = embeddedVersion(of:)
+  ) -> URL? {
+    let found = directories.map { $0.appending(component: "lil") }
+      .filter { FileManager.default.isExecutableFile(atPath: $0.path(percentEncoded: false)) }
+      .compactMap { url in version(url.resolvingSymlinksInPath()).map { (url, $0) } }
+    // `max(by:)` keeps the first of equals.
+    return found.max { $0.1 < $1.1 }?.0
+  }
+
   /// The version of the `lil` at `url`, from the info section the apps' `lil` target embeds in
   /// the binary (`CFBundleVersion`, which `lil --version` prints), without running it. Nil if it
   /// isn't a `lil` (`tech.lil.cli`).
