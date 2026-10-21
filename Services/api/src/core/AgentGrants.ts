@@ -276,7 +276,8 @@ export class AgentGrants extends Context.Service<
     /**
      * Takes `scopes` (an app's) away from the user's grants for these combined servers
      * (`resource`), and deletes those left with none, with their tokens (851-2901). Their
-     * authorization requests that asked for any of `scopes` go first, as in `deleteForResources`.
+     * authorization requests that asked for any of `scopes` go first, as in `deleteForResources`,
+     * except those that already made their grant, which stay to catch the code's reuse.
      */
     readonly withdrawScopes: (
       userId: UserId,
@@ -664,15 +665,25 @@ export class AgentGrants extends Context.Service<
             const holdsAny = (column: SQLWrapper) =>
               sql`exists (select 1 from json_each(${column}) where value in (${withdrawn}))`;
             yield* query(
-              db
-                .delete(agentAuthorizations)
-                .where(
-                  and(
-                    eq(agentAuthorizations.userId, userId),
-                    inArray(agentAuthorizations.resource, resources),
-                    holdsAny(agentAuthorizations.scopes),
+              db.delete(agentAuthorizations).where(
+                and(
+                  eq(agentAuthorizations.userId, userId),
+                  inArray(agentAuthorizations.resource, resources),
+                  holdsAny(agentAuthorizations.scopes),
+                  // Not one whose grant exists, which is narrowed below and may keep other
+                  // apps: its authorization stays to catch the code's reuse. One being redeemed
+                  // whose grant doesn't exist yet goes, so the redemption deletes it.
+                  or(
+                    isNull(agentAuthorizations.usedAt),
+                    notExists(
+                      db
+                        .select({ id: agentGrants.id })
+                        .from(agentGrants)
+                        .where(eq(agentGrants.id, agentAuthorizations.grantId)),
+                    ),
                   ),
                 ),
+              ),
             );
             yield* query(
               db

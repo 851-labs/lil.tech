@@ -43,12 +43,12 @@ export const AgentsHandlers = HttpApiBuilder.group(
       const resources = yield* grants.resourcesForUser(userId);
       yield* grants.deleteForResources(
         userId,
-        resources.filter((resource) => Option.contains(appOfResource(resource), key)),
+        resources.filter((resource) => Option.contains(appOfResource(registry, resource), key)),
       );
       yield* grants.withdrawScopes(
         userId,
         resources.filter(isCombinedResource),
-        agentResources[key].scopes,
+        registry[key]?.scopes ?? [],
       );
     });
     /**
@@ -79,7 +79,7 @@ export const AgentsHandlers = HttpApiBuilder.group(
                   domain: grant.clientDomain,
                   redirectHost: grant.redirectHost,
                   resource: grant.resource,
-                  app: Option.getOrNull(appOfResource(grant.resource)),
+                  app: Option.getOrNull(appOfResource(registry, grant.resource)),
                   apps: appsOfGrant(registry, grant),
                   connectedAt: grant.createdAt,
                   lastUsedAt: grant.lastUsedAt,

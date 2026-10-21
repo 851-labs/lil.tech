@@ -209,21 +209,19 @@ export const appsOfScopes = (
   );
 
 /**
- * The app whose MCP server a stored grant's or authorization's `resource` is, by its path alone.
- * Authorizing already checked the whole URL, and the apps' requests may come to another origin
- * than the agent's (`alchemy dev` behind a tunnel), so the path is what's left to tell apps apart.
+ * The app (a key of the registry) whose MCP server a stored grant's or authorization's `resource`
+ * is, by its path alone. Authorizing already checked the whole URL, and the apps' requests may come
+ * to another origin than the agent's (`alchemy dev` behind a tunnel), so the path is what's left to
+ * tell apps apart.
  */
-export const appOfResource = (resource: string): Option.Option<AgentResource> => {
-  let path: string;
-  try {
-    path = new URL(resource).pathname;
-  } catch {
-    return Option.none();
-  }
+export const appOfResource = (
+  registry: AgentAppRegistry,
+  resource: string,
+): Option.Option<string> => {
+  if (!URL.canParse(resource)) return Option.none();
+  const { pathname } = new URL(resource);
   return Option.fromNullishOr(
-    (Object.keys(agentResources) as Array<AgentResource>).find(
-      (key) => agentResources[key].path === path,
-    ),
+    Object.keys(registry).find((key) => registry[key]?.path === pathname),
   );
 };
 
@@ -244,14 +242,10 @@ export const appsOfGrant = (
   grant: { readonly resource: string; readonly scopes: ReadonlyArray<string> },
 ): ReadonlyArray<string> => {
   const combined = isCombinedResource(grant.resource);
-  const path = URL.canParse(grant.resource) ? new URL(grant.resource).pathname : undefined;
-  return Object.keys(registry).filter((key) => {
-    const app = registry[key]!;
-    return (
-      (combined || app.path === path) &&
-      app.scopes.some((scope: string) => grant.scopes.includes(scope))
-    );
-  });
+  const apps = combined
+    ? Object.keys(registry)
+    : Option.toArray(appOfResource(registry, grant.resource));
+  return appsOfScopes(registry, { resource: grant.resource, combined, apps }, grant.scopes);
 };
 
 /**

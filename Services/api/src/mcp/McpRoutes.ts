@@ -99,8 +99,9 @@ const appServer = (app: AgentApp): McpServerRoute => ({
 /**
  * The combined server (851-2900): the apps whose scopes the grant has, while the agents consent
  * (`agents:<app>`) it was allowed under stands, read on every request. Turning off an app's agent
- * access then cuts the combined grants off from it too, though they keep its scope, and connecting
- * an agent again later (a new consent) doesn't bring them back.
+ * access takes its scope away from combined grants (851-2901), and this cuts them off from it
+ * too, as a second check, and connecting an agent again later (a new consent) doesn't bring them
+ * back.
  */
 const combinedServer = (
   registry: AgentAppRegistry,

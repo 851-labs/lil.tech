@@ -646,6 +646,12 @@ describe("Turn Off Agent Access with the combined server", () => {
             });
           assert.deepInclude(yield* redeem(asked), { status: 400 });
           assert.deepInclude(yield* redeem(mailAsked), { status: 200 });
+          // The narrowed agent's code, used again, still ends it: its authorization was kept.
+          assert.deepInclude(yield* redeem(both), { status: 400 });
+          assert.strictEqual(
+            (yield* callCombined(handler, both.accessToken, "tools/list")).status,
+            401,
+          );
         }),
       preview,
       RateLimits.unlimited,
