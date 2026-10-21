@@ -29,6 +29,8 @@ struct MetricDetailView: View {
       } else if HealthDatabase.opensCycleTracking(type.id) {
         // Every Cycle Tracking type, on its latest sample's day (851-2830).
         CycleTrackingView(typeID: type.id)
+      } else if type.kind == .activitySummary {
+        ActivityRingsView()
       } else if type.kind == .workout {
         WorkoutsView()
       } else if type.kind == .electrocardiogram {
