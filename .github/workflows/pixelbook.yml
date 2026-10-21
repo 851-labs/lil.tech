@@ -10,11 +10,12 @@ name: Pixelbook
 #   comparison (`Web/pixelbook/scripts/diff.ts`). It's refreshed on each push; re-run the PR's
 #   Pixelbook check after publishing by hand.
 
+# Paused with the pre-push render (851-2816): with nothing published, it only warned on each merge
+# and commented "no snapshots" on each PR. Restore these triggers when the render is turned back on:
+#   push: { branches: [main] }
+#   pull_request: { types: [opened, synchronize, reopened] }
 on:
-  push:
-    branches: [main]
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 # In order per PR, and for main, so main's pointer doesn't move back.
 concurrency:
