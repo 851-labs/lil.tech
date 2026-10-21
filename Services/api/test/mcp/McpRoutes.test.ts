@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { CoreDb } from "../../src/core/CoreDb.ts";
 import { agentGrants } from "../../src/core/Schema.ts";
 import type { Deployment } from "../../src/Deployment.ts";
+import { maxMcpRequestBytes } from "../../src/mcp/McpRoutes.ts";
 import { type RateLimitName, RateLimits } from "../../src/RateLimits.ts";
 import { TestStores } from "../store/TestUserStores.ts";
 import { type Handler, send, withApi } from "../TestApi.ts";
@@ -342,6 +343,25 @@ describe("the Health MCP server", () => {
             assert.strictEqual(response.status, 405, method);
             assert.strictEqual(response.headers.get("allow"), "POST, DELETE", method);
           }
+        }),
+      preview,
+    ),
+  );
+
+  it.live("refuses large requests, and has no subscriptions to hold open", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const { accessToken } = yield* connect(handler);
+          const large = yield* call(handler, accessToken, "tools/call", {
+            name: "summary",
+            arguments: { timeZone: "x".repeat(maxMcpRequestBytes) },
+          });
+          assert.strictEqual(large.status, 413);
+          const listen = yield* call(handler, accessToken, "subscriptions/listen", {
+            notifications: { toolsListChanged: true },
+          });
+          assert.deepInclude(listen.message?.["error"], { code: -32601 });
         }),
       preview,
     ),

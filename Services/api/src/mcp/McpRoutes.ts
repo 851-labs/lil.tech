@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import { Headers, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { Deployment } from "../Deployment.ts";
 import { AgentTokens, type InvalidAgentToken } from "../oauth/AgentTokens.ts";
@@ -10,7 +10,7 @@ import {
   protectedResourceMetadataPath,
   resourceUrl,
 } from "../oauth/Hosts.ts";
-import { requestOrigin } from "../oauth/Requests.ts";
+import { readAtMost, requestOrigin } from "../oauth/Requests.ts";
 import { RateLimits, tooManyRequests } from "../RateLimits.ts";
 import { UserStores } from "../store/UserStores.ts";
 import { agentClientHeader, agentGrantHeader, agentScopesHeader } from "./AgentHeaders.ts";
@@ -19,6 +19,9 @@ import { agentClientHeader, agentGrantHeader, agentScopesHeader } from "./AgentH
 // checks the agent's token, its grant's scope and its rate limit, then hands the request to the
 // user's store, which runs the server (`src/health/tools/HealthMcpServer.ts`). Left out of the
 // OpenAPI spec: MCP is its own protocol.
+
+/** The largest MCP request the Worker forwards. */
+export const maxMcpRequestBytes = 64 * 1024;
 
 /**
  * The bearer challenge an agent gets with a 401 or 403 (RFC 6750 §3, RFC 9728 §5.1): where the
@@ -91,8 +94,19 @@ const mcpRoute = (key: AgentResource) =>
         Effect.catchTag("InvalidAgentToken", (error: InvalidAgentToken) =>
           Effect.succeed({ refused: tokenRefused(error.reason) }),
         ),
-        Effect.orDie,
+        // The database failed, so the client should try again, not sign in again.
+        Effect.catchTag("SqlError", (error) =>
+          Effect.logWarning("Checking an agent token failed", error).pipe(
+            Effect.as({ unavailable: true as const }),
+          ),
+        ),
       );
+      if ("unavailable" in verified) {
+        return HttpServerResponse.jsonUnsafe(
+          { error: "temporarily_unavailable", error_description: "Try again in a moment" },
+          { status: 503, headers: { "retry-after": "5", "cache-control": "no-store" } },
+        );
+      }
       if ("refused" in verified) return refuse(401, verified.refused);
       const { grant } = verified;
       // Tokens for the app always carry its scope; a grant without it can't call anything.
@@ -103,13 +117,31 @@ const mcpRoute = (key: AgentResource) =>
         });
       }
       yield* limits.check("agent", grant.id);
+      // MCP messages are small. The store holds a body in memory, so a large one is refused here.
+      const tooLarge = HttpServerResponse.empty({ status: 413 });
+      if (Number(request.headers["content-length"] ?? 0) > maxMcpRequestBytes) return tooLarge;
+      const body =
+        request.method === "POST"
+          ? yield* readAtMost(request.stream, maxMcpRequestBytes).pipe(Effect.option)
+          : Option.some(Option.none<string>());
+      if (Option.isNone(body)) return HttpServerResponse.empty({ status: 400 });
+      if (request.method === "POST" && Option.isNone(body.value)) return tooLarge;
       // Set here, over any a client sent; the token itself stays with the Worker.
       const headers = Headers.setAll(Headers.remove(request.headers, "authorization"), {
         [agentGrantHeader]: grant.id,
         [agentClientHeader]: encodeURIComponent(grant.clientName ?? grant.clientId),
         [agentScopesHeader]: grant.scopes.join(" "),
       });
-      return yield* stores.mcp(grant.userId, request.modify({ headers }));
+      return yield* stores.mcp(
+        grant.userId,
+        HttpServerRequest.fromWeb(
+          new Request(new URL(request.url, requestOrigin(request)), {
+            method: request.method,
+            headers: headers as Record<string, string>,
+            ...(Option.isSome(body.value) ? { body: body.value.value } : {}),
+          }),
+        ),
+      );
     }).pipe(Effect.catchTag("TooManyRequests", tooManyRequests));
   });
 

@@ -12,6 +12,7 @@ import {
 } from "../health/HealthBatchStore.ts";
 import { DisposableBucket } from "../Deployment.ts";
 import { healthMcpPath, makeHealthMcpServer } from "../health/tools/HealthMcpServer.ts";
+import { requestPath } from "../oauth/Requests.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
 import { deleteObjects, listObjects, provideRuntime } from "../Runtime.ts";
 import {
@@ -478,8 +479,10 @@ export const makeUserStore = (
       Effect.gen(function* () {
         yield* ensureNotDeleted;
         const at = yield* Clock.currentTimeMillis;
+        // Only the first row changes when the log needs trimming.
+        const first = nextAgentAccessTrimAt(sql) === null;
         appendAgentAccess(sql, access, at);
-        yield* scheduleAlarm(at);
+        if (first) yield* scheduleAlarm(at);
       }),
     /** Applies mutations in one transaction (see `apply`). */
     applyMutations: (mutations: ReadonlyArray<Mutation>) => apply(mutations),
@@ -646,10 +649,6 @@ export type UserStoreShape = UserStoreMethods & {
     reason: string,
   ) => Effect.Effect<void>;
 };
-
-/** A request's path, whether its URL is absolute or not. */
-export const requestPath = (request: HttpServerRequest.HttpServerRequest) =>
-  new URL(request.url, "http://store").pathname;
 
 /** How long `pushMutations` remembers a mutation ID. */
 const pushedMutationRetentionMs = 7 * 24 * 60 * 60 * 1000;

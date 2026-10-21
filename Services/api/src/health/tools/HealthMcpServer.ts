@@ -1,6 +1,7 @@
 import {
   Clock,
   Context,
+  Duration,
   Effect,
   Exit,
   Layer,
@@ -97,15 +98,25 @@ const logged =
     Effect.gen(function* () {
       const agent = agentOf(yield* Effect.serviceOption(HttpServerRequest.HttpServerRequest));
       const started = yield* Clock.currentTimeMillis;
-      let exit = yield* Effect.exit(run(params));
+      let exit: Exit.Exit<A, HealthToolError> = yield* Effect.exit(run(params));
       let bytes = 0;
       let rows = 0;
       let outcome: AgentAccess["outcome"] = "error";
-      if (Exit.isSuccess(exit)) {
-        const encoded = Schema.encodeUnknownSync(tool.successSchema as Schema.Codec<unknown>)(
-          exit.value,
-        );
-        bytes = new TextEncoder().encode(JSON.stringify(encoded)).byteLength;
+      // An answer that can't be encoded fails the call, but is still logged.
+      const answer = exit;
+      const encoded = Exit.isSuccess(answer)
+        ? yield* Effect.exit(
+            Effect.try(() => {
+              const value = Schema.encodeUnknownSync(tool.successSchema as Schema.Codec<unknown>)(
+                answer.value,
+              );
+              return { value, bytes: new TextEncoder().encode(JSON.stringify(value)).byteLength };
+            }),
+          )
+        : undefined;
+      if (encoded !== undefined && Exit.isFailure(encoded)) exit = Exit.die(encoded.cause);
+      if (encoded !== undefined && Exit.isSuccess(encoded)) {
+        bytes = encoded.value.bytes;
         if (bytes > ceiling) {
           outcome = "too_large";
           exit = Exit.fail(
@@ -117,7 +128,7 @@ const logged =
           );
         } else {
           outcome = "ok";
-          rows = rowCount(encoded);
+          rows = rowCount(encoded.value.value);
         }
       }
       yield* record({ ...agent, tool: tool.name, ...askedFor(params), outcome, rows }).pipe(
@@ -141,7 +152,7 @@ const logged =
  * Shared fibers in a Durable Object run on the sync scheduler, as Effect advises for Workers, so
  * no request's timers hold up another's work.
  */
-const SyncScheduler = Layer.succeed(Scheduler.Scheduler, new Scheduler.MixedScheduler("sync"));
+const syncScheduler = new Scheduler.MixedScheduler("sync");
 
 /**
  * The server for one store, as an HTTP handler for `POST`, `DELETE` and the rest at
@@ -180,25 +191,29 @@ export const makeHealthMcpServer = (options: {
           protocols: healthMcpProtocols,
           // Ends a legacy session on request. Only the user's own agents reach this store.
           allowSessionTermination: true,
+          // The tools never change, so there's nothing to subscribe to, and no stream is kept open.
+          allowSubscriptions: false,
         }),
       ),
-      Layer.provide(SyncScheduler),
+      Layer.provide(Layer.succeed(Scheduler.Scheduler, syncScheduler)),
     );
     // Never closed: the server lives until the object is evicted.
     const scope = yield* Scope.make();
     // Built on its own, with its own router, outside the request that first needs it: its fibers
     // outlive that request, and mustn't keep its services. Only the clock is the store's.
     const clock = yield* Clock.Clock;
-    const handler = yield* Effect.cached(
-      Layer.buildWithMemoMap(
-        Layer.provideMerge(layer, HttpRouter.layer),
-        Layer.makeMemoMapUnsafe(),
-        scope,
-      ).pipe(
-        Effect.map((context) => Context.get(context, HttpRouter.HttpRouter).asHttpEffect()),
-        Effect.provideContext(Context.make(Clock.Clock, clock)),
-        Effect.orDie,
-      ),
+    const build = Layer.buildWithMemoMap(
+      Layer.provideMerge(layer, HttpRouter.layer),
+      Layer.makeMemoMapUnsafe(),
+      scope,
+    ).pipe(
+      Effect.map((context) => Context.get(context, HttpRouter.HttpRouter).asHttpEffect()),
+      Effect.provideContext(Context.make(Clock.Clock, clock)),
+      Effect.orDie,
+    );
+    // Kept once built; a build that failed is tried again on the next request.
+    const handler = yield* Effect.cachedWithTTL(build, (exit) =>
+      Exit.isSuccess(exit) ? Duration.infinity : Duration.zero,
     );
     return handler.pipe(
       Effect.flatMap((handle) => handle),
@@ -208,6 +223,6 @@ export const makeHealthMcpServer = (options: {
           ? Effect.succeed(HttpServerResponse.empty({ status: 404 }))
           : Effect.die(error),
       ),
-      Effect.provide(SyncScheduler),
+      Effect.provideService(Scheduler.Scheduler, syncScheduler),
     );
   });

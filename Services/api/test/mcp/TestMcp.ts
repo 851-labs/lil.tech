@@ -1,5 +1,6 @@
 import { Effect, type Scope } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
+import { servedLikeFetch } from "../store/TestUserStores.ts";
 
 // An MCP client's requests over Streamable HTTP, as Claude and other agents send them, for tests.
 
@@ -40,13 +41,12 @@ export const viaStore =
     >,
   ): Sender =>
   (request) =>
-    server.pipe(
+    servedLikeFetch(server).pipe(
       Effect.map((response) => HttpServerResponse.toWeb(response)),
       Effect.provideService(
         HttpServerRequest.HttpServerRequest,
         HttpServerRequest.fromWeb(request),
       ),
-      Effect.scoped,
     );
 
 /** Sends a request to an MCP endpoint and reads its answer. */
