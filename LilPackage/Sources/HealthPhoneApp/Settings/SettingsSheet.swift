@@ -4,8 +4,9 @@ import LilAuth
 import SwiftUI
 
 /// The account's settings, in a sheet from the main screen's gear button (851-2758): its
-/// sign-in methods, Health access, the privacy policy, consent, signing out and deleting it. It
-/// shows the alerts those ask and answer with, and can't be closed while one of them is busy.
+/// sign-in methods, Health access, connected agents, the privacy policy, consent, signing out and
+/// deleting it. It shows the alerts those ask and answer with, and can't be closed while one of
+/// them is busy.
 struct SettingsSheet: View {
   @Bindable var store: StoreOf<SyncStatusFeature>
 
@@ -54,6 +55,16 @@ struct SettingsSheet: View {
               "To change what else lil health can read, go to Settings › Privacy & Security › Health › lil health."
             )
           }
+        }
+        // Agents read what's on the server, whatever this iPhone's consent: they're listed
+        // either way (851-2854).
+        Section {
+          NavigationLink("Connected Agents") {
+            ConnectedAgentsView(
+              store: store.scope(\.connectedAgents, action: \.connectedAgents))
+          }
+        } footer: {
+          Text("AI agents you allowed to read your lil health data, and what they read.")
         }
         Section {
           Link("Privacy Policy", destination: privacyPolicy)

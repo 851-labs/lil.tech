@@ -1,11 +1,10 @@
 public import ComposableArchitecture
 import Foundation
-public import LilAuth
 
-/// The Agents pane's remote agents (851-2853): those the person allowed to read lil health's data
-/// through its MCP server (`mcp.lil.tech/health`), with when each connected and last read, revoking
-/// one or all of them, and the log of what they read. Kept in the app's store, like the Account
-/// pane's state, and read again each time the pane opens.
+/// lil health's remote agents: those the person allowed to read its data through its MCP server
+/// (`mcp.lil.tech/health`), with when each connected and last read, revoking one or all of them,
+/// and the log of what they read. The Mac's Agents pane (851-2853) and the iPhone's Settings
+/// (851-2854) show it. Kept in the app's store, and read again each time its screen opens.
 @Reducer
 public struct ConnectedAgentsFeature {
   @ObservableState
@@ -28,8 +27,10 @@ public struct ConnectedAgentsFeature {
     public init(
       agents: Agents = .loading, failure: String? = nil, log: [RemoteAgentAccess] = [],
       logFailure: String? = nil, isLoadingLog: Bool = false, logNextBefore: Int? = nil,
-      revoking: Set<String> = [], isTurningOff: Bool = false
+      revoking: Set<String> = [], isTurningOff: Bool = false,
+      alert: AlertState<Action.Alert>? = nil
     ) {
+      self.alert = alert
       self.agents = agents
       self.failure = failure
       self.log = log
@@ -46,8 +47,12 @@ public struct ConnectedAgentsFeature {
       case failed(String)
     }
 
+    /// Whether revoking or turning off is in progress, whose answer (a failure) shows with the
+    /// list.
+    public var isBusy: Bool { !revoking.isEmpty || isTurningOff }
+
     /// The agents listed, once loaded.
-    var loadedAgents: [ConnectedAgent] {
+    public var loadedAgents: [ConnectedAgent] {
       if case .loaded(let agents) = agents { agents } else { [] }
     }
   }
@@ -57,6 +62,8 @@ public struct ConnectedAgentsFeature {
     case alert(PresentationAction<Alert>)
     case appeared
     case loadMoreLogButtonTapped
+    /// Try Again, after the log's first page couldn't be read.
+    case retryLogButtonTapped
     case logLoaded(Result<RemoteAgentAccessPage, ConnectedAgentsError>, isFirstPage: Bool)
     case retryButtonTapped
     case revokeButtonTapped(ConnectedAgent)
@@ -81,7 +88,7 @@ public struct ConnectedAgentsFeature {
   }
 
   /// lil health's agents: the API lists every app's.
-  static let app = "health"
+  public static let app = "health"
 
   @Dependency(\.connectedAgents) var connectedAgents
 
@@ -133,6 +140,8 @@ public struct ConnectedAgentsFeature {
 
       case .appeared:
         // Past results go, and both are read again: an agent may have connected or read since.
+        // A list that failed shows progress meanwhile, rather than its old error.
+        if case .failed = state.agents { state.agents = .loading }
         state.failure = nil
         state.logFailure = nil
         state.isLoadingLog = true
@@ -141,6 +150,13 @@ public struct ConnectedAgentsFeature {
       case .retryButtonTapped:
         state.agents = .loading
         return loadAgents()
+
+      case .retryLogButtonTapped:
+        // Only before a page was read: after one, Show More reads the next.
+        guard state.log.isEmpty, !state.isLoadingLog else { return .none }
+        state.isLoadingLog = true
+        state.logFailure = nil
+        return loadLog(before: nil, isFirstPage: true)
 
       case .loadMoreLogButtonTapped:
         guard let before = state.logNextBefore, !state.isLoadingLog else { return .none }
@@ -160,17 +176,7 @@ public struct ConnectedAgentsFeature {
         return .none
 
       case .revokeButtonTapped(let agent):
-        state.alert = AlertState {
-          TextState("Revoke \(Self.name(agent))?")
-        } actions: {
-          ButtonState(role: .destructive, action: .confirmRevoke(id: agent.id)) {
-            TextState("Revoke")
-          }
-          ButtonState(role: .cancel) { TextState("Cancel") }
-        } message: {
-          TextState(
-            "It loses access to your Health data at once. To use it again, connect it again.")
-        }
+        state.alert = .confirmRevoke(agent)
         return .none
 
       case .revoked(let id, .success):
@@ -185,18 +191,7 @@ public struct ConnectedAgentsFeature {
         return .none
 
       case .turnOffButtonTapped:
-        state.alert = AlertState {
-          TextState("Turn Off Agent Access?")
-        } actions: {
-          ButtonState(role: .destructive, action: .confirmTurnOff) {
-            TextState("Turn Off")
-          }
-          ButtonState(role: .cancel) { TextState("Cancel") }
-        } message: {
-          TextState(
-            "Every agent connected to lil health loses access at once, and agents can't connect again until you allow one."
-          )
-        }
+        state.alert = .confirmTurnOff
         return .none
 
       case .turnedOff(.success):
@@ -247,14 +242,47 @@ public struct ConnectedAgentsFeature {
     }
   }
 
-  /// What the pane calls an agent: its name, or "An unnamed agent".
-  static func name(_ agent: ConnectedAgent) -> String {
+  /// What the apps call an agent: its name, or "An unnamed agent".
+  public static func name(_ agent: ConnectedAgent) -> String {
     agent.name ?? "An unnamed agent"
   }
 
-  /// Stops everything the pane started, when the account signs out.
-  static func cancel<Other>() -> Effect<Other> {
+  /// Stops everything the feature started, when the account signs out.
+  public static func cancel<Other>() -> Effect<Other> {
     .merge(
       .cancel(id: CancelID.account), .cancel(id: CancelID.list), .cancel(id: CancelID.log))
+  }
+}
+
+extension AlertState where Action == ConnectedAgentsFeature.Action.Alert {
+  /// Revoke's confirmation, for one agent.
+  public static func confirmRevoke(_ agent: ConnectedAgent) -> Self {
+    Self {
+      TextState("Revoke \(ConnectedAgentsFeature.name(agent))?")
+    } actions: {
+      ButtonState(role: .destructive, action: .confirmRevoke(id: agent.id)) {
+        TextState("Revoke")
+      }
+      ButtonState(role: .cancel) { TextState("Cancel") }
+    } message: {
+      TextState(
+        "It loses access to your Health data at once. To use it again, connect it again.")
+    }
+  }
+
+  /// Turn Off Agent Access's confirmation.
+  public static var confirmTurnOff: Self {
+    Self {
+      TextState("Turn Off Agent Access?")
+    } actions: {
+      ButtonState(role: .destructive, action: .confirmTurnOff) {
+        TextState("Turn Off")
+      }
+      ButtonState(role: .cancel) { TextState("Cancel") }
+    } message: {
+      TextState(
+        "Every agent connected to lil health loses access at once, and agents can't connect again until you allow one."
+      )
+    }
   }
 }

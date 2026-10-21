@@ -25,6 +25,9 @@ public struct SyncStatusFeature {
     public var isChoosing = false
     @Presents public var alert: AlertState<Action.Alert>?
     public var signInMethods = SignInMethodsFeature.State()
+    /// Settings › Connected Agents: the remote agents that read the account's Health data, and
+    /// what they read (851-2854).
+    public var connectedAgents = ConnectedAgentsFeature.State()
     /// Whether the Settings sheet is open: the account's sign-in methods, consent, signing out
     /// and deleting it (851-2758).
     public var isShowingSettings: Bool
@@ -66,9 +69,9 @@ public struct SyncStatusFeature {
     public var hasConsent: Bool { consentedPolicyVersion == HealthConsentClient.policyVersion }
 
     /// Whether the Settings sheet has something in progress: withdrawing consent, deleting the
-    /// account, or linking or unlinking a sign-in method.
+    /// account, linking or unlinking a sign-in method, or revoking agents.
     public var isSettingsBusy: Bool {
-      isWithdrawingConsent || isDeletingAccount || signInMethods.isBusy
+      isWithdrawingConsent || isDeletingAccount || signInMethods.isBusy || connectedAgents.isBusy
     }
 
     public var status: Status {
@@ -153,6 +156,7 @@ public struct SyncStatusFeature {
     case alert(PresentationAction<Alert>)
     case delegate(Delegate)
     case signInMethods(SignInMethodsFeature.Action)
+    case connectedAgents(ConnectedAgentsFeature.Action)
 
     public enum Alert: Equatable {
       case confirmDeletion
@@ -184,6 +188,9 @@ public struct SyncStatusFeature {
   public var body: some ReducerOf<Self> {
     Scope(\.signInMethods, action: \.signInMethods) {
       SignInMethodsFeature()
+    }
+    Scope(\.connectedAgents, action: \.connectedAgents) {
+      ConnectedAgentsFeature()
     }
     Reduce { state, action in
       switch action {
@@ -352,7 +359,7 @@ public struct SyncStatusFeature {
       case .alert:
         return .none
 
-      case .delegate, .signInMethods:
+      case .delegate, .signInMethods, .connectedAgents:
         return .none
       }
     }
