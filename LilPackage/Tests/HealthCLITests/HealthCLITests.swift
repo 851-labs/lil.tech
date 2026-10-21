@@ -26,9 +26,12 @@ struct AppFolder {
   let database: DatabasePool
   let access: AgentAccessStore
 
-  init(migrated: Bool = true) throws {
-    directory = FileManager.default.temporaryDirectory.appending(
-      path: "HealthCLITests-\(UUID().uuidString)", directoryHint: .isDirectory)
+  /// At `location`, or in a new temporary directory.
+  init(migrated: Bool = true, at location: URL? = nil) throws {
+    directory =
+      location
+      ?? FileManager.default.temporaryDirectory.appending(
+        path: "HealthCLITests-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     database = try DatabasePool(path: directory.appending(path: "Health.sqlite").path)
     if migrated { try HealthDatabase.migrator.migrate(database) }
@@ -206,12 +209,14 @@ struct HealthCLITests {
   }
 }
 
-/// Runs the built `lil-health` (the package's `lil-health-dev` product), as `lil help` does.
+/// Runs the built `lil-health` (the package's `lil-health-dev` product), as `lil help` and agents
+/// do.
 struct LilHealthExecutableTests {
+  let tool = Bundle(for: Marker.self).bundleURL.deletingLastPathComponent().appending(
+    path: "lil-health-dev")
+
   @Test
   func describesItselfForLilHelp() throws {
-    let tool = Bundle(for: Marker.self).bundleURL.deletingLastPathComponent().appending(
-      path: "lil-health-dev")
     try #require(FileManager.default.isExecutableFile(atPath: tool.path), "no tool at \(tool.path)")
     let process = Process()
     process.executableURL = tool
@@ -223,6 +228,89 @@ struct LilHealthExecutableTests {
     process.waitUntilExit()
     #expect(process.terminationStatus == 0)
     #expect(String(decoding: data, as: UTF8.self) == HealthCLI.description + "\n")
+  }
+
+  /// `lil-health mcp` as an agent runs it: JSON-RPC messages, one per line, on standard input and
+  /// output. Its home is a temporary folder (`CFFIXED_USER_HOME`), so it reads a synthetic
+  /// database in the app's folder there, never the real one.
+  @Test
+  func servesMCPOverStandardInputAndOutput() throws {
+    try #require(FileManager.default.isExecutableFile(atPath: tool.path), "no tool at \(tool.path)")
+    let home = FileManager.default.temporaryDirectory.appending(
+      path: "HealthCLITests-home-\(UUID().uuidString)", directoryHint: .isDirectory)
+    let folder = try AppFolder(
+      at: home.appending(path: "Library/Application Support/tech.lil.health"))
+    try folder.addSteps()
+
+    let process = Process()
+    process.executableURL = tool
+    process.arguments = ["mcp"]
+    process.environment = ["CFFIXED_USER_HOME": home.path, "TZ": "UTC"]
+    let input = Pipe()
+    let output = Pipe()
+    process.standardInput = input
+    process.standardOutput = output
+    try process.run()
+    // A server that stops answering fails the test rather than hanging it.
+    let watchdog = DispatchWorkItem { process.terminate() }
+    DispatchQueue.global().asyncAfter(deadline: .now() + 60, execute: watchdog)
+    defer { watchdog.cancel() }
+
+    var buffered = Data()
+    /// Sends a request and reads lines until its response (requests may be answered out of
+    /// order, but these are sent one at a time).
+    func request(_ id: Int, _ method: String, _ params: [String: Any] = [:]) throws -> [String: Any]
+    {
+      let message: [String: Any] = ["jsonrpc": "2.0", "id": id, "method": method, "params": params]
+      input.fileHandleForWriting.write(try JSONSerialization.data(withJSONObject: message) + [10])
+      while true {
+        if let newline = buffered.firstIndex(of: 10) {
+          let line = buffered[..<newline]
+          buffered = Data(buffered[(newline + 1)...])
+          let response = try JSONSerialization.jsonObject(with: line) as? [String: Any] ?? [:]
+          if response["id"] as? Int == id { return response }
+          continue
+        }
+        let data = output.fileHandleForReading.availableData
+        guard !data.isEmpty else { throw CocoaError(.fileReadUnknown) }
+        buffered += data
+      }
+    }
+
+    let initialized = try request(
+      1, "initialize",
+      [
+        "protocolVersion": "2025-06-18", "capabilities": [:] as [String: Any],
+        "clientInfo": ["name": "HealthCLITests", "version": "1"],
+      ])
+    let server = (initialized["result"] as? [String: Any])?["serverInfo"] as? [String: Any]
+    #expect(server?["name"] as? String == "lil-health")
+    input.fileHandleForWriting.write(
+      Data(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#.utf8) + [10])
+
+    let listed = try request(2, "tools/list")
+    let tools = (listed["result"] as? [String: Any])?["tools"] as? [[String: Any]] ?? []
+    #expect(tools.compactMap { $0["name"] as? String }.first == "summary")
+    #expect(tools.count == 10)
+
+    // Access is off: the call fails with what to do, and isn't logged.
+    let refused = try request(
+      3, "tools/call", ["name": "summary", "arguments": [:] as [String: Any]])
+    #expect((refused["result"] as? [String: Any])?["isError"] as? Bool == true)
+
+    try folder.access.setEnabled(true)
+    let summary = try request(
+      4, "tools/call", ["name": "summary", "arguments": ["timeZone": "UTC"]])
+    let result = summary["result"] as? [String: Any]
+    #expect(result?["isError"] as? Bool == false)
+    let structured = result?["structuredContent"] as? [String: Any]
+    #expect(structured?["timeZone"] as? String == "UTC")
+    #expect(try folder.access.entries().map(\.command) == [#"summary {"timeZone":"UTC"}"#])
+
+    // Closing its input ends it.
+    try input.fileHandleForWriting.close()
+    process.waitUntilExit()
+    #expect(process.terminationReason == .exit && process.terminationStatus == 0)
   }
 }
 

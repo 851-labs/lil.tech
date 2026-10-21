@@ -30,6 +30,8 @@ done
 
 cd "$(dirname "$0")/.."
 
+# Generated files are left as their generators write them: the Swift client, and the MCP tool
+# definitions (Services/api/scripts/mcp-tools.ts), whose JSON swift-format would indent.
 files=$(find . -name '*.swift' \
   -not -path '*/.build/*' \
   -not -path './.build-check/*' \
@@ -37,7 +39,8 @@ files=$(find . -name '*.swift' \
   -not -path '*/DerivedData/*' \
   -not -path '*/.swiftpm/*' \
   -not -path '*/node_modules/*' \
-  -not -path './LilPackage/Sources/LilAPIGenerated/*')
+  -not -path './LilPackage/Sources/LilAPIGenerated/*' \
+  -not -path './LilPackage/Sources/HealthCLI/MCPToolsJSON.swift')
 
 status=0
 

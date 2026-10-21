@@ -11,9 +11,13 @@ public import SQLiteData
 /// A call's days and local times are in its time zone, by default the Mac's.
 public struct HealthTools: Sendable {
   public var now: Date
+  /// The IANA name of the time zone for calls that don't give one, or `nil` for the Mac's (UTC
+  /// where the conformance cases expect the remote server's default).
+  public var defaultTimeZone: String?
 
-  public init(now: Date = Date()) {
+  public init(now: Date = Date(), defaultTimeZone: String? = nil) {
     self.now = now
+    self.defaultTimeZone = defaultTimeZone
   }
 
   /// What `summary` shows when nothing is pinned: the Mac's Summary suggestions.
@@ -36,7 +40,7 @@ public struct HealthTools: Sendable {
   /// from the statistics source its totals today and over the last 7 days (skipping empty
   /// buckets); plus the workouts that started in those 7 days, by now.
   public func summary(timeZone: String? = nil, _ db: Database) throws -> HealthSummaryResult {
-    let time = try ToolTime(timeZone: timeZone)
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let today = time.startOfDay(now)
     let tomorrow = time.startOfDay(now, adding: 1)
     let weekStart = time.startOfDay(now, adding: -6)
@@ -69,7 +73,7 @@ public struct HealthTools: Sendable {
 
   /// Every type with data, by category (in Health's order), then name.
   public func listTypes(timeZone: String? = nil, _ db: Database) throws -> HealthTypesResult {
-    let time = try ToolTime(timeZone: timeZone)
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let dates = try HealthDatabase.typeDates(calendar: time.calendar, db)
     let types = HealthCatalog.all
       .filter { dates[$0.id] != nil }
@@ -104,7 +108,7 @@ public struct HealthTools: Sendable {
     type: String, range: ToolRange, statistic: Statistic? = nil, date: String? = nil,
     timeZone: String? = nil, _ db: Database
   ) throws -> HealthMetricResult {
-    let time = try ToolTime(timeZone: timeZone)
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let type = try Self.dataType(type)
     guard type.kind == .quantity, let aggregation = type.aggregation else {
       throw HealthToolError(
@@ -176,7 +180,7 @@ public struct HealthTools: Sendable {
     type: String, range: ToolRange, date: String? = nil, timeZone: String? = nil,
     cursor: String? = nil, limit: Int? = nil, _ db: Database
   ) throws -> HealthSamplesResult {
-    let time = try ToolTime(timeZone: timeZone)
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let type = try Self.dataType(type)
     guard type.kind == .quantity || type.kind == .category else {
       throw HealthToolError(
@@ -224,7 +228,7 @@ public struct HealthTools: Sendable {
   public func workouts(
     range: ToolRange, date: String? = nil, timeZone: String? = nil, _ db: Database
   ) throws -> HealthWorkoutsResult {
-    let time = try ToolTime(timeZone: timeZone)
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let period = try ToolPeriod(range, date: date, now: now, time: time)
     let totals = try HealthDatabase.workoutTotals(in: period.interval, db)
     let workouts = try HealthDatabase.workouts(
@@ -253,7 +257,7 @@ public struct HealthTools: Sendable {
   public func sleep(
     range: ToolRange, date: String? = nil, timeZone: String? = nil, _ db: Database
   ) throws -> HealthSleepResult {
-    let time = try ToolTime(timeZone: timeZone)
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let period = try ToolPeriod(range, date: date, now: now, time: time)
     let lastDay = time.startOfDay(period.end, adding: -1)
     let days = (time.calendar.dateComponents([.day], from: period.start, to: lastDay).day ?? 0) + 1
@@ -283,7 +287,7 @@ public struct HealthTools: Sendable {
   public func medications(timeZone: String? = nil, _ db: Database) throws
     -> HealthMedicationsResult
   {
-    let time = try ToolTime(timeZone: timeZone)
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let medications = try HealthDatabase.medications(db).map { medication in
       let detail = try HealthDatabase.medicationDetail(
         id: medication.id, now: now, calendar: time.calendar, limit: 1, db)
@@ -309,7 +313,7 @@ public struct HealthTools: Sendable {
   public func healthDetails(timeZone: String? = nil, _ db: Database) throws
     -> HealthDetailsResult
   {
-    let time = try ToolTime(timeZone: timeZone)
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let details = HealthDetails(characteristics: try HealthDatabase.characteristics(db))
     let prescriptions = try HealthDatabase.visionPrescriptions(limit: .max, db)
     func lens(_ lens: VisionLens?) -> HealthLens? {
@@ -381,7 +385,7 @@ public struct HealthTools: Sendable {
   /// The newest sample that has started, and each iPhone that reports statistics, most recently
   /// reported first, saying which one totals come from.
   public func syncStatus(timeZone: String? = nil, _ db: Database) throws -> HealthSyncStatusResult {
-    let time = try ToolTime(timeZone: timeZone)
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let source = try HealthDatabase.statisticsSource(db, now: now)
     let devices = try HealthStatisticsDevice.all.fetchAll(db)
       .sorted { ($0.reportedAt, $0.device) > ($1.reportedAt, $1.device) }
