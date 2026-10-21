@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Read `docs/DECISIONS.md` before starting work. It records every architecture and product decision made so far.
+Read `docs/DECISIONS.md` before starting work. It records the architecture and product decisions that apply everywhere, and links each area's own file under `docs/decisions/` (Distribution and CI, Server, Accounts, Sync, lil health, lil messages, Pixelbook). Read the areas your change touches too.
 
 ## Workflow
 
@@ -93,7 +93,7 @@ Read `docs/DECISIONS.md` before starting work. It records every architecture and
   - `vp run deploy:prod` deploys to `api.lil.tech`.
   - Staging and prod need the Sign in with Apple key in `LIL_APPLE_SIGN_IN_KEY`, e.g. `LIL_APPLE_SIGN_IN_KEY="$(op document get 'lil health – Sign in with Apple key (J59CSK4YXA)')" vp run deploy:prod`.
   - `vp run deploy` deploys your personal stage, on workers.dev only.
-  - `node scripts/notifications.ts` applies the account's billing and usage notification policies. They're account-wide, so no stage deploys them. See DECISIONS.md for credentials.
+  - `node scripts/notifications.ts` applies the account's billing and usage notification policies. They're account-wide, so no stage deploys them. See `docs/decisions/server.md` for credentials.
   - Each script sets `LIL_ENVIRONMENT` and `LIL_VERSION` (the git SHA, with `-dirty` for uncommitted changes), which the Worker reads at deploy time. Deploy prod from a clean tree.
 - A Worker's props Effect runs at deploy **and** inside the running Worker, where Alchemy services like `Stage` don't exist. Read them with `Effect.serviceOption`.
 - **Alchemy is in beta and pinned exactly** (`alchemy` in the catalog). Before writing Alchemy code, look resources and APIs up in [alchemy.run/llms.txt](https://alchemy.run/llms.txt) (and `llms-full.txt`). If they disagree with the installed types in `Services/api/node_modules/alchemy`, the installed types win. Don't install third-party Alchemy skills.

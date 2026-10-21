@@ -1,6 +1,6 @@
 # Pixelbook
 
-The viewer for the apps' preview snapshots, deployed to `pixelbook.lil.tech`. Run it with `vp dev`. `docs/DECISIONS.md` (Pixelbook) says how it works and why.
+The viewer for the apps' preview snapshots, deployed to `pixelbook.lil.tech`. Run it with `vp dev`. `docs/decisions/pixelbook.md` says how it works and why.
 
 ## Where code goes
 
