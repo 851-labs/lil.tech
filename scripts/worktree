@@ -18,8 +18,9 @@
 #       the worktrees whose PR is merged or closed and that have no uncommitted changes, and
 #       deletes that DerivedData. Never touches the main checkout.
 # A ticket number is `2884` or `851-2884`.
-# A worktree's DerivedData is found by its `info.plist`, or, for a workspace that never finished
-# loading and so has none, by the folder's name, which Xcode derives from the workspace's path.
+# A worktree's DerivedData is found by its `info.plist`, or by the folder's name, which Xcode derives
+# from the path of the workspace, project or package it's for. A workspace that never finished
+# loading leaves a folder without an `info.plist`.
 set -eu
 
 usage() {
@@ -82,16 +83,27 @@ workspace_path() {
   plutil -extract WorkspacePath raw -o - "$1/info.plist" 2>/dev/null || true
 }
 
-# Xcode names a workspace's DerivedData folder `<name>-<hash>`, where the hash spells the MD5 of the
-# workspace's path in 28 letters: each half of the digest, as a big-endian number, in 14 base-26
-# digits from a to z. Xcode writes the folder's `info.plist` only once the workspace has loaded its
-# packages, so the name is all that ties a workspace that never finished loading to its folder
-# (851-2940).
+# The workspaces, projects and packages Xcode can open in a checkout, relative to it: each
+# `*.xcworkspace`, `*.xcodeproj` and folder with a `Package.swift` in the main checkout.
+containers() {
+  git ls-files -- '*/Package.swift' '*.xcodeproj/project.pbxproj' \
+    '*.xcworkspace/contents.xcworkspacedata' |
+    sed -n -e 's|/Package\.swift$||p' -e 's|/project\.pbxproj$||p' \
+      -e 's|/contents\.xcworkspacedata$||p' |
+    grep -v '\.xcodeproj/' || true
+}
+
+# Xcode names the DerivedData folder of a workspace, project or package `<name>-<hash>`: its name
+# without the extension, and the MD5 of its path in 28 letters (each half of the digest, as a
+# big-endian number, in 14 base-26 digits from a to z). Xcode writes the folder's `info.plist` only
+# once the workspace has loaded its packages, so the name is all that ties one that never finished
+# loading to its folder (851-2940).
 #   derived_data_hashes hash <path>...
-#       Prints the hash of each workspace path.
-#   derived_data_hashes find <prefix> <dir>...
-#       For each DerivedData folder named after `<prefix><number>/Lil.xcworkspace`, for a number up
-#       to 99999, prints "<number> <dir>". Other folders are left out.
+#       Prints the hash of each path.
+#   derived_data_hashes find <prefix> <containers> <dir>...
+#       For each DerivedData folder named after `<prefix><number>/<container>`, for a number up to
+#       99999 and one of the newline-separated containers, prints "<number> <dir>". Other folders
+#       are left out.
 derived_data_hashes() {
   python3 -I - "$@" <<'PY'
 import hashlib
@@ -117,34 +129,52 @@ if mode == "hash":
     for path in args:
         print(name_hash(path))
 else:
-    prefix, dirs = args[0], args[1:]
-    wanted = {os.path.basename(d).rsplit("-", 1)[-1]: d for d in dirs}
+    prefix, containers, dirs = args[0], args[1].split("\n"), args[2:]
+    # A folder is only checked against the containers its name starts with.
+    wanted = {}
+    for d in dirs:
+        name, _, digest = os.path.basename(d).rpartition("-")
+        for container in containers:
+            if container and os.path.splitext(os.path.basename(container))[0] == name:
+                wanted.setdefault(container, {})[digest] = d
+    found = set()
     for number in range(1, 100000):
+        for container, folders in list(wanted.items()):
+            d = folders.pop(name_hash(f"{prefix}{number}/{container}"), None)
+            if d and d not in found:
+                found.add(d)
+                print(number, d)
+            if not folders:
+                del wanted[container]
         if not wanted:
             break
-        found = wanted.pop(name_hash(f"{prefix}{number}/Lil.xcworkspace"), None)
-        if found:
-            print(number, found)
 PY
 }
 
-# Deletes the DerivedData of worktree `$1` (a path): folders whose `info.plist` names a workspace or
-# project in it, and the folder without one named after its `Lil.xcworkspace`.
+# Deletes the DerivedData of worktree `$1` (a path): folders whose `info.plist` names a workspace,
+# project or package in it, or whose name is one's, as Xcode derives it from its path.
 delete_derived_data() {
-  hash=$(derived_data_hashes hash "$1/Lil.xcworkspace")
+  paths=""
+  for container in $(containers); do
+    paths="$paths$1/$container$newline"
+  done
+  if ! hashes=$(derived_data_hashes hash $paths); then
+    echo "warning: couldn't work out Xcode's folder names (python3 failed), so build data" \
+      "without an info.plist is kept." >&2
+    hashes=""
+  fi
   for dir in "$derived_data"/*/; do
     dir=${dir%/}
-    if [ -f "$dir/info.plist" ]; then
-      case "$(workspace_path "$dir")" in
-        "$1"/*) ;;
-        *) continue ;;
-      esac
-    else
+    match=false
+    case "$(workspace_path "$dir")" in
+      "$1"/*) match=true ;;
+    esac
+    for hash in $hashes; do
       case "$dir" in
-        *-"$hash") ;;
-        *) continue ;;
+        *-"$hash") match=true ;;
       esac
-    fi
+    done
+    $match || continue
     echo "Deleting Xcode's build data for it: $dir ($(du -sh "$dir" | cut -f1))"
     rm -rf "$dir"
   done
@@ -318,9 +348,7 @@ cmd_prune() {
   for dir in "$derived_data"/*/; do
     dir=${dir%/}
     if [ ! -f "$dir/info.plist" ]; then
-      case "$(basename "$dir")" in
-        Lil-*) unloaded="$unloaded$dir$newline" ;;
-      esac
+      unloaded="$unloaded$dir$newline"
       continue
     fi
     workspace=$(workspace_path "$dir")
@@ -335,14 +363,19 @@ cmd_prune() {
     stale="$stale$dir$newline"
   done
   if [ -n "$unloaded" ]; then
-    for match in $(derived_data_hashes find "$prefix" $unloaded); do
-      root="$prefix${match%% *}"
-      dir=${match#* }
-      [ -d "$root" ] && continue
-      echo "Xcode build data for $(basename "$root"), which is gone (it never finished loading):" \
-        "$dir ($(du -sh "$dir" | cut -f1))"
-      stale="$stale$dir$newline"
-    done
+    if matches=$(derived_data_hashes find "$prefix" "$(containers)" $unloaded); then
+      for match in $matches; do
+        root="$prefix${match%% *}"
+        dir=${match#* }
+        [ -d "$root" ] && continue
+        echo "Xcode build data for $(basename "$root"), which is gone (it never finished" \
+          "loading): $dir ($(du -sh "$dir" | cut -f1))"
+        stale="$stale$dir$newline"
+      done
+    else
+      echo "warning: couldn't match Xcode build data without an info.plist to worktrees" \
+        "(python3 failed)." >&2
+    fi
   fi
 
   if ! $apply; then
