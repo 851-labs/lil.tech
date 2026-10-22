@@ -61,14 +61,14 @@
           day in
           Logged(hours: Double(day * 24 + 9), duration: 2, value: [0, 2, 3, 4][day % 4])
         }
-        scrolled(symptom(headache, .sixMonths, logged))
+        symptom(headache, .sixMonths, logged)
       },
       CatalogState("Headache, year") {
         // More days some months than others.
         let logged = (0..<365).filter { day in (day * 7) % 11 < 2 + (day / 30) % 4 }.map { day in
           Logged(hours: Double(day * 24 + 9), duration: 2, value: [0, 2, 3, 4][day % 4])
         }
-        scrolled(symptom(headache, .year, logged))
+        symptom(headache, .year, logged)
       },
       // Presence: 0 Present, 1 Not Present. One level.
       CatalogState("Mood changes") {
@@ -95,13 +95,12 @@
             Logged(hours: 120 + 20, value: 0),
           ])
       },
-      // Four a day for a month: the list stops at the 100 most recent and says so. Scrolled to
-      // the end, where it says so.
+      // Four a day for a month: the list stops at the 100 most recent and says so, at the end.
       CatalogState("Headache, more than 100 entries") {
         let logged = (0..<(31 * 4)).map { index in
           Logged(hours: Double(index * 6 + 3), duration: 1, value: [0, 2, 3, 4][index % 4])
         }
-        scrolled(symptom(headache, .month, logged), to: .bottom)
+        symptom(headache, .month, logged)
       },
       CatalogState("No headache") { symptom(headache, .week, []) },
       CatalogState("Headache loading") { symptom(headache, .week, .loading) },
@@ -141,15 +140,6 @@
     return SymptomChart(
       typeID: type.id, range: range, interval: interval,
       entries: entries.sorted { $0.start > $1.start }, calendar: previewCalendar)
-  }
-
-  /// A page longer than about 2,800 points draws a row twice there, offscreen, and differently
-  /// in `swift test` and `scripts/snapshot` (851-2986). The longest pages (6 months, a year, more
-  /// than 100 entries: 3,000 to 5,400 points) are this tall instead, scrolled to `anchor`, so
-  /// they show part of their list rather than all of it, as Pixelbook did.
-  @MainActor
-  private func scrolled(_ page: some View, to anchor: UnitPoint = .top) -> some View {
-    page.defaultScrollAnchor(anchor).frame(height: 1400)
   }
 
   @MainActor
