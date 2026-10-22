@@ -451,14 +451,23 @@ describe("the combined MCP server", () => {
         (handler) =>
           Effect.gen(function* () {
             // Since the launch (851-2903).
-            for (const url of ["https://mcp.lil.tech", "https://mcp.lil.tech/"]) {
-              const missing = yield* call(handler, undefined, "tools/list", {}, {}, url);
-              assert.strictEqual(missing.status, 401, url);
-              assert.strictEqual(
-                missing.headers.get("www-authenticate"),
-                'Bearer resource_metadata="https://mcp.lil.tech/.well-known/oauth-protected-resource", scope="health:read"',
-              );
-            }
+            const resource = "https://mcp.lil.tech";
+            const agent = yield* connect(handler, { origin: "https://api.lil.tech", resource });
+            const list = yield* call(
+              handler,
+              agent.accessToken,
+              "tools/list",
+              {},
+              {},
+              `${resource}/`,
+            );
+            assert.strictEqual(list.status, 200);
+            const missing = yield* call(handler, undefined, "tools/list", {}, {}, `${resource}/`);
+            assert.strictEqual(missing.status, 401);
+            assert.strictEqual(
+              missing.headers.get("www-authenticate"),
+              'Bearer resource_metadata="https://mcp.lil.tech/.well-known/oauth-protected-resource", scope="health:read"',
+            );
             const onApi = yield* call(
               handler,
               undefined,

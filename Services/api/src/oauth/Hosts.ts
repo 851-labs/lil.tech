@@ -11,7 +11,7 @@ import type { Environment } from "../Status.ts";
 /**
  * Where agents can connect: the OAuth and MCP routes exist only here, and elsewhere are a 404.
  * Every environment since the launch (851-2855), once the privacy policy covered it. A new
- * environment opts in here.
+ * environment opts in here, and in `combinedAgentEnvironments` for the combined server.
  */
 export const agentAccessEnvironments: ReadonlySet<Environment> = new Set([
   "preview",
