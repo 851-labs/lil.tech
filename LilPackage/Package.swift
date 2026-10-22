@@ -46,6 +46,8 @@ let package = Package(
       traits: ["Tagged"]
     ),
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.17.0"),
+    // Renders preview states to images in `swift test` (HealthSnapshotTests, 851-2931).
+    .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.19.7"),
     .package(url: "https://github.com/pointfreeco/swift-tagged", from: "0.10.0"),
     .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.10.0"),
     .package(url: "https://github.com/apple/swift-openapi-runtime", from: "1.13.0"),
@@ -210,6 +212,22 @@ let package = Package(
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "SQLiteData", package: "sqlite-data"),
       ]
+    ),
+    // Preview states of lil health for Mac, rendered to images in `swift test` by
+    // swift-snapshot-testing and compared with the references in `__Snapshots__` (851-2931).
+    .testTarget(
+      name: "HealthSnapshotTests",
+      dependencies: [
+        "HealthAgentAccess",
+        "HealthCatalog",
+        "HealthDatabase",
+        "HealthMacApp",
+        "HealthPages",
+        "LilAuth",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+      ],
+      exclude: ["__Snapshots__"]
     ),
     .testTarget(
       name: "HealthPagesTests",

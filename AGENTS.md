@@ -124,6 +124,11 @@ All visual validation goes through SwiftUI previews rendered with `RenderPreview
 - A UI change comes with previews for each state it affects. Render them, check the snapshots, and attach them to both the PR and the Linear ticket (as a comment).
 - `scripts/contact-sheet <out.png> <columns> <images…>` combines snapshots into one labeled image for the ticket.
 - **Mac preview sizes:** use `previewFrame(width:height:)`, not `.frame(width:height:)`. Pixelbook's snapshots grow a preview to show all of its scroll content, and a fixed height leaves a blank band above it instead.
+- **Snapshot tests** (851-2931): `HealthSnapshotTests` renders some Mac preview states with swift-snapshot-testing in plain `swift test`, without Xcode, and compares them with the PNGs in its `__Snapshots__` folder, pixel for pixel. Run them with `cd LilPackage && swift test --filter HealthSnapshotTests`, which takes seconds once built, and opens no window.
+  - Each test builds the same view as the `#Preview` it names, with `assertMacSnapshot(of:appearance:named:)`, in light and dark.
+  - A change to a snapshotted view fails its test, which says where the new image is. Check it, then re-record: delete the reference and run again, or run with `SNAPSHOT_TESTING_RECORD=failed`. Commit the new references with the change.
+  - The images match `RenderPreview`'s in fonts, lists, forms, charts, sizes and dark mode, but not Liquid Glass, which only draws on screen: toolbar controls, a switch's tint and the window buttons. Check those in `RenderPreview`.
+  - Synthetic data and fixed dates only, since the images are committed and must be the same every day.
 
 ## Privacy: user data
 
