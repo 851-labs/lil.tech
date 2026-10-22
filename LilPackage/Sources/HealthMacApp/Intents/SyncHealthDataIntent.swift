@@ -16,13 +16,16 @@ public struct SyncHealthDataIntent: AppIntent {
 
   public init() {}
 
-  public func perform() async throws -> some IntentResult & ProvidesDialog {
+  /// How it went, as text, without a dialog (851-2943): Shortcuts waits for a dialog's Done
+  /// before it goes on, so one would stop `shortcuts run` until someone clicks it. A shortcut can
+  /// show the text, and errors still show.
+  public func perform() async throws -> some IntentResult & ReturnsValue<String> {
     let result = try await HealthAppIntents.perform(.sync)
-    return .result(dialog: "\(Self.dialog(for: result))")
+    return .result(value: Self.message(for: result))
   }
 
-  /// What Shortcuts, Siri and Spotlight say once the app has answered.
-  static func dialog(for result: HealthAppActionResult) -> String {
+  /// What the intent returns once the app has answered.
+  static func message(for result: HealthAppActionResult) -> String {
     switch result {
     case .stillSyncing: "Still syncing. lil health will finish in the background."
     case .synced: "lil health is up to date."

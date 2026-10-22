@@ -1,3 +1,4 @@
+import AppIntents
 import ComposableArchitecture
 import DependenciesTestSupport
 import Foundation
@@ -91,11 +92,6 @@ struct SyncHealthDataIntentTests {
     sync.set(.bootstrapping(downloadedParts: 40, totalParts: 80))
     clock.advance(by: .seconds(1))
     #expect(try await answer() == .stillSyncing)
-    #expect(
-      SyncHealthDataIntent.dialog(for: .stillSyncing)
-        == "Still syncing. lil health will finish in the background.")
-    #expect(SyncHealthDataIntent.dialog(for: .synced(at: synced)) == "lil health is up to date.")
-    #expect(SyncHealthDataIntent.dialog(for: .done) == "Done.")
     await store.finish()
   }
 
@@ -214,6 +210,27 @@ struct SyncHealthDataIntentTests {
     let entries = try accessStore.entries()
     #expect(entries.map(\.command) == ["sync"])
     #expect(entries.map(\.process) == ["Shortcuts, Siri or Spotlight"])
+  }
+
+  @Test
+  func returnsHowItWentAsTextWithoutADialog() async throws {
+    try accessStore.setEnabled(true)
+    let answer = LockIsolated(HealthAppActionResult.synced(at: synced))
+    try await withDependencies {
+      $0.agentAccess = .live(accessStore)
+      $0.healthAppActions.perform = { _, _ in answer.value }
+    } operation: {
+      // Only a value: a dialog would stop `shortcuts run` until someone clicks Done (851-2943).
+      let result = try await SyncHealthDataIntent().perform()
+      let container = try #require(result as? IntentResultContainer<String, Never, Never, Never>)
+      #expect(container.value == "lil health is up to date.")
+      #expect(container.dialog == nil)
+
+      answer.setValue(.stillSyncing)
+      #expect(
+        try await SyncHealthDataIntent().perform().value
+          == "Still syncing. lil health will finish in the background.")
+    }
   }
 
   @Test
