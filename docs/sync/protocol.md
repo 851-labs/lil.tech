@@ -1,4 +1,4 @@
-# Sync
+# Sync protocol
 
 How lil apps keep a local copy of a user's data in sync with `api.lil.tech`. The protocol is generic: lil health uses it first, and lil mail and lil calendar will reuse it. See [`docs/decisions/sync.md`](../decisions/sync.md) for why apps are local-first, and the other decisions behind it.
 
