@@ -39,7 +39,10 @@ struct AgentAccessFeatureTests {
     }
     // `lil` isn't installed yet.
     await store.receive(\.commandLineToolLocated)
-    await store.receive(\.entriesLoaded)
+    // Until the log is read, it's loading, not empty.
+    await store.receive(\.entriesLoaded) {
+      $0.isLoadingLog = false
+    }
 
     // The command logs a query, and the open pane shows it at its next read. `lil` is installed
     // meanwhile, and the pane says where.
@@ -139,6 +142,7 @@ struct AgentAccessFeatureTests {
     }
     await store.receive(\.commandLineToolLocated)
     await store.receive(\.logFailed) {
+      $0.isLoadingLog = false
       $0.logFailure = "lil health couldn't read the access log: \(Busy().localizedDescription)"
     }
     logReadable.setValue(true)

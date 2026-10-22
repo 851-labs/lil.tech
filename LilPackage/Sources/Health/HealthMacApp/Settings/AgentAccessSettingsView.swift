@@ -49,9 +49,6 @@ struct AgentAccessForm: View {
         AgentLogRow(title: "Access Log", summary: localLogSummary) {
           store.send(.logShown(true))
         }
-        .sheet(isPresented: $store.isShowingLog.sending(\.logShown)) {
-          AgentAccessLogSheet(store: store)
-        }
       } footer: {
         VStack(alignment: .leading, spacing: 6) {
           Text(
@@ -80,6 +77,13 @@ struct AgentAccessForm: View {
       ConnectedAgentsSections(store: connected)
     }
     .formStyle(.grouped)
+    // On the form rather than the rows, which a grouped form may lay out again.
+    .sheet(isPresented: $store.isShowingLog.sending(\.logShown)) {
+      AgentAccessLogSheet(store: store)
+    }
+    .sheet(isPresented: $connected.isShowingLog.sending(\.logShown)) {
+      RemoteAccessLogSheet(store: connected)
+    }
     .task { await store.send(.task).finish() }
     .onAppear { connected.send(.appeared) }
     .alert($connected.scope(\.alert, action: \.alert))
@@ -89,12 +93,12 @@ struct AgentAccessForm: View {
   private var localLogSummary: AgentLogRow.Summary {
     if let latest = store.entries.first {
       .latest(latest.date)
-    } else if store.isLoading {
+    } else if store.isLoadingLog {
       .loading
     } else if store.logFailure != nil {
       .failed
     } else {
-      .none("Nothing has read your Health data yet.")
+      .none(AgentAccessLogSheet.empty)
     }
   }
 }
@@ -145,14 +149,6 @@ struct AgentLogSheet<Content: View, Actions: View>: View {
 
   @Environment(\.dismiss) private var dismiss
 
-  /// The sheet's smallest size: the Settings window's, less room for the window around it, so it
-  /// fits over the smallest window.
-  nonisolated static var minWidth: CGFloat { 440 }
-  nonisolated static var minHeight: CGFloat { 320 }
-  /// The size it opens at.
-  nonisolated static var idealWidth: CGFloat { 520 }
-  nonisolated static var idealHeight: CGFloat { 440 }
-
   var body: some View {
     VStack(spacing: 0) {
       Form {
@@ -183,9 +179,25 @@ struct AgentLogSheet<Content: View, Actions: View>: View {
       .padding(.vertical, 12)
     }
     .frame(
-      minWidth: Self.minWidth, idealWidth: Self.idealWidth, minHeight: Self.minHeight,
-      idealHeight: Self.idealHeight)
+      minWidth: AgentLogSheetSize.minWidth, idealWidth: AgentLogSheetSize.width,
+      minHeight: AgentLogSheetSize.minHeight, idealHeight: AgentLogSheetSize.height)
   }
+}
+
+extension AgentLogSheet where Actions == EmptyView {
+  /// A sheet with only Done.
+  init(title: String, description: String, @ViewBuilder content: () -> Content) {
+    self.init(title: title, description: description, content: content, actions: { EmptyView() })
+  }
+}
+
+/// A log sheet's sizes. It opens at the Settings window's smallest size, so it never overhangs the
+/// window, and resizes from there. Nonisolated for snapshot catalogs.
+enum AgentLogSheetSize {
+  nonisolated static let width = SettingsView.minWidth
+  nonisolated static let height = SettingsView.minHeight
+  nonisolated static let minWidth: CGFloat = 400
+  nonisolated static let minHeight: CGFloat = 280
 }
 
 /// The log of what read the data on this Mac: the latest 100 queries, read again every few seconds
@@ -193,13 +205,16 @@ struct AgentLogSheet<Content: View, Actions: View>: View {
 struct AgentAccessLogSheet: View {
   let store: StoreOf<AgentAccessFeature>
 
+  /// What the sheet and its row say while the log is empty.
+  static let empty = "Nothing has read your Health data yet."
+
   var body: some View {
     AgentLogSheet(
       title: "Access Log",
       description:
         "What read your Health data on this Mac, the latest \(AgentAccessFeature.entryLimit): the command or tool with its arguments, and what ran it, never what it answered."
     ) {
-      if store.isLoading {
+      if store.entries.isEmpty, store.isLoadingLog {
         ProgressView()
           .controlSize(.small)
           .frame(maxWidth: .infinity)
@@ -207,7 +222,7 @@ struct AgentAccessLogSheet: View {
         Text(logFailure)
           .foregroundStyle(.red)
       } else if store.entries.isEmpty {
-        Text("Nothing has read your Health data yet.")
+        Text(Self.empty)
           .foregroundStyle(.secondary)
       } else {
         ForEach(store.entries) { entry in
@@ -350,7 +365,7 @@ struct CopyableRow: View {
 /// combined one for every lil app (851-2902), revoking them, a row opening what they read
 /// (851-3082), and how to connect one.
 struct ConnectedAgentsSections: View {
-  @Bindable var store: StoreOf<ConnectedAgentsFeature>
+  let store: StoreOf<ConnectedAgentsFeature>
 
   /// The deployment the app talks to, read once.
   private static let environment = APIEnvironment.current()
@@ -380,11 +395,9 @@ struct ConnectedAgentsSections: View {
         }
       }
       // Revoked agents' reads stay in the log, so it's there whatever the list shows.
+      // Its sheet is on the pane's form (`AgentAccessForm`).
       AgentLogRow(title: "Remote Access Log", summary: logSummary) {
         store.send(.logShown(true))
-      }
-      .sheet(isPresented: $store.isShowingLog.sending(\.logShown)) {
-        RemoteAccessLogSheet(store: store)
       }
     } header: {
       HStack {
@@ -434,7 +447,7 @@ struct ConnectedAgentsSections: View {
     } else if store.logFailure != nil {
       .failed
     } else {
-      .none("No remote agent has read your data yet.")
+      .none(RemoteAccessLogSheet.empty)
     }
   }
 }
@@ -442,6 +455,9 @@ struct ConnectedAgentsSections: View {
 /// What the remote agents read (851-2853), a page at a time, newest first, with Show More.
 struct RemoteAccessLogSheet: View {
   let store: StoreOf<ConnectedAgentsFeature>
+
+  /// What the sheet and its row say while the log is empty.
+  static let empty = "No remote agent has read your data yet."
 
   var body: some View {
     AgentLogSheet(
@@ -461,7 +477,7 @@ struct RemoteAccessLogSheet: View {
           Button("Try Again") { store.send(.retryLogButtonTapped) }
         }
       } else if store.log.isEmpty {
-        Text("No remote agent has read your data yet.")
+        Text(Self.empty)
           .foregroundStyle(.secondary)
       } else {
         ForEach(store.log) { entry in
@@ -479,8 +495,6 @@ struct RemoteAccessLogSheet: View {
             .frame(maxWidth: .infinity)
         }
       }
-    } actions: {
-      EmptyView()
     }
   }
 }

@@ -24,13 +24,15 @@ public struct AgentAccessFeature {
     public var isShowingLog: Bool
     /// Until the setting has been read, or couldn't be.
     public var isLoading: Bool
+    /// Until the log has been read once, or couldn't be: the setting is read first.
+    public var isLoadingLog: Bool
     /// Why the log couldn't be read, until it can be again.
     public var logFailure: String?
 
     public init(
       commandLineTool: URL? = nil, entries: [AgentAccessEntry] = [], failure: String? = nil,
       isEnabled: Bool = false, isShowingLog: Bool = false,
-      isLoading: Bool = true, logFailure: String? = nil
+      isLoading: Bool = true, isLoadingLog: Bool = true, logFailure: String? = nil
     ) {
       self.commandLineTool = commandLineTool
       self.entries = entries
@@ -38,6 +40,7 @@ public struct AgentAccessFeature {
       self.isEnabled = isEnabled
       self.isShowingLog = isShowingLog
       self.isLoading = isLoading
+      self.isLoadingLog = isLoadingLog
       self.logFailure = logFailure
     }
   }
@@ -78,10 +81,12 @@ public struct AgentAccessFeature {
 
       case .entriesLoaded(let entries):
         state.entries = entries
+        state.isLoadingLog = false
         state.logFailure = nil
         return .none
 
       case .logFailed(let message):
+        state.isLoadingLog = false
         state.logFailure = message
         return .none
 

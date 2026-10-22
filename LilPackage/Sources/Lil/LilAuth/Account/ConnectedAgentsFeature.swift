@@ -4,7 +4,8 @@ import Foundation
 /// lil health's remote agents: those the person allowed to read its data through its MCP server
 /// (`mcp.lil.tech/health`) or the combined one for every lil app (`mcp.lil.tech`, 851-2902), with
 /// when each connected and last read, revoking one or all of them, and the log of what they read.
-/// The Mac's Agents pane (851-2853) and the iPhone's Settings (851-2854) show it. Kept in the app's store, and read again each time its screen opens.
+/// The Mac's Agents pane (851-2853) and the iPhone's Settings (851-2854) show it. Kept in the
+/// app's store, and read again each time its screen opens.
 @Reducer
 public struct ConnectedAgentsFeature {
   @ObservableState

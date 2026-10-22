@@ -161,8 +161,11 @@
       CatalogState("Access log: failed", width: sheetWidth, minHeight: sheetHeight) {
         accessLog(entries: [], logFailure: logUnreadable)
       },
-      // The entries last read stay, with why they couldn't be read again below them.
-      CatalogState("Access log: failed to read again", width: sheetWidth, minHeight: sheetHeight) {
+      // The entries last read stay, with why they couldn't be read again below them: resized
+      // taller, to show it.
+      CatalogState(
+        "Access log: failed to read again", width: sheetWidth, minHeight: tallSheetHeight
+      ) {
         accessLog(logFailure: logUnreadable)
       },
       // The sheet resizes: its rows widen, and the commands show in full.
@@ -207,8 +210,8 @@
     ])
 
   /// A log's sheet, at the size it opens at.
-  private let sheetWidth = AgentLogSheet<EmptyView, EmptyView>.idealWidth
-  private let sheetHeight = AgentLogSheet<EmptyView, EmptyView>.idealHeight
+  private let sheetWidth = AgentLogSheetSize.width
+  private let sheetHeight = AgentLogSheetSize.height
   /// Tall enough for a page of reads and what's below it.
   private let tallSheetHeight: CGFloat = 600
 
@@ -265,7 +268,7 @@
     var state = AppFeature.State(isSignedIn: isSignedIn)
     state.agentAccess = AgentAccessFeature.State(
       commandLineTool: commandLineTool, entries: entries, failure: failure, isEnabled: isEnabled,
-      isLoading: isLoading, logFailure: logFailure)
+      isLoading: isLoading, isLoadingLog: isLoading, logFailure: logFailure)
     // The remote agents and their log, being read as the pane opens.
     state.connectedAgents = ConnectedAgentsFeature.State(agents: .loading, isLoadingLog: true)
     return AgentAccessSettingsView(store: Store(initialState: state) { EmptyReducer() })
@@ -284,6 +287,7 @@
       store: Store(
         initialState: AgentAccessFeature.State(
           entries: entries, isEnabled: isEnabled, isShowingLog: true, isLoading: isLoading,
+          isLoadingLog: isLoading,
           logFailure: logFailure)
       ) { EmptyReducer() })
   }
