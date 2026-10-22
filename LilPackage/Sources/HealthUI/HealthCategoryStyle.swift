@@ -25,14 +25,27 @@ extension HealthCategory {
   }
 }
 
+/// How Health Details, the page of the characteristics, looks in the sidebar and in Shortcuts.
+public enum HealthDetailsStyle {
+  public static let symbolName = "person.text.rectangle.fill"
+  public static let color = Color.accentColor
+}
+
 extension HealthDataType {
   /// The type's color, for its icon and charts: its category's.
   public var color: Color { category?.color ?? Self.uncategorizedColor }
 
-  /// The color of a type without a category: the characteristics, which Health shows in Health
-  /// Details, whose icon is in the accent color. Unlike gray, it stands out in charts, next to a
-  /// highlight's gray earlier week and through the opacity of bars and fills.
-  public static let uncategorizedColor = Color.accentColor
+  /// The color of a type without a category: the characteristics, so Health Details' color, where
+  /// Health shows them. Unlike gray, it stands out in charts, next to a highlight's gray earlier
+  /// week and through the opacity of bars and fills.
+  public static let uncategorizedColor = HealthDetailsStyle.color
+
+  /// The SF Symbol shown with the type: its category's.
+  public var symbolName: String { category?.symbolName ?? Self.uncategorizedSymbolName }
+
+  /// The symbol of a type without a category: the characteristics, so Health Details' icon, where
+  /// Health shows them. Neither a question mark, which reads as an error, nor a plain circle.
+  public static let uncategorizedSymbolName = HealthDetailsStyle.symbolName
 }
 
 /// A category's name with its icon in its color, as in Health's lists, and white on a selected
