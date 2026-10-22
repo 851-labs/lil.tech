@@ -1,0 +1,325 @@
+name: Release
+
+# Releases lil health from main (851-2827), by hand: Actions › Release › Run workflow, or
+# `gh workflow run release.yml -f version=0.4.0 -f target=both -f dry-run=false`.
+# - mac: `scripts/release health <version>` on a Mac mini: archives, signs with Developer ID,
+#   notarizes and staples the DMG, checks it, and signs it for Sparkle.
+# - publish-mac: tags `health/v<version>`, makes the GitHub release with the DMG, and pushes a
+#   branch adding it to `appcasts/health.xml`, with a link to open its PR in the run's summary.
+# - ios: `scripts/release health-ios <version>` on a Mac mini: archives, exports with cloud signing
+#   and uploads to TestFlight.
+# A dry run builds, signs and notarizes the DMG, and archives and exports the iOS build, but
+# publishes nothing: no tag, release, appcast branch or upload.
+#
+# The signing secrets live in the `release` environment, which only main can deploy to and which
+# waits for Alexandru's approval on every run, since the minis are shared with Codevisor's CI. They
+# go into a keychain made for the job (never the login keychain) and a folder in the runner's temp
+# directory, both deleted when the job ends, however it ends. See docs/RELEASING.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Marketing version, shared by the Mac and iOS apps (e.g. 0.4.0)
+        required: true
+        type: string
+      target:
+        description: What to release
+        required: true
+        type: choice
+        options: [both, mac, ios]
+        default: both
+      dry-run:
+        description: Build, sign and notarize, but publish nothing
+        required: true
+        type: boolean
+        default: true
+      appcast-notes:
+        description: "What's new, as one line of HTML for the appcast item (optional: add it in the PR)"
+        required: false
+        type: string
+
+# One release at a time, never cancelled halfway: a second run waits for the first.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  VERSION: ${{ inputs.version }}
+  DRY_RUN: ${{ inputs.dry-run }}
+
+jobs:
+  mac:
+    if: github.ref == 'refs/heads/main' && inputs.target != 'ios'
+    # Shared with Codevisor, in the "Mac minis" runner group, which lets any lil.tech workflow use
+    # them: the environment is what keeps the secrets to main and to runs Alexandru approves.
+    runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
+    environment: release
+    timeout-minutes: 90
+    outputs:
+      build: ${{ steps.release.outputs.build }}
+      minimum-system-version: ${{ steps.release.outputs.minimum-system-version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The build number is the commit count.
+          fetch-depth: 0
+          # Native self-hosted runners own their checkouts; no global trust entry is needed.
+          set-safe-directory: false
+
+      - name: Check the version
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Not a version: $VERSION" >&2; exit 1; }
+          if [ "$DRY_RUN" != true ] && git ls-remote --exit-code --tags origin "refs/tags/health/v$VERSION" >/dev/null; then
+            echo "health/v$VERSION is already tagged." >&2
+            exit 1
+          fi
+
+      - uses: ./.github/actions/select-xcode
+
+      # Into a folder only this job reads and a keychain of its own, added to the user's search list
+      # (where the export finds the identity) and removed by the last step. The login keychain and
+      # the default keychain are never touched.
+      - name: Set up signing
+        env:
+          DEVELOPER_ID_P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          SPARKLE_HEALTH_ED_KEY: ${{ secrets.SPARKLE_HEALTH_ED_KEY }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          : "${DEVELOPER_ID_P12_BASE64:?}" "${DEVELOPER_ID_P12_PASSWORD:?}" "${SPARKLE_HEALTH_ED_KEY:?}" "${APP_STORE_CONNECT_API_KEY_BASE64:?}"
+          umask 077
+          dir="$RUNNER_TEMP/lil-release"
+          rm -rf "$dir"
+          mkdir "$dir"
+          echo "LIL_RELEASE_DIR=$dir" >> "$GITHUB_ENV"
+          # Profiles Xcode downloads during the release are removed afterwards, the rest kept.
+          ls "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" 2>/dev/null > "$dir/profiles" || true
+
+          printf %s "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > "$dir/AuthKey.p8"
+          printf %s "$SPARKLE_HEALTH_ED_KEY" > "$dir/sparkle-key"
+          printf %s "$DEVELOPER_ID_P12_BASE64" | base64 --decode > "$dir/developer-id.p12"
+
+          keychain="$dir/signing.keychain-db"
+          password=$(openssl rand -hex 32)
+          echo "::add-mask::$password"
+          security list-keychains -d user | sed -E 's/^[[:space:]]*"(.*)"$/\1/' > "$dir/keychains"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 7200 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$dir/developer-id.p12" -k "$keychain" -f pkcs12 -P "$DEVELOPER_ID_P12_PASSWORD" -A >/dev/null
+          rm "$dir/developer-id.p12"
+          # Lets codesign use the key without a prompt no one could answer.
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
+          search=("$keychain")
+          while IFS= read -r line; do
+            [ -n "$line" ] && [ "$line" != "$keychain" ] && search+=("$line")
+          done < "$dir/keychains"
+          security list-keychains -d user -s "${search[@]}"
+          security find-identity -v -p codesigning "$keychain" | grep "Developer ID Application: .*(WH4QW9ND3J)"
+          {
+            echo "LIL_RELEASE_KEYCHAIN=$keychain"
+            echo "LIL_RELEASE_SPARKLE_KEY_FILE=$dir/sparkle-key"
+            echo "LIL_RELEASE_ASC_KEY_PATH=$dir/AuthKey.p8"
+          } >> "$GITHUB_ENV"
+
+      - name: Build, sign and notarize the DMG
+        id: release
+        env:
+          LIL_RELEASE_ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          LIL_RELEASE_ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          scripts/release health "$VERSION"
+          out="build/releases/health/$VERSION"
+          echo "build=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+          echo "minimum-system-version=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$out/export/lil health.app/Contents/Info.plist")" >> "$GITHUB_OUTPUT"
+          # What a release would publish, so a dry run shows it too.
+          {
+            echo "### lil health $VERSION for Mac (build $(git rev-list --count HEAD))"
+            echo
+            echo "Notarized, stapled and accepted by Gatekeeper. Enclosure: \`$(cat "$out/enclosure.txt")\`"
+            [ "$DRY_RUN" = true ] && echo && echo "Dry run: nothing is published."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the DMG for publish-mac
+        if: inputs.dry-run == false
+        uses: actions/upload-artifact@v7
+        with:
+          name: lil-health-mac
+          path: |
+            build/releases/health/${{ inputs.version }}/lil-health-${{ inputs.version }}.dmg
+            build/releases/health/${{ inputs.version }}/enclosure.txt
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Remove the signing material
+        if: always()
+        run: |
+          dir="$RUNNER_TEMP/lil-release"
+          if [ -s "$dir/keychains" ]; then
+            original=()
+            while IFS= read -r line; do [ -n "$line" ] && original+=("$line"); done < "$dir/keychains"
+            security list-keychains -d user -s "${original[@]}" || true
+          fi
+          security delete-keychain "$dir/signing.keychain-db" 2>/dev/null || true
+          profiles="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          if [ -f "$dir/profiles" ] && [ -d "$profiles" ]; then
+            ls "$profiles" | while IFS= read -r profile; do
+              grep -qxF "$profile" "$dir/profiles" || rm -f "$profiles/$profile"
+            done
+          fi
+          rm -rf "$dir" build/releases
+
+  publish-mac:
+    needs: mac
+    if: github.ref == 'refs/heads/main' && inputs.dry-run == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      BUILD: ${{ needs.mac.outputs.build }}
+      MINIMUM_SYSTEM_VERSION: ${{ needs.mac.outputs.minimum-system-version }}
+      APPCAST_NOTES: ${{ inputs.appcast-notes }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The appcast branch starts from main as it is now, which may be past the release, and the
+          # tag goes on the released commit.
+          ref: main
+          fetch-depth: 0
+      - uses: actions/download-artifact@v7
+        with:
+          name: lil-health-mac
+          path: ${{ runner.temp }}/release
+      - name: Tag and make the GitHub release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          tag="health/v$VERSION"
+          git tag -a "$tag" "$GITHUB_SHA" -m "lil health $VERSION"
+          git push origin "refs/tags/$tag"
+          printf 'lil health %s for Mac (build %s). Requires macOS %s.\n' "$VERSION" "$BUILD" "$MINIMUM_SYSTEM_VERSION" > "$RUNNER_TEMP/notes.md"
+          gh release create "$tag" "$RUNNER_TEMP/release/lil-health-$VERSION.dmg" \
+            --verify-tag --title "lil health $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+      # main is protected, so the appcast changes through a pull request. One the workflow's token
+      # opened would run no workflows (so no pr-ok), and the repo doesn't let Actions open them, so
+      # a person opens it from the link in the summary.
+      - name: Push the appcast branch
+        run: |
+          enclosure=$(cat "$RUNNER_TEMP/release/enclosure.txt")
+          signature=$(sed -nE 's/.*sparkle:edSignature="([^"]+)".*/\1/p' <<< "$enclosure")
+          length=$(sed -nE 's/.*length="([0-9]+)".*/\1/p' <<< "$enclosure")
+          [ -n "$signature" ] && [ -n "$length" ] || { echo "Unexpected enclosure: $enclosure" >&2; exit 1; }
+          if [[ "$APPCAST_NOTES" == *"]]>"* ]]; then
+            echo "The appcast notes can't contain ]]>." >&2
+            exit 1
+          fi
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/health%2Fv$VERSION/lil-health-$VERSION.dmg"
+          item="$RUNNER_TEMP/item.xml"
+          {
+            echo "    <item>"
+            echo "      <title>$VERSION</title>"
+            echo "      <pubDate>$(date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>"
+            echo "      <link>https://github.com/$GITHUB_REPOSITORY/releases/tag/health%2Fv$VERSION</link>"
+            echo "      <sparkle:version>$BUILD</sparkle:version>"
+            echo "      <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>"
+            echo "      <sparkle:minimumSystemVersion>$MINIMUM_SYSTEM_VERSION</sparkle:minimumSystemVersion>"
+            [ -n "$APPCAST_NOTES" ] && echo "      <description><![CDATA[$APPCAST_NOTES]]></description>"
+            echo "      <enclosure"
+            echo "        url=\"$url\""
+            echo "        length=\"$length\""
+            echo "        type=\"application/octet-stream\""
+            echo "        sparkle:edSignature=\"$signature\""
+            echo "      />"
+            echo "    </item>"
+          } > "$item"
+          # Newest first, right after the channel's title.
+          awk -v item="$item" '{ print } !done && /^    <title>/ { while ((getline line < item) > 0) print line; done = 1 }' \
+            appcasts/health.xml > "$RUNNER_TEMP/health.xml"
+          mv "$RUNNER_TEMP/health.xml" appcasts/health.xml
+          grep -q "<sparkle:version>$BUILD</sparkle:version>" appcasts/health.xml
+          branch="release/health-v$VERSION"
+          git switch -c "$branch"
+          git commit -am "lil health $VERSION: Add it to the appcast"
+          git push origin "$branch"
+          title="lil health $VERSION: Add it to the appcast"
+          link="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...$branch?expand=1&title=$(jq -rn --arg t "$title" '$t|@uri')"
+          {
+            echo "### lil health $VERSION for Mac is released"
+            echo
+            echo "- Release: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/health%2Fv$VERSION"
+            echo "- **Open the appcast PR:** $link"
+            echo
+            echo "Installed copies are offered the update once it merges. Add a description to the item first if it has none."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  ios:
+    if: github.ref == 'refs/heads/main' && inputs.target != 'mac'
+    runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
+    environment: release
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The build number is the commit count, and the script checks HEAD is on origin/main.
+          fetch-depth: 0
+          set-safe-directory: false
+
+      - name: Check the version
+        run: '[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Not a version: $VERSION" >&2; exit 1; }'
+
+      - uses: ./.github/actions/select-xcode
+
+      - name: Set up the App Store Connect key
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          : "${APP_STORE_CONNECT_API_KEY_BASE64:?}"
+          umask 077
+          dir="$RUNNER_TEMP/lil-release-ios"
+          rm -rf "$dir"
+          mkdir "$dir"
+          ls "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" 2>/dev/null > "$dir/profiles" || true
+          printf %s "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > "$dir/AuthKey.p8"
+          echo "LIL_RELEASE_ASC_KEY_PATH=$dir/AuthKey.p8" >> "$GITHUB_ENV"
+
+      # Cloud signing: no certificate on the runner. A dry run exports to disk instead of uploading.
+      - name: Archive, export and upload to TestFlight
+        env:
+          LIL_RELEASE_ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          LIL_RELEASE_ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          if [ "$DRY_RUN" = true ]; then
+            scripts/release health-ios "$VERSION" --skip-upload
+          else
+            scripts/release health-ios "$VERSION"
+          fi
+          {
+            echo "### lil health $VERSION for iOS (build $(git rev-list --count HEAD))"
+            echo
+            if [ "$DRY_RUN" = true ]; then
+              echo "Dry run: archived and exported, not uploaded."
+            else
+              echo "Uploaded to App Store Connect. TestFlight's internal group gets it once it's processed."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the signing material
+        if: always()
+        run: |
+          dir="$RUNNER_TEMP/lil-release-ios"
+          profiles="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          if [ -f "$dir/profiles" ] && [ -d "$profiles" ]; then
+            ls "$profiles" | while IFS= read -r profile; do
+              grep -qxF "$profile" "$dir/profiles" || rm -f "$profiles/$profile"
+            done
+          fi
+          rm -rf "$dir" build/releases
