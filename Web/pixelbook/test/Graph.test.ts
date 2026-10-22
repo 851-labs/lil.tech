@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { checkGraphs, previewNames, scanPreviews } from "../scripts/graphs.ts";
+import { catalogStateNames, checkGraphs, previewNames, scanScreens } from "../scripts/graphs.ts";
 import { layoutFlow } from "../src/lib/Flow.ts";
 import { type Graph, graphProblems, parseGraph } from "../src/lib/Graph.ts";
 
@@ -33,6 +33,12 @@ describe("graph files", () => {
     ).toEqual(["New"]);
     expect(previewNames('#Preview {\n  Text("Hi")\n}')).toEqual([]);
     expect(previewNames('// #Preview("Old") {}\nstruct A {}')).toBeUndefined();
+  });
+
+  it("finds a catalog's state names, and skips commented-out ones", () => {
+    const source = `StateCatalog(\n  "Metric Detail", width: 760, minHeight: 820,\n  states: [\n    CatalogState("Steps, week") { a },\n    // CatalogState("Old") { b },\n    CatalogState(\n      "Say \\"hi\\"", minHeight: 400\n    ) { c },\n  ])`;
+    expect(catalogStateNames(source)).toEqual(["Steps, week", 'Say "hi"']);
+    expect(catalogStateNames("struct A {}")).toBeUndefined();
   });
 
   it("says what's wrong with a graph's shape", () => {
@@ -84,8 +90,8 @@ describe("graph files", () => {
     ]);
   });
 
-  it("checks the real graphs against the real previews", async () => {
-    const problems = await checkGraphs(await scanPreviews());
+  it("checks the real graphs against the real previews and catalogs", async () => {
+    const problems = await checkGraphs(await scanScreens());
     expect(Object.fromEntries(problems)).toEqual({});
   });
 });

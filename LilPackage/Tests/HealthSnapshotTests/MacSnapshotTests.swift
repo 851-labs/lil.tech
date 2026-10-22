@@ -4,7 +4,6 @@
   import DependenciesTestSupport
   import Foundation
   import HealthAgentAccess
-  import HealthCatalog
   import HealthDatabase
   import LilAuth
   import LilSync
@@ -16,7 +15,8 @@
   import Testing
 
   // Preview states of lil health for Mac, light and dark (851-2931). Each builds the same view as
-  // the `#Preview` it names, from fixed dates. Synthetic data only.
+  // the `#Preview` it names, from fixed dates. Synthetic data only. State catalogs (`Catalogs/`,
+  // 851-2949) add their tests to this suite, and replace these as screens migrate.
 
   // Serialized: a snapshot runs the main run loop, where another could start and change the
   // app's appearance. Views that read the database, the date or the calendar get the catalogs'
@@ -37,49 +37,6 @@
     init() {
       // Before any test builds its dates.
       prepareSnapshotEnvironment()
-    }
-
-    // MetricDetailViewPreviews.swift, "Steps, week": the catalog database's steps at `previewNow`.
-    @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
-    func stepsWeek(appearance: NSAppearance.Name) throws {
-      let type = HealthCatalog.type(id: "HKQuantityTypeIdentifierStepCount")!
-      let chart = try catalogDatabase.read { db in
-        try HealthDatabase.metricChart(
-          of: type, range: .week, offset: 0, now: previewNow, calendar: previewCalendar, db)
-      }
-      let view = NavigationStack {
-        MetricDetailContent(
-          type: type, range: .constant(.week), offset: .constant(0), state: .loaded(chart),
-          calendar: previewCalendar)
-      }
-      .previewFrame(width: 760, height: 820)
-      assertMacSnapshot(of: view, appearance: appearance, named: "steps-week")
-    }
-
-    // MetricDetailViewPreviews.swift, "Environmental sound levels, week": a chart from fixed dates.
-    @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
-    func soundLevelsChart(appearance: NSAppearance.Name) {
-      let calendar = previewCalendar
-      let today = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_760_400_000))
-      let days = (0..<7).map { calendar.date(byAdding: .day, value: $0 - 6, to: today)! }
-      let ranges: [(Double, Double)] = [
-        (42, 71), (45, 86), (40, 68), (38, 74), (44, 91), (41, 66), (39, 70),
-      ]
-      let points = zip(days, ranges).map { day, range in
-        ChartPoint(start: day, value: (range.0 + range.1) / 2, minimum: range.0, maximum: range.1)
-      }
-      let chart = MetricChart(
-        interval: DateInterval(
-          start: days[0], end: calendar.date(byAdding: .day, value: 1, to: today)!),
-        points: points, summary: .range(minimum: 38, maximum: 91))
-      let view = NavigationStack {
-        MetricDetailContent(
-          type: HealthCatalog.type(id: "HKQuantityTypeIdentifierEnvironmentalAudioExposure")!,
-          range: .constant(.week), offset: .constant(0), state: .loaded(chart),
-          calendar: previewCalendar)
-      }
-      .previewFrame(width: 760, height: 720)
-      assertMacSnapshot(of: view, appearance: appearance, named: "sound-levels-week")
     }
 
     // HealthNotificationsViewPreviews.swift, "High heart rate notifications": a `List`.

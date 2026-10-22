@@ -54,7 +54,7 @@
     },
     {
       "id": "metric",
-      "screen": "HealthMacApp/MetricDetailViewPreviews.swift",
+      "screen": "HealthMacApp/MetricDetailCatalog.swift",
       "states": [
         "Steps, week",
         "Steps, the week before",
@@ -75,7 +75,7 @@
     },
     {
       "id": "heart-rate",
-      "screen": "HealthMacApp/MetricDetailViewPreviews.swift",
+      "screen": "HealthMacApp/MetricDetailCatalog.swift",
       "title": "Heart Rate",
       "states": ["Heart rate with resting and walking"]
     },
@@ -285,7 +285,7 @@
     },
     {
       "id": "sound-levels",
-      "screen": "HealthMacApp/MetricDetailViewPreviews.swift",
+      "screen": "HealthMacApp/MetricDetailCatalog.swift",
       "title": "Environmental Sound Levels",
       "states": ["Environmental sound levels, week"]
     },

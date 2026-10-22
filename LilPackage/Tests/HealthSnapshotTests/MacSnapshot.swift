@@ -10,14 +10,15 @@
 
   /// Renders `view` as Xcode's canvas shows a Mac preview, in a window with a title bar (so its
   /// toolbar renders) of the given appearance, and compares it with its reference image,
-  /// `__Snapshots__/<suite>/mac.<name>-<light|dark>.png` (851-2931).
+  /// `__Snapshots__/<test file>/<screen>.<name>-<light|dark>.png` (851-2931), `mac` unless a
+  /// catalog names the screen (851-2949).
   ///
   /// The window is never on screen and the app never activates, so this needs no Xcode, no
   /// Screen Recording access and no display of a particular scale, and runs beside other agents.
   /// Liquid Glass (toolbar controls, a switch's tint, the window buttons) doesn't draw offscreen.
   @MainActor
   func assertMacSnapshot(
-    of view: some View, appearance: NSAppearance.Name, named name: String,
+    of view: some View, appearance: NSAppearance.Name, named name: String, screen: String = "mac",
     fileID: StaticString = #fileID, file: StaticString = #filePath, testName: String = #function,
     line: UInt = #line, column: UInt = #column
   ) {
@@ -38,14 +39,14 @@
     controller.view.layoutSubtreeIfNeeded()
     RunLoop.main.run(until: Date().addingTimeInterval(0.05))
     let suffix = appearance == .darkAqua ? "dark" : "light"
-    let output = SnapshotOutput(file: file, testName: "mac", name: "\(name)-\(suffix)")
+    let output = SnapshotOutput(file: file, testName: screen, name: "\(name)-\(suffix)")
     // The window's frame view: its title bar and toolbar, and the content. `assertSnapshot` is
     // these two calls (for Swift Testing, which these tests use); `scripts/snapshot` needs the
     // result in between.
     let failure = withSnapshotTesting(diffTool: output?.diffTool) {
       verifySnapshot(
         of: window.contentView!.superview!, as: output?.strategy ?? .layerImage,
-        named: "\(name)-\(suffix)", fileID: fileID, file: file, testName: "mac", line: line,
+        named: "\(name)-\(suffix)", fileID: fileID, file: file, testName: screen, line: line,
         column: column)
     }
     output?.report(failure: failure)
