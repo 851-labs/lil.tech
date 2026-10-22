@@ -175,8 +175,9 @@ struct SectionsTests {
     }
   }
 
-  /// Records out of order start a section each time their day changes, as when the calendar is
-  /// asked for every record. The last is at the end of the day before it, which is the next day.
+  /// Callers sort their records, but out of order a section still starts each time a record's day
+  /// changes, as when the calendar is asked for every record. The last record is at the end of the
+  /// day before it, which is the next day's start.
   @Test
   func recordsOutOfOrderStartANewSectionWhenTheirDayChanges() {
     let days = group(

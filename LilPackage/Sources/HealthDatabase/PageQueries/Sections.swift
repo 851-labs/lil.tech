@@ -6,9 +6,12 @@ public import Foundation
 ///
 /// It asks the calendar only when a record leaves the section before it, since All Data can load
 /// thousands of samples in a day. A record at the section's end (the next one's start) starts the
-/// next section, so the sections are the same as asking the calendar for every record. Records out
-/// of order start a section each time their section changes, and two records the calendar can't
-/// place (no interval) share one only when they started at the same moment.
+/// next section, so the sections are the same as asking the calendar for every record. Two records
+/// the calendar can't place (no interval) share one only when they started at the same moment.
+///
+/// The records must be in order, as every caller's query sorts them: lists tell sections apart by
+/// their starts. Out of order, a section starts each time a record's section changes, so a start
+/// can repeat.
 public func sections<Record>(
   _ records: [Record], by component: Calendar.Component, calendar: Calendar,
   startDate: (Record) -> Int
