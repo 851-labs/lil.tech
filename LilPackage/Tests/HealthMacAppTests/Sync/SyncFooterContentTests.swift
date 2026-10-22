@@ -70,9 +70,15 @@ struct SyncFooterContentTests {
 
   @Test
   func upToDateSaysWhenFromNow() {
+    // From the `now` given, not the wall clock: the same two minutes, a day later, read the same.
+    // In the process's language, so compared with each other rather than with English.
+    let later = now.addingTimeInterval(86_400)
+    let content = SyncFooterContent(.upToDate(at: now.addingTimeInterval(-120)), now: now)
+    #expect(content.title == "Up to date")
     #expect(
-      SyncFooterContent(.upToDate(at: now.addingTimeInterval(-120)), now: now)
-        == SyncFooterContent(title: "Up to date", detail: "Updated 2 minutes ago", bar: .none))
+      content == SyncFooterContent(.upToDate(at: later.addingTimeInterval(-120)), now: later))
+    #expect(
+      content != SyncFooterContent(.upToDate(at: now.addingTimeInterval(-120)), now: later))
   }
 
   @Test

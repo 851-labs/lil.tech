@@ -51,10 +51,8 @@
     }
   }
 
+  /// The app's request, at the suite's date and calendar.
   private func summaries(_ category: HealthCategory) -> [MetricSummary] {
-    try! catalogDatabase.read { db in
-      try HealthDatabase.metricSummaries(
-        in: category, now: previewNow, calendar: previewCalendar, db)
-    }
+    try! catalogDatabase.read { db in try CategorySummaries(category: category).fetch(db) }
   }
 #endif

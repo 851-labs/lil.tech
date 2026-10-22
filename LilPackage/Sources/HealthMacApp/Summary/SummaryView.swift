@@ -112,8 +112,9 @@ struct SummaryContent: View {
   var highlights: State<[Highlight]> = .loaded([])
   let edit: () -> Void
   let pin: (String) -> Void
-  /// From dependencies, so snapshot catalogs fix it (`previewNow`).
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
   @Dependency(\.date.now) private var now
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     ScrollView {
@@ -144,7 +145,7 @@ struct SummaryContent: View {
                   if summary.hasData {
                     MetricCard(
                       type: type, summary: summary, color: type.category?.color ?? .accentColor,
-                      now: now)
+                      now: now, calendar: calendar)
                   } else {
                     NoDataCard(type: type)
                   }

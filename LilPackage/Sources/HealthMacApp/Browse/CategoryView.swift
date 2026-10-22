@@ -51,8 +51,9 @@ struct MetricsView: View {
 
   let category: HealthCategory
   let state: State
-  /// From dependencies, so snapshot catalogs fix it (`previewNow`).
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
   @Dependency(\.date.now) private var now
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {
@@ -81,7 +82,8 @@ struct MetricsView: View {
         ForEach(withData) { summary in
           if let type = HealthCatalog.type(id: summary.id) {
             NavigationLink(value: summary.id) {
-              MetricCard(type: type, summary: summary, color: category.color, now: now)
+              MetricCard(
+                type: type, summary: summary, color: category.color, now: now, calendar: calendar)
             }
             .buttonStyle(.plain)
           }
@@ -124,8 +126,7 @@ struct MetricCard: View {
   let summary: MetricSummary
   let color: Color
   let now: Date
-  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
-  @Dependency(\.calendar) private var calendar
+  let calendar: Calendar
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {

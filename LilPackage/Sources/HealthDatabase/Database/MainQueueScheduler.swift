@@ -12,7 +12,8 @@ public struct MainQueueScheduler: ValueObservationScheduler, Hashable {
     self.fetchesFirstValueAtOnce = fetchesFirstValueAtOnce
   }
 
-  public func immediateInitialValue() -> Bool { fetchesFirstValueAtOnce }
+  /// GRDB only allows `true` on the main thread.
+  public func immediateInitialValue() -> Bool { fetchesFirstValueAtOnce && Thread.isMainThread }
 
   public func schedule(_ action: @escaping @Sendable () -> Void) {
     DispatchQueue.main.async(execute: action)

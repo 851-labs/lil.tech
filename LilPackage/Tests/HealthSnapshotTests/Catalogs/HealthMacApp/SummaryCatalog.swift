@@ -77,12 +77,9 @@
     }
   }
 
+  /// The app's request, at the suite's date and calendar.
   private func pinnedSummaries(_ ids: [String]) -> [MetricSummary] {
-    try! catalogDatabase.read { db in
-      try ids.compactMap(HealthCatalog.type(id:)).map {
-        try HealthDatabase.metricSummary(of: $0, now: previewNow, calendar: previewCalendar, db)
-      }
-    }
+    try! catalogDatabase.read { db in try PinnedSummaries(ids: ids).fetch(db) }
   }
 
   /// The catalog database's week highlights (two weeks of data), after a made-up trend.
