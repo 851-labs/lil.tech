@@ -44,8 +44,8 @@ struct RouteMapRow: View {
   /// Whether a route without locations says so, rather than showing nothing.
   var saysWhenEmpty = false
 
-  /// Whether there's anything to show for `route`, so a page can leave out its section.
-  static func shows(_ route: RouteState, saysWhenEmpty: Bool = false) -> Bool {
+  /// Whether it shows anything, so a page can leave out its section.
+  var showsSomething: Bool {
     switch route {
     case .loading, .failed: true
     case .loaded(let loaded) where loaded.hasMap: true

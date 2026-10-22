@@ -85,10 +85,9 @@ struct WorkoutDetailContent: View {
         summary
       }
       if !heartRates.isEmpty { heartRateSection }
-      if RouteMapRow.shows(route) {
-        Section("Route") {
-          RouteMapRow(route: route, height: 300)
-        }
+      let map = RouteMapRow(route: route, height: 300)
+      if map.showsSomething {
+        Section("Route") { map }
       }
       if case .loaded(let loaded) = route, loaded.hasMap, !splits.isEmpty {
         splitsSection
@@ -232,7 +231,8 @@ struct WorkoutDetailContent: View {
       Text(kilometer).frame(width: 50, alignment: .leading)
       Text(time).frame(maxWidth: .infinity, alignment: .leading)
       Text(pace)
-        .foregroundStyle(paceColor.map(AnyShapeStyle.init) ?? AnyShapeStyle(.foreground))
+        // The column names' row is secondary throughout.
+        .foregroundStyle(paceColor ?? .secondary)
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
   }
