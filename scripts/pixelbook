@@ -8,7 +8,8 @@
 #            --commit) at them (851-2955). The images are the catalogs' committed references, with
 #            a manifest per screen that their snapshot tests write, so it reads them from the
 #            commit with git: no Xcode, simulator or render, and uncommitted changes don't count.
-#            CI publishes every PR's head and base, and every merge to main (pr.yml, main.yml).
+#            CI publishes each PR's head (pr.yml) and each merge to main (main.yml), never a
+#            PR's base, which would be published with the PR's copy of the uploader.
 #            --force-ref: move the ref even if that takes it back to an older commit.
 #   key      Prints the key a commit's snapshots are published under (HEAD by default).
 set -euo pipefail
