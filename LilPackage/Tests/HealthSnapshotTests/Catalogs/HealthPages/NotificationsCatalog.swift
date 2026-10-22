@@ -31,6 +31,9 @@
       CatalogState("Low cardio fitness, missing metadata") {
         list(.lowCardioFitness, .loaded(lowCardioFitness))
       },
+      // Its lungs symbol draws a pixel or three 2 apart on macOS 27.0 (the minis) and 27.0.1, past
+      // the tolerance (851-2985), so those pixels of its references are the two renders'
+      // midpoint, within 1 of each. Re-recording it brings that back (851-3007).
       CatalogState("Sleep apnea notifications") { list(.sleepApnea, .loaded(sleepApnea)) },
       CatalogState("No high heart rate notifications") { list(.highHeartRate, .loaded([])) },
       CatalogState("No walking steadiness notifications") {
@@ -169,28 +172,6 @@
   ) -> some View {
     NavigationStack {
       NotificationDetailContent(kind: kind, notification: notification, heartRates: heartRates)
-    }
-  }
-#endif
-
-#if os(macOS)
-  // TEMPORARY (851-2965): prints the minis' image of "Sleep apnea notifications", to see how it
-  // differs. Removed before merging.
-  extension MacSnapshotTests {
-    @Test func debugSleepApneaImage() throws {
-      let state = try #require(notificationsCatalog.states.first { $0.name == "Sleep apnea notifications" })
-      state.assertMacSnapshots()
-      for scheme in ["light", "dark"] {
-        let url = URL(filePath: NSTemporaryDirectory()).appending(
-          components: "NotificationsCatalog", "notifications.sleep-apnea-notifications-\(scheme).png")
-        if let data = try? Data(contentsOf: url) {
-          print("DEBUG-IMAGE-\(scheme)-BEGIN")
-          print(data.base64EncodedString(options: [.lineLength76Characters]))
-          print("DEBUG-IMAGE-\(scheme)-END")
-        } else {
-          print("DEBUG-IMAGE-\(scheme)-MISSING \(url.path)")
-        }
-      }
     }
   }
 #endif
