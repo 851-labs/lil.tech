@@ -107,25 +107,15 @@ struct AllDataContent: View {
     // Once, so every day's header is named against the same "now".
     let now = self.now
     return LazyForm {
-      ForEach(days, id: \.day) { section in
-        LazyFormHeader(
-          title: MetricFormat.date(section.day, isDay: true, now: now, calendar: calendar),
-          isFirst: section.day == days.first?.day)
-        // The last day may go on in the next page, so its section stays open while that loads.
-        let isOpen = hasMore && !moreFailed && section.day == days.last?.day
-        ForEach(section.samples) { sample in
-          NavigationLink {
-            SampleDetailView(type: type, sample: sample)
-          } label: {
-            LazyFormRow(
-              isFirst: sample.id == section.samples.first?.id,
-              isLast: !isOpen && sample.id == section.samples.last?.id
-            ) {
-              SampleRow(type: type, sample: sample, calendar: calendar)
-            }
-          }
-          .buttonStyle(.plain)
-        }
+      // The last day may go on in the next page, so its section stays open while that loads.
+      LazyFormSections(
+        days, start: \.day, records: \.samples,
+        title: { MetricFormat.date($0.day, isDay: true, now: now, calendar: calendar) },
+        isOpen: hasMore && !moreFailed
+      ) { sample in
+        SampleDetailView(type: type, sample: sample)
+      } row: { sample in
+        SampleRow(type: type, sample: sample, calendar: calendar)
       }
       Group {
         if moreFailed {

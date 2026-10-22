@@ -107,52 +107,83 @@ struct LazyFormRow<Content: View>: View {
 }
 
 /// Sections of records one after another, each under its title (a month, a day), as the record
-/// lists show them: `sections(_:by:calendar:startDate:)`'s, newest first.
-struct LazyFormSections<Record: Identifiable, Destination: View, Row: View>: View {
-  let sections: [(start: Date, records: [Record])]
-  let title: (Date) -> String
+/// lists show them (`sections(_:by:calendar:startDate:)`'s), and All Data and Food their days,
+/// newest first.
+struct LazyFormSections<Section, Record: Identifiable, Destination: View, Row: View>: View {
+  let sections: [Section]
+  /// A section's start, which tells it apart from the others.
+  let start: KeyPath<Section, Date>
+  let records: KeyPath<Section, [Record]>
+  let title: (Section) -> String
   /// Whether the first section is the page's first, rather than under a chart.
   let isFirst: Bool
+  /// Whether the last section may go on in the next page of a list that loads a page at a time,
+  /// so it stays open while that loads (851-3040).
+  let isOpen: Bool
   let destination: ((Record) -> Destination)?
   let row: (Record) -> Row
 
   /// Sections whose records open `destination`.
   init(
-    _ sections: [(start: Date, records: [Record])], title: @escaping (Date) -> String,
-    isFirst: Bool = true, @ViewBuilder destination: @escaping (Record) -> Destination,
+    _ sections: [Section], start: KeyPath<Section, Date>, records: KeyPath<Section, [Record]>,
+    title: @escaping (Section) -> String, isFirst: Bool = true, isOpen: Bool = false,
+    @ViewBuilder destination: @escaping (Record) -> Destination,
     @ViewBuilder row: @escaping (Record) -> Row
   ) {
     self.init(
-      sections: sections, title: title, isFirst: isFirst, destination: destination, row: row)
+      sections: sections, start: start, records: records, title: title, isFirst: isFirst,
+      isOpen: isOpen, destination: destination, row: row)
+  }
+
+  /// `sections(_:by:calendar:startDate:)`'s sections, whose records open `destination`.
+  init(
+    _ sections: [Section], title: @escaping (Date) -> String, isFirst: Bool = true,
+    @ViewBuilder destination: @escaping (Record) -> Destination,
+    @ViewBuilder row: @escaping (Record) -> Row
+  ) where Section == (start: Date, records: [Record]) {
+    self.init(
+      sections: sections, start: \.start, records: \.records, title: { title($0.start) },
+      isFirst: isFirst, isOpen: false, destination: destination, row: row)
   }
 
   fileprivate init(
-    sections: [(start: Date, records: [Record])], title: @escaping (Date) -> String,
-    isFirst: Bool, destination: ((Record) -> Destination)?, row: @escaping (Record) -> Row
+    sections: [Section], start: KeyPath<Section, Date>, records: KeyPath<Section, [Record]>,
+    title: @escaping (Section) -> String, isFirst: Bool, isOpen: Bool,
+    destination: ((Record) -> Destination)?, row: @escaping (Record) -> Row
   ) {
     self.sections = sections
+    self.start = start
+    self.records = records
     self.title = title
     self.isFirst = isFirst
+    self.isOpen = isOpen
     self.destination = destination
     self.row = row
   }
 
   var body: some View {
-    ForEach(sections, id: \.start) { section in
+    let first = sections.first?[keyPath: start]
+    let last = sections.last?[keyPath: start]
+    ForEach(sections, id: start) { section in
+      let sectionStart = section[keyPath: start]
       LazyFormSection(
-        title: title(section.start), isFirst: isFirst && section.start == sections.first?.start,
-        records: section.records, destination: destination, row: row)
+        title: title(section), isFirst: isFirst && sectionStart == first,
+        isOpen: isOpen && sectionStart == last, records: section[keyPath: records],
+        destination: destination, row: row)
     }
   }
 }
 
 extension LazyFormSections where Destination == Never {
-  /// Sections whose records open nothing, so their rows have no chevron.
+  /// `sections(_:by:calendar:startDate:)`'s sections, whose records open nothing, so their rows
+  /// have no chevron.
   init(
-    _ sections: [(start: Date, records: [Record])], title: @escaping (Date) -> String,
-    isFirst: Bool = true, @ViewBuilder row: @escaping (Record) -> Row
-  ) {
-    self.init(sections: sections, title: title, isFirst: isFirst, destination: nil, row: row)
+    _ sections: [Section], title: @escaping (Date) -> String, isFirst: Bool = true,
+    @ViewBuilder row: @escaping (Record) -> Row
+  ) where Section == (start: Date, records: [Record]) {
+    self.init(
+      sections: sections, start: \.start, records: \.records, title: { title($0.start) },
+      isFirst: isFirst, isOpen: false, destination: nil, row: row)
   }
 }
 
@@ -164,25 +195,31 @@ where Records.Element: Identifiable {
   let title: String?
   /// Whether the section is the page's first, with no section above it to keep clear of.
   let isFirst: Bool
+  /// Whether the section may go on in the next page of a list that loads a page at a time, so
+  /// its last loaded row stays open, with no bottom corners, while that loads (851-3040).
+  let isOpen: Bool
   let records: Records
   let destination: ((Records.Element) -> Destination)?
   let row: (Records.Element) -> Row
 
   /// A section whose records open `destination`.
   init(
-    _ title: String? = nil, isFirst: Bool = true, records: Records,
+    _ title: String? = nil, isFirst: Bool = true, isOpen: Bool = false, records: Records,
     @ViewBuilder destination: @escaping (Records.Element) -> Destination,
     @ViewBuilder row: @escaping (Records.Element) -> Row
   ) {
-    self.init(title: title, isFirst: isFirst, records: records, destination: destination, row: row)
+    self.init(
+      title: title, isFirst: isFirst, isOpen: isOpen, records: records, destination: destination,
+      row: row)
   }
 
   fileprivate init(
-    title: String?, isFirst: Bool, records: Records,
+    title: String?, isFirst: Bool, isOpen: Bool, records: Records,
     destination: ((Records.Element) -> Destination)?, row: @escaping (Records.Element) -> Row
   ) {
     self.title = title
     self.isFirst = isFirst
+    self.isOpen = isOpen
     self.records = records
     self.destination = destination
     self.row = row
@@ -194,7 +231,7 @@ where Records.Element: Identifiable {
     }
     ForEach(records) { record in
       let isFirstRow = record.id == records.first?.id
-      let isLastRow = record.id == records.last?.id
+      let isLastRow = !isOpen && record.id == records.last?.id
       if let destination {
         NavigationLink {
           destination(record)
@@ -216,10 +253,12 @@ where Records.Element: Identifiable {
 extension LazyFormSection where Destination == Never {
   /// A section whose records open nothing, so their rows have no chevron.
   init(
-    _ title: String? = nil, isFirst: Bool = true, records: Records,
+    _ title: String? = nil, isFirst: Bool = true, isOpen: Bool = false, records: Records,
     @ViewBuilder row: @escaping (Records.Element) -> Row
   ) {
-    self.init(title: title, isFirst: isFirst, records: records, destination: nil, row: row)
+    self.init(
+      title: title, isFirst: isFirst, isOpen: isOpen, records: records, destination: nil,
+      row: row)
   }
 }
 

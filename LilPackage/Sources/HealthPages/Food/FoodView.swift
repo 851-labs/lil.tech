@@ -103,29 +103,19 @@ struct FoodContent: View {
     let calendar = calendar
     let days = HealthDatabase.foodDays(foods, calendar: calendar)
     return LazyForm {
-      ForEach(days, id: \.day) { section in
-        // The last day may go on in the next page, so its section stays open while that loads.
-        // Its total, which would leave those foods out, waits for them, even once loading more
-        // failed.
-        let isLastDay = section.day == days.last?.day
-        let isOpen = hasMore && !moreFailed && isLastDay
-        LazyFormHeader(
-          title: FoodFormat.dayHeader(
-            section, isComplete: !(hasMore && isLastDay), now: now, calendar: calendar),
-          isFirst: section.day == days.first?.day)
-        ForEach(section.foods) { food in
-          NavigationLink {
-            FoodDetailView(food: food)
-          } label: {
-            LazyFormRow(
-              isFirst: food.id == section.foods.first?.id,
-              isLast: !isOpen && food.id == section.foods.last?.id
-            ) {
-              FoodRow(food: food, calendar: calendar)
-            }
-          }
-          .buttonStyle(.plain)
-        }
+      // The last day may go on in the next page, so its section stays open while that loads. Its
+      // total, which would leave those foods out, waits for them, even once loading more failed.
+      LazyFormSections(
+        days, start: \.day, records: \.foods,
+        title: { day in
+          FoodFormat.dayHeader(
+            day, isComplete: !(hasMore && day.day == days.last?.day), now: now, calendar: calendar)
+        },
+        isOpen: hasMore && !moreFailed
+      ) { food in
+        FoodDetailView(food: food)
+      } row: { food in
+        FoodRow(food: food, calendar: calendar)
       }
       Group {
         if moreFailed {
