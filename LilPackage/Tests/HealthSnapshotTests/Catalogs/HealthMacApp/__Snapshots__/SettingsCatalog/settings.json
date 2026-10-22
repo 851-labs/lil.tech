@@ -74,6 +74,20 @@
       "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.account-large-window-dark.png",
+      "id" : "settings.account-large-window",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.account-large-window-light.png",
+      "name" : "Account: large window",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.signed-out-large-window-dark.png",
+      "id" : "settings.signed-out-large-window",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.signed-out-large-window-light.png",
+      "name" : "Signed out: large window",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.agents-on-with-a-log-dark.png",
       "id" : "settings.agents-on-with-a-log",
       "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.agents-on-with-a-log-light.png",
@@ -134,6 +148,13 @@
       "id" : "settings.agents-signed-out",
       "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.agents-signed-out-light.png",
       "name" : "Agents: signed out",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.agents-large-window-dark.png",
+      "id" : "settings.agents-large-window",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.agents-large-window-light.png",
+      "name" : "Agents: large window",
       "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
     },
     {
@@ -211,6 +232,13 @@
       "id" : "settings.remote-agents-long-names-more-to-read",
       "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-long-names-more-to-read-light.png",
       "name" : "Remote agents: long names, more to read",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-large-window-dark.png",
+      "id" : "settings.remote-agents-large-window",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-large-window-light.png",
+      "name" : "Remote agents: large window",
       "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
     }
   ]
