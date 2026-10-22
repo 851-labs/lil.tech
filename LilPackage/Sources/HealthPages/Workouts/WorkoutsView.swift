@@ -1,3 +1,4 @@
+import Dependencies
 import HealthCatalog
 import HealthDatabase
 import SQLiteData
@@ -64,7 +65,8 @@ struct WorkoutsContent: View {
   let state: State
   /// Workout Routes rather than Workouts.
   var onlyWithRoutes = false
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {
