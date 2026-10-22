@@ -12,6 +12,8 @@ import GRDB
 /// processes can log at once. Every call opens it and closes it again: an MCP server that runs
 /// for hours sees access turned off at its next query.
 ///
+/// It also holds the command line's requests for the app to act (`requestAction`, 851-2895).
+///
 /// It's a consent switch, not a sandbox: anything running as the user could read the health
 /// database directly.
 public struct AgentAccessStore: Sendable {
@@ -81,15 +83,17 @@ public struct AgentAccessStore: Sendable {
 
   /// Turns access off and empties the log, when the account signs out: the next account decides
   /// for itself. Creates the file if there's none, so a save from before that's still running
-  /// can't turn access on after it.
+  /// can't turn access on after it. The command line's requests go too: those not finished fail
+  /// as signed out, so a command waiting on one hears why (`resetActions`).
   public func reset(at date: Date = Date()) throws {
     try open().write { db in
       try Self.setEnabled(false, at: date, db)
       try db.execute(sql: #"DELETE FROM "agentAccessLog""#)
+      try Self.resetActions(at: date, db)
     }
   }
 
-  private static func isEnabled(_ db: Database) throws -> Bool {
+  static func isEnabled(_ db: Database) throws -> Bool {
     try Bool.fetchOne(db, sql: #"SELECT "isEnabled" FROM "agentAccessSetting""#) ?? false
   }
 
@@ -104,7 +108,7 @@ public struct AgentAccessStore: Sendable {
       arguments: [isEnabled, date.timeIntervalSince1970])
   }
 
-  private static func record(
+  static func record(
     command: String, process: String, at date: Date, _ db: Database
   ) throws {
     try db.execute(
@@ -117,11 +121,11 @@ public struct AgentAccessStore: Sendable {
       arguments: [logLimit])
   }
 
-  private var exists: Bool {
+  var exists: Bool {
     FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
   }
 
-  private func open() throws -> DatabaseQueue {
+  func open() throws -> DatabaseQueue {
     try FileManager.default.createDirectory(
       at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     var configuration = Configuration()
@@ -145,6 +149,21 @@ public struct AgentAccessStore: Sendable {
             "date" REAL NOT NULL,
             "command" TEXT NOT NULL,
             "process" TEXT NOT NULL
+          ) STRICT;
+          CREATE TABLE IF NOT EXISTS "actionRequests" (
+            "id" TEXT PRIMARY KEY NOT NULL,
+            "action" TEXT NOT NULL,
+            "requestedAt" REAL NOT NULL,
+            "requesterPID" INTEGER NOT NULL,
+            "requesterStartedAt" INTEGER NOT NULL,
+            "claimedAt" REAL,
+            "claimerPID" INTEGER,
+            "claimerStartedAt" INTEGER,
+            "finishedAt" REAL,
+            "outcome" TEXT CHECK ("outcome" IN ('ok', 'failed')),
+            "result" TEXT,
+            "failureReason" TEXT,
+            "error" TEXT
           ) STRICT;
           """)
     }

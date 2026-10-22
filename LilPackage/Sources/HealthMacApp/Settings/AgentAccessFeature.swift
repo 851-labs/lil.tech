@@ -159,6 +159,14 @@ struct AgentAccessClient: Sendable {
   var authorize: @Sendable (_ command: String, _ process: String) async throws -> Void
   /// Where `lil` is installed, for how to connect an agent.
   var commandLineTool: @Sendable () async -> URL?
+  /// When to look for the command line's requests (851-2895): at once, then each time a command
+  /// signals (`AgentActionSignal`).
+  var actionsRequested: @Sendable () -> AsyncStream<Void>
+  /// Claims the command line's requests waiting for an app (`AgentAccessStore.claimActions`).
+  var claimActions: @Sendable () async throws -> [AgentActionRequest]
+  /// Writes how the app answered a request.
+  var finishAction:
+    @Sendable (_ id: AgentActionRequest.ID, _ outcome: AgentActionOutcome) async throws -> Void
 }
 
 extension AgentAccessClient: DependencyKey {
@@ -174,7 +182,10 @@ extension AgentAccessClient: DependencyKey {
       entries: { try store.entries(limit: $0) },
       reset: { try store.reset() },
       authorize: { try store.authorize(command: $0, process: $1) },
-      commandLineTool: { CommandLineToolInstaller.installedLocation() }
+      commandLineTool: { CommandLineToolInstaller.installedLocation() },
+      actionsRequested: { AgentActionSignal.signals() },
+      claimActions: { try store.claimActions() },
+      finishAction: { try store.finish(id: $0, outcome: $1) }
     )
   }
 
@@ -185,7 +196,11 @@ extension AgentAccessClient: DependencyKey {
       entries: unimplemented("AgentAccessClient.entries"),
       reset: unimplemented("AgentAccessClient.reset"),
       authorize: unimplemented("AgentAccessClient.authorize"),
-      commandLineTool: unimplemented("AgentAccessClient.commandLineTool", placeholder: nil)
+      commandLineTool: unimplemented("AgentAccessClient.commandLineTool", placeholder: nil),
+      // Nothing asks unless a test does, as with `HealthAppActions.requests`.
+      actionsRequested: { AsyncStream { $0.finish() } },
+      claimActions: unimplemented("AgentAccessClient.claimActions", placeholder: []),
+      finishAction: unimplemented("AgentAccessClient.finishAction")
     )
   }
 }

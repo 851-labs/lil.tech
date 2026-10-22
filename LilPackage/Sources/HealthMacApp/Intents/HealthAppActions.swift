@@ -2,8 +2,8 @@ public import Dependencies
 public import Foundation
 import Synchronization
 
-/// What lil health for Mac's app actions ask the running app to do (851-2892): its intents now,
-/// and the command line's requests later (851-2895). `AppFeature` performs each one with the
+/// What lil health for Mac's app actions ask the running app to do (851-2892): its intents, and
+/// the command line's requests (851-2895, `AgentAction`). `AppFeature` performs each one with the
 /// same reducer actions as the UI.
 public enum HealthAppAction: Equatable, Sendable {
   /// Brings the main window forward and shows a page.
