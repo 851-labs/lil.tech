@@ -1,9 +1,8 @@
 import AppKit
 public import SwiftUI
 
-// lil health for Mac's page colors, behind and under the cards on Summary, the categories,
-// Sleep, workouts and Cycle Tracking. A metric's detail is a grouped form instead, on the form's
-// own background (851-2989).
+// lil health for Mac's page colors, behind and under the cards of the pages built from them.
+// A metric's detail is a grouped form instead, on the form's own background (851-2989).
 
 extension Color {
   /// A page's background: the window's, as Mac apps' content is, rather than iPhone Health's

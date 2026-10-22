@@ -50,6 +50,10 @@
         heartRateWithOverlays()
       },
       CatalogState("Environmental sound levels, week", minHeight: 720) { soundLevels() },
+      // Heart rate variability also links to the beat-to-beat measurements: three rows.
+      CatalogState("Heart rate variability, week") {
+        detail("HKQuantityTypeIdentifierHeartRateVariabilitySDNN", .week)
+      },
       // Category types charted like metrics (851-2831).
       CatalogState("Stand hours, day") {
         // Stood most hours from 7 AM to 7 PM.
