@@ -39,36 +39,6 @@
       prepareSnapshotEnvironment()
     }
 
-    // HealthNotificationsViewPreviews.swift, "High heart rate notifications": a `List`.
-    @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
-    func notificationsList(appearance: NSAppearance.Name) {
-      let base = Date(timeIntervalSince1970: 1_760_400_000)
-      func notification(daysAgo: Double, hour: Double = 14, threshold: Int) -> HealthNotification {
-        let start = base.addingTimeInterval(-daysAgo * 86_400 + hour * 3600)
-        return HealthNotification(
-          HealthSample(
-            id: "notification-\(HealthNotificationKind.highHeartRate)-\(daysAgo)",
-            type: HealthNotificationKind.highHeartRate.rawValue,
-            startDate: start.unixMilliseconds,
-            endDate: start.addingTimeInterval(600).unixMilliseconds, categoryValue: 0,
-            sourceName: "Apple Watch", sourceBundleID: "com.apple.health.preview",
-            device: #"{"name":"Apple Watch","manufacturer":"Apple Inc."}"#,
-            metadata: #"{"HKHeartRateEventThreshold":"\#(threshold) count/min"}"#))
-      }
-      let view = NavigationStack {
-        HealthNotificationsContent(
-          kind: .highHeartRate,
-          state: .loaded([
-            notification(daysAgo: 0, threshold: 120),
-            notification(daysAgo: 9, hour: 22, threshold: 120),
-            notification(daysAgo: 23, hour: 9, threshold: 130),
-            notification(daysAgo: 61, hour: 16, threshold: 120),
-          ]))
-      }
-      .previewFrame(width: 620, height: 520)
-      assertMacSnapshot(of: view, appearance: appearance, named: "high-heart-rate-notifications")
-    }
-
     // SettingsViewPreviews.swift, "Agents: on, with a log": Settings › Agents, a grouped `Form`.
     @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
     func agentsPane(appearance: NSAppearance.Name) {

@@ -70,8 +70,9 @@ struct AllDataContent: View {
   let state: State
   var moreFailed = false
   let loadMore: () -> Void
-  var calendar = Calendar.current
-  var now = Date.now
+  /// From dependencies, so snapshot catalogs fix them (`previewCalendar`, `previewNow`).
+  @Dependency(\.calendar) private var calendar
+  @Dependency(\.date.now) private var now
 
   var body: some View {
     Group {
@@ -166,7 +167,7 @@ struct AllDataContent: View {
 struct SampleCardRow: View {
   let type: HealthDataType
   let sample: HealthSample
-  var calendar = Calendar.current
+  let calendar: Calendar
   let isFirst: Bool
   let isLast: Bool
 
@@ -198,7 +199,7 @@ struct SampleCardRow: View {
 struct SampleRow: View {
   let type: HealthDataType
   let sample: HealthSample
-  var calendar = Calendar.current
+  let calendar: Calendar
 
   var body: some View {
     HStack {

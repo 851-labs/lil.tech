@@ -93,7 +93,7 @@
     },
     {
       "id": "all-data",
-      "screen": "HealthPages/AllDataViewPreviews.swift",
+      "screen": "HealthPages/AllDataCatalog.swift",
       "states": [
         "All data",
         "All data, a long day",
@@ -108,13 +108,13 @@
     },
     {
       "id": "sample",
-      "screen": "HealthPages/AllDataViewPreviews.swift",
+      "screen": "HealthPages/AllDataCatalog.swift",
       "title": "Sample",
       "states": ["Sample", "Sample without device"]
     },
     {
       "id": "sources",
-      "screen": "HealthPages/AllDataViewPreviews.swift",
+      "screen": "HealthPages/AllDataCatalog.swift",
       "title": "Data Sources",
       "states": [
         "Sources",
@@ -310,7 +310,7 @@
     },
     {
       "id": "notifications",
-      "screen": "HealthPages/HealthNotificationsViewPreviews.swift",
+      "screen": "HealthPages/NotificationsCatalog.swift",
       "title": "Notifications",
       "states": [
         "High heart rate notifications",
@@ -326,7 +326,7 @@
     },
     {
       "id": "notification",
-      "screen": "HealthPages/HealthNotificationsViewPreviews.swift",
+      "screen": "HealthPages/NotificationsCatalog.swift",
       "title": "Notification",
       "states": [
         "High heart rate notification",
