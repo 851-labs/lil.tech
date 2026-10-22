@@ -62,6 +62,7 @@ struct LilHealthApp: App {
     Settings {
       SettingsView(store: Self.store)
     }
+    .defaultSize(width: SettingsView.minWidth, height: SettingsView.minHeight)
   }
 }
 

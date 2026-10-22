@@ -8,16 +8,20 @@
   import SwiftUI
   import Testing
 
-  // The Settings window's panes, at its width: Account (`AccountSettingsView`) and Agents
-  // (`AgentAccessSettingsView`), each signed in, signed out and checking the session; then how to
-  // connect a local agent (`AgentSetupSection`) and the remote agents (`ConnectedAgentsSections`)
-  // on their own. The window shows its tabs in the toolbar, which these don't. Synthetic data
-  // only: made-up sign-in methods, queries, agents and reads.
+  // The Settings window's panes, at its smallest size unless a state says otherwise: Account
+  // (`AccountSettingsView`) and Agents (`AgentAccessSettingsView`), each signed in, signed out and
+  // checking the session; then how to connect a local agent (`AgentSetupSection`) and the remote
+  // agents (`ConnectedAgentsSections`) on their own. The window resizes (851-2992), so each pane
+  // has a state in a large window too, where its rows widen. The window shows its tabs in the
+  // toolbar, which these don't. Synthetic data only: made-up sign-in methods, queries, agents and
+  // reads.
   //
   // `EmptyReducer`s, so the panes' tasks don't replace the states shown. Switches that are on
   // draw gray: their tint is Liquid Glass, which doesn't render offscreen (851-2957). The panes
-  // grow to their content, where the window (480 by 380 pt) scrolls them. The MCP server URL is
-  // staging's, whatever `LIL_API_URL` says (`fixAPIEnvironment()`).
+  // grow to their content, where the window (at least 480 by 380 pt) scrolls them, and Account
+  // and Agents have the window's pane frame (`settingsPaneFrame()`), so signed out is centered as
+  // the window shows it. The MCP server URL is staging's, whatever `LIL_API_URL` says
+  // (`fixAPIEnvironment()`).
 
   extension MacSnapshotTests {
     @Test(arguments: settingsCatalog.selectedStates)
@@ -27,7 +31,7 @@
   }
 
   let settingsCatalog = StateCatalog(
-    "Settings", width: SettingsView.width, minHeight: SettingsView.height,
+    "Settings", width: SettingsView.minWidth, minHeight: SettingsView.minHeight,
     states: [
       // Account.
       CatalogState("Account") { account() },
@@ -46,6 +50,12 @@
       },
       CatalogState("Signed out") { account(isSignedIn: false) },
       CatalogState("Checking the session") { account(isSignedIn: nil) },
+      CatalogState("Account: large window", width: largeWidth, minHeight: largeHeight) {
+        account(export: .saved(URL(filePath: "/Users/ada/Downloads/lil-export-2026-10-18.tar")))
+      },
+      CatalogState("Signed out: large window", width: largeWidth, minHeight: largeHeight) {
+        account(isSignedIn: false)
+      },
 
       // Agents (851-2840), with what intents may do (851-2892). "Agents: on, with a log" was
       // `MacSnapshotTests.agentsPane` (851-2931), which kept to the window's height. The preview
@@ -71,6 +81,10 @@
           logFailure: "lil health couldn't read the access log: The database file is locked.")
       },
       CatalogState("Agents: signed out") { agents(isSignedIn: false) },
+      // The long command lines on one line, and the access log's commands in full.
+      CatalogState("Agents: large window", width: largeWidth, minHeight: largeHeight) {
+        agents()
+      },
 
       // How to connect a local agent (851-2865), on its own, tall enough to see it all:
       // `lil mcp` first, then `lil health mcp` for lil health only (851-2898).
@@ -132,7 +146,16 @@
               },
             logNextBefore: 44))
       },
+      CatalogState("Remote agents: large window", width: largeWidth, minHeight: 720) {
+        remote(
+          ConnectedAgentsFeature.State(
+            agents: .loaded(remoteAgents + longNamedAgents), log: remoteReads, logNextBefore: 94))
+      },
     ])
+
+  /// A large Settings window's panes: about as wide as a laptop's screen allows.
+  private let largeWidth: CGFloat = 900
+  private let largeHeight: CGFloat = 640
 
   // MARK: - Account
 
@@ -150,6 +173,7 @@
     state.account.signInMethods.authorization.appleWebAPI = URL(string: "https://api.lil.tech")
     state.account.dataExport.status = export
     return AccountSettingsView(store: Store(initialState: state) { EmptyReducer() })
+      .settingsPaneFrame()
   }
 
   // MARK: - Agents
@@ -184,6 +208,7 @@
       commandLineTool: commandLineTool, entries: entries, failure: failure, isEnabled: isEnabled,
       isLoading: isLoading, logFailure: logFailure)
     return AgentAccessSettingsView(store: Store(initialState: state) { EmptyReducer() })
+      .settingsPaneFrame()
   }
 
   @MainActor
