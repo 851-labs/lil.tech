@@ -242,13 +242,24 @@ describe("OAuth metadata", () => {
             issuer: "https://api.lil.tech",
             authorization_endpoint: "https://api.lil.tech/oauth/authorize",
           });
+          // The combined server, since its launch (851-2903).
+          const combined = yield* get(
+            handler,
+            "https://mcp.lil.tech/.well-known/oauth-protected-resource",
+          );
+          assert.strictEqual(combined.status, 200);
+          assert.deepInclude(yield* json(combined), {
+            resource: "https://mcp.lil.tech",
+            authorization_servers: ["https://api.lil.tech"],
+            scopes_supported: ["health:read"],
+            resource_name: "lil",
+            resource_documentation: "https://lil.tech/agents",
+          });
           for (const url of [
             "https://api.lil.tech/.well-known/oauth-protected-resource/health",
+            "https://api.lil.tech/.well-known/oauth-protected-resource",
             "https://mcp.lil.tech/.well-known/oauth-authorization-server",
             "https://mcp.lil.tech/v1/status",
-            // The combined server isn't in prod yet (851-2903).
-            "https://mcp.lil.tech/.well-known/oauth-protected-resource",
-            "https://mcp.lil.tech/",
           ]) {
             assert.strictEqual((yield* get(handler, url)).status, 404, url);
           }

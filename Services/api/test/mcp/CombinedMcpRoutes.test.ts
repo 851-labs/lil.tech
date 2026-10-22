@@ -411,7 +411,7 @@ describe("the combined MCP server", () => {
     );
   });
 
-  it.live("is on the MCP host in staging, not the API's, and not in prod yet", () =>
+  it.live("is on the MCP host in staging and prod, not the API's", () =>
     Effect.gen(function* () {
       yield* withApi(
         (handler) =>
@@ -450,10 +450,24 @@ describe("the combined MCP server", () => {
       yield* withApi(
         (handler) =>
           Effect.gen(function* () {
-            for (const url of ["https://mcp.lil.tech/", "https://api.lil.tech/"]) {
+            // Since the launch (851-2903).
+            for (const url of ["https://mcp.lil.tech", "https://mcp.lil.tech/"]) {
               const missing = yield* call(handler, undefined, "tools/list", {}, {}, url);
-              assert.strictEqual(missing.status, 404, url);
+              assert.strictEqual(missing.status, 401, url);
+              assert.strictEqual(
+                missing.headers.get("www-authenticate"),
+                'Bearer resource_metadata="https://mcp.lil.tech/.well-known/oauth-protected-resource", scope="health:read"',
+              );
             }
+            const onApi = yield* call(
+              handler,
+              undefined,
+              "tools/list",
+              {},
+              {},
+              "https://api.lil.tech/",
+            );
+            assert.strictEqual(onApi.status, 404);
             // lil health's own server is unchanged.
             const health = yield* call(
               handler,

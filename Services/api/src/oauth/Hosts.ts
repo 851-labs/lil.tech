@@ -21,14 +21,16 @@ export const agentAccessEnvironments: ReadonlySet<Environment> = new Set([
 ]);
 
 /**
- * Where agents can connect to the combined server (`https://mcp.lil.tech`, 851-2899): its metadata
- * and authorizing it exist only here. Not prod until it's been checked on staging and the privacy
- * policy describes it (851-2903). A subset of `agentAccessEnvironments`.
+ * Where agents can connect to the combined server (`https://mcp.lil.tech`, 851-2899): its metadata,
+ * authorizing it and its MCP route exist only here. Every environment since its launch (851-2903),
+ * once the privacy policy described it and both apps could list and revoke its agents. A subset of
+ * `agentAccessEnvironments`.
  */
 export const combinedAgentEnvironments: ReadonlySet<Environment> = new Set([
   "preview",
   "local",
   "staging",
+  "prod",
 ]);
 
 /** An app agents can read, through its own MCP server or the combined one. */

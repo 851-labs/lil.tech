@@ -23,7 +23,8 @@ export const healthConsentPolicyVersion = "2026-10-15";
 /**
  * The privacy policy version that consent to an app's agents is recorded against, separate from
  * Health consent's, so asking for it never asks anyone to consent to Health again: the policy
- * that describes agents connected to the account (851-2855).
+ * that describes agents connected to the account (851-2855), and connected to every lil app at
+ * once through the combined server (851-2903).
  */
 export const agentsConsentPolicyVersions = {
   "agents:health": "2026-10-21",

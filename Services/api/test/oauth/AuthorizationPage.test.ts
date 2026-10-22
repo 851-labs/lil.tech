@@ -1504,38 +1504,30 @@ describe("Authorizing the combined server", () => {
     assert.include(html, "Sign in to connect Claude to lil");
   });
 
-  it.live("isn't in prod yet", () =>
+  it.live("offers Apple and Google in prod, since the launch", () =>
     withApi(
       (handler) =>
         Effect.gen(function* () {
           const clientId = yield* storeClaudeCode;
           for (const resource of ["https://mcp.lil.tech", "https://mcp.lil.tech/"]) {
-            const { response } = yield* fetchWith(
-              handler,
-              new Request(
-                `https://api.lil.tech/oauth/authorize?${
-                  query(clientId, { resource, redirect_uri: "http://localhost:4123/callback" })
-                    .search
-                }`,
-              ),
-            );
-            assert.strictEqual(response.status, 302, resource);
-            assert.strictEqual(location(response).searchParams.get("error"), "invalid_target");
+            const { search } = query(clientId, {
+              resource,
+              redirect_uri: "http://localhost:4123/callback",
+            });
+            const started = yield* start(handler, search, "https://api.lil.tech");
+            assert.strictEqual(started.response.status, 200, resource);
+            assert.include(started.html, "Sign in to connect Claude Code to lil");
+            assert.notInclude(started.html, "to lil health");
+            assert.include(started.html, 'name="provider" value="apple"');
+            assert.include(started.html, 'name="provider" value="google"');
+            assert.notInclude(started.html, "Sign in to a Test Account");
+            const [row] = yield* (yield* CoreDb)
+              .select({ resource: agentAuthorizations.resource })
+              .from(agentAuthorizations)
+              .where(eq(agentAuthorizations.id, started.request as never));
+            assert.strictEqual(row?.resource, "https://mcp.lil.tech");
           }
-          // lil health's own server still works.
-          const { response } = yield* fetchWith(
-            handler,
-            new Request(
-              `https://api.lil.tech/oauth/authorize?${
-                query(clientId, {
-                  resource: "https://mcp.lil.tech/health",
-                  redirect_uri: "http://localhost:4123/callback",
-                }).search
-              }`,
-            ),
-          );
-          assert.strictEqual(response.status, 200);
-        }),
+        }).pipe(Effect.orDie),
       prod,
     ),
   );
