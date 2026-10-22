@@ -1,4 +1,4 @@
-import { Clock, Effect, Exit, Option, Predicate, Schema, Semaphore } from "effect";
+import { Effect, Exit, Option, Predicate, Schema, Semaphore } from "effect";
 import { McpServer } from "effect/ai";
 import { HttpEffect, HttpServerRequest, HttpServerResponse } from "effect/http";
 import {
@@ -28,17 +28,21 @@ export const healthMcpPath = agentResources.health.path;
 export const healthMcpResultCeiling = 256 * 1024;
 
 /**
- * How long a tool call may have waited for its turn in a store (851-2887). One that waited longer
- * by the time its turn comes is refused with a tool error asking the agent to try again, rather
- * than run.
+ * How many tool calls a store's queue holds, the one running included (851-2887, 851-2941). A
+ * call that comes when it's full is refused at once with a tool error asking the agent to try
+ * again, rather than queued.
  *
  * Workers resets a store whose CPU time since its last incoming request passes 30 seconds, failing
- * every call in flight. Refusing calls that waited long keeps a burst of calls from adding up to
- * that: the calls that run start within about this of their request, which leaves room for the
- * longest ones (a few seconds on a year of a Watch wearer's data). A single call that takes 30
+ * every call in flight. Each call's request is an incoming request, so once the last one of a
+ * burst has come, the most the store has left to do is the calls in its queue: at most this many
+ * of the heaviest calls (about 0.7 seconds each on a year of a Watch wearer's data, 851-2906),
+ * about 7 seconds, which leaves room for calls up to about 3 seconds. A single call that takes 30
  * seconds would still be too long.
+ *
+ * It counts calls rather than timing their wait, because a store can't time it: its clock only
+ * moves at I/O, not while it computes, so it lags behind a burst's work (851-2907, 851-2941).
  */
-export const healthMcpMaxWaitMs = 10_000;
+export const healthMcpMaxQueuedCalls = 10;
 
 /** Waits for the next JavaScript task, so the runtime can commit the store's writes and send answers. */
 const nextTask = Effect.callback<void>((resume) => {
@@ -46,9 +50,22 @@ const nextTask = Effect.callback<void>((resume) => {
   return Effect.sync(() => clearTimeout(timer));
 });
 
+/** What a call that comes when the queue is full gets. */
+const busy = Effect.logWarning("Agent tool call refused: busy").pipe(
+  Effect.andThen(
+    Effect.fail(
+      new HealthToolError({
+        message:
+          "lil health is busy answering other calls from your agents. " +
+          "Try again in a few seconds, with fewer calls at once.",
+      }),
+    ),
+  ),
+);
+
 /**
  * Runs a store's tool calls one at a time, each in a JavaScript task of its own, and refuses those
- * that waited longer than `maxWaitMs` (851-2887).
+ * that come when `maxQueued` calls are already in its queue (851-2887, 851-2941).
  *
  * A store runs on one thread and its SQLite reads are synchronous, so calls never ran in parallel.
  * But the server's fibers run on the sync scheduler, which continues in microtasks, so concurrent
@@ -59,29 +76,17 @@ const nextTask = Effect.callback<void>((resume) => {
  * the next task before it starts, so the call before it commits its row and sends its answer
  * first.
  */
-export const makeTurns = (maxWaitMs: number = healthMcpMaxWaitMs) =>
+export const makeTurns = (maxQueued: number = healthMcpMaxQueuedCalls) =>
   Effect.gen(function* () {
-    const semaphore = yield* Semaphore.make(1);
+    const places = yield* Semaphore.make(maxQueued);
+    const turn = yield* Semaphore.make(1);
     return <A, E, R>(call: Effect.Effect<A, E, R>): Effect.Effect<A, E | HealthToolError, R> =>
-      Effect.gen(function* () {
-        const arrived = yield* Clock.currentTimeMillis;
-        const turn = Effect.gen(function* () {
-          const waited = (yield* Clock.currentTimeMillis) - arrived;
-          if (waited > maxWaitMs) {
-            yield* Effect.logWarning("Agent tool call refused: busy").pipe(
-              Effect.annotateLogs({ waitedMs: waited }),
-            );
-            return yield* new HealthToolError({
-              message:
-                "lil health is busy answering other calls from your agents. " +
-                "Try again in a few seconds, with fewer calls at once.",
-            });
-          }
-          yield* nextTask;
-          return yield* call;
-        });
-        return yield* semaphore.withPermit(turn);
-      });
+      turn
+        .withPermit(Effect.andThen(nextTask, call))
+        .pipe(
+          places.withPermitsIfAvailable(1),
+          Effect.flatMap(Option.match({ onNone: () => busy, onSome: Effect.succeed })),
+        );
   });
 
 /**
@@ -221,7 +226,7 @@ export const healthMcpApp = (options: {
   readonly turns: Turns;
   /** The largest answer, as JSON (`healthMcpResultCeiling`, but tests make it smaller). */
   readonly resultCeiling?: number;
-  /** Each tool's implementation (`storeHealthTools`, but tests slow some down). */
+  /** Each tool's implementation (`storeHealthTools`, but tests replace some). */
   readonly handlers?: HealthToolImplementations;
 }): StoreMcpApp => {
   const { record, turns, resultCeiling = healthMcpResultCeiling } = options;
@@ -258,12 +263,12 @@ export const healthMcpApp = (options: {
 export const makeHealthMcpServer = (
   options: Omit<Parameters<typeof healthMcpApp>[0], "turns"> & {
     readonly turns?: Turns;
-    /** How long a call may wait for its turn (`healthMcpMaxWaitMs`), without `turns`. */
-    readonly maxWaitMs?: number;
+    /** How many calls its queue holds (`healthMcpMaxQueuedCalls`), without `turns`. */
+    readonly maxQueued?: number;
   },
 ) =>
   Effect.gen(function* () {
-    const turns = options.turns ?? (yield* makeTurns(options.maxWaitMs));
+    const turns = options.turns ?? (yield* makeTurns(options.maxQueued));
     return yield* serveHealthMcp(healthMcpApp({ ...options, turns }));
   });
 
