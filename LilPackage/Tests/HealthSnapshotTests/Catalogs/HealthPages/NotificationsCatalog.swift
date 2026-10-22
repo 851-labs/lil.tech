@@ -8,8 +8,7 @@
   // A kind's notifications (`HealthNotificationsContent`) and a notification's detail
   // (`NotificationDetailContent`). Synthetic data only: made-up notifications, with metadata as
   // the iPhone uploads it (quantities as their descriptions). Dated before October 14, 2025, not
-  // `previewNow`: the views show no date relative to now, and "High heart rate notifications"
-  // keeps the pixels it had as `MacSnapshotTests.notificationsList` (851-2931).
+  // `previewNow`: the views show no date relative to now.
 
   extension MacSnapshotTests {
     @Test(arguments: notificationsCatalog.selectedStates)
@@ -28,6 +27,9 @@
         list(.walkingSteadiness, .loaded(walkingSteadiness))
       },
       CatalogState("Noise notifications") { list(.noise, .loaded(noise)) },
+      CatalogState("Noise notifications, at the limit") {
+        list(.noise, .loaded(noise), limit: noise.count)
+      },
       CatalogState("Low cardio fitness, missing metadata") {
         list(.lowCardioFitness, .loaded(lowCardioFitness))
       },
@@ -157,11 +159,12 @@
   }
 
   @MainActor
-  private func list(_ kind: HealthNotificationKind, _ state: HealthNotificationsContent.State)
-    -> some View
-  {
+  private func list(
+    _ kind: HealthNotificationKind, _ state: HealthNotificationsContent.State,
+    limit: Int = RecentNotifications.limit
+  ) -> some View {
     NavigationStack {
-      HealthNotificationsContent(kind: kind, state: state)
+      HealthNotificationsContent(kind: kind, state: state, limit: limit)
     }
   }
 
