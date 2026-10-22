@@ -17,10 +17,8 @@ struct LazyForm<Content: View>: View {
       LazyVStack(alignment: .leading, spacing: 0) {
         content
       }
-      .padding(.horizontal, LazyFormMetrics.pageInset)
-      .padding(.top, 20)
-      .padding(.bottom, LazyFormMetrics.pageInset)
-      .frame(maxWidth: LazyFormMetrics.maxWidth)
+      .padding(LazyFormMetrics.pageInset)
+      .frame(maxWidth: LazyFormMetrics.sectionWidth + 2 * LazyFormMetrics.pageInset)
       .frame(maxWidth: .infinity)
     }
     .background(.background)
@@ -43,8 +41,9 @@ struct LazyFormHeader: View {
   }
 }
 
-/// A row of a section, as a grouped form's: on the section's fill, rounded at the section's top
-/// and bottom, with a separator above it unless it's the first.
+/// A navigation row of a section, as a grouped form's: its content and a chevron, on the section's
+/// fill, rounded at the section's top and bottom, with a separator above it unless it's the first.
+/// The label of a plain-styled `NavigationLink`.
 struct LazyFormRow<Content: View>: View {
   let isFirst: Bool
   /// False for the last row loaded while its section may go on in the next page, so the section
@@ -61,10 +60,15 @@ struct LazyFormRow<Content: View>: View {
           .opacity(0.5)
           .padding(.horizontal, LazyFormMetrics.rowInset)
       }
-      content
-        .padding(.horizontal, LazyFormMetrics.rowInset)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
+      HStack(spacing: 10) {
+        content
+        Image(systemName: "chevron.right")
+          .font(.caption.bold())
+          .foregroundStyle(.tertiary)
+      }
+      .padding(.horizontal, LazyFormMetrics.rowInset)
+      .padding(.vertical, 8)
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
     .contentShape(Rectangle())
     .background(
@@ -76,21 +80,12 @@ struct LazyFormRow<Content: View>: View {
   }
 }
 
-/// A navigation row's chevron, as a grouped form's `NavigationLink` draws it.
-struct LazyFormChevron: View {
-  var body: some View {
-    Image(systemName: "chevron.right")
-      .font(.caption.bold())
-      .foregroundStyle(.tertiary)
-  }
-}
-
 /// A grouped form's measurements on macOS 27.
 private enum LazyFormMetrics {
   /// Between the page's edges and its sections.
   static let pageInset: CGFloat = 20
-  /// A section's width, 700, and the page's insets.
-  static let maxWidth: CGFloat = 740
+  /// A section's width at most.
+  static let sectionWidth: CGFloat = 700
   /// Between a section's edges and its rows' content, and its separators.
   static let rowInset: CGFloat = 10
   static let cornerRadius: CGFloat = 12

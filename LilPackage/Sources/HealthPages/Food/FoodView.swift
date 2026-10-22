@@ -142,8 +142,7 @@ struct FoodContent: View {
   }
 }
 
-/// A food: its name, macronutrients and app, its energy and time, and a chevron, since it opens
-/// the food.
+/// A food: its name, macronutrients and app, and its energy and time.
 struct FoodRow: View {
   let food: Food
   let calendar: Calendar
@@ -180,7 +179,6 @@ struct FoodRow: View {
         Text(FoodFormat.time(food, calendar: calendar))
           .foregroundStyle(.secondary)
       }
-      LazyFormChevron()
     }
   }
 }

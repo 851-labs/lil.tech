@@ -121,10 +121,7 @@ struct AllDataContent: View {
               isFirst: sample.id == section.samples.first?.id,
               isLast: !isOpen && sample.id == section.samples.last?.id
             ) {
-              HStack(spacing: 10) {
-                SampleRow(type: type, sample: sample, calendar: calendar)
-                LazyFormChevron()
-              }
+              SampleRow(type: type, sample: sample, calendar: calendar)
             }
           }
           .buttonStyle(.plain)
@@ -180,7 +177,6 @@ struct SampleRow: View {
       Text(SampleFormat.time(sample, calendar: calendar))
         .foregroundStyle(.secondary)
     }
-    .padding(.vertical, 2)
   }
 
   private var valueText: some View {
