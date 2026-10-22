@@ -10,7 +10,9 @@ import SwiftUI
 // bold section headers, and its rows' insets and separators.
 
 /// A lazily built page in a grouped form's look. Its content is `LazyFormHeader`s,
-/// `LazyFormRow`s and `LazyFormFooter`s, one after another.
+/// `LazyFormRow`s and `LazyFormFooter`s, one after another. A list of records builds its sections
+/// with `LazyFormSections` or `LazyFormSection`, which give each row its place in its section
+/// (851-3036).
 struct LazyForm<Content: View>: View {
   @ViewBuilder let content: Content
 
@@ -100,6 +102,119 @@ struct LazyFormRow<Content: View>: View {
         topLeadingRadius: isFirst ? radius : 0, bottomLeadingRadius: isLast ? radius : 0,
         bottomTrailingRadius: isLast ? radius : 0, topTrailingRadius: isFirst ? radius : 0,
         style: .continuous))
+  }
+}
+
+/// Sections of records one after another, each under its title (a month, a day), as the record
+/// lists show them: `sections(_:by:calendar:startDate:)`'s, newest first.
+struct LazyFormSections<Record: Identifiable, Destination: View, Row: View>: View {
+  let sections: [(start: Date, records: [Record])]
+  let title: (Date) -> String
+  /// Whether the first section is the page's first, rather than under a chart.
+  var isFirst = true
+  let destination: ((Record) -> Destination)?
+  let row: (Record) -> Row
+
+  /// Sections whose records open `destination`.
+  init(
+    _ sections: [(start: Date, records: [Record])], title: @escaping (Date) -> String,
+    isFirst: Bool = true, @ViewBuilder destination: @escaping (Record) -> Destination,
+    @ViewBuilder row: @escaping (Record) -> Row
+  ) {
+    self.sections = sections
+    self.title = title
+    self.isFirst = isFirst
+    self.destination = destination
+    self.row = row
+  }
+
+  var body: some View {
+    ForEach(sections, id: \.start) { section in
+      LazyFormSection(
+        title: title(section.start), isFirst: isFirst && section.start == sections.first?.start,
+        records: section.records, destination: destination, row: row)
+    }
+  }
+}
+
+extension LazyFormSections where Destination == Never {
+  /// Sections whose records open nothing, so their rows have no chevron.
+  init(
+    _ sections: [(start: Date, records: [Record])], title: @escaping (Date) -> String,
+    isFirst: Bool = true, @ViewBuilder row: @escaping (Record) -> Row
+  ) {
+    self.sections = sections
+    self.title = title
+    self.isFirst = isFirst
+    self.destination = nil
+    self.row = row
+  }
+}
+
+/// A section of records: its header, when it has a title, then a row for each record, the
+/// section's corners on the first and the last. A record opens `destination`, when there's one,
+/// as a navigation row.
+struct LazyFormSection<Records: RandomAccessCollection, Destination: View, Row: View>: View
+where Records.Element: Identifiable {
+  let title: String?
+  /// The page's first section has no section above it to keep clear of.
+  let isFirst: Bool
+  let records: Records
+  let destination: ((Records.Element) -> Destination)?
+  let row: (Records.Element) -> Row
+
+  /// A section whose records open `destination`.
+  init(
+    _ title: String? = nil, isFirst: Bool = false, records: Records,
+    @ViewBuilder destination: @escaping (Records.Element) -> Destination,
+    @ViewBuilder row: @escaping (Records.Element) -> Row
+  ) {
+    self.init(title: title, isFirst: isFirst, records: records, destination: destination, row: row)
+  }
+
+  fileprivate init(
+    title: String?, isFirst: Bool, records: Records,
+    destination: ((Records.Element) -> Destination)?, row: @escaping (Records.Element) -> Row
+  ) {
+    self.title = title
+    self.isFirst = isFirst
+    self.records = records
+    self.destination = destination
+    self.row = row
+  }
+
+  var body: some View {
+    if let title {
+      LazyFormHeader(title: title, isFirst: isFirst)
+    }
+    ForEach(records) { record in
+      let isFirst = record.id == records.first?.id
+      let isLast = record.id == records.last?.id
+      if let destination {
+        NavigationLink {
+          destination(record)
+        } label: {
+          LazyFormRow(isFirst: isFirst, isLast: isLast) {
+            row(record)
+          }
+        }
+        .buttonStyle(.plain)
+      } else {
+        LazyFormRow(isFirst: isFirst, isLast: isLast, showsChevron: false) {
+          row(record)
+        }
+      }
+    }
+  }
+}
+
+extension LazyFormSection where Destination == Never {
+  /// A section whose records open nothing, so their rows have no chevron.
+  init(
+    _ title: String? = nil, isFirst: Bool = false, records: Records,
+    @ViewBuilder row: @escaping (Records.Element) -> Row
+  ) {
+    self.init(title: title, isFirst: isFirst, records: records, destination: nil, row: row)
   }
 }
 

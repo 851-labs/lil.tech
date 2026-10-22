@@ -71,9 +71,9 @@ struct HealthNotificationsContent: View {
             monthSections(
               notifications, calendar: calendar,
               startDate: { kind.listedDate(of: $0.sample).unixMilliseconds }),
-            id: \.month
+            id: \.start
           ) { section in
-            Section(section.month.formatted(NotificationFormat.month(calendar))) {
+            Section(section.start.formatted(NotificationFormat.month(calendar))) {
               ForEach(section.records) { notification in
                 NavigationLink {
                   NotificationDetailView(kind: kind, notification: notification)

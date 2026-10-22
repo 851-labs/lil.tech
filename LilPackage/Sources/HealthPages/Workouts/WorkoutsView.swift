@@ -100,44 +100,24 @@ struct WorkoutsContent: View {
   /// A section per month, then Other Routes, in a grouped form's look (`LazyForm`): a `Form`
   /// builds every row at once, and the list holds up to 2,000 workouts.
   private func list(_ workouts: [HealthWorkout], otherRoutes: [HealthWorkoutRoute]) -> some View {
-    let months = monthSections(workouts, calendar: calendar, startDate: \.startDate)
-    return LazyForm {
-      ForEach(months, id: \.month) { section in
-        LazyFormHeader(
-          title: section.month.formatted(.dateTime.month(.wide).year()),
-          isFirst: section.month == months.first?.month)
-        ForEach(section.records) { workout in
-          NavigationLink {
-            WorkoutDetailView(workout: workout)
-          } label: {
-            LazyFormRow(
-              isFirst: workout.id == section.records.first?.id,
-              isLast: workout.id == section.records.last?.id
-            ) {
-              WorkoutRow(workout: workout)
-            }
-          }
-          .buttonStyle(.plain)
-        }
+    LazyForm {
+      LazyFormSections(
+        monthSections(workouts, calendar: calendar, startDate: \.startDate),
+        title: { $0.formatted(.dateTime.month(.wide).year()) }
+      ) { workout in
+        WorkoutDetailView(workout: workout)
+      } row: { workout in
+        WorkoutRow(workout: workout)
       }
       // Under the workouts, not at the end of the page, which Other Routes may follow.
       if workouts.count >= limit {
         LazyFormFooter(limitNote(onlyWithRoutes ? "workouts with routes" : "workouts"))
       }
       if !otherRoutes.isEmpty {
-        LazyFormHeader(title: "Other Routes", isFirst: workouts.isEmpty)
-        ForEach(otherRoutes) { route in
-          NavigationLink {
-            RouteDetailView(route: route)
-          } label: {
-            LazyFormRow(
-              isFirst: route.id == otherRoutes.first?.id,
-              isLast: route.id == otherRoutes.last?.id
-            ) {
-              OtherRouteRow(route: route)
-            }
-          }
-          .buttonStyle(.plain)
+        LazyFormSection("Other Routes", isFirst: workouts.isEmpty, records: otherRoutes) { route in
+          RouteDetailView(route: route)
+        } row: { route in
+          OtherRouteRow(route: route)
         }
         if otherRoutes.count >= limit {
           LazyFormFooter(limitNote("other routes"))
@@ -155,9 +135,8 @@ struct WorkoutsContent: View {
 /// Records (newest first) by the month they started in, as Health lists workouts and ECGs.
 func monthSections<Record>(
   _ records: [Record], calendar: Calendar, startDate: (Record) -> Int
-) -> [(month: Date, records: [Record])] {
+) -> [(start: Date, records: [Record])] {
   sections(records, by: .month, calendar: calendar, startDate: startDate)
-    .map { (month: $0.start, records: $0.records) }
 }
 
 /// Records (newest first) by the `component` (day, month…) they started in.
