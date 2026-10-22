@@ -1,4 +1,5 @@
 import Charts
+import Dependencies
 public import HealthCatalog
 import HealthDatabase
 import HealthUI
@@ -71,8 +72,9 @@ struct SymptomContent: View {
   @Binding var offset: Int
   let state: State
   /// Today, as the page loads it, for the period shown while it loads.
-  var now = Date.now
-  var calendar = Calendar.current
+  let now: Date
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
+  @Dependency(\.calendar) private var calendar
   @SwiftUI.State private var hovered: Date?
 
   /// How many of the period's entries the list shows.

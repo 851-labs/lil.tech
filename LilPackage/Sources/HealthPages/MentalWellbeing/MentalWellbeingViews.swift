@@ -1,4 +1,5 @@
 import Charts
+import Dependencies
 public import HealthDatabase
 import HealthUI
 import SQLiteData
@@ -50,7 +51,8 @@ struct StateOfMindContent: View {
   let now: Date
   /// How many the list holds at most (`RecentStateOfMindLogs.limit`), to say when it's full.
   var limit = RecentStateOfMindLogs.limit
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {
