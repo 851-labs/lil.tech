@@ -240,11 +240,12 @@ take_resolve_lock() {
   holding_lock=true
 }
 
-# Releases the lock once: it stops counting as held before it's removed, so an interrupted release
-# never removes it again once another run may have taken it.
+# Releases the lock once, ignoring signals meanwhile, so an interrupted release neither leaves it
+# behind nor removes it again once another run may have taken it.
 release_resolve_lock() {
-  holding_lock=false
+  trap '' HUP INT TERM
   rmdir "$resolve_lock" 2>/dev/null || true
+  holding_lock=false
   trap - EXIT HUP INT TERM
 }
 
