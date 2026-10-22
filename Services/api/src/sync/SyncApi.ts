@@ -123,7 +123,8 @@ export class SyncApi extends HttpApiGroup.make("sync")
     }),
   )
   .add(
-    // Writes from apps, to entities they may write such as `health_pin` (`docs/SYNC.md`).
+    // Writes from apps, to entities they may write (`docs/SYNC.md`): only `health_pin` today,
+    // which Macs from before pins were retired (851-2990) still write.
     HttpApiEndpoint.post("pushMutations", "/v1/sync/mutations", {
       payload: PushMutations,
       success: PushedMutations,

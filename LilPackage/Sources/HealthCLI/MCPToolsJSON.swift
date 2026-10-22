@@ -6,7 +6,7 @@ let mcpToolsJSON = #"""
 [
   {
     "name": "summary",
-    "description": "Start here. An overview of the person's Apple Health data, as lil health's Summary shows it: for each metric they pinned (or everyday defaults: steps, heart rate, active energy, walking + running distance, resting heart rate, weight), the latest sample and, for types that add up, today's and the last 7 days' totals; plus the workouts of the last 7 days (today and the 6 days before).",
+    "description": "Start here. An overview of the person's Apple Health data, as lil health's Summary shows it: for each everyday metric (steps, heart rate, active energy, walking + running distance, resting heart rate, weight), the latest sample and, for types that add up, today's and the last 7 days' totals; plus the workouts of the last 7 days (today and the 6 days before).",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -30,7 +30,7 @@ let mcpToolsJSON = #"""
         },
         "pinned": {
           "type": "boolean",
-          "description": "Whether `metrics` are the ones the person pinned to Summary in lil health; if not, they're everyday defaults."
+          "description": "Deprecated: always false. lil health no longer has pinned metrics, so `metrics` are always the everyday ones."
         },
         "metrics": {
           "type": "array",

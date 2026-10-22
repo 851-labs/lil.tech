@@ -5467,7 +5467,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/date`.
             public var date: Swift.String
-            /// Whether `metrics` are the ones the person pinned to Summary in lil health; if not, they're everyday defaults.
+            /// Deprecated: always false. lil health no longer has pinned metrics, so `metrics` are always the everyday ones.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSummaryResult/pinned`.
             public var pinned: Swift.Bool
@@ -5545,7 +5545,7 @@ extension Components {
             /// - Parameters:
             ///   - timeZone: The IANA time zone of the output's days and local times.
             ///   - date: Today.
-            ///   - pinned: Whether `metrics` are the ones the person pinned to Summary in lil health; if not, they're everyday defaults.
+            ///   - pinned: Deprecated: always false. lil health no longer has pinned metrics, so `metrics` are always the everyday ones.
             ///   - metrics: The metrics, in the order Summary shows them.
             ///   - workouts: Workouts that started today (by now) or in the 6 days before.
             ///   - additionalProperties: A container of undocumented properties.

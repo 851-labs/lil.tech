@@ -1030,6 +1030,44 @@ struct WorkoutQueriesTests {
 
 @Suite
 struct HealthSyncTests {
+  /// Pins are retired (851-2990): they no longer sync, and a Mac's leftover pins are deleted,
+  /// with pin writes waiting to be pushed, and `health_pin` leaves the entities its data
+  /// records, so an older release bootstraps. The table stays for that release.
+  @Test
+  func retiringPinsEmptiesTheirTable() throws {
+    #expect(!HealthDatabase.syncEntities.contains { $0.name == "health_pin" })
+    let database = try DatabaseQueue()
+    let migrator = HealthDatabase.migrator
+    try migrator.migrate(database, upTo: "Index samples by correlation")
+    let pin = SyncMutation.delete("health_pin", id: "HKQuantityTypeIdentifierStepCount")
+    let other = SyncMutation.delete("test_note", id: "n1")
+    try database.write { db in
+      try db.execute(
+        sql: #"INSERT INTO "healthPins" ("id", "position") VALUES (?, 0)"#,
+        arguments: ["HKQuantityTypeIdentifierStepCount"])
+      for (id, mutation) in [("pins", pin), ("other", other)] {
+        try db.execute(
+          sql: #"INSERT INTO "lilPendingMutations" ("id", "mutations") VALUES (?, ?)"#,
+          arguments: [id, String(decoding: try JSONEncoder().encode([mutation]), as: UTF8.self)])
+      }
+      try db.execute(
+        sql:
+          #"INSERT INTO "lilSyncState" ("id", "cursor", "epoch", "entities") VALUES (1, 5, 1, ?)"#,
+        arguments: ["health_pin,health_provenance,health_sample"])
+    }
+    try migrator.migrate(database)
+    let (pins, pending, entities) = try database.read { db in
+      (
+        try Int.fetchOne(db, sql: #"SELECT count(*) FROM "healthPins""#),
+        try String.fetchAll(db, sql: #"SELECT "id" FROM "lilPendingMutations""#),
+        try String.fetchOne(db, sql: #"SELECT "entities" FROM "lilSyncState""#)
+      )
+    }
+    #expect(pins == 0)
+    #expect(pending == ["other"])
+    #expect(entities == "health_provenance,health_sample")
+  }
+
   @Test
   func appliesEveryHealthEntity() async throws {
     let database = try HealthDatabase.make()
@@ -1152,7 +1190,7 @@ struct HealthSyncTests {
       (Record.tableName, Record.TableColumns.writableColumns.map(\.name))
     }
     let tables = [
-      writable(HealthPin.self), writable(HealthProvenance.self), writable(HealthSample.self),
+      writable(HealthProvenance.self), writable(HealthSample.self),
       writable(HealthCorrelation.self),
       writable(HealthCharacteristic.self), writable(HealthActivitySummary.self),
       writable(HealthStatistic.self), writable(HealthWorkout.self),
@@ -1267,7 +1305,6 @@ struct HealthSyncTests {
         #expect(stored == [record])
       }
     }
-    try roundTrip { v in HealthPin(id: "pin", position: Double(v)) }
     try roundTrip { v in HealthProvenance(id: "p", sourceRevision: "r\(v)", device: "d\(v)") }
     try roundTrip { v in
       HealthSample(

@@ -40,13 +40,7 @@
     {
       "id": "summary",
       "screen": "HealthMacApp/SummaryCatalog.swift",
-      "states": ["Pinned", "Nothing pinned", "Loading", "Failed", "Week comparisons"]
-    },
-    {
-      "id": "pin-editor",
-      "screen": "HealthMacApp/SummaryCatalog.swift",
-      "title": "Pin Editor",
-      "states": ["Edit", "Edit, searching"]
+      "states": ["Loaded", "No data", "Loading", "Failed", "Week comparisons"]
     },
     {
       "id": "category",
@@ -393,13 +387,8 @@
     },
     {
       "from": "summary",
-      "to": "pin-editor",
-      "label": "Edit"
-    },
-    {
-      "from": "summary",
       "to": "metric",
-      "label": "Choose a pinned metric"
+      "label": "Choose a metric"
     },
     {
       "from": "category",

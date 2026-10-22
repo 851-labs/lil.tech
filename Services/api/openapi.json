@@ -4214,7 +4214,7 @@
           },
           "pinned": {
             "type": "boolean",
-            "description": "Whether `metrics` are the ones the person pinned to Summary in lil health; if not, they're everyday defaults."
+            "description": "Deprecated: always false. lil health no longer has pinned metrics, so `metrics` are always the everyday ones."
           },
           "metrics": {
             "type": "array",

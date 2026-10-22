@@ -10,7 +10,7 @@ protocol TextOutput {
 
 extension HealthSummaryResult: TextOutput {
   var text: String {
-    var lines = ["Summary for \(date) (\(timeZone))\(pinned ? "" : ", everyday metrics")", ""]
+    var lines = ["Summary for \(date) (\(timeZone))", ""]
     let width = metrics.map { name(of: $0.type).count }.max() ?? 0
     for metric in metrics {
       var parts: [String] = []

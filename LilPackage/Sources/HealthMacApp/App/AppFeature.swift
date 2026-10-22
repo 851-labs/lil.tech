@@ -2,10 +2,8 @@ public import ComposableArchitecture
 import Foundation
 public import HealthAgentAccess
 public import HealthCatalog
-import HealthDatabase
 public import LilAuth
 public import LilSync
-import SQLiteData
 
 /// lil health on the Mac: sign in, then iPad Health's layout, a sidebar of Summary and the
 /// Health categories beside what's selected. While signed in, it syncs the account's health data
@@ -24,7 +22,6 @@ public struct AppFeature {
     public var searchText = ""
     /// Shown in the sidebar's footer.
     public var syncStatus: SyncStatus
-    public var summary: SummaryFeature.State
     /// Account settings, in the Settings window. Kept here rather than presented, so the window
     /// works whether or not the main one is open, and an export keeps going when it closes.
     public var account = AccountFeature.State()
@@ -32,20 +29,15 @@ public struct AppFeature {
     public var agentAccess = AgentAccessFeature.State()
     /// Remote agents connected to the account, in the Agents pane. Kept here, like `account`.
     public var connectedAgents = ConnectedAgentsFeature.State()
-    /// Pins from before they synced, moved up when sync starts (`movePinsUp`).
-    @Shared(.summaryPins) var localPins: [String]
-
     public init(
       isSignedIn: Bool? = nil, selection: SidebarItem? = .summary, metricPath: [String] = [],
-      searchText: String = "", syncStatus: SyncStatus = .idle,
-      summary: SummaryFeature.State = SummaryFeature.State()
+      searchText: String = "", syncStatus: SyncStatus = .idle
     ) {
       self.isSignedIn = isSignedIn
       self.selection = selection
       self.metricPath = metricPath
       self.searchText = searchText
       self.syncStatus = syncStatus
-      self.summary = summary
     }
 
     /// The search, without surrounding spaces.
@@ -73,12 +65,10 @@ public struct AppFeature {
     case agentAccess(AgentAccessFeature.Action)
     case connectedAgents(ConnectedAgentsFeature.Action)
     case signOutButtonTapped
-    case summary(SummaryFeature.Action)
     /// A new pull for the Sync app action, as Try Again starts one. Sent once the action is
     /// watching the status, so it can't miss how the pull ends.
     case syncRestarted
     case syncStatusChanged(SyncStatus)
-    case localPinsMovedUp([String])
     /// A stack's navigation changed its metrics: a card clicked, or Back. The stack says which
     /// selection it shows, so one that's going away (as the selection changes) can't empty the
     /// path the next one opens with.
@@ -100,7 +90,7 @@ public struct AppFeature {
   @Dependency(\.authSessions) var authSessions
   @Dependency(\.blobCache) var blobCache
   @Dependency(\.continuousClock) var clock
-  @Dependency(\.defaultDatabase) var database
+  @Dependency(\.defaultAppStorage) var defaultAppStorage
   @Dependency(\.healthAppActions) var healthAppActions
   @Dependency(\.sync) var sync
 
@@ -122,9 +112,6 @@ public struct AppFeature {
       }
     Scope(\.signIn, action: \.signIn) {
       SignInFeature()
-    }
-    Scope(\.summary, action: \.summary) {
-      SummaryFeature()
     }
     Scope(\.account, action: \.account) {
       AccountFeature()
@@ -167,7 +154,7 @@ public struct AppFeature {
         let wasSignedIn = state.isSignedIn
         state.isSignedIn = isSignedIn
         if isSignedIn {
-          return wasSignedIn == true ? .none : startSync(localPins: state.localPins)
+          return wasSignedIn == true ? .none : startSync()
         }
         // The next account starts afresh.
         state.signIn = SignInFeature.State()
@@ -178,22 +165,22 @@ public struct AppFeature {
         state.account = AccountFeature.State()
         state.agentAccess = AgentAccessFeature.State()
         state.connectedAgents = ConnectedAgentsFeature.State()
-        // Pins are the account's choice, like its data, and leave with it.
-        state.summary = SummaryFeature.State()
-        state.$localPins.withLock { $0 = [] }
         // The account's health data leaves the Mac with it. Also when the app opens signed out,
         // in case it quit before it was done. Removing waits for a pull being cancelled to stop
         // (`LilSyncEngine.removeLocalData()`).
         return .merge(
           .cancel(id: CancelID.pull),
           .cancel(id: CancelID.sync),
-          .cancel(id: SummaryFeature.CancelID.write),
           // What the Settings window started for the account stops with it.
           AccountFeature.cancel(),
           ConnectedAgentsFeature.cancel(),
-          .run { [agentAccess, sync, blobCache] send in
+          .run {
+            [agentAccess, sync, blobCache, defaults = UncheckedSendable(defaultAppStorage)] send in
             // First, so it's done even if the database can't be.
             await blobCache.removeAll()
+            // Summary's pins from before they synced, which a Mac may still have though pins
+            // are retired (851-2990).
+            defaults.value.removeObject(forKey: "summaryPins")
             // Whether tools and agents may read the account's data was its choice, and their log
             // is about its data: the next account decides for itself.
             do {
@@ -224,19 +211,11 @@ public struct AppFeature {
       case .connectedAgents:
         return .none
 
-      case .summary:
-        return .none
-
       case .syncRestarted:
         return pull()
 
       case .syncStatusChanged(let status):
         state.syncStatus = status
-        return .none
-
-      case .localPinsMovedUp(let moved):
-        // Only those moved: any pinned meanwhile on a Mac without sync stay for next time.
-        state.$localPins.withLock { local in local.removeAll { moved.contains($0) } }
         return .none
 
       case .metricPathChanged(let path, let selection):
@@ -278,26 +257,9 @@ public struct AppFeature {
     }
   }
 
-  /// Moves this Mac's pins from before they synced up to the account (851-2641): through sync's
-  /// queue, so they show at once, survive the bootstrap that adding pins brings, and reach the
-  /// server with the first sync. Any the account has already stay first. Cleared once written.
-  private func movePinsUp(_ local: [String]) -> Effect<Action> {
-    .run { [database, sync] send in
-      let synced = try await database.read { try HealthDatabase.summaryPins($0) }
-      let pins = synced + local.filter { !synced.contains($0) }
-      try await sync.push(HealthDatabase.pinMutations(from: synced, to: pins))
-      await send(.localPinsMovedUp(local))
-    } catch: { error, _ in
-      guard !(error is CancellationError) else { return }
-      reportIssue(error)
-    }
-    .cancellable(id: SummaryFeature.CancelID.write)
-  }
-
   /// Pulls, follows live notices of new changes, and reports the status, until signed out.
-  private func startSync(localPins: [String]) -> Effect<Action> {
+  private func startSync() -> Effect<Action> {
     .merge(
-      localPins.isEmpty ? .none : movePinsUp(localPins),
       pull(),
       .run { [sync, authSessions] _ in
         await sync.listen(authSessions.apiAuthentication)

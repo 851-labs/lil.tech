@@ -152,7 +152,7 @@ struct HealthToolsTests {
     }
     let summary = try database.read { try tools.summary(timeZone: "UTC", $0) }
     #expect(summary.timeZone == "UTC" && summary.date == "2026-10-20" && !summary.pinned)
-    #expect(summary.metrics.map(\.type) == HealthTools.summaryDefaultTypes)
+    #expect(summary.metrics.map(\.type) == HealthDatabase.summaryTypes)
     #expect(
       summary.metrics[0]
         == HealthSummaryMetric(
@@ -166,17 +166,22 @@ struct HealthToolsTests {
     #expect(summary.workouts == .init(count: 2, duration: 4200))
   }
 
+  /// Pins are retired (851-2990): any left in the table change nothing, and `pinned` is false.
   @Test
-  func summaryShowsThePinsInTheirOrder() throws {
+  func summaryIgnoresPins() throws {
     try database.write { db in
-      try HealthPin.insert {
-        HealthPin(id: heartRate, position: 1)
-        HealthPin(id: steps, position: 0)
-      }
-      .execute(db)
+      try db.execute(
+        sql: #"INSERT INTO "healthPins" ("id", "position") VALUES (?, 0)"#, arguments: [heartRate])
     }
     let summary = try database.read { try tools.summary(timeZone: "UTC", $0) }
-    #expect(summary.pinned && summary.metrics.map(\.type) == [steps, heartRate])
+    #expect(!summary.pinned && summary.metrics.map(\.type) == HealthDatabase.summaryTypes)
+  }
+
+  /// The app's Summary skips types the catalog doesn't know; the tool lists them all. They agree
+  /// as long as the catalog knows every one.
+  @Test
+  func summarysMetricsAreAllInTheCatalog() {
+    #expect(HealthDatabase.summaryTypes.allSatisfy { HealthCatalog.type(id: $0) != nil })
   }
 
   // MARK: - metric

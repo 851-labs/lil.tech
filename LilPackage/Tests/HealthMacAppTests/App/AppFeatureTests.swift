@@ -11,7 +11,6 @@ import Testing
 
 @testable import HealthMacApp
 
-// Fresh app storage for each test: pins live there.
 @Suite(.dependencies)
 @MainActor
 struct AppFeatureTests {
@@ -263,69 +262,5 @@ struct AppFeatureTests {
       $0.searchText = ""
       $0.selection = .category(.heart)
     }
-  }
-}
-
-// Fresh app storage for each test: local pins live there.
-@Suite(.dependencies)
-@MainActor
-struct PinMigrationTests {
-  private let steps = "HKQuantityTypeIdentifierStepCount"
-  private let heartRate = "HKQuantityTypeIdentifierHeartRate"
-
-  private func signIn(
-    database: any DatabaseWriter, pushed: LockIsolated<[[SyncMutation]]>
-  ) async -> TestStoreOf<AppFeature> {
-    let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
-      AppFeature()
-    } withDependencies: {
-      $0.defaultDatabase = database
-      $0.sync = .constant(.idle)
-      $0.sync.push = { mutations in pushed.withValue { $0.append(mutations) } }
-    }
-    store.exhaustivity = .off
-    await store.send(.signedInChanged(true))
-    return store
-  }
-
-  @Test
-  func thisMacsPinsMoveUpWhenSyncStarts() async throws {
-    @Shared(.summaryPins) var local = [steps, heartRate]
-    let pushed = LockIsolated<[[SyncMutation]]>([])
-    let store = await signIn(database: try HealthDatabase.make(), pushed: pushed)
-    await store.receive(\.localPinsMovedUp) { $0.$localPins.withLock { $0 = [] } }
-    #expect(pushed.value == [HealthDatabase.pinMutations(from: [], to: [steps, heartRate])])
-    await store.skipInFlightEffects()
-  }
-
-  @Test
-  func pinsTheAccountHasAlreadyStayFirst() async throws {
-    @Shared(.summaryPins) var local = [steps, heartRate]
-    let database = try HealthDatabase.make()
-    try await database.write { db in
-      try HealthPin.insert { HealthPin(id: self.heartRate, position: 0) }.execute(db)
-    }
-    let pushed = LockIsolated<[[SyncMutation]]>([])
-    let store = await signIn(database: database, pushed: pushed)
-    await store.receive(\.localPinsMovedUp) { $0.$localPins.withLock { $0 = [] } }
-    #expect(
-      pushed.value == [HealthDatabase.pinMutations(from: [heartRate], to: [heartRate, steps])])
-    await store.skipInFlightEffects()
-  }
-
-  @Test
-  func pinsThatCouldntBeWrittenStayForNextTime() async throws {
-    @Shared(.summaryPins) var local = [steps]
-    let store = TestStore(initialState: AppFeature.State(isSignedIn: false)) {
-      AppFeature()
-    } withDependencies: {
-      $0.defaultDatabase = try! HealthDatabase.make()
-      $0.sync = .constant(.idle)
-      $0.sync.push = { _ in throw CancellationError() }
-    }
-    store.exhaustivity = .off
-    await store.send(.signedInChanged(true))
-    await store.skipInFlightEffects()
-    #expect(local == [steps])
   }
 }
