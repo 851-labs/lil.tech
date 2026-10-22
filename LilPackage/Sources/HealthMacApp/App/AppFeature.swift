@@ -48,8 +48,8 @@ public struct AppFeature {
     /// The search, without surrounding spaces.
     public var query: String { searchText.trimmingCharacters(in: .whitespaces) }
 
-    /// The data types whose names match the search, by category order then name
-    /// (`HealthPage.browsableTypes`).
+    /// The data types whose names match the search, in the sidebar's order: Health Details'
+    /// characteristics, then each category's types, each by name (`HealthPage.browsableTypes`).
     public var searchResults: [HealthDataType] {
       guard !query.isEmpty else { return [] }
       return HealthPage.browsableTypes.filter { $0.name.localizedStandardContains(query) }
@@ -117,10 +117,10 @@ public struct AppFeature {
   public var body: some ReducerOf<Self> {
     BindingReducer()
       .onChange(of: \.query) { _, state in
-        // A type found by search goes when the search does: its category takes its place.
+        // A type found by search goes when the search does: its category (or Health Details)
+        // takes its place.
         if state.query.isEmpty, case .dataType(let id) = state.selection {
-          state.selection =
-            HealthCatalog.type(id: id)?.category.map(SidebarItem.category) ?? .summary
+          state.selection = HealthCatalog.type(id: id).map(SidebarItem.home) ?? .summary
         }
         return .none
       }
@@ -276,9 +276,10 @@ public struct AppFeature {
         case .category(let category):
           state.selection = .category(category)
         case .dataType(let type):
-          // As if its row were clicked in its category.
-          state.selection = type.category.map(SidebarItem.category) ?? .summary
-          state.metricPath = [type.id]
+          state.selection = .home(of: type)
+          // As if its row were clicked in its category. Health Details shows a characteristic
+          // with the others, rather than on a page of its own.
+          if type.category != nil { state.metricPath = [type.id] }
         }
         return .none
 
@@ -452,4 +453,10 @@ public enum SidebarItem: Hashable, Sendable {
   case healthDetails
   case category(HealthCategory)
   case dataType(String)
+
+  /// Where the sidebar lists a type: its category, or Health Details for a characteristic, which
+  /// has none (851-3026).
+  static func home(of type: HealthDataType) -> Self {
+    type.category.map(Self.category) ?? .healthDetails
+  }
 }

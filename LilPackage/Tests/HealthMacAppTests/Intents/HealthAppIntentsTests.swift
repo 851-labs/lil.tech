@@ -12,6 +12,8 @@ import Testing
 
 private let steps = HealthPage.dataType(
   HealthCatalog.type(id: "HKQuantityTypeIdentifierStepCount")!)!
+private let bloodType = HealthPage.dataType(
+  HealthCatalog.type(id: "HKCharacteristicTypeIdentifierBloodType")!)!
 
 // App actions (851-2892). Synthetic data only, and temporary directories for the access setting.
 @Suite(.dependencies)
@@ -44,6 +46,15 @@ struct HealthAppIntentsTests {
     }
     await store.send(.pageOpened(.healthDetails)) {
       $0.selection = .healthDetails
+    }
+    await store.send(.pageOpened(steps)) {
+      $0.selection = .category(.activity)
+      $0.metricPath = ["HKQuantityTypeIdentifierStepCount"]
+    }
+    // A characteristic opens Health Details, which shows it with the others (851-3026).
+    await store.send(.pageOpened(bloodType)) {
+      $0.selection = .healthDetails
+      $0.metricPath = []
     }
     await store.send(\.binding.searchText, "sleep") {
       $0.searchText = "sleep"
@@ -259,8 +270,11 @@ struct HealthAppIntentsTests {
     // Exact names first: the category, then the type of the same name.
     let sleep = try await query.entities(matching: "Sleep")
     #expect(sleep.first == .category(.sleep))
-    // Characteristics aren't pages.
-    #expect(try await query.entities(matching: "Blood Type").isEmpty)
+    // A characteristic Health Details shows, with its subtitle (851-3026).
+    #expect(try await query.entities(matching: "blood type") == [bloodType])
+    #expect(try await query.entities(matching: "BloodType") == [bloodType])
+    // Activity Move Mode isn't in Health Details, so it's nowhere in the app.
+    #expect(try await query.entities(matching: "Activity Move Mode").isEmpty)
     #expect(try await query.entities(matching: "xylophone").isEmpty)
   }
 
@@ -279,9 +293,24 @@ struct HealthAppIntentsTests {
     #expect(steps.id == "type:HKQuantityTypeIdentifierStepCount")
     let all = HealthPage.all
     #expect(try await HealthPageQuery().entities(for: all.map(\.id)) == all)
-    #expect(HealthPage(id: "type:HKCharacteristicTypeIdentifierBloodType") == nil)
+    #expect(HealthPage(id: "type:HKCharacteristicTypeIdentifierBloodType") == bloodType)
+    #expect(HealthPage(id: "type:HKCharacteristicTypeIdentifierActivityMoveMode") == nil)
     #expect(HealthPage(id: "category:nope") == nil)
     #expect(HealthPage(id: "Steps") == nil)
+  }
+
+  /// A type's subtitle is where it opens, so Shortcuts' picker tells a characteristic from Health
+  /// Details (851-3026).
+  @Test
+  func typesAreSubtitledWithWhereTheyOpen() {
+    #expect(steps.subtitle == "Activity")
+    #expect(bloodType.subtitle == "Health Details")
+    #expect(HealthPage.healthDetails.subtitle == nil)
+    #expect(HealthPage.category(.heart).subtitle == nil)
+    for page in HealthPage.all {
+      guard case .dataType = page.kind else { continue }
+      #expect(page.subtitle != nil, "\(page.name)")
+    }
   }
 
   @Test

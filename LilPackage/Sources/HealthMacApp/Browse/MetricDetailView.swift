@@ -24,7 +24,11 @@ struct MetricDetailView: View {
 
   var body: some View {
     Group {
-      if type.id == HealthDatabase.sleepType {
+      if type.kind == .characteristic {
+        // A single value, with no chart: Health Details shows it with the others (851-3026), as
+        // the sidebar's search opens it.
+        HealthDetailsView()
+      } else if type.id == HealthDatabase.sleepType {
         SleepDetailView(type: type)
       } else if HealthDatabase.opensCycleTracking(type.id) {
         // Every Cycle Tracking type, on its latest sample's day (851-2830).

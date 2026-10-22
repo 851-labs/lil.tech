@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import HealthAgentAccess
 import HealthCatalog
+import HealthDatabase
 import HealthTools
 
 // `lil-health open`, `sync` and `export` (851-2896): rather than reading the database, they ask
@@ -27,7 +28,8 @@ struct OpenCommand: ActionCommand {
     discussion: """
       Pages are named as lil health's sidebar names them: Summary, Health Details, a category \
       (Activity, Heart…), or a data type, also by its HealthKit identifier (Steps, \
-      "Heart Rate", HKQuantityTypeIdentifierStepCount). A type opens in its category.
+      "Heart Rate", HKQuantityTypeIdentifierStepCount). A type opens in its category, and a \
+      characteristic (Blood Type, Date of Birth…) in Health Details.
 
       \(waitingDiscussion)
       """)
@@ -54,7 +56,8 @@ struct OpenCommand: ActionCommand {
   /// A page's ID (`HealthPage.id` in the app), from the name lil health shows: Summary, Health
   /// Details, a category, or a data type by the names the queries take
   /// (`HealthCatalog.type(named:)`), as the Open intent finds them. Categories come before types,
-  /// so Sleep is the category. Characteristics have no page.
+  /// so Sleep is the category. A characteristic Health Details shows is a page too, which opens
+  /// Health Details (851-3026); Activity Move Mode, which it doesn't, isn't.
   static func pageID(named name: String) -> String? {
     let name = name.trimmingCharacters(in: .whitespaces)
     func matches(_ other: String) -> Bool { other.caseInsensitiveCompare(name) == .orderedSame }
@@ -63,7 +66,9 @@ struct OpenCommand: ActionCommand {
     if let category = HealthCategory.allCases.first(where: { matches($0.name) }) {
       return "category:\(category.rawValue)"
     }
-    if let type = HealthCatalog.type(named: name), type.category != nil {
+    if let type = HealthCatalog.type(named: name),
+      type.category != nil || HealthDetails.characteristicIDs.contains(type.id)
+    {
       return "type:\(type.id)"
     }
     return nil

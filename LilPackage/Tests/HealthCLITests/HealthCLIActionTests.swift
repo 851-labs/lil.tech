@@ -1,6 +1,7 @@
 import Foundation
 import HealthAgentAccess
 import HealthCatalog
+import HealthDatabase
 import Synchronization
 import Testing
 
@@ -181,7 +182,7 @@ struct HealthCLIActionTests {
     let folder = try ActionFolder()
     defer { folder.remove() }
     let app = FakeApp(folder.store, behavior: .answer(.ok(.done)))
-    for page in ["Nope", "Blood Type"] {
+    for page in ["Nope", "Activity Move Mode"] {
       let outcome = folder.run(["open", page], app: app)
       #expect(outcome.status == 65 && outcome.error.contains("has no page named \(page)."))
     }
@@ -201,15 +202,17 @@ struct HealthCLIActionTests {
     #expect(
       OpenCommand.pageID(named: "HKQuantityTypeIdentifierHeartRate")
         == "type:HKQuantityTypeIdentifierHeartRate")
-    // Characteristics have no page: Health Details shows them.
-    #expect(OpenCommand.pageID(named: "Blood Type") == nil)
+    // A characteristic Health Details shows opens it (851-3026); Activity Move Mode isn't there.
+    #expect(
+      OpenCommand.pageID(named: "Blood Type") == "type:HKCharacteristicTypeIdentifierBloodType")
+    #expect(OpenCommand.pageID(named: "Activity Move Mode") == nil)
     // Every category and type with a page, as the app's `HealthPage.id` has them.
     for category in HealthCategory.allCases {
       #expect(OpenCommand.pageID(named: category.name) == "category:\(category.rawValue)")
     }
     for type in HealthCatalog.all {
-      #expect(
-        OpenCommand.pageID(named: type.id) == (type.category == nil ? nil : "type:\(type.id)"))
+      let hasPage = type.category != nil || HealthDetails.characteristicIDs.contains(type.id)
+      #expect(OpenCommand.pageID(named: type.id) == (hasPage ? "type:\(type.id)" : nil))
     }
   }
 

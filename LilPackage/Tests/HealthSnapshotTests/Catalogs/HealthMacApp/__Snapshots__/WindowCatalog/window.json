@@ -95,6 +95,13 @@
       "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.a-characteristic-found-by-search-dark.png",
+      "id" : "window.a-characteristic-found-by-search",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.a-characteristic-found-by-search-light.png",
+      "name" : "A characteristic found by search",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.search-without-results-dark.png",
       "id" : "window.search-without-results",
       "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.search-without-results-light.png",
