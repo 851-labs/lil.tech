@@ -17,13 +17,15 @@
     fileID: StaticString = #fileID, file: StaticString = #filePath, testName: String = #function,
     line: UInt = #line, column: UInt = #column
   ) {
-    _ = snapshotEnvironment
+    prepareSnapshotEnvironment()
     // The app's too, as Pixelbook sets it: Swift Charts' axis labels take the app's appearance,
     // so a dark snapshot taken after a light one could get light mode's labels.
     NSApplication.shared.appearance = NSAppearance(named: appearance)
-    let controller = NSHostingController(rootView: view)
+    let controller = NSHostingController(
+      rootView: view.environment(\.locale, Locale(identifier: "en_US")))
     controller.sizingOptions = [.preferredContentSize]
     let window = SnapshotWindow(contentViewController: controller)
+    window.isReleasedWhenClosed = false
     window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
     window.title = name
     window.appearance = NSAppearance(named: appearance)
@@ -36,12 +38,19 @@
     assertSnapshot(
       of: window.contentView!.superview!, as: .layerImage, named: "\(name)-\(suffix)",
       fileID: fileID, file: file, testName: "mac", line: line, column: column)
-    window.contentViewController = nil
+    window.close()
   }
 
-  /// What every snapshot shares, set once per process: a time zone, so times read the same on
-  /// every Mac (references are recorded in the team's), and an app to own windows, which a test
-  /// process doesn't have, as an accessory, so it never takes focus.
+  /// What every snapshot shares, set once in the target's test process (SwiftPM runs each test
+  /// target in its own): a time zone, so times read the same on every Mac (references are recorded
+  /// in the team's), and an app to own windows, which a test process doesn't have, as an
+  /// accessory, so it never takes focus. Views get a locale too, but text a view formats itself
+  /// (`formatted()`) still uses the Mac's, as in Pixelbook.
+  @MainActor
+  func prepareSnapshotEnvironment() {
+    _ = snapshotEnvironment
+  }
+
   @MainActor
   private let snapshotEnvironment: Void = {
     NSTimeZone.default = TimeZone(identifier: "America/Los_Angeles")!

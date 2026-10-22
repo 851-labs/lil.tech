@@ -223,6 +223,7 @@ let package = Package(
         "HealthDatabase",
         "HealthMacApp",
         "HealthPages",
+        "LilAuth",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
       ],

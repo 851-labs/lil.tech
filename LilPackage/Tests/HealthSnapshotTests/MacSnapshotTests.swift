@@ -5,6 +5,7 @@
   import HealthAgentAccess
   import HealthCatalog
   import HealthDatabase
+  import LilAuth
   @testable import HealthMacApp
   @testable import HealthPages
   import SnapshotTesting
@@ -14,11 +15,19 @@
   // Preview states of lil health for Mac, light and dark (851-2931). Each builds the same view as
   // the `#Preview` it names, from fixed dates. Synthetic data only.
 
+  // Serialized: a snapshot runs the main run loop, where another could start and change the
+  // app's appearance.
   @MainActor
-  @Suite
+  @Suite(.serialized)
   struct MacSnapshotTests {
-    /// The previews' synthetic database, prepared once per process, as a preview context does.
+    /// The previews' synthetic database, which the chart's page reads (its preview prepares it
+    /// too), prepared once per process, as a preview context does.
     static let database: Void = preparePreviewDatabase()
+
+    init() {
+      // Before any test builds its dates.
+      prepareSnapshotEnvironment()
+    }
 
     // MetricDetailViewPreviews.swift, "Environmental sound levels, week": a chart from fixed dates.
     @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
@@ -54,7 +63,8 @@
         let start = base.addingTimeInterval(-daysAgo * 86_400 + hour * 3600)
         return HealthNotification(
           HealthSample(
-            id: "notification-\(daysAgo)", type: HealthNotificationKind.highHeartRate.rawValue,
+            id: "notification-\(HealthNotificationKind.highHeartRate)-\(daysAgo)",
+            type: HealthNotificationKind.highHeartRate.rawValue,
             startDate: start.unixMilliseconds,
             endDate: start.addingTimeInterval(600).unixMilliseconds, categoryValue: 0,
             sourceName: "Apple Watch", sourceBundleID: "com.apple.health.preview",
@@ -99,8 +109,13 @@
       state.agentAccess = AgentAccessFeature.State(
         commandLineTool: URL(filePath: "/usr/local/bin/lil"), entries: entries, failure: nil,
         isEnabled: true, isLoading: false, logFailure: nil)
-      let view = AgentAccessSettingsView(store: Store(initialState: state) { EmptyReducer() })
-        .previewFrame(width: SettingsView.width, height: SettingsView.height)
+      let view = AgentAccessSettingsView(
+        store: Store(initialState: state) {
+          EmptyReducer<AppFeature.State, AppFeature.Action>()
+            .ifLet(\.connectedAgents.$alert, action: \.connectedAgents.alert)
+        }
+      )
+      .previewFrame(width: SettingsView.width, height: SettingsView.height)
       assertMacSnapshot(of: view, appearance: appearance, named: "agents-on-with-a-log")
     }
   }
