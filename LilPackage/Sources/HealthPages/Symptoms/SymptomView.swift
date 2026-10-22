@@ -373,7 +373,7 @@ struct SymptomContent: View {
   /// The period's entries, a row each, newest first.
   private func entries(_ entries: [SymptomEntry]) -> some View {
     Section {
-      ForEach(entries.prefix(Self.entryLimit), id: \.id) { entry in
+      ForEach(entries.prefix(Self.entryLimit)) { entry in
         HStack {
           VStack(alignment: .leading, spacing: 2) {
             Text(entry.name)
@@ -393,8 +393,6 @@ struct SymptomContent: View {
     } footer: {
       if entries.count > Self.entryLimit {
         Text("Showing the \(Self.entryLimit) most recent entries in this period.")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
       }
     }
   }

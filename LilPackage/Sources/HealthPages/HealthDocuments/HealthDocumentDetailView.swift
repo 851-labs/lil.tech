@@ -259,6 +259,7 @@ struct DocumentSectionView: View {
     } header: {
       if !section.title.isEmpty {
         Text(section.title)
+          .textSelection(.enabled)
       }
     }
   }

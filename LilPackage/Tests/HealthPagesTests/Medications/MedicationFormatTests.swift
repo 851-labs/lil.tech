@@ -117,4 +117,20 @@ struct MedicationFormatTests {
     let other = HealthMedication(id: "m", name: "Synthetic Gel", generalForm: "gel")
     #expect(quantity(dose(status: 4, logged: logged, taken: 2), other) == "2 doses")
   }
+
+  @Test
+  func daysShowWholeDaysUntilTheyHoldThePage() {
+    let logged = date(10, 14, 8)
+    let days = [3, 2, 3].enumerated().map { index, count in
+      MedicationDoseDay(
+        day: date(10, 14 - index, 0),
+        doses: Array(repeating: dose(status: 4, logged: logged), count: count))
+    }
+    #expect(MedicationFormat.days(days, upTo: 1).map(\.doses.count) == [3])
+    #expect(MedicationFormat.days(days, upTo: 3).map(\.doses.count) == [3])
+    // A day isn't cut: four doses take the second day whole.
+    #expect(MedicationFormat.days(days, upTo: 4).map(\.doses.count) == [3, 2])
+    #expect(MedicationFormat.days(days, upTo: 100).map(\.doses.count) == [3, 2, 3])
+    #expect(MedicationFormat.days([], upTo: 100).isEmpty)
+  }
 }

@@ -89,8 +89,6 @@ struct VisionPrescriptionsContent: View {
       } footer: {
         if prescriptions.count >= limit {
           Text("Showing the \(limit.formatted()) most recent prescriptions.")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
         }
       }
     }

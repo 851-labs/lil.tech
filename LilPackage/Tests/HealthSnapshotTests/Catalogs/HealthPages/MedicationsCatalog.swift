@@ -61,6 +61,10 @@
               isLimited: true)),
           limit: 59)
       },
+      // More doses than the log shows at first: Show More Doses after whole days.
+      CatalogState("Medication, more doses than a page", width: 760, minHeight: 640) {
+        detailPage(.loaded(detail(tablet, twiceDaily(tablet, days: 10))), pageSize: 5)
+      },
       CatalogState("Medication loading", width: 760, minHeight: 640) {
         detailPage(.loading(tablet))
       },
@@ -153,11 +157,11 @@
   }
 
   @MainActor
-  private func detailPage(_ state: MedicationDetailContent.State, limit: Int = 1_000)
-    -> some View
-  {
+  private func detailPage(
+    _ state: MedicationDetailContent.State, limit: Int = 1_000, pageSize: Int = 100
+  ) -> some View {
     NavigationStack {
-      MedicationDetailContent(state: state, limit: limit, now: previewNow)
+      MedicationDetailContent(state: state, limit: limit, pageSize: pageSize, now: previewNow)
     }
   }
 #endif

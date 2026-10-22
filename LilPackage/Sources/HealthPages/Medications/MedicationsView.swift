@@ -192,11 +192,25 @@ struct MedicationDetailContent: View {
   }
 
   let state: State
-  var limit = MedicationDetailRequest.limit
+  let limit: Int
+  /// How many doses the log shows at first, and how many more each Show More Doses adds. A grouped
+  /// form lays out every row, not only those on screen, so a year of doses at once would take
+  /// seconds to open (851-3004).
+  let pageSize: Int
   /// Today, which moves at midnight (`MedicationDetailView`).
   let now: Date
   /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
   @Dependency(\.calendar) private var calendar
+  /// How many doses the log shows: `pageSize`, and `pageSize` more each time Show More Doses is clicked.
+  @SwiftUI.State private var shownDoses: Int
+
+  init(state: State, limit: Int = MedicationDetailRequest.limit, pageSize: Int = 100, now: Date) {
+    self.state = state
+    self.limit = limit
+    self.pageSize = pageSize
+    self.now = now
+    _shownDoses = SwiftUI.State(initialValue: pageSize)
+  }
 
   var body: some View {
     Group {
@@ -301,7 +315,8 @@ struct MedicationDetailContent: View {
           .foregroundStyle(.secondary)
       }
     }
-    ForEach(detail.days) { day in
+    let days = MedicationFormat.days(detail.days, upTo: shownDoses)
+    ForEach(days) { day in
       Section {
         ForEach(day.doses) { dose in
           MedicationDoseRow(dose: dose, medication: detail.medication, calendar: calendar)
@@ -311,8 +326,13 @@ struct MedicationDetailContent: View {
       } footer: {
         if detail.isLimited, day.id == detail.days.last?.id {
           Text("Showing the \(limit.formatted()) most recent doses.")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
+        }
+      }
+    }
+    if days.count < detail.days.count {
+      Section {
+        Button("Show More Doses") {
+          shownDoses += pageSize
         }
       }
     }
@@ -413,6 +433,18 @@ enum MedicationFormat {
     ]
     .compactMap { $0 }
     return parts.isEmpty ? nil : parts.joined(separator: " · ")
+  }
+
+  /// The log's newest days, whole, until they hold `doses` doses (at least one day).
+  static func days(_ days: [MedicationDoseDay], upTo doses: Int) -> [MedicationDoseDay] {
+    var shown = 0
+    var count = 0
+    for day in days {
+      guard shown < doses else { break }
+      shown += day.doses.count
+      count += 1
+    }
+    return Array(days.prefix(count))
   }
 
   /// "Scheduled" or "As Needed".
