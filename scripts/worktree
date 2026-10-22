@@ -11,7 +11,8 @@
 #       A new worktree's `.build` starts as a copy (APFS clones, `cp -c`) of the last one's, kept
 #       in `~/Library/Caches/lil.tech/worktree-package`, so resolving it fetches only what changed,
 #       rather than every dependency (851-2973). It resolves holding
-#       `/tmp/lil-package-resolve.lock`, so two at once don't share that copy.
+#       `/tmp/lil-package-resolve.lock` (and, for now, its old name, `/tmp/xcode-open.lock`,
+#       taken first), so two at once don't share that copy.
 #   scripts/worktree remove <ticket-number> [--stash]
 #       Refuses while the worktree has uncommitted changes, unless `--stash` stashes them (in the
 #       main repo, with a message naming the ticket). Deletes its Xcode DerivedData and removes
@@ -220,44 +221,54 @@ delete_branch_if_done() {
 # taken first while worktrees from before 851-3061 remain, since they run their own copy of this
 # script, which takes only it. 851-3069 drops it.
 resolve_locks="/tmp/xcode-open.lock${newline}/tmp/lil-package-resolve.lock"
-# The locks held, one per line, the last taken first.
+# The locks held, each followed by a newline, the last taken first.
 held_locks=""
-
-release_held_locks() {
-  for lock in $held_locks; do
-    rmdir "$lock" 2>/dev/null || true
-  done
-  held_locks=""
-}
 
 take_resolve_lock() {
   trap release_held_locks EXIT
   trap 'exit 1' HUP INT TERM
   for lock in $resolve_locks; do
-    waited=0
-    until mkdir "$lock" 2>/dev/null; do
-      since=$(stat -f %Sm "$lock" 2>/dev/null || true)
-      if [ "$waited" -ge 1200 ]; then
-        echo "error: waited 20 minutes for $lock (held since $since). If nothing holds it," \
-          "remove it and run this again." >&2
-        exit 1
+    if [ -n "$held_locks" ]; then
+      # Every copy of this script takes the locks before this one first, so while this run holds
+      # them, no other run can hold this one: it was left by a run that ended without releasing it.
+      if ! mkdir "$lock" 2>/dev/null; then
+        echo "Removing $lock, left by a run that ended without releasing it."
+        rmdir "$lock"
+        mkdir "$lock"
       fi
-      if [ $((waited % 60)) -eq 0 ]; then
-        echo "Waiting for $lock (held since $since), which another worktree's resolution" \
-          "holds…"
-      fi
-      sleep 5
-      waited=$((waited + 5))
-    done
-    held_locks="$lock${newline}$held_locks"
+    else
+      waited=0
+      until mkdir "$lock" 2>/dev/null; do
+        since=$(stat -f %Sm "$lock" 2>/dev/null || true)
+        if [ "$waited" -ge 1200 ]; then
+          echo "error: waited 20 minutes for $lock (held since $since). If nothing holds it," \
+            "remove it and run this again." >&2
+          exit 1
+        fi
+        if [ $((waited % 60)) -eq 0 ]; then
+          echo "Waiting for $lock (held since $since), which another worktree's resolution" \
+            "holds…"
+        fi
+        sleep 5
+        waited=$((waited + 5))
+      done
+    fi
+    held_locks="$lock$newline$held_locks"
+  done
+}
+
+# Removes the locks this run holds, the last taken first. Each leaves the list before it's removed,
+# so an interrupted release never removes a lock again once another run may have taken it.
+release_held_locks() {
+  while [ -n "$held_locks" ]; do
+    lock=${held_locks%%"$newline"*}
+    held_locks=${held_locks#*"$newline"}
+    rmdir "$lock" 2>/dev/null || true
   done
 }
 
 release_resolve_lock() {
-  for lock in $held_locks; do
-    rmdir "$lock"
-  done
-  held_locks=""
+  release_held_locks
   trap - EXIT HUP INT TERM
 }
 
