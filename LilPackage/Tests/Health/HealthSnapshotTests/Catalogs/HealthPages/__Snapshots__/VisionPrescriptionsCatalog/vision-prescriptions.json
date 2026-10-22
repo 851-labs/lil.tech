@@ -1,0 +1,70 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/VisionPrescriptionsCatalog.swift",
+  "screen" : "Vision Prescriptions",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.vision-prescriptions-dark.png",
+      "id" : "vision-prescriptions.vision-prescriptions",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.vision-prescriptions-light.png",
+      "name" : "Vision prescriptions",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/VisionPrescriptionsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.vision-prescriptions-at-the-limit-dark.png",
+      "id" : "vision-prescriptions.vision-prescriptions-at-the-limit",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.vision-prescriptions-at-the-limit-light.png",
+      "name" : "Vision prescriptions, at the limit",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/VisionPrescriptionsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.no-vision-prescriptions-dark.png",
+      "id" : "vision-prescriptions.no-vision-prescriptions",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.no-vision-prescriptions-light.png",
+      "name" : "No vision prescriptions",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/VisionPrescriptionsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.vision-prescriptions-loading-dark.png",
+      "id" : "vision-prescriptions.vision-prescriptions-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.vision-prescriptions-loading-light.png",
+      "name" : "Vision prescriptions loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/VisionPrescriptionsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.vision-prescriptions-failed-dark.png",
+      "id" : "vision-prescriptions.vision-prescriptions-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.vision-prescriptions-failed-light.png",
+      "name" : "Vision prescriptions failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/VisionPrescriptionsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.glasses-with-prism-dark.png",
+      "id" : "vision-prescriptions.glasses-with-prism",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.glasses-with-prism-light.png",
+      "name" : "Glasses with prism",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/VisionPrescriptionsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.contacts-expired-dark.png",
+      "id" : "vision-prescriptions.contacts-expired",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.contacts-expired-light.png",
+      "name" : "Contacts, expired",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/VisionPrescriptionsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.one-eye-only-dark.png",
+      "id" : "vision-prescriptions.one-eye-only",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.one-eye-only-light.png",
+      "name" : "One eye only",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/VisionPrescriptionsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.prescription-no-longer-shared-dark.png",
+      "id" : "vision-prescriptions.prescription-no-longer-shared",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/VisionPrescriptionsCatalog/vision-prescriptions.prescription-no-longer-shared-light.png",
+      "name" : "Prescription no longer shared",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/VisionPrescriptionsCatalog.swift"
+    }
+  ]
+}

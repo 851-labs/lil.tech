@@ -1,6 +1,6 @@
 import { Schema } from "effect";
-// Generated from the Swift catalog (LilPackage/Sources/HealthCatalog), its source of truth, by
-// scripts/generate-health-catalog, which scripts/format runs (851-2857).
+// Generated from the Swift catalog (LilPackage/Sources/Health/HealthCatalog), its source of truth,
+// by scripts/generate-health-catalog, which scripts/format runs (851-2857).
 import catalogJson from "../../health-catalog.json" with { type: "json" };
 
 // The Health catalog, as the Mac has it: every type lil health syncs, with the name Health shows,

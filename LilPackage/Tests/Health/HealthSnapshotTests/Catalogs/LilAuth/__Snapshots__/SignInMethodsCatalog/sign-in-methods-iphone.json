@@ -1,0 +1,63 @@
+{
+  "app" : "health-iphone",
+  "catalog" : "LilAuth/SignInMethodsCatalog.swift",
+  "screen" : "Sign-In Methods (iPhone)",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.apple-linked-dark.png",
+      "id" : "sign-in-methods-iphone.apple-linked",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.apple-linked-light.png",
+      "name" : "Apple linked",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.google-linked-dark.png",
+      "id" : "sign-in-methods-iphone.google-linked",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.google-linked-light.png",
+      "name" : "Google linked",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.both-linked-dark.png",
+      "id" : "sign-in-methods-iphone.both-linked",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.both-linked-light.png",
+      "name" : "Both linked",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.linking-google-dark.png",
+      "id" : "sign-in-methods-iphone.linking-google",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.linking-google-light.png",
+      "name" : "Linking Google",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.google-in-use-dark.png",
+      "id" : "sign-in-methods-iphone.google-in-use",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.google-in-use-light.png",
+      "name" : "Google in use",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.unlinking-dark.png",
+      "id" : "sign-in-methods-iphone.unlinking",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.unlinking-light.png",
+      "name" : "Unlinking",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.loading-dark.png",
+      "id" : "sign-in-methods-iphone.loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.loading-light.png",
+      "name" : "Loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.couldn-t-load-dark.png",
+      "id" : "sign-in-methods-iphone.couldn-t-load",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-iphone.couldn-t-load-light.png",
+      "name" : "Couldn't load",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    }
+  ]
+}

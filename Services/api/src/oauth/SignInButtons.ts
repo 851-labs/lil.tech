@@ -81,8 +81,8 @@ export const googleLogoPng =
   "QVQDANpctRVuQltRAAAAAElFTkSuQmCC";
 
 /**
- * Google Sans Medium (SIL Open Font License, `LilPackage/Sources/LilAuth/Resources`), cut down to
- * the letters of "Sign in with Google" as WOFF2:
+ * Google Sans Medium (SIL Open Font License, `LilPackage/Sources/Lil/LilAuth/Resources`), cut down
+ * to the letters of "Sign in with Google" as WOFF2:
  * `pyftsubset GoogleSans-Medium.ttf --text="Sign in with Google" --flavor=woff2
  * --layout-features=kern,liga`. A new label needs its letters added.
  */

@@ -1,4 +1,5 @@
-# Config for generating LilPackage/Sources/LilAPIGenerated/Generated from Services/api/openapi.json.
+# Config for generating LilPackage/Sources/Lil/LilAPIGenerated/Generated from
+# Services/api/openapi.json.
 # Run scripts/generate-api-client to regenerate.
 generate:
   - types

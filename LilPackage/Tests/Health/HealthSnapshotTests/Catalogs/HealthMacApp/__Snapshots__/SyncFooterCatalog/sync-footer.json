@@ -1,0 +1,91 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthMacApp/SyncFooterCatalog.swift",
+  "screen" : "Sync Footer",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.syncing-dark.png",
+      "id" : "sync-footer.syncing",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.syncing-light.png",
+      "name" : "Syncing",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.syncing-one-change-left-dark.png",
+      "id" : "sync-footer.syncing-one-change-left",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.syncing-one-change-left-light.png",
+      "name" : "Syncing, one change left",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.catching-up-many-changes-dark.png",
+      "id" : "sync-footer.catching-up-many-changes",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.catching-up-many-changes-light.png",
+      "name" : "Catching up, many changes",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.downloading-starting-dark.png",
+      "id" : "sync-footer.downloading-starting",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.downloading-starting-light.png",
+      "name" : "Downloading, starting",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.downloading-dark.png",
+      "id" : "sync-footer.downloading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.downloading-light.png",
+      "name" : "Downloading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.downloading-very-large-dark.png",
+      "id" : "sync-footer.downloading-very-large",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.downloading-very-large-light.png",
+      "name" : "Downloading, very large",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.downloaded-saving-starts-dark.png",
+      "id" : "sync-footer.downloaded-saving-starts",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.downloaded-saving-starts-light.png",
+      "name" : "Downloaded, saving starts",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.saving-dark.png",
+      "id" : "sync-footer.saving",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.saving-light.png",
+      "name" : "Saving",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.saving-one-left-dark.png",
+      "id" : "sync-footer.saving-one-left",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.saving-one-left-light.png",
+      "name" : "Saving, one left",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.finishing-up-dark.png",
+      "id" : "sync-footer.finishing-up",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.finishing-up-light.png",
+      "name" : "Finishing up",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.offline-dark.png",
+      "id" : "sync-footer.offline",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.offline-light.png",
+      "name" : "Offline",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.failed-dark.png",
+      "id" : "sync-footer.failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.failed-light.png",
+      "name" : "Failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    }
+  ]
+}

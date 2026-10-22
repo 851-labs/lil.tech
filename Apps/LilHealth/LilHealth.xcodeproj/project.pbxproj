@@ -70,13 +70,13 @@
 		1C0000000000000000000005 /* lil */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			name = lil;
-			path = ../../LilPackage/Sources/lil;
+			path = ../../LilPackage/Sources/Lil/lil;
 			sourceTree = "<group>";
 		};
 		1D0000000000000000000005 /* lil-health */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			name = "lil-health";
-			path = "../../LilPackage/Sources/lil-health";
+			path = "../../LilPackage/Sources/Health/lil-health";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */

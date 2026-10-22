@@ -13,7 +13,7 @@ const tools = `${JSON.stringify(makeMcpTools(), null, 2)}\n`;
  * `HealthMCPServerTests` checks it matches mcp-tools.json.
  */
 const swiftPath = new URL(
-  "../../../LilPackage/Sources/HealthCLI/MCPToolsJSON.swift",
+  "../../../LilPackage/Sources/Health/HealthCLI/MCPToolsJSON.swift",
   import.meta.url,
 );
 const swiftSource = (json: string) => {
@@ -45,7 +45,7 @@ if (process.argv.includes("--check")) {
   let stale = false;
   for (const [file, contents, name] of [
     [path, tools, "Services/api/mcp-tools.json"],
-    [swiftPath, swift, "LilPackage/Sources/HealthCLI/MCPToolsJSON.swift"],
+    [swiftPath, swift, "LilPackage/Sources/Health/HealthCLI/MCPToolsJSON.swift"],
   ] as const) {
     if (!isCurrent(file, contents)) {
       console.error(`${name} is out of date. Run scripts/format to regenerate it.`);

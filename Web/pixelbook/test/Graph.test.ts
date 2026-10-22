@@ -55,7 +55,7 @@ describe("graph files", () => {
   });
 
   describe("catalog manifests", () => {
-    const folder = "LilPackage/Tests/Mac/Catalogs/LilAuth";
+    const folder = "LilPackage/Tests/Health/Mac/Catalogs/LilAuth";
     const manifest = (app: string, screen: string, names: ReadonlyArray<string>) => ({
       app,
       screen,

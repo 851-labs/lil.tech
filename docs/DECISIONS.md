@@ -32,6 +32,7 @@ Every architecture and product decision made so far. This file holds the decisio
 ## Swift package
 
 - **One package,** `LilPackage`, for every app (decided again in 851-2791). Modules already keep apps apart (a module imports only the targets it declares), SwiftPM and Xcode build per module, and one `Package.resolved` keeps every app on the same versions, which the snapshot tests' images and macro trust rely on. Revisit once lil mail, calendar or browser land, if indexing or resolving slows down, or an app needs its own versions; product folders inside the package would come first.
+- **Product folders** (851-3065): modules sit in a folder per product, `Sources/Health/…`, `Sources/Messages/…` and `Sources/Lil/…` (the shared `Lil<Thing>` modules and `lil`), and their tests likewise under `Tests/` (`LilTestSupport` and `lil-example` in `Tests/Lil`), each target's `path:` set in `Package.swift`, rather than 26 modules and 27 test targets side by side. The folder is the module name's product (`<Product><Thing>`, below), so module names, and imports, didn't change. A new product (lil mail) gets a folder of its own.
 - **Module names** (851-2791) say whose a module is:
   - `Lil<Thing>`: shared by apps (`LilAPI`, `LilAuth`, `LilSync`, `LilUpdates`). Code moves into one once a second app needs it, not before.
   - `<Product><Thing>`: one product's, where the product is the app's name without "lil" (`HealthDatabase`, `HealthUI`, `HealthUpload`, `MessagesDatabase`).

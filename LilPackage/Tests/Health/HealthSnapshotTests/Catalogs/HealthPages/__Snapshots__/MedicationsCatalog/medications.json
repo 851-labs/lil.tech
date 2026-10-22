@@ -1,0 +1,112 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/MedicationsCatalog.swift",
+  "screen" : "Medications",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medications-dark.png",
+      "id" : "medications.medications",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medications-light.png",
+      "name" : "Medications",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medications-archived-only-dark.png",
+      "id" : "medications.medications-archived-only",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medications-archived-only-light.png",
+      "name" : "Medications, archived only",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medications-long-names-dark.png",
+      "id" : "medications.medications-long-names",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medications-long-names-light.png",
+      "name" : "Medications, long names",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.no-medications-dark.png",
+      "id" : "medications.no-medications",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.no-medications-light.png",
+      "name" : "No medications",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medications-loading-dark.png",
+      "id" : "medications.medications-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medications-loading-light.png",
+      "name" : "Medications loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medications-failed-dark.png",
+      "id" : "medications.medications-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medications-failed-light.png",
+      "name" : "Medications failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.scheduled-medication-dark.png",
+      "id" : "medications.scheduled-medication",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.scheduled-medication-light.png",
+      "name" : "Scheduled medication",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.as-needed-medication-dark.png",
+      "id" : "medications.as-needed-medication",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.as-needed-medication-light.png",
+      "name" : "As-needed medication",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-with-no-doses-dark.png",
+      "id" : "medications.medication-with-no-doses",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-with-no-doses-light.png",
+      "name" : "Medication with no doses",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.archived-medication-dark.png",
+      "id" : "medications.archived-medication",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.archived-medication-light.png",
+      "name" : "Archived medication",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-many-doses-and-a-long-name-dark.png",
+      "id" : "medications.medication-many-doses-and-a-long-name",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-many-doses-and-a-long-name-light.png",
+      "name" : "Medication, many doses and a long name",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-more-doses-than-a-page-dark.png",
+      "id" : "medications.medication-more-doses-than-a-page",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-more-doses-than-a-page-light.png",
+      "name" : "Medication, more doses than a page",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-loading-dark.png",
+      "id" : "medications.medication-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-loading-light.png",
+      "name" : "Medication loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-no-longer-shared-dark.png",
+      "id" : "medications.medication-no-longer-shared",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-no-longer-shared-light.png",
+      "name" : "Medication no longer shared",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-failed-dark.png",
+      "id" : "medications.medication-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-failed-light.png",
+      "name" : "Medication failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    }
+  ]
+}

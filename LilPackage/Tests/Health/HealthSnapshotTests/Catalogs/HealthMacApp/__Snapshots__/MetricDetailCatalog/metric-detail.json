@@ -1,0 +1,133 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthMacApp/MetricDetailCatalog.swift",
+  "screen" : "Metric Detail",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-week-dark.png",
+      "id" : "metric-detail.steps-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-week-light.png",
+      "name" : "Steps, week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-the-week-before-dark.png",
+      "id" : "metric-detail.steps-the-week-before",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-the-week-before-light.png",
+      "name" : "Steps, the week before",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-day-dark.png",
+      "id" : "metric-detail.steps-day",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-day-light.png",
+      "name" : "Steps, day",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-month-dark.png",
+      "id" : "metric-detail.heart-rate-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-month-light.png",
+      "name" : "Heart rate, month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-day-dark.png",
+      "id" : "metric-detail.heart-rate-day",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-day-light.png",
+      "name" : "Heart rate, day",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-6-months-dark.png",
+      "id" : "metric-detail.steps-6-months",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-6-months-light.png",
+      "name" : "Steps, 6 months",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-year-dark.png",
+      "id" : "metric-detail.heart-rate-year",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-year-light.png",
+      "name" : "Heart rate, year",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.a-characteristic-dark.png",
+      "id" : "metric-detail.a-characteristic",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.a-characteristic-light.png",
+      "name" : "A characteristic",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.no-data-dark.png",
+      "id" : "metric-detail.no-data",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.no-data-light.png",
+      "name" : "No data",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.loading-dark.png",
+      "id" : "metric-detail.loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.loading-light.png",
+      "name" : "Loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.failed-dark.png",
+      "id" : "metric-detail.failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.failed-light.png",
+      "name" : "Failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-with-resting-and-walking-dark.png",
+      "id" : "metric-detail.heart-rate-with-resting-and-walking",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-with-resting-and-walking-light.png",
+      "name" : "Heart rate with resting and walking",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.environmental-sound-levels-week-dark.png",
+      "id" : "metric-detail.environmental-sound-levels-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.environmental-sound-levels-week-light.png",
+      "name" : "Environmental sound levels, week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-variability-week-dark.png",
+      "id" : "metric-detail.heart-rate-variability-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-variability-week-light.png",
+      "name" : "Heart rate variability, week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.stand-hours-day-dark.png",
+      "id" : "metric-detail.stand-hours-day",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.stand-hours-day-light.png",
+      "name" : "Stand hours, day",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.mindful-minutes-week-dark.png",
+      "id" : "metric-detail.mindful-minutes-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.mindful-minutes-week-light.png",
+      "name" : "Mindful minutes, week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.handwashing-month-dark.png",
+      "id" : "metric-detail.handwashing-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.handwashing-month-light.png",
+      "name" : "Handwashing, month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.toothbrushing-year-dark.png",
+      "id" : "metric-detail.toothbrushing-year",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.toothbrushing-year-light.png",
+      "name" : "Toothbrushing, year",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    }
+  ]
+}

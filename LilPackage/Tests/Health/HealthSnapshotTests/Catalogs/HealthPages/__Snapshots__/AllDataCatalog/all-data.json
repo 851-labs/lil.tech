@@ -1,0 +1,119 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/AllDataCatalog.swift",
+  "screen" : "All Data",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-dark.png",
+      "id" : "all-data.all-data",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-light.png",
+      "name" : "All data",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-a-long-day-dark.png",
+      "id" : "all-data.all-data-a-long-day",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-a-long-day-light.png",
+      "name" : "All data, a long day",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-handwashing-dark.png",
+      "id" : "all-data.all-data-handwashing",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-handwashing-light.png",
+      "name" : "All data, handwashing",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-symptoms-dark.png",
+      "id" : "all-data.all-data-symptoms",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-symptoms-light.png",
+      "name" : "All data, symptoms",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-raw-steps-dark.png",
+      "id" : "all-data.all-data-raw-steps",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-raw-steps-light.png",
+      "name" : "All data, raw steps",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-empty-dark.png",
+      "id" : "all-data.all-data-empty",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-empty-light.png",
+      "name" : "All data, empty",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-loading-dark.png",
+      "id" : "all-data.all-data-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-loading-light.png",
+      "name" : "All data, loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-failed-dark.png",
+      "id" : "all-data.all-data-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-failed-light.png",
+      "name" : "All data, failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sample-dark.png",
+      "id" : "all-data.sample",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sample-light.png",
+      "name" : "Sample",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sample-without-device-dark.png",
+      "id" : "all-data.sample-without-device",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sample-without-device-light.png",
+      "name" : "Sample without device",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sources-dark.png",
+      "id" : "all-data.sources",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sources-light.png",
+      "name" : "Sources",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.several-sources-dark.png",
+      "id" : "all-data.several-sources",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.several-sources-light.png",
+      "name" : "Several sources",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sources-empty-dark.png",
+      "id" : "all-data.sources-empty",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sources-empty-light.png",
+      "name" : "Sources, empty",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sources-loading-dark.png",
+      "id" : "all-data.sources-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sources-loading-light.png",
+      "name" : "Sources, loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sources-failed-dark.png",
+      "id" : "all-data.sources-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sources-failed-light.png",
+      "name" : "Sources, failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-more-failed-dark.png",
+      "id" : "all-data.all-data-more-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.all-data-more-failed-light.png",
+      "name" : "All data, more failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    }
+  ]
+}

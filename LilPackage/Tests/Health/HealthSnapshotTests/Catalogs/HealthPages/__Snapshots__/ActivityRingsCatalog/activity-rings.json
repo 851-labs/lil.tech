@@ -1,0 +1,63 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/ActivityRingsCatalog.swift",
+  "screen" : "Activity Rings",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-dark.png",
+      "id" : "activity-rings.activity-rings",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-light.png",
+      "name" : "Activity Rings",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.goal-passed-twice-dark.png",
+      "id" : "activity-rings.goal-passed-twice",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.goal-passed-twice-light.png",
+      "name" : "Goal passed twice",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.paused-dark.png",
+      "id" : "activity-rings.paused",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.paused-light.png",
+      "name" : "Paused",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.without-a-watch-dark.png",
+      "id" : "activity-rings.without-a-watch",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.without-a-watch-light.png",
+      "name" : "Without a Watch",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.move-in-minutes-dark.png",
+      "id" : "activity-rings.move-in-minutes",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.move-in-minutes-light.png",
+      "name" : "Move in minutes",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.no-rings-this-month-dark.png",
+      "id" : "activity-rings.no-rings-this-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.no-rings-this-month-light.png",
+      "name" : "No rings this month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-loading-dark.png",
+      "id" : "activity-rings.activity-rings-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-loading-light.png",
+      "name" : "Activity Rings loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-failed-dark.png",
+      "id" : "activity-rings.activity-rings-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-failed-light.png",
+      "name" : "Activity Rings failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
+    }
+  ]
+}

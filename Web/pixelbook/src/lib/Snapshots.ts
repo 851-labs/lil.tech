@@ -162,7 +162,10 @@ export const commitUrl = (commit: string) => `${repositoryUrl}/commit/${commit}`
 export const compareUrl = (base: string, head: string) =>
   `${repositoryUrl}/compare/${base}...${head}`;
 
-/** A state's or preview's file in the repository. */
+/**
+ * A state's or preview's file in the repository. Previews' manifests (851-2790) had no path, and
+ * named a module from before the product folders (851-3065), at `LilPackage/Sources/<Module>`.
+ */
 export const sourcePath = (snapshot: Snapshot) =>
   snapshot.path ?? `LilPackage/Sources/${snapshot.module}/${snapshot.file}`;
 

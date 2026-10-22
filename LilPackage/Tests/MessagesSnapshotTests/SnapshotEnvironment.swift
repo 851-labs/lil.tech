@@ -1,1 +1,0 @@
-../HealthSnapshotTests/SnapshotEnvironment.swift

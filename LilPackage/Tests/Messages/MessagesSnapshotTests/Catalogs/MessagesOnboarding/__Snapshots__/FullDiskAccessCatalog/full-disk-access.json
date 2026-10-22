@@ -1,0 +1,21 @@
+{
+  "app" : "messages-mac",
+  "catalog" : "MessagesOnboarding/FullDiskAccessCatalog.swift",
+  "screen" : "Full Disk Access",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesOnboarding/__Snapshots__/FullDiskAccessCatalog/full-disk-access.default-dark.png",
+      "id" : "full-disk-access.default",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesOnboarding/__Snapshots__/FullDiskAccessCatalog/full-disk-access.default-light.png",
+      "name" : "Default",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesOnboarding/FullDiskAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesOnboarding/__Snapshots__/FullDiskAccessCatalog/full-disk-access.checking-dark.png",
+      "id" : "full-disk-access.checking",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesOnboarding/__Snapshots__/FullDiskAccessCatalog/full-disk-access.checking-light.png",
+      "name" : "Checking",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesOnboarding/FullDiskAccessCatalog.swift"
+    }
+  ]
+}

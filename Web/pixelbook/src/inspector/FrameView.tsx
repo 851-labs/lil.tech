@@ -101,7 +101,10 @@ export function FrameView({
           </Detail>
           <Detail name="Source">
             <ExternalLink href={sourceUrl(snapshot, commit)}>
-              {sourcePath(snapshot).replace(/^LilPackage\/(Sources|Tests)\//, "")}
+              {sourcePath(snapshot).replace(
+                /^LilPackage\/(Sources|Tests)\/((Health|Messages|Lil)\/)?/,
+                "",
+              )}
               {snapshot.line === null ? "" : `:${snapshot.line}`}
             </ExternalLink>
           </Detail>

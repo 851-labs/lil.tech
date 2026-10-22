@@ -1,0 +1,98 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/CycleTrackingCatalog.swift",
+  "screen" : "Cycle Tracking",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.cycle-tracking-dark.png",
+      "id" : "cycle-tracking.cycle-tracking",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.cycle-tracking-light.png",
+      "name" : "Cycle Tracking",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.with-factors-dark.png",
+      "id" : "cycle-tracking.with-factors",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.with-factors-light.png",
+      "name" : "With factors",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.with-past-factors-dark.png",
+      "id" : "cycle-tracking.with-past-factors",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.with-past-factors-light.png",
+      "name" : "With past factors",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.past-factors-at-the-limit-dark.png",
+      "id" : "cycle-tracking.past-factors-at-the-limit",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.past-factors-at-the-limit-light.png",
+      "name" : "Past factors at the limit",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.menopause-stage-dark.png",
+      "id" : "cycle-tracking.menopause-stage",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.menopause-stage-light.png",
+      "name" : "Menopause stage",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.with-cycle-deviations-dark.png",
+      "id" : "cycle-tracking.with-cycle-deviations",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.with-cycle-deviations-light.png",
+      "name" : "With cycle deviations",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.only-cycle-deviations-dark.png",
+      "id" : "cycle-tracking.only-cycle-deviations",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.only-cycle-deviations-light.png",
+      "name" : "Only cycle deviations",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.cycle-deviations-at-the-limit-dark.png",
+      "id" : "cycle-tracking.cycle-deviations-at-the-limit",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.cycle-deviations-at-the-limit-light.png",
+      "name" : "Cycle deviations at the limit",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.a-day-with-tests-dark.png",
+      "id" : "cycle-tracking.a-day-with-tests",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.a-day-with-tests-light.png",
+      "name" : "A day with tests",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.a-month-without-logs-dark.png",
+      "id" : "cycle-tracking.a-month-without-logs",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.a-month-without-logs-light.png",
+      "name" : "A month without logs",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.no-cycle-data-dark.png",
+      "id" : "cycle-tracking.no-cycle-data",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.no-cycle-data-light.png",
+      "name" : "No cycle data",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.cycle-tracking-loading-dark.png",
+      "id" : "cycle-tracking.cycle-tracking-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.cycle-tracking-loading-light.png",
+      "name" : "Cycle Tracking loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.cycle-tracking-failed-dark.png",
+      "id" : "cycle-tracking.cycle-tracking-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.cycle-tracking-failed-light.png",
+      "name" : "Cycle Tracking failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    }
+  ]
+}

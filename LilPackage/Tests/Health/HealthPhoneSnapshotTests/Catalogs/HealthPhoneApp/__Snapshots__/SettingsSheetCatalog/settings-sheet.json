@@ -1,0 +1,119 @@
+{
+  "app" : "health-iphone",
+  "catalog" : "HealthPhoneApp/SettingsSheetCatalog.swift",
+  "screen" : "Settings Sheet",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.settings-dark.png",
+      "id" : "settings-sheet.settings",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.settings-light.png",
+      "name" : "Settings",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.without-consent-dark.png",
+      "id" : "settings-sheet.without-consent",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.without-consent-light.png",
+      "name" : "Without consent",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.loading-sign-in-methods-dark.png",
+      "id" : "settings-sheet.loading-sign-in-methods",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.loading-sign-in-methods-light.png",
+      "name" : "Loading sign-in methods",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.sign-in-methods-failed-dark.png",
+      "id" : "settings-sheet.sign-in-methods-failed",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.sign-in-methods-failed-light.png",
+      "name" : "Sign-in methods failed",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.withdraw-consent-dark.png",
+      "id" : "settings-sheet.withdraw-consent",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.withdraw-consent-light.png",
+      "name" : "Withdraw consent?",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.withdrawing-consent-dark.png",
+      "id" : "settings-sheet.withdrawing-consent",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.withdrawing-consent-light.png",
+      "name" : "Withdrawing consent",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.consent-withdrawn-dark.png",
+      "id" : "settings-sheet.consent-withdrawn",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.consent-withdrawn-light.png",
+      "name" : "Consent withdrawn",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.withdrawal-failed-dark.png",
+      "id" : "settings-sheet.withdrawal-failed",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.withdrawal-failed-light.png",
+      "name" : "Withdrawal failed",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.upload-everything-again-dark.png",
+      "id" : "settings-sheet.upload-everything-again",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.upload-everything-again-light.png",
+      "name" : "Upload everything again?",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.uploading-everything-again-dark.png",
+      "id" : "settings-sheet.uploading-everything-again",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.uploading-everything-again-light.png",
+      "name" : "Uploading everything again",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.upload-everything-again-failed-dark.png",
+      "id" : "settings-sheet.upload-everything-again-failed",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.upload-everything-again-failed-light.png",
+      "name" : "Upload everything again failed",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.choosing-medications-dark.png",
+      "id" : "settings-sheet.choosing-medications",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.choosing-medications-light.png",
+      "name" : "Choosing medications",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.choosing-failed-dark.png",
+      "id" : "settings-sheet.choosing-failed",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.choosing-failed-light.png",
+      "name" : "Choosing failed",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.delete-account-dark.png",
+      "id" : "settings-sheet.delete-account",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.delete-account-light.png",
+      "name" : "Delete account?",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.deleting-account-dark.png",
+      "id" : "settings-sheet.deleting-account",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.deleting-account-light.png",
+      "name" : "Deleting account",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.deleting-failed-dark.png",
+      "id" : "settings-sheet.deleting-failed",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SettingsSheetCatalog/settings-sheet.deleting-failed-light.png",
+      "name" : "Deleting failed",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SettingsSheetCatalog.swift"
+    }
+  ]
+}

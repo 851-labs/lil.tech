@@ -74,19 +74,27 @@ const parseManifest = (json: unknown): CatalogManifest | undefined => {
 };
 
 /**
- * Every catalog manifest (`<Target>/Catalogs/<Module>/__Snapshots__/<File>/<screen>.json`,
- * 851-2955) and catalog file in LilPackage's test targets, by their paths from the repository's
- * root.
+ * Every catalog manifest
+ * (`<Product>/<Target>/Catalogs/<Module>/__Snapshots__/<File>/<screen>.json`, 851-2955) and
+ * catalog file in LilPackage's test targets, by their paths from the repository's root.
  */
 const readCatalogs = async (repository: string) => {
   const manifests: { readonly path: string; readonly manifest: CatalogManifest }[] = [];
   const files: string[] = [];
   const tests = join(repository, "LilPackage/Tests");
-  for (const target of await readdir(tests, { withFileTypes: true })) {
-    const folder = join(tests, target.name, "Catalogs");
-    if (!target.isDirectory() || !existsSync(folder)) continue;
+  // Test targets are grouped by product, `LilPackage/Tests/<Product>/<Target>` (851-3065).
+  const targets: string[] = [];
+  for (const product of await readdir(tests, { withFileTypes: true })) {
+    if (!product.isDirectory()) continue;
+    for (const target of await readdir(join(tests, product.name), { withFileTypes: true })) {
+      if (target.isDirectory()) targets.push(`${product.name}/${target.name}`);
+    }
+  }
+  for (const target of targets.toSorted()) {
+    const folder = join(tests, target, "Catalogs");
+    if (!existsSync(folder)) continue;
     for (const file of (await readdir(folder, { recursive: true })).toSorted()) {
-      const path = `LilPackage/Tests/${target.name}/Catalogs/${file}`;
+      const path = `LilPackage/Tests/${target}/Catalogs/${file}`;
       if (/(^|\/)__Snapshots__\/[^/]+\/[^/]+\.json$/.test(file)) {
         const manifest = parseManifest(JSON.parse(await readFile(join(repository, path), "utf8")));
         if (manifest === undefined) throw new Error(`${path} isn't a catalog manifest.`);

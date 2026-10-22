@@ -40,8 +40,8 @@ files=$(find . -name '*.swift' \
   -not -path '*/DerivedData/*' \
   -not -path '*/.swiftpm/*' \
   -not -path '*/node_modules/*' \
-  -not -path './LilPackage/Sources/LilAPIGenerated/*' \
-  -not -path './LilPackage/Sources/HealthCLI/MCPToolsJSON.swift')
+  -not -path './LilPackage/Sources/Lil/LilAPIGenerated/*' \
+  -not -path './LilPackage/Sources/Health/HealthCLI/MCPToolsJSON.swift')
 
 status=0
 

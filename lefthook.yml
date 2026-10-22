@@ -12,8 +12,8 @@ pre-commit:
     - name: pixelbook
       run: scripts/check --hook --pixelbook
       glob:
-        - "LilPackage/Tests/*/Catalogs/**/*.swift"
-        - "LilPackage/Tests/*/Catalogs/**/*.json"
+        - "LilPackage/Tests/*/*/Catalogs/**/*.swift"
+        - "LilPackage/Tests/*/*/Catalogs/**/*.json"
         - "Web/pixelbook/graphs/**"
         - "Web/pixelbook/src/lib/Graph.ts"
         - "Web/pixelbook/scripts/graphs.ts"
@@ -38,5 +38,5 @@ pre-commit:
         - "scripts/format"
         - "scripts/check"
         - "scripts/generate-api-client"
-        - "LilPackage/Sources/LilAPIGenerated/**"
+        - "LilPackage/Sources/Lil/LilAPIGenerated/**"
         - "lefthook.yml"
