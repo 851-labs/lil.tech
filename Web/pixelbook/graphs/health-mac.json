@@ -29,7 +29,7 @@
     },
     {
       "id": "settings",
-      "screen": "HealthMacApp/SettingsViewPreviews.swift",
+      "screen": "HealthMacApp/SettingsCatalog.swift",
       "title": "Settings"
     },
     {

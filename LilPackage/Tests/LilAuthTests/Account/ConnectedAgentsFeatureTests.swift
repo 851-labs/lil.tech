@@ -343,9 +343,13 @@ struct ConnectedAgentsFeatureTests {
   @Test
   func describesAgentsAndReads() {
     #expect(unnamed.isUnused)
-    #expect(unnamed.lastUsedDescription == "Not used yet")
+    #expect(unnamed.lastUsedDescription(now: .now) == "Not used yet")
     #expect(!claude.isUnused)
-    #expect(claude.lastUsedDescription.hasPrefix("Last used "))
+    #expect(claude.lastUsedDescription(now: .now).hasPrefix("Last used "))
+    // Relative to the `now` it's given, not the clock's.
+    #expect(
+      claude.lastUsedDescription(now: claude.lastUsedAt.addingTimeInterval(2 * 3600))
+        != claude.lastUsedDescription(now: claude.lastUsedAt.addingTimeInterval(3 * 86_400)))
     // One that read only in its first minute, before the server's 5-minute throttle on
     // `lastUsedAt` would have recorded it (851-2872).
     let connectedAt = Date.now.addingTimeInterval(-90)
@@ -354,7 +358,7 @@ struct ConnectedAgentsFeatureTests {
       connectedAt: connectedAt, firstUsedAt: connectedAt.addingTimeInterval(30),
       lastUsedAt: connectedAt.addingTimeInterval(30))
     #expect(!readAtOnce.isUnused)
-    #expect(readAtOnce.lastUsedDescription.hasPrefix("Last used "))
+    #expect(readAtOnce.lastUsedDescription(now: .now).hasPrefix("Last used "))
     // Even in the millisecond it connected.
     var sameMoment = readAtOnce
     sameMoment.firstUsedAt = connectedAt

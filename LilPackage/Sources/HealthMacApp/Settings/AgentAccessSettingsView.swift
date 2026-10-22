@@ -344,6 +344,8 @@ struct ConnectedAgentRow: View {
   let revoke: () -> Void
 
   private static let date = Date.FormatStyle.dateTime.month(.abbreviated).day().year()
+  /// From dependencies, so snapshot catalogs fix it (`previewNow`).
+  @Dependency(\.date.now) private var now
 
   var body: some View {
     HStack(alignment: .firstTextBaseline) {
@@ -366,9 +368,11 @@ struct ConnectedAgentRow: View {
         Text(agent.domain ?? "No verified website")
           .font(.caption)
           .foregroundStyle(.secondary)
-        Text("Connected \(agent.connectedAt.formatted(Self.date)) · \(agent.lastUsedDescription)")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+        Text(
+          "Connected \(agent.connectedAt.formatted(Self.date)) · \(agent.lastUsedDescription(now: now))"
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
       }
       Spacer()
       if isRevoking {

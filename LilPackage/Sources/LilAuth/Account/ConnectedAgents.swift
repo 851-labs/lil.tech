@@ -61,11 +61,11 @@ public struct ConnectedAgent: Equatable, Identifiable, Sendable {
   public var isUnused: Bool { firstUsedAt == nil }
 
   /// When it last used its access, for settings: "Not used yet" until it reads anything, then
-  /// "Last used 2 hours ago".
-  public var lastUsedDescription: String {
-    isUnused
-      ? "Not used yet"
-      : "Last used \(lastUsedAt.formatted(.relative(presentation: .named)))"
+  /// "Last used 2 hours ago" before `now`, which views read from `@Dependency(\.date.now)`, so
+  /// snapshot catalogs fix it (`previewNow`).
+  public func lastUsedDescription(now: Date) -> String {
+    let ago = Date.AnchoredRelativeFormatStyle(anchor: lastUsedAt, presentation: .named)
+    return isUnused ? "Not used yet" : "Last used \(now.formatted(ago))"
   }
 }
 

@@ -12,9 +12,9 @@ public struct SettingsView: View {
     self.store = store
   }
 
-  /// The window's size, which every pane shares.
-  static let width: CGFloat = 480
-  static let height: CGFloat = 380
+  /// The window's size, which every pane shares. Nonisolated for snapshot catalogs.
+  nonisolated static let width: CGFloat = 480
+  nonisolated static let height: CGFloat = 380
 
   public var body: some View {
     TabView {
