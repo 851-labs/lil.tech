@@ -1046,7 +1046,7 @@ struct LilSyncBootstrapTests {
     let database = try makeDatabase(bootstrapped: false)
     let engine = engine(database: database)
     let statuses = LockIsolated<[SyncStatus]>([])
-    let updates = await engine.statusUpdates()
+    let updates = await engine.statusUpdates(bufferingPolicy: .unbounded)
     let observing = Task {
       for await status in updates { statuses.withValue { $0.append(status) } }
     }
@@ -1056,7 +1056,53 @@ struct LilSyncBootstrapTests {
     running.cancel()
     await running.value
     observing.cancel()
-    #expect(statuses.value.contains(.bootstrapping(downloadedParts: 2, totalParts: 2)))
+    // Each status as it was set, so none is missed.
+    #expect(statuses.value.contains(.bootstrapping(.finishing(4))))
+  }
+
+  @Test
+  func aBootstrapCountsRecordsDownloadedThenLoadedThenFinishes() async throws {
+    // Parts of 2, 2 and 1 records (851-2946).
+    let all = (1...5).map { Note(id: "n\($0)", title: "\($0)") }
+    try server.publishSnapshot(seq: 5, notes: all)
+    let database = try makeDatabase(bootstrapped: false)
+    let engine = engine(database: database)
+    let statuses = LockIsolated<[SyncStatus]>([])
+    let updates = await engine.statusUpdates(bufferingPolicy: .unbounded)
+    let observing = Task {
+      for await status in updates { statuses.withValue { $0.append(status) } }
+    }
+    try await engine.bootstrap()
+    try await eventually { statuses.value.last == .bootstrapping(.finishing(5)) }
+    observing.cancel()
+
+    let progress = statuses.value.compactMap { status -> BootstrapProgress? in
+      if case .bootstrapping(let progress) = status { progress } else { nil }
+    }
+    // Parts download four at a time, so they're counted in the order they finish.
+    let downloads = progress.filter { $0.stage == .downloading }
+    #expect(downloads.prefix(2) == [.downloading(0, of: 0), .downloading(0, of: 5)])
+    #expect(downloads.last == .downloading(5, of: 5))
+    #expect(downloads.count == 5)
+    let counted = downloads.dropFirst()
+    #expect(zip(counted, counted.dropFirst()).allSatisfy { $0.records < $1.records })
+    // Then loaded in order, from the top, and finished.
+    #expect(
+      progress.drop { $0.stage == .downloading } == [
+        .loading(0, of: 5), .loading(2, of: 5), .loading(4, of: 5), .loading(5, of: 5),
+        .finishing(5),
+      ])
+    #expect(try storedNotes(database) == all)
+  }
+
+  @Test
+  func bootstrapProgressCountsRecordsLeft() {
+    #expect(BootstrapProgress.downloading(0, of: 0).recordsLeft == 0)
+    #expect(BootstrapProgress.downloading(25_000, of: 1_000_000).recordsLeft == 975_000)
+    #expect(BootstrapProgress.loading(1_000_000, of: 1_000_000).recordsLeft == 0)
+    // A part with more records than its manifest said.
+    #expect(BootstrapProgress.loading(1_000_001, of: 1_000_000).recordsLeft == 0)
+    #expect(BootstrapProgress.finishing(1_000_000).recordsLeft == 0)
   }
 }
 
