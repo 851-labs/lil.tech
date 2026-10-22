@@ -45,6 +45,11 @@
       diffing: .image(
         channelTolerance: phoneChannelTolerance,
         exact: .image(precision: 1, perceptualPrecision: 1, scale: 3)))
+    // On CI, only drawn (851-3071).
+    if snapshotsRenderOnly {
+      output?.render(image, as: strategy)
+      return
+    }
     let failure = withSnapshotTesting(diffTool: output?.diffTool) {
       verifySnapshot(
         of: image, as: output?.writing(strategy) ?? strategy, named: "\(name)-\(suffix)",

@@ -1,11 +1,18 @@
 name: Swift check
 
-# Lints and tests the Swift code, and builds the apps (`scripts/check --swift`), on our Mac minis
+# Lints and tests the Swift code, builds the apps, and checks Pixelbook's manifests and graphs
+# (`scripts/check --swift --pixelbook`), on our Mac minis
 # (851-2787): they keep their builds between runs, so a run takes minutes, where GitHub's macOS
 # runners took 6–11 restoring caches. Moved here from the pre-commit hook (`docs/DECISIONS.md`).
 # Called by pr.yml for pull requests and by main.yml for merges, never on its own. Merges also
 # snapshot the iPhone's state catalogs in the simulator (`iphone-snapshots`, 851-2953), which take
 # too long, and need too much of a mini, for every pull request (851-2948's decision 4).
+#
+# Snapshots are rendered but not compared, for now (`LIL_SNAPSHOT_RENDER_ONLY`, 851-3071):
+# references recorded on a laptop don't match the minis' renders pixel for pixel, since their GPUs
+# differ (851-3033). A state that crashes, hangs or reports an issue, or a stale manifest, still
+# fails. Until CI renders the references itself and visual changes are approved in Pixelbook
+# (851-3070).
 #
 # The minis are self-hosted and this repo is public. What keeps a fork's code off them is that a
 # fork's pull request runs no workflow until a maintainer approves it (the repo's policy for every
@@ -37,6 +44,8 @@ jobs:
       # pull requests', so a branch's leftovers never reach main's check. (A called workflow sees
       # its caller's event.)
       LIL_CHECK_SCRATCH: ${{ github.workspace }}/../lil.tech-check-${{ github.event_name == 'pull_request' && 'pr' || 'main' }}
+      # The Mac's snapshot tests render every state without comparing it (851-3071).
+      LIL_SNAPSHOT_RENDER_ONLY: "1"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -56,9 +65,16 @@ jobs:
             rm -rf "$LIL_CHECK_SCRATCH"
           fi
 
-      # The same checks as before every commit used to run, with warnings as errors (`CI=1`).
+      # For the Pixelbook check: `graphs.ts` needs only Node, no packages.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      # The same checks as before every commit used to run, with warnings as errors (`CI=1`), and
+      # Pixelbook's graphs and the state catalogs' manifests (`--pixelbook`), which also catches
+      # a missing reference now that nothing compares images here (851-3071).
       - name: Check
-        run: scripts/check --swift
+        run: scripts/check --swift --pixelbook
 
   # The iPhone's state catalogs (`scripts/snapshot --iphone`), in a simulator of the job's own,
   # deleted at the end. Beside `check`, on another mini when one is free. Its images, diffs and
@@ -73,6 +89,8 @@ jobs:
       # Kept between runs outside the checkout, like `check`'s builds, but apart from them.
       LIL_SNAPSHOT_DERIVED_DATA: ${{ github.workspace }}/../lil.tech-iphone-snapshots
       LIL_SNAPSHOT_SIMULATOR: lil-snapshots-ci
+      # Rendered without comparing (851-3071), as `check`'s are.
+      LIL_SNAPSHOT_RENDER_ONLY: "1"
     steps:
       - uses: actions/checkout@v7
         with:

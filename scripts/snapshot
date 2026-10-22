@@ -39,7 +39,9 @@
 # gets a `.diff.png` next to it, its pixels more than 1 apart in a color channel in red (within 1
 # matches, `snapshotChannelTolerance`; 2 on the iPhone, `phoneChannelTolerance`). It prints each
 # image's path and result (`SnapshotOutput`), with its reference's and its diff's, and exits
-# non-zero when an image differs or a test fails, except for what `--record` recorded.
+# non-zero when an image differs or a test fails, except for what `--record` recorded. With
+# `LIL_SNAPSHOT_RENDER_ONLY=1`, as on CI, images are only rendered (`rendered`), never compared
+# (851-3071).
 set -eu
 # Filters are regular expressions, not file patterns.
 set -f
@@ -94,7 +96,7 @@ print_report() {
   recorded=0
   while IFS='	' read -r result image reference diff; do
     printf '%-10s %s\n' "$result" "$image"
-    if [ "$result" != matches ]; then
+    if [ "$result" != matches ] && [ "$result" != rendered ]; then
       printf '%-10s %s\n' "" "reference: $reference"
     fi
     if [ -n "$diff" ]; then
@@ -284,6 +286,10 @@ for device in sorted(devices, key=lambda device: device["state"] != "Booted"):
   export TEST_RUNNER_LIL_SNAPSHOT_OUTPUT="$output"
   if [ -n "${LIL_SNAPSHOT_STATE:-}" ]; then
     export TEST_RUNNER_LIL_SNAPSHOT_STATE="$LIL_SNAPSHOT_STATE"
+  fi
+  # CI's: render without comparing (`snapshotsRenderOnly`, 851-3071).
+  if [ -n "${LIL_SNAPSHOT_RENDER_ONLY:-}" ]; then
+    export TEST_RUNNER_LIL_SNAPSHOT_RENDER_ONLY="$LIL_SNAPSHOT_RENDER_ONLY"
   fi
   if $record; then
     export TEST_RUNNER_SNAPSHOT_TESTING_RECORD=failed

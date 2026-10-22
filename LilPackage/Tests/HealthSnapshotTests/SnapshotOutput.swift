@@ -18,13 +18,21 @@ import Synchronization
 // HealthPhoneSnapshotTests, which builds this file too, 851-2953) share: the images
 // `scripts/snapshot` gets, their diffs, and matching within a tolerance per color channel.
 
+/// Whether snapshots are only rendered, never compared with their references:
+/// `LIL_SNAPSHOT_RENDER_ONLY=1`, which CI sets (851-3071). References recorded on a laptop don't
+/// match the minis' renders pixel for pixel, since their GPUs differ (851-3033), so until CI renders
+/// the references itself (851-3070) it only checks that every state renders without an issue, and
+/// that its catalog's manifest is up to date. `scripts/snapshot` and `swift test` compare.
+let snapshotsRenderOnly = ProcessInfo.processInfo.environment["LIL_SNAPSHOT_RENDER_ONLY"] == "1"
+
 /// Where `scripts/snapshot` wants every image this process takes, `LIL_SNAPSHOT_OUTPUT` (851-2962):
 /// `<output>/<test file>/<test>.<name>.png`, encoded as SnapshotTesting encodes references. A
 /// changed image also gets `<test>.<name>.diff.png`, its changed pixels in red over a faded copy
 /// of it. Each snapshot adds a line to `<output>/report.tsv`: its result, the image, the reference
 /// and the diff. The result is `matches`, `differs`, `recorded` (a new reference, or record mode),
-/// `rerecorded` (it differed, and record mode replaced the reference) or `failed` (anything else
-/// SnapshotTesting reported, such as a timeout). `swift test` sets none of this and writes nothing.
+/// `rerecorded` (it differed, and record mode replaced the reference), `failed` (anything else
+/// SnapshotTesting reported, such as a timeout) or `rendered` (not compared, on CI:
+/// `snapshotsRenderOnly`). `swift test` sets none of this and writes nothing.
 @MainActor
 struct SnapshotOutput {
   let image: URL
@@ -91,7 +99,6 @@ struct SnapshotOutput {
   }
 
   func report(failure: String?) {
-    let fileManager = FileManager.default
     let recorded = modificationDate(of: reference) != previousReference
     let result =
       switch (failure != nil, differed.isSet, recorded) {
@@ -101,6 +108,18 @@ struct SnapshotOutput {
       case (true, false, true): "recorded"
       case (true, false, false): "failed"
       }
+    report(result: result)
+  }
+
+  /// Writes `value`'s image, taken with `strategy`, without comparing it (`snapshotsRenderOnly`),
+  /// and reports it as `rendered`.
+  func render<Value, Format>(_ value: Value, as strategy: Snapshotting<Value, Format>) {
+    writing(strategy).snapshot(value).run { _ in }
+    report(result: "rendered")
+  }
+
+  private func report(result: String) {
+    let fileManager = FileManager.default
     let diffPath = fileManager.fileExists(atPath: diff.path) ? diff.path : ""
     let line = [result, image.path, reference.path, diffPath].joined(separator: "\t") + "\n"
     if !fileManager.fileExists(atPath: reportFile.path) {
