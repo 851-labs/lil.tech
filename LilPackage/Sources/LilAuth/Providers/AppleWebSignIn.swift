@@ -143,12 +143,4 @@ extension AppleWebSignIn: DependencyKey {
       return .failure(.canceled)
     }
   }
-
-  /// Apple's page stays "open": previews show the state without opening a browser.
-  public static var previewValue: Self {
-    Self { _ in
-      while !Task.isCancelled { try? await Task.sleep(for: .seconds(60)) }
-      return .failure(.canceled)
-    }
-  }
 }

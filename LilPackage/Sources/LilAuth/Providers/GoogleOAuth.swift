@@ -221,16 +221,4 @@ extension GoogleOAuth: DependencyKey {
       }
     )
   }
-
-  /// Google's page stays "open": previews show the state without opening a browser.
-  public static var previewValue: Self {
-    Self(
-      clientID: "preview.apps.googleusercontent.com",
-      authorize: { _ in
-        while !Task.isCancelled { try? await Task.sleep(for: .seconds(60)) }
-        return .failure(.canceled)
-      },
-      redeem: { _, _ in "" }
-    )
-  }
 }

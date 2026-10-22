@@ -40,7 +40,7 @@ public struct AppFeature {
       self.metricPath = metricPath
       self.searchText = searchText
       self.syncStatus = syncStatus
-      // As the status shows once it has lasted, for previews and snapshots: signing in starts
+      // As the status shows once it has lasted, for snapshot catalogs: signing in starts
       // hidden (`signedInChanged`).
       self.syncFooter = SyncFooterVisibility(settledFor: syncStatus)
     }

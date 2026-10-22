@@ -66,7 +66,7 @@ public struct SyncClient: Sendable {
     )
   }
 
-  /// A client that does nothing and reports `status`, for previews.
+  /// A client that does nothing and reports `status`, for tests and catalogs.
   public static func constant(_ status: SyncStatus) -> Self {
     Self(
       run: {},
@@ -98,7 +98,6 @@ extension SyncClient: DependencyKey {
       }
     )
   }
-  public static let previewValue = Self.constant(.idle)
   public static var testValue: Self {
     Self(
       run: { reportIssue("Unimplemented: @Dependency(\\.sync).run") },

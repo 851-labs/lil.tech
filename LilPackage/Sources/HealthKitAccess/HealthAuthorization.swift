@@ -93,13 +93,6 @@ extension HealthAuthorization: DependencyKey {
     )
   }
 
-  public static let previewValue = Self(
-    isAvailable: { true },
-    needsRequest: { true },
-    requestRead: {},
-    requestPerObject: { _ in }
-  )
-
   public static var testValue: Self {
     Self(
       isAvailable: {

@@ -13,7 +13,7 @@ import SwiftUI
 struct HealthDocumentDetailView: View {
   let opened: HealthDocument
   /// Read by the view's task, not in its initializer: a list's links make their destinations
-  /// as they show, so reading then would touch the database for every row, previews included.
+  /// as they show, so reading then would touch the database for every row, catalogs included.
   @Fetch private var document: HealthDocument?? = nil
   @Dependency(\.blobCache) private var blobCache
   @State private var state = HealthDocumentDetailContent.State.loading

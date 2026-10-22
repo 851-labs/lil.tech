@@ -6,7 +6,7 @@ public import SwiftUI
 
 extension Color {
   /// A page's background: the window's, as Mac apps' content is, rather than iPhone Health's
-  /// gray or black (851-2755). Each page paints it, so previews and snapshots, which have no
+  /// gray or black (851-2755). Each page paints it, so snapshots, which have no
   /// window behind them, show it too.
   public static let pageBackground = Color(nsColor: .windowBackgroundColor)
 

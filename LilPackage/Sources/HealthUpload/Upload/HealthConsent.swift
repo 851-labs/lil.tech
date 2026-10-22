@@ -80,8 +80,6 @@ extension HealthConsentClient: DependencyKey {
       })
   }
 
-  public static let previewValue = Self(isGiven: { true }, give: {}, withdraw: {})
-
   public static var testValue: Self {
     Self(
       isGiven: {

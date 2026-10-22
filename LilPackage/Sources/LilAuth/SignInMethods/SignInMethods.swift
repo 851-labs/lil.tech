@@ -184,20 +184,6 @@ extension SignInMethodsClient: DependencyKey {
     )
   }
 
-  /// An account with Apple linked, where linking Google works.
-  public static let previewValue = Self(
-    list: { () throws(SignInMethodError) in
-      [SignInMethod(id: "idt_apple", provider: .apple, email: "ada@privaterelay.appleid.com")]
-    },
-    linkApple: { _, _ throws(SignInMethodError) in
-      SignInMethod(id: "idt_apple", provider: .apple, email: "ada@privaterelay.appleid.com")
-    },
-    linkGoogle: { _, _ throws(SignInMethodError) in
-      SignInMethod(id: "idt_google", provider: .google, email: "ada@example.com")
-    },
-    unlink: { _ throws(SignInMethodError) in }
-  )
-
   public static var testValue: Self {
     Self(
       list: { () throws(SignInMethodError) in

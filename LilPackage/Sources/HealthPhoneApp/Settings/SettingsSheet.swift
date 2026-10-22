@@ -10,7 +10,7 @@ import SwiftUI
 struct SettingsSheet: View {
   @Bindable var store: StoreOf<SyncStatusFeature>
 
-  /// Whether this is the app, not a preview or a snapshot test (`SWIFT_DEPENDENCIES_CONTEXT`).
+  /// Whether this is the app, not a snapshot test.
   @Dependency(\.context) private var context
   private var isLive: Bool { context == .live }
   /// Withdrawing consent or deleting the account: the sheet waits behind a progress overlay.
@@ -77,7 +77,7 @@ struct SettingsSheet: View {
           }
         }
         #if targetEnvironment(simulator)
-          // Not in previews or snapshot tests, which also run in the simulator.
+          // Not in snapshot tests, which also run in the simulator.
           if isLive {
             SyntheticHealthSection()
           }

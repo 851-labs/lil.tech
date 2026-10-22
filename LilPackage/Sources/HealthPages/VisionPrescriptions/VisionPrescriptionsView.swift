@@ -143,7 +143,7 @@ struct VisionPrescriptionIcon: View {
 struct VisionPrescriptionDetailView: View {
   let opened: HealthVisionPrescription
   /// Read by the view's task, not in its initializer: a list's links make their destinations
-  /// as they show, so reading then would touch the database for every row, previews included.
+  /// as they show, so reading then would touch the database for every row, catalogs included.
   @Fetch private var prescription: HealthVisionPrescription?? = nil
 
   /// Opens with `prescription` while its row is read.

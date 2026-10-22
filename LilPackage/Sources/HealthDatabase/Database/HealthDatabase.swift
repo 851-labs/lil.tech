@@ -35,7 +35,7 @@ public enum HealthDatabase {
   /// Opens (or creates) the database at `url`, or SQLiteData's default location, and migrates
   /// it.
   public static func make(at url: URL? = nil) throws -> any DatabaseWriter {
-    // A temporary database in previews and tests.
+    // A temporary database in tests and snapshot catalogs.
     let database = try SQLiteData.defaultDatabase(path: url?.path(percentEncoded: false))
     try migrator.migrate(database)
     return database

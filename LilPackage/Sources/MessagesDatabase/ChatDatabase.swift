@@ -65,10 +65,6 @@ extension ChatDatabase: DependencyKey {
   public static var testValue: Self {
     .constant(try! makeInMemoryChatDatabase())
   }
-
-  public static var previewValue: Self {
-    .constant(try! makeInMemoryChatDatabase())
-  }
 }
 
 extension DependencyValues {

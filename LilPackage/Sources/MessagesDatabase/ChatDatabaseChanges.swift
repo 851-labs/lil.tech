@@ -43,10 +43,6 @@ extension ChatDatabaseChanges: DependencyKey {
     Self(
       stream: unimplemented("ChatDatabaseChanges.stream", placeholder: AsyncStream { $0.finish() }))
   }
-
-  public static var previewValue: Self {
-    Self { AsyncStream { _ in } }
-  }
 }
 
 extension DependencyValues {

@@ -234,27 +234,6 @@ extension ConnectedAgentsClient: DependencyKey {
     )
   }
 
-  /// One agent connected through the combined server, and nothing read: previews give their state
-  /// directly, and never reach the network. Synthetic.
-  public static var previewValue: Self {
-    Self(
-      list: { () throws(ConnectedAgentsError) in
-        [
-          ConnectedAgent(
-            id: "agr_preview", name: "Claude", domain: "claude.ai", app: nil, apps: ["health"],
-            connectedAt: Date(timeIntervalSince1970: 1_760_900_000),
-            firstUsedAt: Date(timeIntervalSince1970: 1_760_900_060),
-            lastUsedAt: Date(timeIntervalSince1970: 1_760_960_000))
-        ]
-      },
-      revoke: { _ throws(ConnectedAgentsError) in },
-      accessLog: { _ throws(ConnectedAgentsError) in
-        RemoteAgentAccessPage(entries: [], nextBefore: nil)
-      },
-      turnOffHealthAgents: { () throws(ConnectedAgentsError) in }
-    )
-  }
-
   public static var testValue: Self {
     Self(
       list: { () throws(ConnectedAgentsError) in

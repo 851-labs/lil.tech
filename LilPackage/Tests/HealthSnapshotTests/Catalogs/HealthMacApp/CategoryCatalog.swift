@@ -7,7 +7,7 @@
   import Testing
 
   // A Browse category (`MetricsView`), a grouped form: its metrics' rows from the catalog
-  // database at `previewNow`, then those without data. Synthetic data only. Its previews'
+  // database at `previewNow`, then those without data. Synthetic data only. The old preview
   // "Heart, dark" is "Heart"'s dark reference.
 
   extension MacSnapshotTests {
