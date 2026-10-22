@@ -10,6 +10,9 @@
   // synthetic preview `chat.db`. Never the real `chat.db` (AGENTS.md, Privacy). State catalogs
   // (`Catalogs/`) add their tests to this suite, one per screen.
 
+  /// The app Pixelbook shows these catalogs under (`CatalogManifest`, 851-2955).
+  let pixelbookApp = "messages-mac"
+
   // Serialized: a snapshot runs the main run loop, where another could start and change the
   // app's appearance. Views that read the date or the calendar get the catalogs'. Stores have no
   // reducer, so nothing reads the chat database or contacts: states get them in their state.
