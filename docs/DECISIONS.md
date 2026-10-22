@@ -30,7 +30,7 @@ Every architecture and product decision made so far. This file holds the decisio
 
 ## Swift package
 
-- **One package,** `LilPackage`, for every app (decided again in 851-2791). Modules already keep apps apart (a module imports only the targets it declares), SwiftPM and Xcode build per module, and one `Package.resolved` keeps every app on the same versions, which Pixelbook's render, the pre-push hook's key and macro trust all rely on. Revisit once lil mail, calendar or browser land, if indexing or resolving slows down, or an app needs its own versions; product folders inside the package would come first.
+- **One package,** `LilPackage`, for every app (decided again in 851-2791). Modules already keep apps apart (a module imports only the targets it declares), SwiftPM and Xcode build per module, and one `Package.resolved` keeps every app on the same versions, which the snapshot tests' images and macro trust rely on. Revisit once lil mail, calendar or browser land, if indexing or resolving slows down, or an app needs its own versions; product folders inside the package would come first.
 - **Module names** (851-2791) say whose a module is:
   - `Lil<Thing>`: shared by apps (`LilAPI`, `LilAuth`, `LilSync`, `LilUpdates`). Code moves into one once a second app needs it, not before.
   - `<Product><Thing>`: one product's, where the product is the app's name without "lil" (`HealthDatabase`, `HealthUI`, `HealthUpload`, `MessagesDatabase`).

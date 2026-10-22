@@ -7,8 +7,9 @@
 #   --services  Format, lint and type checks (`scripts/format --lint --services`, which also checks
 #               the OpenAPI spec is fresh), the generated Swift client regenerated and compared,
 #               and every workspace package's tests.
-#   --pixelbook  Pixelbook's graph files against the Swift previews they name
-#               (`Web/pixelbook/scripts/graphs.ts`), so renaming a preview can't break one.
+#   --pixelbook  Pixelbook's graph files against the state catalogs they name, and the catalogs'
+#               manifests against their sources (`Web/pixelbook/scripts/graphs.ts`), so renaming
+#               a state can't break a graph.
 #   --hook      Refuse to run while the checked paths have unstaged or untracked changes: the
 #               checks see the working tree, so it has to match what's being committed.
 # Every step runs even after one fails, so one failure doesn't hide another.
@@ -52,7 +53,7 @@ step() {
 swift_paths="LilPackage Apps Tools Lil.xcworkspace .swift-format scripts Services/api/health-catalog.json"
 # The TypeScript workspace, with its root config, plus what the generated client depends on.
 services_paths="Services Web Apps/LilHealth/LilHealth-Info.plist Apps/LilHealth/LilHealthiOS-Info.plist package.json pnpm-workspace.yaml pnpm-lock.yaml .node-version vite.config.ts tsconfig.json tsconfig.base.json Tools LilPackage/Sources/LilAPIGenerated scripts"
-pixelbook_paths="LilPackage/Sources LilPackage/Tests/*/Catalogs Web/pixelbook/graphs Web/pixelbook/src/lib/Graph.ts Web/pixelbook/scripts"
+pixelbook_paths="LilPackage/Tests/*/Catalogs Web/pixelbook/graphs Web/pixelbook/src/lib/Graph.ts Web/pixelbook/scripts"
 paths=""
 $swift && paths="$paths $swift_paths"
 $services && paths="$paths $services_paths"

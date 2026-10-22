@@ -1,35 +1,19 @@
-// Checks Pixelbook's graph files (`graphs/*.json`) against the previews and state catalogs in
-// LilPackage: every screen and state a graph names must exist in its app, so renaming one can't
-// quietly break a flowchart. Reads previews from the Swift sources, and catalogs from their
-// manifests, so it needs no render. Run by the pre-commit hook (lefthook.yml):
+// Checks Pixelbook's graph files (`graphs/*.json`) against the state catalogs in LilPackage's
+// test targets: every screen and state a graph names must exist in its app, so renaming one can't
+// quietly break a flowchart. Reads catalogs from their manifests, so it needs no render. Run by
+// the pre-commit hook (lefthook.yml):
 //   node Web/pixelbook/scripts/graphs.ts
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Graph, graphProblems, parseGraph, type Previews } from "../src/lib/Graph.ts";
+import { type CatalogStates, type Graph, graphProblems, parseGraph } from "../src/lib/Graph.ts";
 
 const root = fileURLToPath(new URL("../../..", import.meta.url));
 export const graphsDirectory = fileURLToPath(new URL("../graphs", import.meta.url));
 
-/** Swift without its comments, so a commented-out preview doesn't count. */
-const withoutComments = (source: string) =>
-  source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-
-/**
- * A Swift file's previews' names, in source order: `#Preview("Name")`, over one line or several.
- * Undefined if it has no previews; unnamed ones (`#Preview {`) count, but graphs can't name them.
- */
-export const previewNames = (source: string): ReadonlyArray<string> | undefined => {
-  const code = withoutComments(source);
-  if (!/#Preview\s*[({]/.test(code)) return undefined;
-  return [...code.matchAll(/#Preview\(\s*"((?:[^"\\]|\\.)*)"/g)].map(([, name]) =>
-    (name ?? "").replace(/\\(.)/g, "$1"),
-  );
-};
-
-/** Each graph's app's screens: preview files, and the app's state catalogs. */
-export type Screens = (app: string) => Previews;
+/** Each graph's app's screens: the app's state catalogs, or undefined if it has none. */
+export type Screens = (app: string) => CatalogStates | undefined;
 
 /** Swift's escapes in a string literal: `\"`, `\\`, `\n`, `\t`, `\r`, `\0`, `\'` and `\u{…}`. */
 const unescapeSwift = (literal: string) =>
@@ -120,7 +104,9 @@ const readCatalogs = async (repository: string) => {
  * references, which say which app each screen is in: a catalog can be built for one platform, or
  * differ on each. Keyed by `Module/File.swift`, as graphs name them, in the catalog's order.
  */
-export const scanCatalogs = async (repository = root): Promise<ReadonlyMap<string, Previews>> => {
+export const scanCatalogs = async (
+  repository = root,
+): Promise<ReadonlyMap<string, CatalogStates>> => {
   const apps = new Map<string, Map<string, ReadonlyArray<string>>>();
   for (const { manifest } of (await readCatalogs(repository)).manifests) {
     const catalogs = apps.get(manifest.app) ?? new Map<string, ReadonlyArray<string>>();
@@ -186,32 +172,10 @@ export const manifestProblems = async (repository = root): Promise<ReadonlyArray
   return problems;
 };
 
-/** Every screen a graph can name, by app: preview files and its catalogs, which can't share a name. */
+/** Every screen a graph can name, by app: its state catalogs. */
 export const scanScreens = async (): Promise<Screens> => {
-  const [previews, catalogs] = await Promise.all([scanPreviews(), scanCatalogs()]);
-  for (const appCatalogs of catalogs.values()) {
-    for (const file of appCatalogs.keys()) {
-      if (previews.has(file))
-        throw new Error(`${file} is both a preview file and a state catalog.`);
-    }
-  }
-  return (app) => new Map([...previews, ...(catalogs.get(app) ?? [])]);
-};
-
-/** Every preview file in LilPackage's modules, keyed by `Module/File.swift`, as graphs name them. */
-export const scanPreviews = async (
-  sources = join(root, "LilPackage/Sources"),
-): Promise<Previews> => {
-  const previews = new Map<string, ReadonlyArray<string>>();
-  for (const module of await readdir(sources, { withFileTypes: true })) {
-    if (!module.isDirectory()) continue;
-    const files = await readdir(join(sources, module.name), { recursive: true });
-    for (const file of files.filter((name) => name.endsWith(".swift"))) {
-      const names = previewNames(await readFile(join(sources, module.name, file), "utf8"));
-      if (names !== undefined) previews.set(`${module.name}/${basename(file)}`, names);
-    }
-  }
-  return previews;
+  const catalogs = await scanCatalogs();
+  return (app) => catalogs.get(app);
 };
 
 /** Each graph file's problems, by file name; none if all are fine. */
@@ -237,7 +201,13 @@ export const checkGraphs = async (
       problems.set(file, graph.problems);
       continue;
     }
-    const found = [...graphProblems(graph, screens(graph.app)), ...appProblems(graph, file, apps)];
+    const catalogs = screens(graph.app);
+    const found = [
+      ...(catalogs === undefined
+        ? [`No state catalog's manifest is for ${graph.app}: is the app's name right?`]
+        : graphProblems(graph, catalogs)),
+      ...appProblems(graph, file, apps),
+    ];
     if (found.length > 0) problems.set(file, found);
   }
   return problems;
@@ -273,7 +243,5 @@ if (import.meta.main) {
     );
     process.exit(1);
   }
-  console.log(
-    "Pixelbook's graphs match the previews and catalogs, whose manifests are up to date.",
-  );
+  console.log("Pixelbook's graphs match the state catalogs, whose manifests are up to date.");
 }
