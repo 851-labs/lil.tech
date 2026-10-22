@@ -1,0 +1,140 @@
+#!/bin/sh
+# Renders snapshot tests' images and compares them with their references, as fast as `swift test`
+# allows (851-2962): it builds what `swift test` builds, in the same `.build`, then runs the
+# snapshot tests' bundle directly, rather than every test bundle twice (XCTest's, then Swift
+# Testing's) as `swift test --filter` does. The images are the ones `swift test` takes.
+# Usage: scripts/snapshot [--record] [--no-build] [<filter>…]
+#   <filter>     Which tests to run, as for `swift test --filter`: a regular expression matched
+#                against a test's ID, `HealthSnapshotTests.MacSnapshotTests/notificationsList(appearance:)`,
+#                so its name (`notificationsList`) or part of it. With several, each test that
+#                matches one. Every snapshot test when none is given.
+#   --record     Record new references for the images that changed or have none
+#                (`SNAPSHOT_TESTING_RECORD=failed`).
+#   --no-build   Run what was last built.
+# Every image goes to `LilPackage/.build/snapshots/<test file>/`, whether or not it changed; one
+# that changed gets a `.diff.png` next to it, its changed pixels in red. It prints each image's
+# path and result (`assertMacSnapshot`'s `SnapshotOutput`), with its reference's and its diff's,
+# and exits non-zero when an image differs or a test fails, except for what `--record` recorded.
+set -eu
+# Filters are regular expressions, not file patterns.
+set -f
+
+record=false
+build=true
+filters=""
+for arg in "$@"; do
+  case "$arg" in
+    --record) record=true ;;
+    --no-build) build=false ;;
+    -*)
+      echo "usage: scripts/snapshot [--record] [--no-build] [<filter>…]" >&2
+      exit 2
+      ;;
+    *) filters="$filters$arg
+" ;;
+  esac
+done
+
+cd "$(dirname "$0")/../LilPackage"
+package=$PWD
+# Xcode's toolchain for the build and the tests alike, whatever `swift` is first in `PATH`.
+swift=$(xcrun --find swift)
+helper="$(dirname "$swift")/../libexec/swift/pm/swiftpm-testing-helper"
+if [ ! -x "$helper" ]; then
+  echo "error: no swiftpm-testing-helper next to $swift, which runs Swift Testing's tests." >&2
+  exit 1
+fi
+# The test target with the snapshot tests (`assertMacSnapshot`).
+target=HealthSnapshotTests
+products="$package/.build/debug"
+bundle="$products/$target.xctest/Contents/MacOS/$target"
+output="$package/.build/snapshots"
+
+now() {
+  perl -MTime::HiRes=time -e 'printf "%.1f", time'
+}
+since() {
+  perl -e "printf '%.1f', $(now) - $1"
+}
+
+start=$(now)
+if $build; then
+  log=$(mktemp)
+  # What `swift test` builds, so the two share a build: building only the snapshot tests'
+  # product (`--product`) is a different build, and switching between them rebuilds the package.
+  if ! "$swift" build --build-tests >"$log" 2>&1; then
+    # Without progress, or the compiler's command lines, which are pages long.
+    awk '/^\[/ || /^Building for / || /^ *builtin-/ || /^(error: .*)?Command line:/ { next }
+      /^Failed frontend command:/ { skip = 1; next } skip { skip = 0; next } { print }' "$log" >&2
+    rm -f "$log"
+    echo "error: the build failed." >&2
+    exit 1
+  fi
+  rm -f "$log"
+  echo "Built in $(since "$start") s."
+fi
+if [ ! -f "$bundle" ]; then
+  echo "error: $target isn't built yet. Run without --no-build." >&2
+  exit 1
+fi
+
+rm -rf "$output"
+mkdir -p "$output"
+set -- --test-bundle-path "$bundle"
+IFS='
+'
+for filter in $filters; do
+  set -- "$@" --filter "$filter"
+done
+unset IFS
+# The bundle and helper `swift test` runs for Swift Testing, with the environment it sets.
+platform="$(xcrun --show-sdk-platform-path)/Developer"
+if $record; then
+  export SNAPSHOT_TESTING_RECORD=failed
+fi
+render=$(now)
+# Through the pipe, which hides Swift Testing's progress lines. Its output is kept to count issues.
+{
+  status=0
+  DYLD_FRAMEWORK_PATH="$platform/Library/Frameworks:$platform/Library/PrivateFrameworks" \
+    DYLD_LIBRARY_PATH="$products:$platform/usr/lib" \
+    SWIFT_TESTING_XCTEST_INTEROP_MODE=complete \
+    LIL_SNAPSHOT_OUTPUT="$output" \
+    "$helper" "$@" "$bundle" --testing-library swift-testing || status=$?
+  echo "$status" >"$output/status"
+} 2>&1 | tee "$output/test.log" | grep -v '^◇\|^↳' || true
+status=$(cat "$output/status")
+rm "$output/status"
+report="$output/report.tsv"
+if [ ! -f "$report" ]; then
+  if [ "$status" = 0 ]; then
+    echo "error: no snapshot test ran. Check the filter against \`swift test list --skip-build\`." >&2
+  else
+    echo "error: the tests stopped before any snapshot (status $status)." >&2
+  fi
+  exit 1
+fi
+echo
+echo "Ran in $(since "$render") s, $(since "$start") s in all. Images:"
+recorded=0
+while IFS='	' read -r result image reference diff; do
+  printf '%-10s %s\n' "$result" "$image"
+  if [ "$result" != matches ]; then
+    printf '%-10s %s\n' "" "reference: $reference"
+  fi
+  if [ -n "$diff" ]; then
+    printf '%-10s %s\n' "" "diff: $diff"
+  fi
+  case "$result" in
+    recorded | rerecorded) recorded=$((recorded + 1)) ;;
+  esac
+done <"$report"
+# Recording is reported as an issue, which isn't a failure when asked for. Any other issue, or a
+# crash, still is: the run's issues must be exactly the recordings.
+if $record && [ "$status" = 1 ]; then
+  issues=$(sed -n 's/^✘ Test run with .* with \([0-9]*\) issues*\.$/\1/p' "$output/test.log")
+  if [ "$issues" = "$recorded" ]; then
+    status=0
+  fi
+fi
+exit "$status"
