@@ -19,11 +19,13 @@
 # Headless (the Release workflow, .github/workflows/release.yml, 851-2827): with
 # LIL_RELEASE_ASC_KEY_PATH set, nothing comes from the login keychain or Xcode's account.
 #   LIL_RELEASE_ASC_KEY_PATH, LIL_RELEASE_ASC_KEY_ID, LIL_RELEASE_ASC_ISSUER_ID
-#       An App Store Connect API key (.p8) with the Admin role: provisioning, cloud signing and
-#       uploads (-authenticationKey*), and notarization (notarytool --key).
+#       An App Store Connect API key (.p8) with the Admin role: iOS provisioning, cloud signing and
+#       uploads (-authenticationKey*), the Mac's Developer ID profile
+#       (scripts/developer-id-profile.swift), and notarization (notarytool --key).
 #   LIL_RELEASE_KEYCHAIN (Mac apps)
 #       A keychain holding the Developer ID Application identity, in the user's search list, where
-#       the export finds it. The DMG is signed from it.
+#       the export finds it. The export signs manually with it, since a team key can't use cloud-
+#       managed Developer ID certificates (851-3076). The DMG is signed from it too.
 #   LIL_RELEASE_SPARKLE_KEY_FILE (Mac apps)
 #       The app's Sparkle private key, as `generate_keys -x` exports it.
 # The archive is built unsigned and signed ad hoc with the app's entitlements, since a runner has no
@@ -72,7 +74,8 @@ case "$app" in
     info_plist=Apps/LilHealth/LilHealth-Info.plist
     destination='generic/platform=macOS'
     # Its keychain access group (the data protection Keychain holds the session) needs a
-    # Developer ID provisioning profile, which Xcode makes and renews.
+    # Developer ID provisioning profile, which Xcode makes and renews, or headless,
+    # scripts/developer-id-profile.swift fetches.
     provisioned=true
     ;;
   health-ios)
@@ -138,7 +141,8 @@ provisioning=()
 if $provisioned; then
   signing_style=automatic
   provisioning=(-allowProvisioningUpdates)
-  # Headless, the API key makes and renews profiles, and cloud-signs, in place of Xcode's account.
+  # Headless, the API key makes and renews profiles, and cloud-signs, in place of Xcode's account
+  # (iOS: the Mac exports with manual signing headless, below).
   if $headless; then
     provisioning+=(
       -authenticationKeyPath "$LIL_RELEASE_ASC_KEY_PATH"
@@ -331,6 +335,36 @@ if $ios; then
   exit 0
 fi
 
+certificate="Developer ID Application"
+dmg_identity="Developer ID Application: Alexandru Turcanu ($team)"
+profiles=
+export_provisioning=(${provisioning[@]+"${provisioning[@]}"})
+# Headless, the export can't sign automatically: it would use a cloud-managed Developer ID
+# certificate, which only the Account Holder may, not a team key (851-3076). So it signs manually,
+# with the keychain's certificate and a profile of ours for it, fetched (or made) through the API.
+# The profile goes where Xcode looks for them, which the Release workflow's cleanup empties of the
+# ones a run added (.github/actions/release-profiles).
+if $headless && $provisioned; then
+  echo "==> Fetching the Developer ID provisioning profile"
+  certificate=$( (security find-identity -v -p codesigning "$LIL_RELEASE_KEYCHAIN" || true) |
+    sed -nE "s/^ *[0-9]+\) ([0-9A-F]{40}) \"Developer ID Application: .*\($team\)\"$/\1/p")
+  if [ "$(grep -c . <<<"$certificate")" != 1 ]; then
+    echo "$LIL_RELEASE_KEYCHAIN must hold one Developer ID Application identity of $team" >&2
+    exit 1
+  fi
+  dmg_identity=$certificate
+  bundle_id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$info_path")
+  installed_profiles="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+  profile=$(xcrun swift scripts/developer-id-profile.swift "$bundle_id" "$certificate" \
+    "$installed_profiles")
+  # Its file name is the same every run, so the cleanup would take a copy a dead job left for one
+  # that was there before the run: this run's goes when the script ends, after the export.
+  trap 'rm -rf "$out/DerivedData" "$installed_profiles/$profile.provisionprofile"' EXIT
+  signing_style=manual
+  profiles="<key>provisioningProfiles</key><dict><key>$bundle_id</key><string>$profile</string></dict>"
+  export_provisioning=()
+fi
+
 echo "==> Exporting with Developer ID"
 cat > "$out/ExportOptions.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -342,9 +376,10 @@ cat > "$out/ExportOptions.plist" <<PLIST
   <key>signingStyle</key>
   <string>$signing_style</string>
   <key>signingCertificate</key>
-  <string>Developer ID Application</string>
+  <string>$certificate</string>
   <key>teamID</key>
   <string>$team</string>
+  $profiles
 </dict>
 </plist>
 PLIST
@@ -352,7 +387,7 @@ xcodebuild -exportArchive \
   -archivePath "$archive" \
   -exportPath "$export_dir" \
   -exportOptionsPlist "$out/ExportOptions.plist" \
-  ${provisioning[@]+"${provisioning[@]}"} \
+  ${export_provisioning[@]+"${export_provisioning[@]}"} \
   -quiet
 
 # Again on what was built, in case anything changed the key on the way.
@@ -397,7 +432,7 @@ hdiutil create -volname "$product" -srcfolder "$staging" -fs HFS+ -format UDZO -
 rm -rf "$staging"
 dmg_keychain=()
 $headless && dmg_keychain=(--keychain "$LIL_RELEASE_KEYCHAIN")
-codesign --sign "Developer ID Application: Alexandru Turcanu ($team)" --timestamp \
+codesign --sign "$dmg_identity" --timestamp \
   ${dmg_keychain[@]+"${dmg_keychain[@]}"} "$dmg"
 
 if $notarize; then
