@@ -1,0 +1,63 @@
+{
+  "app" : "health-mac",
+  "catalog" : "LilAuth/SignInMethodsCatalog.swift",
+  "screen" : "Sign-In Methods (Mac)",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.apple-linked-dark.png",
+      "id" : "sign-in-methods-mac.apple-linked",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.apple-linked-light.png",
+      "name" : "Apple linked",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.google-linked-dark.png",
+      "id" : "sign-in-methods-mac.google-linked",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.google-linked-light.png",
+      "name" : "Google linked",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.both-linked-dark.png",
+      "id" : "sign-in-methods-mac.both-linked",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.both-linked-light.png",
+      "name" : "Both linked",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.linking-google-dark.png",
+      "id" : "sign-in-methods-mac.linking-google",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.linking-google-light.png",
+      "name" : "Linking Google",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.google-in-use-dark.png",
+      "id" : "sign-in-methods-mac.google-in-use",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.google-in-use-light.png",
+      "name" : "Google in use",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.unlinking-dark.png",
+      "id" : "sign-in-methods-mac.unlinking",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.unlinking-light.png",
+      "name" : "Unlinking",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.loading-dark.png",
+      "id" : "sign-in-methods-mac.loading",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.loading-light.png",
+      "name" : "Loading",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.couldn-t-load-dark.png",
+      "id" : "sign-in-methods-mac.couldn-t-load",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInMethodsCatalog/sign-in-methods-mac.couldn-t-load-light.png",
+      "name" : "Couldn't load",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift"
+    }
+  ]
+}

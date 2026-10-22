@@ -1,0 +1,56 @@
+{
+  "app" : "health-iphone",
+  "catalog" : "LilAuth/SignInCatalog.swift",
+  "screen" : "Sign In (iPhone)",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.signed-out-dark.png",
+      "id" : "sign-in-iphone.signed-out",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.signed-out-light.png",
+      "name" : "Signed out",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.pointed-at-a-preview-deployment-dark.png",
+      "id" : "sign-in-iphone.pointed-at-a-preview-deployment",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.pointed-at-a-preview-deployment-light.png",
+      "name" : "Pointed at a preview deployment",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.signing-in-dark.png",
+      "id" : "sign-in-iphone.signing-in",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.signing-in-light.png",
+      "name" : "Signing in",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.failed-dark.png",
+      "id" : "sign-in-iphone.failed",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.failed-light.png",
+      "name" : "Failed",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.sign-up-unavailable-in-region-dark.png",
+      "id" : "sign-in-iphone.sign-up-unavailable-in-region",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.sign-up-unavailable-in-region-light.png",
+      "name" : "Sign-up unavailable in region",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.signed-in-dark.png",
+      "id" : "sign-in-iphone.signed-in",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.signed-in-light.png",
+      "name" : "Signed in",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.google-sheet-open-dark.png",
+      "id" : "sign-in-iphone.google-sheet-open",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/__Snapshots__/SignInCatalog/sign-in-iphone.google-sheet-open-light.png",
+      "name" : "Google sheet open",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift"
+    }
+  ]
+}
