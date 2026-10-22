@@ -1,7 +1,12 @@
 import { Clock, Effect, Exit, Option, Predicate, Schema, Semaphore } from "effect";
 import { McpServer } from "effect/ai";
-import { HttpServerRequest } from "effect/http";
-import { agentClientHeader, agentGrantHeader } from "../../mcp/AgentHeaders.ts";
+import { HttpEffect, HttpServerRequest, HttpServerResponse } from "effect/http";
+import {
+  agentAnswerBytesHeader,
+  agentClientHeader,
+  agentGrantHeader,
+  agentToolHeader,
+} from "../../mcp/AgentHeaders.ts";
 import { serveStoreMcp, type StoreMcpApp } from "../../mcp/StoreMcpServer.ts";
 import { agentResources } from "../../oauth/Hosts.ts";
 import type { AgentAccess } from "../../store/AgentAccessLog.ts";
@@ -128,8 +133,12 @@ const agentOf = (request: Option.Option<HttpServerRequest.HttpServerRequest>) =>
 
 /**
  * Wraps a tool's handler: it runs in its `turn`, its answer is held to `ceiling` bytes, and the
- * call is logged (`record`) before anything goes back, so nothing is read without a row. Workers
- * Logs get the tool, grant, duration and size only.
+ * call is logged (`record`) before anything goes back, so nothing is read without a row.
+ *
+ * Workers Logs get the tool, grant, duration and size only, from the Worker (`McpRoutes.ts`,
+ * 851-2907). The store's clock doesn't move while a call runs, so the store puts the tool and the
+ * answer's size in its response's headers, and the Worker, whose clock moved while it waited for
+ * the store, adds the duration.
  */
 const logged =
   <P extends object, A>(
@@ -141,9 +150,9 @@ const logged =
   ) =>
   (params: P) =>
     Effect.gen(function* () {
-      const agent = agentOf(yield* Effect.serviceOption(HttpServerRequest.HttpServerRequest));
+      const request = yield* Effect.serviceOption(HttpServerRequest.HttpServerRequest);
+      const agent = agentOf(request);
       const call = Effect.gen(function* () {
-        const started = yield* Clock.currentTimeMillis;
         let exit: Exit.Exit<A, HealthToolError> = yield* Effect.exit(run(params));
         let bytes = 0;
         let rows = 0;
@@ -182,10 +191,16 @@ const logged =
             Effect.fail(new HealthToolError({ message: "This lil account was deleted." })),
           ),
         );
-        const finished = yield* Clock.currentTimeMillis;
-        yield* Effect.logInfo("Agent tool call").pipe(
-          Effect.annotateLogs({ durationMs: finished - started, bytes }),
-        );
+        if (Option.isSome(request)) {
+          HttpEffect.appendPreResponseHandlerUnsafe(request.value, (_, response) =>
+            Effect.succeed(
+              HttpServerResponse.setHeaders(response, {
+                [agentToolHeader]: tool.name,
+                [agentAnswerBytesHeader]: String(bytes),
+              }),
+            ),
+          );
+        }
         return yield* exit;
       });
       return yield* call.pipe(turn, Effect.annotateLogs({ tool: tool.name, grant: agent.grantId }));

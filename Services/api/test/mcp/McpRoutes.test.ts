@@ -1,13 +1,15 @@
 import { readFileSync } from "node:fs";
 import { assert, describe, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Effect, Layer, Logger } from "effect";
 import { eq } from "drizzle-orm";
 import { CoreDb } from "../../src/core/CoreDb.ts";
 import { agentGrants } from "../../src/core/Schema.ts";
 import type { Deployment } from "../../src/Deployment.ts";
+import { agentAnswerBytesHeader, agentToolHeader } from "../../src/mcp/AgentHeaders.ts";
 import { maxMcpRequestBytes } from "../../src/mcp/McpRoutes.ts";
 import { type RateLimitName, RateLimits } from "../../src/RateLimits.ts";
-import { TestStores } from "../store/TestUserStores.ts";
+import { UserStores } from "../../src/store/UserStores.ts";
+import { TestStores, TestUserStores } from "../store/TestUserStores.ts";
 import { type Handler, send, withApi } from "../TestApi.ts";
 import { type Approval, approve } from "../oauth/TestAgents.ts";
 import {
@@ -222,6 +224,61 @@ describe("the Health MCP server", () => {
         }),
       preview,
     ),
+  );
+
+  // 851-2907: the store's clock doesn't move while a call runs, so it logged 0 ms for every call.
+  it.live("logs each tool call from the Worker, with the store's tool and size", () =>
+    Effect.gen(function* () {
+      const logged: Array<{ readonly message: unknown; readonly annotations: object }> = [];
+      // Stores that take a while to answer.
+      const storeTakes = 50;
+      const slowStores = Layer.effect(
+        UserStores,
+        Effect.map(UserStores, (stores) =>
+          UserStores.of({
+            ...stores,
+            mcp: (userId, request) =>
+              Effect.sleep(storeTakes).pipe(Effect.andThen(stores.mcp(userId, request))),
+          }),
+        ),
+      ).pipe(Layer.provide(TestUserStores));
+      const capture = Logger.map(Logger.formatStructured, (entry) => {
+        logged.push(entry);
+      });
+      yield* withApi(
+        (handler) =>
+          Effect.gen(function* () {
+            const { accessToken } = yield* connect(handler);
+            const [grant] = yield* (yield* CoreDb).select().from(agentGrants).pipe(Effect.orDie);
+            yield* call(handler, accessToken, "tools/list");
+            const answer = yield* call(handler, accessToken, "tools/call", {
+              name: "summary",
+              arguments: {},
+            });
+            // Only for the Worker.
+            assert.isNull(answer.headers.get(agentToolHeader));
+            assert.isNull(answer.headers.get(agentAnswerBytesHeader));
+            const calls = logged.filter((entry) => entry.message === "Agent tool call");
+            // Not listing tools, which reads nothing.
+            assert.lengthOf(calls, 1);
+            const {
+              tool,
+              grant: grantId,
+              durationMs,
+              bytes,
+            } = calls[0]!.annotations as Record<string, unknown>;
+            assert.deepStrictEqual({ tool, grantId }, { tool: "summary", grantId: grant!.id });
+            // How long the store took to answer, as the Worker waited for it.
+            assert.isAtLeast(durationMs as number, storeTakes);
+            // The tool's answer as JSON: its structured content.
+            const content = result(answer.message)?.["structuredContent"];
+            assert.strictEqual(bytes, new TextEncoder().encode(JSON.stringify(content)).byteLength);
+          }),
+        preview,
+        RateLimits.unlimited,
+        Layer.mergeAll(Logger.layer([capture]), slowStores),
+      );
+    }),
   );
 
   it.live("answers 401 with where to sign in, without a token or with a bad one", () =>
