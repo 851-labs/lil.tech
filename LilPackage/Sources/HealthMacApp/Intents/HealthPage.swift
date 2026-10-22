@@ -81,7 +81,7 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
     case .summary: "heart.text.square.fill"
     case .healthDetails: "person.text.rectangle.fill"
     case .category(let category): category.symbolName
-    case .dataType(let type): type.category?.symbolName ?? "circle"
+    case .dataType(let type): type.symbolName
     }
   }
 

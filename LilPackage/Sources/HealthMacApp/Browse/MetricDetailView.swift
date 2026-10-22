@@ -71,7 +71,7 @@ struct MetricDetailView: View {
       } else {
         // Other kinds without a chart of their own yet.
         ContentUnavailableView(
-          type.name, systemImage: type.category?.symbolName ?? "questionmark",
+          type.name, systemImage: type.symbolName,
           description: Text("A chart for \(type.name) is coming."))
       }
     }

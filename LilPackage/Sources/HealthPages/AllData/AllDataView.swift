@@ -88,7 +88,7 @@ struct AllDataContent: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .loaded(let samples, _) where samples.isEmpty:
         ContentUnavailableView(
-          "No Data", systemImage: type.category?.symbolName ?? "questionmark",
+          "No Data", systemImage: type.symbolName,
           description: Text("\(type.name) synced from your iPhone will appear here.")
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)

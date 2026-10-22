@@ -33,6 +33,13 @@ extension HealthDataType {
   /// Details, whose icon is in the accent color. Unlike gray, it stands out in charts, next to a
   /// highlight's gray earlier week and through the opacity of bars and fills.
   public static let uncategorizedColor = Color.accentColor
+
+  /// The SF Symbol shown with the type: its category's.
+  public var symbolName: String { category?.symbolName ?? Self.uncategorizedSymbolName }
+
+  /// The symbol of a type without a category: the characteristics, so Health Details' icon, where
+  /// Health shows them, as `uncategorizedColor` is its color.
+  public static let uncategorizedSymbolName = "person.text.rectangle.fill"
 }
 
 /// A category's name with its icon in its color, as in Health's lists, and white on a selected

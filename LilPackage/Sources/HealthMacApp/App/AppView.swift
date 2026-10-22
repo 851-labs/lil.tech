@@ -58,7 +58,7 @@ struct SidebarView: View {
           }
           ForEach(results, id: \.id) { type in
             TintedLabel(
-              type.name, systemImage: type.category?.symbolName ?? "circle",
+              type.name, systemImage: type.symbolName,
               color: type.color
             )
             .tag(SidebarItem.dataType(type.id))
