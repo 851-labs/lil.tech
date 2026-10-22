@@ -18,6 +18,8 @@
 #       the worktrees whose PR is merged or closed and that have no uncommitted changes, and
 #       deletes that DerivedData. Never touches the main checkout.
 # A ticket number is `2884` or `851-2884`.
+# A worktree's DerivedData is found by its `info.plist`, or, for a workspace that never finished
+# loading and so has none, by the folder's name, which Xcode derives from the workspace's path.
 set -eu
 
 usage() {
@@ -80,15 +82,71 @@ workspace_path() {
   plutil -extract WorkspacePath raw -o - "$1/info.plist" 2>/dev/null || true
 }
 
+# Xcode names a workspace's DerivedData folder `<name>-<hash>`, where the hash spells the MD5 of the
+# workspace's path in 28 letters: each half of the digest, as a big-endian number, in 14 base-26
+# digits from a to z. Xcode writes the folder's `info.plist` only once the workspace has loaded its
+# packages, so the name is all that ties a workspace that never finished loading to its folder
+# (851-2940).
+#   derived_data_hashes hash <path>...
+#       Prints the hash of each workspace path.
+#   derived_data_hashes find <prefix> <dir>...
+#       For each DerivedData folder named after `<prefix><number>/Lil.xcworkspace`, for a number up
+#       to 99999, prints "<number> <dir>". Other folders are left out.
+derived_data_hashes() {
+  python3 -I - "$@" <<'PY'
+import hashlib
+import os
+import sys
+
+
+def name_hash(path):
+    digest = hashlib.md5(path.encode()).digest()
+    letters = ""
+    for half in (digest[:8], digest[8:]):
+        value = int.from_bytes(half, "big")
+        chunk = ""
+        for _ in range(14):
+            value, digit = divmod(value, 26)
+            chunk = chr(ord("a") + digit) + chunk
+        letters += chunk
+    return letters
+
+
+mode, args = sys.argv[1], sys.argv[2:]
+if mode == "hash":
+    for path in args:
+        print(name_hash(path))
+else:
+    prefix, dirs = args[0], args[1:]
+    wanted = {os.path.basename(d).rsplit("-", 1)[-1]: d for d in dirs}
+    for number in range(1, 100000):
+        if not wanted:
+            break
+        found = wanted.pop(name_hash(f"{prefix}{number}/Lil.xcworkspace"), None)
+        if found:
+            print(number, found)
+PY
+}
+
+# Deletes the DerivedData of worktree `$1` (a path): folders whose `info.plist` names a workspace or
+# project in it, and the folder without one named after its `Lil.xcworkspace`.
 delete_derived_data() {
+  hash=$(derived_data_hashes hash "$1/Lil.xcworkspace")
   for dir in "$derived_data"/*/; do
     dir=${dir%/}
-    case "$(workspace_path "$dir")" in
-      "$1"/*)
-        echo "Deleting Xcode's build data for it: $dir ($(du -sh "$dir" | cut -f1))"
-        rm -rf "$dir"
-        ;;
-    esac
+    if [ -f "$dir/info.plist" ]; then
+      case "$(workspace_path "$dir")" in
+        "$1"/*) ;;
+        *) continue ;;
+      esac
+    else
+      case "$dir" in
+        *-"$hash") ;;
+        *) continue ;;
+      esac
+    fi
+    echo "Deleting Xcode's build data for it: $dir ($(du -sh "$dir" | cut -f1))"
+    rm -rf "$dir"
   done
 }
 
@@ -253,10 +311,18 @@ cmd_prune() {
   done
   $found || echo "No $(basename "$main")-* worktrees."
 
-  # DerivedData built for a worktree that no longer exists.
+  # DerivedData built for a worktree that no longer exists: by its `info.plist`, or, without one,
+  # by its name.
   stale=""
+  unloaded=""
   for dir in "$derived_data"/*/; do
     dir=${dir%/}
+    if [ ! -f "$dir/info.plist" ]; then
+      case "$(basename "$dir")" in
+        Lil-*) unloaded="$unloaded$dir$newline" ;;
+      esac
+      continue
+    fi
     workspace=$(workspace_path "$dir")
     case "$workspace" in
       "$prefix"*) ;;
@@ -268,6 +334,16 @@ cmd_prune() {
     echo "Xcode build data for $(basename "$root"), which is gone: $dir ($(du -sh "$dir" | cut -f1))"
     stale="$stale$dir$newline"
   done
+  if [ -n "$unloaded" ]; then
+    for match in $(derived_data_hashes find "$prefix" $unloaded); do
+      root="$prefix${match%% *}"
+      dir=${match#* }
+      [ -d "$root" ] && continue
+      echo "Xcode build data for $(basename "$root"), which is gone (it never finished loading):" \
+        "$dir ($(du -sh "$dir" | cut -f1))"
+      stale="$stale$dir$newline"
+    done
+  fi
 
   if ! $apply; then
     if [ -n "$removable$stale" ]; then
