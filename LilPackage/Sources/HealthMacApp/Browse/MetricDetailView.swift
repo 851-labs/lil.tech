@@ -163,7 +163,10 @@ struct MetricDetailContent: View {
   @Binding var offset: Int
   let state: State
   var overlays: [MetricOverlay] = []
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`): the header
+  /// shows the period around now before a chart loads.
+  @Dependency(\.calendar) private var calendar
+  @Dependency(\.date.now) private var now
   @SwiftUI.State private var hovered: Date?
 
   private var color: Color { type.category?.color ?? .accentColor }
@@ -257,7 +260,7 @@ struct MetricDetailContent: View {
         Text(
           point.map { ChartFormat.bucket($0.start, range: range, calendar: calendar) }
             ?? ChartFormat.span(
-              chart?.interval ?? range.interval(offset: offset, now: .now, calendar: calendar),
+              chart?.interval ?? range.interval(offset: offset, now: now, calendar: calendar),
               range: range, calendar: calendar)
         )
         .foregroundStyle(.secondary)

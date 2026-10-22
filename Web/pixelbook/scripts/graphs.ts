@@ -1,7 +1,8 @@
-// Checks Pixelbook's graph files (`graphs/*.json`) against the previews in LilPackage: every screen
-// and state a graph names must exist, so renaming a preview can't quietly break a flowchart.
-// Reads the Swift sources, so it needs no render. Run by the pre-commit hook (lefthook.yml):
+// Checks Pixelbook's graph files (`graphs/*.json`) against the previews and state catalogs in
+// LilPackage: every screen and state a graph names must exist, so renaming one can't quietly break
+// a flowchart. Reads the Swift sources, so it needs no render. Run by the pre-commit hook (lefthook.yml):
 //   node Web/pixelbook/scripts/graphs.ts
+import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,6 +26,42 @@ export const previewNames = (source: string): ReadonlyArray<string> | undefined 
     (name ?? "").replace(/\\(.)/g, "$1"),
   );
 };
+
+/**
+ * A state catalog's state names, in source order: `CatalogState("Name")`, over one line or several
+ * (851-2949). Undefined if it has none.
+ */
+export const catalogStateNames = (source: string): ReadonlyArray<string> | undefined => {
+  const names = [
+    ...withoutComments(source).matchAll(/\bCatalogState\(\s*"((?:[^"\\]|\\.)*)"/g),
+  ].map(([, name]) => (name ?? "").replace(/\\(.)/g, "$1"));
+  return names.length > 0 ? names : undefined;
+};
+
+/**
+ * Every state catalog in LilPackage's test targets, `<Target>/Catalogs/<Module>/<File>.swift`,
+ * keyed by `Module/File.swift`, as graphs name them.
+ */
+export const scanCatalogs = async (tests = join(root, "LilPackage/Tests")): Promise<Previews> => {
+  const catalogs = new Map<string, ReadonlyArray<string>>();
+  for (const target of await readdir(tests, { withFileTypes: true })) {
+    const folder = join(tests, target.name, "Catalogs");
+    if (!target.isDirectory() || !existsSync(folder)) continue;
+    for (const module of await readdir(folder, { withFileTypes: true })) {
+      if (!module.isDirectory()) continue;
+      const files = await readdir(join(folder, module.name), { recursive: true });
+      for (const file of files.filter((name) => name.endsWith(".swift"))) {
+        const names = catalogStateNames(await readFile(join(folder, module.name, file), "utf8"));
+        if (names !== undefined) catalogs.set(`${module.name}/${basename(file)}`, names);
+      }
+    }
+  }
+  return catalogs;
+};
+
+/** Every screen a graph can name: preview files, then state catalogs. */
+export const scanScreens = async (): Promise<Previews> =>
+  new Map([...(await scanPreviews()), ...(await scanCatalogs())]);
 
 /** Every preview file in LilPackage's modules, keyed by `Module/File.swift`, as graphs name them. */
 export const scanPreviews = async (
@@ -83,11 +120,11 @@ const appProblems = (graph: Graph, file: string, apps: Map<string, string>) => {
 };
 
 if (import.meta.main) {
-  const problems = await checkGraphs(await scanPreviews());
+  const problems = await checkGraphs(await scanScreens());
   for (const [file, list] of problems) {
     console.error(`Web/pixelbook/graphs/${file}:`);
     for (const problem of list) console.error(`  ${problem}`);
   }
   if (problems.size > 0) process.exit(1);
-  console.log("Pixelbook's graphs match the previews.");
+  console.log("Pixelbook's graphs match the previews and catalogs.");
 }

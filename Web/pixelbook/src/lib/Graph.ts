@@ -1,11 +1,14 @@
 // Flowchart mode's graph files (`graphs/<app>.json`): how an app's screens connect, which previews
-// can't say. A node is a screen, named by the file its previews are in, and an edge is the action
+// can't say. A node is a screen, named by the file its previews or state catalog are in, and an edge is the action
 // that goes from one to another. The files ship with the viewer, so a PR's preview shows its graphs.
 /** A screen on the flowchart. */
 export interface GraphScreen {
   /** Unique in the file; edges use it. */
   readonly id: string;
-  /** The file its previews are in, as `Module/File.swift`. */
+  /**
+   * The file its previews are in, as `Module/File.swift`, or its state catalog, a test target's
+   * `Catalogs/Module/File.swift` (851-2949).
+   */
   readonly screen: string;
   /** Which previews (states) to show, first by default. All of the file's, in source order, if left out. */
   readonly states?: ReadonlyArray<string>;
@@ -80,7 +83,10 @@ export const parseGraph = (json: unknown): Graph | { readonly problems: Readonly
   return problems.length > 0 ? { problems } : (json as unknown as Graph);
 };
 
-/** Each preview file's preview names, keyed by `Module/File.swift`, in source order. */
+/**
+ * Each preview file's preview names, or state catalog's state names, keyed by `Module/File.swift`,
+ * in source order.
+ */
 export type Previews = ReadonlyMap<string, ReadonlyArray<string>>;
 
 /** What in a graph refers to something that doesn't exist. */
