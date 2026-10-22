@@ -50,6 +50,14 @@
       CatalogState("Health Details") {
         window(AppFeature.State(isSignedIn: true, selection: .healthDetails))
       },
+      // Pushed on Health Details' stack, which is the store's, so opening Health Details pops it
+      // (851-3030).
+      CatalogState("Vision Prescriptions in Health Details") {
+        window(
+          AppFeature.State(
+            isSignedIn: true, selection: .healthDetails,
+            metricPath: [HealthDatabase.visionPrescriptionType]))
+      },
       CatalogState("A category") {
         window(AppFeature.State(isSignedIn: true, selection: .category(.heart)))
       },

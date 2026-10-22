@@ -3,6 +3,7 @@ import DependenciesTestSupport
 import Foundation
 import HealthAgentAccess
 import HealthCatalog
+import HealthDatabase
 import LilAuth
 import LilSync
 import LilTestSupport
@@ -14,6 +15,7 @@ private let steps = HealthPage.dataType(
   HealthCatalog.type(id: "HKQuantityTypeIdentifierStepCount")!)!
 private let bloodType = HealthPage.dataType(
   HealthCatalog.type(id: "HKCharacteristicTypeIdentifierBloodType")!)!
+private let visionPrescriptions = HealthDatabase.visionPrescriptionType
 
 // App actions (851-2892). Synthetic data only, and temporary directories for the access setting.
 @Suite(.dependencies)
@@ -63,6 +65,79 @@ struct HealthAppIntentsTests {
       $0.searchText = ""
       $0.selection = .summary
     }
+  }
+
+  /// Health Details' stack is the store's too: opening it, or a characteristic, shows Health
+  /// Details itself, as opening a category does (851-3030).
+  @Test
+  func openingHealthDetailsPopsWhatsPushedOnIt() async {
+    let store = TestStore(
+      initialState: AppFeature.State(
+        isSignedIn: true, selection: .healthDetails, metricPath: [visionPrescriptions])
+    ) {
+      AppFeature()
+    }
+    await store.send(.pageOpened(.healthDetails)) {
+      $0.metricPath = []
+    }
+    // With nothing pushed, it stays as it is.
+    await store.send(.pageOpened(.healthDetails))
+    // Its Vision link, then a characteristic.
+    await store.send(.metricPathChanged([visionPrescriptions], selection: .healthDetails)) {
+      $0.metricPath = [visionPrescriptions]
+    }
+    await store.send(.pageOpened(bloodType)) {
+      $0.metricPath = []
+    }
+    await store.send(.pageOpened(bloodType))
+  }
+
+  /// Through the intents' channel, as Shortcuts and Spotlight open a page (851-3030).
+  @Test(.timeLimit(.minutes(1)))
+  func anIntentOpeningHealthDetailsPopsWhatsPushedOnIt() async throws {
+    let actions = HealthAppActions(channel: HealthAppActionChannel(signInWait: .zero))
+    let (updates, session) = AsyncStream<Bool>.makeStream()
+    let store = TestStore(
+      initialState: AppFeature.State(selection: .healthDetails, metricPath: [visionPrescriptions])
+    ) {
+      AppFeature()
+    } withDependencies: {
+      $0.agentAccess.reset = {}
+      $0.auth.signedInUpdates = { updates }
+      $0.healthAppActions = actions
+      $0.sync = .constant(.idle)
+      // For the sync footer's wait, which the first pull never ends.
+      $0.continuousClock = ManualClock()
+    }
+    store.exhaustivity = .off
+
+    let task = await store.send(.task)
+    session.yield(true)
+    await store.receive(\.signedInChanged)
+
+    let healthDetails = Task { try await actions.perform(.open(.healthDetails), { _ in }) }
+    await store.receive(\.appActionRequested)
+    await store.receive(\.pageOpened) {
+      $0.selection = .healthDetails
+      $0.metricPath = []
+    }
+    #expect(try await healthDetails.value == .done)
+
+    await store.send(.metricPathChanged([visionPrescriptions], selection: .healthDetails)) {
+      $0.metricPath = [visionPrescriptions]
+    }
+    let characteristic = Task { try await actions.perform(.open(bloodType), { _ in }) }
+    await store.receive(\.appActionRequested)
+    await store.receive(\.pageOpened) {
+      $0.selection = .healthDetails
+      $0.metricPath = []
+    }
+    #expect(try await characteristic.value == .done)
+
+    session.yield(false)
+    await store.receive(\.signedInChanged)
+    await task.cancel()
+    await store.finish()
   }
 
   @Test

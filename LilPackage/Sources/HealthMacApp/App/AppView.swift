@@ -98,34 +98,43 @@ struct SidebarView: View {
 }
 
 /// What's selected: Summary, Health Details, a category's metrics, or a metric found by
-/// search. A metric's row opens its detail, in the store's `metricPath`, so an intent can open
-/// one too.
+/// search. Each stack's pushed pages are type IDs in the store's `metricPath` (a metric's row
+/// opens its detail, Health Details' link Vision Prescriptions), so an intent can open one, and
+/// opening a page pops them (851-3030).
 struct DetailView: View {
   let store: StoreOf<AppFeature>
 
   var body: some View {
     switch store.selection {
     case .summary, nil:
-      NavigationStack(path: metricPath(for: store.selection)) {
+      stack(for: store.selection) {
         SummaryView()
-          .navigationDestination(for: String.self) { MetricDetail(typeID: $0) }
       }
     case .healthDetails:
-      NavigationStack {
+      stack(for: .healthDetails) {
         HealthDetailsView()
       }
     case .category(let category):
-      NavigationStack(path: metricPath(for: .category(category))) {
+      stack(for: .category(category)) {
         CategoryView(category: category)
-          .navigationDestination(for: String.self) { MetricDetail(typeID: $0) }
       }
       // A new stack for each category, so one's pushed metric doesn't show under another.
       .id(category)
     case .dataType(let id):
-      NavigationStack {
+      // A characteristic's result shows Health Details, which links to Vision Prescriptions.
+      stack(for: .dataType(id)) {
         MetricDetail(typeID: id)
       }
       .id(id)
+    }
+  }
+
+  private func stack(
+    for selection: SidebarItem?, @ViewBuilder root: () -> some View
+  ) -> some View {
+    NavigationStack(path: metricPath(for: selection)) {
+      root()
+        .navigationDestination(for: String.self) { MetricDetail(typeID: $0) }
     }
   }
 

@@ -3,6 +3,7 @@ import DependenciesTestSupport
 import Foundation
 import HealthAgentAccess
 import HealthCatalog
+import HealthDatabase
 import LilAuth
 import LilSync
 import LilTestSupport
@@ -12,6 +13,8 @@ import Testing
 
 private let steps = HealthPage.dataType(
   HealthCatalog.type(id: "HKQuantityTypeIdentifierStepCount")!)!
+private let bloodType = HealthPage.dataType(
+  HealthCatalog.type(id: "HKCharacteristicTypeIdentifierBloodType")!)!
 
 // The command line's requests, as the app performs them (851-2895). Synthetic data, and
 // temporary directories for `AgentAccess.sqlite`.
@@ -85,6 +88,60 @@ struct CommandLineActionsTests {
     #expect(broughtForward.value == 2)
     // Claimed once: signaled again, nothing more runs.
     signal.yield()
+    await task.cancel()
+    await store.finish()
+  }
+
+  /// `lil-health open "Health Details"` (or a characteristic) shows Health Details itself, popping
+  /// Vision Prescriptions (851-3030).
+  @Test(.timeLimit(.minutes(1)))
+  func openingHealthDetailsPopsWhatsPushedOnIt() async throws {
+    try accessStore.setEnabled(true)
+    let vision = HealthDatabase.visionPrescriptionType
+    let (signals, signal) = AsyncStream<Void>.makeStream()
+    let (updates, session) = AsyncStream<Bool>.makeStream()
+    let store = TestStore(
+      initialState: AppFeature.State(selection: .healthDetails, metricPath: [vision])
+    ) {
+      AppFeature()
+    } withDependencies: {
+      $0.agentAccess = .live(accessStore)
+      $0.agentAccess.reset = {}
+      $0.agentAccess.actionsRequested = { signals }
+      $0.agentAccess.bringAppForward = {}
+      $0.auth.signedInUpdates = { updates }
+      $0.healthAppActions = HealthAppActions(channel: HealthAppActionChannel(signInWait: .zero))
+      $0.sync = .constant(.idle)
+      // For the sync footer's wait, which the first pull never ends.
+      $0.continuousClock = ManualClock()
+    }
+    store.exhaustivity = .off
+
+    let task = await store.send(.task)
+    session.yield(true)
+    await store.receive(\.signedInChanged)
+
+    let healthDetails = try ask(.open(page: HealthPage.healthDetails.id))
+    signal.yield()
+    #expect(try await finished(healthDetails) == .ok(.done))
+    await store.receive(\.pageOpened) {
+      $0.selection = .healthDetails
+      $0.metricPath = []
+    }
+
+    await store.send(.metricPathChanged([vision], selection: .healthDetails)) {
+      $0.metricPath = [vision]
+    }
+    let characteristic = try ask(.open(page: bloodType.id))
+    signal.yield()
+    #expect(try await finished(characteristic) == .ok(.done))
+    await store.receive(\.pageOpened) {
+      $0.selection = .healthDetails
+      $0.metricPath = []
+    }
+
+    session.yield(false)
+    await store.receive(\.signedInChanged)
     await task.cancel()
     await store.finish()
   }
