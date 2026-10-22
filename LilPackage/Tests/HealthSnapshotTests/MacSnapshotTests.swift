@@ -1,6 +1,7 @@
 #if os(macOS)
   import AppKit
   import ComposableArchitecture
+  import DependenciesTestSupport
   import Foundation
   import HealthAgentAccess
   import HealthCatalog
@@ -9,6 +10,7 @@
   import LilSync
   @testable import HealthMacApp
   @testable import HealthPages
+  import SQLiteData
   import SnapshotTesting
   import SwiftUI
   import Testing
@@ -17,23 +19,44 @@
   // the `#Preview` it names, from fixed dates. Synthetic data only.
 
   // Serialized: a snapshot runs the main run loop, where another could start and change the
-  // app's appearance.
+  // app's appearance. Views that read the database, the date or the calendar get the catalogs'
+  // (851-2950).
   @MainActor
-  @Suite(.serialized)
+  @Suite(
+    .serialized,
+    .dependencies {
+      $0.defaultDatabase = catalogDatabase
+      $0.date.now = previewNow
+      $0.calendar = previewCalendar
+      $0.timeZone = previewCalendar.timeZone
+      $0.locale = previewCalendar.locale!
+    })
   struct MacSnapshotTests {
-    /// The previews' synthetic database, which the chart's page reads (its preview prepares it
-    /// too), prepared once per process, as a preview context does.
-    static let database: Void = preparePreviewDatabase()
-
     init() {
       // Before any test builds its dates.
       prepareSnapshotEnvironment()
     }
 
+    // MetricDetailViewPreviews.swift, "Steps, week": the catalog database's steps at `previewNow`.
+    @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
+    func stepsWeek(appearance: NSAppearance.Name) throws {
+      let type = HealthCatalog.type(id: "HKQuantityTypeIdentifierStepCount")!
+      let chart = try catalogDatabase.read { db in
+        try HealthDatabase.metricChart(
+          of: type, range: .week, offset: 0, now: previewNow, calendar: previewCalendar, db)
+      }
+      let view = NavigationStack {
+        MetricDetailContent(
+          type: type, range: .constant(.week), offset: .constant(0), state: .loaded(chart),
+          calendar: previewCalendar)
+      }
+      .previewFrame(width: 760, height: 820)
+      assertMacSnapshot(of: view, appearance: appearance, named: "steps-week")
+    }
+
     // MetricDetailViewPreviews.swift, "Environmental sound levels, week": a chart from fixed dates.
     @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
     func soundLevelsChart(appearance: NSAppearance.Name) {
-      _ = Self.database
       let calendar = Calendar.current
       let today = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_760_400_000))
       let days = (0..<7).map { calendar.date(byAdding: .day, value: $0 - 6, to: today)! }

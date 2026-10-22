@@ -228,7 +228,9 @@ let package = Package(
         "LilAuth",
         "LilSync",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
       ],
       exclude: ["__Snapshots__"]
     ),

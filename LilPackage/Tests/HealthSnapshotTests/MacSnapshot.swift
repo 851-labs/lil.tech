@@ -42,10 +42,9 @@
   }
 
   /// What every snapshot shares, set once in the target's test process (SwiftPM runs each test
-  /// target in its own): a time zone, so times read the same on every Mac (references are recorded
-  /// in the team's), and an app to own windows, which a test process doesn't have, as an
-  /// accessory, so it never takes focus. Views get a locale too, but text a view formats itself
-  /// (`formatted()`) still uses the Mac's, as in Pixelbook.
+  /// target in its own): a time zone and locale, so times, dates and numbers read the same on
+  /// every Mac (references are recorded in the team's, `fixTimeZoneAndLocale()`), and an app to own
+  /// windows, which a test process doesn't have, as an accessory, so it never takes focus.
   @MainActor
   func prepareSnapshotEnvironment() {
     _ = snapshotEnvironment
@@ -53,7 +52,7 @@
 
   @MainActor
   private let snapshotEnvironment: Void = {
-    NSTimeZone.default = TimeZone(identifier: "America/Los_Angeles")!
+    fixTimeZoneAndLocale()
     NSApplication.shared.setActivationPolicy(.accessory)
   }()
 
