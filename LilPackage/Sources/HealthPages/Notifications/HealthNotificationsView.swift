@@ -68,12 +68,12 @@ struct HealthNotificationsContent: View {
       case .loaded(let notifications):
         List {
           ForEach(
-            monthSections(
-              notifications, calendar: calendar,
+            sections(
+              notifications, by: .month, calendar: calendar,
               startDate: { kind.listedDate(of: $0.sample).unixMilliseconds }),
-            id: \.month
+            id: \.start
           ) { section in
-            Section(section.month.formatted(NotificationFormat.month(calendar))) {
+            Section(section.start.formatted(NotificationFormat.month(calendar))) {
               ForEach(section.records) { notification in
                 NavigationLink {
                   NotificationDetailView(kind: kind, notification: notification)

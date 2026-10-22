@@ -68,25 +68,14 @@ struct ElectrocardiogramsContent: View {
   /// A section per month, in a grouped form's look (`LazyForm`): a `Form` builds every row at
   /// once, and the list holds up to 1,000.
   private func list(_ recordings: [HealthElectrocardiogram]) -> some View {
-    let months = monthSections(recordings, calendar: calendar, startDate: \.startDate)
-    return LazyForm {
-      ForEach(months, id: \.month) { section in
-        LazyFormHeader(
-          title: section.month.formatted(.dateTime.month(.wide).year()),
-          isFirst: section.month == months.first?.month)
-        ForEach(section.records) { recording in
-          NavigationLink {
-            ElectrocardiogramDetailView(recording: recording)
-          } label: {
-            LazyFormRow(
-              isFirst: recording.id == section.records.first?.id,
-              isLast: recording.id == section.records.last?.id
-            ) {
-              ElectrocardiogramRow(recording: recording)
-            }
-          }
-          .buttonStyle(.plain)
-        }
+    LazyForm {
+      LazyFormSections(
+        sections(recordings, by: .month, calendar: calendar, startDate: \.startDate),
+        title: { $0.formatted(.dateTime.month(.wide).year()) }
+      ) { recording in
+        ElectrocardiogramDetailView(recording: recording)
+      } row: { recording in
+        ElectrocardiogramRow(recording: recording)
       }
       if recordings.count >= limit {
         LazyFormFooter("Showing the \(limit.formatted()) most recent ECGs.")

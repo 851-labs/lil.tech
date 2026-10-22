@@ -69,18 +69,10 @@ struct HealthDocumentsContent: View {
   /// the list holds up to 500.
   private func list(_ documents: [HealthDocument]) -> some View {
     LazyForm {
-      ForEach(documents) { document in
-        NavigationLink {
-          HealthDocumentDetailView(document: document)
-        } label: {
-          LazyFormRow(
-            isFirst: document.id == documents.first?.id,
-            isLast: document.id == documents.last?.id
-          ) {
-            HealthDocumentRow(document: document)
-          }
-        }
-        .buttonStyle(.plain)
+      LazyFormSection(records: documents) { document in
+        HealthDocumentDetailView(document: document)
+      } row: { document in
+        HealthDocumentRow(document: document)
       }
       if documents.count >= limit {
         LazyFormFooter("Showing the \(limit.formatted()) most recent documents.")
