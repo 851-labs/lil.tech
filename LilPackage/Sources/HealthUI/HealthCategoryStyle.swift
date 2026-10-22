@@ -25,6 +25,16 @@ extension HealthCategory {
   }
 }
 
+extension HealthDataType {
+  /// The type's color, for its icon and charts: its category's.
+  public var color: Color { category?.color ?? Self.uncategorizedColor }
+
+  /// The color of a type without a category: the characteristics, which Health shows in Health
+  /// Details, whose icon is in the accent color. Unlike gray, it stands out in charts, next to a
+  /// highlight's gray earlier week and through the opacity of bars and fills.
+  public static let uncategorizedColor = Color.accentColor
+}
+
 /// A category's name with its icon in its color, as in Health's lists, and white on a selected
 /// sidebar row (`TintedIcon`).
 public struct HealthCategoryLabel: View {

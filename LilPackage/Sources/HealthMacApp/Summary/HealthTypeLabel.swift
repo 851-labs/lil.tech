@@ -9,11 +9,6 @@ struct HealthTypeLabel: View {
 
   var body: some View {
     Label(type.name, systemImage: type.category?.symbolName ?? "circle")
-      .foregroundStyle(color ?? Self.color(of: type))
-  }
-
-  /// A type's own color: its category's.
-  static func color(of type: HealthDataType) -> Color {
-    type.category?.color ?? .secondary
+      .foregroundStyle(color ?? type.color)
   }
 }

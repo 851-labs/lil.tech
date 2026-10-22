@@ -10,7 +10,7 @@ struct HighlightRow: View {
   let highlight: Highlight
   let type: HealthDataType
 
-  private var color: Color { type.category?.color ?? .accentColor }
+  private var color: Color { type.color }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {

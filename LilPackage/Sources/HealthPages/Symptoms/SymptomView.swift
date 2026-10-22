@@ -82,7 +82,7 @@ struct SymptomContent: View {
   /// An entry shorter than this is a thin mark at its start, rather than a bar over its time.
   static let shortEntry: TimeInterval = 20 * 60
 
-  private var color: Color { type.category?.color ?? .accentColor }
+  private var color: Color { type.color }
 
   private var chart: SymptomChart? {
     if case .loaded(let chart) = state { chart } else { nil }

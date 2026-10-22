@@ -15,7 +15,7 @@ struct MetricRow: View {
   let now: Date
   let calendar: Calendar
 
-  /// In `color`, or the type's own category's (`HealthTypeLabel`'s) without one. A category
+  /// In `color`, or the type's own (`HealthDataType.color`) without one. A category
   /// page passes its own, so a type listed under two categories takes the page's.
   init(
     type: HealthDataType, summary: MetricSummary, color: Color? = nil, now: Date,
@@ -23,7 +23,7 @@ struct MetricRow: View {
   ) {
     self.type = type
     self.summary = summary
-    self.color = color ?? HealthTypeLabel.color(of: type)
+    self.color = color ?? type.color
     self.now = now
     self.calendar = calendar
   }

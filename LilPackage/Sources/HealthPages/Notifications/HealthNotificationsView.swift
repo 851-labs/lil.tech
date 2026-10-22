@@ -380,7 +380,7 @@ extension HealthNotificationKind {
     }
   }
 
-  var color: Color { HealthCatalog.type(id: rawValue)?.category?.color ?? .red }
+  var color: Color { HealthCatalog.type(id: rawValue)?.color ?? HealthDataType.uncategorizedColor }
 
   /// Where notifications of the kind come from, for its empty page.
   var emptyDescription: String {
