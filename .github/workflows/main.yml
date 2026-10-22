@@ -4,7 +4,8 @@ name: Main
 # - changes: which parts the merge touches (`.github/actions/changes`). The jobs below skip the rest.
 # - deploy: the TypeScript workspace to staging (api.staging.lil.tech), then prod (api.lil.tech),
 #   checking each serves the merge (`scripts/check-deploy`).
-# - check: the Swift checks again, on the merged code (`swift-check.yml`).
+# - check: the Swift checks again, on the merged code, and the iPhone's state catalogs in the
+#   simulator (`swift-check.yml`).
 # - pixelbook: points Pixelbook's main at the merge's snapshots. Paused (851-2816).
 #
 # Nothing here is ever cancelled, so every merge is deployed and checked: jobs that must not
@@ -80,6 +81,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.swift == 'true'
     uses: ./.github/workflows/swift-check.yml
+    with:
+      iphone: true
 
   # Pixelbook's snapshots are published before a push, on developers' Macs, but no one pushes
   # main's squash merges. A merge shares its branch's snapshots when the branch was up to date with

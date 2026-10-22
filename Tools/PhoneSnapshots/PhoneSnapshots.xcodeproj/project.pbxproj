@@ -1,0 +1,388 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		3C0000000000000000000002 /* StateCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0000000000000000000001 /* StateCatalog.swift */; };
+		3C0000000000000000000004 /* SnapshotOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0000000000000000000003 /* SnapshotOutput.swift */; };
+		3D0000000000000000000011 /* HealthPhoneApp in Frameworks */ = {isa = PBXBuildFile; productRef = 3D0000000000000000000001 /* HealthPhoneApp */; };
+		3D0000000000000000000012 /* HealthUpload in Frameworks */ = {isa = PBXBuildFile; productRef = 3D0000000000000000000002 /* HealthUpload */; };
+		3D0000000000000000000013 /* HealthCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = 3D0000000000000000000003 /* HealthCatalog */; };
+		3D0000000000000000000014 /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = 3D0000000000000000000004 /* ComposableArchitecture */; };
+		3D0000000000000000000015 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 3D0000000000000000000005 /* SnapshotTesting */; };
+		3D0000000000000000000016 /* DependenciesTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 3D0000000000000000000006 /* DependenciesTestSupport */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		3B0000000000000000000010 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3A0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3A0000000000000000000006;
+			remoteInfo = PhoneSnapshotHost;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		3A0000000000000000000004 /* PhoneSnapshotHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhoneSnapshotHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3B0000000000000000000004 /* HealthPhoneSnapshotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HealthPhoneSnapshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3C0000000000000000000001 /* StateCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StateCatalog.swift; path = ../../LilPackage/Tests/HealthSnapshotTests/StateCatalog.swift; sourceTree = SOURCE_ROOT; };
+		3C0000000000000000000003 /* SnapshotOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotOutput.swift; path = ../../LilPackage/Tests/HealthSnapshotTests/SnapshotOutput.swift; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		3A0000000000000000000005 /* PhoneSnapshotHost */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PhoneSnapshotHost;
+			sourceTree = "<group>";
+		};
+		3B0000000000000000000005 /* HealthPhoneSnapshotTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			name = HealthPhoneSnapshotTests;
+			path = ../../LilPackage/Tests/HealthPhoneSnapshotTests;
+			sourceTree = SOURCE_ROOT;
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		3A0000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3B0000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3D0000000000000000000011 /* HealthPhoneApp in Frameworks */,
+				3D0000000000000000000012 /* HealthUpload in Frameworks */,
+				3D0000000000000000000013 /* HealthCatalog in Frameworks */,
+				3D0000000000000000000014 /* ComposableArchitecture in Frameworks */,
+				3D0000000000000000000015 /* SnapshotTesting in Frameworks */,
+				3D0000000000000000000016 /* DependenciesTestSupport in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		3A0000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				3A0000000000000000000005 /* PhoneSnapshotHost */,
+				3B0000000000000000000005 /* HealthPhoneSnapshotTests */,
+				3C0000000000000000000005 /* Shared */,
+				3A0000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		3A0000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3A0000000000000000000004 /* PhoneSnapshotHost.app */,
+				3B0000000000000000000004 /* HealthPhoneSnapshotTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		3C0000000000000000000005 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				3C0000000000000000000001 /* StateCatalog.swift */,
+				3C0000000000000000000003 /* SnapshotOutput.swift */,
+			);
+			name = Shared;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3A0000000000000000000006 /* PhoneSnapshotHost */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3A000000000000000000000F /* Build configuration list for PBXNativeTarget "PhoneSnapshotHost" */;
+			buildPhases = (
+				3A0000000000000000000007 /* Sources */,
+				3A0000000000000000000008 /* Frameworks */,
+				3A0000000000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				3A0000000000000000000005 /* PhoneSnapshotHost */,
+			);
+			name = PhoneSnapshotHost;
+			productName = PhoneSnapshotHost;
+			productReference = 3A0000000000000000000004 /* PhoneSnapshotHost.app */;
+			productType = "com.apple.product-type.application";
+		};
+		3B0000000000000000000006 /* HealthPhoneSnapshotTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3B000000000000000000000F /* Build configuration list for PBXNativeTarget "HealthPhoneSnapshotTests" */;
+			buildPhases = (
+				3B0000000000000000000007 /* Sources */,
+				3B0000000000000000000008 /* Frameworks */,
+				3B0000000000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3B0000000000000000000011 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				3B0000000000000000000005 /* HealthPhoneSnapshotTests */,
+			);
+			name = HealthPhoneSnapshotTests;
+			packageProductDependencies = (
+				3D0000000000000000000001 /* HealthPhoneApp */,
+				3D0000000000000000000002 /* HealthUpload */,
+				3D0000000000000000000003 /* HealthCatalog */,
+				3D0000000000000000000004 /* ComposableArchitecture */,
+				3D0000000000000000000005 /* SnapshotTesting */,
+				3D0000000000000000000006 /* DependenciesTestSupport */,
+			);
+			productName = HealthPhoneSnapshotTests;
+			productReference = 3B0000000000000000000004 /* HealthPhoneSnapshotTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		3A0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					3A0000000000000000000006 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					3B0000000000000000000006 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = 3A0000000000000000000006;
+					};
+				};
+			};
+			buildConfigurationList = 3A000000000000000000000C /* Build configuration list for PBXProject "PhoneSnapshots" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 3A0000000000000000000002;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 3A0000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				3A0000000000000000000006 /* PhoneSnapshotHost */,
+				3B0000000000000000000006 /* HealthPhoneSnapshotTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3A0000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3B0000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3A0000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3B0000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3C0000000000000000000002 /* StateCatalog.swift in Sources */,
+				3C0000000000000000000004 /* SnapshotOutput.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		3B0000000000000000000011 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3A0000000000000000000006 /* PhoneSnapshotHost */;
+			targetProxy = 3B0000000000000000000010 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		3A000000000000000000000D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -enable-upcoming-feature ExistentialAny -enable-upcoming-feature ImmutableWeakCaptures -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature InternalImportsByDefault -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature NonisolatedNonsendingByDefault";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		3A000000000000000000000E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -enable-upcoming-feature ExistentialAny -enable-upcoming-feature ImmutableWeakCaptures -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature InternalImportsByDefault -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature NonisolatedNonsendingByDefault";
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		3A0000000000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.phone-snapshot-host;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		3A0000000000000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.phone-snapshot-host;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		3B0000000000000000000014 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				EXCLUDED_SOURCE_FILE_NAMES = "*.png";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.health-phone-snapshot-tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PhoneSnapshotHost.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PhoneSnapshotHost";
+			};
+			name = Debug;
+		};
+		3B0000000000000000000015 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				EXCLUDED_SOURCE_FILE_NAMES = "*.png";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.health-phone-snapshot-tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PhoneSnapshotHost.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PhoneSnapshotHost";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3A000000000000000000000C /* Build configuration list for PBXProject "PhoneSnapshots" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3A000000000000000000000D /* Debug */,
+				3A000000000000000000000E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		3A000000000000000000000F /* Build configuration list for PBXNativeTarget "PhoneSnapshotHost" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3A0000000000000000000010 /* Debug */,
+				3A0000000000000000000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		3B000000000000000000000F /* Build configuration list for PBXNativeTarget "HealthPhoneSnapshotTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3B0000000000000000000014 /* Debug */,
+				3B0000000000000000000015 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3D0000000000000000000001 /* HealthPhoneApp */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthPhoneApp;
+		};
+		3D0000000000000000000002 /* HealthUpload */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthUpload;
+		};
+		3D0000000000000000000003 /* HealthCatalog */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthCatalog;
+		};
+		3D0000000000000000000004 /* ComposableArchitecture */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ComposableArchitecture;
+		};
+		3D0000000000000000000005 /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SnapshotTesting;
+		};
+		3D0000000000000000000006 /* DependenciesTestSupport */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DependenciesTestSupport;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 3A0000000000000000000001 /* Project object */;
+}

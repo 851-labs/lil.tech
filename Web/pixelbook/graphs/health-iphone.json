@@ -29,7 +29,7 @@
     },
     {
       "id": "sync",
-      "screen": "HealthPhoneApp/SyncStatusViewPreviews.swift"
+      "screen": "HealthPhoneApp/SyncStatusCatalog.swift"
     },
     {
       "id": "settings",

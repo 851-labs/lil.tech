@@ -53,6 +53,8 @@ public struct SyncStatusView: View {
 
 private struct StatusHeader: View {
   let store: StoreOf<SyncStatusFeature>
+  /// From dependencies, so snapshot catalogs fix it: the last upload's "5 minutes ago".
+  @Dependency(\.date) var date
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -122,7 +124,8 @@ private struct StatusHeader: View {
         if let lastUpload {
           // Updated every minute while the screen is open.
           TimelineView(.everyMinute) { _ in
-            Text("Last upload \(lastUpload.formatted(.relative(presentation: .named)))")
+            let ago = Date.AnchoredRelativeFormatStyle(anchor: lastUpload, presentation: .named)
+            Text("Last upload \(ago.format(date.now))")
           }
           .font(.subheadline)
           .foregroundStyle(.secondary)
