@@ -3,6 +3,7 @@ import GRDB
 import HealthAgentAccess
 import HealthDatabase
 import HealthTools
+import LilAPI
 import SQLiteData
 import Testing
 
@@ -230,6 +231,65 @@ struct LilHealthExecutableTests {
     #expect(String(decoding: data, as: UTF8.self) == HealthCLI.description + "\n")
   }
 
+  /// The built tool reads the folder the app keeps for the server `LIL_API_URL` names, which it
+  /// forwards to the app it launches (851-2977): `HealthDatabase.macDirectory`, which the app's
+  /// database and agent access use too. Only builds that can use another server keep a folder
+  /// per server, as `swift test`'s Debug build does.
+  @Test(.enabled(if: APIEnvironment.allowsOverride))
+  func findsTheAppsFolderForEachServer() throws {
+    try #require(FileManager.default.isExecutableFile(atPath: tool.path), "no tool at \(tool.path)")
+    let home = FileManager.default.temporaryDirectory.appending(
+      path: "HealthCLITests-home-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: home) }
+    let applicationSupport = home.appending(path: "Library/Application Support")
+    let first = "https://lil-api-api-pr-1-a.851.workers.dev"
+    let second = "https://lil-api-api-pr-2-b.851.workers.dev"
+    func folder(_ server: String) -> URL {
+      HealthDatabase.macDirectory(
+        for: .current(environment: ["LIL_API_URL": server]), applicationSupport: applicationSupport)
+    }
+    #expect(folder(first) != folder(second))
+    // Only the first server's account has data, and has access on.
+    let firstFolder = try AppFolder(at: folder(first))
+    try firstFolder.addSteps()
+    try firstFolder.access.setEnabled(true)
+    let secondFolder = try AppFolder(at: folder(second))
+
+    func run(_ server: String?) throws -> (status: Int32, output: String) {
+      let process = Process()
+      process.executableURL = tool
+      process.arguments = ["metric", "Steps", "--json", "--time-zone", "UTC"]
+      var environment = ["CFFIXED_USER_HOME": home.path, "TZ": "UTC"]
+      environment["LIL_API_URL"] = server
+      process.environment = environment
+      let output = Pipe()
+      process.standardOutput = output
+      process.standardError = Pipe()
+      try process.run()
+      let data = output.fileHandleForReading.readDataToEndOfFile()
+      process.waitUntilExit()
+      return (process.terminationStatus, String(decoding: data, as: UTF8.self))
+    }
+
+    let answered = try run(first)
+    #expect(answered.status == 0)
+    #expect(
+      (try? JSONDecoder().decode(HealthMetricResult.self, from: Data(answered.output.utf8)))?.type
+        == steps)
+    #expect(
+      try firstFolder.access.entries().map(\.command) == ["metric Steps --json --time-zone UTC"])
+    // The other server's folder, whose access is off.
+    #expect(try run(second).status == 77)
+    #expect(try secondFolder.access.entries().isEmpty)
+    // Without `LIL_API_URL`, staging's, which has no folder here: off, and nothing is made.
+    #expect(try run(nil).status == 77)
+    #expect(
+      !FileManager.default.fileExists(
+        atPath: folder("https://api.staging.lil.tech").appending(path: AgentAccessStore.fileName)
+          .path))
+    #expect(try firstFolder.access.entries().count == 1)
+  }
+
   /// `lil-health mcp` as an agent runs it: JSON-RPC messages, one per line, on standard input and
   /// output. Its home is a temporary folder (`CFFIXED_USER_HOME`), so it reads a synthetic
   /// database in the app's folder there, never the real one.
@@ -238,14 +298,17 @@ struct LilHealthExecutableTests {
     try #require(FileManager.default.isExecutableFile(atPath: tool.path), "no tool at \(tool.path)")
     let home = FileManager.default.temporaryDirectory.appending(
       path: "HealthCLITests-home-\(UUID().uuidString)", directoryHint: .isDirectory)
+    let environment = ["CFFIXED_USER_HOME": home.path, "TZ": "UTC"]
     let folder = try AppFolder(
-      at: home.appending(path: "Library/Application Support/tech.lil.health"))
+      at: HealthDatabase.macDirectory(
+        for: .current(environment: environment),
+        applicationSupport: home.appending(path: "Library/Application Support")))
     try folder.addSteps()
 
     let process = Process()
     process.executableURL = tool
     process.arguments = ["mcp"]
-    process.environment = ["CFFIXED_USER_HOME": home.path, "TZ": "UTC"]
+    process.environment = environment
     let input = Pipe()
     let output = Pipe()
     process.standardInput = input

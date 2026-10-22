@@ -1,6 +1,6 @@
 public import Foundation
 import GRDB
-import LilAPI
+public import LilAPI
 public import LilSync
 import OpenAPIRuntime
 public import SQLiteData
@@ -8,12 +8,28 @@ public import SQLiteData
 /// The Mac's local copy of the user's health data, synced with LilSync. Every screen queries
 /// only this.
 public enum HealthDatabase {
-  /// The Mac app's own folder in Application Support, where it keeps `Health.sqlite` and the
-  /// agent access setting and log (`AgentAccessStore`). The app isn't sandboxed, so the folder is
-  /// shared with every app otherwise. Spelled out rather than taken from the bundle ID, so the
-  /// `lil-health` command, which has none, finds the same folder.
+  /// The Mac app's own folder in Application Support for this build's server, where it keeps
+  /// `Health.sqlite` and the agent access setting and log (`AgentAccessStore`). The app isn't
+  /// sandboxed, so the folder is shared with every app otherwise. Spelled out rather than taken
+  /// from the bundle ID, so the `lil-health` command, which has none, finds the same folder: it
+  /// picks the server the same way (`LIL_API_URL` in its environment, in a Debug build).
   public static var macDirectory: URL {
-    URL.applicationSupportDirectory.appending(path: "tech.lil.health", directoryHint: .isDirectory)
+    macDirectory(for: .current())
+  }
+
+  /// The Mac app's folder for `environment`'s data (851-2977): `tech.lil.health` in
+  /// `applicationSupport`, as always, for a build that only uses prod (Release), and a folder per
+  /// server inside it for builds that can use another (Debug), e.g.
+  /// `tech.lil.health/Servers/api.staging.lil.tech`, so a Debug build signed out of its server
+  /// can't delete the Release app's data, or another server's.
+  public static func macDirectory(
+    for environment: APIEnvironment,
+    allowsOverride: Bool = APIEnvironment.allowsOverride,
+    applicationSupport: URL = .applicationSupportDirectory
+  ) -> URL {
+    environment.localDirectory(
+      in: applicationSupport.appending(path: "tech.lil.health", directoryHint: .isDirectory),
+      allowsOverride: allowsOverride)
   }
 
   /// Opens (or creates) the database at `url`, or SQLiteData's default location, and migrates

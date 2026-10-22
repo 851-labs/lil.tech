@@ -90,6 +90,56 @@ struct LilAPITests {
     #expect(APIEnvironment(url: "https://api.staging.lil.tech/v1/status") == .staging)
   }
 
+  /// Release builds keep today's folders and keys (851-2977): nothing moves or migrates.
+  @Test
+  func releaseBuildsKeepTheirLocalDataWhereItWas() {
+    let folder = URL(filePath: "/Users/someone/Library/Application Support/tech.lil.health/")
+    #expect(APIEnvironment.prod.localDirectory(in: folder, allowsOverride: false) == folder)
+    #expect(
+      APIEnvironment.prod.localDefaultsSuiteName(
+        bundleIdentifier: "tech.lil.health", allowsOverride: false) == nil)
+    #expect(
+      APIEnvironment.prod.localDefaults(bundleIdentifier: "tech.lil.health", allowsOverride: false)
+        === UserDefaults.standard)
+  }
+
+  /// Dev builds keep each server's local data apart, prod's included, in a folder named after its
+  /// origin, however the URL was spelled.
+  @Test
+  func devBuildsKeepEachServersLocalDataApart() {
+    let folder = URL(filePath: "/home/Library/Application Support/tech.lil.health/")
+    func directory(_ environment: APIEnvironment) -> String {
+      environment.localDirectory(in: folder, allowsOverride: true).path(percentEncoded: false)
+    }
+    let servers = "/home/Library/Application Support/tech.lil.health/Servers/"
+    #expect(directory(.prod) == servers + "api.lil.tech/")
+    #expect(directory(.staging) == servers + "api.staging.lil.tech/")
+    let preview = APIEnvironment.preview(
+      URL(string: "https://lil-api-api-pr-57-x.851.workers.dev")!)
+    #expect(directory(preview) == servers + "lil-api-api-pr-57-x.851.workers.dev/")
+    for spelling in [
+      "https://lil-api-api-pr-57-x.851.workers.dev/v1/status",
+      "https://Lil-API-api-pr-57-x.851.Workers.dev:443",
+    ] {
+      #expect(directory(APIEnvironment(url: spelling)!) == directory(preview))
+    }
+    // Only letters, digits, `.`, `-` and `_` are kept: a folder is one path component.
+    #expect(
+      directory(APIEnvironment(url: "http://localhost:8787")!)
+        == servers + "http%3A%2F%2Flocalhost%3A8787/")
+    #expect(
+      directory(APIEnvironment(url: "https://localhost:8787")!) == servers + "localhost%3A8787/")
+    #expect(
+      directory(APIEnvironment(url: "http://localhost")!) == servers + "http%3A%2F%2Flocalhost/")
+
+    func suite(_ environment: APIEnvironment) -> String? {
+      environment.localDefaultsSuiteName(bundleIdentifier: "tech.lil.health", allowsOverride: true)
+    }
+    #expect(suite(.prod) == "tech.lil.health.Servers.api.lil.tech")
+    #expect(suite(.staging) == "tech.lil.health.Servers.api.staging.lil.tech")
+    #expect(suite(preview) == "tech.lil.health.Servers.lil-api-api-pr-57-x.851.workers.dev")
+  }
+
   @Test
   func eachEnvironmentHasItsMCPServers() {
     #expect(

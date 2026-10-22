@@ -162,14 +162,15 @@ public actor BlobCache {
 }
 
 extension BlobCache: DependencyKey {
-  /// In the app's own caches folder (not shared, since the Mac app isn't sandboxed), up to
-  /// 1 GB, through the API client.
+  /// In the app's own caches folder (not shared, since the Mac app isn't sandboxed), the
+  /// server's own in dev builds (``LilSyncEngine/cachesDirectory(for:allowsOverride:caches:bundleIdentifier:)``),
+  /// up to 1 GB, through the API client.
   public static var liveValue: BlobCache {
     @Dependency(\.api) var api
     @Dependency(\.snapshotDownloader) var downloader
     return BlobCache(
-      directory: URL.cachesDirectory.appending(
-        path: "\(Bundle.main.bundleIdentifier ?? "lil")/LilSync/HealthBlobs"),
+      directory: LilSyncEngine.cachesDirectory(for: .current())
+        .appending(path: "HealthBlobs", directoryHint: .isDirectory),
       maxBytes: 1 << 30,
       url: { sha256 in
         switch try await api.healthBlob(path: .init(sha256: sha256)) {

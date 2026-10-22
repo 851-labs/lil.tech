@@ -146,9 +146,9 @@ struct SessionStoreTests {
       "HTTPS://Lil-API-api-pr-57-abc.851.Workers.dev",
       "https://lil-api-api-pr-57-abc.851.workers.dev:443",
     ] {
-      #expect(SessionStore.origin(URL(string: spelling)!) == origin)
+      #expect(APIEnvironment.origin(URL(string: spelling)!) == origin)
     }
-    #expect(SessionStore.origin(URL(string: "http://localhost:1337")!) == "http://localhost:1337")
+    #expect(APIEnvironment.origin(URL(string: "http://localhost:1337")!) == "http://localhost:1337")
   }
 
   @Test

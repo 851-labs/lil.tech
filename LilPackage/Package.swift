@@ -196,6 +196,7 @@ let package = Package(
         "LilTestSupport",
         "HealthDatabase",
         "HealthMacApp",
+        "LilAPI",
         "LilAuth",
         "LilSync",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
@@ -381,6 +382,7 @@ let package = Package(
       dependencies: [
         "HealthAgentAccess",
         "HealthDatabase",
+        "LilAPI",
         "LilCLI",
         "lil-dev",
         "lil-example",
@@ -436,6 +438,7 @@ let package = Package(
     .testTarget(
       name: "LilSyncTests",
       dependencies: [
+        "LilAPI",
         "LilGzip",
         "LilSync",
         "LilTestSupport",

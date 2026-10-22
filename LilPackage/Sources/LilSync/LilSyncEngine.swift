@@ -106,7 +106,7 @@ public actor LilSyncEngine {
   ///     number is bootstrapped again, so what was skipped before arrives. New entities don't
   ///     need a bump: the engine bootstraps again by itself when `entities` gains one.
   ///   - partsDirectory: Where to keep downloaded snapshot parts until they're loaded. Defaults
-  ///     to a folder in the app's caches.
+  ///     to a folder in the app's caches, the server's own (``cachesDirectory(for:allowsOverride:caches:bundleIdentifier:)``).
   public init(entities: [SyncEntity], syncSchema: Int, partsDirectory: URL? = nil) {
     self.syncSchema = syncSchema
     @Dependency(\.defaultDatabase) var database
@@ -120,9 +120,8 @@ public actor LilSyncEngine {
     self.liveConnection = liveConnection
     self.partsDirectory =
       partsDirectory
-      ?? URL.cachesDirectory.appending(
-        path: "\(Bundle.main.bundleIdentifier ?? "lil")/LilSync/SnapshotParts",
-        directoryHint: .isDirectory)
+      ?? Self.cachesDirectory(for: .current())
+      .appending(path: "SnapshotParts", directoryHint: .isDirectory)
     self.entities = Dictionary(
       entities.map { ($0.name, $0) },
       uniquingKeysWith: { first, _ in
@@ -878,4 +877,24 @@ public enum SyncError: Error, Equatable {
   case unexpectedPage
   /// A downloaded snapshot part doesn't match its hash.
   case corruptPart
+}
+
+extension LilSyncEngine {
+  /// Sync's folder in the app's own caches for `environment` (851-2977), where it keeps
+  /// downloaded snapshot parts and blobs (``BlobCache``): `<caches>/<bundle ID>/LilSync`, as
+  /// always, for a build that only uses prod, and inside a folder per server for builds that can
+  /// use another (`<bundle ID>/Servers/api.staging.lil.tech/LilSync`), so a dev build signing
+  /// out of its server leaves the Release app's, and other servers', alone.
+  public static func cachesDirectory(
+    for environment: APIEnvironment,
+    allowsOverride: Bool = APIEnvironment.allowsOverride,
+    caches: URL = .cachesDirectory,
+    bundleIdentifier: String? = Bundle.main.bundleIdentifier
+  ) -> URL {
+    environment.localDirectory(
+      in: caches.appending(path: bundleIdentifier ?? "lil", directoryHint: .isDirectory),
+      allowsOverride: allowsOverride
+    )
+    .appending(path: "LilSync", directoryHint: .isDirectory)
+  }
 }

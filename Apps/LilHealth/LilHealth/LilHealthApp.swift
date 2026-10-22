@@ -22,6 +22,7 @@ struct LilHealthApp: App {
     prepareDependencies {
       $0.authDevice = .current(app: "health-mac")
       $0.authenticateAPI()
+      $0.keepSettingsPerServer()
       // Now, so an intent that launched the app waits for sign-in from launch.
       $0.healthAppActions = .live
       do {
