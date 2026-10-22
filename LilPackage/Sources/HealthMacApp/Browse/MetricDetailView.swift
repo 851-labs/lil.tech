@@ -192,64 +192,54 @@ struct MetricDetailContent: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
+    // A grouped form on its own background, as Data Sources is (851-2989): one section for the
+    // summary and the chart, another for the pages it opens.
+    Form {
+      Section {
         VStack(alignment: .leading, spacing: 12) {
           header
           chartArea
             .frame(height: 280)
           if !shownOverlays.isEmpty {
-            HStack(spacing: 16) {
-              ForEach(shownOverlays, id: \.name) { overlay in
-                Label {
-                  Text(overlay.name)
-                } icon: {
-                  Circle().fill(overlay.color).frame(width: 8, height: 8)
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-              }
-            }
+            legend
           }
         }
-        .padding(16)
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-
-        VStack(spacing: 0) {
-          if HealthDatabase.heartRateVariabilityTypes.contains(type.id) {
-            NavigationLink {
-              // Built when opened: it fetches the series.
-              Lazy { HeartbeatSeriesView() }
-            } label: {
-              PageLinkRow("Beat-to-Beat Measurements")
-            }
-            .buttonStyle(.plain)
-            Divider().padding(.leading, 14)
-          }
-          NavigationLink {
-            AllDataView(type: type)
-          } label: {
-            PageLinkRow("Show All Data")
-          }
-          .buttonStyle(.plain)
-          Divider().padding(.leading, 14)
-          NavigationLink {
-            DataSourcesView(type: type)
-          } label: {
-            PageLinkRow("Data Sources")
-          }
-          .buttonStyle(.plain)
-        }
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+        .padding(.vertical, 6)
       }
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
+      Section {
+        if HealthDatabase.heartRateVariabilityTypes.contains(type.id) {
+          NavigationLink("Beat-to-Beat Measurements") {
+            // Built when opened: it fetches the series.
+            Lazy { HeartbeatSeriesView() }
+          }
+        }
+        NavigationLink("Show All Data") {
+          AllDataView(type: type)
+        }
+        NavigationLink("Data Sources") {
+          DataSourcesView(type: type)
+        }
+      }
     }
-    .background(Color.pageBackground)
+    .formStyle(.grouped)
     .navigationTitle(type.name)
     // The range and ‹ Today › in the toolbar, and the View menu's commands (`PeriodCommands`).
     .periodControls(PagePeriod(range: $range, offset: $offset))
+  }
+
+  /// What the lines over the chart are.
+  private var legend: some View {
+    HStack(spacing: 16) {
+      ForEach(shownOverlays, id: \.name) { overlay in
+        Label {
+          Text(overlay.name)
+        } icon: {
+          Circle().fill(overlay.color).frame(width: 8, height: 8)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      }
+    }
   }
 
   // MARK: Header
@@ -331,7 +321,10 @@ struct MetricDetailContent: View {
     case .failed(let reason):
       ContentUnavailableView(
         "Couldn't Load \(type.name)", systemImage: "exclamationmark.triangle",
-        description: Text(reason))
+        description: Text(reason)
+      )
+      // A form's row would otherwise give it only its ideal width, off center.
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .loaded(let chart):
       Chart {
         ForEach(chart.points, id: \.start) { point in
