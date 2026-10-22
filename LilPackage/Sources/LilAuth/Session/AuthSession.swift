@@ -1,6 +1,6 @@
 public import Dependencies
 public import Foundation
-import LilAPI
+public import LilAPI
 import Security
 
 /// A signed-in session: an access token for API requests and a refresh token for the next one.
@@ -87,62 +87,101 @@ public struct SessionStore: Sendable {
     public let status: OSStatus
   }
 
-  /// The Keychain, readable after the device's first unlock, so background uploads can use it.
+  /// The Keychain item holding `environment`'s session, readable after the device's first
+  /// unlock, so background uploads can use it.
+  ///
+  /// Each server has its own item (851-2974), so a dev build pointed at staging or a preview
+  /// never reads the prod session (whose tokens must not reach a server with synthetic data),
+  /// replaces it, or deletes it by signing out. Builds of lil health share one Keychain access
+  /// group, Debug and Release alike, and a temporary home doesn't separate them.
   ///
   /// It's the data protection Keychain, which on macOS needs an app with an application
   /// identifier. Sign in with Apple needs a provisioning profile, which gives it one.
-  public static let keychain = Self(
-    load: {
-      var item: CFTypeRef?
-      let status = SecItemCopyMatching(
-        keychainQuery.merging([
-          kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne,
-        ]) { $1 } as CFDictionary,
-        &item
-      )
-      if status == errSecItemNotFound { return nil }
-      guard status == errSecSuccess, let data = item as? Data else {
-        throw KeychainError(status: status)
-      }
-      return try JSONDecoder().decode(AuthSession.self, from: data)
-    },
-    save: { session in
-      guard let session else {
-        let status = SecItemDelete(keychainQuery as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
+  public static func keychain(for environment: APIEnvironment) -> Self {
+    keychain(for: environment, items: .live)
+  }
+
+  static func keychain(for environment: APIEnvironment, items: KeychainItems) -> Self {
+    Self(
+      load: {
+        let query = keychainQuery(for: environment)
+        let (status, item) = items.copyMatching(
+          query.merging([
+            kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne,
+          ]) { $1 })
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = item as? Data else {
           throw KeychainError(status: status)
         }
-        return
+        return try JSONDecoder().decode(AuthSession.self, from: data)
+      },
+      save: { session in
+        let query = keychainQuery(for: environment)
+        guard let session else {
+          let status = items.delete(query)
+          guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError(status: status)
+          }
+          return
+        }
+        // Updated in place, so a failed write keeps the previous session.
+        let data = try JSONEncoder().encode(session)
+        var status = items.update(query, [kSecValueData: data])
+        if status == errSecItemNotFound {
+          status = items.add(
+            query.merging([
+              kSecValueData: data,
+              kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+            ]) { $1 })
+        }
+        guard status == errSecSuccess else { throw KeychainError(status: status) }
       }
-      // Updated in place, so a failed write keeps the previous session.
-      let data = try JSONEncoder().encode(session)
-      var status = SecItemUpdate(
-        keychainQuery as CFDictionary, [kSecValueData: data] as CFDictionary)
-      if status == errSecItemNotFound {
-        status = SecItemAdd(
-          keychainQuery.merging([
-            kSecValueData: data,
-            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-          ]) { $1 } as CFDictionary,
-          nil
-        )
-      }
-      guard status == errSecSuccess else { throw KeychainError(status: status) }
-    }
-  )
+    )
+  }
 
-  private static var keychainQuery: [CFString: Any] {
-    [
+  /// The attributes that pick `environment`'s item: one service, and an account per server.
+  ///
+  /// Prod's account is `session`, the one item every build used before 851-2974, so Release
+  /// builds (and iPhones, which only use prod) keep finding their session after updating, with
+  /// nothing to migrate. Any other server's is `session` and its origin, e.g.
+  /// `session https://api.staging.lil.tech`.
+  static func keychainQuery(for environment: APIEnvironment) -> [CFString: Any] {
+    let account =
+      switch environment {
+      case .prod: "session"
+      case .staging, .preview: "session \(environment.baseURL.absoluteString)"
+      }
+    return [
       kSecClass: kSecClassGenericPassword,
       kSecAttrService: "tech.lil.auth",
-      kSecAttrAccount: "session",
+      kSecAttrAccount: account,
       kSecUseDataProtectionKeychain: true,
     ]
   }
 }
 
+/// The Keychain's item functions (`SecItemCopyMatching` and the rest), so tests can use a fake
+/// Keychain rather than the real one, which apps share.
+struct KeychainItems: Sendable {
+  var copyMatching: @Sendable (_ query: [CFString: Any]) -> (OSStatus, CFTypeRef?)
+  var add: @Sendable (_ attributes: [CFString: Any]) -> OSStatus
+  var update: @Sendable (_ query: [CFString: Any], _ changes: [CFString: Any]) -> OSStatus
+  var delete: @Sendable (_ query: [CFString: Any]) -> OSStatus
+
+  static let live = Self(
+    copyMatching: { query in
+      var item: CFTypeRef?
+      let status = SecItemCopyMatching(query as CFDictionary, &item)
+      return (status, item)
+    },
+    add: { SecItemAdd($0 as CFDictionary, nil) },
+    update: { SecItemUpdate($0 as CFDictionary, $1 as CFDictionary) },
+    delete: { SecItemDelete($0 as CFDictionary) }
+  )
+}
+
 extension SessionStore: DependencyKey {
-  public static let liveValue = Self.keychain
+  public static let liveValue = Self.keychain(for: .current())
   public static var testValue: Self { .inMemory() }
   public static var previewValue: Self { .inMemory() }
 }

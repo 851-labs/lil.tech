@@ -72,8 +72,10 @@ Building, running and inspecting the apps all work from the command line (851-29
     --env LIL_SIGN_IN_TO_TEST_ACCOUNT=1
   pid=$(pgrep -f "$app/Contents/MacOS/lil health")
   ```
-  - The home keeps the app's files apart (`$home/Library/Application Support/tech.lil.health`), but not its session. That's one Keychain item, shared by every build of lil health on this Mac, Release ones included. **Never run a dev build on a Mac where lil health is signed in to a real account:** it would start with that session and send its tokens to the preview, and signing it out would sign the real app out. Use a Mac without one, or the simulator.
-  - Sign out before quitting, so the next build doesn't start signed in: lil health › Sign Out, or `osascript -e "tell application \"System Events\" to click menu item \"Sign Out\" of menu 1 of menu bar item 2 of menu bar 1 of (first process whose unix id is $pid)"`, which needs Accessibility access for the terminal. Check that the window shows the sign-in screen, then `kill $pid`.
+  - **Always use a temporary home.** It keeps the app's files apart (`$home/Library/Application Support/tech.lil.health`). A build that opens signed out deletes the account's data from that folder (its health data, agent access setting and log), and in your own home that's the installed app's.
+  - **The session is the server's own** (851-2974): one Keychain item per API server, shared by every build of lil health on this Mac that talks to it, Release ones included. Prod's is the item every build used before (service `tech.lil.auth`, account `session`), and any other server's has its origin in the account (`session https://api.staging.lil.tech`). So a dev build pointed at staging or a preview never sees, replaces or signs out the prod session, and running one on a Mac where lil health is signed in to a real account is fine. **Never point a dev build at prod** (`LIL_API_URL=https://api.lil.tech`): it would share the real session, and signing it out would sign the real app out.
+  - The items are in the data protection Keychain, which `security find-generic-password` can't see.
+  - Sign out before quitting, so the next build against that preview doesn't start signed in, and its item doesn't outlive the preview: lil health › Sign Out, or `osascript -e "tell application \"System Events\" to click menu item \"Sign Out\" of menu 1 of menu bar item 2 of menu bar 1 of (first process whose unix id is $pid)"`, which needs Accessibility access for the terminal. Check that the window shows the sign-in screen, then `kill $pid`.
   - Without `LIL_API_URL`, a Debug build uses staging. Release builds ignore it and use prod.
 - **Inspect by `$pid`,** not the name "lil health", which an installed copy shares.
 - **Logs:** `/usr/bin/log stream --style compact --predicate "processID == $pid"`, or `log show --last 10m …` for the past. Spell out `/usr/bin/log`: zsh has a `log` builtin. Our own loggers use `subsystem == "tech.lil.health"` (the iPhone's backfill, uploads and synthetic data); the Mac app has none yet, so its log is the system frameworks'. Issues `reportIssue` raises are logged as `subsystem == "com.apple.runtime-issues"`, with the module as the category and the message redacted.
@@ -84,7 +86,7 @@ Building, running and inspecting the apps all work from the command line (851-29
   osascript -l JavaScript -e 'ObjC.import("CoreGraphics"); ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0))).filter(w => w.kCGWindowOwnerPID == '$pid' && w.kCGWindowLayer == 0).map(w => w.kCGWindowNumber + " " + w.kCGWindowName).join("\n")'
   screencapture -o -x -l <number> window.png
   ```
-- **iPhone simulator:** use a simulator of your own, by its UDID, since other agents' may be booted. Its Keychain is its own, and deleting it cleans up everything.
+- **iPhone simulator:** use a simulator of your own, by its UDID, since other agents' may be booted. Its Keychain is its own, and deleting it cleans up everything. Within it, each server's session is its own too, as on the Mac.
   ```sh
   sim=$(xcrun simctl create lil-dev "iPhone 18 Pro")
   xcrun simctl bootstatus "$sim" -b
