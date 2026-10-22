@@ -8,8 +8,8 @@
   import SwiftUI
   import Testing
 
-  // Summary (`SummaryContent`): the everyday metrics' cards and highlights, from the catalog
-  // database at `previewNow`, and highlight cards with made-up values. Synthetic data only.
+  // Summary (`SummaryContent`): the everyday metrics' rows and highlights, from the catalog
+  // database at `previewNow`, and highlights with made-up values. Synthetic data only.
 
   extension MacSnapshotTests {
     @Test(arguments: summaryCatalog.selectedStates)
@@ -19,7 +19,7 @@
   }
 
   let summaryCatalog = StateCatalog(
-    "Summary", width: 760, minHeight: 1100,
+    "Summary", width: 760, minHeight: 480,
     states: [
       CatalogState("Loaded") {
         summary(.loaded(summaryMetrics()), highlights: .loaded(highlights()))
@@ -37,15 +37,14 @@
       // About the same, up a lot, and down to almost nothing, in a narrow column, where the bars'
       // names used to run into the bar above (851-2824).
       CatalogState("Week comparisons", width: 360, minHeight: 640) {
-        ScrollView {
-          VStack(spacing: 12) {
+        Form {
+          Section("Highlights") {
             weekHighlight("HKQuantityTypeIdentifierRestingHeartRate", current: 61, previous: 60)
             weekHighlight("HKQuantityTypeIdentifierStepCount", current: 12_480, previous: 4_210)
             weekHighlight("HKQuantityTypeIdentifierActiveEnergyBurned", current: 12, previous: 640)
           }
-          .padding(16)
         }
-        .background(Color.pageBackground)
+        .formStyle(.grouped)
       },
     ])
 

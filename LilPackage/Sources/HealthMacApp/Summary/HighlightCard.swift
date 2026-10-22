@@ -5,7 +5,7 @@ import HealthPages
 import HealthUI
 import SwiftUI
 
-/// One highlight: what changed, in a sentence, and a chart of it.
+/// One highlight, in a form row: what changed, in a sentence, and a chart of it.
 struct HighlightCard: View {
   let highlight: Highlight
   let type: HealthDataType
@@ -24,9 +24,8 @@ struct HighlightCard: View {
       case .trend: trend
       }
     }
-    .padding(14)
+    .padding(.vertical, 6)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
   }
 
   /// The two weeks' averages as bars, this week in the category's color. Each row has its own
