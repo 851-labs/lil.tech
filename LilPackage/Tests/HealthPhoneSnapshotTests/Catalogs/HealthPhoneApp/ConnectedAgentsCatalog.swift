@@ -77,9 +77,7 @@
               SyntheticAgents.digest,
               ConnectedAgent(
                 id: "grant-4", name: nil, domain: nil, app: "health",
-                connectedAt: Date(timeIntervalSince1970: 1_760_600_000),
-                firstUsedAt: nil,
-                lastUsedAt: Date(timeIntervalSince1970: 1_760_600_000)),
+                connectedAt: ago(days: 4), firstUsedAt: nil, lastUsedAt: ago(days: 4)),
             ])))
       },
       CatalogState("Long names") {
@@ -91,15 +89,12 @@
                 name:
                   "A Very Long Agent Name That Somebody Registered For Their Own Health Dashboard",
                 domain: nil, app: nil, apps: ["health"],
-                connectedAt: Date(timeIntervalSince1970: 1_760_700_000),
-                firstUsedAt: nil,
-                lastUsedAt: Date(timeIntervalSince1970: 1_760_700_000)),
+                connectedAt: ago(days: 3), firstUsedAt: nil, lastUsedAt: ago(days: 3)),
               ConnectedAgent(
                 id: "grant-6", name: "Health Insights Assistant for Research Studies",
                 domain: "research-assistant.health-insights.example.com", app: "health",
-                connectedAt: Date(timeIntervalSince1970: 1_760_650_000),
-                firstUsedAt: Date(timeIntervalSince1970: 1_760_650_060),
-                lastUsedAt: previewNow.addingTimeInterval(-26 * 3600)),
+                connectedAt: ago(days: 3.5), firstUsedAt: ago(days: 3.5), lastUsedAt: ago(hours: 26)
+              ),
             ])))
       },
     ])
@@ -108,41 +103,41 @@
   enum SyntheticAgents {
     static let claude = ConnectedAgent(
       id: "grant-1", name: "Claude", domain: "claude.ai", app: "health",
-      connectedAt: Date(timeIntervalSince1970: 1_760_900_000),
-      firstUsedAt: Date(timeIntervalSince1970: 1_760_900_060),
-      lastUsedAt: previewNow.addingTimeInterval(-2 * 3600))
+      connectedAt: ago(days: 1), firstUsedAt: ago(days: 1), lastUsedAt: ago(hours: 2))
     static let digest = ConnectedAgent(
       id: "grant-2", name: "Weekly Health Digest", domain: nil, app: "health",
-      connectedAt: Date(timeIntervalSince1970: 1_760_800_000),
-      firstUsedAt: Date(timeIntervalSince1970: 1_760_800_060),
-      lastUsedAt: previewNow.addingTimeInterval(-3 * 86_400))
+      connectedAt: ago(days: 5), firstUsedAt: ago(days: 5), lastUsedAt: ago(days: 3))
     /// Connected through the combined server, to every lil app (851-2902).
     static let chatGPT = ConnectedAgent(
       id: "grant-3", name: "ChatGPT", domain: "chatgpt.com", app: nil, apps: ["health"],
-      connectedAt: Date(timeIntervalSince1970: 1_760_960_000),
-      firstUsedAt: nil,
-      lastUsedAt: Date(timeIntervalSince1970: 1_760_960_000))
+      connectedAt: ago(hours: 6), firstUsedAt: nil, lastUsedAt: ago(hours: 6))
 
     /// Most recently connected first, as the API lists them.
     static let agents = [chatGPT, claude, digest]
 
-    /// `count` reads, newest first, every third by the digest, some of them not ok.
+    /// `count` reads, half an hour apart, newest first from two hours before `previewNow`, every
+    /// third by the digest, some of them not ok.
     static func reads(_ count: Int, from start: Int = 0) -> [RemoteAgentAccess] {
       (start..<(start + count)).map { index in
         let byDigest = index.isMultiple(of: 3)
         let asksForSteps = index.isMultiple(of: 2)
         return RemoteAgentAccess(
           id: 1_000 - index,
-          at: Date(timeIntervalSince1970: 1_760_972_520 - Double(index) * 1_800),
+          at: ago(hours: 2 + Double(index) / 2),
           agentID: byDigest ? digest.id : claude.id,
           agentName: byDigest ? "Weekly Health Digest" : "Claude",
           tool: asksForSteps ? "get_metric" : "summary",
           types: asksForSteps
             ? ["HKQuantityTypeIdentifierStepCount", "HKQuantityTypeIdentifierHeartRate"] : [],
-          range: asksForSteps ? "W" : nil, date: asksForSteps ? "2026-10-20" : nil,
+          range: asksForSteps ? "W" : nil, date: asksForSteps ? "2024-08-13" : nil,
           outcome: index % 7 == 5 ? "too_large" : "ok", rows: asksForSteps ? 14 : 1)
       }
     }
+  }
+
+  /// A time before `previewNow`, so it reads as it would in the app on that day.
+  private func ago(days: Double = 0, hours: Double = 0) -> Date {
+    previewNow.addingTimeInterval(-(days * 86_400 + hours * 3_600))
   }
 
   @MainActor

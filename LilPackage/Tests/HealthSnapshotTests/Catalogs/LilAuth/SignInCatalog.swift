@@ -32,7 +32,7 @@ import Testing
         }
       }
     ])
-#else
+#elseif PHONE_SNAPSHOT_TESTS
   extension PhoneSnapshotTests {
     @Test(arguments: signInCatalog.selectedStates)
     func signIn(_ state: CatalogState) {

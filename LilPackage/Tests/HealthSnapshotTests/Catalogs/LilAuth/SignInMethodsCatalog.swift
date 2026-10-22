@@ -22,7 +22,7 @@ import Testing
 
   let signInMethodsCatalog = StateCatalog(
     "Sign-In Methods (Mac)", width: 440, minHeight: 300, states: signInMethodsStates)
-#else
+#elseif PHONE_SNAPSHOT_TESTS
   extension PhoneSnapshotTests {
     @Test(arguments: signInMethodsCatalog.selectedStates)
     func signInMethods(_ state: CatalogState) {

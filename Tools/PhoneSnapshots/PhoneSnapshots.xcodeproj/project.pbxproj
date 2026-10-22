@@ -323,6 +323,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.health-phone-snapshot-tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) PHONE_SNAPSHOT_TESTS";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PhoneSnapshotHost.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PhoneSnapshotHost";
 			};
 			name = Debug;
@@ -335,6 +336,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.health-phone-snapshot-tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) PHONE_SNAPSHOT_TESTS";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PhoneSnapshotHost.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PhoneSnapshotHost";
 			};
 			name = Release;
