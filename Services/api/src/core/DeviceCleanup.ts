@@ -3,8 +3,9 @@ import type { DeviceId, UserId } from "./Ids.ts";
 import { UserStores } from "../store/UserStores.ts";
 import { Devices } from "./Devices.ts";
 
-// Retiring devices that signed out for good (`docs/SYNC.md`): on sign-out, and daily for those
-// that stopped without signing out (the app deleted, the phone wiped, refresh tokens expired).
+// Retiring devices that signed out for good (`docs/sync/protocol.md`): on sign-out, and daily for
+// those that stopped without signing out (the app deleted, the phone wiped, refresh tokens
+// expired).
 
 /** How long a device without a live session must also have been unseen before it's retired. */
 export const signedOutGrace = 24 * 60 * 60 * 1000;

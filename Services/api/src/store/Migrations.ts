@@ -23,8 +23,8 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
   {
     version: 2,
     name: "changes",
-    // The change log (`docs/SYNC.md`). `seq` is assigned from `meta.head`, never by SQLite, so it
-    // isn't reused when compaction deletes the newest changes.
+    // The change log (`docs/sync/protocol.md`). `seq` is assigned from `meta.head`, never by
+    // SQLite, so it isn't reused when compaction deletes the newest changes.
     sql: `CREATE TABLE changes (
       seq INTEGER PRIMARY KEY,
       entity TEXT NOT NULL,
@@ -196,9 +196,10 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
     version: 16,
     name: "health_sample_by_time",
     // `HealthSample`'s key fields (`Entity.key`): stored by type, start and ID, so a backfill's
-    // batches write next to each other instead of all over a UUID index (`docs/SYNC.md`). Copying
-    // is fine for stores of synthetic data; prod's one store was emptied first (851-2651). The
-    // primary key replaces `health_sample_type_start`. `tombstones` is `src/store/Tombstones.ts`.
+    // batches write next to each other instead of all over a UUID index (`docs/sync/protocol.md`).
+    // Copying is fine for stores of synthetic data; prod's one store was emptied first (851-2651).
+    // The primary key replaces `health_sample_type_start`. `tombstones` is
+    // `src/store/Tombstones.ts`.
     sql: `
       CREATE TABLE "health_sample_by_time" (id TEXT NOT NULL, "type" TEXT NOT NULL, "start_date" INTEGER NOT NULL, "end_date" INTEGER NOT NULL, "value" REAL, "unit" TEXT, "category_value" INTEGER, "correlation_id" TEXT, "source_name" TEXT NOT NULL, "source_bundle_id" TEXT NOT NULL, "source_revision" TEXT, "device" TEXT, "metadata" TEXT, PRIMARY KEY ("type", "start_date", "id")) STRICT, WITHOUT ROWID;
       INSERT INTO health_sample_by_time (id, type, start_date, end_date, value, unit, category_value, correlation_id, source_name, source_bundle_id, source_revision, device, metadata)
@@ -221,7 +222,8 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
     // `key` holds an upsert's record's key fields' values as a JSON array (`Entity.key`), or NULL
     // without key fields, so `readChanges` can read its row from its table. Since 851-2676,
     // changes don't carry a copy of their row (`logsRowCopies`): their `row` is '' (the CHECK on
-    // `changes` still wants one). Code from before 851-2673 can't read those (`docs/SYNC.md`).
+    // `changes` still wants one). Code from before 851-2673 can't read those
+    // (`docs/sync/protocol.md`).
     sql: "ALTER TABLE changes ADD COLUMN key TEXT;",
   },
   {

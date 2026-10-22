@@ -5,9 +5,9 @@ import { exportSnapshotDueAt } from "./Exports.ts";
 import { comparedToKey, type Entity, fromColumnValue, keyList } from "./Entities.ts";
 import type { SqlRow, SqlValue, StoreSql } from "./StoreSql.ts";
 
-// Snapshots of a store (`docs/SYNC.md`): every record as of a `seq`, in gzip NDJSON parts in R2,
-// so a new device doesn't replay the whole change log. Written a part per alarm, so writes keep
-// flowing and no invocation runs long. Every alarm also does the upkeep: compacting the change
+// Snapshots of a store (`docs/sync/protocol.md`): every record as of a `seq`, in gzip NDJSON parts
+// in R2, so a new device doesn't replay the whole change log. Written a part per alarm, so writes
+// keep flowing and no invocation runs long. Every alarm also does the upkeep: compacting the change
 // log behind the latest snapshot and deleting replaced snapshots.
 
 export const snapshotPolicy = {

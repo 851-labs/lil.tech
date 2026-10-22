@@ -2,7 +2,7 @@ import CryptoKit
 public import Foundation
 import LilGzip
 
-/// Collects mutations into gzip NDJSON batch files (`docs/SYNC.md`). Files are cut by
+/// Collects mutations into gzip NDJSON batch files (`docs/sync/protocol.md`). Files are cut by
 /// uncompressed size: at most 15 MB, under the server's 16 MB compressed and 64 MB decompressed
 /// limits whatever the data (DEFLATE expands incompressible data by well under 1%). They can also
 /// be cut by count (`maxRecords`), so a page makes a couple of files that upload at once.

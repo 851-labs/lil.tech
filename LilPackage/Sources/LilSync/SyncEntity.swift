@@ -4,7 +4,7 @@ public import SQLiteData
 
 /// How an app stores one synced entity locally: what to do with an upserted row, a delete, and a
 /// bootstrap that replaces everything. Apps register their entities with ``LilSyncEngine``;
-/// changes to entities nobody registered are skipped (`docs/SYNC.md`).
+/// changes to entities nobody registered are skipped (`docs/sync/protocol.md`).
 public struct SyncEntity: Sendable {
   /// The server's entity name, e.g. `health_sample`.
   public let name: String

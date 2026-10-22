@@ -7,7 +7,7 @@ Every architecture and product decision made so far. This file holds the decisio
 - [Distribution and CI](decisions/distribution.md): How the apps are signed, released and updated, and how checks run.
 - [Server](decisions/server.md): The API: hosting, storage, limits and throughput.
 - [Accounts](decisions/accounts.md): Sign-in, identities, linking, deletion and export.
-- [Sync](decisions/sync.md): How apps sync with the server (with `docs/SYNC.md`).
+- [Sync](decisions/sync.md): How apps sync with the server. The protocol itself is specified in [`docs/sync/protocol.md`](sync/protocol.md).
 - [lil health](decisions/health.md): Apple Health on the Mac: data, statistics, privacy and the apps.
 - [lil messages](decisions/messages.md): The iMessage client (paused).
 - [Pixelbook](decisions/pixelbook.md): Snapshots of every state catalog, published and browsable.

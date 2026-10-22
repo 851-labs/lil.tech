@@ -49,9 +49,9 @@ export const columnName = (field: string) =>
   field.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 
 /**
- * A kind of record with its own table in the store (`docs/SYNC.md`). Its table has an `id` column
- * and one `snake_case` column per field, and its primary key is its key fields' columns, then
- * `id`.
+ * A kind of record with its own table in the store (`docs/sync/protocol.md`). Its table has an `id`
+ * column and one `snake_case` column per field, and its primary key is its key fields' columns,
+ * then `id`.
  */
 export interface Entity {
   readonly name: string;
@@ -65,8 +65,8 @@ export interface Entity {
   }>;
   /**
    * Fields that lead the table's primary key, before `id`, so records are stored in their order
-   * (`docs/SYNC.md`). A record's are set when it's created and never change, so every upsert must
-   * include them. Empty for most entities, which are keyed by `id` alone.
+   * (`docs/sync/protocol.md`). A record's are set when it's created and never change, so every
+   * upsert must include them. Empty for most entities, which are keyed by `id` alone.
    */
   readonly key: ReadonlyArray<string>;
   /** The table's primary key: the key fields' columns, then `id`. */

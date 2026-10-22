@@ -3,7 +3,7 @@ import { type HttpServerRequest, HttpServerResponse } from "effect/http";
 import type { UserId } from "../core/Ids.ts";
 import type { UserStoreMethods } from "./UserStore.ts";
 
-/** The Durable Object name of a user's store (`docs/SYNC.md`). */
+/** The Durable Object name of a user's store (`docs/sync/protocol.md`). */
 export const userStoreName = (userId: UserId) => `user:${userId}`;
 
 /**

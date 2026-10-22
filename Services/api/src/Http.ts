@@ -241,8 +241,8 @@ export const AuthHandlers = HttpApiBuilder.group(
           const session = yield* CurrentSession;
           yield* auth.signOut(session.sessionId);
           // Signed out for good (its last session): its device-scoped records go too, so a stale
-          // statistics source doesn't linger (`docs/SYNC.md`). Retired before the device row
-          // goes, so if retiring fails the row is left for a later cleanup (851-2620).
+          // statistics source doesn't linger (`docs/sync/protocol.md`). Retired before the device
+          // row goes, so if retiring fails the row is left for a later cleanup (851-2620).
           // Best-effort: the Mac also ignores sources that stopped reporting.
           if (!(yield* devices.hasSessions(session.deviceId))) {
             yield* retireDevice(
@@ -511,7 +511,7 @@ export const SyncHandlers = HttpApiBuilder.group(
   Effect.fn(function* (handlers) {
     const stores = yield* UserStores;
     const partUrls = yield* PartUrls;
-    // The store comes from the session, never from the request (`docs/SYNC.md`).
+    // The store comes from the session, never from the request (`docs/sync/protocol.md`).
     const sessionStore = CurrentSession.use((session) =>
       Effect.succeed(stores.forUser(session.userId)),
     );
@@ -1009,9 +1009,9 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
 
 /**
  * `GET /v1/sync/live`: a WebSocket of live sync notices, handed to the user's store
- * (`docs/SYNC.md`). Authenticated with the access token in the `Authorization` header like other
- * requests; the store closes the socket when that token expires. Left out of the OpenAPI spec,
- * which can't describe WebSockets.
+ * (`docs/sync/protocol.md`). Authenticated with the access token in the `Authorization` header like
+ * other requests; the store closes the socket when that token expires. Left out of the OpenAPI
+ * spec, which can't describe WebSockets.
  */
 export const LiveRoute = HttpRouter.use((router) =>
   Effect.gen(function* () {

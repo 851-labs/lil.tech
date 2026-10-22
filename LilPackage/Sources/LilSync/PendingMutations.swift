@@ -4,8 +4,8 @@ import LilAPI
 public import OpenAPIRuntime
 import SQLiteData
 
-/// One write an app makes to an entity apps may write (`docs/SYNC.md`). None writes any today:
-/// Summary's pins were the only ones, and are retired (851-2990).
+/// One write an app makes to an entity apps may write (`docs/sync/protocol.md`). None writes any
+/// today: Summary's pins were the only ones, and are retired (851-2990).
 public struct SyncMutation: Codable, Equatable, Sendable {
   public enum Operation: String, Codable, Sendable {
     case upsert, delete
@@ -28,8 +28,8 @@ public struct SyncMutation: Codable, Equatable, Sendable {
   }
 }
 
-/// Writes waiting for the server, oldest first by row ID (`docs/SYNC.md`). Outside the synced
-/// tables, so a bootstrap keeps them. `seq` is set once the server applied them: they're
+/// Writes waiting for the server, oldest first by row ID (`docs/sync/protocol.md`). Outside the
+/// synced tables, so a bootstrap keeps them. `seq` is set once the server applied them: they're
 /// written over pulled changes until the cursor reaches it, so a pull from before doesn't undo
 /// them.
 @Table("lilPendingMutations")

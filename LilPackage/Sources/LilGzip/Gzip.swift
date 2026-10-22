@@ -1,8 +1,8 @@
 public import Foundation
 
 /// Reads and writes single-member gzip files, the format of snapshot parts and health batches
-/// (`docs/SYNC.md`). Foundation's `.zlib` algorithm is raw DEFLATE, so the gzip header and trailer
-/// are handled here.
+/// (`docs/sync/protocol.md`). Foundation's `.zlib` algorithm is raw DEFLATE, so the gzip header and
+/// trailer are handled here.
 public enum Gzip {
   public struct InvalidData: Error, Equatable {
     public let reason: String

@@ -10,8 +10,8 @@ extension DependencyValues {
   }
 }
 
-/// Synced records refer to health blobs by SHA-256 (`docs/SYNC.md`). The cache downloads one the
-/// first time it's asked for, through a short-lived signed URL, and keeps it on disk. Past
+/// Synced records refer to health blobs by SHA-256 (`docs/sync/protocol.md`). The cache downloads
+/// one the first time it's asked for, through a short-lived signed URL, and keeps it on disk. Past
 /// `maxBytes`, the least recently used go. Signing out must call ``removeAll()``: the blobs are
 /// the account's health data.
 public actor BlobCache {

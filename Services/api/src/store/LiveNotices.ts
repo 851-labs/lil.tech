@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 
-// Live sync notices (`docs/SYNC.md`): connected clients get `{ "type": "head", "seq": n }` when
-// they connect and after writes that appended changes, at most once per window, always ending
+// Live sync notices (`docs/sync/protocol.md`): connected clients get `{ "type": "head", "seq": n }`
+// when they connect and after writes that appended changes, at most once per window, always ending
 // with the latest `head`. Sockets are listed from the runtime each time, never kept in memory,
 // so a store that hibernates and wakes still reaches them.
 
