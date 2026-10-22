@@ -418,11 +418,26 @@ struct AppFeatureTests {
   }
 
   @Test
-  func searchCoversEveryVersionButNotCharacteristics() {
+  func searchCoversEveryVersion() {
     let state = AppFeature.State(isSignedIn: true, searchText: "menopause")
     // Added in iOS 27, and synced from iPhones that have it.
     #expect(!state.searchResults.isEmpty)
-    #expect(AppFeature.State(isSignedIn: true, searchText: "blood type").searchResults.isEmpty)
+  }
+
+  /// The characteristics Health Details shows come first, as Health Details does in the sidebar
+  /// (851-3026). Activity Move Mode, which it doesn't show, isn't found.
+  @Test
+  func searchFindsCharacteristicsFirst() {
+    let blood = AppFeature.State(isSignedIn: true, searchText: "blood").searchResults
+    #expect(blood.first?.id == "HKCharacteristicTypeIdentifierBloodType")
+    #expect(blood.dropFirst().allSatisfy { $0.category != nil })
+    #expect(AppFeature.State(isSignedIn: true, searchText: "move mode").searchResults.isEmpty)
+    // In Health Details' order.
+    #expect(
+      HealthPage.browsableTypes.prefix(5).map(\.name) == [
+        "Date of Birth", "Sex", "Blood Type", "Fitzpatrick Skin Type", "Wheelchair",
+      ])
+    #expect(HealthPage.browsableTypes.dropFirst(5).allSatisfy { $0.category != nil })
   }
 
   @Test
@@ -437,6 +452,22 @@ struct AppFeatureTests {
     await store.send(\.binding.searchText, "") {
       $0.searchText = ""
       $0.selection = .category(.heart)
+    }
+  }
+
+  /// A characteristic has no category: Health Details takes its place, not Summary (851-3026).
+  @Test
+  func clearingTheSearchSelectsHealthDetailsForACharacteristic() async {
+    let store = TestStore(
+      initialState: AppFeature.State(
+        isSignedIn: true, selection: .dataType("HKCharacteristicTypeIdentifierDateOfBirth"),
+        searchText: "birth")
+    ) {
+      AppFeature()
+    }
+    await store.send(\.binding.searchText, "") {
+      $0.searchText = ""
+      $0.selection = .healthDetails
     }
   }
 }

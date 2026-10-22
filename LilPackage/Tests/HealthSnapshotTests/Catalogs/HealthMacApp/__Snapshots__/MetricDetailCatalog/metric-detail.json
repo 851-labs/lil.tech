@@ -53,10 +53,10 @@
       "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
     },
     {
-      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.not-a-quantity-dark.png",
-      "id" : "metric-detail.not-a-quantity",
-      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.not-a-quantity-light.png",
-      "name" : "Not a quantity",
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.a-characteristic-dark.png",
+      "id" : "metric-detail.a-characteristic",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.a-characteristic-light.png",
+      "name" : "A characteristic",
       "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
     },
     {

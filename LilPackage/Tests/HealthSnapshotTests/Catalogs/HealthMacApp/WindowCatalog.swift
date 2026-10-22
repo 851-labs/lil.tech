@@ -91,6 +91,14 @@
             isSignedIn: true, selection: .dataType("HKQuantityTypeIdentifierHeartRate"),
             searchText: "heart"))
       },
+      // Health Details' characteristics first, as in the sidebar, and one opens Health Details
+      // (851-3026).
+      CatalogState("A characteristic found by search") {
+        window(
+          AppFeature.State(
+            isSignedIn: true, selection: .dataType("HKCharacteristicTypeIdentifierBloodType"),
+            searchText: "blood"))
+      },
       CatalogState("Search without results") {
         window(AppFeature.State(isSignedIn: true, searchText: "xylophone"))
       },

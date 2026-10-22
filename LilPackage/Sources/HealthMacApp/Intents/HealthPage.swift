@@ -1,19 +1,20 @@
 public import AppIntents
 import AppKit
 public import HealthCatalog
+import HealthDatabase
 import HealthUI
 import SwiftUI
 import Synchronization
 
 /// A page of lil health for Mac that its intents open (851-2892): Summary, Health Details, a
-/// category, or a data type, as the sidebar offers them. Characteristics, which have no category,
-/// aren't pages.
+/// category, or a data type, as the sidebar offers them. A characteristic Health Details shows
+/// (Blood Type…) is a page too, which opens Health Details (851-3026).
 public struct HealthPage: AppEntity, Hashable, Sendable {
   public enum Kind: Hashable, Sendable {
     case summary
     case healthDetails
     case category(HealthCategory)
-    /// A type with a category, opened in it.
+    /// A type with a category, opened in it, or a characteristic, which opens Health Details.
     case dataType(HealthDataType)
   }
 
@@ -26,9 +27,10 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
     Self(kind: .category(category))
   }
 
-  /// A data type's page. `nil` for a type without a category (a characteristic).
+  /// A data type's page. `nil` for a characteristic Health Details doesn't show (Activity Move
+  /// Mode), which is nowhere in the app.
   public static func dataType(_ type: HealthDataType) -> Self? {
-    type.category == nil ? nil : Self(kind: .dataType(type))
+    HealthDetails.hasPage(type) ? Self(kind: .dataType(type)) : nil
   }
 
   private init(kind: Kind) {
@@ -75,6 +77,16 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
     }
   }
 
+  /// A type's subtitle in Shortcuts and Spotlight: the page it opens in, as the sidebar names it.
+  /// Its category, or Health Details for a characteristic, so Blood Type doesn't look like Health
+  /// Details itself.
+  var subtitle: String? {
+    switch kind {
+    case .dataType(let type): type.category?.name ?? Self.healthDetails.name
+    case .summary, .healthDetails, .category: nil
+    }
+  }
+
   /// The sidebar's icon.
   var symbolName: String {
     switch kind {
@@ -104,14 +116,16 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
   /// Every page, types last, in the sidebar's order.
   public static let all: [Self] = suggested + browsableTypes.compactMap(Self.dataType)
 
-  /// The types the sidebar's search finds, by category order then name. Every type in the
-  /// catalog, whatever iOS version added it: the Mac shows what's synced. Characteristics, which
-  /// have no category, aren't data to browse.
-  static let browsableTypes: [HealthDataType] = HealthCategory.allCases.flatMap { category in
-    HealthCatalog.all
-      .filter { $0.category == category }
-      .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-  }
+  /// The types the sidebar's search finds, in the sidebar's order: the characteristics Health
+  /// Details shows, in its order (the catalog's), then each category's types by name. Every type
+  /// in the catalog, whatever iOS version added it: the Mac shows what's synced.
+  static let browsableTypes: [HealthDataType] =
+    HealthCatalog.all.filter { $0.category == nil && HealthDetails.hasPage($0) }
+    + HealthCategory.allCases.flatMap { category in
+      HealthCatalog.all
+        .filter { $0.category == category }
+        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
 
   /// The pages a search finds: names as the sidebar's search matches them
   /// (`localizedStandardContains`), with types also found by the names `lil-health` accepts (the
@@ -137,13 +151,8 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
   public static let defaultQuery = HealthPageQuery()
 
   public var displayRepresentation: DisplayRepresentation {
-    let subtitle: LocalizedStringResource? =
-      switch kind {
-      case .dataType(let type): type.category.map { "\($0.name)" }
-      case .summary, .healthDetails, .category: nil
-      }
-    return DisplayRepresentation(
-      title: "\(name)", subtitle: subtitle,
+    DisplayRepresentation(
+      title: "\(name)", subtitle: subtitle.map { "\($0)" },
       image: Self.icon(symbolName: symbolName, color: color).map {
         DisplayRepresentation.Image(data: $0, isTemplate: false)
       } ?? DisplayRepresentation.Image(systemName: symbolName))
