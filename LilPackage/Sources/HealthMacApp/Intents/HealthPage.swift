@@ -30,10 +30,7 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
   /// A data type's page. `nil` for a characteristic Health Details doesn't show (Activity Move
   /// Mode), which is nowhere in the app.
   public static func dataType(_ type: HealthDataType) -> Self? {
-    guard type.category != nil || HealthDetails.characteristicIDs.contains(type.id) else {
-      return nil
-    }
-    return Self(kind: .dataType(type))
+    HealthDetails.hasPage(type) ? Self(kind: .dataType(type)) : nil
   }
 
   private init(kind: Kind) {
@@ -120,17 +117,15 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
   public static let all: [Self] = suggested + browsableTypes.compactMap(Self.dataType)
 
   /// The types the sidebar's search finds, in the sidebar's order: the characteristics Health
-  /// Details shows, then each category's types, each by name. Every type in the catalog, whatever
-  /// iOS version added it: the Mac shows what's synced.
-  static let browsableTypes: [HealthDataType] = {
-    func byName(_ types: [HealthDataType]) -> [HealthDataType] {
-      types.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+  /// Details shows, in its order (the catalog's), then each category's types by name. Every type
+  /// in the catalog, whatever iOS version added it: the Mac shows what's synced.
+  static let browsableTypes: [HealthDataType] =
+    HealthCatalog.all.filter { $0.category == nil && HealthDetails.hasPage($0) }
+    + HealthCategory.allCases.flatMap { category in
+      HealthCatalog.all
+        .filter { $0.category == category }
+        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
-    return byName(HealthCatalog.all.filter { HealthDetails.characteristicIDs.contains($0.id) })
-      + HealthCategory.allCases.flatMap { category in
-        byName(HealthCatalog.all.filter { $0.category == category })
-      }
-  }()
 
   /// The pages a search finds: names as the sidebar's search matches them
   /// (`localizedStandardContains`), with types also found by the names `lil-health` accepts (the

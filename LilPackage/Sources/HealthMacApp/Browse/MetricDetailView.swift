@@ -73,7 +73,8 @@ struct MetricDetailView: View {
             ?? ($chart.isLoading ? .loading : chart.map { .loaded($0) } ?? .loading),
           overlays: overlays)
       } else {
-        // Other kinds without a chart of their own yet.
+        // Other kinds without a chart of their own yet. No catalog type gets here since
+        // characteristics open Health Details (851-3026): it's for types added later.
         ContentUnavailableView(
           type.name, systemImage: type.symbolName,
           description: Text("A chart for \(type.name) is coming."))

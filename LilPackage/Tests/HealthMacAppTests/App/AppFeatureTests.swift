@@ -432,6 +432,12 @@ struct AppFeatureTests {
     #expect(blood.first?.id == "HKCharacteristicTypeIdentifierBloodType")
     #expect(blood.dropFirst().allSatisfy { $0.category != nil })
     #expect(AppFeature.State(isSignedIn: true, searchText: "move mode").searchResults.isEmpty)
+    // In Health Details' order.
+    #expect(
+      HealthPage.browsableTypes.prefix(5).map(\.name) == [
+        "Date of Birth", "Sex", "Blood Type", "Fitzpatrick Skin Type", "Wheelchair",
+      ])
+    #expect(HealthPage.browsableTypes.dropFirst(5).allSatisfy { $0.category != nil })
   }
 
   @Test

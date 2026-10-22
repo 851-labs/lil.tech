@@ -211,8 +211,9 @@ struct HealthCLIActionTests {
       #expect(OpenCommand.pageID(named: category.name) == "category:\(category.rawValue)")
     }
     for type in HealthCatalog.all {
-      let hasPage = type.category != nil || HealthDetails.characteristicIDs.contains(type.id)
-      #expect(OpenCommand.pageID(named: type.id) == (hasPage ? "type:\(type.id)" : nil))
+      #expect(
+        OpenCommand.pageID(named: type.id)
+          == (HealthDetails.hasPage(type) ? "type:\(type.id)" : nil))
     }
   }
 

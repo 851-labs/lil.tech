@@ -1,4 +1,5 @@
 public import Foundation
+public import HealthCatalog
 public import SQLiteData
 
 extension HealthDatabase {
@@ -25,6 +26,14 @@ public struct HealthDetails: Equatable, Sendable {
   public static let characteristicIDs: Set<String> = [
     "DateOfBirth", "BiologicalSex", "BloodType", "FitzpatrickSkinType", "WheelchairUse",
   ].reduce(into: []) { $0.insert("HKCharacteristicTypeIdentifier\($1)") }
+
+  /// Whether lil health for Mac has a page for the type, which its Open intent, sidebar search and
+  /// `lil-health open` agree on: a type with a category opens in it, and a characteristic Health
+  /// Details shows opens Health Details (851-3026). Activity Move Mode, which it doesn't show, is
+  /// nowhere in the app.
+  public static func hasPage(_ type: HealthDataType) -> Bool {
+    type.category != nil || characteristicIDs.contains(type.id)
+  }
 
   public init(
     dateOfBirth: BirthDate? = nil, sex: BiologicalSex? = nil, bloodType: BloodType? = nil,

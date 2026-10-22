@@ -57,7 +57,7 @@ struct OpenCommand: ActionCommand {
   /// Details, a category, or a data type by the names the queries take
   /// (`HealthCatalog.type(named:)`), as the Open intent finds them. Categories come before types,
   /// so Sleep is the category. A characteristic Health Details shows is a page too, which opens
-  /// Health Details (851-3026); Activity Move Mode, which it doesn't, isn't.
+  /// Health Details (`HealthDetails.hasPage`, 851-3026).
   static func pageID(named name: String) -> String? {
     let name = name.trimmingCharacters(in: .whitespaces)
     func matches(_ other: String) -> Bool { other.caseInsensitiveCompare(name) == .orderedSame }
@@ -66,9 +66,7 @@ struct OpenCommand: ActionCommand {
     if let category = HealthCategory.allCases.first(where: { matches($0.name) }) {
       return "category:\(category.rawValue)"
     }
-    if let type = HealthCatalog.type(named: name),
-      type.category != nil || HealthDetails.characteristicIDs.contains(type.id)
-    {
+    if let type = HealthCatalog.type(named: name), HealthDetails.hasPage(type) {
       return "type:\(type.id)"
     }
     return nil

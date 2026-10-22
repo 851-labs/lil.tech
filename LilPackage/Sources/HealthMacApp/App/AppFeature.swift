@@ -49,7 +49,7 @@ public struct AppFeature {
     public var query: String { searchText.trimmingCharacters(in: .whitespaces) }
 
     /// The data types whose names match the search, in the sidebar's order: Health Details'
-    /// characteristics, then each category's types, each by name (`HealthPage.browsableTypes`).
+    /// characteristics, then each category's types by name (`HealthPage.browsableTypes`).
     public var searchResults: [HealthDataType] {
       guard !query.isEmpty else { return [] }
       return HealthPage.browsableTypes.filter { $0.name.localizedStandardContains(query) }
@@ -276,9 +276,10 @@ public struct AppFeature {
         case .category(let category):
           state.selection = .category(category)
         case .dataType(let type):
+          // As if its row were clicked in its category, with its metric pushed. A characteristic
+          // selects Health Details, which shows it with the others and has no metric stack, so
+          // nothing's pushed there.
           state.selection = .home(of: type)
-          // As if its row were clicked in its category. Health Details shows a characteristic
-          // with the others, rather than on a page of its own.
           if type.category != nil { state.metricPath = [type.id] }
         }
         return .none
