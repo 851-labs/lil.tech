@@ -38,6 +38,5 @@ pre-commit:
         - "scripts/format"
         - "scripts/check"
         - "scripts/generate-api-client"
-        - "scripts/check-deploy"
         - "LilPackage/Sources/LilAPIGenerated/**"
         - "lefthook.yml"

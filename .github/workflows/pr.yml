@@ -117,7 +117,10 @@ jobs:
           echo "version=$(git describe --always --dirty --exclude '*')" >> "$GITHUB_OUTPUT"
       - name: Check the preview serves this commit
         if: steps.open.outputs.open == 'true'
-        run: scripts/check-deploy "${{ steps.deploy.outputs.url }}" "${{ steps.deploy.outputs.version }}"
+        uses: ./.github/actions/check-deploy
+        with:
+          url: ${{ steps.deploy.outputs.url }}
+          version: ${{ steps.deploy.outputs.version }}
       - name: Comment the preview URL
         if: steps.open.outputs.open == 'true'
         uses: ./.github/actions/comment

@@ -1,0 +1,38 @@
+name: Check a deploy
+description: >-
+  Waits until a deployed API reports the expected version at /v1/status, and notes the version it
+  saw in the job summary. New custom domains and edge caches take a moment, so it polls every 5
+  seconds until the timeout.
+inputs:
+  url:
+    description: The API's base URL, without a trailing slash (e.g. `https://api.staging.lil.tech`).
+    required: true
+  version:
+    description: The version the deploy should report (`git describe --always --dirty --exclude '*'`).
+    required: true
+  timeout:
+    description: Seconds to wait before giving up.
+    required: false
+    default: "120"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        URL: ${{ inputs.url }}/v1/status
+        EXPECTED: ${{ inputs.version }}
+        TIMEOUT: ${{ inputs.timeout }}
+      run: |
+        deadline=$(($(date +%s) + TIMEOUT))
+        body=""
+        while [ "$(date +%s)" -lt "$deadline" ]; do
+          body=$(curl -sS -m 5 "$URL" 2>/dev/null || true)
+          if [[ "$body" == *"\"version\":\"$EXPECTED\""* ]]; then
+            echo "$URL: $body"
+            echo "$URL serves \`$EXPECTED\`." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          sleep 5
+        done
+        echo "error: $URL didn't report version $EXPECTED. Last response: ${body:-none}" >&2
+        exit 1
