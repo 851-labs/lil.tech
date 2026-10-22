@@ -1,6 +1,6 @@
 public import Dependencies
 public import Foundation
-import LilAPI
+public import LilAPI
 import Security
 
 /// A signed-in session: an access token for API requests and a refresh token for the next one.
@@ -87,62 +87,118 @@ public struct SessionStore: Sendable {
     public let status: OSStatus
   }
 
-  /// The Keychain, readable after the device's first unlock, so background uploads can use it.
+  /// The Keychain item holding `environment`'s session, readable after the device's first
+  /// unlock, so background uploads can use it.
+  ///
+  /// Each server has its own item (851-2974), and dev builds have their own prod item too, so a
+  /// dev build never reads the Release app's session (whose tokens must not reach a server with
+  /// synthetic data), replaces it, or deletes it by signing out. Builds of lil health share one
+  /// Keychain access group, Debug and Release alike, and a temporary home doesn't separate them.
   ///
   /// It's the data protection Keychain, which on macOS needs an app with an application
   /// identifier. Sign in with Apple needs a provisioning profile, which gives it one.
-  public static let keychain = Self(
-    load: {
-      var item: CFTypeRef?
-      let status = SecItemCopyMatching(
-        keychainQuery.merging([
-          kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne,
-        ]) { $1 } as CFDictionary,
-        &item
-      )
-      if status == errSecItemNotFound { return nil }
-      guard status == errSecSuccess, let data = item as? Data else {
-        throw KeychainError(status: status)
-      }
-      return try JSONDecoder().decode(AuthSession.self, from: data)
-    },
-    save: { session in
-      guard let session else {
-        let status = SecItemDelete(keychainQuery as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
+  public static func keychain(for environment: APIEnvironment) -> Self {
+    keychain(for: environment, allowsOverride: APIEnvironment.allowsOverride, items: .live)
+  }
+
+  static func keychain(
+    for environment: APIEnvironment, allowsOverride: Bool, items: KeychainItems
+  ) -> Self {
+    // Built in each closure: the dictionary isn't `Sendable`.
+    let makeQuery: @Sendable () -> [CFString: Any] = {
+      keychainQuery(for: environment, allowsOverride: allowsOverride)
+    }
+    return Self(
+      load: {
+        let query = makeQuery()
+        let (status, item) = items.copyMatching(
+          query.merging([
+            kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne,
+          ]) { $1 })
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = item as? Data else {
           throw KeychainError(status: status)
         }
-        return
+        return try JSONDecoder().decode(AuthSession.self, from: data)
+      },
+      save: { session in
+        let query = makeQuery()
+        guard let session else {
+          let status = items.delete(query)
+          guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError(status: status)
+          }
+          return
+        }
+        // Updated in place, so a failed write keeps the previous session.
+        let data = try JSONEncoder().encode(session)
+        var status = items.update(query, [kSecValueData: data])
+        if status == errSecItemNotFound {
+          status = items.add(
+            query.merging([
+              kSecValueData: data,
+              kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+            ]) { $1 })
+        }
+        guard status == errSecSuccess else { throw KeychainError(status: status) }
       }
-      // Updated in place, so a failed write keeps the previous session.
-      let data = try JSONEncoder().encode(session)
-      var status = SecItemUpdate(
-        keychainQuery as CFDictionary, [kSecValueData: data] as CFDictionary)
-      if status == errSecItemNotFound {
-        status = SecItemAdd(
-          keychainQuery.merging([
-            kSecValueData: data,
-            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-          ]) { $1 } as CFDictionary,
-          nil
-        )
-      }
-      guard status == errSecSuccess else { throw KeychainError(status: status) }
-    }
-  )
+    )
+  }
 
-  private static var keychainQuery: [CFString: Any] {
-    [
+  /// The attributes that pick `environment`'s item: one service, and an account per server.
+  ///
+  /// Builds that only ever use prod (Release Mac builds, and iPhone builds on a device) keep
+  /// the item every build used before 851-2974, account `session`, so they keep their session
+  /// after updating, with nothing to migrate. Builds that can be pointed at another server
+  /// (`allowsOverride`: the simulator's and Debug Mac builds) key every server by its origin,
+  /// prod's included, e.g. `session https://api.staging.lil.tech`. So no dev build ever reads,
+  /// replaces or deletes the session of the Release app on the same Mac.
+  static func keychainQuery(
+    for environment: APIEnvironment, allowsOverride: Bool
+  ) -> [CFString: Any] {
+    let account =
+      environment == .prod && !allowsOverride
+      ? "session" : "session \(origin(environment.baseURL))"
+    return [
       kSecClass: kSecClassGenericPassword,
       kSecAttrService: "tech.lil.auth",
-      kSecAttrAccount: "session",
+      kSecAttrAccount: account,
       kSecUseDataProtectionKeychain: true,
     ]
   }
+
+  /// `url`'s scheme, host and port, spelled one way: lowercased, without a default port.
+  static func origin(_ url: URL) -> String {
+    let scheme = url.scheme?.lowercased() ?? ""
+    let host = url.host(percentEncoded: false)?.lowercased() ?? ""
+    let defaultPort = ["https": 443, "http": 80][scheme]
+    let port = url.port.flatMap { $0 == defaultPort ? nil : ":\($0)" } ?? ""
+    return "\(scheme)://\(host)\(port)"
+  }
+}
+
+/// The Keychain's item functions (`SecItemCopyMatching` and the rest), so tests can use a fake
+/// Keychain rather than the real one, which apps share.
+struct KeychainItems: Sendable {
+  var copyMatching: @Sendable (_ query: [CFString: Any]) -> (OSStatus, CFTypeRef?)
+  var add: @Sendable (_ attributes: [CFString: Any]) -> OSStatus
+  var update: @Sendable (_ query: [CFString: Any], _ changes: [CFString: Any]) -> OSStatus
+  var delete: @Sendable (_ query: [CFString: Any]) -> OSStatus
+
+  static let live = Self(
+    copyMatching: { query in
+      var item: CFTypeRef?
+      let status = SecItemCopyMatching(query as CFDictionary, &item)
+      return (status, item)
+    },
+    add: { SecItemAdd($0 as CFDictionary, nil) },
+    update: { SecItemUpdate($0 as CFDictionary, $1 as CFDictionary) },
+    delete: { SecItemDelete($0 as CFDictionary) }
+  )
 }
 
 extension SessionStore: DependencyKey {
-  public static let liveValue = Self.keychain
+  public static let liveValue = Self.keychain(for: .current())
   public static var testValue: Self { .inMemory() }
   public static var previewValue: Self { .inMemory() }
 }
