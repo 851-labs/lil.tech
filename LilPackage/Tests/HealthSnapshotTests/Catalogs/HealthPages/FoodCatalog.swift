@@ -22,12 +22,12 @@
       CatalogState("Food, empty") { foodPage(.loaded([], hasMore: false)) },
       CatalogState("Food, loading") { foodPage(.loading) },
       CatalogState("Food, failed") { foodPage(.failed("The database couldn't be read.")) },
-      // The next page is loading: the last day's card stays open, and its total waits for its
+      // The next page is loading: the last day's section stays open, and its total waits for its
       // other foods.
       CatalogState("Food, loading more") {
         foodPage(.loaded(Array(foods.prefix(5)), hasMore: true))
       },
-      // The next page failed: the last day's card closes, with a button to try again, and its
+      // The next page failed: the last day's section closes, with a button to try again, and its
       // total still waits.
       CatalogState("Food, more failed") {
         foodPage(.loaded(Array(foods.prefix(5)), hasMore: true), moreFailed: true)

@@ -52,11 +52,15 @@ struct DataSourcesContent: View {
       case .failed(let reason):
         ContentUnavailableView(
           "Couldn't Load Sources", systemImage: "exclamationmark.triangle",
-          description: Text(reason))
+          description: Text(reason)
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .loaded(let sources) where sources.apps.isEmpty:
         ContentUnavailableView(
           "No Sources", systemImage: "app.dashed",
-          description: Text("Apps and devices that record \(type.name) will appear here."))
+          description: Text("Apps and devices that record \(type.name) will appear here.")
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .loaded(let sources):
         Form {
           Section {

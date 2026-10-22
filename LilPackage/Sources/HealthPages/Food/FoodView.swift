@@ -5,7 +5,7 @@ import SQLiteData
 public import SwiftUI
 
 /// Food (851-2833), which Health doesn't have: the foods apps logged (Food correlations), newest
-/// first, in a card per day with the day's energy, a page at a time as the list scrolls, as All
+/// first, in a section per day with the day's energy, a page at a time as the list scrolls, as All
 /// Data is. Each shows its name, energy and macronutrients, and opens all its nutrients.
 public struct FoodView: View {
   @Dependency(\.defaultDatabase) private var database
@@ -79,11 +79,15 @@ struct FoodContent: View {
       case .failed(let reason):
         ContentUnavailableView(
           "Couldn't Load Food", systemImage: "exclamationmark.triangle",
-          description: Text(reason))
+          description: Text(reason)
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .loaded(let foods, _) where foods.isEmpty:
         ContentUnavailableView(
           "No Food", systemImage: "fork.knife",
-          description: Text("Food logged in apps that write to Health will appear here."))
+          description: Text("Food logged in apps that write to Health will appear here.")
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .loaded(let foods, let hasMore):
         list(foods, hasMore: hasMore)
       }
@@ -91,121 +95,93 @@ struct FoodContent: View {
     .navigationTitle("Food")
   }
 
-  /// One rounded card per day under its name and energy, as All Data's (a `LazyVStack` of rows,
-  /// each drawing its part of its day's card, so only the rows on screen are built).
+  /// A section per day under its name and energy, in a grouped form's look, as All Data's
+  /// (`LazyForm`, so only the rows on screen are built).
   private func list(_ foods: [Food], hasMore: Bool) -> some View {
     // Read once: a dependency's `now` is the time each time it's read.
     let now = now
     let calendar = calendar
     let days = HealthDatabase.foodDays(foods, calendar: calendar)
-    return ScrollView {
-      LazyVStack(alignment: .leading, spacing: 0) {
-        ForEach(days, id: \.day) { section in
-          // The last day may go on in the next page, so its card stays open while that loads.
-          // Its total, which would leave those foods out, waits for them, even once loading
-          // more failed.
-          let isLastDay = section.day == days.last?.day
-          let isOpen = hasMore && !moreFailed && isLastDay
-          Text(
-            FoodFormat.dayHeader(
-              section, isComplete: !(hasMore && isLastDay), now: now, calendar: calendar)
-          )
-          .font(.subheadline.weight(.semibold))
-          .foregroundStyle(.secondary)
-          .accessibilityAddTraits(.isHeader)
-          .padding(.horizontal, 14)
-          .padding(.top, section.day == days.first?.day ? 0 : 18)
-          .padding(.bottom, 6)
-          ForEach(section.foods) { food in
-            NavigationLink {
-              FoodDetailView(food: food)
-            } label: {
-              FoodCardRow(
-                food: food, calendar: calendar,
-                isFirst: food.id == section.foods.first?.id,
-                isLast: !isOpen && food.id == section.foods.last?.id)
+    return LazyForm {
+      ForEach(days, id: \.day) { section in
+        // The last day may go on in the next page, so its section stays open while that loads.
+        // Its total, which would leave those foods out, waits for them, even once loading more
+        // failed.
+        let isLastDay = section.day == days.last?.day
+        let isOpen = hasMore && !moreFailed && isLastDay
+        LazyFormHeader(
+          title: FoodFormat.dayHeader(
+            section, isComplete: !(hasMore && isLastDay), now: now, calendar: calendar),
+          isFirst: section.day == days.first?.day)
+        ForEach(section.foods) { food in
+          NavigationLink {
+            FoodDetailView(food: food)
+          } label: {
+            LazyFormRow(
+              isFirst: food.id == section.foods.first?.id,
+              isLast: !isOpen && food.id == section.foods.last?.id
+            ) {
+              FoodRow(food: food, calendar: calendar)
             }
-            .buttonStyle(.plain)
           }
+          .buttonStyle(.plain)
         }
-        Group {
-          if moreFailed {
-            Button("Couldn't load more. Try Again", action: loadMore)
-          } else if hasMore {
-            // Loads the next page when the end of the list comes into view.
-            ProgressView()
-              .onAppear(perform: loadMore)
-          }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 12)
       }
-      .padding(20)
-      .frame(maxWidth: 760)
+      Group {
+        if moreFailed {
+          Button("Couldn't load more. Try Again", action: loadMore)
+        } else if hasMore {
+          // Loads the next page when the end of the list comes into view.
+          ProgressView()
+            .onAppear(perform: loadMore)
+        }
+      }
       .frame(maxWidth: .infinity)
+      .padding(.top, 12)
     }
-    .background(Color.pageBackground)
   }
 }
 
-/// A food as its part of its day's card, as All Data's rows are: its name, macronutrients and
-/// app, its energy and time, and a chevron, since it opens the food.
-struct FoodCardRow: View {
+/// A food: its name, macronutrients and app, its energy and time, and a chevron, since it opens
+/// the food.
+struct FoodRow: View {
   let food: Food
   let calendar: Calendar
-  let isFirst: Bool
-  let isLast: Bool
 
   var body: some View {
-    let radius: CGFloat = 12
-    VStack(spacing: 0) {
-      if !isFirst {
-        Divider().padding(.leading, 14)
+    HStack(spacing: 10) {
+      VStack(alignment: .leading, spacing: 2) {
+        Text(food.title)
+          .font(.body.weight(.semibold))
+          .foregroundStyle(food.name == nil ? .secondary : .primary)
+          .lineLimit(2)
+        if let macronutrients = FoodFormat.macronutrients(food) {
+          Text(macronutrients)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
+        Text(food.sourceName)
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
-      HStack(spacing: 10) {
-        VStack(alignment: .leading, spacing: 2) {
-          Text(food.title)
-            .font(.body.weight(.semibold))
-            .foregroundStyle(food.name == nil ? .secondary : .primary)
-            .lineLimit(2)
-          if let macronutrients = FoodFormat.macronutrients(food) {
-            Text(macronutrients)
+      Spacer()
+      VStack(alignment: .trailing, spacing: 2) {
+        if let energy = food.energy {
+          let (number, unit) = FoodFormat.energy(energy)
+          HStack(alignment: .firstTextBaseline, spacing: 3) {
+            Text(number)
+              .font(.body.weight(.semibold))
+              .monospacedDigit()
+            Text(unit)
               .font(.callout)
               .foregroundStyle(.secondary)
           }
-          Text(food.sourceName)
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
-        Spacer()
-        VStack(alignment: .trailing, spacing: 2) {
-          if let energy = food.energy {
-            let (number, unit) = FoodFormat.energy(energy)
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-              Text(number)
-                .font(.body.weight(.semibold))
-                .monospacedDigit()
-              Text(unit)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            }
-          }
-          Text(FoodFormat.time(food, calendar: calendar))
-            .foregroundStyle(.secondary)
-        }
-        Image(systemName: "chevron.right")
-          .font(.caption.bold())
-          .foregroundStyle(.tertiary)
+        Text(FoodFormat.time(food, calendar: calendar))
+          .foregroundStyle(.secondary)
       }
-      .padding(.horizontal, 14)
-      .padding(.vertical, 8)
+      LazyFormChevron()
     }
-    .contentShape(Rectangle())
-    .background(
-      Color.cardBackground,
-      in: UnevenRoundedRectangle(
-        topLeadingRadius: isFirst ? radius : 0, bottomLeadingRadius: isLast ? radius : 0,
-        bottomTrailingRadius: isLast ? radius : 0, topTrailingRadius: isFirst ? radius : 0))
   }
 }
 

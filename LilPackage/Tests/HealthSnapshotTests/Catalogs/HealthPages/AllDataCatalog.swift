@@ -25,7 +25,7 @@
         scrolled(allData(heartRate, .loaded(samples(heartRate), hasMore: true)))
       },
       // A day with a reading every 5 minutes, as a Watch's heart rate during a workout can have:
-      // one long card.
+      // one long section.
       CatalogState("All data, a long day") {
         scrolled(allData(heartRate, .loaded(longDay, hasMore: false)))
       },
@@ -89,7 +89,7 @@
       CatalogState("Sources, failed", minHeight: 420) {
         sources(.failed("The database couldn't be read."))
       },
-      // The next page failed: the last day's card closes, with a button to try again.
+      // The next page failed: the last day's section closes, with a button to try again.
       CatalogState("All data, more failed", minHeight: 360) {
         NavigationStack {
           AllDataContent(

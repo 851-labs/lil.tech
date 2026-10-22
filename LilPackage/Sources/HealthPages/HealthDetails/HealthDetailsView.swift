@@ -51,80 +51,52 @@ struct HealthDetailsContent: View {
       case .failed(let reason):
         ContentUnavailableView(
           "Couldn't Load Health Details", systemImage: "exclamationmark.triangle",
-          description: Text(reason))
+          description: Text(reason)
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .loaded(let details):
-        page(details)
+        form(details)
       }
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.pageBackground)
     .navigationTitle("Health Details")
   }
 
-  private func page(_ details: HealthDetails) -> some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 10) {
+  /// A grouped form, as Data Sources is (851-3005): the profile under its picture, then Vision.
+  private func form(_ details: HealthDetails) -> some View {
+    let rows = HealthDetailsFormat.rows(details, now: now, calendar: calendar)
+    return Form {
+      Section {
+        ForEach(rows, id: \.name) { row in
+          LabeledContent(row.name, value: row.value)
+        }
+      } header: {
         Image(systemName: "person.crop.circle.fill")
           .font(.system(size: 64))
           .foregroundStyle(.white, .gray.gradient)
           .frame(maxWidth: .infinity)
           .padding(.bottom, 10)
           .accessibilityHidden(true)
-
-        VStack(spacing: 0) {
-          let rows = HealthDetailsFormat.rows(details, now: now, calendar: calendar)
-          ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-            if index > 0 { Divider().padding(.leading, 14) }
-            HStack {
-              Text(row.name)
-              Spacer()
-              Text(row.value)
-                .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-          }
-        }
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-
+      } footer: {
         Text(
           details.hasSynced
             ? "Health Details come from Health on your iPhone. Change them there."
             : "Health Details appear here once lil health on your iPhone can read them from Health."
         )
-        .font(.footnote)
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 14)
-
-        Text("Vision")
-          .font(.title3.bold())
-          .padding(.top, 14)
+      }
+      Section("Vision") {
         NavigationLink {
           VisionPrescriptionsView()
         } label: {
-          HStack {
-            Label {
-              Text("Vision Prescriptions")
-            } icon: {
-              Image(systemName: "eyeglasses")
-                .foregroundStyle(.blue)
-            }
-            Spacer()
-            Image(systemName: "chevron.right")
-              .font(.caption.bold())
-              .foregroundStyle(.tertiary)
+          Label {
+            Text("Vision Prescriptions")
+          } icon: {
+            Image(systemName: "eyeglasses")
+              .foregroundStyle(.blue)
           }
-          .padding(.horizontal, 14)
-          .padding(.vertical, 10)
-          .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
       }
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
     }
+    .formStyle(.grouped)
   }
 }
 
