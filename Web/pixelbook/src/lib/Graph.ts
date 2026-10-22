@@ -93,7 +93,7 @@ export const graphProblems = (graph: Graph, catalogs: CatalogStates): ReadonlyAr
     ids.add(screen.id);
     const states = catalogs.get(screen.screen);
     if (states === undefined) {
-      problems.push(`"${screen.id}": ${screen.screen} isn't a state catalog.`);
+      problems.push(`"${screen.id}": ${screen.screen} isn't a state catalog of ${graph.app}.`);
       continue;
     }
     for (const state of screen.states ?? []) {

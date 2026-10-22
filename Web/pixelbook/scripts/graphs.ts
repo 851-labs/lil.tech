@@ -12,8 +12,8 @@ import { type CatalogStates, type Graph, graphProblems, parseGraph } from "../sr
 const root = fileURLToPath(new URL("../../..", import.meta.url));
 export const graphsDirectory = fileURLToPath(new URL("../graphs", import.meta.url));
 
-/** Each graph's app's screens: the app's state catalogs. */
-export type Screens = (app: string) => CatalogStates;
+/** Each graph's app's screens: the app's state catalogs, or undefined if it has none. */
+export type Screens = (app: string) => CatalogStates | undefined;
 
 /** Swift's escapes in a string literal: `\"`, `\\`, `\n`, `\t`, `\r`, `\0`, `\'` and `\u{…}`. */
 const unescapeSwift = (literal: string) =>
@@ -175,7 +175,7 @@ export const manifestProblems = async (repository = root): Promise<ReadonlyArray
 /** Every screen a graph can name, by app: its state catalogs. */
 export const scanScreens = async (): Promise<Screens> => {
   const catalogs = await scanCatalogs();
-  return (app) => catalogs.get(app) ?? new Map();
+  return (app) => catalogs.get(app);
 };
 
 /** Each graph file's problems, by file name; none if all are fine. */
@@ -201,7 +201,13 @@ export const checkGraphs = async (
       problems.set(file, graph.problems);
       continue;
     }
-    const found = [...graphProblems(graph, screens(graph.app)), ...appProblems(graph, file, apps)];
+    const catalogs = screens(graph.app);
+    const found = [
+      ...(catalogs === undefined
+        ? [`No state catalog's manifest is for ${graph.app}: is the app's name right?`]
+        : graphProblems(graph, catalogs)),
+      ...appProblems(graph, file, apps),
+    ];
     if (found.length > 0) problems.set(file, found);
   }
   return problems;

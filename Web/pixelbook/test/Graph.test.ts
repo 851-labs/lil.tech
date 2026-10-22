@@ -17,17 +17,17 @@ const graph: Graph = {
   screens: [
     {
       id: "summary",
-      screen: "HealthMacApp/SummaryCatalog.swift",
-      states: ["Pinned", "Loading"],
+      screen: "Example/ListCatalog.swift",
+      states: ["Loaded", "Loading"],
     },
-    { id: "metric", screen: "HealthMacApp/MetricDetailCatalog.swift" },
+    { id: "metric", screen: "Example/DetailCatalog.swift" },
   ],
   edges: [{ from: "summary", to: "metric", label: "Choose a metric" }],
 };
 
 const catalogs = new Map([
-  ["HealthMacApp/SummaryCatalog.swift", ["Pinned", "Loading"]],
-  ["HealthMacApp/MetricDetailCatalog.swift", ["Steps, week"]],
+  ["Example/ListCatalog.swift", ["Loaded", "Loading"]],
+  ["Example/DetailCatalog.swift", ["Steps, week"]],
 ]);
 
 describe("graph files", () => {
@@ -162,24 +162,24 @@ describe("graph files", () => {
   });
 
   it("catches a split catalog's states that aren't on any screen", () => {
-    const pinned = {
-      id: "pinned",
-      screen: "HealthMacApp/SummaryCatalog.swift",
-      states: ["Pinned"],
+    const loaded = {
+      id: "loaded",
+      screen: "Example/ListCatalog.swift",
+      states: ["Loaded"],
     };
     const split: Graph = {
       app: "health-mac",
       screens: [
-        pinned,
-        { id: "editor", screen: "HealthMacApp/SummaryCatalog.swift", title: "E", states: [] },
+        loaded,
+        { id: "editor", screen: "Example/ListCatalog.swift", title: "E", states: [] },
       ],
       edges: [],
     };
     expect(graphProblems(split, catalogs)).toEqual([
-      `HealthMacApp/SummaryCatalog.swift's "Loading" isn't on any screen.`,
+      `Example/ListCatalog.swift's "Loading" isn't on any screen.`,
     ]);
     // On one screen, `states` is just a selection.
-    expect(graphProblems({ ...split, screens: [pinned] }, catalogs)).toEqual([]);
+    expect(graphProblems({ ...split, screens: [loaded] }, catalogs)).toEqual([]);
   });
 
   it("catches references to screens, states and nodes that don't exist", () => {
@@ -187,16 +187,37 @@ describe("graph files", () => {
     const broken: Graph = {
       ...graph,
       screens: [
-        { id: "summary", screen: "HealthMacApp/SummaryCatalog.swift", states: ["Pined"] },
-        { id: "summary", screen: "HealthMacApp/GoneCatalog.swift" },
+        { id: "summary", screen: "Example/ListCatalog.swift", states: ["Loadd"] },
+        { id: "summary", screen: "Example/GoneCatalog.swift" },
       ],
     };
     expect(graphProblems(broken, catalogs)).toEqual([
-      '"summary": HealthMacApp/SummaryCatalog.swift has no state "Pined".',
+      '"summary": Example/ListCatalog.swift has no state "Loadd".',
       'Two screens are "summary".',
-      `"summary": HealthMacApp/GoneCatalog.swift isn't a state catalog.`,
+      `"summary": Example/GoneCatalog.swift isn't a state catalog of health-mac.`,
       'An edge goes summary → metric, but "metric" isn\'t a screen.',
     ]);
+  });
+
+  it("says when no catalog is for a graph's app", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "graphs-"));
+    try {
+      await writeFile(
+        join(directory, "health-macos.json"),
+        JSON.stringify({ ...graph, app: "health-macos" }),
+      );
+      const problems = await checkGraphs(
+        (app) => (app === "health-mac" ? catalogs : undefined),
+        directory,
+      );
+      expect(Object.fromEntries(problems)).toEqual({
+        "health-macos.json": [
+          "No state catalog's manifest is for health-macos: is the app's name right?",
+        ],
+      });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("checks the real graphs against the real catalogs", async () => {
