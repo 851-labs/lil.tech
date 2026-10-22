@@ -89,7 +89,8 @@ extension HealthCLI.ActionError {
   extension HealthCLI.AppConnection {
     /// lil health's bundle ID, on the Mac. A Debug tool's is a Debug app's (851-3027), since only
     /// a Debug app reads the folders a Debug tool writes its requests to (`Servers/<server>`), so
-    /// a Debug tool never wakes or launches the installed app, nor a Release tool a Debug app.
+    /// a Debug tool never launches or brings forward the installed app, nor a Release tool a Debug
+    /// app. The signal still reaches both, which then find nothing in their own folder.
     #if DEBUG
       static let bundleIdentifier = "tech.lil.health.debug"
     #else
