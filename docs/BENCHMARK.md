@@ -114,3 +114,41 @@ Rounds missing from Workers Logs are left out. Every answer was the same before 
 - **Reading rows:** most of what's left. A year of heart rate (105,000 samples) took 0.14 s of its 0.17 s locally. Statistics now read rows as arrays of values (`StoreSql.rows`, workerd's `raw()`), not an object per row, and cumulative types read only the start and value. On the stage that took a year of heart rate from about 0.5 s to 0.3–0.5 s, and active energy's year from about 0.75 s to 0.45–0.65 s.
 - **Bucketing and weighting:** not buckets × readings before either (each bucket found its readings by binary search), but each bucket copied its readings and weighed them again. Now one pass over the readings adds each to its bucket and to the period, with each source's next reading found once. A time-weighted reading's weight still depends on whether its source's next reading starts within an hour of its bucket's end, as the Mac weighs each bucket on its own, and sums are added in the same order, so answers are identical: all 37 conformance cases, and the old and new code compared on the 1,000,000 records for heart rate, steps and basal energy, every range, six time zones (Lord Howe's half-hour change included) and days around changes of offset.
 - **The Mac** (`HealthDatabase`) already walks a period at a time (`Periods`), reads each bucket with its own query, and uses Foundation's calendar, so it had no such loop and is unchanged.
+
+## Snapshot tests: from an edit to an image
+
+How long an agent or a person waits between saving a one-line change to a view and seeing its snapshot compared with the reference (851-2962). Snapshot tests replace `RenderPreview` only if this loop is no slower than `RenderPreview`'s.
+
+**Measuring it:** a shell loop toggles a visible one-line change and times the command until it exits, alternating the two edits, each followed by the old command and then the new one, so each sees one change. The edits: `HealthNotificationsView`'s row padding (`HealthPages`, 50 files; the state `notificationsList`), and the access log's date style in `AgentAccessSettingsView` (`HealthMacApp`, 27 files; `agentsPane`). Each test renders its state in light and dark. Load averages are the 1-minute figure when the command started. (The MacBook's first three rounds edited a line of the same file that the state doesn't show; the build is the same.)
+
+- **Before:** `swift test --filter <state>`, as AGENTS.md said.
+- **After:** `scripts/snapshot <state>`.
+- **`RenderPreview`:** the same edit, then Xcode's `RenderPreview` (MCP) of the preview the test copies, until it returns an image, retrying its 60-second timeouts.
+
+**2026-10-21, a Mac mini** (M6, 12 cores, macOS 27, nothing else running but the odd CI job; load 3–6), five rounds, seconds, median (range):
+
+| Edit | Before | After |
+| --- | ---: | ---: |
+| `HealthPages` | 9.3 (9.2–10.2) | 6.3 (6.3–12.4) |
+| `HealthMacApp` | 8.2 (8.0–10.0) | 5.4 (5.2–5.4) |
+
+Where the 6.3 s of a `HealthPages` edit go, from `swift build -v`'s output on the same mini: SwiftPM loading the package's manifests (1.5 s), planning the build (0.5 s), the driver planning the module (0.4 s), compiling the file and emitting the module's interface at once (1.9 s), relinking the three test bundles that link `HealthPages` and the two library products (0.3–1 s), then starting the test process (0.4 s) and rendering the two images (0.3 s). `HealthMacApp`'s file compiled in 0.7 s, and fewer bundles link it. Before, `swift test` spent another 3–4 s after the same build: it lists each of the 23 test bundles' XCTest tests, then starts each bundle again for Swift Testing, filtered, though only one has the test.
+
+**2026-10-21, the MacBook Pro** (M1 Pro, 10 cores, 16 GB, macOS 27), shared with other agents' builds and simulators throughout, at loads of 200–900: no quiet moment came. Seconds, median (range), with the loads:
+
+| Edit | Before | After | `RenderPreview`, warm |
+| --- | ---: | ---: | ---: |
+| `HealthPages` | 27.7 (22.2–41.7), load 300–600 | 29.7 (22.7–52.2), load 210–710 | 39.6 (28.7–47.9), load 220–870 |
+| `HealthMacApp` | 24.2 (23.4–52.9), load 290–580 | 15.4 (11.6–20.8), load 220–720 | 37.4 (17.9–55.5), load 220–900 |
+
+- Side by side at the same load (each `RenderPreview` followed by `scripts/snapshot` within a minute): at load 220, 28.7 s against 31.4 s for `HealthPages`, and 17.9 s against 18.9–20.8 s for `HealthMacApp`; at load 650–900, 37.5–47.9 s against 29.7–52.2 s, and 32.1–55.5 s against 11.6 s. So on a busy Mac the two loops take about as long, and either varies by 2x with the load. Both are bound by the build: running the tests took 1–4 s of `scripts/snapshot`'s time (7.6 s once).
+- **Opened fresh:** `RenderPreview` in a new worktree's workspace waited 26 s for packages to load, then 204 s for its first image (load 290, rising to 800 as Xcode built). `scripts/snapshot`'s first build in a new worktree took 277 s (load 270), 130 s of it fetching dependencies again (851-2973) and 148 s building; 72 s on the mini.
+- **No edit:** a warm `RenderPreview` returned in 1.3 s; `scripts/snapshot --no-build` in 1.5–2 s.
+
+**What didn't help:**
+
+- Building only the snapshot tests' bundle (`swift build --product HealthSnapshotTests`) is a different build from `swift test`'s (without `ENABLE_TESTABILITY`), so switching between the two rebuilt most of the package (75–90 s on the MacBook, 20–25 s on the mini). In a scratch path of its own it was no faster on the mini: 5–7.5 s against 3.4–5.4 s for `swift build --build-tests`.
+- `--disable-automatic-resolution`, `--skip-update` and `--use-integrated-swift-driver` didn't change a no-op build (2.3–2.5 s on the mini).
+- Splitting `HealthPages`: an edit in it costs about 1 s more than one in `HealthMacApp`, mostly the edited file's own compile (1.9 s against 0.7 s, with the module's interface emitted alongside), which a smaller module would hardly change. Not done.
+
+**What's left** is SwiftPM: about 3 s of every run on a quiet Mac before anything compiles, and most of it under load. Going below that, towards Xcode's canvas, needs a process that stays running and swaps in the edited code: watch mode, 851-2972.
