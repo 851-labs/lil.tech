@@ -90,7 +90,7 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
     switch kind {
     case .summary, .healthDetails: .accentColor
     case .category(let category): category.color
-    case .dataType(let type): type.category?.color ?? .secondary
+    case .dataType(let type): type.color
     }
   }
 

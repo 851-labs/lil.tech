@@ -175,7 +175,7 @@ struct MetricDetailContent: View {
   @Dependency(\.date.now) private var now
   @SwiftUI.State private var hovered: Date?
 
-  private var color: Color { type.category?.color ?? .accentColor }
+  private var color: Color { type.color }
   /// Totals per bucket: a cumulative type's, or a category type charted like one.
   private var isCumulative: Bool {
     type.aggregation?.isCumulative == true || HealthDatabase.categoryChartTypes.contains(type.id)
