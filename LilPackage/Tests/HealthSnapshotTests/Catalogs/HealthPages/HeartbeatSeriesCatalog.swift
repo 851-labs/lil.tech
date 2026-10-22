@@ -26,9 +26,9 @@
       CatalogState("Measurements loading") { list(.loading) },
       CatalogState("Measurements failed") { list(.failed("The database couldn't be read.")) },
       // A measurement.
-      CatalogState("A minute of beats", width: 760, minHeight: 640) { detail(measurements[0]) },
-      CatalogState("Beats with a gap", width: 760, minHeight: 640) { detail(measurements[1]) },
-      CatalogState("Too few beats", width: 760, minHeight: 640) {
+      CatalogState("A minute of beats", width: 760) { detail(measurements[0]) },
+      CatalogState("Beats with a gap", width: 760) { detail(measurements[1]) },
+      CatalogState("Too few beats", width: 760) {
         let start = previewNow.addingTimeInterval(-10_000).unixMilliseconds
         detail(
           HealthHeartbeatSeries(

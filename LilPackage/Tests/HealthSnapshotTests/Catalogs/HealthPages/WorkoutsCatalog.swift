@@ -18,8 +18,7 @@
   let workoutsCatalog = StateCatalog(
     "Workouts", width: 620, minHeight: 640,
     states: [
-      // Tall enough for the whole list: a `List` doesn't grow to its content.
-      CatalogState("Workouts", minHeight: 860) { list(.loaded(workouts)) },
+      CatalogState("Workouts") { list(.loaded(workouts)) },
       CatalogState("No workouts") { list(.loaded([])) },
       CatalogState("Workouts loading") { list(.loading) },
       CatalogState("Workouts failed") { list(.failed("The database couldn't be read.")) },

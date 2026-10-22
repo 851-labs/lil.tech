@@ -59,29 +59,39 @@ struct AudiogramsContent: View {
           description: Text(
             "Hearing test results from AirPods Pro or a hearing test app will appear here."))
       case .loaded(let audiograms):
-        List {
-          ForEach(
-            monthSections(audiograms, calendar: calendar, startDate: \.startDate), id: \.month
-          ) { section in
-            Section(section.month.formatted(.dateTime.month(.wide).year())) {
-              ForEach(section.records) { audiogram in
-                NavigationLink {
-                  AudiogramDetailView(audiogram: audiogram)
-                } label: {
-                  AudiogramRow(audiogram: audiogram)
-                }
-              }
-            }
-          }
-          if audiograms.count >= limit {
-            Text("Showing the \(limit.formatted()) most recent audiograms.")
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-          }
-        }
+        list(audiograms)
       }
     }
     .navigationTitle("Audiograms")
+  }
+
+  /// A section per month, in a grouped form's look (`LazyForm`): a `Form` builds every row at
+  /// once, and the list holds up to 500.
+  private func list(_ audiograms: [HealthAudiogram]) -> some View {
+    let months = monthSections(audiograms, calendar: calendar, startDate: \.startDate)
+    return LazyForm {
+      ForEach(months, id: \.month) { section in
+        LazyFormHeader(
+          title: section.month.formatted(.dateTime.month(.wide).year()),
+          isFirst: section.month == months.first?.month)
+        ForEach(section.records) { audiogram in
+          NavigationLink {
+            AudiogramDetailView(audiogram: audiogram)
+          } label: {
+            LazyFormRow(
+              isFirst: audiogram.id == section.records.first?.id,
+              isLast: audiogram.id == section.records.last?.id
+            ) {
+              AudiogramRow(audiogram: audiogram)
+            }
+          }
+          .buttonStyle(.plain)
+        }
+      }
+      if audiograms.count >= limit {
+        LazyFormFooter("Showing the \(limit.formatted()) most recent audiograms.")
+      }
+    }
   }
 }
 
@@ -129,42 +139,49 @@ struct AudiogramDetailView: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 20) {
-        Text(Date(unixMilliseconds: audiogram.startDate).formatted(date: .complete, time: .omitted))
+    // A grouped form, as Metric Detail is (851-2989, 851-3032): each ear's average and the chart,
+    // then where the audiogram came from.
+    Form {
+      Section {
+        VStack(alignment: .leading, spacing: 12) {
+          Text(
+            Date(unixMilliseconds: audiogram.startDate).formatted(date: .complete, time: .omitted)
+          )
           .foregroundStyle(.secondary)
-
-        HStack(alignment: .top, spacing: 32) {
-          ForEach(Ear.allCases, id: \.self) { ear in
-            let level = points.averageHearingLevel(ear)
-            VStack(alignment: .leading, spacing: 4) {
-              Label(ear.name, systemImage: ear.symbol)
-                .font(.headline)
-                .foregroundStyle(ear.color)
-              Text(AudiogramFormat.level(level))
-                .font(.system(.title, design: .rounded).weight(.semibold))
-              if let level {
-                Text(HearingLevel(decibels: level).name)
-                  .foregroundStyle(.secondary)
+          HStack(alignment: .top, spacing: 32) {
+            ForEach(Ear.allCases, id: \.self) { ear in
+              let level = points.averageHearingLevel(ear)
+              VStack(alignment: .leading, spacing: 4) {
+                Label(ear.name, systemImage: ear.symbol)
+                  .font(.headline)
+                  .foregroundStyle(ear.color)
+                Text(AudiogramFormat.level(level))
+                  .font(.system(.title, design: .rounded).weight(.semibold))
+                if let level {
+                  Text(HearingLevel(decibels: level).name)
+                    .foregroundStyle(.secondary)
+                }
               }
             }
           }
+          if points.isEmpty {
+            ContentUnavailableView(
+              "No Results", systemImage: "ear",
+              description: Text("This audiogram has no frequencies tested.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+          } else {
+            AudiogramChart(points: points)
+              .frame(height: 360)
+          }
         }
-
-        if points.isEmpty {
-          ContentUnavailableView(
-            "No Results", systemImage: "ear",
-            description: Text("This audiogram has no frequencies tested."))
-        } else {
-          AudiogramChart(points: points)
-            .frame(height: 360)
-        }
-
+        .padding(.vertical, 6)
+      }
+      Section {
         LabeledContent("Recorded With", value: audiogram.sourceName)
       }
-      .padding(24)
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
+    .formStyle(.grouped)
     .navigationTitle("Audiogram")
   }
 }

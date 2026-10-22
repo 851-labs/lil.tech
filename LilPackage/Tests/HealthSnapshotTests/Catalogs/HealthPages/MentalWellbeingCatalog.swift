@@ -18,8 +18,7 @@
   let mentalWellbeingCatalog = StateCatalog(
     "Mental Wellbeing", width: 680, minHeight: 760,
     states: [
-      // Taller than the others: its `List` doesn't grow to its rows, and this shows all nine.
-      CatalogState("State of Mind", minHeight: 1500) { stateOfMind(.loaded(logs)) },
+      CatalogState("State of Mind") { stateOfMind(.loaded(logs)) },
       // Logs, but none in the last four weeks.
       CatalogState("State of Mind, none recently") {
         stateOfMind(.loaded([log(10, hoursAgo: 24 * 60, valence: 0.2, labels: [7])]))

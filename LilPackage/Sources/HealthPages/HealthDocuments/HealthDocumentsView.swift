@@ -59,23 +59,33 @@ struct HealthDocumentsContent: View {
             or apps share them through Health on your iPhone, and you let lil health read them.
             """))
       case .loaded(let documents):
-        List {
-          ForEach(documents) { document in
-            NavigationLink {
-              HealthDocumentDetailView(document: document)
-            } label: {
-              HealthDocumentRow(document: document)
-            }
-          }
-          if documents.count >= limit {
-            Text("Showing the \(limit.formatted()) most recent documents.")
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-          }
-        }
+        list(documents)
       }
     }
     .navigationTitle("Health Documents")
+  }
+
+  /// One section, in a grouped form's look (`LazyForm`): a `Form` builds every row at once, and
+  /// the list holds up to 500.
+  private func list(_ documents: [HealthDocument]) -> some View {
+    LazyForm {
+      ForEach(documents) { document in
+        NavigationLink {
+          HealthDocumentDetailView(document: document)
+        } label: {
+          LazyFormRow(
+            isFirst: document.id == documents.first?.id,
+            isLast: document.id == documents.last?.id
+          ) {
+            HealthDocumentRow(document: document)
+          }
+        }
+        .buttonStyle(.plain)
+      }
+      if documents.count >= limit {
+        LazyFormFooter("Showing the \(limit.formatted()) most recent documents.")
+      }
+    }
   }
 }
 

@@ -61,30 +61,40 @@ struct HeartbeatSeriesContent: View {
             "Apple Watch measures the time between heartbeats while you're still, and after a Breathe session."
           ))
       case .loaded(let series):
-        List {
-          ForEach(
-            sections(series, by: .day, calendar: calendar, startDate: \.startDate), id: \.start
-          ) { section in
-            Section(section.start.formatted(date: .complete, time: .omitted)) {
-              ForEach(section.records) { series in
-                NavigationLink {
-                  // Built when opened: it works out the series' beats.
-                  Lazy { HeartbeatSeriesDetailView(series: series) }
-                } label: {
-                  HeartbeatSeriesRow(series: series)
-                }
-              }
-            }
-          }
-          if series.count >= limit {
-            Text("Showing the \(limit.formatted()) most recent measurements.")
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-          }
-        }
+        list(series)
       }
     }
     .navigationTitle("Beat-to-Beat Measurements")
+  }
+
+  /// A section per day, in a grouped form's look (`LazyForm`): a `Form` builds every row at once,
+  /// and the list holds up to 1,000.
+  private func list(_ series: [HealthHeartbeatSeries]) -> some View {
+    let days = sections(series, by: .day, calendar: calendar, startDate: \.startDate)
+    return LazyForm {
+      ForEach(days, id: \.start) { section in
+        LazyFormHeader(
+          title: section.start.formatted(date: .complete, time: .omitted),
+          isFirst: section.start == days.first?.start)
+        ForEach(section.records) { series in
+          NavigationLink {
+            // Built when opened: it works out the series' beats.
+            Lazy { HeartbeatSeriesDetailView(series: series) }
+          } label: {
+            LazyFormRow(
+              isFirst: series.id == section.records.first?.id,
+              isLast: series.id == section.records.last?.id
+            ) {
+              HeartbeatSeriesRow(series: series)
+            }
+          }
+          .buttonStyle(.plain)
+        }
+      }
+      if series.count >= limit {
+        LazyFormFooter("Showing the \(limit.formatted()) most recent measurements.")
+      }
+    }
   }
 }
 
@@ -132,55 +142,57 @@ struct HeartbeatSeriesDetailView: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 20) {
-        VStack(alignment: .leading, spacing: 4) {
-          Text(HeartFormat.average(analysis))
-            .font(.largeTitle.bold())
-          Text(
-            Date(unixMilliseconds: series.startDate).formatted(date: .complete, time: .shortened)
-          )
-          .foregroundStyle(.secondary)
-        }
-
-        if analysis.beats.isEmpty {
-          ContentUnavailableView(
-            "No Beats", systemImage: "heart.text.square",
-            description: Text("This measurement has too few beats to show."))
-        } else {
-          Chart {
-            ForEach(analysis.beats, id: \.time) { beat in
-              LineMark(
-                x: .value("Seconds", beat.time), y: .value("BPM", beat.beatsPerMinute),
-                series: .value("Run", beat.run)
-              )
-              .foregroundStyle(.red)
-              PointMark(x: .value("Seconds", beat.time), y: .value("BPM", beat.beatsPerMinute))
+    // A grouped form, as Metric Detail is (851-2989, 851-3032): the average and the beats' chart,
+    // then the series' figures.
+    Form {
+      Section {
+        VStack(alignment: .leading, spacing: 12) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text(HeartFormat.average(analysis))
+              .font(.largeTitle.bold())
+            Text(
+              Date(unixMilliseconds: series.startDate).formatted(date: .complete, time: .shortened)
+            )
+            .foregroundStyle(.secondary)
+          }
+          if analysis.beats.isEmpty {
+            ContentUnavailableView(
+              "No Beats", systemImage: "heart.text.square",
+              description: Text("This measurement has too few beats to show.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+          } else {
+            Chart {
+              ForEach(analysis.beats, id: \.time) { beat in
+                LineMark(
+                  x: .value("Seconds", beat.time), y: .value("BPM", beat.beatsPerMinute),
+                  series: .value("Run", beat.run)
+                )
                 .foregroundStyle(.red)
-                .symbolSize(18)
+                PointMark(x: .value("Seconds", beat.time), y: .value("BPM", beat.beatsPerMinute))
+                  .foregroundStyle(.red)
+                  .symbolSize(18)
+              }
             }
-          }
-          .chartXAxisLabel("Seconds")
-          .chartYAxisLabel("BPM")
-          .chartYScale(domain: .automatic(includesZero: false))
-          .frame(height: 260)
-        }
-
-        GroupBox {
-          VStack(alignment: .leading, spacing: 8) {
-            LabeledContent("Beats", value: analysis.beatCount.formatted())
-            LabeledContent(
-              "Duration",
-              value: "\(analysis.duration.formatted(.number.precision(.fractionLength(0)))) s")
-            LabeledContent("HRV (SDNN)", value: HeartFormat.milliseconds(analysis.sdnn))
-            LabeledContent("HRV (RMSSD)", value: HeartFormat.milliseconds(analysis.rmssd))
-            LabeledContent("Recorded With", value: series.sourceName)
+            .chartXAxisLabel("Seconds")
+            .chartYAxisLabel("BPM")
+            .chartYScale(domain: .automatic(includesZero: false))
+            .frame(height: 260)
           }
         }
+        .padding(.vertical, 6)
       }
-      .padding(24)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      Section {
+        LabeledContent("Beats", value: analysis.beatCount.formatted())
+        LabeledContent(
+          "Duration",
+          value: "\(analysis.duration.formatted(.number.precision(.fractionLength(0)))) s")
+        LabeledContent("HRV (SDNN)", value: HeartFormat.milliseconds(analysis.sdnn))
+        LabeledContent("HRV (RMSSD)", value: HeartFormat.milliseconds(analysis.rmssd))
+        LabeledContent("Recorded With", value: series.sourceName)
+      }
     }
+    .formStyle(.grouped)
     .navigationTitle("Beat-to-Beat")
   }
 }

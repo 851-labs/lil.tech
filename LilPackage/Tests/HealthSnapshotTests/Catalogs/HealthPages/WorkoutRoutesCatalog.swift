@@ -19,11 +19,10 @@
   let workoutRoutesCatalog = StateCatalog(
     "Workout Routes", width: 620, minHeight: 640,
     states: [
-      // Tall enough for the whole list: a `List` doesn't grow to its content.
-      CatalogState("Workout routes", minHeight: 800) {
+      CatalogState("Workout routes") {
         list(.loaded(workoutsWithRoutes, otherRoutes: otherRoutes))
       },
-      CatalogState("Workout routes, no other routes", minHeight: 700) {
+      CatalogState("Workout routes, no other routes") {
         list(.loaded(workoutsWithRoutes))
       },
       CatalogState("Only other routes") { list(.loaded([], otherRoutes: otherRoutes)) },

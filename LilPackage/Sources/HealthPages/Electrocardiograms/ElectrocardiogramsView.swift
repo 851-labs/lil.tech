@@ -59,29 +59,39 @@ struct ElectrocardiogramsContent: View {
           "No ECGs", systemImage: "waveform.path.ecg",
           description: Text("ECGs you take with the ECG app on Apple Watch will appear here."))
       case .loaded(let recordings):
-        List {
-          ForEach(
-            monthSections(recordings, calendar: calendar, startDate: \.startDate), id: \.month
-          ) { section in
-            Section(section.month.formatted(.dateTime.month(.wide).year())) {
-              ForEach(section.records) { recording in
-                NavigationLink {
-                  ElectrocardiogramDetailView(recording: recording)
-                } label: {
-                  ElectrocardiogramRow(recording: recording)
-                }
-              }
-            }
-          }
-          if recordings.count >= limit {
-            Text("Showing the \(limit.formatted()) most recent ECGs.")
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-          }
-        }
+        list(recordings)
       }
     }
     .navigationTitle("ECG")
+  }
+
+  /// A section per month, in a grouped form's look (`LazyForm`): a `Form` builds every row at
+  /// once, and the list holds up to 1,000.
+  private func list(_ recordings: [HealthElectrocardiogram]) -> some View {
+    let months = monthSections(recordings, calendar: calendar, startDate: \.startDate)
+    return LazyForm {
+      ForEach(months, id: \.month) { section in
+        LazyFormHeader(
+          title: section.month.formatted(.dateTime.month(.wide).year()),
+          isFirst: section.month == months.first?.month)
+        ForEach(section.records) { recording in
+          NavigationLink {
+            ElectrocardiogramDetailView(recording: recording)
+          } label: {
+            LazyFormRow(
+              isFirst: recording.id == section.records.first?.id,
+              isLast: recording.id == section.records.last?.id
+            ) {
+              ElectrocardiogramRow(recording: recording)
+            }
+          }
+          .buttonStyle(.plain)
+        }
+      }
+      if recordings.count >= limit {
+        LazyFormFooter("Showing the \(limit.formatted()) most recent ECGs.")
+      }
+    }
   }
 }
 
@@ -153,41 +163,42 @@ struct ElectrocardiogramDetailContent: View {
   let trace: Trace
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 20) {
-        VStack(alignment: .leading, spacing: 4) {
-          Text(recording.decodedClassification.name)
-            .font(.largeTitle.bold())
-            .foregroundStyle(recording.decodedClassification.isAlert ? .red : .primary)
-          Text(ECGFormat.averageHeartRate(recording))
-            .font(.title3)
-          Text(
-            Date(unixMilliseconds: recording.startDate).formatted(
-              date: .complete, time: .shortened)
-          )
-          .foregroundStyle(.secondary)
-        }
-
-        traceView
-
-        GroupBox {
-          VStack(alignment: .leading, spacing: 8) {
-            LabeledContent("Symptoms", value: ECGFormat.symptoms(recording))
-            LabeledContent("Recorded With", value: recording.sourceName)
-            if let frequency = recording.samplingFrequency {
-              LabeledContent(
-                "Sample Rate",
-                value: "\(frequency.formatted(.number.precision(.fractionLength(0...1)))) Hz")
-            }
+    // A grouped form, as Metric Detail is (851-2989, 851-3032): the headline and the trace, then
+    // the recording's details.
+    Form {
+      Section {
+        VStack(alignment: .leading, spacing: 12) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text(recording.decodedClassification.name)
+              .font(.largeTitle.bold())
+              .foregroundStyle(recording.decodedClassification.isAlert ? .red : .primary)
+            Text(ECGFormat.averageHeartRate(recording))
+              .font(.title3)
+            Text(
+              Date(unixMilliseconds: recording.startDate).formatted(
+                date: .complete, time: .shortened)
+            )
+            .foregroundStyle(.secondary)
           }
+          traceView
+        }
+        .padding(.vertical, 6)
+      }
+      Section {
+        LabeledContent("Symptoms", value: ECGFormat.symptoms(recording))
+        LabeledContent("Recorded With", value: recording.sourceName)
+        if let frequency = recording.samplingFrequency {
+          LabeledContent(
+            "Sample Rate",
+            value: "\(frequency.formatted(.number.precision(.fractionLength(0...1)))) Hz")
         }
       }
-      .padding(24)
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
+    .formStyle(.grouped)
     .navigationTitle("ECG")
   }
 
+  /// The trace, or a placeholder about as tall.
   @ViewBuilder private var traceView: some View {
     switch trace {
     case .loading:
@@ -196,11 +207,15 @@ struct ElectrocardiogramDetailContent: View {
     case .none:
       ContentUnavailableView(
         "No Recording", systemImage: "waveform.path.ecg",
-        description: Text("This ECG has no measurements."))
+        description: Text("This ECG has no measurements.")
+      )
+      .frame(maxWidth: .infinity, minHeight: 270)
     case .failed(let reason):
       ContentUnavailableView(
         "Couldn't Load the Recording", systemImage: "exclamationmark.triangle",
-        description: Text(reason))
+        description: Text(reason)
+      )
+      .frame(maxWidth: .infinity, minHeight: 270)
     case .loaded(let microvolts):
       let frequency = recording.measurementsPerSecond
       let range = ECGStrip.range(microvolts)
