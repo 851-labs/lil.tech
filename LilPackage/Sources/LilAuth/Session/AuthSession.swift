@@ -90,21 +90,27 @@ public struct SessionStore: Sendable {
   /// The Keychain item holding `environment`'s session, readable after the device's first
   /// unlock, so background uploads can use it.
   ///
-  /// Each server has its own item (851-2974), so a dev build pointed at staging or a preview
-  /// never reads the prod session (whose tokens must not reach a server with synthetic data),
-  /// replaces it, or deletes it by signing out. Builds of lil health share one Keychain access
-  /// group, Debug and Release alike, and a temporary home doesn't separate them.
+  /// Each server has its own item (851-2974), and dev builds have their own prod item too, so a
+  /// dev build never reads the Release app's session (whose tokens must not reach a server with
+  /// synthetic data), replaces it, or deletes it by signing out. Builds of lil health share one
+  /// Keychain access group, Debug and Release alike, and a temporary home doesn't separate them.
   ///
   /// It's the data protection Keychain, which on macOS needs an app with an application
   /// identifier. Sign in with Apple needs a provisioning profile, which gives it one.
   public static func keychain(for environment: APIEnvironment) -> Self {
-    keychain(for: environment, items: .live)
+    keychain(for: environment, allowsOverride: APIEnvironment.allowsOverride, items: .live)
   }
 
-  static func keychain(for environment: APIEnvironment, items: KeychainItems) -> Self {
-    Self(
+  static func keychain(
+    for environment: APIEnvironment, allowsOverride: Bool, items: KeychainItems
+  ) -> Self {
+    // Built in each closure: the dictionary isn't `Sendable`.
+    let makeQuery: @Sendable () -> [CFString: Any] = {
+      keychainQuery(for: environment, allowsOverride: allowsOverride)
+    }
+    return Self(
       load: {
-        let query = keychainQuery(for: environment)
+        let query = makeQuery()
         let (status, item) = items.copyMatching(
           query.merging([
             kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne,
@@ -116,7 +122,7 @@ public struct SessionStore: Sendable {
         return try JSONDecoder().decode(AuthSession.self, from: data)
       },
       save: { session in
-        let query = keychainQuery(for: environment)
+        let query = makeQuery()
         guard let session else {
           let status = items.delete(query)
           guard status == errSecSuccess || status == errSecItemNotFound else {
@@ -141,22 +147,33 @@ public struct SessionStore: Sendable {
 
   /// The attributes that pick `environment`'s item: one service, and an account per server.
   ///
-  /// Prod's account is `session`, the one item every build used before 851-2974, so Release
-  /// builds (and iPhones, which only use prod) keep finding their session after updating, with
-  /// nothing to migrate. Any other server's is `session` and its origin, e.g.
-  /// `session https://api.staging.lil.tech`.
-  static func keychainQuery(for environment: APIEnvironment) -> [CFString: Any] {
+  /// Builds that only ever use prod (Release Mac builds, and iPhone builds on a device) keep
+  /// the item every build used before 851-2974, account `session`, so they keep their session
+  /// after updating, with nothing to migrate. Builds that can be pointed at another server
+  /// (`allowsOverride`: the simulator's and Debug Mac builds) key every server by its origin,
+  /// prod's included, e.g. `session https://api.staging.lil.tech`. So no dev build ever reads,
+  /// replaces or deletes the session of the Release app on the same Mac.
+  static func keychainQuery(
+    for environment: APIEnvironment, allowsOverride: Bool
+  ) -> [CFString: Any] {
     let account =
-      switch environment {
-      case .prod: "session"
-      case .staging, .preview: "session \(environment.baseURL.absoluteString)"
-      }
+      environment == .prod && !allowsOverride
+      ? "session" : "session \(origin(environment.baseURL))"
     return [
       kSecClass: kSecClassGenericPassword,
       kSecAttrService: "tech.lil.auth",
       kSecAttrAccount: account,
       kSecUseDataProtectionKeychain: true,
     ]
+  }
+
+  /// `url`'s scheme, host and port, spelled one way: lowercased, without a default port.
+  static func origin(_ url: URL) -> String {
+    let scheme = url.scheme?.lowercased() ?? ""
+    let host = url.host(percentEncoded: false)?.lowercased() ?? ""
+    let defaultPort = ["https": 443, "http": 80][scheme]
+    let port = url.port.flatMap { $0 == defaultPort ? nil : ":\($0)" } ?? ""
+    return "\(scheme)://\(host)\(port)"
   }
 }
 
