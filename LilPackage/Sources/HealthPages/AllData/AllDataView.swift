@@ -101,6 +101,8 @@ struct AllDataContent: View {
   /// 1,000, and 100,000 crash it), and a day can have hundreds.
   private func list(_ samples: [HealthSample], hasMore: Bool) -> some View {
     let days = days(samples)
+    // Once, so every day's header is named against the same "now".
+    let now = self.now
     return ScrollView {
       LazyVStack(alignment: .leading, spacing: 0) {
         ForEach(days, id: \.day) { section in

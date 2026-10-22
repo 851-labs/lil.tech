@@ -125,7 +125,7 @@
 
   /// Every hour and a half before `previewNow`, each a few seconds longer than the next.
   private let handwashingSamples: [HealthSample] = (0..<8).map { index in
-    let start = previewNow.unixMilliseconds - index * 5_400_000
+    let start = previewNow.unixMilliseconds - (index + 1) * 5_400_000
     return HealthSample(
       id: "synthetic-\(index)", type: handwashing.id, startDate: start,
       endDate: start + (14 + index * 3) * 1000, categoryValue: 0,
@@ -135,7 +135,7 @@
   /// Every four hours before `previewNow`, with each severity.
   private let headacheSamples: [HealthSample] = [3, 2, 1, 4, 0, 2].enumerated().map {
     index, value in
-    let start = previewNow.unixMilliseconds - index * 14_400_000
+    let start = previewNow.unixMilliseconds - (index + 1) * 14_400_000
     return HealthSample(
       id: "synthetic-\(index)", type: headache.id, startDate: start,
       endDate: start + (index % 2) * 3_600_000, categoryValue: value,

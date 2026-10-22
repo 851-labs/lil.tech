@@ -1,3 +1,4 @@
+import Dependencies
 import HealthCatalog
 import HealthDatabase
 import HealthUI
@@ -7,8 +8,13 @@ import SwiftUI
 struct SampleDetailView: View {
   let type: HealthDataType
   let sample: HealthSample
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
+    // `.dateTime`'s style, in the calendar's time zone.
+    let dateStyle = Date.FormatStyle(
+      locale: calendar.locale ?? .current, calendar: calendar, timeZone: calendar.timeZone)
     Form {
       Section {
         if let value = sample.value {
@@ -17,8 +23,8 @@ struct SampleDetailView: View {
           LabeledContent("Value", value: unit.isEmpty ? number : "\(number) \(unit)")
         }
         LabeledContent(
-          "Start", value: Date(unixMilliseconds: sample.startDate), format: .dateTime)
-        LabeledContent("End", value: Date(unixMilliseconds: sample.endDate), format: .dateTime)
+          "Start", value: Date(unixMilliseconds: sample.startDate), format: dateStyle)
+        LabeledContent("End", value: Date(unixMilliseconds: sample.endDate), format: dateStyle)
       }
       Section("Source") {
         LabeledContent("App", value: sample.sourceName)
