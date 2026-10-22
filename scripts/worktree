@@ -8,10 +8,10 @@
 #       TypeScript workspace, and checks the generated API client. Run again, it only warms.
 #       The package is resolved into `LilPackage/.build`, which `swift build`, `swift test` and
 #       `scripts/snapshot` use (`scripts/check` resolves its `.build-check` when it first runs).
-#       A new `.build` starts as a copy (APFS clones, `cp -c`) of the last one resolved, kept in
-#       `~/Library/Caches/lil.tech/worktree-package` (or of the main checkout's), so resolving it
-#       fetches only what changed, rather than every dependency (851-2973). It resolves holding
-#       `/tmp/xcode-open.lock`, and waits while something else holds it.
+#       A new worktree's `.build` starts as a copy (APFS clones, `cp -c`) of the last one's, kept
+#       in `~/Library/Caches/lil.tech/worktree-package`, so resolving it fetches only what changed,
+#       rather than every dependency (851-2973). It resolves holding `/tmp/xcode-open.lock`, and
+#       waits while something else holds it.
 #   scripts/worktree remove <ticket-number> [--stash]
 #       Refuses while the worktree has uncommitted changes, unless `--stash` stashes them (in the
 #       main repo, with a message naming the ticket). Deletes its Xcode DerivedData and removes
@@ -213,27 +213,37 @@ delete_branch_if_done() {
   fi
 }
 
-# The lock agents hold while Xcode opens a workspace and resolves its packages: a directory, made
-# with `mkdir`. Two resolutions at once can break SwiftPM's shared cache, so `new` resolves holding
-# it too.
+# The lock agents hold while Xcode opens a workspace and loads its packages: a directory, made
+# with `mkdir`. Xcode's package loading has hung while another resolution ran, so `new` resolves
+# holding the lock too, which also keeps two of them from using the kept copy below at once.
+# Builds and tests don't take it.
 resolve_lock=/tmp/xcode-open.lock
+holding_lock=false
 
 take_resolve_lock() {
+  trap '! $holding_lock || rmdir "$resolve_lock" 2>/dev/null || true' EXIT
+  trap 'exit 1' HUP INT TERM
   waited=0
   until mkdir "$resolve_lock" 2>/dev/null; do
+    since=$(stat -f %Sm "$resolve_lock" 2>/dev/null || true)
+    if [ "$waited" -ge 1200 ]; then
+      echo "error: waited 20 minutes for $resolve_lock (held since $since). If nothing holds" \
+        "it, remove it and run this again." >&2
+      exit 1
+    fi
     if [ $((waited % 60)) -eq 0 ]; then
-      echo "Waiting for $resolve_lock, which Xcode opening a workspace or another Swift package" \
-        "resolution holds (remove it if nothing does)…"
+      echo "Waiting for $resolve_lock (held since $since), which Xcode opening a workspace or" \
+        "another worktree's resolution holds…"
     fi
     sleep 5
     waited=$((waited + 5))
   done
-  trap 'rmdir "$resolve_lock" 2>/dev/null || true' EXIT
-  trap 'exit 1' HUP INT TERM
+  holding_lock=true
 }
 
 release_resolve_lock() {
   rmdir "$resolve_lock"
+  holding_lock=false
   trap - EXIT HUP INT TERM
 }
 
@@ -241,21 +251,13 @@ release_resolve_lock() {
 # their working copies, binary artifacts, prebuilt macro libraries, and its record of them.
 scratch_items="repositories${newline}checkouts${newline}artifacts${newline}prebuilts"
 scratch_items="$scratch_items${newline}workspace-state.json"
-# A copy of the dependencies of the last `.build` that `new` resolved, which the next one starts
-# from, with the `Package.resolved` it was resolved for. Read and written only holding the lock.
+# A copy of the dependencies of the last new worktree's `.build`, which the next one starts from,
+# with the `Package.resolved` it was resolved for, copied last, so a copy without it is
+# unfinished. Used only holding the lock.
 package_seed="$HOME/Library/Caches/lil.tech/worktree-package"
 
-# Whether scratch directory `$2` can start as a copy of `$1`'s dependencies: `$1` has a record of
-# them, and `$2` has none of its own.
-can_seed() {
-  [ -f "$1/workspace-state.json" ] || return 1
-  for item in repositories checkouts workspace-state.json; do
-    [ ! -e "$2/$item" ] || return 1
-  done
-}
-
-# Copies scratch directory `$1`'s dependencies into `$2`, as APFS clones, which are quick and
-# share disk space until they change. Only reads `$1`.
+# Copies scratch directory `$1`'s dependencies into `$2`, which has none, as APFS clones, which
+# are quick and share disk space until they change. Only reads `$1`.
 seed_scratch() {
   mkdir -p "$2" || return 1
   for item in $scratch_items; do
@@ -273,71 +275,107 @@ seed_scratch() {
     FROM=$1 TO=$2 perl -pi -e 's|\Q$ENV{FROM}\E/|$ENV{TO}/|g' "$file" || return 1
     chmod "$mode" "$file" || return 1
   done
-  ! grep -qrF -- "$1/" "$2/workspace-state.json" "$2"/checkouts/*/.git/config \
-    "$2"/checkouts/*/.git/objects/info/alternates
 }
 
-# Whether every working copy in scratch directory `$1` is at the revision SwiftPM recorded for it,
-# without changes. SwiftPM trusts its record, so a copy taken while a resolution was changing the
-# original could otherwise build from the wrong sources.
-checkouts_match() {
+# Whether scratch directory `$1` stands on its own and matches SwiftPM's record of it: every path
+# in the record, and every working copy's clone, is inside it, and every working copy is at its
+# recorded revision, unchanged. SwiftPM trusts its record, so a working copy left half-updated, or
+# still using another directory's clone, would otherwise go unnoticed until a build broke.
+scratch_is_sound() {
   python3 -I - "$1" <<'PY'
 import json
+import os
+import re
 import subprocess
 import sys
 
 root = sys.argv[1]
+
+
+def fail(message):
+    print(f"{root}: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def absolute_paths(value):
+    if isinstance(value, dict):
+        value = list(value.values())
+    if isinstance(value, list):
+        for item in value:
+            yield from absolute_paths(item)
+    elif isinstance(value, str) and value.startswith("/"):
+        yield value
+
+
+def inside(path, folder):
+    return path.strip().startswith(f"{root}/{folder}")
+
+
 with open(f"{root}/workspace-state.json") as file:
-    dependencies = json.load(file)["object"]["dependencies"]
-for dependency in dependencies:
+    state = json.load(file)
+for path in absolute_paths(state):
+    if not inside(path, ""):
+        fail(f"its record names {path}.")
+for dependency in state["object"]["dependencies"]:
     revision = dependency["state"].get("checkoutState", {}).get("revision")
     if revision is None:
         continue
-    path = f"{root}/checkouts/{dependency['subpath']}"
-    head = subprocess.run(["git", "-C", path, "rev-parse", "HEAD"], capture_output=True, text=True)
+    name = dependency["subpath"]
+    checkout = f"{root}/checkouts/{name}"
+    alternates = f"{checkout}/.git/objects/info/alternates"
+    if os.path.exists(alternates):
+        with open(alternates) as file:
+            if not all(inside(line, "repositories/") for line in file if line.strip()):
+                fail(f"{name}'s working copy uses another directory's clone.")
+    with open(f"{checkout}/.git/config") as file:
+        origin = re.search(r'\[remote "origin"\][^\[]*?\burl = (.*)', file.read())
+    if not origin or not inside(origin.group(1), "repositories/"):
+        fail(f"{name}'s working copy comes from another directory's clone.")
     # Clones keep their files' times but not their inodes, which would make Git read every file.
     status = subprocess.run(
-        ["git", "-C", path, "-c", "core.checkStat=minimal", "status", "--porcelain"],
+        ["git", "-C", checkout, "-c", "core.checkStat=minimal"]
+        + ["status", "--porcelain=v2", "--branch"],
         capture_output=True,
         text=True,
     )
-    if head.stdout.strip() != revision or status.returncode or status.stdout:
-        print(f"{dependency['subpath']} isn't at {revision}.", file=sys.stderr)
-        sys.exit(1)
+    lines = status.stdout.splitlines()
+    head = next((line.split()[2] for line in lines if line.startswith("# branch.oid ")), None)
+    changed = any(not line.startswith("#") for line in lines)
+    if status.returncode or head != revision or changed:
+        fail(f"{name}'s working copy isn't at {revision}, unchanged.")
 PY
 }
 
 # Resolves the package in the current directory into scratch directory `$1`. A new one starts as a
-# copy of the last one resolved (or of the main checkout's `.build`), so only what changed since
-# is fetched. A copy whose working copies don't match SwiftPM's record is deleted, and resolved
-# from nothing. Then keeps a copy of it for the next, unless the kept one is for the same
-# `Package.resolved` and was fine.
+# copy of the kept one, so only what changed since is fetched, then is kept in its place, unless
+# that's for the same `Package.resolved`. If what's resolved doesn't stand on its own
+# (`scratch_is_sound`), say because a run was interrupted, its dependencies are deleted and
+# resolved from nothing.
 resolve_package() {
-  seed=""
-  for candidate in "$package_seed" "$main/LilPackage/.build"; do
-    if can_seed "$candidate" "$1"; then
-      seed=$candidate
-      break
-    fi
-  done
-  bad_seed=false
-  if [ -n "$seed" ] && seed_scratch "$seed" "$1" &&
-    swift package resolve --scratch-path "$1" >/dev/null && checkouts_match "$1"; then
+  new_scratch=false
+  seeded=false
+  if [ ! -e "$1/workspace-state.json" ] && [ ! -e "$1/checkouts" ] &&
+    [ ! -e "$1/repositories" ]; then
+    new_scratch=true
+    [ ! -f "$package_seed/Package.resolved" ] || seeded=true
+  fi
+  replace_seed=false
+  if { ! $seeded || seed_scratch "$package_seed" "$1"; } &&
+    swift package resolve --scratch-path "$1" >/dev/null && scratch_is_sound "$1"; then
     :
   else
-    if [ -n "$seed" ]; then
-      echo "warning: the copy of $seed in $1 didn't resolve cleanly, so it's resolved" \
-        "from nothing." >&2
-      bad_seed=true
-      for item in $scratch_items; do
-        rm -rf "${1:?}/$item"
-      done
-    fi
+    echo "warning: $1 didn't resolve cleanly, so its dependencies are resolved from nothing." >&2
+    for item in $scratch_items; do
+      rm -rf "${1:?}/$item"
+    done
     swift package resolve --scratch-path "$1" >/dev/null
+    replace_seed=$seeded
   fi
-  if $bad_seed || ! cmp -s Package.resolved "$package_seed/Package.resolved"; then
+  if $replace_seed ||
+    { $new_scratch && ! cmp -s Package.resolved "$package_seed/Package.resolved"; }; then
     rm -rf "$package_seed"
-    if ! { seed_scratch "$1" "$package_seed" && cp Package.resolved "$package_seed/"; }; then
+    if ! { seed_scratch "$1" "$package_seed" && scratch_is_sound "$package_seed" &&
+      cp Package.resolved "$package_seed/"; }; then
       echo "warning: couldn't keep a copy of $1 for the next worktree in $package_seed." >&2
       rm -rf "$package_seed"
     fi
