@@ -103,7 +103,7 @@ struct HealthAppIntentsTests {
     session.yield(true)
     await store.receive(\.signedInChanged)
 
-    let opened = Task { try await actions.perform(.open(steps)) }
+    let opened = Task { try await actions.perform(.open(steps), { _ in }) }
     await store.receive(\.appActionRequested)
     await store.receive(\.pageOpened) {
       $0.selection = .category(.activity)
@@ -115,7 +115,7 @@ struct HealthAppIntentsTests {
     session.yield(false)
     await store.receive(\.signedInChanged)
     await #expect(throws: HealthAppActionError.signedOut) {
-      try await actions.perform(.open(.summary))
+      try await actions.perform(.open(.summary), { _ in })
     }
     await task.cancel()
     await store.finish()
@@ -183,7 +183,7 @@ struct HealthAppIntentsTests {
     let broughtForward = LockIsolated(false)
     await withDependencies {
       $0.agentAccess = .live(accessStore)
-      $0.healthAppActions.perform = { action in
+      $0.healthAppActions.perform = { action, _ in
         asked.withValue { $0.append(action) }
         return .done
       }
@@ -206,7 +206,7 @@ struct HealthAppIntentsTests {
     let broughtForward = LockIsolated(false)
     let result = try await withDependencies {
       $0.agentAccess = .live(accessStore)
-      $0.healthAppActions.perform = { action in
+      $0.healthAppActions.perform = { action, _ in
         // Forward first, then the page.
         #expect(broughtForward.value)
         asked.withValue { $0.append(action) }

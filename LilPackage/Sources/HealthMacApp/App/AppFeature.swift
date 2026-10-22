@@ -142,6 +142,10 @@ public struct AppFeature {
           }
         case .sync:
           return syncForAppAction(request)
+        case .export(let folder):
+          // The export Settings shows, so it's one at a time with an export started there, and
+          // signing out stops it (`AccountFeature.cancel()`).
+          return .send(.account(.dataExport(.exportToFolderRequested(folder, request))))
         }
 
       case .binding:

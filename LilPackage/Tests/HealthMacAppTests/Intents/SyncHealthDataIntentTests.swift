@@ -167,7 +167,7 @@ struct SyncHealthDataIntentTests {
     session.yield(true)
     await store.receive(\.signedInChanged)
 
-    let syncing = Task { try await actions.perform(.sync) }
+    let syncing = Task { try await actions.perform(.sync, { _ in }) }
     await store.receive(\.appActionRequested)
     await store.receive(\.syncRestarted)
     session.yield(false)
@@ -184,7 +184,7 @@ struct SyncHealthDataIntentTests {
     let asked = LockIsolated<[HealthAppAction]>([])
     await withDependencies {
       $0.agentAccess = .live(accessStore)
-      $0.healthAppActions.perform = { action in
+      $0.healthAppActions.perform = { action, _ in
         asked.withValue { $0.append(action) }
         return .synced(at: synced)
       }
@@ -203,7 +203,7 @@ struct SyncHealthDataIntentTests {
     try accessStore.setEnabled(true)
     let result = try await withDependencies {
       $0.agentAccess = .live(accessStore)
-      $0.healthAppActions.perform = { action in
+      $0.healthAppActions.perform = { action, _ in
         #expect(action == .sync)
         return .synced(at: synced)
       }
