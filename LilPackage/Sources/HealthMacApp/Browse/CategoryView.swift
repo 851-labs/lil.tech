@@ -1,4 +1,3 @@
-import Charts
 import HealthCatalog
 import HealthDatabase
 import HealthPages
@@ -90,6 +89,7 @@ struct MetricsView: View {
         ForEach(withData) { summary in
           if let type = HealthCatalog.type(id: summary.id) {
             NavigationLink(value: summary.id) {
+              // The page's color, for a type listed under two categories.
               MetricRow(
                 type: type, summary: summary, color: category.color, now: now, calendar: calendar)
             }
@@ -104,74 +104,6 @@ struct MetricsView: View {
         }
       }
     }
-  }
-}
-
-/// One metric with data, in a form row: its name, when it's from, its latest value and a week's
-/// chart.
-struct MetricRow: View {
-  let type: HealthDataType
-  let summary: MetricSummary
-  let color: Color
-  let now: Date
-  let calendar: Calendar
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      HStack {
-        Label(type.name, systemImage: type.category?.symbolName ?? "circle")
-          .font(.headline)
-          .foregroundStyle(color)
-        Spacer()
-        if let date = summary.latestDate {
-          Text(
-            MetricFormat.date(date, isDay: summary.isDailyTotal, now: now, calendar: calendar)
-          )
-          .foregroundStyle(.secondary)
-        }
-      }
-      if let value = summary.latestValue {
-        HStack(alignment: .bottom) {
-          let (number, unit) = MetricFormat.value(value, unit: summary.unit, typeID: type.id)
-          HStack(alignment: .firstTextBaseline, spacing: 3) {
-            Text(number)
-              .font(.system(.title, design: .rounded).bold())
-            Text(unit)
-              .font(.callout.weight(.medium))
-              .foregroundStyle(.secondary)
-          }
-          Spacer()
-          Sparkline(days: summary.days, isTotals: summary.isDailyTotal, color: color)
-            .frame(width: 120, height: 36)
-        }
-      }
-    }
-    .padding(.vertical, 6)
-  }
-}
-
-/// A week at a glance: bars for daily totals, a line for daily averages.
-struct Sparkline: View {
-  let days: [DailyValue]
-  let isTotals: Bool
-  let color: Color
-
-  var body: some View {
-    Chart(days, id: \.day) { day in
-      if isTotals {
-        BarMark(x: .value("Day", day.day, unit: .day), y: .value("Value", day.value))
-          .foregroundStyle(color.opacity(0.8))
-      } else {
-        LineMark(x: .value("Day", day.day, unit: .day), y: .value("Value", day.value))
-          .foregroundStyle(color)
-        PointMark(x: .value("Day", day.day, unit: .day), y: .value("Value", day.value))
-          .foregroundStyle(color)
-          .symbolSize(12)
-      }
-    }
-    .chartXAxis(.hidden)
-    .chartYAxis(.hidden)
-    .chartLegend(.hidden)
   }
 }
 
