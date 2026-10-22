@@ -18,8 +18,7 @@
   let mentalWellbeingCatalog = StateCatalog(
     "Mental Wellbeing", width: 680, minHeight: 760,
     states: [
-      // Taller than the others: its `List` doesn't grow to its rows, and this shows all nine.
-      CatalogState("State of Mind", minHeight: 1500) { stateOfMind(.loaded(logs)) },
+      CatalogState("State of Mind") { stateOfMind(.loaded(logs)) },
       // Logs, but none in the last four weeks.
       CatalogState("State of Mind, none recently") {
         stateOfMind(.loaded([log(10, hoursAgo: 24 * 60, valence: 0.2, labels: [7])]))
@@ -36,6 +35,10 @@
       CatalogState("GAD-7", width: 640, minHeight: 600) { assessments(.gad7, .loaded(gad7)) },
       CatalogState("PHQ-9, severe", width: 640, minHeight: 600) {
         assessments(.phq9, .loaded(phq9))
+      },
+      // As if these were the most it holds: it says the list is cut short.
+      CatalogState("GAD-7, at the limit", width: 640, minHeight: 600) {
+        assessments(.gad7, .loaded(gad7), limit: gad7.count)
       },
       CatalogState("No assessments", width: 640, minHeight: 600) {
         assessments(.gad7, .loaded([]))
@@ -105,13 +108,14 @@
   }
 
   @MainActor
-  private func assessments(_ kind: AssessmentKind, _ state: ScoredAssessmentsContent.State)
-    -> some View
-  {
+  private func assessments(
+    _ kind: AssessmentKind, _ state: ScoredAssessmentsContent.State,
+    limit: Int = RecentAssessments.limit
+  ) -> some View {
     NavigationStack {
       ScoredAssessmentsContent(
         kind: kind, name: kind == .gad7 ? "Anxiety Risk (GAD-7)" : "Depression Risk (PHQ-9)",
-        state: state)
+        state: state, limit: limit)
     }
   }
 #endif

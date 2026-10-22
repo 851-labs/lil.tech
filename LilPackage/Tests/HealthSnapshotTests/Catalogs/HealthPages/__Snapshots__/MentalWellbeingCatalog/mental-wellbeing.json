@@ -60,6 +60,13 @@
       "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/MentalWellbeingCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MentalWellbeingCatalog/mental-wellbeing.gad-7-at-the-limit-dark.png",
+      "id" : "mental-wellbeing.gad-7-at-the-limit",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MentalWellbeingCatalog/mental-wellbeing.gad-7-at-the-limit-light.png",
+      "name" : "GAD-7, at the limit",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/MentalWellbeingCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MentalWellbeingCatalog/mental-wellbeing.no-assessments-dark.png",
       "id" : "mental-wellbeing.no-assessments",
       "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MentalWellbeingCatalog/mental-wellbeing.no-assessments-light.png",

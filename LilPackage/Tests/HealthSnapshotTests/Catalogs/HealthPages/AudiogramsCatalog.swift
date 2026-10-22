@@ -25,11 +25,11 @@
       CatalogState("No audiograms") { list(.loaded([])) },
       CatalogState("Audiograms loading") { list(.loading) },
       CatalogState("Audiograms failed") { list(.failed("The database couldn't be read.")) },
-      CatalogState("Little to no hearing loss", width: 760, minHeight: 660) { detail(typical) },
-      CatalogState("Moderate hearing loss", width: 760, minHeight: 660) { detail(moderate) },
-      CatalogState("One ear tested", width: 760, minHeight: 660) { detail(oneEar) },
+      CatalogState("Little to no hearing loss", width: 760) { detail(typical) },
+      CatalogState("Moderate hearing loss", width: 760) { detail(moderate) },
+      CatalogState("One ear tested", width: 760) { detail(oneEar) },
       // The right ear's 8 kHz result is a bound, and 12.5 kHz is past the usual range.
-      CatalogState("No response at 8 kHz, extended frequencies", width: 760, minHeight: 660) {
+      CatalogState("No response at 8 kHz, extended frequencies", width: 760) {
         detail(
           HealthAudiogram(
             id: "6f1c2a40-0000-4000-8000-000000000008", startDate: start(daysAgo: 3.5),
@@ -37,7 +37,7 @@
             sourceName: "Hearing Test App",
             sourceBundleID: "com.example.hearing"))
       },
-      CatalogState("No frequencies tested", width: 760, minHeight: 660) {
+      CatalogState("No frequencies tested", width: 760) {
         detail(
           HealthAudiogram(
             id: "6f1c2a40-0000-4000-8000-000000000009", startDate: start(daysAgo: 4.6),

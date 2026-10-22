@@ -1,14 +1,16 @@
 import SwiftUI
 
-// A grouped form's look for lists too long to be a `Form`: All Data and Food (851-3005). A grouped
+// A grouped form's look for lists too long to be a `Form`: All Data and Food (851-3005), and the
+// record lists (workouts, ECGs, audiograms, beat-to-beat measurements, Health Documents, State of
+// Mind and assessments, 851-3032), which hold 500 to 2,000 records at most. A grouped
 // `Form` builds every row at once on macOS, however few are on screen (851-2820): 1,000 rows took
 // 3.9 s and 10,000 took 51 s on macOS 27, and 100,000 crashed it. These draw what it draws, from
 // a `LazyVStack`, so only the rows on screen are built: its background and its sections' fill
 // (`.background` and `.background.secondary`, the colors it paints), its width and insets, its
 // bold section headers, and its rows' insets and separators.
 
-/// A lazily built page in a grouped form's look. Its content is `LazyFormHeader`s and
-/// `LazyFormRow`s, one after another.
+/// A lazily built page in a grouped form's look. Its content is `LazyFormHeader`s,
+/// `LazyFormRow`s and `LazyFormFooter`s, one after another.
 struct LazyForm<Content: View>: View {
   @ViewBuilder let content: Content
 
@@ -41,14 +43,33 @@ struct LazyFormHeader: View {
   }
 }
 
-/// A navigation row of a section, as a grouped form's: its content and a chevron, on the section's
-/// fill, rounded at the section's top and bottom, with a separator above it unless it's the first.
-/// The label of a plain-styled `NavigationLink`.
+/// A section's footer, as a grouped form's: a note under its rows, in secondary text.
+struct LazyFormFooter: View {
+  let text: String
+
+  init(_ text: String) {
+    self.text = text
+  }
+
+  var body: some View {
+    Text(text)
+      .font(.footnote)
+      .foregroundStyle(.secondary)
+      .padding(.horizontal, LazyFormMetrics.rowInset)
+      .padding(.top, 6)
+  }
+}
+
+/// A row of a section, as a grouped form's: its content, on the section's fill, rounded at the
+/// section's top and bottom, with a separator above it unless it's the first. A navigation row
+/// (`showsChevron`, the label of a plain-styled `NavigationLink`) ends in a chevron.
 struct LazyFormRow<Content: View>: View {
   let isFirst: Bool
   /// False for the last row loaded while its section may go on in the next page, so the section
   /// stays open.
   let isLast: Bool
+  /// A navigation row's chevron. Rows that open nothing (a chart, a log) have none.
+  var showsChevron = true
   @ViewBuilder let content: Content
 
   var body: some View {
@@ -62,9 +83,11 @@ struct LazyFormRow<Content: View>: View {
       }
       HStack(spacing: 10) {
         content
-        Image(systemName: "chevron.right")
-          .font(.caption.bold())
-          .foregroundStyle(.tertiary)
+        if showsChevron {
+          Image(systemName: "chevron.right")
+            .font(.caption.bold())
+            .foregroundStyle(.tertiary)
+        }
       }
       .padding(.horizontal, LazyFormMetrics.rowInset)
       .padding(.vertical, 8)

@@ -19,12 +19,15 @@
   let workoutRoutesCatalog = StateCatalog(
     "Workout Routes", width: 620, minHeight: 640,
     states: [
-      // Tall enough for the whole list: a `List` doesn't grow to its content.
-      CatalogState("Workout routes", minHeight: 800) {
+      CatalogState("Workout routes") {
         list(.loaded(workoutsWithRoutes, otherRoutes: otherRoutes))
       },
-      CatalogState("Workout routes, no other routes", minHeight: 700) {
+      CatalogState("Workout routes, no other routes") {
         list(.loaded(workoutsWithRoutes))
+      },
+      // As if two were the most each list holds: each says it's cut short, under its routes.
+      CatalogState("Workout routes, at the limit") {
+        list(.loaded(Array(workoutsWithRoutes.prefix(2)), otherRoutes: otherRoutes), limit: 2)
       },
       CatalogState("Only other routes") { list(.loaded([], otherRoutes: otherRoutes)) },
       CatalogState("No workout routes") { list(.loaded([])) },
@@ -71,9 +74,11 @@
   ]
 
   @MainActor
-  private func list(_ state: WorkoutsContent.State) -> some View {
+  private func list(_ state: WorkoutsContent.State, limit: Int = RecentWorkouts.limit)
+    -> some View
+  {
     NavigationStack {
-      WorkoutsContent(state: state, onlyWithRoutes: true)
+      WorkoutsContent(state: state, onlyWithRoutes: true, limit: limit)
     }
   }
 
