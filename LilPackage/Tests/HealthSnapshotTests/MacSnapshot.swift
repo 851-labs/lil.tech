@@ -10,15 +10,15 @@
 
   /// Renders `view` as Xcode's canvas shows a Mac preview, in a window with a title bar (so its
   /// toolbar renders) of the given appearance, and compares it with its reference image,
-  /// `__Snapshots__/<test file>/<screen>.<name>-<light|dark>.png` (851-2931), `mac` unless a
-  /// catalog names the screen (851-2949).
+  /// `__Snapshots__/<test file>/<screen>.<name>-<light|dark>.png` (851-2931), the screen being a
+  /// catalog's (851-2949).
   ///
   /// The window is never on screen and the app never activates, so this needs no Xcode, no
   /// Screen Recording access and no display of a particular scale, and runs beside other agents.
   /// Liquid Glass (toolbar controls, a switch's tint, the window buttons) doesn't draw offscreen.
   @MainActor
   func assertMacSnapshot(
-    of view: some View, appearance: NSAppearance.Name, named name: String, screen: String = "mac",
+    of view: some View, appearance: NSAppearance.Name, named name: String, screen: String,
     fileID: StaticString = #fileID, file: StaticString = #filePath, testName: String = #function,
     line: UInt = #line, column: UInt = #column
   ) {

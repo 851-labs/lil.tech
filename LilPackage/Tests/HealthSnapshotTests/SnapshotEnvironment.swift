@@ -12,6 +12,17 @@
     _ = timeZoneAndLocale
   }
 
+  /// Drops `LIL_API_URL` from the process's environment, once, so views that show the API's
+  /// URLs (Settings' MCP server URL) show staging's, as a Debug build does, whichever deployment
+  /// the shell points at. Call it before a view reads `APIEnvironment.current()`, which some keep.
+  func fixAPIEnvironment() {
+    _ = apiEnvironment
+  }
+
+  private let apiEnvironment: Void = {
+    unsetenv("LIL_API_URL")
+  }()
+
   private let timeZoneAndLocale: Void = {
     NSTimeZone.default = previewCalendar.timeZone
     let locale = previewCalendar.locale!
