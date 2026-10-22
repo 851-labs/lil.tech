@@ -54,46 +54,62 @@ extension View {
 /// its content's size limits change, so this puts it back whenever the style mask changes. The
 /// window keeps to the size limits SwiftUI sets from the selected pane's frame.
 ///
-/// SwiftUI's own frame autosave (`NSWindow Frame com_apple_SwiftUI_Settings_window`) restores
-/// where the window was, but not its size: it restores it before the window is resizable, and
-/// AppKit only restores a resizable window's size. So the frame is saved under a name of its own
-/// too, `NSWindow Frame Settings` in the app's user defaults, and restored once it's resizable.
+/// SwiftUI's own frame autosave restores where the window was, but not its size: it restores it
+/// before the window is resizable, and AppKit only restores a resizable window's size. So this
+/// keeps the size in the app's settings (`defaultAppStorage`, the server's suite in a dev build),
+/// and sets it as the window opens, keeping its top left where SwiftUI put it.
 private struct ResizableWindow: NSViewRepresentable {
-  static let frameName = "Settings"
-
   func makeNSView(context: Context) -> NSView { WindowView() }
   func updateNSView(_ nsView: NSView, context: Context) {}
 
   private final class WindowView: NSView {
+    /// The window's frame size, as `NSStringFromSize` makes it, e.g. `{760, 600}`.
+    static let sizeKey = "settingsWindowSize"
+
+    @Dependency(\.defaultAppStorage) private var defaults
     private var styleMaskObservation: NSKeyValueObservation?
-    private var resizeObservation: (any NSObjectProtocol)?
 
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
       styleMaskObservation = nil
-      resizeObservation.map(NotificationCenter.default.removeObserver)
-      resizeObservation = nil
       guard let window else { return }
       makeWindowResizable()
       // The green button zooms it rather than taking it full screen, as a settings window should.
       window.collectionBehavior.insert(.fullScreenNone)
-      // Before saving starts, so the size SwiftUI opened it at doesn't replace the saved one.
-      window.setFrameUsingName(ResizableWindow.frameName)
+      // Only as it opens, not if SwiftUI hosts this view again while it's on screen.
+      if !window.isVisible {
+        restoreSize(of: window)
+      }
       styleMaskObservation = window.observe(\.styleMask) { [weak self] _, _ in
         // KVO's handler is nonisolated; SwiftUI changes the style mask on the main thread.
         Task { @MainActor in self?.makeWindowResizable() }
       }
-      resizeObservation = NotificationCenter.default.addObserver(
-        forName: NSWindow.didResizeNotification, object: window, queue: .main
-      ) { [weak window] _ in
-        Task { @MainActor in window?.saveFrame(usingName: ResizableWindow.frameName) }
-      }
+    }
+
+    /// The view fills the window, so it resizes with it: the window's size is saved from here,
+    /// once the window is on screen, rather than the sizes SwiftUI gives it as it opens.
+    override func setFrameSize(_ newSize: NSSize) {
+      let oldSize = frame.size
+      super.setFrameSize(newSize)
+      guard newSize != oldSize, let window, window.isVisible else { return }
+      defaults.set(NSStringFromSize(window.frame.size), forKey: Self.sizeKey)
     }
 
     private func makeWindowResizable() {
       // Only when it isn't: setting the style mask notifies the observation again.
       guard let window, !window.styleMask.contains(.resizable) else { return }
       window.styleMask.insert(.resizable)
+    }
+
+    private func restoreSize(of window: NSWindow) {
+      guard let saved = defaults.string(forKey: Self.sizeKey) else { return }
+      let size = NSSizeFromString(saved)
+      guard size.width > 0, size.height > 0 else { return }
+      // Its top left stays where SwiftUI put it.
+      var frame = window.frame
+      frame.origin.y += frame.height - size.height
+      frame.size = size
+      window.setFrame(window.constrainFrameRect(frame, to: window.screen), display: false)
     }
   }
 }
