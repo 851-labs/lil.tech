@@ -17,16 +17,6 @@
     @Test(arguments: conversationListCatalog.selectedStates)
     func conversationList(_ state: CatalogState) {
       state.assertMacSnapshots()
-      // TEMPORARY (851-2968): print the minis' failed images.
-      for suffix in ["light", "dark"] {
-        let url = URL(filePath: NSTemporaryDirectory()).appending(
-          components: "ConversationListCatalog", "conversation-list.\(state.slug)-\(suffix).png")
-        if let data = try? Data(contentsOf: url) {
-          print("CIIMAGE-BEGIN \(state.slug)-\(suffix)")
-          print(data.base64EncodedString())
-          print("CIIMAGE-END")
-        }
-      }
     }
   }
 

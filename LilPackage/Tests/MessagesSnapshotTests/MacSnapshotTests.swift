@@ -64,7 +64,8 @@
   /// A synthetic contact photo: a smiley on a gradient. Catalogs never use real contact photos.
   /// Drawn into a bitmap of a fixed size, in light, so it's the same on every Mac: drawn outside
   /// any view, it took the current drawing appearance, which followed the system's rather than the
-  /// app's (the smiley turned into a filled disc in dark), and the screen's scale (851-2751).
+  /// app's, and the screen's scale (851-2751). The face is paths, not an SF Symbol, which macOS
+  /// 27.0 and 27.0.1 draw differently (851-3007).
   let catalogContactPhoto: Data = {
     let size = NSSize(width: 120, height: 120)
     let bitmap = NSBitmapImageRep(
@@ -76,26 +77,22 @@
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
     NSAppearance(named: .aqua)!.performAsCurrentDrawingAppearance {
       let rect = NSRect(origin: .zero, size: size)
-      NSGradient(starting: .systemOrange, ending: .systemPink)?.draw(in: rect, angle: -90)
-      let symbol = NSImage(systemSymbolName: "face.smiling", accessibilityDescription: nil)?
-        .withSymbolConfiguration(.init(pointSize: 64, weight: .regular))
-      symbol?.isTemplate = true
-      if let symbol {
-        let tinted = NSImage(size: symbol.size, flipped: false) { symbolRect in
-          symbol.draw(in: symbolRect)
-          NSColor.white.set()
-          symbolRect.fill(using: .sourceAtop)
-          return true
-        }
-        tinted.draw(
-          in: NSRect(
-            x: (rect.width - symbol.size.width) / 2,
-            y: (rect.height - symbol.size.height) / 2,
-            width: symbol.size.width,
-            height: symbol.size.height
-          )
-        )
-      }
+      NSGradient(
+        starting: NSColor(srgbRed: 1, green: 0.62, blue: 0.04, alpha: 1),
+        ending: NSColor(srgbRed: 1, green: 0.18, blue: 0.33, alpha: 1)
+      )?.draw(in: rect, angle: -90)
+      NSColor.white.set()
+      let face = NSBezierPath(ovalIn: rect.insetBy(dx: 30, dy: 30))
+      face.lineWidth = 5
+      face.stroke()
+      NSBezierPath(ovalIn: NSRect(x: 47, y: 64, width: 8, height: 11)).fill()
+      NSBezierPath(ovalIn: NSRect(x: 65, y: 64, width: 8, height: 11)).fill()
+      let smile = NSBezierPath()
+      smile.appendArc(
+        withCenter: NSPoint(x: 60, y: 60), radius: 18, startAngle: 210, endAngle: 330)
+      smile.lineWidth = 5
+      smile.lineCapStyle = .round
+      smile.stroke()
     }
     NSGraphicsContext.restoreGraphicsState()
     return bitmap.representation(using: .png, properties: [:]) ?? Data()

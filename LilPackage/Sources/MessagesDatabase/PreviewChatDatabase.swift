@@ -248,7 +248,7 @@ public enum PreviewChatDatabase {
         (0, "I’m in! Which trail?", 1_496),
         (2, "How about the coastal one? It’s supposed to be sunny all weekend.", 1_490),
         (1, "Perfect, let’s meet at 9", 1_485),
-        (0, "See you there 🥾", 1_480),
+        (0, "See you there!", 1_480),
       ]
     ),
     (
