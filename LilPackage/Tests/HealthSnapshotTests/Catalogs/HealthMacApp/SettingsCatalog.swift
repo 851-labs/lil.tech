@@ -48,7 +48,11 @@
       CatalogState("Checking the session") { account(isSignedIn: nil) },
 
       // Agents (851-2840), with what intents may do (851-2892). "Agents: on, with a log" was
-      // `MacSnapshotTests.agentsPane` (851-2931), which kept to the window's height.
+      // `MacSnapshotTests.agentsPane` (851-2931), which kept to the window's height. The preview
+      // "Agents: revoke an agent on all lil apps" isn't one: its alert is a sheet, a window of its
+      // own that the image doesn't show, and the window's dimmed buttons draw differently on
+      // macOS 27.0 and 27.0.1. Without the alert, it showed nothing that "Agents: on, with a log"
+      // and "Remote agents" don't. `ConnectedAgentsFeatureTests` checks the alert's text.
       CatalogState("Agents: on, with a log") { agents() },
       CatalogState("Agents: on, empty log") { agents(entries: []) },
       CatalogState("Agents: off, with a log") { agents(isEnabled: false) },
@@ -65,14 +69,6 @@
         agents(
           entries: [],
           logFailure: "lil health couldn't read the access log: The database file is locked.")
-      },
-      // Revoking an agent connected to every lil app disconnects it from all of them
-      // (851-2902). The alert is a sheet, a window of its own, so the image shows only the pane
-      // dimmed behind it.
-      CatalogState("Agents: revoke an agent on all lil apps") {
-        agents(
-          connected: ConnectedAgentsFeature.State(
-            agents: .loaded(remoteAgents), alert: .confirmRevoke(combinedAgent)))
       },
       CatalogState("Agents: signed out") { agents(isSignedIn: false) },
 
@@ -181,21 +177,13 @@
   private func agents(
     isEnabled: Bool = true, entries: [AgentAccessEntry] = agentQueries, isLoading: Bool = false,
     failure: String? = nil, logFailure: String? = nil, isSignedIn: Bool? = true,
-    commandLineTool: URL? = URL(filePath: "/usr/local/bin/lil"),
-    connected: ConnectedAgentsFeature.State = ConnectedAgentsFeature.State()
+    commandLineTool: URL? = URL(filePath: "/usr/local/bin/lil")
   ) -> some View {
     var state = AppFeature.State(isSignedIn: isSignedIn)
     state.agentAccess = AgentAccessFeature.State(
       commandLineTool: commandLineTool, entries: entries, failure: failure, isEnabled: isEnabled,
       isLoading: isLoading, logFailure: logFailure)
-    state.connectedAgents = connected
-    // `ifLet`: closing an alert (when the snapshot's window goes) clears it, as the feature does.
-    return AgentAccessSettingsView(
-      store: Store(initialState: state) {
-        EmptyReducer<AppFeature.State, AppFeature.Action>()
-          .ifLet(\.connectedAgents.$alert, action: \.connectedAgents.alert)
-      }
-    )
+    return AgentAccessSettingsView(store: Store(initialState: state) { EmptyReducer() })
   }
 
   @MainActor
