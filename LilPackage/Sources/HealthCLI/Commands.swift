@@ -9,7 +9,7 @@ import HealthTools
 struct LilHealthCommand: ParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "lil-health",
-    abstract: "Reads lil health's data on this Mac, as lil health shows it.",
+    abstract: "Reads lil health's data on this Mac, and asks lil health to open, sync or export.",
     discussion: """
       Each command answers from the data lil health has synced to this Mac, read-only, while \
       you allow command-line and agent access in lil health › Settings… › Agents. lil health \
@@ -20,13 +20,18 @@ struct LilHealthCommand: ParsableCommand {
       times are in this Mac's time zone, or --time-zone's. Add --json for the toolkit's JSON, \
       as lil health's MCP servers answer.
 
-      Exit statuses: 64 for a usage error, 65 for an unknown type, time zone or date, 69 if \
-      there's no lil health data to read, 77 while access is off.
+      open, sync and export ask lil health to do it, under the same setting, launching it if \
+      it isn't running.
+
+      Exit statuses: 64 for a usage error, 65 for an unknown type, time zone, date, page or \
+      folder, 69 if there's no lil health data to read, or lil health isn't installed, didn't answer or \
+      isn't signed in, 75 if its sync or export failed, 77 while access is off.
       """,
     subcommands: [
       SummaryCommand.self, TypesCommand.self, MetricCommand.self, SamplesCommand.self,
       WorkoutsCommand.self, SleepCommand.self, MedicationsCommand.self, DetailsCommand.self,
-      SearchCommand.self, SyncCommand.self, MCPCommand.self,
+      SearchCommand.self, SyncCommand.self, OpenCommand.self, ExportCommand.self,
+      MCPCommand.self,
     ]
   )
 
@@ -240,12 +245,6 @@ struct SearchCommand: QueryCommand {
   func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
     Answer(try tools.search(query: words.joined(separator: " "), db))
   }
-}
-
-struct SyncCommand: ParsableCommand {
-  static let configuration = CommandConfiguration(
-    commandName: "sync", abstract: "How fresh the data is.",
-    subcommands: [SyncStatusCommand.self], defaultSubcommand: SyncStatusCommand.self)
 }
 
 struct SyncStatusCommand: QueryCommand {

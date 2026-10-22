@@ -10,11 +10,13 @@ import HealthTools
 /// (`Contents/MacOS/lil-health`), and `lil health …` runs it.
 ///
 /// It reads only while the person allows command-line and agent access in the app's settings,
-/// and logs each query there (851-2840). It opens the database read-only and never migrates it.
+/// and logs each query there (851-2840). `open`, `sync` and `export` ask the app to act, under the
+/// same setting (851-2896). It opens the database read-only and never migrates it.
 /// `lil-health mcp` serves the same queries to agents, as a local MCP server (851-2844).
 public enum HealthCLI {
   /// What `lil help` lists it with (`--describe`).
-  public static let description = "Reads lil health's data on this Mac: summary, metrics, sleep…"
+  public static let description =
+    "Reads lil health's data on this Mac (summary, metrics, sleep…), and opens, syncs or exports."
 
   /// Runs `lil-health` with the process's arguments, then exits.
   public static func main() -> Never {
@@ -25,6 +27,11 @@ public enum HealthCLI {
     let outcome = run(arguments, context: .live())
     FileHandle.standardOutput.write(Data(outcome.output.utf8))
     FileHandle.standardError.write(Data(outcome.error.utf8))
+    if outcome.status == Status.interrupted {
+      // Ended by Ctrl-C, as shells tell: a loop running the command stops too.
+      signal(SIGINT, SIG_DFL)
+      raise(SIGINT)
+    }
     exit(outcome.status)
   }
 
@@ -38,22 +45,33 @@ public enum HealthCLI {
     public var process: String
     /// The IANA time zone of queries that don't name one, or `nil` for the Mac's.
     public var timeZone: String?
+    /// How `open`, `sync` and `export` reach the app.
+    public var app: AppConnection
+    /// How long they wait for it.
+    public var timing: Timing
 
     public init(
       directory: URL, now: @escaping @Sendable () -> Date, process: String,
-      timeZone: String? = nil
+      timeZone: String? = nil, app: AppConnection = .notInstalled, timing: Timing = Timing()
     ) {
       self.directory = directory
       self.now = now
       self.process = process
       self.timeZone = timeZone
+      self.app = app
+      self.timing = timing
     }
 
-    /// The app's own folder, the clock, and the parent process.
+    /// The app's own folder, the clock, the parent process, and the app.
     public static func live() -> Self {
-      Self(
+      #if canImport(AppKit)
+        let app = AppConnection.live()
+      #else
+        let app = AppConnection.notInstalled
+      #endif
+      return Self(
         directory: HealthDatabase.macDirectory, now: { Date() },
-        process: AgentAccessStore.callingProcess() ?? "unknown")
+        process: AgentAccessStore.callingProcess() ?? "unknown", app: app)
     }
   }
 
@@ -66,12 +84,17 @@ public enum HealthCLI {
 
   /// Exit statuses, from `sysexits.h`.
   enum Status {
-    /// A query's arguments were wrong (an unknown type or time zone).
+    /// A query's arguments were wrong (an unknown type, time zone or page).
     static let dataError: Int32 = 65
-    /// There's no database to read, or not one this version can.
+    /// There's no database to read, or not one this version can; or lil health isn't installed,
+    /// didn't answer, or isn't signed in.
     static let unavailable: Int32 = 69
+    /// The app's sync or export failed (`EX_TEMPFAIL`).
+    static let tempFail: Int32 = 75
     /// Command-line and agent access is off.
     static let noPermission: Int32 = 77
+    /// Ctrl-C stopped an action command's wait, as shells report SIGINT.
+    static let interrupted: Int32 = 130
   }
 
   /// Parses `arguments` (without the program's name) and runs them.
@@ -89,6 +112,8 @@ public enum HealthCLI {
           output: root.describe ? description + "\n" : LilHealthCommand.helpMessage() + "\n")
       case let query as any QueryCommand:
         return Outcome(output: try perform(query, arguments: arguments, context: context))
+      case let action as any ActionCommand:
+        return Outcome(output: try perform(action, context: context))
       case is MCPCommand:
         // `main` serves it: it runs until the client closes standard input.
         return Outcome(error: "lil-health: mcp only runs as its own process.\n", status: 64)
@@ -115,9 +140,14 @@ public enum HealthCLI {
     let tools = HealthTools(now: context.now(), defaultTimeZone: context.timeZone)
     let answer = try database.read { db in try command.answer(tools, db) }
     guard command.output.json else { return answer.text }
+    return try encode(answer.json)
+  }
+
+  /// `--json`'s output: pretty, with sorted keys, and a line of its own.
+  static func encode(_ value: some Encodable) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    return String(decoding: try encoder.encode(answer.json), as: UTF8.self) + "\n"
+    return String(decoding: try encoder.encode(value), as: UTF8.self) + "\n"
   }
 
   private static func failure(_ error: any Error) -> Outcome {
@@ -126,6 +156,7 @@ public enum HealthCLI {
     }
     switch error {
     case is AgentAccessError: return message(Status.noPermission)
+    case let error as ActionError: return message(error.status)
     // Including SQLite's: a damaged database, or one the app kept locked past the timeout.
     case is HealthDatabase.ReadError, is DatabaseError: return message(Status.unavailable)
     case is HealthToolError: return message(Status.dataError)
