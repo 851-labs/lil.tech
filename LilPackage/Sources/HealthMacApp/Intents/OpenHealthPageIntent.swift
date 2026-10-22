@@ -42,11 +42,13 @@ enum HealthAppIntents {
   static let process = "Shortcuts, Siri or Spotlight"
 
   /// Checks command-line and agent access and logs the action (`AgentAccessStore.authorize`),
-  /// then runs `beforeAction` (bringing the app forward, for Open) and asks the app. Every time,
-  /// Siri's and Spotlight's included: an intent can't tell a person from an agent's shortcut.
-  /// While access is off it does nothing else, and fails with how to turn it on.
+  /// then runs `beforeAction` (bringing the app forward, for Open) and asks the app, which
+  /// reports how it's going to `progress` (Export). Every time, Siri's and Spotlight's included:
+  /// an intent can't tell a person from an agent's shortcut. While access is off it does nothing
+  /// else, and fails with how to turn it on.
   static func perform(
-    _ action: HealthAppAction, beforeAction: () async throws -> Void = {}
+    _ action: HealthAppAction, beforeAction: () async throws -> Void = {},
+    progress: @escaping HealthAppActions.Progress = { _ in }
   ) async throws -> HealthAppActionResult {
     @Dependency(\.agentAccess) var agentAccess
     @Dependency(\.healthAppActions) var healthAppActions
@@ -59,7 +61,7 @@ enum HealthAppIntents {
     // App Intents' own errors (the app couldn't come forward) and the app's
     // (`HealthAppActionError`, which says itself what Shortcuts shows) pass through as they are.
     try await beforeAction()
-    return try await healthAppActions.perform(action)
+    return try await healthAppActions.perform(action, progress)
   }
 }
 

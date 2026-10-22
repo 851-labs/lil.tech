@@ -12,14 +12,32 @@ public enum HealthAppAction: Equatable, Sendable {
   /// running finish), and waits for the pull to end, at most `HealthAppActions.syncWait`
   /// (851-2893). The Mac never uploads: the iPhone does.
   case sync
+  /// Exports the account's data into a folder, without the save panel (851-2894): the archive
+  /// the server prepares, under the name the panel would suggest, numbered if it's taken. One
+  /// export at a time, from Settings or an action.
+  case export(to: URL)
 
-  /// The action as the access log shows it, e.g. `open Steps`.
+  /// The action as the access log shows it, e.g. `open Steps` or `export ~/Downloads`.
   public var command: String {
     switch self {
     case .open(let page): "open \(page.name)"
     case .sync: "sync"
+    case .export(let folder): "export \(Self.displayPath(folder))"
     }
   }
+
+  /// A folder's path as people write it, with `~` for the home folder.
+  static func displayPath(_ url: URL) -> String {
+    (url.path(percentEncoded: false) as NSString).abbreviatingWithTildeInPath
+  }
+}
+
+/// How an action the app is performing is going, for whoever asked to show.
+public enum HealthAppActionProgress: Equatable, Sendable {
+  /// The server is preparing the export.
+  case preparing
+  /// The share of the archive downloaded, from 0 to 1.
+  case downloading(Double)
 }
 
 /// What the app answers once it has performed an action.
@@ -30,6 +48,8 @@ public enum HealthAppActionResult: Equatable, Sendable {
   case synced(at: Date)
   /// Still pulling after `HealthAppActions.syncWait`: the app finishes in the background.
   case stillSyncing
+  /// The archive, saved in the folder asked for.
+  case exported(URL)
 }
 
 /// Why the app couldn't perform an action.
@@ -42,12 +62,33 @@ public enum HealthAppActionError: Error, Equatable, LocalizedError,
   case syncFailed(String)
   /// The pull failed because the Mac has no connection (`SyncStatus.offline`).
   case offline
+  /// An export is running already, from Settings or another action.
+  case exportRunning
+  /// The export failed, with what Settings says (`DataExportError.message`).
+  case exportFailed(String)
+  /// Cancelled in Settings while it ran.
+  case exportCancelled
+  /// The intent ended (the system stopped waiting) while the app kept exporting, into the
+  /// folder of this name.
+  case stillExporting(folderName: String)
+  /// There's no folder at this path (written with `~`).
+  case folderNotFound(String)
+  /// The folder at this path (written with `~`) can't be written to.
+  case folderNotWritable(String)
 
   public var errorDescription: String? {
     switch self {
     case .signedOut: "Sign in to lil health first."
     case .syncFailed(let message): "Couldn't sync: \(message)"
     case .offline: "Couldn't sync: this Mac is offline."
+    case .exportRunning: "An export is already running."
+    case .exportFailed(let message): message
+    case .exportCancelled: "The export was cancelled in lil health."
+    case .stillExporting(let folderName):
+      "lil health is still exporting. It'll be saved to \(folderName)."
+    case .folderNotFound(let path): "There's no folder at \(path)."
+    case .folderNotWritable(let path):
+      "lil health can't save to \(path). Check that the folder can be written to, and that lil health may use it, in System Settings › Privacy & Security › Files & Folders."
     }
   }
 
@@ -59,14 +100,22 @@ public enum HealthAppActionError: Error, Equatable, LocalizedError,
 /// An action for the app to perform, with how to answer whoever asked.
 public struct HealthAppActionRequest: Sendable {
   public let action: HealthAppAction
+  private let progress: @Sendable (HealthAppActionProgress) -> Void
   private let reply: @Sendable (Result<HealthAppActionResult, any Error>) -> Void
 
   public init(
     action: HealthAppAction,
+    progress: @escaping @Sendable (HealthAppActionProgress) -> Void = { _ in },
     reply: @escaping @Sendable (Result<HealthAppActionResult, any Error>) -> Void
   ) {
     self.action = action
+    self.progress = progress
     self.reply = reply
+  }
+
+  /// Tells whoever asked how it's going, until it's answered.
+  public func report(_ progress: HealthAppActionProgress) {
+    self.progress(progress)
   }
 
   /// Answers whoever asked. Only the first answer counts.
@@ -78,16 +127,23 @@ public struct HealthAppActionRequest: Sendable {
 /// How app actions reach the running app's store (851-2892). Whoever asks (an intent) calls
 /// `perform`; `AppFeature` reads `requests` while signed in and answers each one.
 public struct HealthAppActions: Sendable {
-  /// Asks the app to perform an action, and waits for its answer. Fails with
-  /// `HealthAppActionError.signedOut` when the app is signed out, or isn't signed in within
-  /// `signInWait` of launch (an intent may launch it).
-  public var perform: @Sendable (_ action: HealthAppAction) async throws -> HealthAppActionResult
+  public typealias Progress = @Sendable (HealthAppActionProgress) -> Void
+
+  /// Asks the app to perform an action, and waits for its answer, hearing how it's going
+  /// (`progress`) meanwhile. Fails with `HealthAppActionError.signedOut` when the app is signed
+  /// out, or isn't signed in within `signInWait` of launch (an intent may launch it).
+  public var perform:
+    @Sendable (_ action: HealthAppAction, _ progress: @escaping Progress) async throws ->
+      HealthAppActionResult
   /// The actions asked for, for the app to perform while signed in. When the stream ends (on
   /// signing out), what it hadn't answered fails.
   public var requests: @Sendable () -> AsyncStream<HealthAppActionRequest>
 
   public init(
-    perform: @escaping @Sendable (_ action: HealthAppAction) async throws -> HealthAppActionResult,
+    perform:
+      @escaping @Sendable (_ action: HealthAppAction, _ progress: @escaping Progress) async throws
+      ->
+      HealthAppActionResult,
     requests: @escaping @Sendable () -> AsyncStream<HealthAppActionRequest>
   ) {
     self.perform = perform
@@ -106,7 +162,8 @@ public struct HealthAppActions: Sendable {
   public static let live = Self(channel: HealthAppActionChannel(signInWait: signInWait))
 
   init(channel: HealthAppActionChannel) {
-    self.init(perform: { try await channel.perform($0) }, requests: { channel.requests() })
+    self.init(
+      perform: { try await channel.perform($0, progress: $1) }, requests: { channel.requests() })
   }
 }
 
@@ -164,16 +221,20 @@ final class HealthAppActionChannel: Sendable {
   /// How many actions are waiting for an answer.
   var pendingCount: Int { state.withLock { $0.pending.count } }
 
-  func perform(_ action: HealthAppAction) async throws -> HealthAppActionResult {
+  func perform(
+    _ action: HealthAppAction, progress: @escaping HealthAppActions.Progress = { _ in }
+  ) async throws -> HealthAppActionResult {
     while true {
-      if let result = try await send(action) { return result }
+      if let result = try await send(action, progress: progress) { return result }
       guard ContinuousClock.now < deadline else { throw HealthAppActionError.signedOut }
       try await Task.sleep(for: pollInterval)
     }
   }
 
   /// Hands the action to the server and waits for its answer. `nil` if there's no server.
-  private func send(_ action: HealthAppAction) async throws -> HealthAppActionResult? {
+  private func send(
+    _ action: HealthAppAction, progress: @escaping HealthAppActions.Progress
+  ) async throws -> HealthAppActionResult? {
     let id = UUID()
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { (reply: Reply) in
@@ -184,7 +245,10 @@ final class HealthAppActionChannel: Sendable {
           return server.continuation
         }
         guard let server else { return reply.resume(returning: nil) }
-        let request = HealthAppActionRequest(action: action) { [self] result in
+        let request = HealthAppActionRequest(action: action) { [self] update in
+          // Only while it's waiting: not once it's answered or cancelled.
+          if state.withLock({ $0.pending[id] != nil }) { progress(update) }
+        } reply: { [self] result in
           finish(id, result.map { $0 })
         }
         if case .terminated = server.yield(request) {

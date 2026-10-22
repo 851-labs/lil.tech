@@ -72,7 +72,8 @@ struct LilHealthAppIntents: AppIntentsPackage {
 
 /// Phrases Siri and Spotlight offer without any setup (851-2892, 851-2893). Here rather than in
 /// `HealthMacApp`, with the intents: the app's App Intents metadata leaves out a package's App
-/// Shortcuts.
+/// Shortcuts. None for Export lil health Data (851-2894): an export is something a shortcut passes
+/// on, not something people ask Siri for.
 struct LilHealthAppShortcuts: AppShortcutsProvider {
   static var appShortcuts: [AppShortcut] {
     AppShortcut(
