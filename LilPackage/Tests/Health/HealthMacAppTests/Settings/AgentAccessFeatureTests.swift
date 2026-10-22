@@ -149,4 +149,22 @@ struct AgentAccessFeatureTests {
     }
     await task.cancel()
   }
+
+  @Test
+  func theLogOpensInASheetAndCloses() async {
+    // The open pane reads the log every few seconds, so opening its sheet reads nothing.
+    let store = TestStore(
+      initialState: AgentAccessFeature.State(entries: [second, first], isLoading: false)
+    ) {
+      AgentAccessFeature()
+    }
+
+    await store.send(.logShown(true)) {
+      $0.isShowingLog = true
+    }
+    // Done, or Esc.
+    await store.send(.logShown(false)) {
+      $0.isShowingLog = false
+    }
+  }
 }

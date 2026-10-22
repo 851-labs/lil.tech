@@ -334,6 +334,56 @@ struct ConnectedAgentsFeatureTests {
   }
 
   @Test
+  func openingTheLogReadsItOnlyIfThePaneCouldnt() async {
+    let reads = LockIsolated(0)
+    let store = TestStore(
+      initialState: ConnectedAgentsFeature.State(
+        agents: .loaded([claude]), logFailure: ConnectedAgentsError.unavailable.message)
+    ) {
+      ConnectedAgentsFeature()
+    } withDependencies: {
+      $0.connectedAgents.accessLog = { before throws(ConnectedAgentsError) in
+        #expect(before == nil)
+        reads.withValue { $0 += 1 }
+        return RemoteAgentAccessPage(entries: [Self.access(1), Self.access(2)], nextBefore: 2)
+      }
+    }
+
+    // The pane's read failed, so the sheet reads the first page again.
+    await store.send(.logShown(true)) {
+      $0.isShowingLog = true
+      $0.isLoadingLog = true
+      $0.logFailure = nil
+    }
+    await store.receive(\.logLoaded) {
+      $0.isLoadingLog = false
+      $0.log = [Self.access(1), Self.access(2)]
+      $0.logNextBefore = 2
+    }
+    await store.send(.logShown(false)) {
+      $0.isShowingLog = false
+    }
+    // Read now, so opening it again shows what's read, with Show More for the rest.
+    await store.send(.logShown(true)) {
+      $0.isShowingLog = true
+    }
+    #expect(reads.value == 1)
+  }
+
+  @Test
+  func openingTheLogWhileThePaneReadsItWaitsForThatRead() async {
+    let store = TestStore(
+      initialState: ConnectedAgentsFeature.State(agents: .loaded([claude]), isLoadingLog: true)
+    ) {
+      ConnectedAgentsFeature()
+    }
+
+    await store.send(.logShown(true)) {
+      $0.isShowingLog = true
+    }
+  }
+
+  @Test
   func isBusyWhileRevokingOrTurningOff() {
     #expect(!ConnectedAgentsFeature.State(agents: .loaded([claude])).isBusy)
     #expect(ConnectedAgentsFeature.State(revoking: ["grant-1"]).isBusy)

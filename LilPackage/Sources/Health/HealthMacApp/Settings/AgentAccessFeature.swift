@@ -7,8 +7,8 @@ import LilCLIInstaller
 
 /// The Settings window's Agents pane (851-2840): whether the `lil-health` command and its MCP
 /// server may read the Mac's Health data, off until the person turns it on, and the log of what
-/// they read, which the command writes. While the pane is open the log is read again every few
-/// seconds, so new queries show up.
+/// they read, which the command writes, shown in a sheet (851-3082). While the pane is open the log
+/// is read again every few seconds, so new queries show up, in the sheet too.
 @Reducer
 public struct AgentAccessFeature {
   @ObservableState
@@ -20,6 +20,8 @@ public struct AgentAccessFeature {
     /// Why the setting couldn't be read or saved.
     public var failure: String?
     public var isEnabled: Bool
+    /// Whether the log's sheet is open (851-3082).
+    public var isShowingLog: Bool
     /// Until the setting has been read, or couldn't be.
     public var isLoading: Bool
     /// Why the log couldn't be read, until it can be again.
@@ -27,13 +29,14 @@ public struct AgentAccessFeature {
 
     public init(
       commandLineTool: URL? = nil, entries: [AgentAccessEntry] = [], failure: String? = nil,
-      isEnabled: Bool = false,
+      isEnabled: Bool = false, isShowingLog: Bool = false,
       isLoading: Bool = true, logFailure: String? = nil
     ) {
       self.commandLineTool = commandLineTool
       self.entries = entries
       self.failure = failure
       self.isEnabled = isEnabled
+      self.isShowingLog = isShowingLog
       self.isLoading = isLoading
       self.logFailure = logFailure
     }
@@ -44,6 +47,8 @@ public struct AgentAccessFeature {
     case commandLineToolLocated(URL?)
     case entriesLoaded([AgentAccessEntry])
     case logFailed(String)
+    /// The log's sheet opened (Show…) or closed (Done, Esc).
+    case logShown(Bool)
     case settingFailed(String)
     case settingLoaded(Bool)
     case task
@@ -78,6 +83,11 @@ public struct AgentAccessFeature {
 
       case .logFailed(let message):
         state.logFailure = message
+        return .none
+
+      case .logShown(let isShown):
+        // The open pane keeps reading the log, so the sheet has it already.
+        state.isShowingLog = isShown
         return .none
 
       case .settingFailed(let message):

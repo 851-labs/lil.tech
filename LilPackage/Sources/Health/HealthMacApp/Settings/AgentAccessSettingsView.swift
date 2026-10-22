@@ -31,8 +31,10 @@ struct AgentAccessSettingsView: View {
   }
 }
 
-/// The setting, with what turning it on means, and the log of what read the data on this Mac;
-/// then the remote agents connected to the account, and what they read (851-2853).
+/// The setting, with what turning it on means, and a row opening the log of what read the data on
+/// this Mac; then the remote agents connected to the account, and a row opening what they read
+/// (851-2853). The logs open in sheets over the window (851-3082), as Apple's own Settings windows
+/// show sub-pages (Safari's Manage Website Data…), so the pane stays short.
 struct AgentAccessForm: View {
   @Bindable var store: StoreOf<AgentAccessFeature>
   @Bindable var connected: StoreOf<ConnectedAgentsFeature>
@@ -44,6 +46,12 @@ struct AgentAccessForm: View {
           "Allow command-line and agent access", isOn: $store.isEnabled.sending(\.accessToggled)
         )
         .disabled(store.isLoading)
+        AgentLogRow(title: "Access Log", summary: localLogSummary) {
+          store.send(.logShown(true))
+        }
+        .sheet(isPresented: $store.isShowingLog.sending(\.logShown)) {
+          AgentAccessLogSheet(store: store)
+        }
       } footer: {
         VStack(alignment: .leading, spacing: 6) {
           Text(
@@ -69,44 +77,153 @@ struct AgentAccessForm: View {
 
       AgentSetupSection(commandLineTool: store.commandLineTool)
 
-      Section {
-        if store.isLoading {
-          ProgressView()
-            .controlSize(.small)
-            .frame(maxWidth: .infinity)
-        } else if store.entries.isEmpty, let logFailure = store.logFailure {
-          Text(logFailure)
-            .foregroundStyle(.red)
-        } else if store.entries.isEmpty {
-          Text("Nothing has read your Health data yet.")
-            .foregroundStyle(.secondary)
-        } else {
-          ForEach(store.entries) { entry in
-            AgentAccessEntryRow(entry: entry)
-          }
-        }
-      } header: {
-        HStack {
-          Text("Access Log")
-          Spacer()
-          if store.isEnabled {
-            Button("Turn Off Access") { store.send(.turnOffButtonTapped) }
-          }
-        }
-      } footer: {
-        // Below the entries last read.
-        if !store.entries.isEmpty, let logFailure = store.logFailure {
-          Text(logFailure)
-            .foregroundStyle(.red)
-        }
-      }
-
       ConnectedAgentsSections(store: connected)
     }
     .formStyle(.grouped)
     .task { await store.send(.task).finish() }
     .onAppear { connected.send(.appeared) }
     .alert($connected.scope(\.alert, action: \.alert))
+  }
+
+  /// Under the Access Log row: when the latest query was, or why there's none to show.
+  private var localLogSummary: AgentLogRow.Summary {
+    if let latest = store.entries.first {
+      .latest(latest.date)
+    } else if store.isLoading {
+      .loading
+    } else if store.logFailure != nil {
+      .failed
+    } else {
+      .none("Nothing has read your Health data yet.")
+    }
+  }
+}
+
+/// A row opening a log in a sheet: its name, when its latest entry was (already read, for the
+/// pane), and Show…, as System Settings' rows open their sheets (Keyboard Shortcuts…).
+struct AgentLogRow: View {
+  let title: String
+  let summary: Summary
+  let show: () -> Void
+
+  enum Summary: Equatable {
+    case latest(Date)
+    case loading
+    case failed
+    /// An empty log, and what that means.
+    case none(String)
+  }
+
+  var body: some View {
+    LabeledContent {
+      Button("Show…", action: show)
+    } label: {
+      Text(title)
+      switch summary {
+      case .latest(let date):
+        Text("Latest \(date, format: .dateTime.month(.abbreviated).day().hour().minute())")
+          .monospacedDigit()
+      case .loading:
+        Text("Loading…")
+      case .failed:
+        Text("lil health couldn't read it.")
+      case .none(let description):
+        Text(description)
+      }
+    }
+  }
+}
+
+/// A log's sheet: its title and what it records above its entries, then Done, the default button
+/// (Return). Esc closes it too, as it does any SwiftUI sheet. `actions` go before Done, on the left
+/// (Turn Off Access).
+struct AgentLogSheet<Content: View, Actions: View>: View {
+  let title: String
+  let description: String
+  @ViewBuilder let content: Content
+  @ViewBuilder let actions: Actions
+
+  @Environment(\.dismiss) private var dismiss
+
+  /// The sheet's smallest size: the Settings window's, less room for the window around it, so it
+  /// fits over the smallest window.
+  nonisolated static var minWidth: CGFloat { 440 }
+  nonisolated static var minHeight: CGFloat { 320 }
+  /// The size it opens at.
+  nonisolated static var idealWidth: CGFloat { 520 }
+  nonisolated static var idealHeight: CGFloat { 440 }
+
+  var body: some View {
+    VStack(spacing: 0) {
+      Form {
+        Section {
+          content
+        } header: {
+          VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+              .font(.title3.weight(.semibold))
+              .foregroundStyle(.primary)
+            Text(description)
+              .font(.body.weight(.regular))
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(.bottom, 4)
+        }
+      }
+      .formStyle(.grouped)
+      Divider()
+      HStack {
+        actions
+        Spacer()
+        Button("Done") { dismiss() }
+          .keyboardShortcut(.defaultAction)
+      }
+      .padding(.horizontal, 20)
+      .padding(.vertical, 12)
+    }
+    .frame(
+      minWidth: Self.minWidth, idealWidth: Self.idealWidth, minHeight: Self.minHeight,
+      idealHeight: Self.idealHeight)
+  }
+}
+
+/// The log of what read the data on this Mac: the latest 100 queries, read again every few seconds
+/// while the pane is open, and Turn Off Access while it's on.
+struct AgentAccessLogSheet: View {
+  let store: StoreOf<AgentAccessFeature>
+
+  var body: some View {
+    AgentLogSheet(
+      title: "Access Log",
+      description:
+        "What read your Health data on this Mac, the latest \(AgentAccessFeature.entryLimit): the command or tool with its arguments, and what ran it, never what it answered."
+    ) {
+      if store.isLoading {
+        ProgressView()
+          .controlSize(.small)
+          .frame(maxWidth: .infinity)
+      } else if store.entries.isEmpty, let logFailure = store.logFailure {
+        Text(logFailure)
+          .foregroundStyle(.red)
+      } else if store.entries.isEmpty {
+        Text("Nothing has read your Health data yet.")
+          .foregroundStyle(.secondary)
+      } else {
+        ForEach(store.entries) { entry in
+          AgentAccessEntryRow(entry: entry)
+        }
+        // Below the entries last read.
+        if let logFailure = store.logFailure {
+          Text(logFailure)
+            .foregroundStyle(.red)
+        }
+      }
+    } actions: {
+      if store.isEnabled {
+        Button("Turn Off Access") { store.send(.turnOffButtonTapped) }
+      }
+    }
   }
 }
 
@@ -230,10 +347,10 @@ struct CopyableRow: View {
 }
 
 /// Remote agents (851-2853): those connected to the account through lil health's MCP server, or the
-/// combined one for every lil app (851-2902), revoking them, how to connect one, and what they
-/// read.
+/// combined one for every lil app (851-2902), revoking them, a row opening what they read
+/// (851-3082), and how to connect one.
 struct ConnectedAgentsSections: View {
-  let store: StoreOf<ConnectedAgentsFeature>
+  @Bindable var store: StoreOf<ConnectedAgentsFeature>
 
   /// The deployment the app talks to, read once.
   private static let environment = APIEnvironment.current()
@@ -261,6 +378,13 @@ struct ConnectedAgentsSections: View {
             agent: agent, isRevoking: store.revoking.contains(agent.id),
             revoke: { store.send(.revokeButtonTapped(agent)) })
         }
+      }
+      // Revoked agents' reads stay in the log, so it's there whatever the list shows.
+      AgentLogRow(title: "Remote Access Log", summary: logSummary) {
+        store.send(.logShown(true))
+      }
+      .sheet(isPresented: $store.isShowingLog.sending(\.logShown)) {
+        RemoteAccessLogSheet(store: store)
       }
     } header: {
       HStack {
@@ -299,7 +423,32 @@ struct ConnectedAgentsSections: View {
       .foregroundStyle(.secondary)
     }
 
-    Section {
+  }
+
+  /// Under the Remote Access Log row: when the latest read was, or why there's none to show.
+  private var logSummary: AgentLogRow.Summary {
+    if let latest = store.log.first {
+      .latest(latest.at)
+    } else if store.isLoadingLog {
+      .loading
+    } else if store.logFailure != nil {
+      .failed
+    } else {
+      .none("No remote agent has read your data yet.")
+    }
+  }
+}
+
+/// What the remote agents read (851-2853), a page at a time, newest first, with Show More.
+struct RemoteAccessLogSheet: View {
+  let store: StoreOf<ConnectedAgentsFeature>
+
+  var body: some View {
+    AgentLogSheet(
+      title: "Remote Access Log",
+      description:
+        "What agents connected to your account read from lil health's servers: the tool each used and what it asked for, never the values."
+    ) {
       if store.log.isEmpty, store.isLoadingLog {
         ProgressView()
           .controlSize(.small)
@@ -330,8 +479,8 @@ struct ConnectedAgentsSections: View {
             .frame(maxWidth: .infinity)
         }
       }
-    } header: {
-      Text("Remote Access Log")
+    } actions: {
+      EmptyView()
     }
   }
 }

@@ -30,7 +30,73 @@
     {
       "id": "settings",
       "screen": "HealthMacApp/SettingsCatalog.swift",
-      "title": "Settings"
+      "title": "Settings",
+      "states": [
+        "Account",
+        "Loading sign-in methods",
+        "Sign-in methods failed",
+        "Preparing an export",
+        "Downloading an export",
+        "Saving an export",
+        "Export saved",
+        "Export failed",
+        "Signed out",
+        "Checking the session",
+        "Account: large window",
+        "Signed out: large window",
+        "Agents: on, with a log",
+        "Agents: on, empty log",
+        "Agents: off, with a log",
+        "Agents: without lil",
+        "Agents: off",
+        "Agents: loading",
+        "Agents: failed",
+        "Agents: log unreadable",
+        "Agents: signed out",
+        "Agents: large window",
+        "Connect an agent",
+        "Connect an agent: without lil",
+        "Remote agents",
+        "Remote agents: none",
+        "Remote agents: loading",
+        "Remote agents: failed",
+        "Remote agents: revoking",
+        "Remote agents: revoke failed",
+        "Remote agents: turning off",
+        "Remote agents: log loading",
+        "Remote agents: log failed",
+        "Remote agents: long names",
+        "Remote agents: large window"
+      ]
+    },
+    {
+      "id": "access-log",
+      "screen": "HealthMacApp/SettingsCatalog.swift",
+      "title": "Access Log",
+      "states": [
+        "Access log",
+        "Access log: off",
+        "Access log: empty",
+        "Access log: loading",
+        "Access log: failed",
+        "Access log: failed to read again",
+        "Access log: resized"
+      ]
+    },
+    {
+      "id": "remote-access-log",
+      "screen": "HealthMacApp/SettingsCatalog.swift",
+      "title": "Remote Access Log",
+      "states": [
+        "Remote access log",
+        "Remote access log: empty",
+        "Remote access log: loading",
+        "Remote access log: failed",
+        "Remote access log: more to read",
+        "Remote access log: reading more",
+        "Remote access log: more failed",
+        "Remote access log: resized"
+      ]
     },
     {
       "id": "sign-in-methods",
@@ -388,6 +454,16 @@
       "from": "settings",
       "to": "sign-in-methods",
       "label": "The Account tab's first section"
+    },
+    {
+      "from": "settings",
+      "to": "access-log",
+      "label": "Agents › Access Log › Show…"
+    },
+    {
+      "from": "settings",
+      "to": "remote-access-log",
+      "label": "Agents › Remote Access Log › Show…"
     },
     {
       "from": "summary",
