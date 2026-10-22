@@ -97,30 +97,44 @@ struct WorkoutsContent: View {
     .navigationTitle(onlyWithRoutes ? "Workout Routes" : "Workouts")
   }
 
-  /// A section per month, then Other Routes, in a grouped form's look (`LazyForm`): a `Form`
+  /// A section per month, then Other Routes, in a grouped list (`LazyGroupedList`): a `Form`
   /// builds every row at once, and the list holds up to 2,000 workouts.
   private func list(_ workouts: [HealthWorkout], otherRoutes: [HealthWorkoutRoute]) -> some View {
-    LazyForm {
-      LazyFormSections(
-        sections(workouts, by: .month, calendar: calendar, startDate: \.startDate),
-        title: { $0.formatted(.dateTime.month(.wide).year()) }
-      ) { workout in
-        WorkoutDetailView(workout: workout)
-      } row: { workout in
-        WorkoutRow(workout: workout)
-      }
-      // Under the workouts, not at the end of the page, which Other Routes may follow.
-      if workouts.count >= limit {
-        LazyFormFooter(limitNote(onlyWithRoutes ? "workouts with routes" : "workouts"))
+    let months = sections(workouts, by: .month, calendar: calendar, startDate: \.startDate)
+    return LazyGroupedList {
+      ForEach(months, id: \.start) { month in
+        Section {
+          ForEach(month.records) { workout in
+            NavigationLink {
+              WorkoutDetailView(workout: workout)
+            } label: {
+              WorkoutRow(workout: workout)
+            }
+          }
+        } header: {
+          Text(month.start.formatted(.dateTime.month(.wide).year()))
+        } footer: {
+          // Under the workouts, not at the end of the page, which Other Routes may follow.
+          if month.start == months.last?.start, workouts.count >= limit {
+            Text(limitNote(onlyWithRoutes ? "workouts with routes" : "workouts"))
+          }
+        }
       }
       if !otherRoutes.isEmpty {
-        LazyFormSection("Other Routes", isFirst: workouts.isEmpty, records: otherRoutes) { route in
-          RouteDetailView(route: route)
-        } row: { route in
-          OtherRouteRow(route: route)
-        }
-        if otherRoutes.count >= limit {
-          LazyFormFooter(limitNote("other routes"))
+        Section {
+          ForEach(otherRoutes) { route in
+            NavigationLink {
+              RouteDetailView(route: route)
+            } label: {
+              OtherRouteRow(route: route)
+            }
+          }
+        } header: {
+          Text("Other Routes")
+        } footer: {
+          if otherRoutes.count >= limit {
+            Text(limitNote("other routes"))
+          }
         }
       }
     }

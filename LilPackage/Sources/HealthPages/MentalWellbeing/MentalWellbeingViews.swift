@@ -77,24 +77,28 @@ struct StateOfMindContent: View {
     .navigationTitle("State of Mind")
   }
 
-  /// The chart, then a section per day, in a grouped form's look (`LazyForm`): a `Form` builds
+  /// The chart, then a section per day, in a grouped list (`LazyGroupedList`): a `Form` builds
   /// every row at once, and the list holds up to 2,000.
   private func list(_ logs: [HealthStateOfMind]) -> some View {
-    LazyForm {
-      LazyFormHeader(title: "Last 4 Weeks", isFirst: true)
-      LazyFormRow(isFirst: true, isLast: true, showsChevron: false) {
+    let days = sections(logs, by: .day, calendar: calendar, startDate: \.startDate)
+    return LazyGroupedList {
+      Section("Last 4 Weeks") {
         ValenceChart(logs: logs, interval: lastFourWeeks)
           .frame(height: 220)
           .padding(.vertical, 6)
       }
-      LazyFormSections(
-        sections(logs, by: .day, calendar: calendar, startDate: \.startDate),
-        title: { $0.formatted(date: .complete, time: .omitted) }, isFirst: false
-      ) { log in
-        StateOfMindRow(log: log)
-      }
-      if logs.count >= limit {
-        LazyFormFooter("Showing the \(limit.formatted()) most recent logs.")
+      ForEach(days, id: \.start) { day in
+        Section {
+          ForEach(day.records) { log in
+            StateOfMindRow(log: log)
+          }
+        } header: {
+          Text(day.start.formatted(date: .complete, time: .omitted))
+        } footer: {
+          if day.start == days.last?.start, logs.count >= limit {
+            Text("Showing the \(limit.formatted()) most recent logs.")
+          }
+        }
       }
     }
   }
@@ -274,34 +278,39 @@ struct ScoredAssessmentsContent: View {
     .navigationTitle(name)
   }
 
-  /// The chart, then every assessment, in a grouped form's look (`LazyForm`): a `Form` builds
+  /// The chart, then every assessment, in a grouped list (`LazyGroupedList`): a `Form` builds
   /// every row at once, and the list holds up to 500.
   private func list(_ assessments: [HealthScoredAssessment]) -> some View {
-    LazyForm {
-      LazyFormRow(isFirst: true, isLast: true, showsChevron: false) {
+    LazyGroupedList {
+      Section {
         AssessmentChart(kind: kind, assessments: assessments)
           .frame(height: 220)
           .padding(.vertical, 6)
       }
-      LazyFormSection("All Assessments", isFirst: false, records: assessments) { assessment in
-        HStack {
-          VStack(alignment: .leading, spacing: 2) {
-            Text(kind.riskName(assessment.risk))
-              .font(.headline)
-            Text("Score \(assessment.score) of \(kind.maximumScore)")
-              .foregroundStyle(.secondary)
+      Section {
+        ForEach(assessments) { assessment in
+          HStack {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(kind.riskName(assessment.risk))
+                .font(.headline)
+              Text("Score \(assessment.score) of \(kind.maximumScore)")
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text(
+              Date(unixMilliseconds: assessment.startDate).formatted(
+                date: .abbreviated, time: .omitted)
+            )
+            .foregroundStyle(.secondary)
           }
-          Spacer()
-          Text(
-            Date(unixMilliseconds: assessment.startDate).formatted(
-              date: .abbreviated, time: .omitted)
-          )
-          .foregroundStyle(.secondary)
+          .padding(.vertical, 4)
         }
-        .padding(.vertical, 4)
-      }
-      if assessments.count >= limit {
-        LazyFormFooter("Showing the \(limit.formatted()) most recent assessments.")
+      } header: {
+        Text("All Assessments")
+      } footer: {
+        if assessments.count >= limit {
+          Text("Showing the \(limit.formatted()) most recent assessments.")
+        }
       }
     }
   }

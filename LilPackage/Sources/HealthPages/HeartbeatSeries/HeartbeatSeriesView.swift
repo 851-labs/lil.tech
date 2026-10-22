@@ -67,21 +67,28 @@ struct HeartbeatSeriesContent: View {
     .navigationTitle("Beat-to-Beat Measurements")
   }
 
-  /// A section per day, in a grouped form's look (`LazyForm`): a `Form` builds every row at once,
+  /// A section per day, in a grouped list (`LazyGroupedList`): a `Form` builds every row at once,
   /// and the list holds up to 1,000.
   private func list(_ series: [HealthHeartbeatSeries]) -> some View {
-    LazyForm {
-      LazyFormSections(
-        sections(series, by: .day, calendar: calendar, startDate: \.startDate),
-        title: { $0.formatted(date: .complete, time: .omitted) }
-      ) { series in
-        // Built when opened: it works out the series' beats.
-        Lazy { HeartbeatSeriesDetailView(series: series) }
-      } row: { series in
-        HeartbeatSeriesRow(series: series)
-      }
-      if series.count >= limit {
-        LazyFormFooter("Showing the \(limit.formatted()) most recent measurements.")
+    let days = sections(series, by: .day, calendar: calendar, startDate: \.startDate)
+    return LazyGroupedList {
+      ForEach(days, id: \.start) { day in
+        Section {
+          ForEach(day.records) { series in
+            NavigationLink {
+              // Built when opened: it works out the series' beats.
+              Lazy { HeartbeatSeriesDetailView(series: series) }
+            } label: {
+              HeartbeatSeriesRow(series: series)
+            }
+          }
+        } header: {
+          Text(day.start.formatted(date: .complete, time: .omitted))
+        } footer: {
+          if day.start == days.last?.start, series.count >= limit {
+            Text("Showing the \(limit.formatted()) most recent measurements.")
+          }
+        }
       }
     }
   }
