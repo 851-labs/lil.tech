@@ -2,24 +2,26 @@ import SwiftUI
 
 extension View {
   /// Makes a day in a month's calendar choosable without a pointer (851-3015). The calendar is one
-  /// stop for Tab, as a date picker is: focus lands on the day shown, the arrow keys move it a day
-  /// or a week within the month, and Space or Return chooses the focused day. VoiceOver reads the
+  /// stop for Tab, as a date picker is: focus lands on the day shown (or last focused), the arrow
+  /// keys move it a day or a week within the month, and Space or Return chooses the focused day. VoiceOver reads the
   /// day as a button with `label`, selected when it's the day shown, and VO-Space chooses it. A
   /// click chooses it too.
   ///
   /// - Parameters:
   ///   - focus: The calendar's focused day, shared by its days.
-  ///   - shown: The day shown, where focus lands.
-  ///   - canChoose: Whether a day can be chosen. Focus skips the others.
+  ///   - focusTarget: The day Tab stops on, shared by its days: where focus or a choice last
+  ///     moved, or the day shown if that's not in the month.
+  ///   - shown: The day shown.
+  ///   - canChoose: Whether a day can be chosen. The others can't take focus.
   func calendarDay(
     _ day: Date, label: String, isSelected: Bool, in month: DateInterval, shown: Date,
-    focus: FocusState<Date?>.Binding, calendar: Calendar,
+    focus: FocusState<Date?>.Binding, focusTarget: Binding<Date?>, calendar: Calendar,
     canChoose: @escaping (Date) -> Bool = { _ in true }, choose: @escaping () -> Void
   ) -> some View {
     modifier(
       CalendarDayModifier(
         day: day, label: label, isSelected: isSelected, month: month, shown: shown, focus: focus,
-        calendar: calendar, canChoose: canChoose, choose: choose))
+        focusTarget: focusTarget, calendar: calendar, canChoose: canChoose, choose: choose))
   }
 }
 
@@ -30,6 +32,7 @@ private struct CalendarDayModifier: ViewModifier {
   let month: DateInterval
   let shown: Date
   let focus: FocusState<Date?>.Binding
+  @Binding var focusTarget: Date?
   let calendar: Calendar
   let canChoose: (Date) -> Bool
   let choose: () -> Void
@@ -37,9 +40,14 @@ private struct CalendarDayModifier: ViewModifier {
 
   func body(content: Content) -> some View {
     let isEnabled = canChoose(day)
+    let target = focusTarget.flatMap { $0 >= month.start && $0 < month.end ? $0 : nil } ?? shown
     content
-      // Only one day is focusable at a time, so Tab stops on the calendar once.
-      .focusable(isEnabled && day == (focus.wrappedValue ?? shown))
+      // Tab stops on one day only: the others take focus from the arrow keys, but Tab skips them
+      // (unless Keyboard Navigation is on, as it does buttons). Making only one day focusable
+      // instead swallowed the first Tab after an arrow key moved focus.
+      .focusable(isEnabled, interactions: day == target ? .edit : .activate)
+      // Rounded, as the days' own highlights are.
+      .contentShape(.focusEffect, RoundedRectangle(cornerRadius: 8))
       .focused(focus, equals: day)
       .onMoveCommand { direction in
         guard
@@ -48,7 +56,7 @@ private struct CalendarDayModifier: ViewModifier {
             calendar: calendar),
           canChoose(next)
         else { return }
-        focus.wrappedValue = next
+        moveFocus(to: next)
       }
       .onKeyPress(keys: [.space, .return]) { _ in
         choose()
@@ -57,8 +65,8 @@ private struct CalendarDayModifier: ViewModifier {
       .onTapGesture {
         guard isEnabled else { return }
         choose()
-        // Focus follows a click while the calendar has it.
-        if focus.wrappedValue != nil { focus.wrappedValue = day }
+        // Focus follows a click while the calendar has it, and lands there next time.
+        if focus.wrappedValue != nil { moveFocus(to: day) } else { focusTarget = day }
       }
       .accessibilityElement(children: .ignore)
       .accessibilityLabel(label)
@@ -66,8 +74,15 @@ private struct CalendarDayModifier: ViewModifier {
       .accessibilityAction {
         guard isEnabled else { return }
         choose()
+        focusTarget = day
       }
       .disabled(!isEnabled)
+  }
+
+  /// Focuses `day`, and makes it the one Tab stops on.
+  private func moveFocus(to day: Date) {
+    focusTarget = day
+    focus.wrappedValue = day
   }
 }
 

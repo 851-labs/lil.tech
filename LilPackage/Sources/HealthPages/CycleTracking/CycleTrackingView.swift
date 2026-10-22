@@ -199,6 +199,8 @@ struct CycleTrackingContent: View {
   @Dependency(\.calendar) private var calendar
   /// The calendar's day with keyboard focus, if it has it.
   @FocusState private var focusedDay: Date?
+  /// The calendar's day that can take focus (`calendarDay`).
+  @State private var focusTarget: Date?
 
   var body: some View {
     Group {
@@ -297,6 +299,7 @@ struct CycleTrackingContent: View {
                 day, isToday: isToday, details: CycleDayCell.logged(snapshot.days[day]),
                 calendar: calendar),
               isSelected: day == shown, in: month, shown: shown, focus: $focusedDay,
+              focusTarget: $focusTarget,
               calendar: calendar
             ) { selected = day }
           } else {

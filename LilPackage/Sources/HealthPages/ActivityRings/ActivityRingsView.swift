@@ -104,6 +104,8 @@ struct ActivityRingsContent: View {
   @Dependency(\.date.now) private var now
   /// The calendar's day with keyboard focus, if it has it.
   @FocusState private var focusedDay: Date?
+  /// The calendar's day that can take focus (`calendarDay`).
+  @State private var focusTarget: Date?
 
   var body: some View {
     // A grouped form on its own background, as Metric Detail is (851-2989, 851-3003): the month,
@@ -188,6 +190,7 @@ struct ActivityRingsContent: View {
               details: isFuture ? [] : [ActivityDayCell.rings(days[key(day)])],
               calendar: calendar),
             isSelected: day == shown, in: month, shown: shown, focus: $focusedDay,
+            focusTarget: $focusTarget,
             calendar: calendar, canChoose: { $0 <= today }
           ) { selected = day }
         } else {
