@@ -146,7 +146,7 @@ struct SummaryContent: View {
       ForEach(highlights) { highlight in
         if let type = HealthCatalog.type(id: highlight.typeID) {
           NavigationLink(value: highlight.typeID) {
-            HighlightCard(highlight: highlight, type: type)
+            HighlightRow(highlight: highlight, type: type)
           }
         }
       }
@@ -162,7 +162,8 @@ struct SummaryMetricRow: View {
   let now: Date
   let calendar: Calendar
 
-  private var color: Color { type.category?.color ?? .accentColor }
+  /// The category's, as `HealthTypeLabel`'s.
+  private var color: Color { type.category?.color ?? .secondary }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {

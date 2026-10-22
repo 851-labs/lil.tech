@@ -37,14 +37,18 @@
       // About the same, up a lot, and down to almost nothing, in a narrow column, where the bars'
       // names used to run into the bar above (851-2824).
       CatalogState("Week comparisons", width: 360, minHeight: 640) {
-        Form {
-          Section("Highlights") {
-            weekHighlight("HKQuantityTypeIdentifierRestingHeartRate", current: 61, previous: 60)
-            weekHighlight("HKQuantityTypeIdentifierStepCount", current: 12_480, previous: 4_210)
-            weekHighlight("HKQuantityTypeIdentifierActiveEnergyBurned", current: 12, previous: 640)
+        // Links, as Summary's rows are, so the form's chevron takes its width here too.
+        NavigationStack {
+          Form {
+            Section("Highlights") {
+              weekHighlight("HKQuantityTypeIdentifierRestingHeartRate", current: 61, previous: 60)
+              weekHighlight("HKQuantityTypeIdentifierStepCount", current: 12_480, previous: 4_210)
+              weekHighlight(
+                "HKQuantityTypeIdentifierActiveEnergyBurned", current: 12, previous: 640)
+            }
           }
+          .formStyle(.grouped)
         }
-        .formStyle(.grouped)
       },
     ])
 
@@ -84,10 +88,12 @@
 
   @MainActor
   private func weekHighlight(_ typeID: String, current: Double, previous: Double) -> some View {
-    HighlightCard(
-      highlight: Highlight(
-        typeID: typeID, kind: .week, current: current, previous: previous,
-        recentStart: previewNow),
-      type: HealthCatalog.type(id: typeID)!)
+    NavigationLink(value: typeID) {
+      HighlightRow(
+        highlight: Highlight(
+          typeID: typeID, kind: .week, current: current, previous: previous,
+          recentStart: previewNow),
+        type: HealthCatalog.type(id: typeID)!)
+    }
   }
 #endif

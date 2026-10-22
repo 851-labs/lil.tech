@@ -6,7 +6,7 @@ import HealthUI
 import SwiftUI
 
 /// One highlight, in a form row: what changed, in a sentence, and a chart of it.
-struct HighlightCard: View {
+struct HighlightRow: View {
   let highlight: Highlight
   let type: HealthDataType
 
