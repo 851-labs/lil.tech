@@ -7,7 +7,7 @@ import SQLiteData
 import SwiftUI
 
 /// A Health Document as a page: who it's about and from, then each section of its structured
-/// body as a card, with its XML a button away. Its XML is a blob, downloaded when it opens, as an
+/// body as a section of a grouped form, with its XML a button away. Its XML is a blob, downloaded when it opens, as an
 /// ECG's voltages are. A document that can't be read as sections shows its XML instead. Follows
 /// the document's row, so one no longer shared says so.
 struct HealthDocumentDetailView: View {
@@ -99,7 +99,6 @@ struct HealthDocumentDetailContent: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.pageBackground)
     .navigationTitle(document?.displayTitle ?? "Health Document")
   }
 
@@ -107,9 +106,15 @@ struct HealthDocumentDetailContent: View {
     Group {
       switch state {
       case .unreadable(let xml, let error):
-        // The XML fills the page, scrolling on its own.
+        // The XML fills the page, scrolling on its own, so this isn't a form, which grows to its
+        // content: the document's details are plain rows above it.
         VStack(alignment: .leading, spacing: 16) {
-          DocumentHeader(document: document)
+          VStack(alignment: .leading, spacing: 12) {
+            DocumentTitle(document: document)
+            VStack(alignment: .leading, spacing: 8) {
+              DocumentDetails(document: document)
+            }
+          }
           Label {
             Text("\(error.reason) Its XML is below.")
           } icon: {
@@ -124,15 +129,17 @@ struct HealthDocumentDetailContent: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       default:
-        ScrollView {
-          VStack(alignment: .leading, spacing: 16) {
-            DocumentHeader(document: document)
-            content
+        // A grouped form on its own background, as Metric Detail is (851-2989, 851-3004): who
+        // it's about and from, then a section for each of the document's.
+        Form {
+          Section {
+            DocumentTitle(document: document)
+              .padding(.vertical, 4)
+            DocumentDetails(document: document)
           }
-          .padding(24)
-          .frame(maxWidth: 860, alignment: .leading)
-          .frame(maxWidth: .infinity)
+          content
         }
+        .formStyle(.grouped)
       }
     }
     .toolbar {
@@ -155,25 +162,34 @@ struct HealthDocumentDetailContent: View {
   @ViewBuilder private var content: some View {
     switch state {
     case .loading:
-      ProgressView()
-        .frame(maxWidth: .infinity, minHeight: 200)
+      Section {
+        ProgressView()
+          .frame(maxWidth: .infinity, minHeight: 200)
+      }
     case .failed(let reason):
-      ContentUnavailableView(
-        "Couldn't Load the Document", systemImage: "exclamationmark.triangle",
-        description: Text(reason))
+      Section {
+        ContentUnavailableView(
+          "Couldn't Load the Document", systemImage: "exclamationmark.triangle",
+          description: Text(reason)
+        )
+        // A form's row would otherwise give it only its ideal width, off center.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
     case .loaded(_, let clinical):
       if clinical.omitsContent {
-        HStack(alignment: .firstTextBaseline) {
-          Label(
-            "Some of this document, such as coded data or images, isn't shown here.",
-            systemImage: "info.circle")
-          Spacer()
-          Button("Show XML") { showsXML = true }
+        Section {
+          HStack(alignment: .firstTextBaseline) {
+            Label(
+              "Some of this document, such as coded data or images, isn't shown here.",
+              systemImage: "info.circle")
+            Spacer()
+            Button("Show XML") { showsXML = true }
+          }
+          .foregroundStyle(.secondary)
         }
-        .foregroundStyle(.secondary)
       }
       ForEach(Array(clinical.sections.enumerated()), id: \.offset) { _, section in
-        DocumentSectionCard(section: section)
+        DocumentSectionView(section: section)
       }
     case .unreadable:
       EmptyView()
@@ -181,26 +197,27 @@ struct HealthDocumentDetailContent: View {
   }
 }
 
-/// The document's title, and who it's about, from and kept by, and when, as HealthKit read them.
-struct DocumentHeader: View {
+/// The document's title.
+struct DocumentTitle: View {
   let document: HealthDocument
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text(document.displayTitle)
-        .font(.largeTitle.bold())
-        .textSelection(.enabled)
-      VStack(alignment: .leading, spacing: 8) {
-        row("Patient", document.patientName)
-        row("Author", document.authorName)
-        row("Custodian", document.custodianName)
-        LabeledContent(
-          "Date", value: document.start.formatted(date: .long, time: .shortened))
-        LabeledContent("Source", value: document.sourceName)
-      }
-      .padding(14)
-      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-    }
+    Text(document.displayTitle)
+      .font(.largeTitle.bold())
+      .textSelection(.enabled)
+  }
+}
+
+/// Who the document is about, from and kept by, and when, as HealthKit read them: a row each.
+struct DocumentDetails: View {
+  let document: HealthDocument
+
+  var body: some View {
+    row("Patient", document.patientName)
+    row("Author", document.authorName)
+    row("Custodian", document.custodianName)
+    LabeledContent("Date", value: document.start.formatted(date: .long, time: .shortened))
+    LabeledContent("Source", value: document.sourceName)
   }
 
   /// A name, unless HealthKit found none.
@@ -215,29 +232,35 @@ struct DocumentHeader: View {
   }
 }
 
-/// A section as a card: its title and narrative, then its subsections'.
-struct DocumentSectionCard: View {
+/// A section of a grouped form: its title as the header, then its narrative and its
+/// subsections', in one row.
+struct DocumentSectionView: View {
   let section: DocumentSection
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      ForEach(Array(Self.flattened(section).enumerated()), id: \.offset) { _, entry in
-        if !entry.section.title.isEmpty {
-          Text(entry.section.title)
-            .font(entry.depth == 0 ? .title3.bold() : .headline)
-            .padding(.top, entry.depth == 0 ? 0 : 6)
+    Section {
+      VStack(alignment: .leading, spacing: 10) {
+        ForEach(Array(Self.flattened(section).enumerated()), id: \.offset) { _, entry in
+          if entry.depth > 0, !entry.section.title.isEmpty {
+            Text(entry.section.title)
+              .font(.headline)
+              .padding(.top, 6)
+          }
+          NarrativeBlocksView(blocks: entry.section.blocks)
         }
-        NarrativeBlocksView(blocks: entry.section.blocks)
+        if section.blocks.isEmpty && section.sections.isEmpty {
+          Text("No text in this section.")
+            .foregroundStyle(.secondary)
+        }
       }
-      if section.blocks.isEmpty && section.sections.isEmpty {
-        Text("No text in this section.")
-          .foregroundStyle(.secondary)
+      .textSelection(.enabled)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.vertical, 6)
+    } header: {
+      if !section.title.isEmpty {
+        Text(section.title)
       }
     }
-    .textSelection(.enabled)
-    .padding(16)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
   }
 
   /// The section and those nested in it, in document order, each with how deep it is.
