@@ -3163,6 +3163,14 @@ struct NotificationQueriesTests {
     #expect(summary(notification(.walkingSteadiness, value: 0)) == nil)
   }
 
+  /// Every kind takes its name and color from its type in the catalog, so none falls back.
+  @Test
+  func kindsAreCategorizedTypes() {
+    for kind in HealthNotificationKind.allCases {
+      #expect(HealthCatalog.type(id: kind.rawValue)?.category != nil, "\(kind)")
+    }
+  }
+
   @Test
   func periods() {
     for kind in [HealthNotificationKind.irregularRhythm, .sleepApnea, .hypertension] {
