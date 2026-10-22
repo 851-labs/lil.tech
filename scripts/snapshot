@@ -13,9 +13,11 @@
 #   --no-build   Run what was last built.
 # Every image goes to `LilPackage/.build/snapshots/<test file>/`, whether or not it changed; one
 # that changed gets a `.diff.png` next to it, its changed pixels in red. It prints each image's
-# path, its reference's and its diff's, and exits non-zero when an image differs (unless recorded)
-# or a test fails.
+# path and result (`assertMacSnapshot`'s `SnapshotOutput`), with its reference's and its diff's,
+# and exits non-zero when an image differs or a test fails, except for what `--record` recorded.
 set -eu
+# Filters are regular expressions, not file patterns.
+set -f
 
 record=false
 build=true
@@ -35,6 +37,13 @@ done
 
 cd "$(dirname "$0")/../LilPackage"
 package=$PWD
+# Xcode's toolchain for the build and the tests alike, whatever `swift` is first in `PATH`.
+swift=$(xcrun --find swift)
+helper="$(dirname "$swift")/../libexec/swift/pm/swiftpm-testing-helper"
+if [ ! -x "$helper" ]; then
+  echo "error: no swiftpm-testing-helper next to $swift, which runs Swift Testing's tests." >&2
+  exit 1
+fi
 # The test target with the snapshot tests (`assertMacSnapshot`).
 target=HealthSnapshotTests
 products="$package/.build/debug"
@@ -53,7 +62,7 @@ if $build; then
   log=$(mktemp)
   # What `swift test` builds, so the two share a build: building only the snapshot tests'
   # product (`--product`) is a different build, and switching between them rebuilds the package.
-  if ! swift build --build-tests >"$log" 2>&1; then
+  if ! "$swift" build --build-tests >"$log" 2>&1; then
     # Without progress, or the compiler's command lines, which are pages long.
     awk '/^\[/ || /^Building for / || /^ *builtin-/ || /^(error: .*)?Command line:/ { next }
       /^Failed frontend command:/ { skip = 1; next } skip { skip = 0; next } { print }' "$log" >&2
@@ -79,32 +88,35 @@ for filter in $filters; do
 done
 unset IFS
 # The bundle and helper `swift test` runs for Swift Testing, with the environment it sets.
-helper="$(dirname "$(xcrun --find swift)")/../libexec/swift/pm/swiftpm-testing-helper"
 platform="$(xcrun --show-sdk-platform-path)/Developer"
 if $record; then
   export SNAPSHOT_TESTING_RECORD=failed
 fi
 render=$(now)
-# Through the pipe, which hides Swift Testing's progress lines.
+# Through the pipe, which hides Swift Testing's progress lines. Its output is kept to count issues.
 {
   status=0
   DYLD_FRAMEWORK_PATH="$platform/Library/Frameworks:$platform/Library/PrivateFrameworks" \
     DYLD_LIBRARY_PATH="$products:$platform/usr/lib" \
     SWIFT_TESTING_XCTEST_INTEROP_MODE=complete \
-    SNAPSHOT_ARTIFACTS="$output" LIL_SNAPSHOT_OUTPUT="$output" \
+    LIL_SNAPSHOT_OUTPUT="$output" \
     "$helper" "$@" "$bundle" --testing-library swift-testing || status=$?
   echo "$status" >"$output/status"
-} 2>&1 | grep -v '^◇\|^↳' || true
+} 2>&1 | tee "$output/test.log" | grep -v '^◇\|^↳' || true
 status=$(cat "$output/status")
 rm "$output/status"
 report="$output/report.tsv"
 if [ ! -f "$report" ]; then
-  echo "error: no snapshot test ran. Check the filter against \`swift test list --skip-build\`." >&2
+  if [ "$status" = 0 ]; then
+    echo "error: no snapshot test ran. Check the filter against \`swift test list --skip-build\`." >&2
+  else
+    echo "error: the tests stopped before any snapshot (status $status)." >&2
+  fi
   exit 1
 fi
 echo
 echo "Ran in $(since "$render") s, $(since "$start") s in all. Images:"
-differs=false
+recorded=0
 while IFS='	' read -r result image reference diff; do
   printf '%-10s %s\n' "$result" "$image"
   if [ "$result" != matches ]; then
@@ -113,12 +125,16 @@ while IFS='	' read -r result image reference diff; do
   if [ -n "$diff" ]; then
     printf '%-10s %s\n' "" "diff: $diff"
   fi
-  if [ "$result" = differs ]; then
-    differs=true
-  fi
+  case "$result" in
+    recorded | rerecorded) recorded=$((recorded + 1)) ;;
+  esac
 done <"$report"
-# Recording is reported as a failure, which isn't one when asked for. A crash still is.
-if $record && [ "$status" = 1 ] && ! $differs; then
-  status=0
+# Recording is reported as an issue, which isn't a failure when asked for. Any other issue, or a
+# crash, still is: the run's issues must be exactly the recordings.
+if $record && [ "$status" = 1 ]; then
+  issues=$(sed -n 's/^✘ Test run with .* with \([0-9]*\) issues*\.$/\1/p' "$output/test.log")
+  if [ "$issues" = "$recorded" ]; then
+    status=0
+  fi
 fi
 exit "$status"

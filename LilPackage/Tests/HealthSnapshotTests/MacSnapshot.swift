@@ -5,6 +5,8 @@
   import ImageIO
   import SnapshotTesting
   import SwiftUI
+  import Synchronization
+  import Testing
 
   /// Renders `view` as Xcode's canvas shows a Mac preview, in a window with a title bar (so its
   /// toolbar renders) of the given appearance, and compares it with its reference image,
@@ -37,47 +39,64 @@
     RunLoop.main.run(until: Date().addingTimeInterval(0.05))
     let suffix = appearance == .darkAqua ? "dark" : "light"
     let output = SnapshotOutput(file: file, testName: "mac", name: "\(name)-\(suffix)")
-    // The window's frame view: its title bar and toolbar, and the content.
-    withSnapshotTesting(diffTool: output?.diffTool) {
-      assertSnapshot(
+    // The window's frame view: its title bar and toolbar, and the content. `assertSnapshot` is
+    // these two calls (for Swift Testing, which these tests use); `scripts/snapshot` needs the
+    // result in between.
+    let failure = withSnapshotTesting(diffTool: output?.diffTool) {
+      verifySnapshot(
         of: window.contentView!.superview!, as: output?.strategy ?? .layerImage,
         named: "\(name)-\(suffix)", fileID: fileID, file: file, testName: "mac", line: line,
         column: column)
     }
-    output?.report()
+    output?.report(failure: failure)
+    if let failure {
+      Issue.record(
+        Comment(rawValue: failure),
+        sourceLocation: SourceLocation(
+          fileID: "\(fileID)", filePath: "\(file)", line: Int(line), column: Int(column)))
+    }
     window.close()
   }
 
   /// Where `scripts/snapshot` wants every image this process takes, `LIL_SNAPSHOT_OUTPUT` (851-2962):
-  /// `<output>/<test file>/<test>.<name>.png`, the same path SnapshotTesting writes a failed image
-  /// to when `SNAPSHOT_ARTIFACTS` is `<output>` too, with the same bytes. A changed image also gets
-  /// `<test>.<name>.diff.png`, its changed pixels in red over a faded copy of it. Each snapshot adds
-  /// a line to `<output>/report.tsv`: its result (`matches`, `differs`, `recorded`, or
-  /// `rerecorded` when it differed and record mode replaced the reference), the image, the
-  /// reference and the diff. `swift test` sets none of this and writes nothing.
+  /// `<output>/<test file>/<test>.<name>.png`, encoded as SnapshotTesting encodes references. A
+  /// changed image also gets `<test>.<name>.diff.png`, its changed pixels in red over a faded copy
+  /// of it. Each snapshot adds a line to `<output>/report.tsv`: its result, the image, the reference
+  /// and the diff. The result is `matches`, `differs`, `recorded` (a new reference, or record mode),
+  /// `rerecorded` (it differed, and record mode replaced the reference) or `failed` (anything else
+  /// SnapshotTesting reported, such as a timeout). `swift test` sets none of this and writes nothing.
   @MainActor
   private struct SnapshotOutput {
     let image: URL
     let reference: URL
     let diff: URL
     let reportFile: URL
-    /// The reference before the snapshot, to tell whether it was recorded.
-    let previousReference: Data?
+    /// The reference's modification date before the snapshot, to tell whether it was recorded.
+    let previousReference: Date?
+    /// Whether SnapshotTesting called the diff tool: the image didn't match its reference.
+    let differed = Flag()
 
     init?(file: StaticString, testName: String, name: String) {
       guard let output = ProcessInfo.processInfo.environment["LIL_SNAPSHOT_OUTPUT"] else {
         return nil
       }
-      // As SnapshotTesting names references (names here are already safe as paths).
+      // Where SnapshotTesting keeps the reference: `__Snapshots__/<test file>/<test>.<name>.png`
+      // next to the test file, with its names made safe as SnapshotTesting does
+      // (`sanitizePathComponent`, which isn't public).
+      func sanitized(_ component: String) -> String {
+        component
+          .replacingOccurrences(of: "\\W+", with: "-", options: .regularExpression)
+          .replacingOccurrences(of: "^-|-$", with: "", options: .regularExpression)
+      }
       let testFile = URL(filePath: "\(file)")
       let folder = testFile.deletingPathExtension().lastPathComponent
-      let fileName = "\(testName).\(name)"
-      image = URL(filePath: output).appending(components: folder, "\(fileName).png")
+      let fileName = "\(sanitized(testName)).\(sanitized(name)).png"
+      image = URL(filePath: output).appending(components: folder, fileName)
       reference = testFile.deletingLastPathComponent()
-        .appending(components: "__Snapshots__", folder, "\(fileName).png")
+        .appending(components: "__Snapshots__", folder, fileName)
       diff = image.deletingPathExtension().appendingPathExtension("diff.png")
       reportFile = URL(filePath: output).appending(component: "report.tsv")
-      previousReference = try? Data(contentsOf: reference)
+      previousReference = modificationDate(of: reference)
       try? FileManager.default.createDirectory(
         at: image.deletingLastPathComponent(), withIntermediateDirectories: true)
       try? FileManager.default.removeItem(at: image)
@@ -99,35 +118,35 @@
     }
 
     /// Called by SnapshotTesting when an image doesn't match its reference: writes the diff image,
-    /// and says where the three are.
+    /// and says where the three are. It compares the image `strategy` wrote, which has the same
+    /// bytes as the failed image SnapshotTesting writes to its artifacts folder.
     var diffTool: SnapshotTestingConfiguration.DiffTool {
-      let diff = diff
-      return SnapshotTestingConfiguration.DiffTool { reference, image in
-        let summary = writeDiff(
-          reference: URL(filePath: reference), image: URL(filePath: image), to: diff)
+      let (image, diff, differed) = (image, diff, differed)
+      return SnapshotTestingConfiguration.DiffTool { reference, _ in
+        differed.set()
+        let summary = writeDiff(reference: URL(filePath: reference), image: image, to: diff)
         return """
           \(summary)
           reference: \(reference)
-          image:     \(image)
+          image:     \(image.path)
           diff:      \(diff.path)
           """
       }
     }
 
-    func report() {
+    func report(failure: String?) {
       let fileManager = FileManager.default
-      let differs = fileManager.fileExists(atPath: diff.path)
-      let recorded = (try? Data(contentsOf: reference)) != previousReference
+      let recorded = modificationDate(of: reference) != previousReference
       let result =
-        switch (differs, recorded) {
-        case (true, true): "rerecorded"
-        case (true, false): "differs"
-        case (false, true): "recorded"
-        case (false, false): "matches"
+        switch (failure != nil, differed.isSet, recorded) {
+        case (false, _, _): "matches"
+        case (true, true, true): "rerecorded"
+        case (true, true, false): "differs"
+        case (true, false, true): "recorded"
+        case (true, false, false): "failed"
         }
-      let line =
-        [result, image.path, reference.path, differs ? diff.path : ""]
-        .joined(separator: "\t") + "\n"
+      let diffPath = fileManager.fileExists(atPath: diff.path) ? diff.path : ""
+      let line = [result, image.path, reference.path, diffPath].joined(separator: "\t") + "\n"
       if !fileManager.fileExists(atPath: reportFile.path) {
         fileManager.createFile(atPath: reportFile.path, contents: nil)
       }
@@ -136,6 +155,18 @@
       handle.write(Data(line.utf8))
       try? handle.close()
     }
+  }
+
+  /// From the file system each time (a `URL` caches its resource values).
+  private func modificationDate(of url: URL) -> Date? {
+    (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+  }
+
+  /// A flag the diff tool, which must be `Sendable`, can set.
+  private final class Flag: Sendable {
+    private let value = Mutex(false)
+    var isSet: Bool { value.withLock { $0 } }
+    func set() { value.withLock { $0 = true } }
   }
 
   /// Writes `image`'s pixels that differ from `reference`'s in red, over a faded copy of `image`,
@@ -164,10 +195,11 @@
                 box = (min(box.minX, x), min(box.minY, y), max(box.maxX, x), max(box.maxY, y))
                 diff[y * width + x] = red
               } else if let b {
-                // A quarter of the image's luminance over white.
+                // The image over white, in gray, a quarter as dark. Its pixels are
+                // premultiplied, so over white a channel shows as itself plus 255 minus alpha.
                 let gray =
                   ((b & 0xFF) * 299 + (b >> 8 & 0xFF) * 587 + (b >> 16 & 0xFF) * 114) / 1000
-                let faded = 255 - (255 - gray) * (b >> 24) / 255 / 4
+                let faded = 255 - ((b >> 24) - min(gray, b >> 24)) / 4
                 diff[y * width + x] = 0xFF00_0000 | faded << 16 | faded << 8 | faded
               }
             }
