@@ -11,8 +11,7 @@
 #       A new worktree's `.build` starts as a copy (APFS clones, `cp -c`) of the last one's, kept
 #       in `~/Library/Caches/lil.tech/worktree-package`, so resolving it fetches only what changed,
 #       rather than every dependency (851-2973). It resolves holding
-#       `/tmp/lil-package-resolve.lock` (and, for now, its old name, `/tmp/xcode-open.lock`,
-#       taken first), so two at once don't share that copy.
+#       `/tmp/lil-package-resolve.lock`, so two at once don't share that copy.
 #   scripts/worktree remove <ticket-number> [--stash]
 #       Refuses while the worktree has uncommitted changes, unless `--stash` stashes them (in the
 #       main repo, with a message naming the ticket). Deletes its Xcode DerivedData and removes
@@ -214,61 +213,39 @@ delete_branch_if_done() {
   fi
 }
 
-# The locks `new` resolves holding, so two of them don't use the kept copy below at once:
-# directories, made with `mkdir`, taken in this order and released in reverse. Builds and tests
-# don't take them. The lock is `/tmp/lil-package-resolve.lock` (851-3061). `/tmp/xcode-open.lock`,
-# its old name, from when agents also held it while Xcode opened a workspace (until 851-2970), is
-# taken first while worktrees from before 851-3061 remain, since they run their own copy of this
-# script, which takes only it. 851-3069 drops it.
-resolve_locks="/tmp/xcode-open.lock${newline}/tmp/lil-package-resolve.lock"
-# The locks held, each followed by a newline, the last taken first.
-held_locks=""
+# The lock `new` resolves holding, so two of them don't use the kept copy below at once: a
+# directory, made with `mkdir`. Builds and tests don't take it. Named in 851-3061; its old name,
+# from when agents also held it while Xcode opened a workspace, went in 851-3069.
+resolve_lock=/tmp/lil-package-resolve.lock
+holding_lock=false
 
 take_resolve_lock() {
-  trap release_held_locks EXIT
+  trap '! $holding_lock || rmdir "$resolve_lock" 2>/dev/null || true' EXIT
   trap 'exit 1' HUP INT TERM
-  for lock in $resolve_locks; do
-    if [ -n "$held_locks" ]; then
-      # Every copy of this script takes the locks before this one first, so while this run holds
-      # them, no other run can hold this one: it was left by a run that ended without releasing it.
-      if ! mkdir "$lock" 2>/dev/null; then
-        echo "Removing $lock, left by a run that ended without releasing it."
-        rmdir "$lock"
-        mkdir "$lock"
-      fi
-    else
-      waited=0
-      until mkdir "$lock" 2>/dev/null; do
-        since=$(stat -f %Sm "$lock" 2>/dev/null || true)
-        if [ "$waited" -ge 1200 ]; then
-          echo "error: waited 20 minutes for $lock (held since $since). If nothing holds it," \
-            "remove it and run this again." >&2
-          exit 1
-        fi
-        if [ $((waited % 60)) -eq 0 ]; then
-          echo "Waiting for $lock (held since $since), which another worktree's resolution" \
-            "holds…"
-        fi
-        sleep 5
-        waited=$((waited + 5))
-      done
+  waited=0
+  until mkdir "$resolve_lock" 2>/dev/null; do
+    since=$(stat -f %Sm "$resolve_lock" 2>/dev/null || true)
+    if [ "$waited" -ge 1200 ]; then
+      echo "error: waited 20 minutes for $resolve_lock (held since $since). If nothing holds" \
+        "it, remove it and run this again." >&2
+      exit 1
     fi
-    held_locks="$lock$newline$held_locks"
+    if [ $((waited % 60)) -eq 0 ]; then
+      echo "Waiting for $resolve_lock (held since $since), which another worktree's" \
+        "resolution holds…"
+    fi
+    sleep 5
+    waited=$((waited + 5))
   done
+  holding_lock=true
 }
 
-# Removes the locks this run holds, the last taken first. Each leaves the list before it's removed,
-# so an interrupted release never removes a lock again once another run may have taken it.
-release_held_locks() {
-  while [ -n "$held_locks" ]; do
-    lock=${held_locks%%"$newline"*}
-    held_locks=${held_locks#*"$newline"}
-    rmdir "$lock" 2>/dev/null || true
-  done
-}
-
+# Releases the lock once, ignoring signals meanwhile, so an interrupted release neither leaves it
+# behind nor removes it again once another run may have taken it.
 release_resolve_lock() {
-  release_held_locks
+  trap '' HUP INT TERM
+  rmdir "$resolve_lock" 2>/dev/null || true
+  holding_lock=false
   trap - EXIT HUP INT TERM
 }
 
