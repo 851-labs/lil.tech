@@ -1046,7 +1046,7 @@ struct LilSyncBootstrapTests {
     let database = try makeDatabase(bootstrapped: false)
     let engine = engine(database: database)
     let statuses = LockIsolated<[SyncStatus]>([])
-    let updates = await engine.statusUpdates()
+    let updates = await engine.statusUpdates(bufferingPolicy: .unbounded)
     let observing = Task {
       for await status in updates { statuses.withValue { $0.append(status) } }
     }
@@ -1056,10 +1056,8 @@ struct LilSyncBootstrapTests {
     running.cancel()
     await running.value
     observing.cancel()
-    #expect(
-      statuses.value.contains {
-        if case .bootstrapping = $0 { true } else { false }
-      })
+    // Each status as it was set, so none is missed.
+    #expect(statuses.value.contains(.bootstrapping(.finishing(4))))
   }
 
   @Test
@@ -1070,29 +1068,30 @@ struct LilSyncBootstrapTests {
     let database = try makeDatabase(bootstrapped: false)
     let engine = engine(database: database)
     let statuses = LockIsolated<[SyncStatus]>([])
-    let updates = await engine.statusUpdates()
+    let updates = await engine.statusUpdates(bufferingPolicy: .unbounded)
     let observing = Task {
       for await status in updates { statuses.withValue { $0.append(status) } }
     }
     try await engine.bootstrap()
-    // The bootstrap's last status: an observer always gets the newest.
     try await eventually { statuses.value.last == .bootstrapping(.finishing(5)) }
     observing.cancel()
 
     let progress = statuses.value.compactMap { status -> BootstrapProgress? in
       if case .bootstrapping(let progress) = status { progress } else { nil }
     }
-    // Each stage counts up to the snapshot's records, and the stages come in order. (An observer
-    // sees only the newest status, so some steps may be missed.)
-    let stages: [BootstrapProgress.Stage] = [.downloading, .loading, .finishing]
-    for (earlier, later) in zip(progress, progress.dropFirst()) {
-      let (a, b) = try (
-        #require(stages.firstIndex(of: earlier.stage)), #require(stages.firstIndex(of: later.stage))
-      )
-      #expect(a < b || (a == b && earlier.records <= later.records))
-    }
-    #expect(progress.allSatisfy { $0.totalRecords == 5 || $0 == .downloading(0, of: 0) })
-    #expect(progress.allSatisfy { $0.records <= $0.totalRecords })
+    // Parts download four at a time, so they're counted in the order they finish.
+    let downloads = progress.filter { $0.stage == .downloading }
+    #expect(downloads.prefix(2) == [.downloading(0, of: 0), .downloading(0, of: 5)])
+    #expect(downloads.last == .downloading(5, of: 5))
+    #expect(downloads.count == 5)
+    let counted = downloads.dropFirst()
+    #expect(zip(counted, counted.dropFirst()).allSatisfy { $0.records < $1.records })
+    // Then loaded in order, from the top, and finished.
+    #expect(
+      progress.drop { $0.stage == .downloading } == [
+        .loading(0, of: 5), .loading(2, of: 5), .loading(4, of: 5), .loading(5, of: 5),
+        .finishing(5),
+      ])
     #expect(try storedNotes(database) == all)
   }
 

@@ -139,8 +139,15 @@ public actor LilSyncEngine {
 
   /// The current status, then every change to it.
   public func statusUpdates() -> AsyncStream<SyncStatus> {
+    statusUpdates(bufferingPolicy: .bufferingNewest(1))
+  }
+
+  /// Every status, for tests that check a bootstrap's progress step by step.
+  func statusUpdates(
+    bufferingPolicy: AsyncStream<SyncStatus>.Continuation.BufferingPolicy
+  ) -> AsyncStream<SyncStatus> {
     let (stream, continuation) = AsyncStream<SyncStatus>.makeStream(
-      bufferingPolicy: .bufferingNewest(1))
+      bufferingPolicy: bufferingPolicy)
     let id = UUID()
     observers[id] = continuation
     continuation.yield(status)
@@ -494,7 +501,7 @@ public actor LilSyncEngine {
   static let loadBatchSize = 5_000
 
   private func replaceFromSnapshot() async throws {
-    setStatus(.bootstrapping(.downloading(0, of: 0)))
+    setProgress(.downloading(0, of: 0))
     let (syncSchema, recordedEntities) = (syncSchema, Self.recorded(entities.keys))
     let latest = try await fetchLatestSnapshot()
     guard var manifest = latest.snapshot else {
@@ -525,23 +532,21 @@ public actor LilSyncEngine {
     let loadRecords = parts.reduce(0) { $0 + max($1.part.records, 0) }
     try FileManager.default.createDirectory(at: partsDirectory, withIntermediateDirectories: true)
     bootstrapManifest = manifest
-    downloadedRecords = 0
     defer { bootstrapManifest = nil }
-    setStatus(.bootstrapping(.downloading(0, of: downloadRecords)))
+    setProgress(.downloading(0, of: downloadRecords))
     // A few at a time: one download at a time left the connection mostly idle.
     try await withThrowingTaskGroup(of: Void.self) { group in
       for (index, part) in downloads.enumerated() {
         if index >= Self.parallelDownloads { try await group.next() }
         group.addTask {
-          try await self.downloadPart(part.part, of: part.entity, totalRecords: downloadRecords)
+          try await self.downloadPart(part.part, of: part.entity)
         }
       }
       try await group.waitForAll()
     }
     manifest = bootstrapManifest ?? manifest
     // Straight on, so the download's full bar doesn't sit there while the tables are cleared.
-    loadedRecords = 0
-    setStatus(.bootstrapping(.loading(0, of: loadRecords)))
+    setProgress(.loading(0, of: loadRecords))
 
     // Tables whose records go through a staging table (`SnapshotStaging`).
     let staged = Set(wanted.compactMap { entities[$0.entity]?.staging?.table }).sorted()
@@ -554,9 +559,9 @@ public actor LilSyncEngine {
     do {
       for (name, file) in files {
         guard let entity = entities[name] else { continue }
-        try await load(entity, from: file, totalRecords: loadRecords)
+        try await load(entity, from: file)
       }
-      setStatus(.bootstrapping(.finishing(loadRecords)))
+      setProgress(.finishing(loadRecords))
       try await database.write { [manifest, entities] db in
         for table in staged { try SnapshotStaging.finish(table, db) }
         try SyncState(
@@ -586,8 +591,8 @@ public actor LilSyncEngine {
   }
 
   /// Loads one downloaded part's records, into the entity's staging table if it has one, and
-  /// reports them loaded, of `totalRecords`, after each batch.
-  private func load(_ entity: SyncEntity, from file: URL, totalRecords: Int) async throws {
+  /// reports them loaded after each batch.
+  private func load(_ entity: SyncEntity, from file: URL) async throws {
     let records: Data
     do {
       records = try Gzip.decompress(Data(contentsOf: file))
@@ -616,8 +621,7 @@ public actor LilSyncEngine {
           }
         }
       }
-      loadedRecords += batch.count(where: { !$0.isEmpty })
-      setStatus(.bootstrapping(.loading(loadedRecords, of: totalRecords)))
+      advanceProgress(by: batch.count(where: { !$0.isEmpty }))
     }
   }
 
@@ -633,9 +637,19 @@ public actor LilSyncEngine {
   /// together that all find their URLs expired share one refresh.
   private var manifestRefreshes = 0
   private var refreshing: Task<Components.Schemas.SnapshotManifest, any Error>?
-  /// Records in the parts downloaded so far, and records loaded so far, for progress.
-  private var downloadedRecords = 0
-  private var loadedRecords = 0
+  /// The bootstrap's progress, as its status shows it.
+  private var bootstrapProgress = BootstrapProgress.downloading(0, of: 0)
+
+  private func setProgress(_ progress: BootstrapProgress) {
+    bootstrapProgress = progress
+    setStatus(.bootstrapping(progress))
+  }
+
+  /// Counts `records` more done in the current stage.
+  private func advanceProgress(by records: Int) {
+    bootstrapProgress.records += records
+    setStatus(.bootstrapping(bootstrapProgress))
+  }
 
   private func partFile(_ sha256: String) -> URL {
     partsDirectory.appending(path: "\(sha256).ndjson.gz")
@@ -644,7 +658,7 @@ public actor LilSyncEngine {
   /// Downloads a part unless it's on disk already, refreshing the snapshot's URLs once if they
   /// expired (`bootstrapManifest`).
   private func downloadPart(
-    _ original: Components.Schemas.SnapshotPart, of entity: String, totalRecords: Int
+    _ original: Components.Schemas.SnapshotPart, of entity: String
   ) async throws {
     let file = partFile(original.sha256)
     if !(await Self.isVerified(file, sha256: original.sha256)) {
@@ -674,8 +688,7 @@ public actor LilSyncEngine {
       }
       try await Self.write(data, to: file)
     }
-    downloadedRecords += max(original.records, 0)
-    setStatus(.bootstrapping(.downloading(downloadedRecords, of: totalRecords)))
+    advanceProgress(by: max(original.records, 0))
   }
 
   /// Whether `file` holds a part with this hash, as downloaded. Off the actor, like the other

@@ -71,7 +71,7 @@ struct SyncFooterView: View {
 /// What the footer says about a status. A first sync counts records left in each stage, in the
 /// iPhone's words ("1,234,567 items left", `ItemsCopy`), and its bar is never full while work
 /// goes on: the final transaction, which can't report progress, says "Finishing up…" over a
-/// moving bar (851-2946).
+/// moving bar (851-2946). A catch-up counts the changes left.
 struct SyncFooterContent: Equatable {
   enum Bar: Equatable {
     case none
@@ -90,8 +90,11 @@ struct SyncFooterContent: Equatable {
     case .syncing(let cursor, let head):
       // A catch-up of more than a page, such as the changes since a snapshot. Everyday syncs
       // are one page, and go straight to up to date. No bar: where it started isn't known.
+      // Changes, not items: a record can change more than once, and deletes count too.
+      let left = head - cursor
       self.init(
-        title: "Syncing…", detail: head > cursor ? ItemsCopy.left(head - cursor) : nil,
+        title: "Syncing…",
+        detail: left > 0 ? (left == 1 ? "1 change left" : "\(left.formatted()) changes left") : nil,
         bar: .none)
     case .bootstrapping(let progress):
       switch progress.stage {
@@ -119,16 +122,16 @@ struct SyncFooterContent: Equatable {
     self.bar = bar
   }
 
-  /// Records left, once the snapshot's manifest has said how many there are.
+  /// Records left, once the snapshot's manifest has said how many there are. Past its count
+  /// (the server's), the stage is still going, so the bar moves rather than sitting full.
   private init(title: String, progress: BootstrapProgress) {
-    guard progress.totalRecords > 0 else {
+    guard progress.recordsLeft > 0 else {
       self.init(title: title, detail: nil, bar: .indeterminate)
       return
     }
     self.init(
       title: title, detail: ItemsCopy.left(progress.recordsLeft),
-      bar: .determinate(
-        done: min(progress.records, progress.totalRecords), total: progress.totalRecords))
+      bar: .determinate(done: progress.records, total: progress.totalRecords))
   }
 }
 

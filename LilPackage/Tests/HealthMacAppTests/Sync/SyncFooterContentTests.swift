@@ -35,13 +35,16 @@ struct SyncFooterContentTests {
   }
 
   @Test
-  func aBarNeverRunsPastFull() {
-    // The manifest's counts are the server's: a part may hold more.
-    #expect(
-      SyncFooterContent(.bootstrapping(.loading(2_000_100, of: 2_000_000)))
-        == SyncFooterContent(
-          title: "Saving to this Mac…", detail: "0 items left",
-          bar: .determinate(done: 2_000_000, total: 2_000_000)))
+  func aStagePastItsCountKeepsMoving() {
+    // The manifest's counts are the server's: a part may hold more. The bar doesn't sit full
+    // while records are still being saved.
+    for progress in [
+      BootstrapProgress.loading(2_000_000, of: 2_000_000), .loading(2_000_100, of: 2_000_000),
+    ] {
+      #expect(
+        SyncFooterContent(.bootstrapping(progress))
+          == SyncFooterContent(title: "Saving to this Mac…", detail: nil, bar: .indeterminate))
+    }
   }
 
   @Test
@@ -49,7 +52,10 @@ struct SyncFooterContentTests {
     #expect(
       SyncFooterContent(.syncing(cursor: 2_000_000, head: 2_487_650))
         == SyncFooterContent(
-          title: "Syncing…", detail: "\(487_650.formatted()) items left", bar: .none))
+          title: "Syncing…", detail: "\(487_650.formatted()) changes left", bar: .none))
+    #expect(
+      SyncFooterContent(.syncing(cursor: 8_999, head: 9_000))
+        == SyncFooterContent(title: "Syncing…", detail: "1 change left", bar: .none))
     #expect(
       SyncFooterContent(.syncing(cursor: 9_000, head: 9_000))
         == SyncFooterContent(title: "Syncing…", detail: nil, bar: .none))
