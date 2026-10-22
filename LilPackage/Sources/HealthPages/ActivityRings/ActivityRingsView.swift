@@ -111,18 +111,17 @@ struct ActivityRingsContent: View {
         VStack(alignment: .leading, spacing: 12) {
           monthHeader
           switch state {
+          // As tall as the month's grid, so the page keeps its shape while a month loads or fails,
+          // and as wide as the row, rather than its ideal width, off center.
           case .loading:
             ProgressView()
-              .frame(maxWidth: .infinity)
-              .frame(height: Self.placeholderHeight)
+              .frame(maxWidth: .infinity, minHeight: gridHeight)
           case .failed(let reason):
             ContentUnavailableView(
               "Couldn't Load Activity Rings", systemImage: "exclamationmark.triangle",
               description: Text(reason)
             )
-            // A form's row would otherwise give it only its ideal width, off center.
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .frame(height: Self.placeholderHeight)
+            .frame(maxWidth: .infinity, minHeight: gridHeight)
           case .loaded(let days):
             calendarGrid(days)
           }
@@ -137,8 +136,11 @@ struct ActivityRingsContent: View {
     .navigationTitle("Activity Rings")
   }
 
-  /// About a month's grid, so the page keeps its shape while a month loads or fails.
-  private static let placeholderHeight: CGFloat = 330
+  /// About the height of the month's grid: the weekdays, then a 54 pt line per week, 8 pt apart.
+  private var gridHeight: CGFloat {
+    let weeks = CGFloat((cells.count + 6) / 7)
+    return 24 + weeks * 54 + (weeks - 1) * 8
+  }
 
   // MARK: Calendar
 
