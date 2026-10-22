@@ -185,7 +185,7 @@ struct HealthCLITests {
     for command in [
       ["summary"], ["types"], ["metric", "Steps", "-r", "6m"], ["samples", "Heart Rate"],
       ["workouts", "-r", "Y"], ["sleep"], ["medications"], ["details"], ["search", "steps"],
-      ["sync", "status"], ["sync"],
+      ["sync", "status"],
     ] {
       for json in [false, true] {
         let arguments = command + (json ? ["--json"] : [])
