@@ -1,0 +1,63 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/HeartbeatSeriesCatalog.swift",
+  "screen" : "Heartbeat Series",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.beat-to-beat-measurements-dark.png",
+      "id" : "heartbeat-series.beat-to-beat-measurements",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.beat-to-beat-measurements-light.png",
+      "name" : "Beat-to-beat measurements",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/HeartbeatSeriesCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.measurements-at-the-limit-dark.png",
+      "id" : "heartbeat-series.measurements-at-the-limit",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.measurements-at-the-limit-light.png",
+      "name" : "Measurements, at the limit",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/HeartbeatSeriesCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.no-measurements-dark.png",
+      "id" : "heartbeat-series.no-measurements",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.no-measurements-light.png",
+      "name" : "No measurements",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/HeartbeatSeriesCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.measurements-loading-dark.png",
+      "id" : "heartbeat-series.measurements-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.measurements-loading-light.png",
+      "name" : "Measurements loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/HeartbeatSeriesCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.measurements-failed-dark.png",
+      "id" : "heartbeat-series.measurements-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.measurements-failed-light.png",
+      "name" : "Measurements failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/HeartbeatSeriesCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.a-minute-of-beats-dark.png",
+      "id" : "heartbeat-series.a-minute-of-beats",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.a-minute-of-beats-light.png",
+      "name" : "A minute of beats",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/HeartbeatSeriesCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.beats-with-a-gap-dark.png",
+      "id" : "heartbeat-series.beats-with-a-gap",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.beats-with-a-gap-light.png",
+      "name" : "Beats with a gap",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/HeartbeatSeriesCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.too-few-beats-dark.png",
+      "id" : "heartbeat-series.too-few-beats",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HeartbeatSeriesCatalog/heartbeat-series.too-few-beats-light.png",
+      "name" : "Too few beats",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/HeartbeatSeriesCatalog.swift"
+    }
+  ]
+}

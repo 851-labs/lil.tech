@@ -1,6 +1,6 @@
 // Synthetic Health data for the sync throughput benchmark (851-2650, `scripts/bench-sync.ts`):
 // batch files in exactly the format the iPhone uploads (`HealthBatchWriter`,
-// `LilPackage/Sources/HealthUpload`), made up, never read from anyone's Health.
+// `LilPackage/Sources/Health/HealthUpload`), made up, never read from anyone's Health.
 //
 // Like the iPhone's backfill, it goes a type at a time in time order, in pages of 10,000 records
 // cut into files of at most 5,000 (and 15 MB before compression). A record's source revision and

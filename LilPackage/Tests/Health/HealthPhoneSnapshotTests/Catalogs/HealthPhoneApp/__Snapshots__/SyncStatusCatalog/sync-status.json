@@ -1,0 +1,98 @@
+{
+  "app" : "health-iphone",
+  "catalog" : "HealthPhoneApp/SyncStatusCatalog.swift",
+  "screen" : "Sync Status",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.checking-dark.png",
+      "id" : "sync-status.checking",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.checking-light.png",
+      "name" : "Checking",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.checking-health-access-on-a-new-install-dark.png",
+      "id" : "sync-status.checking-health-access-on-a-new-install",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.checking-health-access-on-a-new-install-light.png",
+      "name" : "Checking Health access on a new install",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.health-access-needed-dark.png",
+      "id" : "sync-status.health-access-needed",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.health-access-needed-light.png",
+      "name" : "Health access needed",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.uploading-dark.png",
+      "id" : "sync-status.uploading",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.uploading-light.png",
+      "name" : "Uploading",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.uploading-counted-dark.png",
+      "id" : "sync-status.uploading-counted",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.uploading-counted-light.png",
+      "name" : "Uploading, counted",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.upload-paused-counted-dark.png",
+      "id" : "sync-status.upload-paused-counted",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.upload-paused-counted-light.png",
+      "name" : "Upload paused, counted",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.up-to-date-dark.png",
+      "id" : "sync-status.up-to-date",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.up-to-date-light.png",
+      "name" : "Up to date",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.paused-offline-dark.png",
+      "id" : "sync-status.paused-offline",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.paused-offline-light.png",
+      "name" : "Paused offline",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.failed-dark.png",
+      "id" : "sync-status.failed",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.failed-light.png",
+      "name" : "Failed",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.storage-full-dark.png",
+      "id" : "sync-status.storage-full",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.storage-full-light.png",
+      "name" : "Storage full",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.upload-paused-dark.png",
+      "id" : "sync-status.upload-paused",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.upload-paused-light.png",
+      "name" : "Upload paused",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.nothing-to-upload-dark.png",
+      "id" : "sync-status.nothing-to-upload",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.nothing-to-upload-light.png",
+      "name" : "Nothing to upload",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.not-uploading-without-consent-dark.png",
+      "id" : "sync-status.not-uploading-without-consent",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SyncStatusCatalog/sync-status.not-uploading-without-consent-light.png",
+      "name" : "Not uploading without consent",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SyncStatusCatalog.swift"
+    }
+  ]
+}

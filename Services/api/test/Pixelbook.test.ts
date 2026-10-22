@@ -13,7 +13,7 @@ import {
 } from "../scripts/pixelbook.ts";
 import { decodePng, encodePng, shrink } from "../scripts/png.ts";
 
-const folder = "LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth";
+const folder = "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth";
 const source = `${folder}/SignInCatalog.swift`;
 const references = `${folder}/__Snapshots__/SignInCatalog`;
 
@@ -54,13 +54,19 @@ describe("Pixelbook manifests", () => {
     assert.isTrue(isCatalogManifest(`${references}/sign-in-mac.json`));
     assert.isTrue(
       isCatalogManifest(
+        "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.json",
+      ),
+    );
+    // Before the product folders (851-3065).
+    assert.isTrue(
+      isCatalogManifest(
         "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.json",
       ),
     );
     assert.isFalse(isCatalogManifest(`${references}/sign-in-mac.signed-out-light.png`));
     assert.isFalse(isCatalogManifest("Web/pixelbook/graphs/health-mac.json"));
     assert.isFalse(
-      isCatalogManifest("LilPackage/Tests/HealthSnapshotTests/__Snapshots__/A/a.json"),
+      isCatalogManifest("LilPackage/Tests/Health/HealthSnapshotTests/__Snapshots__/A/a.json"),
     );
   });
 

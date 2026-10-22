@@ -1,0 +1,56 @@
+{
+  "app" : "health-iphone",
+  "catalog" : "HealthPhoneApp/HealthAccessCatalog.swift",
+  "screen" : "Health Access",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.explain-dark.png",
+      "id" : "health-access.explain",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.explain-light.png",
+      "name" : "Explain",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/HealthAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.explain-before-ios-27-dark.png",
+      "id" : "health-access.explain-before-ios-27",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.explain-before-ios-27-light.png",
+      "name" : "Explain, before iOS 27",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/HealthAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.explain-ios-27-dark.png",
+      "id" : "health-access.explain-ios-27",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.explain-ios-27-light.png",
+      "name" : "Explain, iOS 27",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/HealthAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.requesting-dark.png",
+      "id" : "health-access.requesting",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.requesting-light.png",
+      "name" : "Requesting",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/HealthAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.medications-and-prescriptions-dark.png",
+      "id" : "health-access.medications-and-prescriptions",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.medications-and-prescriptions-light.png",
+      "name" : "Medications and prescriptions",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/HealthAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.failed-dark.png",
+      "id" : "health-access.failed",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.failed-light.png",
+      "name" : "Failed",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/HealthAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.medications-and-prescriptions-failed-dark.png",
+      "id" : "health-access.medications-and-prescriptions-failed",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/HealthAccessCatalog/health-access.medications-and-prescriptions-failed-light.png",
+      "name" : "Medications and prescriptions, failed",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/HealthAccessCatalog.swift"
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "app" : "messages-mac",
+  "catalog" : "MessagesThread/MessageThreadCatalog.swift",
+  "screen" : "Message Thread",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.group-dark.png",
+      "id" : "message-thread.group",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.group-light.png",
+      "name" : "Group",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.links-dark.png",
+      "id" : "message-thread.links",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.links-light.png",
+      "name" : "Links",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.delivered-dark.png",
+      "id" : "message-thread.delivered",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.delivered-light.png",
+      "name" : "Delivered",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.read-dark.png",
+      "id" : "message-thread.read",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.read-light.png",
+      "name" : "Read",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.replied-after-read-dark.png",
+      "id" : "message-thread.replied-after-read",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.replied-after-read-light.png",
+      "name" : "Replied After Read",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.edited-and-not-delivered-dark.png",
+      "id" : "message-thread.edited-and-not-delivered",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.edited-and-not-delivered-light.png",
+      "name" : "Edited and Not Delivered",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.date-separators-dark.png",
+      "id" : "message-thread.date-separators",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.date-separators-light.png",
+      "name" : "Date Separators",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.text-message-dark.png",
+      "id" : "message-thread.text-message",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.text-message-light.png",
+      "name" : "Text Message",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.sending-dark.png",
+      "id" : "message-thread.sending",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.sending-light.png",
+      "name" : "Sending",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.send-failed-dark.png",
+      "id" : "message-thread.send-failed",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.send-failed-light.png",
+      "name" : "Send Failed",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.wide-window-dark.png",
+      "id" : "message-thread.wide-window",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.wide-window-light.png",
+      "name" : "Wide Window",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.spam-dark.png",
+      "id" : "message-thread.spam",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.spam-light.png",
+      "name" : "Spam",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.recently-deleted-dark.png",
+      "id" : "message-thread.recently-deleted",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.recently-deleted-light.png",
+      "name" : "Recently Deleted",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.empty-dark.png",
+      "id" : "message-thread.empty",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.empty-light.png",
+      "name" : "Empty",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.load-failed-dark.png",
+      "id" : "message-thread.load-failed",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/__Snapshots__/MessageThreadCatalog/message-thread.load-failed-light.png",
+      "name" : "Load Failed",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesThread/MessageThreadCatalog.swift"
+    }
+  ]
+}

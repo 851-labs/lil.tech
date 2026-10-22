@@ -1,0 +1,35 @@
+{
+  "app" : "messages-mac",
+  "catalog" : "MessagesMacApp/WindowCatalog.swift",
+  "screen" : "Window",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesMacApp/__Snapshots__/WindowCatalog/window.checking-access-dark.png",
+      "id" : "window.checking-access",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesMacApp/__Snapshots__/WindowCatalog/window.checking-access-light.png",
+      "name" : "Checking Access",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesMacApp/WindowCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesMacApp/__Snapshots__/WindowCatalog/window.needs-full-disk-access-dark.png",
+      "id" : "window.needs-full-disk-access",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesMacApp/__Snapshots__/WindowCatalog/window.needs-full-disk-access-light.png",
+      "name" : "Needs Full Disk Access",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesMacApp/WindowCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesMacApp/__Snapshots__/WindowCatalog/window.nothing-selected-dark.png",
+      "id" : "window.nothing-selected",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesMacApp/__Snapshots__/WindowCatalog/window.nothing-selected-light.png",
+      "name" : "Nothing Selected",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesMacApp/WindowCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesMacApp/__Snapshots__/WindowCatalog/window.thread-open-dark.png",
+      "id" : "window.thread-open",
+      "light" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesMacApp/__Snapshots__/WindowCatalog/window.thread-open-light.png",
+      "name" : "Thread Open",
+      "source" : "LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/MessagesMacApp/WindowCatalog.swift"
+    }
+  ]
+}

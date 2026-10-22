@@ -24,11 +24,12 @@ fi
 cd "$(dirname "$0")/.."
 
 # What a commit's snapshots come from: every test target's state catalogs (their sources,
-# references and manifests), and the scripts that publish them.
+# references and manifests), and the scripts that publish them. Test targets are in product folders
+# (`LilPackage/Tests/<Product>/<Target>`), or weren't before 851-3065.
 key_of() {
   {
     git ls-tree -r -d "$1" -- LilPackage/Tests |
-      awk -F'\t' '$2 ~ /^LilPackage\/Tests\/[^\/]+\/Catalogs$/'
+      awk -F'\t' '$2 ~ /^LilPackage\/Tests\/([^\/]+\/)?[^\/]+\/Catalogs$/'
     local input
     for input in scripts/pixelbook Services/api/scripts/pixelbook.ts Services/api/scripts/png.ts; do
       git rev-parse -q --verify "$1:$input" 2>/dev/null || echo "missing $input"

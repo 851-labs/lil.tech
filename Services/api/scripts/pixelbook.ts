@@ -88,9 +88,15 @@ export interface CatalogManifest {
   }>;
 }
 
-/** Where catalog manifests are: `LilPackage/Tests/<target>/Catalogs/…/__Snapshots__/<file>/*.json`. */
+/**
+ * Where catalog manifests are:
+ * `LilPackage/Tests/<product>/<target>/Catalogs/…/__Snapshots__/<file>/*.json`, or
+ * `LilPackage/Tests/<target>/Catalogs/…` in commits from before the product folders (851-3065).
+ */
 export const isCatalogManifest = (path: string) =>
-  /^LilPackage\/Tests\/[^/]+\/Catalogs\/.+\/__Snapshots__\/[^/]+\/[^/]+\.json$/.test(path);
+  /^LilPackage\/Tests\/([^/]+\/)?[^/]+\/Catalogs\/.+\/__Snapshots__\/[^/]+\/[^/]+\.json$/.test(
+    path,
+  );
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

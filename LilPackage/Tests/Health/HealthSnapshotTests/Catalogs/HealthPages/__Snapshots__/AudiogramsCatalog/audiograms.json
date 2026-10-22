@@ -1,0 +1,77 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/AudiogramsCatalog.swift",
+  "screen" : "Audiograms",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.audiograms-dark.png",
+      "id" : "audiograms.audiograms",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.audiograms-light.png",
+      "name" : "Audiograms",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AudiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.audiograms-at-the-limit-dark.png",
+      "id" : "audiograms.audiograms-at-the-limit",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.audiograms-at-the-limit-light.png",
+      "name" : "Audiograms, at the limit",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AudiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.no-audiograms-dark.png",
+      "id" : "audiograms.no-audiograms",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.no-audiograms-light.png",
+      "name" : "No audiograms",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AudiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.audiograms-loading-dark.png",
+      "id" : "audiograms.audiograms-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.audiograms-loading-light.png",
+      "name" : "Audiograms loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AudiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.audiograms-failed-dark.png",
+      "id" : "audiograms.audiograms-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.audiograms-failed-light.png",
+      "name" : "Audiograms failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AudiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.little-to-no-hearing-loss-dark.png",
+      "id" : "audiograms.little-to-no-hearing-loss",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.little-to-no-hearing-loss-light.png",
+      "name" : "Little to no hearing loss",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AudiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.moderate-hearing-loss-dark.png",
+      "id" : "audiograms.moderate-hearing-loss",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.moderate-hearing-loss-light.png",
+      "name" : "Moderate hearing loss",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AudiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.one-ear-tested-dark.png",
+      "id" : "audiograms.one-ear-tested",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.one-ear-tested-light.png",
+      "name" : "One ear tested",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AudiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.no-response-at-8-khz-extended-frequencies-dark.png",
+      "id" : "audiograms.no-response-at-8-khz-extended-frequencies",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.no-response-at-8-khz-extended-frequencies-light.png",
+      "name" : "No response at 8 kHz, extended frequencies",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AudiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.no-frequencies-tested-dark.png",
+      "id" : "audiograms.no-frequencies-tested",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AudiogramsCatalog/audiograms.no-frequencies-tested-light.png",
+      "name" : "No frequencies tested",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AudiogramsCatalog.swift"
+    }
+  ]
+}

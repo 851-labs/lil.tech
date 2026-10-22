@@ -162,9 +162,20 @@ export const commitUrl = (commit: string) => `${repositoryUrl}/commit/${commit}`
 export const compareUrl = (base: string, head: string) =>
   `${repositoryUrl}/compare/${base}...${head}`;
 
-/** A state's or preview's file in the repository. */
+/**
+ * A state's or preview's file in the repository. Previews' manifests (851-2790) had no path, and
+ * named a module from before the product folders (851-3065), at `LilPackage/Sources/<Module>`.
+ */
 export const sourcePath = (snapshot: Snapshot) =>
   snapshot.path ?? `LilPackage/Sources/${snapshot.module}/${snapshot.file}`;
+
+/**
+ * A state's or preview's file as the inspector shows it: from its target's folder, without
+ * `LilPackage/Sources/` or `LilPackage/Tests/` and the product folder, if it's in one
+ * (`Health/HealthSnapshotTests/…`, 851-3065).
+ */
+export const sourceLabel = (snapshot: Snapshot) =>
+  sourcePath(snapshot).replace(/^LilPackage\/(Sources|Tests)\/((\w+)\/(?=\3))?/, "");
 
 /** A state's or preview's file and line on GitHub, at a commit. */
 export const sourceUrl = (snapshot: Snapshot, commit: string) =>

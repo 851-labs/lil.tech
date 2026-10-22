@@ -1,6 +1,7 @@
 #!/bin/sh
-# Generates the Swift API client (LilPackage/Sources/LilAPIGenerated/Generated) from the committed
-# OpenAPI spec (Services/api/openapi.json) with Apple's swift-openapi-generator, pinned in Tools/.
+# Generates the Swift API client (LilPackage/Sources/Lil/LilAPIGenerated/Generated) from the
+# committed OpenAPI spec (Services/api/openapi.json) with Apple's swift-openapi-generator, pinned in
+# Tools/.
 #
 # A stamp (openapi.sha256 next to Generated/) records a hash of the spec, the generator config and
 # the pinned generator version, so staleness is cheap to check without Swift (e.g. on CI's Linux).
@@ -13,7 +14,7 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
-target_dir=LilPackage/Sources/LilAPIGenerated
+target_dir=LilPackage/Sources/Lil/LilAPIGenerated
 output=$target_dir/Generated
 stamp=$target_dir/openapi.sha256
 

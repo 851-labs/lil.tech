@@ -69,20 +69,24 @@ let package = Package(
         // Names the pages the command line asks the app to open, for the log (851-2895).
         "HealthCatalog",
         .product(name: "GRDB", package: "GRDB.swift"),
-      ]
+      ],
+      path: "Sources/Health/HealthAgentAccess"
     ),
     .testTarget(
       name: "HealthAgentAccessTests",
       dependencies: [
         "HealthAgentAccess"
-      ]
+      ],
+      path: "Tests/Health/HealthAgentAccessTests"
     ),
     .target(
-      name: "HealthCatalog"
+      name: "HealthCatalog",
+      path: "Sources/Health/HealthCatalog"
     ),
     .target(
       name: "HealthUI",
-      dependencies: ["HealthCatalog"]
+      dependencies: ["HealthCatalog"],
+      path: "Sources/Health/HealthUI"
     ),
     // `lil-health`, lil health for Mac's command-line tool: the Health toolkit's queries on the
     // Mac's database, read-only, while command-line and agent access is on (851-2843), as
@@ -97,7 +101,8 @@ let package = Package(
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "GRDB", package: "GRDB.swift"),
         .product(name: "MCP", package: "swift-sdk"),
-      ]
+      ],
+      path: "Sources/Health/HealthCLI"
     ),
     // `lil-health` for `swift run lil-health-dev` and HealthCLITests. The app bundles the same
     // main.swift, built by an Xcode tool target of its own (`lil-health` in LilHealth.xcodeproj),
@@ -105,7 +110,7 @@ let package = Package(
     .executableTarget(
       name: "lil-health-dev",
       dependencies: ["HealthCLI"],
-      path: "Sources/lil-health"
+      path: "Sources/Health/lil-health"
     ),
     .testTarget(
       name: "HealthCLITests",
@@ -125,14 +130,16 @@ let package = Package(
         .product(name: "MCP", package: "swift-sdk"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
         .product(name: "SQLiteData", package: "sqlite-data"),
-      ]
+      ],
+      path: "Tests/Health/HealthCLITests"
     ),
     .testTarget(
       name: "HealthCatalogTests",
       dependencies: [
         "HealthCatalog",
         "HealthKitAccess",
-      ]
+      ],
+      path: "Tests/Health/HealthCatalogTests"
     ),
     .target(
       name: "HealthDatabase",
@@ -143,7 +150,8 @@ let package = Package(
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "GRDB", package: "GRDB.swift"),
         .product(name: "SQLiteData", package: "sqlite-data"),
-      ]
+      ],
+      path: "Sources/Health/HealthDatabase"
     ),
     .testTarget(
       name: "HealthDatabaseTests",
@@ -157,20 +165,23 @@ let package = Package(
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         // `SyncBootstrapBenchmark` sends requests the way the app's client does.
         .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
-      ]
+      ],
+      path: "Tests/Health/HealthDatabaseTests"
     ),
     .target(
       name: "HealthKitAccess",
       dependencies: [
         "HealthCatalog",
         .product(name: "Dependencies", package: "swift-dependencies"),
-      ]
+      ],
+      path: "Sources/Health/HealthKitAccess"
     ),
     .testTarget(
       name: "HealthKitAccessTests",
       dependencies: [
         "HealthKitAccess"
-      ]
+      ],
+      path: "Tests/Health/HealthKitAccessTests"
     ),
     .target(
       name: "HealthMacApp",
@@ -186,7 +197,8 @@ let package = Package(
         "LilSync",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "SQLiteData", package: "sqlite-data"),
-      ]
+      ],
+      path: "Sources/Health/HealthMacApp"
     ),
     .testTarget(
       name: "HealthMacAppTests",
@@ -200,7 +212,8 @@ let package = Package(
         "LilAuth",
         "LilSync",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
-      ]
+      ],
+      path: "Tests/Health/HealthMacAppTests"
     ),
     // lil health for Mac's data pages (Sleep, Workouts, Medications…), which HealthMacApp's browse
     // and sidebar open, and what the Mac's pages and shell share (page colors, MetricFormat).
@@ -213,7 +226,8 @@ let package = Package(
         "LilSync",
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "SQLiteData", package: "sqlite-data"),
-      ]
+      ],
+      path: "Sources/Health/HealthPages"
     ),
     // State catalogs of lil health for Mac, rendered to images in `swift test` by
     // swift-snapshot-testing and compared with the references in `__Snapshots__` (851-2931).
@@ -232,6 +246,7 @@ let package = Package(
         .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         .product(name: "SQLiteData", package: "sqlite-data"),
       ],
+      path: "Tests/Health/HealthSnapshotTests",
       // References, beside the tests that take them. A new folder of state catalogs adds its own.
       exclude: [
         "Catalogs/HealthMacApp/__Snapshots__",
@@ -245,7 +260,8 @@ let package = Package(
         "HealthCatalog",
         "HealthDatabase",
         "HealthPages",
-      ]
+      ],
+      path: "Tests/Health/HealthPagesTests"
     ),
     .target(
       name: "HealthPhoneApp",
@@ -256,7 +272,8 @@ let package = Package(
         "HealthUpload",
         "LilAuth",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
-      ]
+      ],
+      path: "Sources/Health/HealthPhoneApp"
     ),
     .testTarget(
       name: "HealthPhoneAppTests",
@@ -267,7 +284,8 @@ let package = Package(
         "HealthUpload",
         "LilAuth",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
-      ]
+      ],
+      path: "Tests/Health/HealthPhoneAppTests"
     ),
     // The Health toolkit (`Services/api/src/health/tools/HealthToolkit.ts`, 851-2841) on the Mac's
     // database: each tool's answer, as the toolkit's output schemas have it. `lil-health`'s
@@ -278,7 +296,8 @@ let package = Package(
         "HealthCatalog",
         "HealthDatabase",
         .product(name: "SQLiteData", package: "sqlite-data"),
-      ]
+      ],
+      path: "Sources/Health/HealthTools"
     ),
     .testTarget(
       name: "HealthToolsTests",
@@ -287,7 +306,8 @@ let package = Package(
         "HealthDatabase",
         "HealthTools",
         .product(name: "SQLiteData", package: "sqlite-data"),
-      ]
+      ],
+      path: "Tests/Health/HealthToolsTests"
     ),
     .target(
       name: "HealthUpload",
@@ -299,7 +319,8 @@ let package = Package(
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
-      ]
+      ],
+      path: "Sources/Health/HealthUpload"
     ),
     .testTarget(
       name: "HealthUploadTests",
@@ -308,7 +329,8 @@ let package = Package(
         "LilAPI",
         "LilGzip",
         "LilTestSupport",
-      ]
+      ],
+      path: "Tests/Health/HealthUploadTests"
     ),
     .target(
       name: "LilAPI",
@@ -319,7 +341,8 @@ let package = Package(
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
         .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
-      ]
+      ],
+      path: "Sources/Lil/LilAPI"
     ),
     // Code generated by swift-openapi-generator (scripts/generate-api-client). Its warnings aren't
     // ours to fix, so they're suppressed and CI doesn't treat them as errors.
@@ -329,6 +352,7 @@ let package = Package(
         .product(name: "HTTPTypes", package: "swift-http-types"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
       ],
+      path: "Sources/Lil/LilAPIGenerated",
       exclude: ["openapi.sha256"],
       swiftSettings: [.unsafeFlags(["-suppress-warnings"])]
     ),
@@ -337,7 +361,8 @@ let package = Package(
       dependencies: [
         "LilAPI",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
-      ]
+      ],
+      path: "Tests/Lil/LilAPITests"
     ),
     .target(
       name: "LilAuth",
@@ -347,6 +372,7 @@ let package = Package(
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
       ],
+      path: "Sources/Lil/LilAuth",
       // Google's G and font, for its sign-in button.
       resources: [.process("Resources")]
     ),
@@ -358,7 +384,8 @@ let package = Package(
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         .product(name: "HTTPTypes", package: "swift-http-types"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
-      ]
+      ],
+      path: "Tests/Lil/LilAuthTests"
     ),
     // `lil`, the command that runs each app's own (`lil health …` runs `lil-health …`), like git,
     // and `lil mcp`, one MCP server combining each app's (851-2897).
@@ -366,7 +393,8 @@ let package = Package(
       name: "LilCLI",
       dependencies: [
         .product(name: "MCP", package: "swift-sdk")
-      ]
+      ],
+      path: "Sources/Lil/LilCLI"
     ),
     // `lil` for `swift run lil-dev` and LilCLITests. The apps bundle the same main.swift, built
     // by an Xcode tool target of their own (`lil` in LilHealth.xcodeproj). Named apart from it,
@@ -374,7 +402,7 @@ let package = Package(
     .executableTarget(
       name: "lil-dev",
       dependencies: ["LilCLI"],
-      path: "Sources/lil"
+      path: "Sources/Lil/lil"
     ),
     .testTarget(
       name: "LilCLITests",
@@ -388,7 +416,8 @@ let package = Package(
         "lil-health-dev",
         .product(name: "GRDB", package: "GRDB.swift"),
         .product(name: "MCP", package: "swift-sdk"),
-      ]
+      ],
+      path: "Tests/Lil/LilCLITests"
     ),
     // A stand-in for a second app's command line tool, for LilCLITests: `lil-example mcp` serves
     // one tool and one resource, so `lil mcp` is tested with two apps while lil health is the only
@@ -398,22 +427,25 @@ let package = Package(
       dependencies: [
         .product(name: "MCP", package: "swift-sdk")
       ],
-      path: "Tests/lil-example"
+      path: "Tests/Lil/lil-example"
     ),
     // An app's Install Command Line Tool… menu item, which installs the `lil` it bundles.
     .target(
       name: "LilCLIInstaller",
-      dependencies: ["LilCLI"]
+      dependencies: ["LilCLI"],
+      path: "Sources/Lil/LilCLIInstaller"
     ),
     .testTarget(
       name: "LilCLIInstallerTests",
       dependencies: [
         "LilCLI",
         "LilCLIInstaller",
-      ]
+      ],
+      path: "Tests/Lil/LilCLIInstallerTests"
     ),
     .target(
-      name: "LilGzip"
+      name: "LilGzip",
+      path: "Sources/Lil/LilGzip"
     ),
     .target(
       name: "LilSync",
@@ -424,7 +456,8 @@ let package = Package(
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
         .product(name: "SQLiteData", package: "sqlite-data"),
-      ]
+      ],
+      path: "Sources/Lil/LilSync"
     ),
     // Clocks and waiting for test targets (`ManualClock`, `RecordingClock`, `eventually`).
     .target(
@@ -432,7 +465,7 @@ let package = Package(
       dependencies: [
         .product(name: "Dependencies", package: "swift-dependencies")
       ],
-      path: "Tests/LilTestSupport"
+      path: "Tests/Lil/LilTestSupport"
     ),
     .testTarget(
       name: "LilSyncTests",
@@ -444,25 +477,29 @@ let package = Package(
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         .product(name: "HTTPTypes", package: "swift-http-types"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
-      ]
+      ],
+      path: "Tests/Lil/LilSyncTests"
     ),
     .target(
       name: "LilUpdates",
       dependencies: [
         .product(name: "Sparkle", package: "Sparkle")
-      ]
+      ],
+      path: "Sources/Lil/LilUpdates"
     ),
     .target(
       name: "MessagesContacts",
       dependencies: [
         .product(name: "Dependencies", package: "swift-dependencies")
-      ]
+      ],
+      path: "Sources/Messages/MessagesContacts"
     ),
     .testTarget(
       name: "MessagesContactsTests",
       dependencies: [
         "MessagesContacts"
-      ]
+      ],
+      path: "Tests/Messages/MessagesContactsTests"
     ),
     .target(
       name: "MessagesConversationList",
@@ -472,13 +509,15 @@ let package = Package(
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "SQLiteData", package: "sqlite-data"),
         .product(name: "Tagged", package: "swift-tagged"),
-      ]
+      ],
+      path: "Sources/Messages/MessagesConversationList"
     ),
     .testTarget(
       name: "MessagesConversationListTests",
       dependencies: [
         "MessagesConversationList"
-      ]
+      ],
+      path: "Tests/Messages/MessagesConversationListTests"
     ),
     .target(
       name: "MessagesDatabase",
@@ -486,7 +525,8 @@ let package = Package(
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "SQLiteData", package: "sqlite-data"),
         .product(name: "Tagged", package: "swift-tagged"),
-      ]
+      ],
+      path: "Sources/Messages/MessagesDatabase"
     ),
     .testTarget(
       name: "MessagesDatabaseTests",
@@ -494,7 +534,8 @@ let package = Package(
         "MessagesDatabase",
         "LilTestSupport",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
-      ]
+      ],
+      path: "Tests/Messages/MessagesDatabaseTests"
     ),
     .target(
       name: "MessagesMacApp",
@@ -507,38 +548,44 @@ let package = Package(
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "SQLiteData", package: "sqlite-data"),
-      ]
+      ],
+      path: "Sources/Messages/MessagesMacApp"
     ),
     .testTarget(
       name: "MessagesMacAppTests",
       dependencies: [
         "MessagesMacApp"
-      ]
+      ],
+      path: "Tests/Messages/MessagesMacAppTests"
     ),
     .target(
       name: "MessagesOnboarding",
       dependencies: [
         "MessagesDatabase",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
-      ]
+      ],
+      path: "Sources/Messages/MessagesOnboarding"
     ),
     .testTarget(
       name: "MessagesOnboardingTests",
       dependencies: [
         "MessagesOnboarding"
-      ]
+      ],
+      path: "Tests/Messages/MessagesOnboardingTests"
     ),
     .target(
       name: "MessagesSending",
       dependencies: [
         .product(name: "Dependencies", package: "swift-dependencies")
-      ]
+      ],
+      path: "Sources/Messages/MessagesSending"
     ),
     .testTarget(
       name: "MessagesSendingTests",
       dependencies: [
         "MessagesSending"
-      ]
+      ],
+      path: "Tests/Messages/MessagesSendingTests"
     ),
     // lil messages for Mac's state catalogs (851-2968), rendered as HealthSnapshotTests' are. Its
     // snapshot support is HealthSnapshotTests' own files, linked (symlinks), as the iPhone's
@@ -557,6 +604,7 @@ let package = Package(
         .product(name: "SQLiteData", package: "sqlite-data"),
         .product(name: "Tagged", package: "swift-tagged"),
       ],
+      path: "Tests/Messages/MessagesSnapshotTests",
       // References, beside the tests that take them. A new folder of state catalogs adds its own.
       exclude: [
         "Catalogs/MessagesConversationList/__Snapshots__",
@@ -573,13 +621,15 @@ let package = Package(
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "SQLiteData", package: "sqlite-data"),
         .product(name: "Tagged", package: "swift-tagged"),
-      ]
+      ],
+      path: "Sources/Messages/MessagesThread"
     ),
     .testTarget(
       name: "MessagesThreadTests",
       dependencies: [
         "MessagesThread"
-      ]
+      ],
+      path: "Tests/Messages/MessagesThreadTests"
     ),
   ],
   swiftLanguageModes: [.v6]

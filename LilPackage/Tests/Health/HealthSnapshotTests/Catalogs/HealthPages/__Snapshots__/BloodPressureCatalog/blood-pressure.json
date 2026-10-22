@@ -1,0 +1,56 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/BloodPressureCatalog.swift",
+  "screen" : "Blood Pressure",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.blood-pressure-week-dark.png",
+      "id" : "blood-pressure.blood-pressure-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.blood-pressure-week-light.png",
+      "name" : "Blood pressure, week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/BloodPressureCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.blood-pressure-month-dark.png",
+      "id" : "blood-pressure.blood-pressure-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.blood-pressure-month-light.png",
+      "name" : "Blood pressure, month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/BloodPressureCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.blood-pressure-year-dark.png",
+      "id" : "blood-pressure.blood-pressure-year",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.blood-pressure-year-light.png",
+      "name" : "Blood pressure, year",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/BloodPressureCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.a-reading-missing-a-value-dark.png",
+      "id" : "blood-pressure.a-reading-missing-a-value",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.a-reading-missing-a-value-light.png",
+      "name" : "A reading missing a value",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/BloodPressureCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.no-blood-pressure-dark.png",
+      "id" : "blood-pressure.no-blood-pressure",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.no-blood-pressure-light.png",
+      "name" : "No blood pressure",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/BloodPressureCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.blood-pressure-loading-dark.png",
+      "id" : "blood-pressure.blood-pressure-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.blood-pressure-loading-light.png",
+      "name" : "Blood pressure loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/BloodPressureCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.blood-pressure-failed-dark.png",
+      "id" : "blood-pressure.blood-pressure-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/BloodPressureCatalog/blood-pressure.blood-pressure-failed-light.png",
+      "name" : "Blood pressure failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/BloodPressureCatalog.swift"
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   assetsUrl,
   type Snapshot,
+  sourceLabel,
   sourceUrl,
   tileDensity,
   tileImageUrl,
@@ -59,5 +60,20 @@ describe("tile images", () => {
     );
     const path = "LilPackage/Sources/HealthMacApp/Pages/Sleep/SleepDetailViewPreviews.swift";
     expect(sourceUrl({ ...snapshot, path, line: null }, "c")).toBe(`${blob}/${path}`);
+  });
+
+  it("labels a file from its target's folder, without the product folder", () => {
+    const snapshot = { module: "HealthMacApp", file: "SleepDetailViewPreviews.swift" } as Snapshot;
+    expect(sourceLabel(snapshot)).toBe("HealthMacApp/SleepDetailViewPreviews.swift");
+    const label = (path: string) => sourceLabel({ ...snapshot, path });
+    expect(label("LilPackage/Tests/HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift")).toBe(
+      "HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift",
+    );
+    expect(
+      label("LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift"),
+    ).toBe("HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift");
+    expect(label("LilPackage/Tests/Messages/MessagesSnapshotTests/Catalogs/A.swift")).toBe(
+      "MessagesSnapshotTests/Catalogs/A.swift",
+    );
   });
 });

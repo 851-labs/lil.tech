@@ -1,7 +1,7 @@
 #!/bin/sh
 # Writes the server's copy of the Health catalog (Services/api/health-catalog.json) from the Swift
-# one (LilPackage/Sources/HealthCatalog), its source of truth (851-2857). It compiles the module's
-# sources on their own with swiftc, which takes seconds, rather than building the package.
+# one (LilPackage/Sources/Health/HealthCatalog), its source of truth (851-2857). It compiles the
+# module's sources on their own with swiftc, which takes seconds, rather than building the package.
 #
 # Usage: scripts/generate-health-catalog [--check]
 #   (none)   Regenerate the file.
@@ -20,7 +20,7 @@ print(try HealthCatalog.json(), terminator: "")
 EOF
 # Every source file in the module, folders included, built as one module with the generator's
 # main.swift, so it can call the module's internal `HealthCatalog.json()`.
-find LilPackage/Sources/HealthCatalog -name '*.swift' -print0 |
+find LilPackage/Sources/Health/HealthCatalog -name '*.swift' -print0 |
   xargs -0 xcrun swiftc -swift-version 6 -module-name HealthCatalogJSON -o "$tmp/health-catalog" \
     "$tmp/main.swift"
 "$tmp/health-catalog" > "$tmp/health-catalog.json"

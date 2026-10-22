@@ -1,0 +1,42 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthMacApp/SummaryCatalog.swift",
+  "screen" : "Summary",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.loaded-dark.png",
+      "id" : "summary.loaded",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.loaded-light.png",
+      "name" : "Loaded",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.no-data-dark.png",
+      "id" : "summary.no-data",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.no-data-light.png",
+      "name" : "No data",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.loading-dark.png",
+      "id" : "summary.loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.loading-light.png",
+      "name" : "Loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.failed-dark.png",
+      "id" : "summary.failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.failed-light.png",
+      "name" : "Failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.week-comparisons-dark.png",
+      "id" : "summary.week-comparisons",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.week-comparisons-light.png",
+      "name" : "Week comparisons",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SummaryCatalog.swift"
+    }
+  ]
+}
