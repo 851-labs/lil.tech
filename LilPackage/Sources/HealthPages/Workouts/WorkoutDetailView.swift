@@ -278,6 +278,13 @@ struct WorkoutDetailContent: View {
   }
 }
 
+extension EnvironmentValues {
+  /// Whether route maps draw MapKit's map under the route, or only the route (851-2951). MapKit
+  /// doesn't draw offscreen, and the grid it draws instead differs from one Mac to another, so
+  /// snapshot catalogs draw only the route.
+  @Entry var drawsRouteMaps = true
+}
+
 /// A route on a map, colored by pace: green where it was fastest, through yellow, to red where
 /// it was slowest, relative to the route itself.
 struct RouteMap: View {
@@ -289,14 +296,43 @@ struct RouteMap: View {
     bounds = Self.bounds(locations)
   }
 
+  @Environment(\.drawsRouteMaps) private var drawsMap
+
   var body: some View {
-    Map(initialPosition: .rect(bounds)) {
-      ForEach(Array(pieces.enumerated()), id: \.offset) { _, piece in
-        MapPolyline(coordinates: piece.coordinates)
-          .stroke(piece.color, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+    if drawsMap {
+      Map(initialPosition: .rect(bounds)) {
+        ForEach(Array(pieces.enumerated()), id: \.offset) { _, piece in
+          MapPolyline(coordinates: piece.coordinates)
+            .stroke(piece.color, style: Self.stroke)
+        }
+      }
+      .mapStyle(.standard(pointsOfInterest: .excludingAll))
+    } else {
+      route
+    }
+  }
+
+  private static let stroke = StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round)
+
+  /// The route alone, fitted to the view as the map fits its bounds, on a plain background.
+  private var route: some View {
+    Canvas { context, size in
+      let scale = min(size.width / bounds.width, size.height / bounds.height)
+      let origin = CGPoint(
+        x: (size.width - bounds.width * scale) / 2, y: (size.height - bounds.height * scale) / 2)
+      for piece in pieces {
+        var path = Path()
+        path.addLines(
+          piece.coordinates.map {
+            let point = MKMapPoint($0)
+            return CGPoint(
+              x: origin.x + (point.x - bounds.minX) * scale,
+              y: origin.y + (point.y - bounds.minY) * scale)
+          })
+        context.stroke(path, with: .color(piece.color), style: Self.stroke)
       }
     }
-    .mapStyle(.standard(pointsOfInterest: .excludingAll))
+    .background(.background)
   }
 
   /// The route's bounding box, with a margin.

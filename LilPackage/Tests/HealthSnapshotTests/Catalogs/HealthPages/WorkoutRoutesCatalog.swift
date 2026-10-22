@@ -31,9 +31,10 @@
       CatalogState("Workout routes loading") { list(.loading) },
       CatalogState("Workout routes failed") { list(.failed("The database couldn't be read.")) },
       // A route.
-      // MapKit doesn't draw offscreen: the map is its empty grid, without the route.
+      // The route without the map: MapKit doesn't draw offscreen (`drawsRouteMaps`).
       CatalogState("Other route", width: 760, minHeight: 760) {
         route { .loaded(LoadedRoute(locations(of: $0))) }
+          .environment(\.drawsRouteMaps, false)
       },
       CatalogState("Other route loading", width: 760, minHeight: 760) { route { _ in .loading } },
       CatalogState("Other route failed", width: 760, minHeight: 760) {
