@@ -68,7 +68,8 @@ struct SidebarView: View {
         TintedLabel("Summary", systemImage: "heart.text.square.fill", color: .accentColor)
           .tag(SidebarItem.summary)
         TintedLabel(
-          "Health Details", systemImage: "person.text.rectangle.fill", color: .accentColor
+          "Health Details", systemImage: HealthDetailsStyle.symbolName,
+          color: HealthDetailsStyle.color
         )
         .tag(SidebarItem.healthDetails)
         Section("Health Categories") {

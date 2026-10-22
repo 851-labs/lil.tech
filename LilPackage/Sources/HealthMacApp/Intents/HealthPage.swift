@@ -79,7 +79,7 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
   var symbolName: String {
     switch kind {
     case .summary: "heart.text.square.fill"
-    case .healthDetails: "person.text.rectangle.fill"
+    case .healthDetails: HealthDetailsStyle.symbolName
     case .category(let category): category.symbolName
     case .dataType(let type): type.symbolName
     }
@@ -88,7 +88,8 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
   /// The icon's color in the sidebar.
   var color: Color {
     switch kind {
-    case .summary, .healthDetails: .accentColor
+    case .summary: .accentColor
+    case .healthDetails: HealthDetailsStyle.color
     case .category(let category): category.color
     case .dataType(let type): type.color
     }
