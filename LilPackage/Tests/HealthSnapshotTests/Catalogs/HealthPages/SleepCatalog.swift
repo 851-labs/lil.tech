@@ -50,9 +50,8 @@
 
   private func nights(_ range: SleepRange, offset: Int = 0) -> [SleepNight] {
     try! catalogDatabase.read { db in
-      try HealthDatabase.sleepNights(
-        endingOn: range.lastDay(offset: offset, now: previewNow, calendar: previewCalendar),
-        count: range.nights, calendar: previewCalendar, db)
+      try SleepRequest(range: range, offset: offset, day: previewNow, calendar: previewCalendar)
+        .fetch(db)
     }
   }
 

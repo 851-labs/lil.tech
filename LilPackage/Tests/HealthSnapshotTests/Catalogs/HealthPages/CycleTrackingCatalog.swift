@@ -198,7 +198,8 @@
   private func cycle(_ state: CycleTrackingContent.State, selected: Date? = nil) -> some View {
     NavigationStack {
       CycleTrackingContent(
-        month: month, selected: .constant(selected), state: state, isLatest: false)
+        month: month, selected: .constant(selected), state: state, isLatest: false,
+        now: previewNow)
     }
   }
 #endif

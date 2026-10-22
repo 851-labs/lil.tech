@@ -50,7 +50,7 @@ public struct CycleTrackingView: View {
               deviations: history.deviations, moreDeviations: history.moreDeviations))
         }(),
       previous: { monthOffset -= 1 }, next: { monthOffset += 1 },
-      isLatest: monthOffset >= 0
+      isLatest: monthOffset >= 0, now: today
     )
     .task(id: [String(monthOffset), today.formatted(.iso8601)]) {
       if !isPositioned {
@@ -193,10 +193,10 @@ struct CycleTrackingContent: View {
   var previous: () -> Void = {}
   var next: () -> Void = {}
   var isLatest = true
-  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`): today is
-  /// marked, and shown when nothing's selected.
+  /// Today, as the page has it: marked, and shown when nothing's selected.
+  let now: Date
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
   @Dependency(\.calendar) private var calendar
-  @Dependency(\.date.now) private var now
 
   var body: some View {
     Group {
@@ -269,6 +269,7 @@ struct CycleTrackingContent: View {
       }
       .buttonStyle(.borderless)
       let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+      let shown = shownDay
       LazyVGrid(columns: columns, spacing: 6) {
         ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
           Text(symbol)
@@ -278,7 +279,7 @@ struct CycleTrackingContent: View {
         ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
           if let day {
             CycleDayCell(
-              day: day, entry: snapshot.days[day], isSelected: day == shownDay,
+              day: day, entry: snapshot.days[day], isSelected: day == shown,
               isToday: calendar.isDate(day, inSameDayAs: now), calendar: calendar
             )
             .onTapGesture { selected = day }

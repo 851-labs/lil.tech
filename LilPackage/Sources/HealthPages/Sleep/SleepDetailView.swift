@@ -63,17 +63,19 @@ struct SleepRequest: FetchKeyRequest {
   let offset: Int
   /// The day it's for, so a new day is a new request.
   let day: Date
+  let calendar: Calendar
 
-  init(range: SleepRange, offset: Int, day: Date) {
+  init(range: SleepRange, offset: Int, day: Date, calendar: Calendar = .current) {
     self.range = range
     self.offset = offset
-    self.day = Calendar.current.startOfDay(for: day)
+    self.day = calendar.startOfDay(for: day)
+    self.calendar = calendar
   }
 
   func fetch(_ db: Database) throws -> [SleepNight] {
     try HealthDatabase.sleepNights(
-      endingOn: range.lastDay(offset: offset, now: day, calendar: .current), count: range.nights,
-      calendar: .current, db)
+      endingOn: range.lastDay(offset: offset, now: day, calendar: calendar), count: range.nights,
+      calendar: calendar, db)
   }
 }
 
