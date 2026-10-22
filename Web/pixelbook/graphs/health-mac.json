@@ -219,6 +219,7 @@
       "states": [
         "Workout routes",
         "Workout routes, no other routes",
+        "Workout routes, at the limit",
         "Only other routes",
         "No workout routes",
         "Workout routes loading",
@@ -303,6 +304,7 @@
       "title": "Assessments",
       "states": [
         "GAD-7",
+        "GAD-7, at the limit",
         "PHQ-9, severe",
         "No assessments",
         "Assessments loading",

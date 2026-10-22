@@ -25,6 +25,10 @@
       CatalogState("Workout routes, no other routes") {
         list(.loaded(workoutsWithRoutes))
       },
+      // As if two were the most each list holds: each says it's cut short, under its routes.
+      CatalogState("Workout routes, at the limit") {
+        list(.loaded(Array(workoutsWithRoutes.prefix(2)), otherRoutes: otherRoutes), limit: 2)
+      },
       CatalogState("Only other routes") { list(.loaded([], otherRoutes: otherRoutes)) },
       CatalogState("No workout routes") { list(.loaded([])) },
       CatalogState("Workout routes loading") { list(.loading) },
@@ -70,9 +74,11 @@
   ]
 
   @MainActor
-  private func list(_ state: WorkoutsContent.State) -> some View {
+  private func list(_ state: WorkoutsContent.State, limit: Int = RecentWorkouts.limit)
+    -> some View
+  {
     NavigationStack {
-      WorkoutsContent(state: state, onlyWithRoutes: true)
+      WorkoutsContent(state: state, onlyWithRoutes: true, limit: limit)
     }
   }
 

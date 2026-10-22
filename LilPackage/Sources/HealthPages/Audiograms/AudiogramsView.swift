@@ -76,7 +76,8 @@ struct AudiogramsContent: View {
           isFirst: section.month == months.first?.month)
         ForEach(section.records) { audiogram in
           NavigationLink {
-            AudiogramDetailView(audiogram: audiogram)
+            // Built when opened: it decodes the audiogram's points.
+            Lazy { AudiogramDetailView(audiogram: audiogram) }
           } label: {
             LazyFormRow(
               isFirst: audiogram.id == section.records.first?.id,
@@ -169,7 +170,8 @@ struct AudiogramDetailView: View {
               "No Results", systemImage: "ear",
               description: Text("This audiogram has no frequencies tested.")
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // In the chart's place, as tall.
+            .frame(maxWidth: .infinity, minHeight: 360)
           } else {
             AudiogramChart(points: points)
               .frame(height: 360)

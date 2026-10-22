@@ -36,6 +36,10 @@
       CatalogState("PHQ-9, severe", width: 640, minHeight: 600) {
         assessments(.phq9, .loaded(phq9))
       },
+      // As if these were the most it holds: it says the list is cut short.
+      CatalogState("GAD-7, at the limit", width: 640, minHeight: 600) {
+        assessments(.gad7, .loaded(gad7), limit: gad7.count)
+      },
       CatalogState("No assessments", width: 640, minHeight: 600) {
         assessments(.gad7, .loaded([]))
       },
@@ -104,13 +108,14 @@
   }
 
   @MainActor
-  private func assessments(_ kind: AssessmentKind, _ state: ScoredAssessmentsContent.State)
-    -> some View
-  {
+  private func assessments(
+    _ kind: AssessmentKind, _ state: ScoredAssessmentsContent.State,
+    limit: Int = RecentAssessments.limit
+  ) -> some View {
     NavigationStack {
       ScoredAssessmentsContent(
         kind: kind, name: kind == .gad7 ? "Anxiety Risk (GAD-7)" : "Depression Risk (PHQ-9)",
-        state: state)
+        state: state, limit: limit)
     }
   }
 #endif

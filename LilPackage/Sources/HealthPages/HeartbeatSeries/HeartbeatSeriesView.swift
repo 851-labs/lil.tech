@@ -160,7 +160,8 @@ struct HeartbeatSeriesDetailView: View {
               "No Beats", systemImage: "heart.text.square",
               description: Text("This measurement has too few beats to show.")
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // In the chart's place, as tall.
+            .frame(maxWidth: .infinity, minHeight: 260)
           } else {
             Chart {
               ForEach(analysis.beats, id: \.time) { beat in

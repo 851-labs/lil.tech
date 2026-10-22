@@ -65,6 +65,8 @@ struct WorkoutsContent: View {
   let state: State
   /// Workout Routes rather than Workouts.
   var onlyWithRoutes = false
+  /// How many each list holds at most (`RecentWorkouts.limit`), to say when it's full.
+  var limit = RecentWorkouts.limit
   /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
   @Dependency(\.calendar) private var calendar
 
@@ -119,7 +121,7 @@ struct WorkoutsContent: View {
         }
       }
       // Under the workouts, not at the end of the page, which Other Routes may follow.
-      if workouts.count >= RecentWorkouts.limit {
+      if workouts.count >= limit {
         LazyFormFooter(limitNote(onlyWithRoutes ? "workouts with routes" : "workouts"))
       }
       if !otherRoutes.isEmpty {
@@ -137,7 +139,7 @@ struct WorkoutsContent: View {
           }
           .buttonStyle(.plain)
         }
-        if otherRoutes.count >= RecentWorkouts.limit {
+        if otherRoutes.count >= limit {
           LazyFormFooter(limitNote("other routes"))
         }
       }
@@ -146,9 +148,10 @@ struct WorkoutsContent: View {
 
   /// That a list stops at the limit: "Showing the 2,000 most recent workouts."
   private func limitNote(_ what: String) -> String {
-    "Showing the \(RecentWorkouts.limit.formatted()) most recent \(what)."
+    "Showing the \(limit.formatted()) most recent \(what)."
   }
 }
+
 /// Records (newest first) by the month they started in, as Health lists workouts and ECGs.
 func monthSections<Record>(
   _ records: [Record], calendar: Calendar, startDate: (Record) -> Int
