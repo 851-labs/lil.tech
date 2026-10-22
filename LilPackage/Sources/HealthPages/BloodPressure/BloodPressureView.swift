@@ -79,8 +79,10 @@ struct BloodPressureContent: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
+    // A grouped form on its own background, as Metric Detail is (851-2989, 851-3003): the average
+    // and the chart, then the period's readings.
+    Form {
+      Section {
         VStack(alignment: .leading, spacing: 12) {
           header
           chartArea
@@ -90,17 +92,13 @@ struct BloodPressureContent: View {
             legend("Diastolic", Self.diastolicColor)
           }
         }
-        .padding(16)
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-        if let chart, !chart.readings.isEmpty {
-          readings(chart.readings)
-        }
+        .padding(.vertical, 6)
       }
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
+      if let chart, !chart.readings.isEmpty {
+        readings(chart.readings)
+      }
     }
-    .background(Color.pageBackground)
+    .formStyle(.grouped)
     .navigationTitle("Blood Pressure")
     .periodControls(PagePeriod(range: $range, offset: $offset))
   }
@@ -169,7 +167,10 @@ struct BloodPressureContent: View {
     case .failed(let reason):
       ContentUnavailableView(
         "Couldn't Load Blood Pressure", systemImage: "exclamationmark.triangle",
-        description: Text(reason))
+        description: Text(reason)
+      )
+      // A form's row would otherwise give it only its ideal width, off center.
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .loaded(let chart):
       let perReading = range == .day || range == .week
       Chart {
@@ -303,42 +304,34 @@ struct BloodPressureContent: View {
 
   // MARK: Readings
 
+  /// A row per reading, newest first, up to `readingLimit`.
   private func readings(_ readings: [BloodPressureReading]) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Readings")
-        .font(.title3.bold())
-      VStack(spacing: 0) {
-        ForEach(Array(readings.prefix(Self.readingLimit).enumerated()), id: \.element.id) {
-          index, reading in
-          if index > 0 { Divider().padding(.leading, 14) }
-          HStack {
-            VStack(alignment: .leading, spacing: 2) {
-              HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(BloodPressureFormat.pair(reading.systolic, reading.diastolic))
-                  .font(.body.weight(.semibold))
-                  .monospacedDigit()
-                Text("mmHg")
-                  .font(.callout)
-                  .foregroundStyle(.secondary)
-              }
-              Text(reading.sourceName)
-                .font(.caption)
+    Section {
+      ForEach(readings.prefix(Self.readingLimit)) { reading in
+        HStack {
+          VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+              Text(BloodPressureFormat.pair(reading.systolic, reading.diastolic))
+                .font(.body.weight(.semibold))
+                .monospacedDigit()
+              Text("mmHg")
+                .font(.callout)
                 .foregroundStyle(.secondary)
             }
-            Spacer()
-            Text(reading.date.formatted(Self.time(calendar)))
+            Text(reading.sourceName)
+              .font(.caption)
               .foregroundStyle(.secondary)
           }
-          .padding(.horizontal, 14)
-          .padding(.vertical, 8)
+          Spacer()
+          Text(reading.date.formatted(Self.time(calendar)))
+            .foregroundStyle(.secondary)
         }
       }
-      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+    } header: {
+      Text("Readings")
+    } footer: {
       if readings.count > Self.readingLimit {
         Text("Showing the \(Self.readingLimit) most recent readings in this period.")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-          .padding(.horizontal, 14)
       }
     }
   }
