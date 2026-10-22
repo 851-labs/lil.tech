@@ -108,7 +108,7 @@ private let typeHelp = ArgumentHelp(
 struct SummaryCommand: QueryCommand {
   static let configuration = CommandConfiguration(
     commandName: "summary",
-    abstract: "The pinned metrics (or everyday ones), with today's and the last 7 days' totals.")
+    abstract: "Everyday metrics, with today's and the last 7 days' totals.")
 
   @Option(help: timeZoneHelp) var timeZone: String?
   @OptionGroup var output: OutputOptions

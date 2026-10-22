@@ -1349,6 +1349,45 @@ describe("POST /v1/sync/mutations", () => {
     ),
   );
 
+  // Pins are retired (851-2990), but a Mac from before (0.3.0) still writes them as it did, a
+  // change at a time: deletes for the pins removed, then every pin at its position.
+  it.live("still takes pins from Macs from before they were retired, and serves them back", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* signIn;
+        const pinned = yield* push(handler, tokens.accessToken, {
+          mutationId: mutationId(11),
+          mutations: [pin(steps, 0), pin(weight, 1)],
+        });
+        assert.deepStrictEqual(pinned, { status: 200, body: { seq: 2 } });
+        const unpinned = yield* push(handler, tokens.accessToken, {
+          mutationId: mutationId(12),
+          mutations: [{ entity: "health_pin", op: "delete", id: steps }, pin(weight, 0)],
+        });
+        assert.deepStrictEqual(unpinned, { status: 200, body: { seq: 4 } });
+
+        // Other Macs from before pull them as they did, each change as its record is now.
+        const pull = yield* send(
+          handler,
+          new Request("https://api.lil.tech/v1/sync/changes", {
+            headers: bearer(tokens.accessToken),
+          }),
+        );
+        assert.strictEqual(pull.status, 200);
+        const changes = (pull.body as { changes: Array<Record<string, unknown>> }).changes;
+        assert.deepStrictEqual(
+          changes.map((change) => [change["entity"], change["id"], change["op"], change["row"]]),
+          [
+            ["health_pin", steps, "delete", undefined],
+            ["health_pin", weight, "upsert", { id: weight, position: 0 }],
+            ["health_pin", steps, "delete", undefined],
+            ["health_pin", weight, "upsert", { id: weight, position: 0 }],
+          ],
+        );
+      }),
+    ),
+  );
+
   it.live("refuses entities apps can't write, and invalid rows, applying nothing", () =>
     withApi((handler) =>
       Effect.gen(function* () {

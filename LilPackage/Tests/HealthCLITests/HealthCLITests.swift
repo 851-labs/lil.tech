@@ -93,7 +93,7 @@ struct HealthCLITests {
 
     let summary = folder.run("summary", "--time-zone", "UTC")
     #expect(summary.status == 0 && summary.error.isEmpty)
-    #expect(summary.output.contains("Summary for 2026-10-20 (UTC), everyday metrics"))
+    #expect(summary.output.contains("Summary for 2026-10-20 (UTC)\n"))
     #expect(summary.output.contains("3200 today · 15700 in the last 7 days"))
 
     let metric = folder.run("metric", "Steps", "--range", "W", "--json", "--time-zone", "UTC")

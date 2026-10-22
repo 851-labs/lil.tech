@@ -148,10 +148,6 @@ export const workoutTotals = (sql: StoreSql, from: number, to: number) => {
   return { count: Number(row?.["count"] ?? 0), duration: Number(row?.["duration"] ?? 0) };
 };
 
-/** The types pinned to Summary, in order (as the Mac's `HealthDatabase.summaryPins`). */
-export const summaryPins = (sql: StoreSql): ReadonlyArray<string> =>
-  sql.exec("SELECT id FROM health_pin ORDER BY position, id").map((row) => row["id"] as string);
-
 /** Skips samples deleted since the store last swept (tombstones), for a `health_sample s`. */
 const liveSample =
   "NOT EXISTS (SELECT 1 FROM tombstones t WHERE t.entity = 'health_sample' AND t.id = s.id)";

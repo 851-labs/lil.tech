@@ -186,7 +186,7 @@ POST /v1/sync/mutations
 - At most 500 mutations a push. One for an entity apps may not write, or with an invalid row, fails the whole push with 400 `MutationRejected` (its `index` and why).
 - Every mutation in a request is applied in one transaction, or none are. The response is `{ "seq": <n> }`, the `seq` of the last change it produced (or `head` if nothing changed).
 - **Client upserts merge:** fields missing from `row` keep their stored values, and `null` clears a field. An older app that doesn't know a field can't erase it. The change appended to the log still carries the full merged row.
-- Each entity declares whether clients may write it. Most synced data, such as health samples, can only be written by the server; app state such as pins and settings can be written by clients.
+- Each entity declares whether clients may write it. Most synced data, such as health samples, can only be written by the server; app state such as settings can be written by clients. Today that's only `health_pin`, Summary's pins, which are retired (851-2990): the Mac no longer syncs them, and the server keeps taking them from older Macs.
 - **Optimistic local writes:**
   - The client writes to its local tables and adds the mutation to a pending queue, together with the record's previous local state.
   - Pulled changes overwrite local rows, and pending mutations are reapplied on top until the client's cursor reaches the `seq` returned for them.

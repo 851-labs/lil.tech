@@ -92,7 +92,7 @@ struct SidebarView: View {
   }
 }
 
-/// What's selected: Summary's pins, Health Details, a category's metrics, or a metric found by
+/// What's selected: Summary, Health Details, a category's metrics, or a metric found by
 /// search. A metric's card opens its detail, in the store's `metricPath`, so an intent can open
 /// one too.
 struct DetailView: View {
@@ -102,7 +102,7 @@ struct DetailView: View {
     switch store.selection {
     case .summary, nil:
       NavigationStack(path: metricPath(for: store.selection)) {
-        SummaryView(store: store.scope(\.summary, action: \.summary))
+        SummaryView()
           .navigationDestination(for: String.self) { MetricDetail(typeID: $0) }
       }
     case .healthDetails:

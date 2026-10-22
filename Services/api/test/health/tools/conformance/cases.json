@@ -1,6 +1,6 @@
 {
   "notes": [
-    "The Health toolkit's conformance cases (851-2841): each runs one tool call on dataset.json, with the clock at `now`, after the Mac pushes `pins` (if any), and both MCP servers must answer `expected` (or fail, with `expectedError`).",
+    "The Health toolkit's conformance cases (851-2841): each runs one tool call on dataset.json, with the clock at `now`, after a Mac from before pins were retired (851-2990) pushes `pins` (if any), and both MCP servers must answer `expected` (or fail, with `expectedError`).",
     "Outputs match as JSON, except that numbers may differ by a relative 1e-9 (sums added in another order).",
     "Write expected outputs by hand, from the dataset and the tools' descriptions, not by copying what an implementation returns."
   ],
@@ -262,7 +262,7 @@
       }
     },
     {
-      "name": "summary of the pinned metrics, in their order",
+      "name": "summary ignores pins a Mac pushed before they were retired: the everyday metrics",
       "tool": "summary",
       "now": "2026-10-20T15:00:00Z",
       "pins": [
@@ -285,19 +285,19 @@
       "expected": {
         "timeZone": "UTC",
         "date": "2026-10-20",
-        "pinned": true,
+        "pinned": false,
         "metrics": [
           {
-            "type": "HKCategoryTypeIdentifierSleepAnalysis",
-            "unit": null,
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "unit": "count",
             "latest": {
-              "start": "2026-10-20T00:00:00+00:00",
-              "end": "2026-10-20T01:30:00+00:00",
-              "value": null,
-              "categoryValue": 3
+              "start": "2026-10-20T14:10:00+00:00",
+              "end": "2026-10-20T14:15:00+00:00",
+              "value": 412,
+              "categoryValue": null
             },
-            "today": null,
-            "last7Days": null
+            "today": 3200,
+            "last7Days": 8500
           },
           {
             "type": "HKQuantityTypeIdentifierHeartRate",
@@ -312,9 +312,45 @@
             "last7Days": null
           },
           {
-            "type": "HKQuantityTypeIdentifierVO2Max",
+            "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+            "unit": "kcal",
+            "latest": {
+              "start": "2026-10-20T08:10:00+00:00",
+              "end": "2026-10-20T08:20:00+00:00",
+              "value": 12.5,
+              "categoryValue": null
+            },
+            "today": 120.5,
+            "last7Days": 420.75
+          },
+          {
+            "type": "HKQuantityTypeIdentifierDistanceWalkingRunning",
             "unit": null,
             "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "unit": "count/min",
+            "latest": {
+              "start": "2026-10-19T07:00:00+00:00",
+              "end": "2026-10-19T07:00:00+00:00",
+              "value": 58,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "unit": "kg",
+            "latest": {
+              "start": "2026-10-17T07:30:00+00:00",
+              "end": "2026-10-17T07:30:00+00:00",
+              "value": 70.5,
+              "categoryValue": null
+            },
             "today": null,
             "last7Days": null
           }

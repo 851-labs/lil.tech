@@ -51,6 +51,8 @@ public struct HealthSummaryMetric: Codable, Equatable, Sendable {
 public struct HealthSummaryResult: HealthToolOutput {
   public var timeZone: String
   public var date: String
+  /// Deprecated, always `false`: pins are retired (851-2990), and `metrics` are always Summary's
+  /// everyday ones. Kept because it's in the tool's published output schema.
   public var pinned: Bool
   public var metrics: [HealthSummaryMetric]
   public var workouts: Workouts

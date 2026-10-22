@@ -106,13 +106,10 @@
     return state
   }
 
-  /// The window in a state, with nothing pinned to Summary: `EmptyReducer` never runs Summary's
-  /// task to read the pins, nor the window's, which would replace the state with the real
-  /// session's.
+  /// The window in a state: `EmptyReducer` never runs the window's task, which would replace the
+  /// state with the real session's.
   @MainActor
   private func window(_ state: AppFeature.State) -> some View {
-    var state = state
-    state.summary = SummaryFeature.State(pins: [])
-    return AppView(store: Store(initialState: state) { EmptyReducer() })
+    AppView(store: Store(initialState: state) { EmptyReducer() })
   }
 #endif

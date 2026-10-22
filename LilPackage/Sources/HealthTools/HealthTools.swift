@@ -20,14 +20,6 @@ public struct HealthTools: Sendable {
     self.defaultTimeZone = defaultTimeZone
   }
 
-  /// What `summary` shows when nothing is pinned: the Mac's Summary suggestions.
-  public static let summaryDefaultTypes = [
-    "HKQuantityTypeIdentifierStepCount", "HKQuantityTypeIdentifierHeartRate",
-    "HKQuantityTypeIdentifierActiveEnergyBurned",
-    "HKQuantityTypeIdentifierDistanceWalkingRunning",
-    "HKQuantityTypeIdentifierRestingHeartRate", "HKQuantityTypeIdentifierBodyMass",
-  ]
-
   /// The most samples one call returns, and how many it returns by default.
   public static let samplesLimit = 500
   public static let samplesDefaultLimit = 100
@@ -36,16 +28,15 @@ public struct HealthTools: Sendable {
 
   // MARK: - summary
 
-  /// For each pinned type (else `summaryDefaultTypes`), its latest sample that has started, and
-  /// from the statistics source its totals today and over the last 7 days (skipping empty
-  /// buckets); plus the workouts that started in those 7 days, by now.
+  /// For each of Summary's metrics (`HealthDatabase.summaryTypes`), its latest sample that has
+  /// started, and from the statistics source its totals today and over the last 7 days (skipping
+  /// empty buckets); plus the workouts that started in those 7 days, by now.
   public func summary(timeZone: String? = nil, _ db: Database) throws -> HealthSummaryResult {
     let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let today = time.startOfDay(now)
     let tomorrow = time.startOfDay(now, adding: 1)
     let weekStart = time.startOfDay(now, adding: -6)
-    let pins = try HealthDatabase.summaryPins(db)
-    let metrics = try (pins.isEmpty ? Self.summaryDefaultTypes : pins).map { type in
+    let metrics = try HealthDatabase.summaryTypes.map { type in
       let latest = try HealthDatabase.latestSample(of: type, startedBy: now, db)
       let days = try HealthDatabase.cumulativeStatistics(
         of: type, in: weekStart..<tomorrow, by: .day, calendar: time.calendar, now: now, db)
@@ -65,7 +56,7 @@ public struct HealthTools: Sendable {
     let workouts = try HealthDatabase.workoutTotals(
       in: weekStart..<min(tomorrow, now.nextMillisecond), db)
     return HealthSummaryResult(
-      timeZone: time.name, date: time.localDate(now), pinned: !pins.isEmpty, metrics: metrics,
+      timeZone: time.name, date: time.localDate(now), pinned: false, metrics: metrics,
       workouts: .init(count: workouts.count, duration: workouts.duration))
   }
 

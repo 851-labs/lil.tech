@@ -53,7 +53,8 @@ enum Conformance {
   /// `ingestHealthBatch` stores them (`Services/api/src/health/HealthIngestion.ts`): records an
   /// iPhone computes for itself (statistics, and its `self` statistics device) are keyed by the
   /// device and say which one it is, and a device's `reportedAt` is when the server applied its
-  /// batch. Then `pins`, as the Mac writes them (`POST /v1/sync/mutations`).
+  /// batch. Then `pins`, as a Mac from before pins were retired (851-2990) writes them
+  /// (`POST /v1/sync/mutations`): the server still takes them, and this Mac skips them.
   static func changes(pins: [Case.Pin]?) throws -> [[String: Any]] {
     let dataset = try JSONSerialization.jsonObject(
       with: Data(contentsOf: directory.appending(path: "dataset.json")))

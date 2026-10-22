@@ -95,7 +95,7 @@ const storeWithDataset = (pins: Case["pins"]) =>
       assert.deepInclude(status, { status: "applied", rejected: 0 }, `batch ${index + 1}`);
     }
     if (pins !== undefined) {
-      // As the Mac writes them (`POST /v1/sync/mutations`).
+      // As a Mac from before pins were retired (851-2990) writes them (`POST /v1/sync/mutations`).
       yield* (yield* UserStores).forUser(userId).pushMutations(
         "conformance-pins",
         pins.map(({ id, position }) => ({

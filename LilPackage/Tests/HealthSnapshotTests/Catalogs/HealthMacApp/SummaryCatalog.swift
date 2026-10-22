@@ -8,9 +8,8 @@
   import SwiftUI
   import Testing
 
-  // Summary (`SummaryContent`): the pinned metrics' cards and highlights, from the catalog
-  // database at `previewNow`, its pin editor, and highlight cards with made-up values. Synthetic
-  // data only.
+  // Summary (`SummaryContent`): the everyday metrics' cards and highlights, from the catalog
+  // database at `previewNow`, and highlight cards with made-up values. Synthetic data only.
 
   extension MacSnapshotTests {
     @Test(arguments: summaryCatalog.selectedStates)
@@ -22,20 +21,19 @@
   let summaryCatalog = StateCatalog(
     "Summary", width: 760, minHeight: 1100,
     states: [
-      CatalogState("Pinned") {
-        summary(pins: pinned, .loaded(pinnedSummaries(pinned)), highlights: .loaded(highlights()))
+      CatalogState("Loaded") {
+        summary(.loaded(summaryMetrics()), highlights: .loaded(highlights()))
       },
-      CatalogState("Nothing pinned") { summary(pins: [], .loaded([])) },
-      CatalogState("Loading") { summary(pins: pinned, .loading, highlights: .loading) },
+      // A new account, before its iPhone has shared anything.
+      CatalogState("No data") {
+        summary(.loaded(HealthDatabase.summaryTypes.map { MetricSummary(id: $0) }))
+      },
+      CatalogState("Loading") { summary(.loading, highlights: .loading) },
       CatalogState("Failed") {
         summary(
-          pins: pinned, .failed("The database couldn't be read."),
+          .failed("The database couldn't be read."),
           highlights: .failed("The database couldn't be read."))
       },
-      // Wider than the sheet's 420 points, so its search field shows whole: narrower, it folds
-      // into a toolbar button whose glyph only sometimes draws offscreen.
-      CatalogState("Edit", width: 640, minHeight: 520) { pinEditor() },
-      CatalogState("Edit, searching", width: 420, minHeight: 520) { pinEditor(search: "heart") },
       // About the same, up a lot, and down to almost nothing, in a narrow column, where the bars'
       // names used to run into the bar above (851-2824).
       CatalogState("Week comparisons", width: 360, minHeight: 640) {
@@ -51,35 +49,20 @@
       },
     ])
 
-  private let pinned = [
-    "HKQuantityTypeIdentifierStepCount", "HKQuantityTypeIdentifierHeartRate",
-    "HKQuantityTypeIdentifierActiveEnergyBurned", "HKCategoryTypeIdentifierSleepAnalysis",
-    // No data in the catalog database.
-    "HKDataTypeIdentifierElectrocardiogram",
-  ]
-
-  /// The pin editor, with three pins.
-  @MainActor
-  private func pinEditor(search: String = "") -> some View {
-    var state = SummaryFeature.State(pins: Array(pinned.prefix(3)), isEditing: true)
-    state.search = search
-    return PinEditor(store: Store(initialState: state) { SummaryFeature() })
-  }
-
   /// Summary in a navigation stack, for its title.
   @MainActor
   private func summary(
-    pins: [String], _ state: SummaryContent.State<[MetricSummary]>,
+    _ state: SummaryContent.State<[MetricSummary]>,
     highlights: SummaryContent.State<[Highlight]> = .loaded([])
   ) -> some View {
     NavigationStack {
-      SummaryContent(pins: pins, state: state, highlights: highlights, edit: {}, pin: { _ in })
+      SummaryContent(state: state, highlights: highlights)
     }
   }
 
   /// The app's request, at the suite's date and calendar.
-  private func pinnedSummaries(_ ids: [String]) -> [MetricSummary] {
-    try! catalogDatabase.read { db in try PinnedSummaries(ids: ids).fetch(db) }
+  private func summaryMetrics() -> [MetricSummary] {
+    try! catalogDatabase.read { db in try SummaryRequest().fetch(db) }
   }
 
   /// The catalog database's week highlights (two weeks of data), after a made-up trend.

@@ -419,6 +419,13 @@ public enum HealthDatabase {
       )
       .execute(db)
     }
+    // Summary's pins are retired (851-2990): `health_pin` no longer syncs to the Mac, so rows
+    // here would never change again, nor go when the account signs out. The table stays for an
+    // older release, if one is reinstalled: once this one has synced, `health_pin` is missing
+    // from the entities its data records, so the older one bootstraps and gets them back.
+    migrator.registerMigration("Retire health pins") { db in
+      try #sql(#"DELETE FROM "healthPins""#).execute(db)
+    }
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
@@ -531,9 +538,6 @@ public enum HealthDatabase {
 
   /// The health entities, for ``LilSyncEngine/init(entities:syncSchema:partsDirectory:)``.
   public static let syncEntities: [SyncEntity] = [
-    entity("health_pin", Components.Schemas.HealthPin.self) { row in
-      HealthPin(id: row.id, position: row.position)
-    },
     entity("health_provenance", Components.Schemas.HealthProvenance.self) { row in
       HealthProvenance(
         id: row.id, sourceRevision: try json(row.sourceRevision), device: try json(row.device))
