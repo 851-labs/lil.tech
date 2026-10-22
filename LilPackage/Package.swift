@@ -66,7 +66,9 @@ let package = Package(
     .target(
       name: "HealthAgentAccess",
       dependencies: [
-        .product(name: "GRDB", package: "GRDB.swift")
+        // Names the pages the command line asks the app to open, for the log (851-2895).
+        "HealthCatalog",
+        .product(name: "GRDB", package: "GRDB.swift"),
       ]
     ),
     .testTarget(

@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 import Foundation
+public import HealthAgentAccess
 public import HealthCatalog
 import HealthDatabase
 public import LilAuth
@@ -62,6 +63,9 @@ public struct AppFeature {
     /// An app action an intent asked for (`HealthAppActions`), with how to answer it.
     case appActionRequested(HealthAppActionRequest)
     case binding(BindingAction<State>)
+    /// Requests from the command line (`lil-health open`, `sync`, `export`) the app claimed from
+    /// `AgentAccess.sqlite`, to perform through `HealthAppActions` (851-2895).
+    case commandLineActionsClaimed([AgentActionRequest])
     case retrySyncButtonTapped
     case signedInChanged(Bool)
     case signIn(SignInFeature.Action)
@@ -150,6 +154,9 @@ public struct AppFeature {
 
       case .binding:
         return .none
+
+      case .commandLineActionsClaimed(let requests):
+        return .merge(requests.map(performCommandLineAction))
 
       case .retrySyncButtonTapped:
         // A new pull right away: asking the running one (`syncNow`) wouldn't cut its backoff
@@ -259,11 +266,14 @@ public struct AppFeature {
         return .none
 
       case .task:
-        return .run { [auth] send in
-          for await isSignedIn in await auth.signedInUpdates() {
-            await send(.signedInChanged(isSignedIn))
-          }
-        }
+        return .merge(
+          .run { [auth] send in
+            for await isSignedIn in await auth.signedInUpdates() {
+              await send(.signedInChanged(isSignedIn))
+            }
+          },
+          claimCommandLineActions()
+        )
       }
     }
   }
@@ -308,6 +318,50 @@ public struct AppFeature {
       }
       .cancellable(id: CancelID.sync)
     )
+  }
+
+  /// The command line's requests (851-2895): claimed at launch, signed in or not, and each time a
+  /// command signals. Claiming checks access is still on, so a request made just before it was
+  /// turned off fails instead (`AgentAccessStore.claimActions`).
+  private func claimCommandLineActions() -> Effect<Action> {
+    .run { [agentAccess] send in
+      for await _ in agentAccess.actionsRequested() {
+        do {
+          let requests = try await agentAccess.claimActions()
+          if !requests.isEmpty { await send(.commandLineActionsClaimed(requests)) }
+        } catch {
+          reportIssue(error)
+        }
+      }
+    }
+  }
+
+  /// Performs a request from the command line as the intents' are, through `HealthAppActions`:
+  /// it waits for sign-in after launch, then fails with "Sign in to lil health first.". Writes
+  /// the outcome for the command to read. Not cancelled by signing out: that fails the action,
+  /// and the failure is written.
+  private func performCommandLineAction(_ request: AgentActionRequest) -> Effect<Action> {
+    .run { [agentAccess, healthAppActions, clock] _ in
+      let outcome: AgentActionOutcome
+      do {
+        let action = try HealthAppAction(request.action)
+        // Forward first, then the page, as the intent does.
+        if case .open = action { await agentAccess.bringAppForward() }
+        outcome = .ok(AgentActionResult(try await healthAppActions.perform(action, { _ in })))
+      } catch {
+        outcome = .failed(AgentActionFailure(error))
+      }
+      // Tried again, since the command waits on it: a request left claimed without an outcome
+      // reads as running for as long as the app runs.
+      for attempt in 1...3 {
+        do {
+          return try await agentAccess.finishAction(request.id, outcome)
+        } catch {
+          guard attempt < 3 else { return reportIssue(error) }
+          try? await clock.sleep(for: .seconds(1))
+        }
+      }
+    }
   }
 
   /// Sync, for an app action (851-2893): a new pull, as Try Again, unless one is running, then
