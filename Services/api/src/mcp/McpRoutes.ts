@@ -93,7 +93,12 @@ const logToolCall = (
     const durationMs = (yield* Clock.currentTimeMillis) - forwardedAt;
     const bytes = Number(response.headers[agentAnswerBytesHeader]);
     yield* Effect.logInfo("Agent tool call").pipe(
-      Effect.annotateLogs({ tool, grant: grant.id, durationMs, bytes }),
+      Effect.annotateLogs({
+        tool,
+        grant: grant.id,
+        durationMs,
+        ...(Number.isSafeInteger(bytes) ? { bytes } : {}),
+      }),
     );
     return response.pipe(
       HttpServerResponse.removeHeader(agentToolHeader),

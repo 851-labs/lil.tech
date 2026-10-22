@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Logger } from "effect";
+import { Effect, Layer, Logger } from "effect";
 import { eq } from "drizzle-orm";
 import { CoreDb } from "../../src/core/CoreDb.ts";
 import { agentGrants } from "../../src/core/Schema.ts";
@@ -8,7 +8,8 @@ import type { Deployment } from "../../src/Deployment.ts";
 import { agentAnswerBytesHeader, agentToolHeader } from "../../src/mcp/AgentHeaders.ts";
 import { maxMcpRequestBytes } from "../../src/mcp/McpRoutes.ts";
 import { type RateLimitName, RateLimits } from "../../src/RateLimits.ts";
-import { TestStores } from "../store/TestUserStores.ts";
+import { UserStores } from "../../src/store/UserStores.ts";
+import { TestStores, TestUserStores } from "../store/TestUserStores.ts";
 import { type Handler, send, withApi } from "../TestApi.ts";
 import { type Approval, approve } from "../oauth/TestAgents.ts";
 import {
@@ -229,6 +230,18 @@ describe("the Health MCP server", () => {
   it.live("logs each tool call from the Worker, with the store's tool and size", () =>
     Effect.gen(function* () {
       const logged: Array<{ readonly message: unknown; readonly annotations: object }> = [];
+      // Stores that take a while to answer.
+      const storeTakes = 50;
+      const slowStores = Layer.effect(
+        UserStores,
+        Effect.map(UserStores, (stores) =>
+          UserStores.of({
+            ...stores,
+            mcp: (userId, request) =>
+              Effect.sleep(storeTakes).pipe(Effect.andThen(stores.mcp(userId, request))),
+          }),
+        ),
+      ).pipe(Layer.provide(TestUserStores));
       const capture = Logger.map(Logger.formatStructured, (entry) => {
         logged.push(entry);
       });
@@ -255,14 +268,15 @@ describe("the Health MCP server", () => {
               bytes,
             } = calls[0]!.annotations as Record<string, unknown>;
             assert.deepStrictEqual({ tool, grantId }, { tool: "summary", grantId: grant!.id });
-            assert.isAtLeast(durationMs as number, 0);
+            // How long the store took to answer, as the Worker waited for it.
+            assert.isAtLeast(durationMs as number, storeTakes);
             // The tool's answer as JSON: its structured content.
             const content = result(answer.message)?.["structuredContent"];
             assert.strictEqual(bytes, new TextEncoder().encode(JSON.stringify(content)).byteLength);
           }),
         preview,
         RateLimits.unlimited,
-        Logger.layer([capture]),
+        Layer.mergeAll(Logger.layer([capture]), slowStores),
       );
     }),
   );
