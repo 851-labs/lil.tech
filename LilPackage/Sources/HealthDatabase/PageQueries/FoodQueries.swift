@@ -64,18 +64,8 @@ extension HealthDatabase {
   /// The foods (newest first, as `foodPage` reads them) by day in `calendar`, each day with the
   /// total energy of its foods.
   public static func foodDays(_ foods: [Food], calendar: Calendar) -> [FoodDay] {
-    var days: [FoodDay] = []
-    var current: DateInterval?
-    for food in foods {
-      // The calendar only when a food leaves the day before it.
-      if let current, current.contains(food.start), !days.isEmpty {
-        days[days.count - 1].foods.append(food)
-      } else {
-        current = calendar.dateInterval(of: .day, for: food.start)
-        days.append(FoodDay(day: current?.start ?? food.start, foods: [food]))
-      }
-    }
-    return days
+    sections(foods, by: .day, calendar: calendar, startDate: \.startDate)
+      .map { FoodDay(day: $0.start, foods: $0.records) }
   }
 
   /// Every nutrient of one food (its samples), in the catalog's order of their types, then any
