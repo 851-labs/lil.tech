@@ -298,7 +298,7 @@ struct CycleTrackingContent: View {
               label: MonthCalendar.label(
                 day, isToday: isToday, details: CycleDayCell.logged(snapshot.days[day]),
                 calendar: calendar),
-              isSelected: day == shown, in: month, shown: shown, focus: $focusedDay,
+              in: month, shown: shown, focus: $focusedDay,
               focusTarget: $focusTarget,
               calendar: calendar
             ) { selected = day }

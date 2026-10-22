@@ -3,24 +3,24 @@ import SwiftUI
 extension View {
   /// Makes a day in a month's calendar choosable without a pointer (851-3015). The calendar is one
   /// stop for Tab, as a date picker is: focus lands on the day shown (or last focused), the arrow
-  /// keys move it a day or a week within the month, and Space or Return chooses the focused day. VoiceOver reads the
-  /// day as a button with `label`, selected when it's the day shown, and VO-Space chooses it. A
-  /// click chooses it too.
+  /// keys move it a day or a week within the month, and Space or Return chooses the focused day.
+  /// VoiceOver reads the day as a button with `label`, selected when it's the day shown, and
+  /// VO-Space chooses it. A click chooses it too.
   ///
   /// - Parameters:
   ///   - focus: The calendar's focused day, shared by its days.
   ///   - focusTarget: The day Tab stops on, shared by its days: where focus or a choice last
   ///     moved, or the day shown if that's not in the month.
-  ///   - shown: The day shown.
+  ///   - shown: The day shown, which reads as selected.
   ///   - canChoose: Whether a day can be chosen. The others can't take focus.
   func calendarDay(
-    _ day: Date, label: String, isSelected: Bool, in month: DateInterval, shown: Date,
+    _ day: Date, label: String, in month: DateInterval, shown: Date,
     focus: FocusState<Date?>.Binding, focusTarget: Binding<Date?>, calendar: Calendar,
     canChoose: @escaping (Date) -> Bool = { _ in true }, choose: @escaping () -> Void
   ) -> some View {
     modifier(
       CalendarDayModifier(
-        day: day, label: label, isSelected: isSelected, month: month, shown: shown, focus: focus,
+        day: day, label: label, month: month, shown: shown, focus: focus,
         focusTarget: focusTarget, calendar: calendar, canChoose: canChoose, choose: choose))
   }
 }
@@ -28,7 +28,6 @@ extension View {
 private struct CalendarDayModifier: ViewModifier {
   let day: Date
   let label: String
-  let isSelected: Bool
   let month: DateInterval
   let shown: Date
   let focus: FocusState<Date?>.Binding
@@ -60,6 +59,8 @@ private struct CalendarDayModifier: ViewModifier {
       }
       .onKeyPress(keys: [.space, .return]) { _ in
         choose()
+        // Focus may have come by Tab, with Keyboard Navigation on, rather than the arrow keys.
+        focusTarget = day
         return .handled
       }
       .onTapGesture {
@@ -70,7 +71,7 @@ private struct CalendarDayModifier: ViewModifier {
       }
       .accessibilityElement(children: .ignore)
       .accessibilityLabel(label)
-      .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+      .accessibilityAddTraits(day == shown ? [.isButton, .isSelected] : .isButton)
       .accessibilityAction {
         guard isEnabled else { return }
         choose()

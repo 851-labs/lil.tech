@@ -189,7 +189,7 @@ struct ActivityRingsContent: View {
               day, isToday: isToday,
               details: isFuture ? [] : [ActivityDayCell.rings(days[key(day)])],
               calendar: calendar),
-            isSelected: day == shown, in: month, shown: shown, focus: $focusedDay,
+            in: month, shown: shown, focus: $focusedDay,
             focusTarget: $focusTarget,
             calendar: calendar, canChoose: { $0 <= today }
           ) { selected = day }
