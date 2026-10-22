@@ -142,22 +142,20 @@ struct AgentSetupSection: View {
   /// `lil health mcp`'s: lil health's only.
   static let healthArguments = "health mcp"
 
-  /// Claude Code's command for `lil mcp`, with `lil`'s full path once it's known: an agent started
-  /// from an IDE or the Dock may not have `~/.local/bin` on its `PATH`.
-  static func claudeCode(_ lil: String) -> String {
-    "claude mcp add --scope user lil -- \(lil) \(arguments)"
-  }
-
-  /// Claude Code's command for lil health's own server.
-  static func claudeCodeHealth(_ lil: String) -> String {
-    "claude mcp add --scope user lil-health -- \(lil) \(healthArguments)"
+  /// Claude Code's command adding `lil` with these arguments as the server `name`, with `lil`'s
+  /// full path once it's known: an agent started from an IDE or the Dock may not have
+  /// `~/.local/bin` on its `PATH`.
+  static func claudeCode(name: String, lil: String, arguments: String) -> String {
+    "claude mcp add --scope user \(name) -- \(lil) \(arguments)"
   }
 
   private var path: String? { commandLineTool?.path(percentEncoded: false) }
 
   var body: some View {
     Section {
-      CopyableRow(title: "Claude Code", value: Self.claudeCode(path ?? "lil"))
+      CopyableRow(
+        title: "Claude Code",
+        value: Self.claudeCode(name: "lil", lil: path ?? "lil", arguments: Self.arguments))
       if let path {
         CopyableRow(title: "Other agents: command", value: path)
         CopyableRow(title: "Other agents: arguments", value: Self.arguments)
@@ -186,7 +184,10 @@ struct AgentSetupSection: View {
     }
 
     Section {
-      CopyableRow(title: "Claude Code", value: Self.claudeCodeHealth(path ?? "lil"))
+      CopyableRow(
+        title: "Claude Code",
+        value: Self.claudeCode(
+          name: "lil-health", lil: path ?? "lil", arguments: Self.healthArguments))
       if path != nil {
         CopyableRow(title: "Other agents: arguments", value: Self.healthArguments)
       }
@@ -195,7 +196,7 @@ struct AgentSetupSection: View {
     } footer: {
       Text(
         path == nil
-          ? "For an agent that should only see lil health, add lil-health instead."
+          ? "For an agent that should only see lil health, add lil-health instead, once lil is installed."
           : "For an agent that should only see lil health, add lil-health instead: the same command, with these arguments."
       )
       .foregroundStyle(.secondary)
