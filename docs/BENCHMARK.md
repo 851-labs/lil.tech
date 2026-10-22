@@ -145,6 +145,19 @@ Where the 6.3 s of a `HealthPages` edit go, from `swift build -v`'s output on th
 - **Opened fresh:** `RenderPreview` in a new worktree's workspace waited 26 s for packages to load, then 204 s for its first image (load 290, rising to 800 as Xcode built). `scripts/snapshot`'s first build in a new worktree took 277 s (load 270), 130 s of it fetching dependencies again and 148 s building; 72 s on the mini. Since 851-2973, `scripts/worktree new` resolves that `.build` from a copy of the last new worktree's: its Swift step took 13 s rather than 75 s (load 120 and 150–270), and the first `swift build --build-tests` started building after 6–17 s rather than 75 s (159–161 s in all, against 217 s, at load 150–400).
 - **No edit:** a warm `RenderPreview` returned in 1.3 s; `scripts/snapshot --no-build` in 1.5–2 s.
 
+**The iPhone** (851-2953): `scripts/snapshot --iphone syncStatus` with `LIL_SNAPSHOT_STATE='^Up to date$'` (one state, light and dark), toggling the status header's padding in `SyncStatusView`, so each edit shows. The simulator was already booted. There's no `RenderPreview` baseline: its iPhone renders failed 7 times in 7 in 851-2931, so the iPhone's gate is reliability and a changed screen's image in under about a minute when warm (851-2948's decision 3). Seconds, with how long the build and the test run took:
+
+| Mac | Rounds | Median (range) | Build | Tests |
+| --- | ---: | ---: | ---: | ---: |
+| Mini (tamale, Xcode 27.1), load 6–14 | 5 | 15.0 (12.3–25.0) | 6–13 | 5–11 |
+| MacBook Pro, between other agents' builds | 3 | 24.1 (22.6–43.2) | 13–23 | 8–19 |
+| MacBook Pro, load 220–250 | 2 | 38.0, 177.9 | 16–49 | 21–100 |
+
+- **Most of it is `xcodebuild`:** the build (incremental, 5–23 s when quiet) and starting the test runner in the simulator (most of a test run's time: two images take 0.5 s each to settle and draw).
+- **All 13 states,** light and dark (26 images): 25–41 s of tests on the MacBook between builds, 20 s on the mini.
+- **Cold:** on the mini, with no build and no simulator, 109 s (77 s building, while the new simulator booted alongside, then 31 s of tests). A new simulator with the build warm: 54 s. On the MacBook, the first build took 149 s at load 200–500.
+- **Hangs:** at loads of 450–600, the test runner didn't start for over 10 minutes, as in 851-2931, and a booted simulator stopped answering (`simctl spawn` hung). One of the MacBook's rounds hit that: its run was stopped after 5 minutes and passed on a freshly booted simulator, 1351 s in all. That's what the time limit and the retry are for; on a Mac that busy, the loop isn't usable either way.
+
 **What didn't help:**
 
 - Building only the snapshot tests' bundle (`swift build --product HealthSnapshotTests`) is a different build from `swift test`'s (without `ENABLE_TESTABILITY`), so switching between the two rebuilt most of the package (75–90 s on the MacBook, 20–25 s on the mini). In a scratch path of its own it was no faster on the mini: 5–7.5 s against 3.4–5.4 s for `swift build --build-tests`.

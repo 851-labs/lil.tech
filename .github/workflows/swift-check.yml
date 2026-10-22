@@ -3,7 +3,9 @@ name: Swift check
 # Lints and tests the Swift code, and builds the apps (`scripts/check --swift`), on our Mac minis
 # (851-2787): they keep their builds between runs, so a run takes minutes, where GitHub's macOS
 # runners took 6–11 restoring caches. Moved here from the pre-commit hook (`docs/DECISIONS.md`).
-# Called by pr.yml for pull requests and by main.yml for merges, never on its own.
+# Called by pr.yml for pull requests and by main.yml for merges, never on its own. Merges also
+# snapshot the iPhone's state catalogs in the simulator (`iphone-snapshots`, 851-2953), which take
+# too long, and need too much of a mini, for every pull request (851-2948's decision 4).
 #
 # The minis are self-hosted and this repo is public. What keeps a fork's code off them is that a
 # fork's pull request runs no workflow until a maintainer approves it (the repo's policy for every
@@ -12,6 +14,11 @@ name: Swift check
 
 on:
   workflow_call:
+    inputs:
+      iphone:
+        description: Also snapshot the iPhone's state catalogs in the simulator.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -52,3 +59,45 @@ jobs:
       # The same checks as before every commit used to run, with warnings as errors (`CI=1`).
       - name: Check
         run: scripts/check --swift
+
+  # The iPhone's state catalogs (`scripts/snapshot --iphone`), in a simulator of the job's own,
+  # deleted at the end. Beside `check`, on another mini when one is free. Its images, diffs and
+  # logs are uploaded when it fails.
+  iphone-snapshots:
+    if: inputs.iphone
+    runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
+    timeout-minutes: 60
+    env:
+      # Kept between runs outside the checkout, like `check`'s builds, but apart from them.
+      LIL_SNAPSHOT_DERIVED_DATA: ${{ github.workspace }}/../lil.tech-iphone-snapshots
+      LIL_SNAPSHOT_SIMULATOR: lil-snapshots-ci
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          set-safe-directory: false
+
+      - uses: ./.github/actions/select-xcode
+
+      # As `check`'s: started over past 20 GB, since the disks are Codevisor's too.
+      - name: Limit the kept build
+        run: |
+          if [ -d "$LIL_SNAPSHOT_DERIVED_DATA" ] &&
+            [ "$(du -sk "$LIL_SNAPSHOT_DERIVED_DATA" | cut -f1)" -gt $((20 * 1024 * 1024)) ]; then
+            echo "Starting over: $LIL_SNAPSHOT_DERIVED_DATA is over 20 GB"
+            rm -rf "$LIL_SNAPSHOT_DERIVED_DATA"
+          fi
+
+      - name: Snapshot the iPhone's state catalogs
+        run: scripts/snapshot --iphone
+
+      - name: Upload the images
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: iphone-snapshots
+          path: LilPackage/.build/snapshots-iphone
+          retention-days: 7
+
+      - name: Delete the simulator
+        if: always()
+        run: scripts/snapshot --iphone --delete-simulator

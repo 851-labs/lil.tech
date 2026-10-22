@@ -3,7 +3,10 @@
 # allows (851-2962): it builds what `swift test` builds, in the same `.build`, then runs the
 # snapshot tests' bundle directly, rather than every test bundle twice (XCTest's, then Swift
 # Testing's) as `swift test --filter` does. The images are the ones `swift test` takes.
+# With `--iphone`, the iPhone's instead, in the simulator (851-2953).
 # Usage: scripts/snapshot [--record] [--no-build] [<filter>…]
+#        scripts/snapshot --iphone [--record] [--no-build] [<test>…]
+#        scripts/snapshot --iphone --delete-simulator
 #   <filter>     Which tests to run, as for `swift test --filter`: a regular expression matched
 #                against a test's ID, `HealthSnapshotTests.MacSnapshotTests/metricDetail(_:)`,
 #                so its name (`metricDetail`) or part of it. With several, each test that
@@ -11,10 +14,25 @@
 #   --record     Record new references for the images that changed or have none
 #                (`SNAPSHOT_TESTING_RECORD=failed`).
 #   --no-build   Run what was last built.
-# Every image goes to `LilPackage/.build/snapshots/<test file>/`, whether or not it changed; one
-# that changed gets a `.diff.png` next to it, its pixels more than 1 apart in a color channel in
-# red (within 1 matches, `snapshotChannelTolerance`). It prints each image's path and result
-# (`assertMacSnapshot`'s `SnapshotOutput`), with its reference's and its diff's, and exits
+#   --iphone     The iPhone's state catalogs (`HealthPhoneSnapshotTests`), hosted by an app in the
+#                iPhone 18 Pro simulator, so Liquid Glass renders. <test> is a test's name in
+#                `PhoneSnapshotTests`, e.g. `syncStatus`, not a regular expression.
+#                - The simulator is its own, `lil-snapshots` (`LIL_SNAPSHOT_SIMULATOR`), on iOS
+#                  27.0 (`LIL_SNAPSHOT_RUNTIME`, the identifier `simctl list runtimes` shows), so
+#                  every Mac renders the same images. It's made when missing, booted while the
+#                  build runs, and left booted for the next run. A boot that fails or takes over
+#                  5 minutes is tried again, the third time on a new simulator.
+#                - It builds with `xcodebuild` (`Lil.xcworkspace`, scheme `HealthPhoneSnapshotTests`)
+#                  into `.build/DerivedData` (`LIL_SNAPSHOT_DERIVED_DATA`), then runs the tests.
+#                - A run that hasn't finished after 5 minutes (`LIL_SNAPSHOT_TIMEOUT`, in seconds)
+#                  is stopped, and tried once more on a freshly booted simulator; a build, after 30
+#                  (`LIL_SNAPSHOT_BUILD_TIMEOUT`). One iPhone run at a time on a Mac: others wait.
+#   --delete-simulator  Shut down and delete the iPhone's simulator, and exit.
+# Every image goes to `LilPackage/.build/snapshots/<test file>/` (the iPhone's to
+# `LilPackage/.build/snapshots-iphone/<test file>/`), whether or not it changed; one that changed
+# gets a `.diff.png` next to it, its pixels more than 1 apart in a color channel in red (within 1
+# matches, `snapshotChannelTolerance`; 2 on the iPhone, `phoneChannelTolerance`). It prints each
+# image's path and result (`SnapshotOutput`), with its reference's and its diff's, and exits
 # non-zero when an image differs or a test fails, except for what `--record` recorded.
 set -eu
 # Filters are regular expressions, not file patterns.
@@ -22,22 +40,281 @@ set -f
 
 record=false
 build=true
+iphone=false
+delete_simulator=false
 filters=""
 for arg in "$@"; do
   case "$arg" in
     --record) record=true ;;
     --no-build) build=false ;;
+    --iphone) iphone=true ;;
+    --delete-simulator) delete_simulator=true ;;
     -*)
-      echo "usage: scripts/snapshot [--record] [--no-build] [<filter>…]" >&2
+      echo "usage: scripts/snapshot [--iphone] [--record] [--no-build] [<filter>…]" >&2
+      echo "       scripts/snapshot --iphone --delete-simulator" >&2
       exit 2
       ;;
     *) filters="$filters$arg
 " ;;
   esac
 done
+if $delete_simulator && ! $iphone; then
+  echo "error: --delete-simulator is for --iphone's simulator." >&2
+  exit 2
+fi
 
 cd "$(dirname "$0")/../LilPackage"
 package=$PWD
+root=$(dirname "$package")
+
+now() {
+  perl -MTime::HiRes=time -e 'printf "%.1f", time'
+}
+since() {
+  perl -e "printf '%.1f', $(now) - $1"
+}
+
+# Prints each image in the run's report (`$output/report.tsv`) with its result, and its reference
+# and diff when it didn't match, counting the recorded ones in `recorded`.
+print_report() {
+  recorded=0
+  while IFS='	' read -r result image reference diff; do
+    printf '%-10s %s\n' "$result" "$image"
+    if [ "$result" != matches ]; then
+      printf '%-10s %s\n' "" "reference: $reference"
+    fi
+    if [ -n "$diff" ]; then
+      printf '%-10s %s\n' "" "diff: $diff"
+    fi
+    case "$result" in
+      recorded | rerecorded) recorded=$((recorded + 1)) ;;
+    esac
+  done <"$output/report.tsv"
+}
+
+if $iphone; then
+  simulator=${LIL_SNAPSHOT_SIMULATOR:-lil-snapshots}
+  device_type=com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro
+  runtime=${LIL_SNAPSHOT_RUNTIME:-com.apple.CoreSimulator.SimRuntime.iOS-27-0}
+  derived=${LIL_SNAPSHOT_DERIVED_DATA:-$root/.build/DerivedData}
+  test_limit=${LIL_SNAPSHOT_TIMEOUT:-300}
+  build_limit=${LIL_SNAPSHOT_BUILD_TIMEOUT:-1800}
+  boot_limit=300
+  host=tech.lil.phone-snapshot-host
+  output="$package/.build/snapshots-iphone"
+
+  # One run at a time on this Mac: they share the simulator.
+  lock="${TMPDIR:-/tmp}/lil-snapshot-iphone.lock"
+  if [ -z "${LIL_SNAPSHOT_IPHONE_LOCKED:-}" ]; then
+    lockf -k -s -t 0 "$lock" true 2>/dev/null ||
+      echo "Waiting for another iPhone snapshot run on this Mac to finish…"
+    LIL_SNAPSHOT_IPHONE_LOCKED=1 exec lockf -k -t 3600 "$lock" "$root/scripts/snapshot" "$@"
+  fi
+
+  # limit <seconds> <command…>: runs the command in a process group of its own, and stops the
+  # group if it's still running after that many seconds, exiting 124.
+  limit() {
+    perl -e '
+      my $seconds = shift;
+      my $pid = fork() // die "fork: $!\n";
+      if ($pid == 0) { setpgrp(0, 0); exec { $ARGV[0] } @ARGV or die "$ARGV[0]: $!\n"; }
+      my $stop = sub {
+        kill "TERM", -$pid; sleep 5; kill "KILL", -$pid; waitpid($pid, 0); exit shift;
+      };
+      local $SIG{ALRM} = sub { $stop->(124) };
+      local $SIG{INT} = sub { $stop->(130) };
+      local $SIG{TERM} = sub { $stop->(143) };
+      alarm $seconds;
+      waitpid($pid, 0);
+      exit($? & 127 ? 128 + ($? & 127) : $? >> 8);
+    ' "$@" </dev/null
+  }
+
+  # The simulators of that name, a line each with its identifier and state, booted ones first,
+  # e.g. `A5C5…432B Booted`; nothing if there's none. Two can share the name when deleting a hung
+  # one failed. Three tries, since under load `simctl` can stop answering; exits if it never does.
+  find_devices() {
+    for _ in 1 2 3; do
+      if limit 120 xcrun simctl list -j devices >"${TMPDIR:-/tmp}/lil-snapshot-devices.json" &&
+        python3 -I -c '
+import json, sys
+name, runtime, path = sys.argv[1:]
+devices = [device for device in json.load(open(path))["devices"].get(runtime, [])
+    if device["name"] == name and device.get("isAvailable", True)]
+for device in sorted(devices, key=lambda device: device["state"] != "Booted"):
+    print(device["udid"], device["state"])
+' "$simulator" "$runtime" "${TMPDIR:-/tmp}/lil-snapshot-devices.json"; then
+        return 0
+      fi
+    done
+    echo "error: \`simctl list\` didn't answer in 3 tries. Is CoreSimulator stuck?" >&2
+    exit 1
+  }
+
+  devices=$(find_devices) || exit 1
+  if $delete_simulator; then
+    if [ -z "$devices" ]; then
+      echo "No simulator named $simulator."
+      exit 0
+    fi
+    for device in $(echo "$devices" | cut -d " " -f 1); do
+      limit 120 xcrun simctl shutdown "$device" 2>/dev/null || true
+      limit 120 xcrun simctl delete "$device"
+      echo "Deleted the simulator $simulator ($device)."
+    done
+    exit 0
+  fi
+  info=$(echo "$devices" | head -n 1)
+  device=${info%% *}
+
+  create_device() {
+    if ! device=$(limit 120 xcrun simctl create "$simulator" "$device_type" "$runtime"); then
+      echo "error: couldn't make an iPhone 18 Pro simulator on $runtime. Is that runtime" >&2
+      echo "installed (xcrun simctl list runtimes)? Set LIL_SNAPSHOT_RUNTIME to pick another." >&2
+      exit 1
+    fi
+    echo "Made the simulator $simulator ($device)."
+  }
+  if [ -z "$device" ]; then
+    create_device
+  fi
+
+  # Whether the simulator answers: under load, one can be booted and hang every request.
+  responds() {
+    limit 60 xcrun simctl spawn "$device" launchctl list >/dev/null 2>&1
+  }
+
+  # Boots the simulator, if it isn't, and waits until it answers: three tries, each up to 5
+  # minutes, the last on a new simulator, since a boot under load sometimes crashes
+  # ("launchd_sim may have crashed"), never finishes, or leaves it hanging.
+  boot() {
+    boot_attempt=1
+    while ! { limit "$boot_limit" xcrun simctl bootstatus "$device" -b >"$output/boot.log" 2>&1 &&
+      responds; }; do
+      echo "warning: the simulator didn't boot, or doesn't answer (try $boot_attempt of 3)." >&2
+      grep -iE "error|fail" "$output/boot.log" | tail -n 3 >&2 || true
+      limit 120 xcrun simctl shutdown "$device" >/dev/null 2>&1 || true
+      case $boot_attempt in
+        2)
+          limit 120 xcrun simctl delete "$device" || true
+          create_device
+          ;;
+        3)
+          echo "error: the simulator didn't boot, or didn't answer, in 3 tries." >&2
+          exit 1
+          ;;
+      esac
+      boot_attempt=$((boot_attempt + 1))
+    done
+  }
+
+  start=$(now)
+  rm -rf "$output"
+  mkdir -p "$output"
+  booting=""
+  if [ "${info#* }" != Booted ]; then
+    # While the build runs. Retried after it, if it failed.
+    limit "$boot_limit" xcrun simctl bootstatus "$device" -b >"$output/boot.log" 2>&1 &
+    booting=$!
+  fi
+  if $build; then
+    log="$output/build.log"
+    status=0
+    limit "$build_limit" xcodebuild build-for-testing -workspace "$root/Lil.xcworkspace" \
+      -scheme HealthPhoneSnapshotTests -destination "id=$device" -derivedDataPath "$derived" \
+      -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile -quiet >"$log" 2>&1 ||
+      status=$?
+    if [ "$status" = 124 ]; then
+      echo "error: the build didn't finish in $build_limit s, so it was stopped. See $log." >&2
+      exit 1
+    elif [ "$status" != 0 ]; then
+      grep -E "error:|BUILD FAILED|xcodebuild: error" "$log" | sort -u >&2 || true
+      echo "error: the build failed. See $log." >&2
+      exit 1
+    fi
+    echo "Built in $(since "$start") s."
+  fi
+  if ! { { [ -z "$booting" ] || wait "$booting"; } && responds; }; then
+    boot
+  fi
+  # What the build made: running it rather than the scheme skips resolving the packages again.
+  xctestrun=$(find "$derived/Build/Products" -maxdepth 1 -name 'HealthPhoneSnapshotTests_*.xctestrun' \
+    -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -n 1)
+  if [ -z "$xctestrun" ]; then
+    echo "error: HealthPhoneSnapshotTests isn't built yet. Run without --no-build." >&2
+    exit 1
+  fi
+
+  set --
+  IFS='
+'
+  for filter in $filters; do
+    # Swift Testing's identifier: a catalog's test, `syncStatus`, is `syncStatus(_:)`.
+    case "$filter" in
+      *"("*) ;;
+      *) filter="$filter(_:)" ;;
+    esac
+    set -- "$@" "-only-testing:HealthPhoneSnapshotTests/PhoneSnapshotTests/$filter"
+  done
+  unset IFS
+  # The test host gets `TEST_RUNNER_`'s variables, without the prefix.
+  export TEST_RUNNER_LIL_SNAPSHOT_OUTPUT="$output"
+  if [ -n "${LIL_SNAPSHOT_STATE:-}" ]; then
+    export TEST_RUNNER_LIL_SNAPSHOT_STATE="$LIL_SNAPSHOT_STATE"
+  fi
+  if $record; then
+    export TEST_RUNNER_SNAPSHOT_TESTING_RECORD=failed
+  fi
+  attempt=1
+  while :; do
+    render=$(now)
+    status=0
+    rm -rf "$output/Tests.xcresult" "$output/report.tsv"
+    limit "$test_limit" xcodebuild test-without-building -xctestrun "$xctestrun" \
+      -destination "id=$device" -resultBundlePath "$output/Tests.xcresult" \
+      -collect-test-diagnostics never -parallel-testing-enabled NO "$@" >"$output/test.log" 2>&1 ||
+      status=$?
+    [ "$status" = 124 ] || break
+    mv "$output/test.log" "$output/test-$attempt.log"
+    echo "warning: the tests didn't finish in $test_limit s, so they were stopped (try $attempt of" \
+      "2). See $output/test-$attempt.log." >&2
+    # A hung runner can leave the simulator unusable: start the next try on a fresh boot.
+    limit 60 xcrun simctl terminate "$device" "$host" >/dev/null 2>&1 || true
+    limit 120 xcrun simctl shutdown "$device" >/dev/null 2>&1 || true
+    if [ "$attempt" = 2 ]; then
+      echo "error: the tests didn't finish in 2 tries of $test_limit s." >&2
+      exit 1
+    fi
+    attempt=2
+    boot
+  done
+  if [ ! -f "$output/report.tsv" ]; then
+    grep -E "error:|Testing failed|✘|failed" "$output/test.log" | sort -u | head -20 >&2 || true
+    if [ "$status" = 0 ]; then
+      echo "error: no snapshot test ran. Is the test's name right?" >&2
+    else
+      echo "error: the tests stopped before any snapshot (status $status). See $output/test.log." >&2
+    fi
+    exit 1
+  fi
+  echo
+  echo "Ran in $(since "$render") s, $(since "$start") s in all. Images:"
+  print_report
+  # Recording is reported as an issue, which isn't a failure when asked for. Any other issue
+  # still is: the run's issues must be exactly the recordings (Swift Testing's summary, as below).
+  if $record && [ "$status" = 65 ]; then
+    issues=$(sed -n 's/^✘ Test run with .* with \([0-9]*\) issues*\.$/\1/p' "$output/test.log")
+    if [ "$issues" = "$recorded" ]; then
+      status=0
+    fi
+  fi
+  if [ "$status" != 0 ]; then
+    grep -E "^✘ " "$output/test.log" | head -n 20 >&2 || true
+    echo "See $output/test.log." >&2
+  fi
+  exit "$status"
+fi
+
 # Xcode's toolchain for the build and the tests alike, whatever `swift` is first in `PATH`.
 swift=$(xcrun --find swift)
 helper="$(dirname "$swift")/../libexec/swift/pm/swiftpm-testing-helper"
@@ -50,13 +327,6 @@ target=HealthSnapshotTests
 products="$package/.build/debug"
 bundle="$products/$target.xctest/Contents/MacOS/$target"
 output="$package/.build/snapshots"
-
-now() {
-  perl -MTime::HiRes=time -e 'printf "%.1f", time'
-}
-since() {
-  perl -e "printf '%.1f', $(now) - $1"
-}
 
 start=$(now)
 if $build; then
@@ -117,19 +387,7 @@ if [ ! -f "$report" ]; then
 fi
 echo
 echo "Ran in $(since "$render") s, $(since "$start") s in all. Images:"
-recorded=0
-while IFS='	' read -r result image reference diff; do
-  printf '%-10s %s\n' "$result" "$image"
-  if [ "$result" != matches ]; then
-    printf '%-10s %s\n' "" "reference: $reference"
-  fi
-  if [ -n "$diff" ]; then
-    printf '%-10s %s\n' "" "diff: $diff"
-  fi
-  case "$result" in
-    recorded | rerecorded) recorded=$((recorded + 1)) ;;
-  esac
-done <"$report"
+print_report
 # Recording is reported as an issue, which isn't a failure when asked for. Any other issue, or a
 # crash, still is: the run's issues must be exactly the recordings.
 if $record && [ "$status" = 1 ]; then
