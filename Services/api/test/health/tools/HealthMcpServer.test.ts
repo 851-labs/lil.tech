@@ -1,10 +1,10 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { TestClock } from "effect/testing";
 import {
-  healthMcpMaxWaitMs,
+  healthMcpMaxQueuedCalls,
   makeHealthMcpServer,
 } from "../../../src/health/tools/HealthMcpServer.ts";
+import { HealthToolError } from "../../../src/health/tools/HealthToolkit.ts";
 import { storeHealthTools } from "../../../src/health/tools/StoreHealthTools.ts";
 import { agentClientHeader, agentGrantHeader } from "../../../src/mcp/AgentHeaders.ts";
 import {
@@ -208,37 +208,54 @@ describe("the Health MCP server in the store", () => {
     );
   }
 
-  it.effect("refuses a call that waited too long for its turn, asking to try again", () =>
+  // 851-2941: the store's clock only moves at I/O, not while it computes, so a limit on how long a
+  // call had waited let a burst's calls through however long they took together. The queue counts
+  // calls instead: these take no time on the store's clock, and the ones past its size are refused.
+  it.effect("refuses calls that come when its queue is full, asking to try again", () =>
     Effect.gen(function* () {
       const { sql, store } = makeTestStore();
-      const tools = storeHealthTools(sql);
-      const server = yield* makeHealthMcpServer({
-        sql,
-        record: store.recordAgentAccess,
-        handlers: {
-          ...tools,
-          // Each call takes longer than a call may wait.
-          summary: (params) =>
-            TestClock.adjust(healthMcpMaxWaitMs + 1).pipe(Effect.andThen(tools.summary(params))),
-        },
-      });
-      const responses = yield* callsAtOnce(viaStore(server), 3, true);
+      const server = yield* makeHealthMcpServer({ sql, record: store.recordAgentAccess });
+      const burst = healthMcpMaxQueuedCalls + 4;
+      const responses = yield* callsAtOnce(viaStore(server), burst, true);
       assert.deepStrictEqual(
         responses.map((response) => [response.status, isError(response)]),
-        [
-          [200, false],
-          [200, true],
-          [200, true],
-        ],
+        Array.from({ length: burst }, (_, index) => [200, index >= healthMcpMaxQueuedCalls]),
       );
-      const refused = responses[1]?.message?.["result"] as Record<string, unknown>;
+      const refused = responses.at(-1)?.message?.["result"] as Record<string, unknown>;
       const [content] = refused["content"] as Array<{ readonly text: string }>;
       assert.match(content!.text, /busy.*Try again/);
       // Refused before reading anything, so not logged.
-      assert.lengthOf(sql.exec("SELECT id FROM agent_access_log"), 1);
-      // A call that comes later has its turn again.
-      const later = yield* callsAtOnce(viaStore(server), 1, false);
-      assert.strictEqual(isError(later[0]!), false);
+      assert.lengthOf(sql.exec("SELECT id FROM agent_access_log"), healthMcpMaxQueuedCalls);
+      // Once the queue has room, calls are taken again.
+      const later = yield* callsAtOnce(viaStore(server), healthMcpMaxQueuedCalls, false);
+      assert.isTrue(later.every((response) => isError(response) === false));
+    }),
+  );
+
+  it.effect("makes room in its queue for each call that ends, failed or not", () =>
+    Effect.gen(function* () {
+      const { sql, store } = makeTestStore();
+      const tools = storeHealthTools(sql);
+      let calls = 0;
+      const server = yield* makeHealthMcpServer({
+        sql,
+        record: store.recordAgentAccess,
+        maxQueued: 1,
+        handlers: {
+          ...tools,
+          summary: (params) =>
+            ++calls === 1
+              ? Effect.fail(new HealthToolError({ message: "Something went wrong." }))
+              : tools.summary(params),
+        },
+      });
+      const failed = yield* callsAtOnce(viaStore(server), 1, false);
+      const answered = yield* callsAtOnce(viaStore(server), 1, false);
+      assert.deepStrictEqual(
+        [...failed, ...answered].map((response) => isError(response)),
+        [true, false],
+      );
+      assert.strictEqual(calls, 2);
     }),
   );
 });

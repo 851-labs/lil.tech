@@ -1,14 +1,11 @@
 import { readFileSync } from "node:fs";
 import { assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { TestClock } from "effect/testing";
 import {
   healthMcpApp,
-  healthMcpMaxWaitMs,
   makeHealthMcpServer,
   makeTurns,
 } from "../../src/health/tools/HealthMcpServer.ts";
-import { storeHealthTools } from "../../src/health/tools/StoreHealthTools.ts";
 import {
   agentClientHeader,
   agentGrantHeader,
@@ -214,20 +211,14 @@ describe("the combined MCP server in the store", () => {
   it.effect("shares the store's one queue of calls with lil health's own server", () =>
     Effect.gen(function* () {
       const { sql, store } = makeTestStore();
-      const tools = storeHealthTools(sql);
-      const turns = yield* makeTurns();
-      const handlers = {
-        ...tools,
-        // Each call takes longer than a call may wait.
-        summary: (params: Parameters<typeof tools.summary>[0]) =>
-          TestClock.adjust(healthMcpMaxWaitMs + 1).pipe(Effect.andThen(tools.summary(params))),
-      };
+      // A queue of one: a call that comes while another is in it is refused.
+      const turns = yield* makeTurns(1);
       const record = store.recordAgentAccess;
-      const own = viaStore(yield* makeHealthMcpServer({ sql, record, turns, handlers }));
+      const own = viaStore(yield* makeHealthMcpServer({ sql, record, turns }));
       const combined = viaStore(
         yield* makeCombinedMcpServer({
           registry: agentResources,
-          apps: { health: healthMcpApp({ sql, record, turns, handlers }) },
+          apps: { health: healthMcpApp({ sql, record, turns }) },
         }),
       );
       const ownCall = sessionless("tools/call", { name: "summary", arguments: {} });
@@ -240,7 +231,7 @@ describe("the combined MCP server in the store", () => {
         ],
         { concurrency: "unbounded" },
       );
-      // The second waited for the first, though it came to the other server.
+      // The second was refused while the first was in the queue, though it came to the other server.
       assert.deepStrictEqual(
         responses.map((response) => result(response)?.["isError"]),
         [false, true],
