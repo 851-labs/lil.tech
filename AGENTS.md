@@ -38,10 +38,10 @@ Read `docs/DECISIONS.md` before starting work. It records the architecture and p
 - Open `Lil.xcworkspace` in Xcode, not the individual `.xcodeproj`.
 - From the command line:
   - Package tests: `cd LilPackage && swift test`
-  - App: `xcodebuild -workspace Lil.xcworkspace -scheme LilMessages -destination 'platform=macOS' -skipMacroValidation build`
-  - lil health on Mac: `xcodebuild -workspace Lil.xcworkspace -scheme LilHealth -destination 'platform=macOS' -skipMacroValidation build`
+  - App: `xcodebuild -workspace Lil.xcworkspace -scheme LilMessages -destination 'platform=macOS,arch=arm64' -skipMacroValidation build`
+  - lil health on Mac: `xcodebuild -workspace Lil.xcworkspace -scheme LilHealth -destination 'platform=macOS,arch=arm64' -skipMacroValidation build`
   - lil health on iOS: `xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS -destination 'generic/platform=iOS Simulator' -skipMacroValidation build`
-- `-skipMacroValidation` skips Xcode's one-time "trust this macro" prompt for package macros (TCA, CasePaths, etc.) in command-line builds.
+- `-skipMacroValidation` skips Xcode's one-time "trust this macro" prompt for package macros (TCA, CasePaths, etc.) in command-line builds; without it, `xcodebuild` fails rather than asking. `swift build` and `swift test` don't validate macros at all.
 - **Xcode macro trust.** In Xcode, package macros must be trusted once per version: click the macro error, then "Trust & Enable". After a dependency update, an error saying a macro "was changed since a previous approval" means the new version needs trusting again. Approvals live in `~/Library/org.swift.swiftpm/security/macros.json`, keyed by package, macro target and git revision. If you edit that file, remove stale entries for the same target and restart Xcode, because its build service caches the list.
 - **Clocks in tests.** Use `LilTestSupport`'s clocks, not `TestClock` or `ImmediateClock`. `ManualClock` waits until the code under test is asleep before you advance it (`waitUntilAsleep`), since advancing a `TestClock` too early is missed and the sleep never ends. `RecordingClock` returns from sleeps at once and records them; `ImmediateClock`'s sleeps wait on background-priority tasks that busy tests can starve. `eventually` waits for a condition other tasks make true.
 - **Objective-C callbacks.** A closure written in `@MainActor` code (a view, a main-actor type) is main-actor-isolated unless its parameter is `@Sendable`. If a framework calls it on another queue, Swift's runtime check crashes the app, and the compiler can't see it, because the callback doesn't say which thread it runs on. That's what crashed lil health after Google sign-in (851-2693).
@@ -51,6 +51,59 @@ Read `docs/DECISIONS.md` before starting work. It records the architecture and p
 - **Previews of SwiftUI `List`s.** Put a `#Preview` for a view whose `List` uses `ForEach` rows in a separate `*Previews.swift` file. Previewing a file instruments its functions, and with `ForEach` rows that trips an assertion in SwiftUI's macOS `List` (`TableViewListCore_Mac2`).
 - **Xcode MCP.** `.mcp.json` registers Xcode's MCP server (`xcrun mcpbridge`), which provides tools like `RenderPreview`. Approve it when Claude Code first asks. It talks to the running Xcode, so keep Xcode open with `Lil.xcworkspace`, and allow external agents in Xcode › Settings › Intelligence. `xcrun` uses whichever Xcode `xcode-select` points at.
 - **Preview snapshots.** Xcode's `RenderPreview` (MCP) snapshots a preview's first frame, before `.task` runs. Give previews their data in the initial state, using `makePreviewChatDatabase()` from `MessagesDatabase`, so snapshots show real content. That demo dataset is for previews only; tests seed their own data. For a state that a view's `.task` would immediately replace (empty, checking access), build the store with `EmptyReducer()`.
+
+### Without Xcode
+
+Building, running and inspecting the apps all work from the command line (851-2956). Still Xcode-only, and rarely needed: the canvas's live interaction, the view and memory graph debuggers, and Instruments' UI (`xctrace` records, Instruments shows). To check UI, prefer snapshot tests (`HealthSnapshotTests`) to screenshots of a running app.
+
+- **Build** into a folder of the worktree, so the app's path is known and `scripts/worktree remove` deletes it. Not `.build-check/`, where `scripts/check` builds unsigned: an unsigned app can't keep its session in the Keychain.
+  ```sh
+  xcodebuild -workspace Lil.xcworkspace -scheme LilHealth -destination 'platform=macOS,arch=arm64' \
+    -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile -derivedDataPath .build/DerivedData \
+    build -quiet
+  app="$PWD/.build/DerivedData/Build/Products/Debug/lil health.app"
+  ```
+  - The simulator's: `-scheme LilHealthiOS -destination 'generic/platform=iOS Simulator'`, into `Debug-iphonesimulator/`. A device's: `-destination 'generic/platform=iOS'`, into `Debug-iphoneos/`.
+  - Without `-derivedDataPath`, builds go to `~/Library/Developer/Xcode/DerivedData/Lil-<hash>`. `platform=macOS` alone warns that two destinations match (arm64 and x86_64). `-onlyUsePackageVersionsFromResolvedFile` keeps a fresh folder's resolve from changing `Package.resolved`, as `scripts/check` does.
+- **Run the Mac app** in a temporary home against a PR preview, signed in to its test account (synthetic data only):
+  ```sh
+  home=$(mktemp -d)
+  open -n "$app" --env CFFIXED_USER_HOME="$home" --env LIL_API_URL=https://…workers.dev \
+    --env LIL_SIGN_IN_TO_TEST_ACCOUNT=1
+  pid=$(pgrep -f "$app/Contents/MacOS/lil health")
+  ```
+  - The home keeps the app's files apart (`$home/Library/Application Support/tech.lil.health`), but not its session. That's one Keychain item, shared by every build of lil health on this Mac, Release ones included. **Never run a dev build on a Mac where lil health is signed in to a real account:** it would start with that session and send its tokens to the preview, and signing it out would sign the real app out. Use a Mac without one, or the simulator.
+  - Sign out before quitting, so the next build doesn't start signed in: lil health › Sign Out, or `osascript -e "tell application \"System Events\" to click menu item \"Sign Out\" of menu 1 of menu bar item 2 of menu bar 1 of (first process whose unix id is $pid)"`, which needs Accessibility access for the terminal. Check that the window shows the sign-in screen, then `kill $pid`.
+  - Without `LIL_API_URL`, a Debug build uses staging. Release builds ignore it and use prod.
+- **Inspect by `$pid`,** not the name "lil health", which an installed copy shares.
+- **Logs:** `/usr/bin/log stream --style compact --predicate "processID == $pid"`, or `log show --last 10m …` for the past. Spell out `/usr/bin/log`: zsh has a `log` builtin. Our own loggers use `subsystem == "tech.lil.health"` (the iPhone's backfill, uploads and synthetic data); the Mac app has none yet, so its log is the system frameworks'. Issues `reportIssue` raises are logged as `subsystem == "com.apple.runtime-issues"`, with the module as the category and the message redacted.
+- **Debug** a Debug build: `lldb -p $pid`. For a one-shot look, `lldb --batch -p $pid -o 'bt all' -o detach`. Over SSH it can't attach ("cannot get permission to debug processes") unless Developer Mode is on (`DevToolsSecurity -enable`, an administrator's), which it isn't on the minis.
+- **Profile:** `xcrun xctrace record --template 'Time Profiler' --attach $pid --time-limit 10s --output /tmp/lil.trace`. Saving takes a minute or more. `xcrun xctrace export --input /tmp/lil.trace --toc` lists its tables, and `--xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]'` exports the samples as XML. `open /tmp/lil.trace` shows it in Instruments. A trace records the app's whole environment, so never attach one anywhere public.
+- **Screenshots** of a running Mac app need Screen Recording access for the terminal: without it, as over SSH on the minis, window titles read `undefined` and `screencapture` fails ("could not create image from window"). They show Liquid Glass, which snapshot tests can't. Find the window's number, then capture it:
+  ```sh
+  osascript -l JavaScript -e 'ObjC.import("CoreGraphics"); ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0))).filter(w => w.kCGWindowOwnerPID == '$pid' && w.kCGWindowLayer == 0).map(w => w.kCGWindowNumber + " " + w.kCGWindowName).join("\n")'
+  screencapture -o -x -l <number> window.png
+  ```
+- **iPhone simulator:** use a simulator of your own, by its UDID, since other agents' may be booted. Its Keychain is its own, and deleting it cleans up everything.
+  ```sh
+  sim=$(xcrun simctl create lil-dev "iPhone 18 Pro")
+  xcrun simctl bootstatus "$sim" -b
+  xcrun simctl install "$sim" "$PWD/.build/DerivedData/Build/Products/Debug-iphonesimulator/lil health.app"
+  SIMCTL_CHILD_LIL_API_URL=https://…workers.dev SIMCTL_CHILD_LIL_SIGN_IN_TO_TEST_ACCOUNT=1 \
+    xcrun simctl launch --terminate-running-process "$sim" tech.lil.health   # prints its pid
+  xcrun simctl io "$sim" screenshot screen.png
+  xcrun simctl spawn "$sim" log stream --style compact --predicate 'subsystem == "tech.lil.health"'
+  xcrun simctl delete "$sim"   # when done
+  ```
+  On a busy Mac, booting can fail ("launchd_sim may have crashed"): run `bootstatus` again.
+- **iPhone:** device builds always use prod, with real Health data, so only on your own device and account. `xcrun devicectl list devices` shows each one's identifier. Then `xcrun devicectl device install app --device <id> "$PWD/.build/DerivedData/Build/Products/Debug-iphoneos/lil health.app"` and `xcrun devicectl device process launch --device <id> tech.lil.health`.
+- **Stale builds in LaunchServices.** Every build that runs is registered with LaunchServices, and stays registered after its folder is deleted. Shortcuts and `lil` look the app up by its bundle ID there, so they can pick another copy (851-2894). After `scripts/worktree remove`, unregister the copies that are gone, with the Sparkle updaters inside them:
+  ```sh
+  lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+  "$lsregister" -dump | sed -nE 's/^path: +(.*\/lil (health|messages)\.app(\/.*\.app)?) \(0x[0-9a-f]+\)$/\1/p' | sort -u |
+    while IFS= read -r stale; do [ -e "$stale" ] || "$lsregister" -u "$stale"; done
+  ```
+  `"$lsregister" -u <path>` unregisters one copy that's still there, and `"$lsregister" -f "$app"` registers the one under test.
 
 ## TypeScript (Services/ and Web/)
 
