@@ -23,14 +23,19 @@ struct AppFeatureTests {
       $0.agentAccess.reset = {}
       $0.auth.signedInUpdates = { updates }
       $0.sync = .constant(.idle)
+      // Never advanced: the first pull never shows the footer.
+      $0.continuousClock = ManualClock()
     }
 
     let task = await store.send(.task)
     continuation.yield(true)
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = true
+      $0.syncFooter = .hidden
     }
-    await store.receive(\.syncStatusChanged)
+    await store.receive(\.syncStatusChanged) {
+      $0.syncFooter = .delayed
+    }
     await store.send(\.binding.selection, .category(.heart)) {
       $0.selection = .category(.heart)
     }
@@ -42,6 +47,7 @@ struct AppFeatureTests {
       $0.isSignedIn = false
       $0.selection = .summary
       $0.searchText = ""
+      $0.syncFooter = .hidden
     }
     await store.receive(\.signIn.readyToSignIn)
     await task.cancel()
@@ -83,8 +89,11 @@ struct AppFeatureTests {
     session.yield(true)
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = true
+      $0.syncFooter = .hidden
     }
-    await store.receive(\.syncStatusChanged)
+    await store.receive(\.syncStatusChanged) {
+      $0.syncFooter = .delayed
+    }
     // The Settings window loads the sign-in methods and starts an export, which carries on if
     // the window closes.
     await store.send(\.account.signInMethods.task)
@@ -98,12 +107,13 @@ struct AppFeatureTests {
     session.yield(false)
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = false
+      $0.syncFooter = .hidden
       $0.account = AccountFeature.State()
       $0.connectedAgents = ConnectedAgentsFeature.State()
     }
     await store.receive(\.signIn.readyToSignIn)
     await task.cancel()
-    // Both were cancelled with the account, so nothing is left running.
+    // They and the footer's wait were cancelled with the account, so nothing is left running.
     await store.finish()
   }
 
@@ -168,6 +178,7 @@ struct AppFeatureTests {
     session.yield(true)
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = true
+      $0.syncFooter = .hidden
     }
     let syncedAt = Date(timeIntervalSince1970: 1_760_400_000)
     status.yield(.upToDate(at: syncedAt))
@@ -202,6 +213,171 @@ struct AppFeatureTests {
     // Access for tools and agents is off again, and their log empty, for the next account.
     #expect(events.value.contains("agent access reset"))
     #expect(!FileManager.default.fileExists(atPath: blobs.path(percentEncoded: false)))
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func theSyncFooterShowsOnceSyncHasGoneAWhileWithoutBeingUpToDate() async throws {
+    let (updates, session) = AsyncStream<Bool>.makeStream()
+    let (statuses, status) = AsyncStream<SyncStatus>.makeStream()
+    let clock = ManualClock()
+    let store = TestStore(initialState: AppFeature.State()) {
+      AppFeature()
+    } withDependencies: {
+      $0.agentAccess.reset = {}
+      $0.auth.signedInUpdates = { updates }
+      $0.sync = SyncClient(
+        run: { try? await Task.sleep(for: .seconds(3600)) },
+        listen: { _ in try? await Task.sleep(for: .seconds(3600)) },
+        syncNow: {},
+        push: { _ in },
+        status: { statuses },
+        removeLocalData: {})
+      $0.continuousClock = clock
+    }
+    let syncedAt = Date(timeIntervalSince1970: 1_760_400_000)
+
+    let task = await store.send(.task)
+    session.yield(true)
+    await store.receive(\.signedInChanged) {
+      $0.isSignedIn = true
+      $0.syncFooter = .hidden
+    }
+    // The pull at launch, one page: up to date before the footer would show.
+    status.yield(.idle)
+    await store.receive(\.syncStatusChanged) {
+      $0.syncFooter = .delayed
+    }
+    try await clock.waitUntilAsleep(endingIn: AppFeature.syncFooterDelay)
+    clock.advance(by: .seconds(1))
+    status.yield(.upToDate(at: syncedAt))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .upToDate(at: syncedAt)
+      $0.syncFooter = .hidden
+    }
+    clock.advance(by: .seconds(5))
+
+    // A catch-up of many pages shows once it has run for the delay, counted from its first
+    // page rather than from each.
+    status.yield(.syncing(cursor: 100, head: 50_000))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .syncing(cursor: 100, head: 50_000)
+      $0.syncFooter = .delayed
+    }
+    try await clock.waitUntilAsleep(endingIn: AppFeature.syncFooterDelay)
+    clock.advance(by: .seconds(1))
+    status.yield(.syncing(cursor: 1_100, head: 50_000))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .syncing(cursor: 1_100, head: 50_000)
+    }
+    clock.advance(by: .seconds(1))
+    await store.receive(\.syncFooterDelayElapsed) {
+      $0.syncFooter = .shown
+    }
+    status.yield(.syncing(cursor: 2_100, head: 50_000))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .syncing(cursor: 2_100, head: 50_000)
+    }
+    // Caught up: hidden at once.
+    status.yield(.upToDate(at: syncedAt))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .upToDate(at: syncedAt)
+      $0.syncFooter = .hidden
+    }
+
+    // Offline for a moment, as after waking: the retry a second later is up to date.
+    status.yield(.offline)
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .offline
+      $0.syncFooter = .delayed
+    }
+    try await clock.waitUntilAsleep(endingIn: AppFeature.syncFooterDelay)
+    clock.advance(by: .seconds(1))
+    status.yield(.upToDate(at: syncedAt))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .upToDate(at: syncedAt)
+      $0.syncFooter = .hidden
+    }
+
+    // A failure that lasts shows, counted from the first, through the retries and the catch-up
+    // after, until caught up.
+    status.yield(.failed("unexpectedStatus(500)"))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .failed("unexpectedStatus(500)")
+      $0.syncFooter = .delayed
+    }
+    try await clock.waitUntilAsleep(endingIn: AppFeature.syncFooterDelay)
+    clock.advance(by: .seconds(1))
+    // The retry fails as the last one did, which is announced again.
+    status.yield(.failed("unexpectedStatus(500)"))
+    await store.receive(\.syncStatusChanged)
+    clock.advance(by: .seconds(1))
+    await store.receive(\.syncFooterDelayElapsed) {
+      $0.syncFooter = .shown
+    }
+    status.yield(.syncing(cursor: 2_100, head: 50_000))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .syncing(cursor: 2_100, head: 50_000)
+    }
+    status.yield(.upToDate(at: syncedAt))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .upToDate(at: syncedAt)
+      $0.syncFooter = .hidden
+    }
+
+    // A first sync, which takes minutes.
+    status.yield(.bootstrapping(.downloading(0, of: 0)))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .bootstrapping(.downloading(0, of: 0))
+      $0.syncFooter = .delayed
+    }
+    try await clock.waitUntilAsleep(endingIn: AppFeature.syncFooterDelay)
+    clock.advance(by: AppFeature.syncFooterDelay)
+    await store.receive(\.syncFooterDelayElapsed) {
+      $0.syncFooter = .shown
+    }
+
+    // Signing out, waiting to show it: the wait stops with the account.
+    status.yield(.upToDate(at: syncedAt))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .upToDate(at: syncedAt)
+      $0.syncFooter = .hidden
+    }
+    status.yield(.syncing(cursor: 100, head: 50_000))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .syncing(cursor: 100, head: 50_000)
+      $0.syncFooter = .delayed
+    }
+    session.yield(false)
+    await store.receive(\.signedInChanged) {
+      $0.isSignedIn = false
+      $0.syncStatus = .idle
+      $0.syncFooter = .hidden
+    }
+    await store.receive(\.signIn.readyToSignIn)
+    session.finish()
+    await task.finish()
+    await store.finish()
+  }
+
+  @Test
+  func theSyncFooterIgnoresAWaitThatEndsAfterItWasCancelled() async {
+    // The wait's last action can already be on its way when sync catches up and cancels it:
+    // the footer stays hidden, and one already shown stays shown.
+    let upToDate = TestStore(
+      initialState: AppFeature.State(
+        isSignedIn: true, syncStatus: .upToDate(at: Date(timeIntervalSince1970: 1_760_400_000)))
+    ) {
+      AppFeature()
+    }
+    #expect(upToDate.state.syncFooter == .hidden)
+    await upToDate.send(.syncFooterDelayElapsed)
+
+    let offline = TestStore(initialState: AppFeature.State(isSignedIn: true, syncStatus: .offline))
+    {
+      AppFeature()
+    }
+    #expect(offline.state.syncFooter == .shown)
+    await offline.send(.syncFooterDelayElapsed)
   }
 
   @Test

@@ -5,6 +5,7 @@ import HealthAgentAccess
 import HealthCatalog
 import LilAuth
 import LilSync
+import LilTestSupport
 import Testing
 
 @testable import HealthMacApp
@@ -96,6 +97,8 @@ struct HealthAppIntentsTests {
       $0.auth.signedInUpdates = { updates }
       $0.healthAppActions = actions
       $0.sync = .constant(.idle)
+      // For the sync footer's wait, which the first pull never ends.
+      $0.continuousClock = ManualClock()
     }
     store.exhaustivity = .off
 

@@ -20,8 +20,10 @@ public struct AppFeature {
     /// selection changes, so one's metric doesn't show under another.
     public var metricPath: [String] = []
     public var searchText = ""
-    /// Shown in the sidebar's footer.
+    /// Shown in the sidebar's footer, while `syncFooter` shows it.
     public var syncStatus: SyncStatus
+    /// Whether the sidebar shows its sync footer (851-2991).
+    public var syncFooter: SyncFooterVisibility
     /// Account settings, in the Settings window. Kept here rather than presented, so the window
     /// works whether or not the main one is open, and an export keeps going when it closes.
     public var account = AccountFeature.State()
@@ -38,6 +40,9 @@ public struct AppFeature {
       self.metricPath = metricPath
       self.searchText = searchText
       self.syncStatus = syncStatus
+      // As the status shows once it has lasted, for previews and snapshots: signing in starts
+      // hidden (`signedInChanged`).
+      self.syncFooter = SyncFooterVisibility(settledFor: syncStatus)
     }
 
     /// The search, without surrounding spaces.
@@ -69,6 +74,8 @@ public struct AppFeature {
     /// watching the status, so it can't miss how the pull ends.
     case syncRestarted
     case syncStatusChanged(SyncStatus)
+    /// Sync has gone `syncFooterDelay` without being up to date: the footer shows.
+    case syncFooterDelayElapsed
     /// A stack's navigation changed its metrics: a card clicked, or Back. The stack says which
     /// selection it shows, so one that's going away (as the selection changes) can't empty the
     /// path the next one opens with.
@@ -83,7 +90,18 @@ public struct AppFeature {
     case pull
     /// Everything that runs while signed in.
     case sync
+    /// Waiting to show the sync footer (`syncFooterDelay`).
+    case syncFooterDelay
   }
+
+  /// How long sync goes without being up to date before the sidebar's footer shows it
+  /// (851-2991). Everyday syncs are a page, done in well under a second: once up to date, they go
+  /// from up to date straight to up to date again (`.syncing` only follows a page with more after
+  /// it), and the one at launch from "not run yet" to up to date. A failure the first retry fixes,
+  /// about a second later (e.g. offline for a moment after waking), is as brief. Two seconds
+  /// leaves room for a slow network at launch, so none of them flash the footer, while a
+  /// catch-up, a first sync or a failure that lasts still says so soon.
+  static let syncFooterDelay = Duration.seconds(2)
 
   @Dependency(\.agentAccess) var agentAccess
   @Dependency(\.auth) var auth
@@ -154,7 +172,10 @@ public struct AppFeature {
         let wasSignedIn = state.isSignedIn
         state.isSignedIn = isSignedIn
         if isSignedIn {
-          return wasSignedIn == true ? .none : startSync()
+          guard wasSignedIn != true else { return .none }
+          // Until the first pull has run for a while, or needs attention.
+          state.syncFooter = .hidden
+          return startSync()
         }
         // The next account starts afresh.
         state.signIn = SignInFeature.State()
@@ -162,6 +183,7 @@ public struct AppFeature {
         state.metricPath = []
         state.searchText = ""
         state.syncStatus = .idle
+        state.syncFooter = .hidden
         state.account = AccountFeature.State()
         state.agentAccess = AgentAccessFeature.State()
         state.connectedAgents = ConnectedAgentsFeature.State()
@@ -171,6 +193,7 @@ public struct AppFeature {
         return .merge(
           .cancel(id: CancelID.pull),
           .cancel(id: CancelID.sync),
+          .cancel(id: CancelID.syncFooterDelay),
           // What the Settings window started for the account stops with it.
           AccountFeature.cancel(),
           ConnectedAgentsFeature.cancel(),
@@ -216,6 +239,25 @@ public struct AppFeature {
 
       case .syncStatusChanged(let status):
         state.syncStatus = status
+        switch status {
+        case .upToDate:
+          state.syncFooter = .hidden
+          return .cancel(id: CancelID.syncFooterDelay)
+        case .idle, .syncing, .bootstrapping, .offline, .failed:
+          // Shown already (e.g. catching up after a first sync, or after a failure), or waiting:
+          // the wait isn't started again by each page or retry.
+          guard state.syncFooter == .hidden else { return .none }
+          state.syncFooter = .delayed
+          return .run { [clock] send in
+            try await clock.sleep(for: Self.syncFooterDelay)
+            await send(.syncFooterDelayElapsed)
+          }
+          .cancellable(id: CancelID.syncFooterDelay, cancelInFlight: true)
+        }
+
+      case .syncFooterDelayElapsed:
+        guard state.syncFooter == .delayed else { return .none }
+        state.syncFooter = .shown
         return .none
 
       case .metricPathChanged(let path, let selection):
@@ -382,6 +424,24 @@ public struct AppFeature {
   private func pull() -> Effect<Action> {
     .run { [sync] _ in await sync.run() }
       .cancellable(id: CancelID.pull, cancelInFlight: true)
+  }
+}
+
+/// Whether the sidebar shows its sync footer (851-2991): not when everything is up to date, when
+/// it would only say so. It shows a first sync, a catch-up, a failure and being offline, once
+/// they have lasted `AppFeature.syncFooterDelay`, and until sync is up to date again.
+public enum SyncFooterVisibility: Equatable, Sendable {
+  case hidden
+  /// Not up to date, and shows if it still isn't after `AppFeature.syncFooterDelay`.
+  case delayed
+  case shown
+
+  /// How a status shows once it has lasted.
+  init(settledFor status: SyncStatus) {
+    switch status {
+    case .upToDate: self = .hidden
+    case .idle, .syncing, .bootstrapping, .offline, .failed: self = .shown
+    }
   }
 }
 

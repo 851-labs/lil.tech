@@ -57,6 +57,8 @@ struct CommandLineActionsTests {
       $0.healthAppActions = HealthAppActions(
         channel: HealthAppActionChannel(signInWait: .seconds(30)))
       $0.sync = .constant(.idle)
+      // For the sync footer's wait, which the first pull never ends.
+      $0.continuousClock = ManualClock()
     }
     store.exhaustivity = .off
 

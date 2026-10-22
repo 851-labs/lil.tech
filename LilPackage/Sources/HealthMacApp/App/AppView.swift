@@ -84,9 +84,13 @@ struct SidebarView: View {
     .searchFocused($isSearchFocused)
     .focusedSceneValue(\.isSearchFocused, isSearchFocused)
     // A bar, not a plain inset, so the rows scrolling under it fade out behind it (the scroll
-    // edge effect) rather than showing through its text (851-2867).
+    // edge effect) rather than showing through its text (851-2867). Empty, and no height, while
+    // sync is up to date (851-2991). Not animated: it would slide every row with the list's
+    // inset, and the footer's delay already keeps it from flickering.
     .safeAreaBar(edge: .bottom, spacing: 0) {
-      SyncFooterView(status: store.syncStatus, retry: { store.send(.retrySyncButtonTapped) })
+      if store.syncFooter == .shown {
+        SyncFooterView(status: store.syncStatus, retry: { store.send(.retrySyncButtonTapped) })
+      }
     }
     .navigationSplitViewColumnWidth(min: 200, ideal: 240)
   }

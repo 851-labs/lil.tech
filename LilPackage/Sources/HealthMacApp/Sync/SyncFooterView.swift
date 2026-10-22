@@ -1,18 +1,21 @@
-import Dependencies
 import HealthUI
 import LilSync
 import SwiftUI
 
-/// The sidebar's footer: how sync is doing. The account is in Settings (⌘,) and Sign Out in the
-/// app menu (851-2822).
+/// The sidebar's footer: how sync is doing, while it's syncing or needs attention. Up to date,
+/// it's hidden (`SyncFooterVisibility`, 851-2991). The account is in Settings (⌘,) and Sign Out
+/// in the app menu (851-2822).
 struct SyncFooterView: View {
   let status: SyncStatus
   let retry: () -> Void
-  /// From dependencies, so snapshot catalogs fix it (`previewNow`): "Updated 2 minutes ago".
-  @Dependency(\.date.now) private var now
 
   var body: some View {
-    let content = SyncFooterContent(status, now: now)
+    if let content = SyncFooterContent(status) {
+      footer(content)
+    }
+  }
+
+  private func footer(_ content: SyncFooterContent) -> some View {
     HStack(alignment: .center, spacing: 8) {
       icon
         .frame(width: 16)
@@ -59,8 +62,7 @@ struct SyncFooterView: View {
       ProgressView()
         .controlSize(.small)
     case .upToDate:
-      Image(systemName: "checkmark.circle.fill")
-        .foregroundStyle(.green)
+      EmptyView()
     case .offline:
       Image(systemName: "wifi.slash")
         .foregroundStyle(.secondary)
@@ -74,7 +76,8 @@ struct SyncFooterView: View {
 /// What the footer says about a status. A first sync counts records left in each stage, in the
 /// iPhone's words ("1,234,567 items left", `ItemsCopy`), and its bar is never full while work
 /// goes on: the final transaction, which can't report progress, says "Finishing up…" over a
-/// moving bar (851-2946). A catch-up counts the changes left.
+/// moving bar (851-2946). A catch-up counts the changes left. Up to date has none: the footer
+/// hides (851-2991).
 struct SyncFooterContent: Equatable {
   enum Bar: Equatable {
     case none
@@ -86,8 +89,7 @@ struct SyncFooterContent: Equatable {
   var detail: String?
   var bar: Bar
 
-  /// `now` is what "Updated 2 minutes ago" counts from.
-  init(_ status: SyncStatus, now: Date) {
+  init?(_ status: SyncStatus) {
     switch status {
     case .idle:
       self.init(title: "Syncing…", detail: nil, bar: .none)
@@ -109,12 +111,8 @@ struct SyncFooterContent: Equatable {
       case .finishing:
         self.init(title: "Finishing up…", detail: nil, bar: .indeterminate)
       }
-    case .upToDate(let date):
-      self.init(
-        title: "Up to date",
-        detail:
-          "Updated \(Date.AnchoredRelativeFormatStyle(anchor: date, presentation: .named).format(now))",
-        bar: .none)
+    case .upToDate:
+      return nil
     case .offline:
       self.init(title: "Offline", detail: "Syncs when you're back online", bar: .none)
     case .failed:
