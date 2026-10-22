@@ -102,6 +102,8 @@ struct ActivityRingsContent: View {
   /// the days to come look different.
   @Dependency(\.calendar) private var calendar
   @Dependency(\.date.now) private var now
+  /// The calendar's day with keyboard focus, if it has it.
+  @FocusState private var focusedDay: Date?
 
   var body: some View {
     // A grouped form on its own background, as Metric Detail is (851-2989, 851-3003): the month,
@@ -161,6 +163,8 @@ struct ActivityRingsContent: View {
 
   @ViewBuilder private func calendarGrid(_ days: [String: ActivityDay]) -> some View {
     let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+    let shown = shownDay
+    let today = calendar.startOfDay(for: now)
     LazyVGrid(columns: columns, spacing: 8) {
       ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
         Text(symbol)
@@ -169,17 +173,23 @@ struct ActivityRingsContent: View {
       }
       ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
         if let day {
-          // A button, so the keyboard and VoiceOver can choose a day. Days to come have none.
-          Button {
-            selected = day
-          } label: {
-            ActivityDayCell(
-              number: calendar.component(.day, from: day), day: days[key(day)],
-              isSelected: day == shownDay, isToday: calendar.isDate(day, inSameDayAs: now),
-              isFuture: day > calendar.startOfDay(for: now))
-          }
-          .buttonStyle(.plain)
-          .disabled(day > calendar.startOfDay(for: now))
+          let isToday = calendar.isDate(day, inSameDayAs: now)
+          let isFuture = day > today
+          ActivityDayCell(
+            number: calendar.component(.day, from: day), day: days[key(day)],
+            isSelected: day == shown, isToday: isToday, isFuture: isFuture
+          )
+          // Chosen with the keyboard and VoiceOver too (851-3015). Days to come have no rings to
+          // show.
+          .calendarDay(
+            day,
+            label: MonthCalendar.label(
+              day, isToday: isToday,
+              details: isFuture ? [] : [ActivityDayCell.rings(days[key(day)])],
+              calendar: calendar),
+            isSelected: day == shown, in: month, shown: shown, focus: $focusedDay,
+            calendar: calendar, canChoose: { $0 <= today }
+          ) { selected = day }
         } else {
           Color.clear.frame(height: 54)
         }
@@ -311,6 +321,11 @@ struct ActivityDayCell: View {
     }
     .contentShape(Rectangle())
   }
+
+  /// A day's rings, for VoiceOver.
+  nonisolated static func rings(_ day: ActivityDay?) -> String {
+    day.map(ActivityRings.description) ?? "No Activity Rings"
+  }
 }
 
 /// A day's rings, nested as Fitness draws them: Move outside, then Exercise and Stand when it has
@@ -338,7 +353,7 @@ struct ActivityRings: View {
     .accessibilityLabel(Self.description(day))
   }
 
-  static func description(_ day: ActivityDay) -> String {
+  nonisolated static func description(_ day: ActivityDay) -> String {
     var parts = ["Move \(Int(day.move.progress * 100))%"]
     if let exercise = day.exercise { parts.append("Exercise \(Int(exercise.progress * 100))%") }
     if let stand = day.stand { parts.append("Stand \(Int(stand.progress * 100))%") }
