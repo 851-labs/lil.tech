@@ -9,12 +9,11 @@
 // LIL_RELEASE_ASC_ISSUER_ID, as in scripts/release. Prints the profile's UUID.
 //
 // The profile is ours, named after the bundle identifier ("lil.tech CI Developer ID <bundle-id>"),
-// never the one Xcode manages: an export with manual signing needs a profile it doesn't manage, and
-// that one's certificates are Xcode's choice. It's used as long as it's active, for the bundle
-// identifier, and holds the certificate; otherwise it's deleted and made again with just that
-// certificate. A team key can make Developer ID profiles, but not use cloud-managed Developer ID
-// certificates, which are only the Account Holder's: so the export can't sign with automatic
-// signing headless.
+// never the one Xcode manages for local releases, whose certificates are Xcode's choice. It's used
+// as long as it's active, for the bundle identifier, holds the certificate and doesn't expire within
+// 30 days; otherwise it's deleted and made again with just that certificate. A team key can make
+// Developer ID profiles, but not use cloud-managed Developer ID certificates, which are only the
+// Account Holder's: so a headless export can't sign automatically.
 import CryptoKit
 import Foundation
 
@@ -77,7 +76,13 @@ func makeToken() throws -> String {
   return "\(input).\(base64URL(signature.rawRepresentation))"
 }
 
-let token = try makeToken()
+let token: String
+do {
+  token = try makeToken()
+} catch {
+  log("error: \(error)")
+  exit(1)
+}
 
 typealias Resource = [String: Any]
 
@@ -129,6 +134,16 @@ func attributes(_ resource: Resource) -> Resource {
   resource["attributes"] as? Resource ?? [:]
 }
 
+/// When a profile expires, from the API's ISO 8601 date, with or without fractions of a second.
+func expirationDate(_ resource: Resource) -> Date? {
+  guard let text = attributes(resource)["expirationDate"] as? String else { return nil }
+  let formatter = ISO8601DateFormatter()
+  formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+  if let date = formatter.date(from: text) { return date }
+  formatter.formatOptions = [.withInternetDateTime]
+  return formatter.date(from: text)
+}
+
 func relatedIDs(_ resource: Resource, _ relationship: String) -> [String] {
   let data = ((resource["relationships"] as? Resource)?[relationship] as? Resource)?["data"]
   if let one = data as? Resource { return [one["id"] as? String].compactMap { $0 } }
@@ -150,7 +165,10 @@ do {
 
   let certificates = try await list(
     "/v1/certificates",
-    ["fields[certificates]": "certificateContent,certificateType,displayName", "limit": "200"])
+    [
+      "filter[certificateType]": "DEVELOPER_ID_APPLICATION,DEVELOPER_ID_APPLICATION_G2",
+      "fields[certificates]": "certificateContent,certificateType", "limit": "200",
+    ])
   guard
     let certificate = certificates.first(where: {
       guard let content = attributes($0)["certificateContent"] as? String,
@@ -159,36 +177,38 @@ do {
       return hex(Insecure.SHA1.hash(data: der)) == certificateHash
     }), let certificateID = certificate["id"] as? String
   else {
-    throw Failure(description: "The certificate \(certificateHash) isn't one of the team's")
-  }
-  let certificateType = attributes(certificate)["certificateType"] as? String ?? ""
-  guard certificateType.hasPrefix("DEVELOPER_ID_APPLICATION") else {
     throw Failure(
       description:
-        "The certificate \(certificateHash) is \(certificateType), not Developer ID Application")
+        "The certificate \(certificateHash) isn't one of the team's Developer ID Application certificates"
+    )
   }
 
   let existing = try await list(
     "/v1/profiles",
     [
       "filter[name]": profileName,
-      "fields[profiles]": "name,profileType,profileState,profileContent,uuid,bundleId,certificates",
+      "fields[profiles]":
+        "name,profileType,profileState,profileContent,uuid,expirationDate,bundleId,certificates",
       "include": "bundleId,certificates",
       "limit[certificates]": "50",
       "limit": "200",
     ]
   ).filter { attributes($0)["name"] as? String == profileName }
+  // An app whose profile has expired loses its entitlements, so one that's about to goes too.
+  let expiresAfter = Date().addingTimeInterval(30 * 24 * 60 * 60)
   var profile = existing.first {
     let attributes = attributes($0)
     return attributes["profileType"] as? String == "MAC_APP_DIRECT"
       && attributes["profileState"] as? String == "ACTIVE"
       && relatedIDs($0, "bundleId") == [bundleID]
       && relatedIDs($0, "certificates").contains(certificateID)
+      && (expirationDate($0).map { $0 > expiresAfter } ?? false)
   }
   if profile != nil {
     log("Using the profile \"\(profileName)\"")
   } else {
-    // Names are unique, so an unusable profile of ours (another certificate, or invalid) goes first.
+    // Names are unique, so an unusable profile of ours (another certificate, invalid or expiring) goes
+    // first.
     for stale in existing {
       if let id = stale["id"] as? String {
         log(

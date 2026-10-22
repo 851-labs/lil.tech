@@ -74,7 +74,8 @@ case "$app" in
     info_plist=Apps/LilHealth/LilHealth-Info.plist
     destination='generic/platform=macOS'
     # Its keychain access group (the data protection Keychain holds the session) needs a
-    # Developer ID provisioning profile, which Xcode makes and renews.
+    # Developer ID provisioning profile, which Xcode makes and renews, or headless,
+    # scripts/developer-id-profile.swift fetches.
     provisioned=true
     ;;
   health-ios)
@@ -335,6 +336,7 @@ if $ios; then
 fi
 
 certificate="Developer ID Application"
+dmg_identity="Developer ID Application: Alexandru Turcanu ($team)"
 profiles=
 export_provisioning=(${provisioning[@]+"${provisioning[@]}"})
 # Headless, the export can't sign automatically: it would use a cloud-managed Developer ID
@@ -344,15 +346,20 @@ export_provisioning=(${provisioning[@]+"${provisioning[@]}"})
 # ones a run added (.github/actions/release-profiles).
 if $headless && $provisioned; then
   echo "==> Fetching the Developer ID provisioning profile"
-  certificate=$(security find-identity -v -p codesigning "$LIL_RELEASE_KEYCHAIN" |
+  certificate=$( (security find-identity -v -p codesigning "$LIL_RELEASE_KEYCHAIN" || true) |
     sed -nE "s/^ *[0-9]+\) ([0-9A-F]{40}) \"Developer ID Application: .*\($team\)\"$/\1/p")
   if [ "$(grep -c . <<<"$certificate")" != 1 ]; then
     echo "$LIL_RELEASE_KEYCHAIN must hold one Developer ID Application identity of $team" >&2
     exit 1
   fi
+  dmg_identity=$certificate
   bundle_id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$info_path")
+  installed_profiles="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
   profile=$(xcrun swift scripts/developer-id-profile.swift "$bundle_id" "$certificate" \
-    "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles")
+    "$installed_profiles")
+  # Its file name is the same every run, so the cleanup would take a copy a dead job left for one
+  # that was there before the run: this run's goes when the script ends, after the export.
+  trap 'rm -rf "$out/DerivedData" "$installed_profiles/$profile.provisionprofile"' EXIT
   signing_style=manual
   profiles="<key>provisioningProfiles</key><dict><key>$bundle_id</key><string>$profile</string></dict>"
   export_provisioning=()
@@ -425,7 +432,7 @@ hdiutil create -volname "$product" -srcfolder "$staging" -fs HFS+ -format UDZO -
 rm -rf "$staging"
 dmg_keychain=()
 $headless && dmg_keychain=(--keychain "$LIL_RELEASE_KEYCHAIN")
-codesign --sign "Developer ID Application: Alexandru Turcanu ($team)" --timestamp \
+codesign --sign "$dmg_identity" --timestamp \
   ${dmg_keychain[@]+"${dmg_keychain[@]}"} "$dmg"
 
 if $notarize; then
