@@ -15,6 +15,10 @@ name: Release
 # waits for Alexandru's approval on every run, since the minis are shared with Codevisor's CI. They
 # go into a keychain made for the job (never the login keychain) and a folder in the runner's temp
 # directory, both deleted when the job ends, however it ends. See docs/RELEASING.md.
+#
+# One release at a time per platform, never cancelled halfway: each job queues in its own
+# concurrency group (`queue: max`, as in main.yml, since the default keeps one waiting run and
+# cancels the rest).
 
 on:
   workflow_dispatch:
@@ -39,11 +43,6 @@ on:
         required: false
         type: string
 
-# One release at a time, never cancelled halfway: a second run waits for the first.
-concurrency:
-  group: release
-  cancel-in-progress: false
-
 permissions:
   contents: read
 
@@ -62,6 +61,10 @@ jobs:
     # them: the environment is what keeps the secrets to main and to runs Alexandru approves.
     runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
     environment: release
+    concurrency:
+      group: release-mac
+      cancel-in-progress: false
+      queue: max
     timeout-minutes: 90
     outputs:
       build: ${{ steps.release.outputs.build }}
@@ -84,6 +87,11 @@ jobs:
 
       - uses: ./.github/actions/select-xcode
 
+      - uses: ./.github/actions/release-profiles
+        with:
+          do: snapshot
+          platform: OSX
+
       # Into a folder only this job reads and a keychain of its own, added to the user's search list
       # (where the export finds the identity) and removed by the last step. The login keychain and
       # the default keychain are never touched.
@@ -99,9 +107,6 @@ jobs:
           dir="$RUNNER_TEMP/lil-release"
           rm -rf "$dir"
           mkdir "$dir"
-          echo "LIL_RELEASE_DIR=$dir" >> "$GITHUB_ENV"
-          # Profiles Xcode downloads during the release are removed afterwards, the rest kept.
-          ls "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" 2>/dev/null > "$dir/profiles" || true
 
           printf %s "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > "$dir/AuthKey.p8"
           printf %s "$SPARKLE_HEALTH_ED_KEY" > "$dir/sparkle-key"
@@ -110,18 +115,19 @@ jobs:
           keychain="$dir/signing.keychain-db"
           password=$(openssl rand -hex 32)
           echo "::add-mask::$password"
-          security list-keychains -d user | sed -E 's/^[[:space:]]*"(.*)"$/\1/' > "$dir/keychains"
           security create-keychain -p "$password" "$keychain"
-          security set-keychain-settings -lut 7200 "$keychain"
+          # Locks itself after the job's timeout.
+          security set-keychain-settings -lut 5400 "$keychain"
           security unlock-keychain -p "$password" "$keychain"
-          security import "$dir/developer-id.p12" -k "$keychain" -f pkcs12 -P "$DEVELOPER_ID_P12_PASSWORD" -A >/dev/null
+          # Only codesign may use the key, without a prompt no one could answer.
+          security import "$dir/developer-id.p12" -k "$keychain" -f pkcs12 -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign >/dev/null
           rm "$dir/developer-id.p12"
-          # Lets codesign use the key without a prompt no one could answer.
           security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
+          # In front of the list as it is now. The last step takes out only this keychain.
           search=("$keychain")
           while IFS= read -r line; do
-            [ -n "$line" ] && [ "$line" != "$keychain" ] && search+=("$line")
-          done < "$dir/keychains"
+            [ -n "$line" ] && search+=("$line")
+          done < <(security list-keychains -d user | sed -E 's/^[[:space:]]*"(.*)"$/\1/')
           security list-keychains -d user -s "${search[@]}"
           security find-identity -v -p codesigning "$keychain" | grep "Developer ID Application: .*(WH4QW9ND3J)"
           {
@@ -145,7 +151,10 @@ jobs:
             echo "### lil health $VERSION for Mac (build $(git rev-list --count HEAD))"
             echo
             echo "Notarized, stapled and accepted by Gatekeeper. Enclosure: \`$(cat "$out/enclosure.txt")\`"
-            [ "$DRY_RUN" = true ] && echo && echo "Dry run: nothing is published."
+            if [ "$DRY_RUN" = true ]; then
+              echo
+              echo "Dry run: nothing is published."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Keep the DMG for publish-mac
@@ -163,24 +172,30 @@ jobs:
         if: always()
         run: |
           dir="$RUNNER_TEMP/lil-release"
-          if [ -s "$dir/keychains" ]; then
-            original=()
-            while IFS= read -r line; do [ -n "$line" ] && original+=("$line"); done < "$dir/keychains"
-            security list-keychains -d user -s "${original[@]}" || true
-          fi
-          security delete-keychain "$dir/signing.keychain-db" 2>/dev/null || true
-          profiles="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
-          if [ -f "$dir/profiles" ] && [ -d "$profiles" ]; then
-            ls "$profiles" | while IFS= read -r profile; do
-              grep -qxF "$profile" "$dir/profiles" || rm -f "$profiles/$profile"
-            done
-          fi
+          keychain="$dir/signing.keychain-db"
+          # Out of the search list as it is now, which other jobs may have changed meanwhile.
+          search=()
+          while IFS= read -r line; do
+            [ -n "$line" ] && [ "$line" != "$keychain" ] && [ "$line" != "$(realpath "$keychain" 2>/dev/null)" ] && search+=("$line")
+          done < <(security list-keychains -d user | sed -E 's/^[[:space:]]*"(.*)"$/\1/')
+          [ ${#search[@]} -gt 0 ] && security list-keychains -d user -s "${search[@]}"
+          security delete-keychain "$keychain" 2>/dev/null || true
           rm -rf "$dir" build/releases
+
+      - uses: ./.github/actions/release-profiles
+        if: always()
+        with:
+          do: clean
+          platform: OSX
 
   publish-mac:
     needs: mac
     if: github.ref == 'refs/heads/main' && inputs.dry-run == false
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-publish-mac
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
     env:
@@ -199,16 +214,28 @@ jobs:
         with:
           name: lil-health-mac
           path: ${{ runner.temp }}/release
+      # Each step picks up where a failed attempt stopped, so rerunning this job finishes the job.
       - name: Tag and make the GitHub release
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           tag="health/v$VERSION"
-          git tag -a "$tag" "$GITHUB_SHA" -m "lil health $VERSION"
-          git push origin "refs/tags/$tag"
-          printf 'lil health %s for Mac (build %s). Requires macOS %s.\n' "$VERSION" "$BUILD" "$MINIMUM_SYSTEM_VERSION" > "$RUNNER_TEMP/notes.md"
-          gh release create "$tag" "$RUNNER_TEMP/release/lil-health-$VERSION.dmg" \
-            --verify-tag --title "lil health $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            if [ "$(git rev-parse "$tag^{commit}")" != "$GITHUB_SHA" ]; then
+              echo "$tag already tags another commit." >&2
+              exit 1
+            fi
+          else
+            git tag -a "$tag" "$GITHUB_SHA" -m "lil health $VERSION"
+            git push origin "refs/tags/$tag"
+          fi
+          dmg="$RUNNER_TEMP/release/lil-health-$VERSION.dmg"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$dmg" --clobber
+          else
+            printf 'lil health %s for Mac (build %s). Requires macOS %s.\n' "$VERSION" "$BUILD" "$MINIMUM_SYSTEM_VERSION" > "$RUNNER_TEMP/notes.md"
+            gh release create "$tag" "$dmg" --verify-tag --title "lil health $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+          fi
       # main is protected, so the appcast changes through a pull request. One the workflow's token
       # opened would run no workflows (so no pr-ok), and the repo doesn't let Actions open them, so
       # a person opens it from the link in the summary.
@@ -249,7 +276,8 @@ jobs:
           branch="release/health-v$VERSION"
           git switch -c "$branch"
           git commit -am "lil health $VERSION: Add it to the appcast"
-          git push origin "$branch"
+          # The workflow's own branch: a rerun replaces it.
+          git push --force origin "$branch"
           title="lil health $VERSION: Add it to the appcast"
           link="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...$branch?expand=1&title=$(jq -rn --arg t "$title" '$t|@uri')"
           {
@@ -261,10 +289,17 @@ jobs:
             echo "Installed copies are offered the update once it merges. Add a description to the item first if it has none."
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # Alongside mac, not after it, so one approval starts both. With target `both`, it checks the
+  # version isn't released yet as mac does, but a Mac release that fails later doesn't stop the
+  # upload: rerun mac from the same commit, which gives it the same build number.
   ios:
     if: github.ref == 'refs/heads/main' && inputs.target != 'mac'
     runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
     environment: release
+    concurrency:
+      group: release-ios
+      cancel-in-progress: false
+      queue: max
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
@@ -274,9 +309,22 @@ jobs:
           set-safe-directory: false
 
       - name: Check the version
-        run: '[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Not a version: $VERSION" >&2; exit 1; }'
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Not a version: $VERSION" >&2; exit 1; }
+          if [ "$DRY_RUN" != true ] && [ "$TARGET" = both ] &&
+            git ls-remote --exit-code --tags origin "refs/tags/health/v$VERSION" >/dev/null; then
+            echo "health/v$VERSION is already tagged: release iOS alone with target ios." >&2
+            exit 1
+          fi
 
       - uses: ./.github/actions/select-xcode
+
+      - uses: ./.github/actions/release-profiles
+        with:
+          do: snapshot
+          platform: iOS
 
       - name: Set up the App Store Connect key
         env:
@@ -287,7 +335,6 @@ jobs:
           dir="$RUNNER_TEMP/lil-release-ios"
           rm -rf "$dir"
           mkdir "$dir"
-          ls "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" 2>/dev/null > "$dir/profiles" || true
           printf %s "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > "$dir/AuthKey.p8"
           echo "LIL_RELEASE_ASC_KEY_PATH=$dir/AuthKey.p8" >> "$GITHUB_ENV"
 
@@ -314,12 +361,10 @@ jobs:
 
       - name: Remove the signing material
         if: always()
-        run: |
-          dir="$RUNNER_TEMP/lil-release-ios"
-          profiles="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
-          if [ -f "$dir/profiles" ] && [ -d "$profiles" ]; then
-            ls "$profiles" | while IFS= read -r profile; do
-              grep -qxF "$profile" "$dir/profiles" || rm -f "$profiles/$profile"
-            done
-          fi
-          rm -rf "$dir" build/releases
+        run: rm -rf "$RUNNER_TEMP/lil-release-ios" build/releases
+
+      - uses: ./.github/actions/release-profiles
+        if: always()
+        with:
+          do: clean
+          platform: iOS

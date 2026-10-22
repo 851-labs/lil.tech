@@ -1,0 +1,47 @@
+name: Release provisioning profiles
+description: >-
+  Notes the provisioning profiles Xcode has before a release job (`snapshot`), and afterwards
+  (`clean`) removes the ones it downloaded for lil health on one platform, so a release leaves none
+  behind on the shared Mac minis. Only lil.tech's (WH4QW9ND3J.tech.lil.*) and only that platform's,
+  so it never removes a profile another job on the machine just fetched.
+inputs:
+  do:
+    description: "`snapshot` or `clean`."
+    required: true
+  platform:
+    description: The profiles' platform, as they name it (`OSX` or `iOS`).
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        DO: ${{ inputs.do }}
+        PLATFORM: ${{ inputs.platform }}
+      run: |
+        profiles="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+        snapshot="$RUNNER_TEMP/lil-release-profiles-$PLATFORM"
+        case "$DO" in
+          snapshot)
+            find "$profiles" -type f -name '*.*provision*' 2>/dev/null | sort > "$snapshot" || true
+            ;;
+          clean)
+            [ -f "$snapshot" ] || exit 0
+            find "$profiles" -type f -name '*.*provision*' 2>/dev/null | sort | comm -13 "$snapshot" - |
+              while IFS= read -r profile; do
+                plist=$(security cms -D -i "$profile" 2>/dev/null) || continue
+                identifier=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /dev/stdin <<< "$plist" 2>/dev/null ||
+                  /usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' /dev/stdin <<< "$plist" 2>/dev/null || true)
+                platforms=$(/usr/libexec/PlistBuddy -c 'Print :Platform' /dev/stdin <<< "$plist" 2>/dev/null || true)
+                if [[ "$identifier" == WH4QW9ND3J.tech.lil.* ]] && grep -qw "$PLATFORM" <<< "$platforms"; then
+                  echo "Removing $(basename "$profile") ($identifier)"
+                  rm -f "$profile"
+                fi
+              done
+            rm -f "$snapshot"
+            ;;
+          *)
+            echo "Unknown: $DO" >&2
+            exit 1
+            ;;
+        esac

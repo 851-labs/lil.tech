@@ -23,9 +23,9 @@ Each run waits for Alexandru to approve it (the `release` environment), then:
 
 1. **mac** runs `scripts/release health <version>` headless (below): every check and step of a local release, from archive to `enclosure.txt`. The run's summary shows the build number and the enclosure.
 2. **publish-mac** (not in a dry run) tags `health/v<version>` on the released commit, makes the GitHub release with the DMG, and pushes the branch `release/health-v<version>`, which adds the item to `appcasts/health.xml`. **Open its PR from the link in the run's summary**, check it, and merge it after `pr-ok` passes. The workflow can't open the PR itself: the repo doesn't let Actions open pull requests, and GitHub runs no workflows (so no `pr-ok`) for one its token opened. The release's notes are one line; write the real ones with `gh release edit health/v<version> --notes-file …`.
-3. **ios** runs `scripts/release health-ios <version>` headless, which uploads to TestFlight (in a dry run, `--skip-upload`: export to disk only).
+3. **ios** runs `scripts/release health-ios <version>` headless, which uploads to TestFlight (in a dry run, `--skip-upload`: export to disk only). It runs alongside **mac**, so one approval starts both. With `both`, it refuses a version that's already tagged, as **mac** does, but a Mac release that fails later doesn't stop the upload: rerun it with `target=mac` from the same commit, which gives it the same build number. Release iOS on its own for a version the Mac already has with `target=ios`.
 
-One release runs at a time: a second run waits, and none is cancelled halfway. To publish what a run built after a step failed, finish by hand with the steps under [Publishing a release](#publishing-a-release).
+Releases queue, one per platform at a time, and none is cancelled halfway. If **publish-mac** fails, rerun it (Re-run failed jobs): it picks up where it stopped, reusing the tag if it's on the same commit, and the release if it exists. Its DMG is kept for three days.
 
 ### Headless `scripts/release`
 
@@ -59,7 +59,11 @@ Set one by piping it in, so it never reaches a terminal or a file in the repo: `
 
 ### What stays on the minis
 
-Nothing that signs. Each job writes the keys into its own folder under the runner's temp directory, and the Mac job imports the `.p12` into a keychain it makes there (random password, unlocked for two hours) and adds to the front of the user's keychain search list. The login keychain and the default keychain are never touched. The last step, which runs however the job ends, puts the search list back, deletes the keychain and the folder, removes provisioning profiles Xcode downloaded during the run, and deletes `build/releases` (the archive, the DMG, and the package checkouts). The release's derived data is deleted as it always is. If a runner dies mid-job, its next job starts with a clean temp directory, so only a search list entry for a keychain that no longer exists is left.
+Nothing that signs. Each job writes the keys into its own folder under the runner's temp directory. The Mac job imports the `.p12` into a keychain it makes there, with a random password, which locks itself after the job's 90-minute timeout. Only `codesign` may use the key. The keychain goes at the front of the user's search list. The login keychain and the default keychain are never touched.
+
+The last steps run however the job ends. They take the keychain out of the search list and delete it, delete the folder, and delete `build/releases` (the archive, the DMG, and the package checkouts). They also remove the provisioning profiles the run downloaded: only lil.tech's for that platform, so never one another job just fetched. The release's derived data is deleted as it always is. If a runner dies mid-job, its next job starts with a clean temp directory, so the only thing left is a search list entry for a keychain that no longer exists.
+
+Each mini runs one runner, as its own macOS user (as of October 2026), so a release never shares a user with another job. The key is only as private as that user's account while the job runs.
 
 ## One-time setup
 

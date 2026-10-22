@@ -265,10 +265,14 @@ sign_ad_hoc() {
   if ! $ios; then
     for tool in "$archived_app/Contents/MacOS/"*; do
       [ "$(basename "$tool")" = "$(basename "$archived_app" .app)" ] && continue
-      identifier=$(launchctl plist __TEXT,__info_plist "$tool" |
+      if ! file -b "$tool" | grep -q '^Mach-O'; then
+        echo "$tool isn't a Mach-O executable, which headless signing doesn't handle" >&2
+        exit 1
+      fi
+      identifier=$( (launchctl plist __TEXT,__info_plist "$tool" 2>/dev/null || true) |
         sed -nE 's/^[[:space:]]*"CFBundleIdentifier" = "([^"]+)";$/\1/p')
       if [ -z "$identifier" ]; then
-        echo "$tool has no bundle identifier in its info section" >&2
+        echo "$tool has no bundle identifier in its info section (CREATE_INFOPLIST_SECTION_IN_BINARY)" >&2
         exit 1
       fi
       /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string $team.$identifier" \
