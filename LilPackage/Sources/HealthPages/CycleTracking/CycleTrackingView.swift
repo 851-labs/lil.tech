@@ -197,6 +197,10 @@ struct CycleTrackingContent: View {
   let now: Date
   /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
   @Dependency(\.calendar) private var calendar
+  /// The calendar's day with keyboard focus, if it has it.
+  @FocusState private var focusedDay: Date?
+  /// The calendar's day that can take focus (`calendarDay`).
+  @State private var focusTarget: Date?
 
   var body: some View {
     Group {
@@ -283,11 +287,21 @@ struct CycleTrackingContent: View {
         }
         ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
           if let day {
+            let isToday = calendar.isDate(day, inSameDayAs: now)
             CycleDayCell(
-              day: day, entry: snapshot.days[day], isSelected: day == shown,
-              isToday: calendar.isDate(day, inSameDayAs: now), calendar: calendar
+              day: day, entry: snapshot.days[day], isSelected: day == shown, isToday: isToday,
+              calendar: calendar
             )
-            .onTapGesture { selected = day }
+            // For the keyboard and VoiceOver too (851-3015).
+            .calendarDay(
+              day,
+              label: MonthCalendar.label(
+                day, isToday: isToday, details: CycleDayCell.logged(snapshot.days[day]),
+                calendar: calendar),
+              in: month, shown: shown, focus: $focusedDay,
+              focusTarget: $focusTarget,
+              calendar: calendar
+            ) { selected = day }
           } else {
             Color.clear.frame(height: 44)
           }
@@ -505,6 +519,20 @@ struct CycleDayCell: View {
     }
     .frame(maxWidth: .infinity, minHeight: 44)
     .contentShape(Rectangle())
+  }
+
+  /// What's logged on a day, for VoiceOver, as the day's section lists it.
+  nonisolated static func logged(_ entry: CycleDay?) -> [String] {
+    guard let entry else { return [] }
+    var logged: [String] = []
+    if let flow = entry.flow { logged.append(flow.name) }
+    if entry.spotting { logged.append("Spotting") }
+    if entry.sexualActivity { logged.append("Sexual Activity") }
+    logged += entry.log.map { item in
+      [item.name, item.value].compactMap { $0 }.joined(separator: ": ")
+    }
+    logged += entry.symptoms
+    return logged
   }
 
   private func dot(_ color: Color) -> some View {
