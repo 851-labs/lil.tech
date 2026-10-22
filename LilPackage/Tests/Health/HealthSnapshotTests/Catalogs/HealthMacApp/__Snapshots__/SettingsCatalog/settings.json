@@ -221,17 +221,24 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
     },
     {
-      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-more-of-the-log-failed-dark.png",
-      "id" : "settings.remote-agents-more-of-the-log-failed",
-      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-more-of-the-log-failed-light.png",
-      "name" : "Remote agents: more of the log failed",
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-log-loading-dark.png",
+      "id" : "settings.remote-agents-log-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-log-loading-light.png",
+      "name" : "Remote agents: log loading",
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
     },
     {
-      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-long-names-more-to-read-dark.png",
-      "id" : "settings.remote-agents-long-names-more-to-read",
-      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-long-names-more-to-read-light.png",
-      "name" : "Remote agents: long names, more to read",
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-log-failed-dark.png",
+      "id" : "settings.remote-agents-log-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-log-failed-light.png",
+      "name" : "Remote agents: log failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-long-names-dark.png",
+      "id" : "settings.remote-agents-long-names",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-long-names-light.png",
+      "name" : "Remote agents: long names",
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
     },
     {
@@ -239,6 +246,111 @@
       "id" : "settings.remote-agents-large-window",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-agents-large-window-light.png",
       "name" : "Remote agents: large window",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-dark.png",
+      "id" : "settings.access-log",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-light.png",
+      "name" : "Access log",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-off-dark.png",
+      "id" : "settings.access-log-off",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-off-light.png",
+      "name" : "Access log: off",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-empty-dark.png",
+      "id" : "settings.access-log-empty",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-empty-light.png",
+      "name" : "Access log: empty",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-loading-dark.png",
+      "id" : "settings.access-log-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-loading-light.png",
+      "name" : "Access log: loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-failed-dark.png",
+      "id" : "settings.access-log-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-failed-light.png",
+      "name" : "Access log: failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-failed-to-read-again-dark.png",
+      "id" : "settings.access-log-failed-to-read-again",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-failed-to-read-again-light.png",
+      "name" : "Access log: failed to read again",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-resized-dark.png",
+      "id" : "settings.access-log-resized",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-resized-light.png",
+      "name" : "Access log: resized",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-dark.png",
+      "id" : "settings.remote-access-log",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-light.png",
+      "name" : "Remote access log",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-empty-dark.png",
+      "id" : "settings.remote-access-log-empty",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-empty-light.png",
+      "name" : "Remote access log: empty",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-loading-dark.png",
+      "id" : "settings.remote-access-log-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-loading-light.png",
+      "name" : "Remote access log: loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-failed-dark.png",
+      "id" : "settings.remote-access-log-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-failed-light.png",
+      "name" : "Remote access log: failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-more-to-read-dark.png",
+      "id" : "settings.remote-access-log-more-to-read",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-more-to-read-light.png",
+      "name" : "Remote access log: more to read",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-reading-more-dark.png",
+      "id" : "settings.remote-access-log-reading-more",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-reading-more-light.png",
+      "name" : "Remote access log: reading more",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-more-failed-dark.png",
+      "id" : "settings.remote-access-log-more-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-more-failed-light.png",
+      "name" : "Remote access log: more failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-resized-dark.png",
+      "id" : "settings.remote-access-log-resized",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-resized-light.png",
+      "name" : "Remote access log: resized",
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
     }
   ]

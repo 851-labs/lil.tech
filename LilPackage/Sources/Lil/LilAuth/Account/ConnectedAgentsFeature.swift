@@ -3,8 +3,9 @@ import Foundation
 
 /// lil health's remote agents: those the person allowed to read its data through its MCP server
 /// (`mcp.lil.tech/health`) or the combined one for every lil app (`mcp.lil.tech`, 851-2902), with
-/// when each connected and last read, revoking one or all of them, and the log of what they read. The Mac's Agents pane (851-2853) and the iPhone's Settings
-/// (851-2854) show it. Kept in the app's store, and read again each time its screen opens.
+/// when each connected and last read, revoking one or all of them, and the log of what they read.
+/// The Mac's Agents pane (851-2853) and the iPhone's Settings (851-2854) show it. Kept in the
+/// app's store, and read again each time its screen opens.
 @Reducer
 public struct ConnectedAgentsFeature {
   @ObservableState
@@ -20,6 +21,9 @@ public struct ConnectedAgentsFeature {
     public var isLoadingLog: Bool
     /// Where the log's next page starts. Nil once it's all read.
     public var logNextBefore: Int?
+    /// Whether the log is shown: the Mac's sheet over its Agents pane (851-3082). The iPhone
+    /// pushes Recent Access instead.
+    public var isShowingLog: Bool
     /// Agents being revoked, which show progress until it's done.
     public var revoking: Set<String>
     public var isTurningOff: Bool
@@ -27,7 +31,7 @@ public struct ConnectedAgentsFeature {
     public init(
       agents: Agents = .loading, failure: String? = nil, log: [RemoteAgentAccess] = [],
       logFailure: String? = nil, isLoadingLog: Bool = false, logNextBefore: Int? = nil,
-      revoking: Set<String> = [], isTurningOff: Bool = false,
+      isShowingLog: Bool = false, revoking: Set<String> = [], isTurningOff: Bool = false,
       alert: AlertState<Action.Alert>? = nil
     ) {
       self.alert = alert
@@ -37,6 +41,7 @@ public struct ConnectedAgentsFeature {
       self.logFailure = logFailure
       self.isLoadingLog = isLoadingLog
       self.logNextBefore = logNextBefore
+      self.isShowingLog = isShowingLog
       self.revoking = revoking
       self.isTurningOff = isTurningOff
     }
@@ -62,6 +67,8 @@ public struct ConnectedAgentsFeature {
     case alert(PresentationAction<Alert>)
     case appeared
     case loadMoreLogButtonTapped
+    /// The log's sheet opened (the Mac's Show…) or closed (Done, Esc).
+    case logShown(Bool)
     /// Try Again, after the log's first page couldn't be read.
     case retryLogButtonTapped
     case logLoaded(Result<RemoteAgentAccessPage, ConnectedAgentsError>, isFirstPage: Bool)
@@ -146,6 +153,15 @@ public struct ConnectedAgentsFeature {
         state.logFailure = nil
         state.isLoadingLog = true
         return .merge(loadAgents(), loadLog(before: nil, isFirstPage: true))
+
+      case .logShown(let isShown):
+        state.isShowingLog = isShown
+        // The pane read the first page as it opened. If that's still empty, or failed, it's read
+        // again: an agent may have read since.
+        guard isShown, state.log.isEmpty, !state.isLoadingLog else { return .none }
+        state.isLoadingLog = true
+        state.logFailure = nil
+        return loadLog(before: nil, isFirstPage: true)
 
       case .retryButtonTapped:
         state.agents = .loading

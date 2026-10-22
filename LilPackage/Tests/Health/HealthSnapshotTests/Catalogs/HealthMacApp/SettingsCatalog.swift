@@ -11,8 +11,9 @@
   // The Settings window's panes, at its smallest size unless a state says otherwise: Account
   // (`AccountSettingsView`) and Agents (`AgentAccessSettingsView`), each signed in, signed out and
   // checking the session; then how to connect a local agent (`AgentSetupSection`) and the remote
-  // agents (`ConnectedAgentsSections`) on their own. The window resizes (851-2992), so each pane
-  // has a state in a large window too, where its rows widen. The window shows its tabs in the
+  // agents (`ConnectedAgentsSections`) on their own, and the Agents pane's two logs, each a sheet
+  // over the window (851-3082), at the size it opens at. The window resizes (851-2992), so each
+  // pane has a state in a large window too, where its rows widen. The window shows its tabs in the
   // toolbar, which these don't. Synthetic data only: made-up sign-in methods, queries, agents and
   // reads.
   //
@@ -95,7 +96,8 @@
         setup(commandLineTool: nil)
       },
 
-      // The remote agents (851-2853), on their own, tall enough to see them all.
+      // The remote agents (851-2853), on their own, tall enough to see them all, with the row
+      // opening their log.
       CatalogState("Remote agents", minHeight: 720) {
         remote(ConnectedAgentsFeature.State(agents: .loaded(remoteAgents), log: remoteReads))
       },
@@ -127,31 +129,91 @@
           ConnectedAgentsFeature.State(
             agents: .loaded(remoteAgents), log: remoteReads, isTurningOff: true))
       },
-      CatalogState("Remote agents: more of the log failed", minHeight: 720) {
-        remote(
-          ConnectedAgentsFeature.State(
-            agents: .loaded(remoteAgents), log: remoteReads,
-            logFailure: ConnectedAgentsError.unavailable.message, logNextBefore: 94))
+      CatalogState("Remote agents: log loading", minHeight: 720) {
+        remote(ConnectedAgentsFeature.State(agents: .loaded(remoteAgents), isLoadingLog: true))
       },
-      CatalogState("Remote agents: long names, more to read", minHeight: 720) {
+      CatalogState("Remote agents: log failed", minHeight: 720) {
         remote(
           ConnectedAgentsFeature.State(
-            agents: .loaded(longNamedAgents),
-            log: remoteReads
-              + remoteReads.map { read in
-                var read = read
-                read.id -= 50
-                read.at = read.at.addingTimeInterval(-86_400)
-                return read
-              },
-            logNextBefore: 44))
+            agents: .loaded(remoteAgents), logFailure: ConnectedAgentsError.unavailable.message))
+      },
+      CatalogState("Remote agents: long names", minHeight: 720) {
+        remote(ConnectedAgentsFeature.State(agents: .loaded(longNamedAgents), log: remoteReads))
       },
       CatalogState("Remote agents: large window", width: largeWidth, minHeight: 720) {
         remote(
           ConnectedAgentsFeature.State(
             agents: .loaded(remoteAgents + longNamedAgents), log: remoteReads, logNextBefore: 94))
       },
+
+      // The Agents pane's Access Log sheet (851-3082): the latest queries on this Mac, read again
+      // while the pane is open, and Turn Off Access while access is on.
+      CatalogState("Access log", width: sheetWidth, minHeight: sheetHeight) { accessLog() },
+      CatalogState("Access log: off", width: sheetWidth, minHeight: sheetHeight) {
+        accessLog(isEnabled: false)
+      },
+      CatalogState("Access log: empty", width: sheetWidth, minHeight: sheetHeight) {
+        accessLog(entries: [])
+      },
+      CatalogState("Access log: loading", width: sheetWidth, minHeight: sheetHeight) {
+        accessLog(isEnabled: false, entries: [], isLoading: true)
+      },
+      CatalogState("Access log: failed", width: sheetWidth, minHeight: sheetHeight) {
+        accessLog(entries: [], logFailure: logUnreadable)
+      },
+      // The entries last read stay, with why they couldn't be read again below them: resized
+      // taller, to show it.
+      CatalogState(
+        "Access log: failed to read again", width: sheetWidth, minHeight: tallSheetHeight
+      ) {
+        accessLog(logFailure: logUnreadable)
+      },
+      // The sheet resizes: its rows widen, and the commands show in full.
+      CatalogState("Access log: resized", width: largeWidth, minHeight: largeHeight) {
+        accessLog()
+      },
+
+      // The Remote Access Log sheet (851-3082), a page at a time. Those with something below the
+      // reads are resized taller, to show it: at the size it opens at, it scrolls.
+      CatalogState("Remote access log", width: sheetWidth, minHeight: sheetHeight) {
+        remoteLog(ConnectedAgentsFeature.State(log: remoteReads))
+      },
+      CatalogState("Remote access log: empty", width: sheetWidth, minHeight: sheetHeight) {
+        remoteLog(ConnectedAgentsFeature.State())
+      },
+      CatalogState("Remote access log: loading", width: sheetWidth, minHeight: sheetHeight) {
+        remoteLog(ConnectedAgentsFeature.State(isLoadingLog: true))
+      },
+      CatalogState("Remote access log: failed", width: sheetWidth, minHeight: sheetHeight) {
+        remoteLog(
+          ConnectedAgentsFeature.State(logFailure: ConnectedAgentsError.unavailable.message))
+      },
+      CatalogState("Remote access log: more to read", width: sheetWidth, minHeight: tallSheetHeight)
+      {
+        remoteLog(ConnectedAgentsFeature.State(log: remoteReads, logNextBefore: 94))
+      },
+      CatalogState("Remote access log: reading more", width: sheetWidth, minHeight: tallSheetHeight)
+      {
+        remoteLog(
+          ConnectedAgentsFeature.State(log: remoteReads, isLoadingLog: true, logNextBefore: 94))
+      },
+      CatalogState("Remote access log: more failed", width: sheetWidth, minHeight: tallSheetHeight)
+      {
+        remoteLog(
+          ConnectedAgentsFeature.State(
+            log: remoteReads, logFailure: ConnectedAgentsError.unavailable.message,
+            logNextBefore: 94))
+      },
+      CatalogState("Remote access log: resized", width: largeWidth, minHeight: largeHeight) {
+        remoteLog(ConnectedAgentsFeature.State(log: twoDaysOfReads, logNextBefore: 44))
+      },
     ])
+
+  /// A log's sheet, at the size it opens at.
+  private let sheetWidth = AgentLogSheetSize.width
+  private let sheetHeight = AgentLogSheetSize.height
+  /// Tall enough for a page of reads and what's below it.
+  private let tallSheetHeight: CGFloat = 600
 
   /// A large Settings window's panes: about as wide as a laptop's screen allows.
   private let largeWidth: CGFloat = 900
@@ -206,9 +268,28 @@
     var state = AppFeature.State(isSignedIn: isSignedIn)
     state.agentAccess = AgentAccessFeature.State(
       commandLineTool: commandLineTool, entries: entries, failure: failure, isEnabled: isEnabled,
-      isLoading: isLoading, logFailure: logFailure)
+      isLoading: isLoading, isLoadingLog: isLoading, logFailure: logFailure)
+    // The remote agents and their log, being read as the pane opens.
+    state.connectedAgents = ConnectedAgentsFeature.State(agents: .loading, isLoadingLog: true)
     return AgentAccessSettingsView(store: Store(initialState: state) { EmptyReducer() })
       .settingsPaneFrame()
+  }
+
+  private let logUnreadable =
+    "lil health couldn't read the access log: The database file is locked."
+
+  @MainActor
+  private func accessLog(
+    isEnabled: Bool = true, entries: [AgentAccessEntry] = agentQueries, isLoading: Bool = false,
+    logFailure: String? = nil
+  ) -> some View {
+    AgentAccessLogSheet(
+      store: Store(
+        initialState: AgentAccessFeature.State(
+          entries: entries, isEnabled: isEnabled, isShowingLog: true, isLoading: isLoading,
+          isLoadingLog: isLoading,
+          logFailure: logFailure)
+      ) { EmptyReducer() })
   }
 
   @MainActor
@@ -268,6 +349,23 @@
       tool: index.isMultiple(of: 2) ? "get_metric" : "summary",
       types: index.isMultiple(of: 2) ? ["HKQuantityTypeIdentifierStepCount"] : [],
       range: index.isMultiple(of: 2) ? "W" : nil, outcome: "ok", rows: 7)
+  }
+
+  /// Two days of reads, more than a page shows at first.
+  private let twoDaysOfReads =
+    remoteReads
+    + remoteReads.map { read in
+      var read = read
+      read.id -= 50
+      read.at = read.at.addingTimeInterval(-86_400)
+      return read
+    }
+
+  @MainActor
+  private func remoteLog(_ state: ConnectedAgentsFeature.State) -> some View {
+    var state = state
+    state.isShowingLog = true
+    return RemoteAccessLogSheet(store: Store(initialState: state) { EmptyReducer() })
   }
 
   @MainActor
