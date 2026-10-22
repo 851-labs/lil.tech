@@ -1,4 +1,5 @@
 import Charts
+import Dependencies
 public import HealthCatalog
 import HealthDatabase
 import HealthUI
@@ -88,8 +89,10 @@ struct SleepDetailContent: View {
   @Binding var range: SleepRange
   @Binding var offset: Int
   let state: State
-  var now = Date.now
-  var calendar = Calendar.current
+  /// Today, as the page loads it, for the nights shown.
+  let now: Date
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     ScrollView {

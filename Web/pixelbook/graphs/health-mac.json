@@ -132,11 +132,11 @@
     },
     {
       "id": "sleep",
-      "screen": "HealthPages/SleepDetailViewPreviews.swift"
+      "screen": "HealthPages/SleepCatalog.swift"
     },
     {
       "id": "cycle-tracking",
-      "screen": "HealthPages/CycleTrackingViewPreviews.swift"
+      "screen": "HealthPages/CycleTrackingCatalog.swift"
     },
     {
       "id": "activity-rings",
@@ -173,7 +173,7 @@
     },
     {
       "id": "symptom",
-      "screen": "HealthPages/SymptomViewPreviews.swift"
+      "screen": "HealthPages/SymptomsCatalog.swift"
     },
     {
       "id": "health-documents",
@@ -291,7 +291,7 @@
     },
     {
       "id": "state-of-mind",
-      "screen": "HealthPages/MentalWellbeingViewsPreviews.swift",
+      "screen": "HealthPages/MentalWellbeingCatalog.swift",
       "title": "State of Mind",
       "states": [
         "State of Mind",
@@ -304,7 +304,7 @@
     },
     {
       "id": "assessments",
-      "screen": "HealthPages/MentalWellbeingViewsPreviews.swift",
+      "screen": "HealthPages/MentalWellbeingCatalog.swift",
       "title": "Assessments",
       "states": [
         "GAD-7",

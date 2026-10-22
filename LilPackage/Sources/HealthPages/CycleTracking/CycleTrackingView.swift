@@ -193,7 +193,10 @@ struct CycleTrackingContent: View {
   var previous: () -> Void = {}
   var next: () -> Void = {}
   var isLatest = true
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`): today is
+  /// marked, and shown when nothing's selected.
+  @Dependency(\.calendar) private var calendar
+  @Dependency(\.date.now) private var now
 
   var body: some View {
     Group {
@@ -276,7 +279,7 @@ struct CycleTrackingContent: View {
           if let day {
             CycleDayCell(
               day: day, entry: snapshot.days[day], isSelected: day == shownDay,
-              isToday: calendar.isDateInToday(day), calendar: calendar
+              isToday: calendar.isDate(day, inSameDayAs: now), calendar: calendar
             )
             .onTapGesture { selected = day }
           } else {
@@ -335,7 +338,7 @@ struct CycleTrackingContent: View {
   /// The selected day, or today if it's in the month, or the month's first.
   private var shownDay: Date {
     if let selected, isInMonth(selected) { return selected }
-    let today = calendar.startOfDay(for: .now)
+    let today = calendar.startOfDay(for: now)
     return isInMonth(today) ? today : month.start
   }
 
