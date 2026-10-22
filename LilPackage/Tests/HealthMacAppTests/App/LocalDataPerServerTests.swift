@@ -12,9 +12,9 @@ import Testing
 @testable import HealthMacApp
 
 /// Each server's local data on the Mac is its own in a Debug build (851-2977), and signing out of
-/// one deletes only its own: the database, agent access and its log, and the cached blobs. The
-/// Release app's data, in today's folders, is never touched. All in a temporary folder, with
-/// synthetic data.
+/// one deletes only its own: the database, agent access and its log, the cached blobs and the
+/// pins from before they synced (retired, 851-2990). The Release app's data, in today's folders,
+/// is never touched. All in a temporary folder, with synthetic data.
 @Suite(.dependencies)
 @MainActor
 struct LocalDataPerServerTests {
@@ -118,6 +118,15 @@ struct LocalDataPerServerTests {
     let release = try ServerData(.prod, allowsOverride: false, root: root)
     let signingOut = try ServerData(preview, allowsOverride: true, root: root)
     let other = try ServerData(otherPreview, allowsOverride: true, root: root)
+    // Pins from before they synced, in each one's settings: a suite per server, and the Release app's own. Temporary
+    // suites here, never the real ones.
+    let signingOutDefaults = Self.temporaryDefaults()
+    let otherDefaults = Self.temporaryDefaults()
+    let releaseDefaults = Self.temporaryDefaults()
+    for defaults in [signingOutDefaults, otherDefaults, releaseDefaults] {
+      defaults.set(["HKQuantityTypeIdentifierStepCount"], forKey: "summaryPins")
+    }
+
     let engine = signingOut.engine
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
@@ -128,6 +137,7 @@ struct LocalDataPerServerTests {
         status: { AsyncStream { $0.finish() } },
         removeLocalData: { try await engine.removeLocalData() })
       $0.blobCache = signingOut.blobCache
+      $0.defaultAppStorage = signingOutDefaults
     }
     store.exhaustivity = .off
     await store.send(.signedInChanged(false))
@@ -138,11 +148,21 @@ struct LocalDataPerServerTests {
     #expect(try signingOut.statistics() == 0)
     #expect(try !signingOut.access.isEnabled())
     #expect(!signingOut.hasBlob)
+    #expect(signingOutDefaults.object(forKey: "summaryPins") == nil)
     // The others' is all there.
     for kept in [other, release] {
       #expect(try kept.statistics() == 1)
       #expect(try kept.access.isEnabled())
       #expect(kept.hasBlob)
     }
+    for kept in [otherDefaults, releaseDefaults] {
+      #expect(kept.stringArray(forKey: "summaryPins") == ["HKQuantityTypeIdentifierStepCount"])
+    }
+  }
+
+  /// User defaults in a temporary file, as Sharing's tests use.
+  static func temporaryDefaults() -> UserDefaults {
+    UserDefaults(
+      suiteName: "\(NSTemporaryDirectory())LocalDataPerServerTests.\(UUID().uuidString)")!
   }
 }

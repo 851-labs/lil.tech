@@ -90,6 +90,7 @@ public struct AppFeature {
   @Dependency(\.authSessions) var authSessions
   @Dependency(\.blobCache) var blobCache
   @Dependency(\.continuousClock) var clock
+  @Dependency(\.defaultAppStorage) var defaultAppStorage
   @Dependency(\.healthAppActions) var healthAppActions
   @Dependency(\.sync) var sync
 
@@ -173,9 +174,13 @@ public struct AppFeature {
           // What the Settings window started for the account stops with it.
           AccountFeature.cancel(),
           ConnectedAgentsFeature.cancel(),
-          .run { [agentAccess, sync, blobCache] send in
+          .run {
+            [agentAccess, sync, blobCache, defaults = UncheckedSendable(defaultAppStorage)] send in
             // First, so it's done even if the database can't be.
             await blobCache.removeAll()
+            // Summary's pins from before they synced, which a Mac may still have though pins
+            // are retired (851-2990).
+            defaults.value.removeObject(forKey: "summaryPins")
             // Whether tools and agents may read the account's data was its choice, and their log
             // is about its data: the next account decides for itself.
             do {

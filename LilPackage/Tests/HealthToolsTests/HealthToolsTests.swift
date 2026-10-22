@@ -177,6 +177,13 @@ struct HealthToolsTests {
     #expect(!summary.pinned && summary.metrics.map(\.type) == HealthDatabase.summaryTypes)
   }
 
+  /// The app's Summary skips types the catalog doesn't know; the tool lists them all. They agree
+  /// as long as the catalog knows every one.
+  @Test
+  func summarysMetricsAreAllInTheCatalog() {
+    #expect(HealthDatabase.summaryTypes.allSatisfy { HealthCatalog.type(id: $0) != nil })
+  }
+
   // MARK: - metric
 
   @Test

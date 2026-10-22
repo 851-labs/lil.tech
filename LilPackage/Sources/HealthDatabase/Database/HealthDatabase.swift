@@ -421,10 +421,30 @@ public enum HealthDatabase {
     }
     // Summary's pins are retired (851-2990): `health_pin` no longer syncs to the Mac, so rows
     // here would never change again, nor go when the account signs out. The table stays for an
-    // older release, if one is reinstalled: once this one has synced, `health_pin` is missing
-    // from the entities its data records, so the older one bootstraps and gets them back.
+    // older release, if one is reinstalled. Sync's own tables are migrated first, so this also
+    // drops pin writes still waiting to be pushed (only pins were ever pushed, a batch at a
+    // time), which nothing could apply now, and takes `health_pin` out of the entities the
+    // local data records, so a reinstalled older release bootstraps and gets the pins back.
     migrator.registerMigration("Retire health pins") { db in
       try #sql(#"DELETE FROM "healthPins""#).execute(db)
+      try #sql(
+        """
+        DELETE FROM "lilPendingMutations"
+        WHERE EXISTS (
+          SELECT 1 FROM json_each("lilPendingMutations"."mutations")
+          WHERE json_extract(json_each.value, '$.entity') = 'health_pin'
+        )
+        """
+      )
+      .execute(db)
+      try #sql(
+        """
+        UPDATE "lilSyncState"
+        SET "entities" = trim(replace(',' || "entities" || ',', ',health_pin,', ','), ',')
+        WHERE "entities" IS NOT NULL
+        """
+      )
+      .execute(db)
     }
   }
 
