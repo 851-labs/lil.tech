@@ -104,79 +104,92 @@ struct ActivityRingsContent: View {
   @Dependency(\.date.now) private var now
 
   var body: some View {
-    Group {
-      switch state {
-      case .loading:
-        ProgressView()
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-      case .failed(let reason):
-        ContentUnavailableView(
-          "Couldn't Load Activity Rings", systemImage: "exclamationmark.triangle",
-          description: Text(reason))
-      case .loaded(let days):
-        ScrollView {
-          VStack(alignment: .leading, spacing: 20) {
-            calendarCard(days)
-            dayDetail(days[key(shownDay)])
+    // A grouped form on its own background, as Metric Detail is (851-2989, 851-3003): the month,
+    // then the day chosen in it.
+    Form {
+      Section {
+        VStack(alignment: .leading, spacing: 12) {
+          monthHeader
+          switch state {
+          // As tall as the month's grid, so the page keeps its shape while a month loads or fails,
+          // and as wide as the row, rather than its ideal width, off center.
+          case .loading:
+            ProgressView()
+              .frame(maxWidth: .infinity, minHeight: gridHeight)
+          case .failed(let reason):
+            ContentUnavailableView(
+              "Couldn't Load Activity Rings", systemImage: "exclamationmark.triangle",
+              description: Text(reason)
+            )
+            .frame(maxWidth: .infinity, minHeight: gridHeight)
+          case .loaded(let days):
+            calendarGrid(days)
           }
-          .padding(20)
-          .frame(maxWidth: 760)
-          .frame(maxWidth: .infinity)
         }
+        .padding(.vertical, 6)
+      }
+      if case .loaded(let days) = state {
+        dayDetail(days[key(shownDay)])
       }
     }
-    .background(Color.pageBackground)
+    .formStyle(.grouped)
     .navigationTitle("Activity Rings")
+  }
+
+  /// About the height of the month's grid: the weekdays, then a 54 pt line per week, 8 pt apart.
+  private var gridHeight: CGFloat {
+    let weeks = CGFloat((cells.count + 6) / 7)
+    return 24 + weeks * 54 + (weeks - 1) * 8
   }
 
   // MARK: Calendar
 
-  private func calendarCard(_ days: [String: ActivityDay]) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack {
-        Text(month.start.formatted(.dateTime.month(.wide).year()))
-          .font(.title2.bold())
-        Spacer()
-        Button(action: previous) { Image(systemName: "chevron.left") }
-          .accessibilityLabel("Earlier")
-        Button(action: next) { Image(systemName: "chevron.right") }
-          .accessibilityLabel("Later")
-          .disabled(isLatest)
-      }
-      .buttonStyle(.borderless)
-      let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
-      LazyVGrid(columns: columns, spacing: 8) {
-        ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
-          Text(symbol)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-        }
-        ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
-          if let day {
-            // A button, so the keyboard and VoiceOver can choose a day. Days to come have none.
-            Button {
-              selected = day
-            } label: {
-              ActivityDayCell(
-                number: calendar.component(.day, from: day), day: days[key(day)],
-                isSelected: day == shownDay, isToday: calendar.isDate(day, inSameDayAs: now),
-                isFuture: day > calendar.startOfDay(for: now))
-            }
-            .buttonStyle(.plain)
-            .disabled(day > calendar.startOfDay(for: now))
-          } else {
-            Color.clear.frame(height: 54)
-          }
-        }
-      }
-      if days.isEmpty {
-        Text("No Activity rings this month.")
+  /// The month, and the buttons to the one before and after.
+  private var monthHeader: some View {
+    HStack {
+      Text(month.start.formatted(.dateTime.month(.wide).year()))
+        .font(.title2.bold())
+      Spacer()
+      Button(action: previous) { Image(systemName: "chevron.left") }
+        .accessibilityLabel("Earlier")
+      Button(action: next) { Image(systemName: "chevron.right") }
+        .accessibilityLabel("Later")
+        .disabled(isLatest)
+    }
+    .buttonStyle(.borderless)
+  }
+
+  @ViewBuilder private func calendarGrid(_ days: [String: ActivityDay]) -> some View {
+    let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+    LazyVGrid(columns: columns, spacing: 8) {
+      ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
+        Text(symbol)
+          .font(.caption.weight(.semibold))
           .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity)
+      }
+      ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
+        if let day {
+          // A button, so the keyboard and VoiceOver can choose a day. Days to come have none.
+          Button {
+            selected = day
+          } label: {
+            ActivityDayCell(
+              number: calendar.component(.day, from: day), day: days[key(day)],
+              isSelected: day == shownDay, isToday: calendar.isDate(day, inSameDayAs: now),
+              isFuture: day > calendar.startOfDay(for: now))
+          }
+          .buttonStyle(.plain)
+          .disabled(day > calendar.startOfDay(for: now))
+        } else {
+          Color.clear.frame(height: 54)
+        }
       }
     }
-    .padding(16)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+    if days.isEmpty {
+      Text("No Activity rings this month.")
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity)
+    }
   }
 
   /// The weekday initials, starting on the calendar's first weekday.
@@ -211,10 +224,9 @@ struct ActivityRingsContent: View {
     return today >= month.start && today < month.end ? today : month.start
   }
 
+  /// The day's rings large, beside each ring's progress toward its goal, under the day's date.
   private func dayDetail(_ day: ActivityDay?) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text(shownDay.formatted(date: .complete, time: .omitted))
-        .font(.headline)
+    Section(shownDay.formatted(date: .complete, time: .omitted)) {
       if let day {
         HStack(alignment: .center, spacing: 24) {
           ActivityRings(day: day, lineWidth: 18)
@@ -236,14 +248,12 @@ struct ActivityRingsContent: View {
           }
           Spacer(minLength: 0)
         }
+        .padding(.vertical, 6)
       } else {
         Text("No Activity Rings")
           .foregroundStyle(.secondary)
       }
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(16)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
   }
 
   /// "Move 420/500 kcal", in the ring's color.
