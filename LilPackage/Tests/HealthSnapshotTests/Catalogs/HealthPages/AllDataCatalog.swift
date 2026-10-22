@@ -22,12 +22,12 @@
     "All Data", width: 560, minHeight: 620,
     states: [
       CatalogState("All data") {
-        scrolled(allData(heartRate, .loaded(samples(heartRate), hasMore: true)))
+        allData(heartRate, .loaded(samples(heartRate), hasMore: true))
       },
       // A day with a reading every 5 minutes, as a Watch's heart rate during a workout can have:
       // one long section.
       CatalogState("All data, a long day") {
-        scrolled(allData(heartRate, .loaded(longDay, hasMore: false)))
+        allData(heartRate, .loaded(longDay, hasMore: false))
       },
       // A charted category's samples: each one's length (851-2831).
       CatalogState("All data, handwashing") {
@@ -147,15 +147,6 @@
     NavigationStack {
       AllDataContent(type: type, state: state, loadMore: {})
     }
-  }
-
-  /// A page longer than about 2,800 points draws a row twice offscreen, and differently in
-  /// `swift test` and `scripts/snapshot` (851-2986). The longest (60 samples, 3,050 points, and a
-  /// long day's 288, 13,900) are this tall instead, scrolled to the top, so they show the start
-  /// of their list rather than all of it. They can grow to their content once 851-2986 is fixed.
-  @MainActor
-  private func scrolled(_ page: some View) -> some View {
-    page.defaultScrollAnchor(.top).frame(height: 1400)
   }
 
   @MainActor
