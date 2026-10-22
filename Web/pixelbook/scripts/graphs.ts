@@ -52,16 +52,23 @@ export const scanCatalogs = async (tests = join(root, "LilPackage/Tests")): Prom
       const files = await readdir(join(folder, module.name), { recursive: true });
       for (const file of files.filter((name) => name.endsWith(".swift"))) {
         const names = catalogStateNames(await readFile(join(folder, module.name, file), "utf8"));
-        if (names !== undefined) catalogs.set(`${module.name}/${basename(file)}`, names);
+        const key = `${module.name}/${basename(file)}`;
+        if (catalogs.has(key)) throw new Error(`Two state catalogs are ${key}.`);
+        if (names !== undefined) catalogs.set(key, names);
       }
     }
   }
   return catalogs;
 };
 
-/** Every screen a graph can name: preview files, then state catalogs. */
-export const scanScreens = async (): Promise<Previews> =>
-  new Map([...(await scanPreviews()), ...(await scanCatalogs())]);
+/** Every screen a graph can name: preview files and state catalogs, which can't share a name. */
+export const scanScreens = async (): Promise<Previews> => {
+  const [previews, catalogs] = await Promise.all([scanPreviews(), scanCatalogs()]);
+  for (const file of catalogs.keys()) {
+    if (previews.has(file)) throw new Error(`${file} is both a preview file and a state catalog.`);
+  }
+  return new Map([...previews, ...catalogs]);
+};
 
 /** Every preview file in LilPackage's modules, keyed by `Module/File.swift`, as graphs name them. */
 export const scanPreviews = async (

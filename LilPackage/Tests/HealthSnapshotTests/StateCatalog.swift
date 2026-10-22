@@ -23,7 +23,10 @@ struct StateCatalog: Sendable {
       return state
     }
     let slugs = self.states.map(\.slug)
-    precondition(Set(slugs).count == slugs.count, "Two of \(screen)'s states have the same slug.")
+    // When tests are listed, before any runs, so it can't be an issue.
+    for slug in slugs where slugs.count(where: { $0 == slug }) > 1 {
+      fatalError("\(screen) has two states named \(slug): their references would be the same.")
+    }
   }
 
   /// The states its test snapshots: all of them, or those whose names match `LIL_SNAPSHOT_STATE`,
@@ -33,7 +36,9 @@ struct StateCatalog: Sendable {
     guard let pattern = ProcessInfo.processInfo.environment["LIL_SNAPSHOT_STATE"] else {
       return states
     }
-    guard let regex = try? Regex(pattern).ignoresCase() else { return [] }
+    guard let regex = try? Regex(pattern).ignoresCase() else {
+      fatalError("LIL_SNAPSHOT_STATE isn't a regular expression: \(pattern)")
+    }
     return states.filter { $0.name.contains(regex) }
   }
 }

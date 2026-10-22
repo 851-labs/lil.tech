@@ -52,7 +52,7 @@ step() {
 swift_paths="LilPackage Apps Tools Lil.xcworkspace .swift-format scripts Services/api/health-catalog.json"
 # The TypeScript workspace, with its root config, plus what the generated client depends on.
 services_paths="Services Web Apps/LilHealth/LilHealth-Info.plist Apps/LilHealth/LilHealthiOS-Info.plist package.json pnpm-workspace.yaml pnpm-lock.yaml .node-version vite.config.ts tsconfig.json tsconfig.base.json Tools LilPackage/Sources/LilAPIGenerated scripts"
-pixelbook_paths="LilPackage/Sources Web/pixelbook/graphs Web/pixelbook/src/lib/Graph.ts Web/pixelbook/scripts"
+pixelbook_paths="LilPackage/Sources LilPackage/Tests/*/Catalogs Web/pixelbook/graphs Web/pixelbook/src/lib/Graph.ts Web/pixelbook/scripts"
 paths=""
 $swift && paths="$paths $swift_paths"
 $services && paths="$paths $services_paths"
