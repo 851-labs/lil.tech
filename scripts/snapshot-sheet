@@ -8,8 +8,10 @@
 # A state is on the sheet when its run changed (`differs`, `failed`), or its reference in the
 # working tree isn't the one on the branch's merge base with `origin/main` (recorded since, or new).
 # Each state is a row: its light and dark images before (from the merge base) and after (the
-# run's), labeled, with new states' befores empty. A reference the merge base has in a catalog the
-# run covered, but the working tree doesn't (a renamed or removed state), is a row with no after.
+# run's), labeled, with new states' befores empty. A reference the merge base has for a screen the
+# run covered, but the working tree doesn't (a renamed or removed state), is a row with no after;
+# not when `LIL_SNAPSHOT_STATE` picked some states, since the others' could be deleted to record
+# them again.
 # Writes `<output>/sheet.png`, full size, and `<output>/sheet.jpg`, half size, to attach, and
 # prints their paths. The befores are in `<output>/sheet/before/<test file>/`.
 set -eu
@@ -30,144 +32,162 @@ if [ ! -s "$report" ]; then
   exit 1
 fi
 
-# The references' repository: this one, or the one the tests were built from.
-first=$(head -n 1 "$report" | cut -f 3)
-repo=$(git -C "$(dirname "$first")" rev-parse --show-toplevel 2>/dev/null || true)
+sheet="$output/sheet"
+rm -rf "$sheet" "$output/sheet.png" "$output/sheet.jpg"
+mkdir -p "$sheet/before"
+
+# The run's catalogs' folders, as the report names them.
+cut -f 3 "$report" | sed 's|/[^/]*$||' | sort -u >"$sheet/folders"
+# The references' repository (this one, or the one the tests were built from), from the first of
+# them that exists.
+repo=""
+while IFS= read -r folder; do
+  if [ -d "$folder" ]; then
+    repo=$(git -C "$folder" rev-parse --show-toplevel 2>/dev/null) && break
+  fi
+done <"$sheet/folders"
 if [ -z "$repo" ]; then
-  echo "error: $first isn't in a git repository." >&2
+  echo "error: the run's references aren't in a git repository." >&2
   exit 1
 fi
 if ! base=$(git -C "$repo" merge-base HEAD origin/main 2>/dev/null); then
   echo "error: no merge base with origin/main to compare with. Run git fetch origin main." >&2
   exit 1
 fi
+short=$(git -C "$repo" rev-parse --short "$base")
 
-sheet="$output/sheet"
-rm -rf "$sheet" "$output/sheet.png" "$output/sheet.jpg"
-mkdir -p "$sheet/before"
+# Each folder from the repository's top, which git gives without symbolic links:
+# `<folder>\t<relative>`.
+while IFS= read -r folder; do
+  physical=$(cd "$folder" 2>/dev/null && pwd -P) || physical=$folder
+  printf '%s\t%s\n' "$folder" "${physical#"$repo"/}"
+done <"$sheet/folders" >"$sheet/folders.tsv"
+# The merge base's references in them, `<relative path>\t<blob>`, and the working tree's.
+cut -f 2 "$sheet/folders.tsv" | tr '\n' '\0' |
+  (cd "$repo" && xargs -0 git ls-tree -r "$base" --) |
+  awk -F '\t' '$2 ~ /\.png$/ { split($1, fields, " "); print $2 "\t" fields[3] }' >"$sheet/base.tsv"
+awk -F '\t' 'NR == FNR { relative[$1] = $2; next }
+  { folder = $3; sub(/\/[^\/]*$/, "", folder); print relative[folder] substr($3, length(folder) + 1) }' \
+  "$sheet/folders.tsv" "$report" | while IFS= read -r path; do
+  if [ -f "$repo/$path" ]; then echo "$path"; fi
+done >"$sheet/current"
+(cd "$repo" && git hash-object --stdin-paths <"$sheet/current") | paste "$sheet/current" - \
+  >"$sheet/current.tsv"
 
-# The blob a path has on the merge base, or nothing.
-base_blob() {
-  git -C "$repo" rev-parse -q --verify "$base:$1" 2>/dev/null || true
-}
-# Writes a reference's before to `$sheet/before/<test file>/<name>.png`, and prints its path.
-extract_before() {
-  path="$sheet/before/$(basename "$(dirname "$1")")/$(basename "$1")"
-  mkdir -p "$(dirname "$path")"
-  git -C "$repo" cat-file blob "$2" >"$path"
-  echo "$path"
-}
-# The state a reference shows, `<test file>/<test>.<state>`, and its appearance, `light`, `dark`
-# or nothing, from its name, `<test>.<state>-<appearance>.png`.
-state_of() {
-  name=$(basename "$1" .png)
-  case "$name" in
-    *-light) echo "$(basename "$(dirname "$1")")/${name%-light}	light" ;;
-    *-dark) echo "$(basename "$(dirname "$1")")/${name%-dark}	dark" ;;
-    *) echo "$(basename "$(dirname "$1")")/$name	" ;;
-  esac
-}
+# A line per image: its state (`<test file>/<test>.<state>`), appearance (`light`, `dark` or
+# nothing, from `<test>.<state>-<appearance>.png`), change (or `same`), the merge base's blob, the
+# run's image, and its path in the repository.
+# shellcheck disable=SC2016
+state='
+  function state(path) {
+    count = split(path, parts, "/"); name = parts[count]; sub(/\.png$/, "", name)
+    appearance = ""
+    if (name ~ /-light$/) { appearance = "light"; sub(/-light$/, "", name) }
+    else if (name ~ /-dark$/) { appearance = "dark"; sub(/-dark$/, "", name) }
+    return parts[count - 1] "/" name "\t" appearance
+  }'
+awk -F '\t' -v OFS='\t' "$state"'
+  FILENAME == ARGV[1] { relative[$1] = $2; next }
+  FILENAME == ARGV[2] { base[$1] = $2; next }
+  FILENAME == ARGV[3] { current[$1] = $2; next }
+  {
+    folder = $3; sub(/\/[^\/]*$/, "", folder)
+    path = relative[folder] substr($3, length(folder) + 1)
+    after = $2
+    # A failed snapshot may have no image.
+    if ($1 == "failed" && (getline line < after) < 0) { after = "" }
+    close(after)
+    if ($1 == "differs") { change = "unrecorded" }
+    else if ($1 == "failed") { change = "failed" }
+    else if (!(path in base)) { change = "new" }
+    else if (base[path] != current[path]) { change = "changed" }
+    else { change = "same" }
+    print state(path), change, base[path], after, path
+  }' "$sheet/folders.tsv" "$sheet/base.tsv" "$sheet/current.tsv" "$report" \
+  >"$sheet/images.tsv"
 
-# A line per image: state, appearance, its change (or `same`), before, after.
-images="$sheet/images.tsv"
-: >"$images"
-while IFS='	' read -r result image reference _; do
-  # From the repository's top, which git gives without symbolic links.
-  folder=$(cd "$(dirname "$reference")" 2>/dev/null && pwd -P) || folder=$(dirname "$reference")
-  reference="$folder/$(basename "$reference")"
-  echo "$folder" >>"$sheet/folders"
-  relative=${reference#"$repo"/}
-  blob=$(base_blob "$relative")
-  current=""
-  if [ -f "$reference" ]; then
-    current=$(git -C "$repo" hash-object "$reference")
-  fi
-  before=""
-  if [ -n "$blob" ]; then
-    before=$(extract_before "$reference" "$blob")
-  fi
-  after=""
-  if [ -f "$image" ]; then
-    after=$image
-  fi
-  case "$result" in
-    differs) change=unrecorded ;;
-    failed) change=failed ;;
-    *)
-      if [ -z "$blob" ]; then
-        change=new
-      elif [ "$blob" != "$current" ]; then
-        change=changed
-      else
-        change=same
-      fi
-      ;;
-  esac
-  printf '%s\t%s\t%s\t%s\n' "$(state_of "$reference")" "$change" "$before" "$after" >>"$images"
-done <"$report"
-
-# References the merge base has in the catalogs the run covered, but the working tree doesn't.
-sort -u "$sheet/folders" |
-  while IFS= read -r folder; do
-    git -C "$repo" ls-tree --name-only "$base" -- "${folder#"$repo"/}/" | while IFS= read -r relative; do
-      case "$relative" in *.png) ;; *) continue ;; esac
-      [ -e "$repo/$relative" ] && continue
-      blob=$(base_blob "$relative")
-      printf '%s\t%s\t%s\t%s\n' "$(state_of "$repo/$relative")" removed \
-        "$(extract_before "$repo/$relative" "$blob")" "" >>"$images"
-    done
-  done
+# The merge base's references the working tree doesn't have, for the screens the run covered.
+if [ -z "${LIL_SNAPSHOT_STATE:-}" ]; then
+  while IFS='	' read -r path blob; do
+    if [ ! -e "$repo/$path" ]; then printf '%s\t%s\n' "$path" "$blob"; fi
+  done <"$sheet/base.tsv" | awk -F '\t' -v OFS='\t' "$state"'
+    # A screen: `<test file>/<test>`.
+    function screen(path) { split(state(path), parts, "\t"); sub(/\.[^.\/]*$/, "", parts[1]); return parts[1] }
+    FILENAME == ARGV[1] { covered[screen($6)] = 1; next }
+    screen($1) in covered { print state($1), "removed", $2, "", $1 }' "$sheet/images.tsv" - \
+    >"$sheet/removed.tsv"
+  cat "$sheet/removed.tsv" >>"$sheet/images.tsv"
+fi
 
 # Each state with a change, in the run's order, as `scripts/contact-sheet`'s cells: a heading
-# with what changed, then each appearance's before and after, light first.
-cells="$sheet/cells.tsv"
-awk -F '\t' '
+# with what changed, then each appearance's before and after, light first. The befores to write
+# from git go to `befores.tsv`, `<blob>\t<path>`, and the counts to `summary`.
+awk -F '\t' -v befores="$sheet/before" -v list="$sheet/befores.tsv" -v summary="$sheet/summary" '
+  BEGIN {
+    # What a state shows as, its most notable change first.
+    split("failed new removed unrecorded changed", kinds, " ")
+    for (k = 1; k <= 5; k++) { rank[kinds[k]] = 6 - k }
+  }
   !($1 in seen) { seen[$1] = 1; order[++states] = $1 }
   {
     key = $1 SUBSEP $2
     if (!(key in change)) { appearances[$1] = appearances[$1] SUBSEP $2 }
-    change[key] = $3; before[key] = $4; after[key] = $5
-    if ($3 != "same") { changed[$1] = 1 }
-    if ($3 == "new" || $3 == "removed" || $3 == "unrecorded" || $3 == "failed") { what[$1] = $3 }
+    change[key] = $3; blob[key] = $4; after[key] = $5; path[key] = $6
+    kind = $3
+    # Recorded on the branch, then changed again.
+    if ($4 == "" && kind == "unrecorded") { kind = "new" }
+    if (kind != "same" && rank[kind] > rank[what[$1]]) { what[$1] = kind }
   }
   END {
     for (i = 1; i <= states; i++) {
       state = order[i]
-      if (!(state in changed)) { continue }
-      count[what[state] == "" ? "changed" : what[state]]++
-      kind = what[state] == "" ? "changed" : what[state] == "unrecorded" ? "changed, not recorded" : what[state]
-      print state ": " kind
+      if (!(state in what)) { continue }
+      count[what[state]]++
+      print state ": " (what[state] == "unrecorded" ? "changed, not recorded" : what[state])
       # Light, dark, then any other.
-      n = split(appearances[state], list, SUBSEP)
+      n = split(appearances[state], list_, SUBSEP)
       for (pass = 1; pass <= 3; pass++) {
         for (j = 2; j <= n; j++) {
-          a = list[j]
+          a = list_[j]
           if ((pass == 1) != (a == "light") || (pass == 2) != (a == "dark")) { continue }
           key = state SUBSEP a
           prefix = a == "" ? "" : a ", "
-          print prefix "before" (before[key] == "" ? " (none, new)" : "") "\t" before[key]
-          label = change[key] == "removed" ? " (none, removed)" : change[key] == "failed" ? " (failed)" : change[key] == "unrecorded" ? " (not recorded)" : ""
+          before = ""
+          if (blob[key] != "") {
+            count_ = split(path[key], parts, "/")
+            before = befores "/" parts[count_ - 1] "/" parts[count_]
+            print blob[key] "\t" before > list
+          }
+          print prefix "before" (before == "" ? " (none, new)" : "") "\t" before
+          c = change[key]
+          label = c == "removed" ? " (none, removed)" : c == "failed" ? " (failed)" : c == "unrecorded" ? " (not recorded)" : ""
           print prefix "after" label "\t" after[key]
         }
       }
     }
-    summary = ""
+    text = ""
     split("changed new removed unrecorded failed", kinds, " ")
     for (k = 1; k <= 5; k++) {
-      if (count[kinds[k]] > 0) { summary = summary (summary == "" ? "" : ", ") count[kinds[k]] " " (kinds[k] == "unrecorded" ? "not recorded" : kinds[k]) }
+      if (count[kinds[k]] > 0) {
+        text = text (text == "" ? "" : ", ") count[kinds[k]] " " (kinds[k] == "unrecorded" ? "not recorded" : kinds[k])
+      }
     }
-    print summary > "/dev/stderr"
+    print text > summary
   }
-' "$images" >"$cells" 2>"$sheet/summary"
+' "$sheet/images.tsv" >"$sheet/cells.tsv"
 
-if [ ! -s "$cells" ]; then
-  echo "No state changed from $(git -C "$repo" rev-parse --short "$base") (the merge base with origin/main): no sheet."
+if [ ! -s "$sheet/cells.tsv" ]; then
+  echo "No state changed from $short (the merge base with origin/main): no sheet."
   exit 0
 fi
-"$root/scripts/contact-sheet" "$output/sheet.png" 4 - <"$cells"
+while IFS='	' read -r blob path; do
+  mkdir -p "$(dirname "$path")"
+  git -C "$repo" cat-file blob "$blob" >"$path"
+done <"$sheet/befores.tsv"
+"$root/scripts/contact-sheet" "$output/sheet.png" 4 - <"$sheet/cells.tsv"
 width=$(sips -g pixelWidth "$output/sheet.png" | awk '/pixelWidth/ { print $2 }')
 sips -s format jpeg -s formatOptions 70 --resampleWidth $((width / 2)) "$output/sheet.png" \
   --out "$output/sheet.jpg" >/dev/null
-echo "Sheet of the states that changed ($(cat "$sheet/summary")) against $(git -C "$repo" rev-parse --short "$base") (the merge base with origin/main):"
+echo "Sheet of the states that changed ($(cat "$sheet/summary")) against $short (the merge base with origin/main):"
 echo "  $output/sheet.png"
 echo "  $output/sheet.jpg (half size, to attach)"

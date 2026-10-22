@@ -1,18 +1,20 @@
 #!/bin/sh
 # Checks `scripts/snapshot-sheet` (851-3062) against a made-up run in a repository of its own: a
-# state unchanged, one recorded since the merge base, one new, one removed, and one that differs
-# without being recorded. `scripts/check --swift` runs it.
+# state unchanged, one recorded since the merge base, one new and not committed yet, one removed,
+# one that differs without being recorded, and one that failed. `scripts/check --swift` runs it.
 set -eu
+# Not the repository a hook or another git command is working on.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR GIT_PREFIX
 
 scripts=$(cd "$(dirname "$0")" && pwd)
 temporary=$(mktemp -d)
 trap 'rm -rf "$temporary"' EXIT
-repo="$temporary/repo"
+mkdir -p "$temporary/repo"
+# Without symbolic links (`/var` is `/private/var`), as git gives it.
+repo=$(cd "$temporary/repo" && pwd -P)
+references="$repo/Catalogs/__Snapshots__/ScreenCatalog"
 output="$temporary/snapshots"
-references="$repo/Catalogs/__Snapshots__/ScreenCatalog"
 mkdir -p "$references" "$output/ScreenCatalog"
-repo=$(cd "$repo" && pwd -P)
-references="$repo/Catalogs/__Snapshots__/ScreenCatalog"
 
 # png <path> <gray>: a 4 by 2 PNG of that gray (0–255), so each gray has its own bytes.
 png() {
@@ -22,56 +24,78 @@ def chunk(kind, data):
     return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
 gray = int(sys.argv[2])
 rows = b"".join(b"\0" + bytes([gray] * 4) for _ in range(2))
-open(sys.argv[1], "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 4, 2, 8, 0, 0, 0, 0))
+header = struct.pack(">IIBBBBB", 4, 2, 8, 0, 0, 0, 0)
+open(sys.argv[1], "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header)
     + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
 ' "$1" "$2"
 }
 
 git() {
-  command git -C "$repo" -c user.name=Test -c user.email=test@example.com -c commit.gpgsign=false "$@"
+  command git -C "$repo" -c user.name=Test -c user.email=test@example.com \
+    -c commit.gpgsign=false "$@"
 }
 
-# The merge base: same, changed, removed and unrecorded, light and dark.
+# The merge base. `other` is a screen the run doesn't cover.
 git init -q
-for state in same changed removed unrecorded; do
-  png "$references/screen.$state-light.png" 10
-  png "$references/screen.$state-dark.png" 20
+for state in screen.same screen.changed screen.removed screen.unrecorded screen.failing other.gone; do
+  png "$references/$state-light.png" 10
+  png "$references/$state-dark.png" 20
 done
 git add .
 git commit -q -m base
 git update-ref refs/remotes/origin/main HEAD
-# The branch: `changed` recorded again, `new` added, `removed` deleted.
+# The branch: `changed` recorded again, `removed` and `other`'s state deleted, and `new` recorded
+# but not committed.
 git checkout -q -b change
 png "$references/screen.changed-light.png" 30
 png "$references/screen.changed-dark.png" 40
-png "$references/screen.new-light.png" 50
-png "$references/screen.new-dark.png" 60
-git rm -q "$references/screen.removed-light.png" "$references/screen.removed-dark.png"
+git rm -q "$references/screen.removed-light.png" "$references/screen.removed-dark.png" \
+  "$references/other.gone-light.png" "$references/other.gone-dark.png"
 git add .
 git commit -q -m change
+png "$references/screen.new-light.png" 50
+png "$references/screen.new-dark.png" 60
 
-# The run, as `SnapshotOutput` reports it: `unrecorded`'s light image differs from its reference.
+# The run, as `SnapshotOutput` reports it: `unrecorded`'s light image and `failing`'s dark one
+# differ from their references, and `failing`'s light one failed without an image.
 : >"$output/report.tsv"
-for state in same changed new unrecorded; do
+for state in same changed new unrecorded failing; do
   for appearance in light dark; do
     name="screen.$state-$appearance.png"
     result=matches
     cp "$references/$name" "$output/ScreenCatalog/$name"
-    if [ "$state-$appearance" = unrecorded-light ]; then
-      result=differs
-      png "$output/ScreenCatalog/$name" 70
-    fi
+    case "$state-$appearance" in
+      unrecorded-light | failing-dark)
+        result=differs
+        png "$output/ScreenCatalog/$name" 70
+        ;;
+      failing-light)
+        result=failed
+        rm "$output/ScreenCatalog/$name"
+        ;;
+    esac
     printf '%s\t%s\t%s\t\n' "$result" "$output/ScreenCatalog/$name" "$references/$name" \
       >>"$output/report.tsv"
   done
 done
+
+status=0
+fail() {
+  echo "error: $*" >&2
+  status=1
+}
 
 "$scripts/snapshot-sheet" "$output" >"$temporary/log"
 
 before="$output/sheet/before/ScreenCatalog"
 after="$output/ScreenCatalog"
 # Cells, as `scripts/contact-sheet` takes them (`\t` a tab).
-expected=$(printf '%b' "ScreenCatalog/screen.changed: changed
+removed="ScreenCatalog/screen.removed: removed
+light, before\t$before/screen.removed-light.png
+light, after (none, removed)\t
+dark, before\t$before/screen.removed-dark.png
+dark, after (none, removed)\t"
+cells="ScreenCatalog/screen.changed: changed
 light, before\t$before/screen.changed-light.png
 light, after\t$after/screen.changed-light.png
 dark, before\t$before/screen.changed-dark.png
@@ -86,35 +110,49 @@ light, before\t$before/screen.unrecorded-light.png
 light, after (not recorded)\t$after/screen.unrecorded-light.png
 dark, before\t$before/screen.unrecorded-dark.png
 dark, after\t$after/screen.unrecorded-dark.png
-ScreenCatalog/screen.removed: removed
-light, before\t$before/screen.removed-light.png
-light, after (none, removed)\t
-dark, before\t$before/screen.removed-dark.png
-dark, after (none, removed)\t")
-status=0
+ScreenCatalog/screen.failing: failed
+light, before\t$before/screen.failing-light.png
+light, after (failed)\t
+dark, before\t$before/screen.failing-dark.png
+dark, after (not recorded)\t$after/screen.failing-dark.png"
+expected=$(printf '%b' "$cells
+$removed")
 if [ "$(cat "$output/sheet/cells.tsv")" != "$expected" ]; then
-  echo "error: scripts/snapshot-sheet's cells aren't the expected ones:" >&2
+  fail "scripts/snapshot-sheet's cells aren't the expected ones:"
   printf '%s\n' "$expected" | diff - "$output/sheet/cells.tsv" >&2 || true
-  status=1
 fi
 # The befores are the merge base's, not the working tree's.
 git show "origin/main:Catalogs/__Snapshots__/ScreenCatalog/screen.changed-light.png" \
   >"$temporary/base.png"
 if ! cmp -s "$before/screen.changed-light.png" "$temporary/base.png"; then
-  echo "error: the before of screen.changed-light isn't the merge base's." >&2
-  status=1
+  fail "the before of screen.changed-light isn't the merge base's."
 fi
 for sheet in sheet.png sheet.jpg; do
   if [ ! -s "$output/$sheet" ]; then
-    echo "error: scripts/snapshot-sheet didn't write $sheet." >&2
-    status=1
+    fail "scripts/snapshot-sheet didn't write $sheet."
   fi
 done
-if ! grep -q "(1 changed, 1 new, 1 removed, 1 not recorded)" "$temporary/log"; then
-  echo "error: scripts/snapshot-sheet's summary is wrong:" >&2
+if ! grep -q "(1 changed, 1 new, 1 removed, 1 not recorded, 1 failed)" "$temporary/log"; then
+  fail "scripts/snapshot-sheet's summary is wrong:"
   cat "$temporary/log" >&2
-  status=1
 fi
+
+# With some states picked, a missing reference may be one deleted to record it again.
+LIL_SNAPSHOT_STATE=same "$scripts/snapshot-sheet" "$output" >"$temporary/log"
+if [ "$(cat "$output/sheet/cells.tsv")" != "$(printf '%b' "$cells")" ]; then
+  fail "with LIL_SNAPSHOT_STATE, scripts/snapshot-sheet's cells aren't the expected ones:"
+  printf '%b\n' "$cells" | diff - "$output/sheet/cells.tsv" >&2 || true
+fi
+
+# Nothing changed (in the states picked): no sheet.
+printf 'matches\t%s\t%s\t\n' "$after/screen.same-light.png" "$references/screen.same-light.png" \
+  >"$output/report.tsv"
+LIL_SNAPSHOT_STATE=same "$scripts/snapshot-sheet" "$output" >"$temporary/log"
+if ! grep -q "^No state changed" "$temporary/log" || [ -e "$output/sheet.png" ]; then
+  fail "scripts/snapshot-sheet made a sheet with nothing changed:"
+  cat "$temporary/log" >&2
+fi
+
 if [ "$status" = 0 ]; then
   echo "scripts/snapshot-sheet: ok"
 fi
