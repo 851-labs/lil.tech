@@ -67,6 +67,8 @@ public struct DataExportFeature {
     Reduce { state, action in
       switch action {
       case .exportButtonTapped:
+        // One export at a time, whichever started it: the button is hidden meanwhile anyway.
+        guard !state.isBusy else { return .none }
         state.status = .preparing
         return .run { [clock, dataExports] send in
           let (file, name) = try await Self.download(
@@ -87,11 +89,18 @@ public struct DataExportFeature {
           // Caught here rather than in `catch:`, which a cancelled effect never reaches: the
           // request is answered however the export ends.
           do {
-            request.report(.preparing)
             // Before waiting on the server: a folder that's missing now won't do in an hour.
             try await archiveSaver.checkFolder(folder)
+            request.report(.preparing)
             let (file, name) = try await Self.download(
               dataExports: dataExports, clock: clock, send: send, report: request.report)
+            // Cancelled as the download finished: the archive doesn't go into the folder.
+            do {
+              try Task.checkCancellation()
+            } catch {
+              try? FileManager.default.removeItem(at: file)
+              throw error
+            }
             let saved = try await archiveSaver.saveToFolder(file, name, folder)
             await send(.saved(saved))
             request.finish(.success(.exported(saved)))
@@ -150,39 +159,44 @@ public struct DataExportFeature {
     dataExports: DataExportClient, clock: any Clock<Duration>, send: Send<Action>,
     report: HealthAppActions.Progress = { _ in }
   ) async throws -> (file: URL, name: String) {
-    // A link that stopped working (`expired`) is asked for again, once.
-    for attempt in 1...2 {
-      var export = try await dataExports.request()
-      var polls = 0
-      while export.url == nil {
-        polls += 1
-        guard polls <= Self.maxPolls else { throw TookTooLong() }
-        try await clock.sleep(for: Self.pollInterval)
-        guard let latest = try await dataExports.latest() else {
-          throw DataExportError.failed("The export is gone")
-        }
-        export = latest
-      }
-      guard let url = export.url else { continue }
+    @Sendable func attempt() async throws -> (file: URL, name: String) {
+      let url = try await readyURL(dataExports: dataExports, clock: clock)
       await send(.prepared)
       report(.downloading(0))
-      do {
-        for try await event in dataExports.download(url) {
-          switch event {
-          case .progress(let share):
-            await send(.downloadProgressed(share))
-            report(.downloading(share))
-          case .finished(let file, let name):
-            return (file, name)
-          }
+      for try await event in dataExports.download(url) {
+        switch event {
+        case .progress(let share):
+          await send(.downloadProgressed(share))
+          report(.downloading(share))
+        case .finished(let file, let name):
+          return (file, name)
         }
-        throw DataExportError.failed("The download ended early")
-      } catch DataExportError.expired where attempt == 1 {
-        continue
       }
+      throw DataExportError.failed("The download ended early")
     }
-    // Only reached if the second link expired too, which the loop rethrows.
-    throw DataExportError.expired
+    do {
+      return try await attempt()
+    } catch DataExportError.expired {
+      // A link that stopped working is asked for again, once.
+      return try await attempt()
+    }
+  }
+
+  /// Asks for an export, and waits until it's ready: its download URL.
+  private static func readyURL(
+    dataExports: DataExportClient, clock: any Clock<Duration>
+  ) async throws -> URL {
+    var export = try await dataExports.request()
+    for _ in 0..<maxPolls {
+      if let url = export.url { return url }
+      try await clock.sleep(for: pollInterval)
+      guard let latest = try await dataExports.latest() else {
+        throw DataExportError.failed("The export is gone")
+      }
+      export = latest
+    }
+    guard let url = export.url else { throw TookTooLong() }
+    return url
   }
 
   /// The server took longer to prepare the export than it ever should (`maxPolls`).
@@ -259,9 +273,13 @@ extension ArchiveSaver: DependencyKey {
     }
   }
 
-  static func move(_ file: URL, named name: String, into folder: URL) throws -> URL {
+  static func move(_ file: URL, named suggestedName: String, into folder: URL) throws -> URL {
     defer { try? FileManager.default.removeItem(at: file) }
     try checkFolder(folder)
+    // Only a name: the server's, but nothing in it may lead out of the folder.
+    let lastComponent = (suggestedName as NSString).lastPathComponent
+    let name =
+      lastComponent.isEmpty || lastComponent.hasPrefix(".") ? "lil-export.tar" : lastComponent
     let base = (name as NSString).deletingPathExtension
     let pathExtension = (name as NSString).pathExtension
     for number in 1...10_000 {

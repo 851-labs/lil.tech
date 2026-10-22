@@ -1,6 +1,6 @@
 public import AppIntents
+import Dependencies
 public import Foundation
-import Synchronization
 import UniformTypeIdentifiers
 
 /// Exports the account's data to a folder from Shortcuts (851-2894): the archive Settings ›
@@ -31,6 +31,10 @@ public struct ExportHealthDataIntent: AppIntent, ProgressReportingIntent {
   /// one would stop `shortcuts run` until someone clicks it.
   public func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
     let folder = try Self.folderURL(self.folder)
+    // A folder chosen in Shortcuts comes with permission to use it, which macOS checks for
+    // protected folders (Desktop, Documents, Downloads) even though the app isn't sandboxed.
+    let isAccessing = folder.startAccessingSecurityScopedResource()
+    defer { if isAccessing { folder.stopAccessingSecurityScopedResource() } }
     let progress = progress
     progress.totalUnitCount = 100
     let saved = try await Self.export(to: folder) { update in
@@ -59,13 +63,13 @@ public struct ExportHealthDataIntent: AppIntent, ProgressReportingIntent {
   static func export(
     to folder: URL, progress: @escaping HealthAppActions.Progress
   ) async throws -> URL {
-    let started = LockedFlag()
+    let started = LockIsolated(false)
     let result: HealthAppActionResult
     do {
       result = try await HealthAppIntents.perform(
         .export(to: folder),
         progress: { update in
-          started.set()
+          started.setValue(true)
           progress(update)
         })
     } catch is CancellationError where started.value {
@@ -76,11 +80,4 @@ public struct ExportHealthDataIntent: AppIntent, ProgressReportingIntent {
     }
     return saved
   }
-}
-
-/// Whether the app has started, once it reports how the export is going.
-private final class LockedFlag: Sendable {
-  private let flag = Mutex(false)
-  var value: Bool { flag.withLock { $0 } }
-  func set() { flag.withLock { $0 = true } }
 }

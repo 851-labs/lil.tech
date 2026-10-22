@@ -129,6 +129,23 @@ struct ExportHealthDataIntentTests {
     #expect(requests.value == 0)
   }
 
+  @Test
+  func theButtonDoesNothingWhileAnExportIsRunning() async {
+    // An action's export, downloading: the button can't cancel it to start another.
+    let store = makeStore(.downloading(0.3))
+    await store.send(.account(.dataExport(.exportButtonTapped)))
+  }
+
+  @Test
+  func onlyTheLastPartOfTheServersNameIsUsed() throws {
+    let folder = try makeFolder()
+    let file = directory.appending(path: UUID().uuidString)
+    try Data("synthetic archive".utf8).write(to: file)
+    let saved = try ArchiveSaver.move(file, named: "../../\(name)", into: folder)
+    #expect(saved == folder.appending(path: name))
+    #expect(!FileManager.default.fileExists(atPath: file.path))
+  }
+
   @Test(.timeLimit(.minutes(1)))
   func aFailureSaysWhyInSettingsAndToTheAction() async throws {
     let folder = try makeFolder()
@@ -165,7 +182,8 @@ struct ExportHealthDataIntentTests {
       $0.account.dataExport.status = .preparing
     }
     await store.receive(\.account.dataExport.failed) {
-      $0.account.dataExport.status = .failed("lil health can't save to \(path): it isn't writable.")
+      $0.account.dataExport.status = .failed(
+        HealthAppActionError.folderNotWritable(path).localizedDescription)
     }
     await #expect(throws: HealthAppActionError.folderNotWritable(path)) { try await answer() }
 
