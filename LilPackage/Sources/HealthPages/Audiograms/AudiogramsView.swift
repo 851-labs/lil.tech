@@ -1,4 +1,5 @@
 import Charts
+import Dependencies
 import HealthDatabase
 import SQLiteData
 public import SwiftUI
@@ -39,7 +40,8 @@ struct AudiogramsContent: View {
   let state: State
   /// How many the list holds at most (`RecentAudiograms.limit`), to say when it's full.
   var limit = RecentAudiograms.limit
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {

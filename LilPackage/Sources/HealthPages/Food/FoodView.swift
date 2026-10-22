@@ -66,8 +66,9 @@ struct FoodContent: View {
   let state: State
   var moreFailed = false
   let loadMore: () -> Void
-  var calendar = Calendar.current
-  var now = Date.now
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
+  @Dependency(\.date.now) private var now
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {
@@ -93,6 +94,9 @@ struct FoodContent: View {
   /// One rounded card per day under its name and energy, as All Data's (a `LazyVStack` of rows,
   /// each drawing its part of its day's card, so only the rows on screen are built).
   private func list(_ foods: [Food], hasMore: Bool) -> some View {
+    // Read once: a dependency's `now` is the time each time it's read.
+    let now = now
+    let calendar = calendar
     let days = HealthDatabase.foodDays(foods, calendar: calendar)
     return ScrollView {
       LazyVStack(alignment: .leading, spacing: 0) {
@@ -148,7 +152,7 @@ struct FoodContent: View {
 /// app, its energy and time, and a chevron, since it opens the food.
 struct FoodCardRow: View {
   let food: Food
-  var calendar = Calendar.current
+  let calendar: Calendar
   let isFirst: Bool
   let isLast: Bool
 

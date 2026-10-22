@@ -1,3 +1,4 @@
+import Dependencies
 import Foundation
 import HealthDatabase
 import HealthUI
@@ -42,8 +43,9 @@ struct VisionPrescriptionsContent: View {
   let state: State
   /// How many the list holds at most (`RecentVisionPrescriptions.limit`), to say when it's full.
   var limit = RecentVisionPrescriptions.limit
-  var now = Date.now
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
+  @Dependency(\.date.now) private var now
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {
@@ -71,7 +73,10 @@ struct VisionPrescriptionsContent: View {
   }
 
   private func list(_ prescriptions: [HealthVisionPrescription]) -> some View {
-    ScrollView {
+    // Read once: a dependency's `now` is the time each time it's read.
+    let now = now
+    let calendar = calendar
+    return ScrollView {
       VStack(alignment: .leading, spacing: 10) {
         VStack(spacing: 0) {
           ForEach(Array(prescriptions.enumerated()), id: \.element.id) { index, prescription in
@@ -183,8 +188,9 @@ struct VisionPrescriptionRequest: FetchKeyRequest {
 /// no longer shared.
 struct VisionPrescriptionDetailContent: View {
   let prescription: HealthVisionPrescription?
-  var now = Date.now
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
+  @Dependency(\.date.now) private var now
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {

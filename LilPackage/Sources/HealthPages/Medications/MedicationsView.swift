@@ -1,3 +1,4 @@
+import Dependencies
 import Foundation
 import HealthCatalog
 import HealthDatabase
@@ -151,6 +152,7 @@ struct MedicationDetailView: View {
   let opened: HealthMedication
   /// Moves at midnight, so the windows and Today do even if nothing syncs.
   @State private var today = Date.now
+  @Dependency(\.calendar) private var calendar
   /// Read by the view's task, not in its initializer: a list's links make their destinations as
   /// they show, so reading then would touch the database for every row, previews included.
   @Fetch private var detail: MedicationDetail?? = nil
@@ -169,7 +171,7 @@ struct MedicationDetailView: View {
     )
     .task(id: today) {
       _ = try? await $detail.load(
-        MedicationDetailRequest(id: opened.id, now: today, calendar: .current),
+        MedicationDetailRequest(id: opened.id, now: today, calendar: calendar),
         scheduler: MainQueueScheduler())
     }
     .onReceive(calendarDayChanges()) {
@@ -207,8 +209,10 @@ struct MedicationDetailContent: View {
 
   let state: State
   var limit = MedicationDetailRequest.limit
-  var now = Date.now
-  var calendar = Calendar.current
+  /// Today, which moves at midnight (`MedicationDetailView`).
+  let now: Date
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {
