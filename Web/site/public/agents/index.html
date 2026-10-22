@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Connect an AI agent · lil health</title>
+    <title>Connect an AI agent · lil</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
     <main>
       <h1>Connect an AI agent</h1>
-      <p class="muted">lil health · Claude, Claude Code, ChatGPT and other agents</p>
+      <p class="muted">lil · Claude, Claude Code, ChatGPT and other agents</p>
 
       <p>
         Connect an AI agent to your lil health account, then ask it about your Health data: how you
@@ -22,12 +22,26 @@
         first. When the agent asks you to sign in, use the same Apple ID or Google account.
       </p>
 
-      <h2>The URL</h2>
-      <p>Add this URL to your agent as a remote MCP server (some agents call it a connector):</p>
-      <pre><code>https://mcp.lil.tech/health</code></pre>
+      <h2 id="urls">The URL</h2>
       <p>
-        The agent then opens lil health's page in your browser. Sign in with Apple or Google, check
-        which agent is asking, and click Allow.
+        Add one of these URLs to your agent as a remote MCP server (some agents call it a
+        connector):
+      </p>
+      <ul>
+        <li>
+          <strong>Every lil app:</strong> <code>https://mcp.lil.tech</code>. One connector for all
+          of your lil apps. Use this one unless your agent should only ever see lil health.
+        </li>
+        <li><strong>lil health only:</strong> <code>https://mcp.lil.tech/health</code>.</li>
+      </ul>
+      <p>
+        lil health is the only lil app agents can read for now, so both read the same data. Their
+        tools are named differently (see <a href="#tools">Tools</a>).
+      </p>
+      <p>
+        The agent then opens a page in your browser: lil's for <code>https://mcp.lil.tech</code>,
+        which lists every app the agent will read, or lil health's. Sign in with Apple or Google,
+        check which agent is asking, and click Allow.
       </p>
 
       <h2>Claude</h2>
@@ -35,8 +49,11 @@
       <ol>
         <li>Open Customize › Connectors (Settings › Connectors in some versions).</li>
         <li>Click Add, then Add custom connector.</li>
-        <li>Name it lil health, paste the URL above, and add it.</li>
-        <li>Click Connect, then sign in to lil health and allow Claude.</li>
+        <li>
+          Name it lil, paste <code>https://mcp.lil.tech</code>, and add it. (Or name it lil health,
+          with lil health's URL.)
+        </li>
+        <li>Click Connect, then sign in and allow Claude.</li>
       </ol>
       <p>
         On a Team or Enterprise plan, an owner adds the connector in Organization settings ›
@@ -45,11 +62,15 @@
 
       <h2>Claude Code</h2>
       <p>In a terminal:</p>
-      <pre><code>claude mcp add --transport http lil-health https://mcp.lil.tech/health</code></pre>
+      <pre><code>claude mcp add --transport http lil https://mcp.lil.tech</code></pre>
       <p>
-        Then, in Claude Code, run <code>/mcp</code>, choose lil-health, and authenticate. Your
-        browser opens lil health's page.
+        Then, in Claude Code, run <code>/mcp</code>, choose lil, and authenticate. Your browser
+        opens lil's page. If you already have a server named lil, such as
+        <a href="#on-your-mac"><code>lil mcp</code></a
+        >, give this one another name.
       </p>
+      <p>For lil health only:</p>
+      <pre><code>claude mcp add --transport http lil-health https://mcp.lil.tech/health</code></pre>
 
       <h2>ChatGPT</h2>
       <p>
@@ -58,9 +79,12 @@
       </p>
       <ol>
         <li>Open Plugins, click the plus button, then Add custom MCP server.</li>
-        <li>Name it lil health, paste the URL above as the Server URL, and choose OAuth.</li>
-        <li>Create it, sign in to lil health and allow ChatGPT, then install the plugin.</li>
-        <li>In a chat, type @ and choose lil health.</li>
+        <li>
+          Name it lil, paste <code>https://mcp.lil.tech</code> as the Server URL (or lil health's
+          URL), and choose OAuth.
+        </li>
+        <li>Create it, sign in and allow ChatGPT, then install the plugin.</li>
+        <li>In a chat, type @ and choose it by the name you gave it.</li>
       </ol>
       <p>
         If your ChatGPT looks different, see OpenAI's guide to
@@ -72,15 +96,39 @@
       <h2>Other agents</h2>
       <p>
         Any agent that supports remote MCP servers over Streamable HTTP, with OAuth sign-in, can
-        connect: give it the URL above. lil health registers it when it connects, so there's no
+        connect: give it one of the URLs above. lil registers it when it connects, so there's no
         client ID or secret to enter.
       </p>
+
+      <h2 id="tools">Tools</h2>
+      <p>
+        Through <code>https://mcp.lil.tech</code>, each tool's name starts with its app's:
+        <code>health.summary</code>, <code>health.metric</code> and so on. Through lil health's URL,
+        the same tools have just their own names: <code>summary</code>, <code>metric</code>. Some
+        agents show them their own way: Claude Code, for example, as
+        <code>mcp__lil__health_summary</code>.
+      </p>
+      <p>lil health's tools:</p>
+      <ul>
+        <li><code>summary</code>: start here. What lil health's Summary shows.</li>
+        <li><code>list_types</code>: the kinds of Health data you have.</li>
+        <li>
+          <code>metric</code>: a statistic over a day, week, month, six months or a year, such as
+          steps or resting heart rate.
+        </li>
+        <li><code>samples</code>: individual records, a page at a time.</li>
+        <li><code>workouts</code>, <code>sleep</code> and <code>medications</code>.</li>
+        <li><code>health_details</code>: date of birth, sex, blood type and so on.</li>
+        <li><code>search</code>: finds kinds of data by name, such as “blood pressure”.</li>
+        <li><code>sync_status</code>: how fresh the data is.</li>
+      </ul>
 
       <h2>What an agent can read</h2>
       <ul>
         <li>
           <strong>All of your lil health data,</strong> read-only. There's no way to share only some
-          kinds of data, and an agent can't change or delete anything.
+          kinds of data, and an agent can't change or delete anything. Through
+          <code>https://mcp.lil.tech</code>, the same goes for every app its page listed.
         </li>
         <li>
           <strong>Summaries first:</strong> today's numbers, totals and averages over a day, week,
@@ -114,12 +162,18 @@
         </li>
       </ul>
       <p>
+        An agent connected through <code>https://mcp.lil.tech</code> is listed in every lil app it
+        reads, marked All lil apps. Revoking it in any of them disconnects it from all of them.
+        Turning off agent access in one app stops every agent reading that app, these included.
+      </p>
+      <p>
         The agent is cut off at its next request. You can also remove it in the agent itself: in
-        Claude, Customize › Connectors; in Claude Code, <code>claude mcp remove lil-health</code>.
-        Connecting again asks you to sign in and allow it again.
+        Claude, Customize › Connectors; in Claude Code, <code>claude mcp remove</code> with the name
+        you gave it (such as <code>lil</code> or <code>lil-health</code>). Connecting again asks you
+        to sign in and allow it again.
       </p>
 
-      <h2>Agents on your Mac only</h2>
+      <h2 id="on-your-mac">Agents on your Mac only</h2>
       <p>
         lil health for Mac also has a command, <code>lil health</code>, with a local MCP server that
         reads the copy of your data on your Mac instead (install it with lil health › Install
