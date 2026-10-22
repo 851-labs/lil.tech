@@ -73,7 +73,10 @@ struct VisionPrescriptionsContent: View {
   }
 
   private func list(_ prescriptions: [HealthVisionPrescription]) -> some View {
-    ScrollView {
+    // Read once: a dependency's `now` is the time each time it's read.
+    let now = now
+    let calendar = calendar
+    return ScrollView {
       VStack(alignment: .leading, spacing: 10) {
         VStack(spacing: 0) {
           ForEach(Array(prescriptions.enumerated()), id: \.element.id) { index, prescription in

@@ -5,8 +5,8 @@
   import SwiftUI
   import Testing
 
-  // Audiograms (`AudiogramsView`) and an audiogram's chart (`AudiogramDetailView`). Synthetic data
-  // only: made-up audiograms.
+  // Audiograms (`AudiogramsView`) and an audiogram's chart (`AudiogramDetailView`), dated before
+  // `previewNow`. Synthetic data only: made-up audiograms.
 
   extension MacSnapshotTests {
     @Test(arguments: audiogramsCatalog.selectedStates)
@@ -32,21 +32,24 @@
       CatalogState("No response at 8 kHz, extended frequencies", width: 760, minHeight: 660) {
         detail(
           HealthAudiogram(
-            id: "6f1c2a40-0000-4000-8000-000000000008", startDate: 1_760_100_000_000,
-            endDate: 1_760_100_600_000, points: extendedPoints, sourceName: "Hearing Test App",
+            id: "6f1c2a40-0000-4000-8000-000000000008", startDate: start(daysAgo: 3.5),
+            endDate: start(daysAgo: 3.5) + 600_000, points: extendedPoints,
+            sourceName: "Hearing Test App",
             sourceBundleID: "com.example.hearing"))
       },
       CatalogState("No frequencies tested", width: 760, minHeight: 660) {
         detail(
           HealthAudiogram(
-            id: "6f1c2a40-0000-4000-8000-000000000009", startDate: 1_760_000_000_000,
-            endDate: 1_760_000_600_000, points: "[]", sourceName: "AirPods Pro",
+            id: "6f1c2a40-0000-4000-8000-000000000009", startDate: start(daysAgo: 4.6),
+            endDate: start(daysAgo: 4.6) + 600_000, points: "[]", sourceName: "AirPods Pro",
             sourceBundleID: "com.apple.HearingTest"))
       },
     ])
 
-  /// The audiograms' dates are before this. It shows no relative dates, so it isn't `previewNow`.
-  private let now = Date(timeIntervalSince1970: 1_760_400_000)
+  /// `daysAgo` days before `previewNow`, in milliseconds.
+  private func start(daysAgo: Double) -> Int {
+    Int(previewNow.addingTimeInterval(-daysAgo * 86_400).timeIntervalSince1970 * 1000)
+  }
 
   /// An audiogram with each ear's dBHL at 250 Hz to 8 kHz.
   private func audiogram(
@@ -67,7 +70,7 @@
       }
       return #"{"frequency":\#(frequency),"tests":[\#(tests.joined(separator: ","))]}"#
     }
-    let start = Int(now.addingTimeInterval(-daysAgo * 86_400).timeIntervalSince1970 * 1000)
+    let start = start(daysAgo: daysAgo)
     return HealthAudiogram(
       id: "6f1c2a40-0000-4000-8000-\(String(format: "%012d", index))", startDate: start,
       endDate: start + 600_000, points: "[\(points.joined(separator: ","))]",

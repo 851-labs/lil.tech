@@ -72,7 +72,9 @@
   )
 
   @MainActor
-  private func list(_ state: VisionPrescriptionsContent.State, limit: Int = 200) -> some View {
+  private func list(
+    _ state: VisionPrescriptionsContent.State, limit: Int = RecentVisionPrescriptions.limit
+  ) -> some View {
     NavigationStack {
       VisionPrescriptionsContent(state: state, limit: limit)
     }

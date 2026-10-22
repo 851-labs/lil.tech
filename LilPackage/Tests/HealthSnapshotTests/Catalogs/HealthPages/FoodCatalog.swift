@@ -81,10 +81,10 @@
   }
 
   /// A few days of meals: some named, some not (a quick-added entry), some with only their
-  /// energy.
+  /// energy. Today's are before `previewNow`, 3 PM.
   private let foods = [
     food(
-      "t3", "Greek Yogurt with Honey", daysAgo: 0, hour: 15, minute: 30, energy: 190,
+      "t3", "Greek Yogurt with Honey", daysAgo: 0, hour: 14, minute: 30, energy: 190,
       carbohydrates: 24.5, protein: 11, fat: 5.2),
     food(
       "t2", "Chicken Caesar Salad", daysAgo: 0, hour: 12, minute: 45, energy: 540,

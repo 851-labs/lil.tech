@@ -6,7 +6,8 @@
   import Testing
 
   // Health Documents (`HealthDocumentsView`), a document read as the viewer reads it
-  // (`HealthDocumentDetailContent`), and its XML (`DocumentXMLSheet`). Synthetic data only:
+  // (`HealthDocumentDetailContent`), and its XML (`DocumentXMLSheet`), dated before `previewNow`.
+  // Synthetic data only:
   // made-up documents, people and providers, in a hand-written CDA.
 
   extension MacSnapshotTests {
@@ -51,14 +52,11 @@
       },
     ])
 
-  /// The documents' dates are before this. It shows no relative dates, so it isn't `previewNow`.
-  private let now = Date(timeIntervalSince1970: 1_760_400_000)
-
   private func document(
     _ index: Int, _ title: String, patient: String = "Robin Example",
     author: String = "", custodian: String = "", daysAgo: Double
   ) -> HealthDocument {
-    let start = Int(now.addingTimeInterval(-daysAgo * 86_400).timeIntervalSince1970 * 1000)
+    let start = Int(previewNow.addingTimeInterval(-daysAgo * 86_400).timeIntervalSince1970 * 1000)
     return HealthDocument(
       id: "8a2d4c10-0000-4000-8000-\(String(format: "%012d", index))", startDate: start,
       endDate: start, title: title, patientName: patient, authorName: author,
