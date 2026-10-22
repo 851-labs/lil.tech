@@ -3,6 +3,21 @@
   <channel>
     <title>lil health</title>
     <item>
+      <title>0.3.0</title>
+      <pubDate>Thu, 22 Oct 2026 00:36:20 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.3.0</link>
+      <sparkle:version>319</sparkle:version>
+      <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<ul><li>The <code>lil</code> command and <code>lil mcp</code>: your Health data for the command line and local agents, with access you turn on and an access log</li><li>Settings › Agents: remote agents, including ones connected to all your lil apps, with a link to connect one</li><li>Shortcuts, Siri and Spotlight: open a page, and sync now</li><li>New pages: Activity Rings, Blood Pressure, Food, Health notifications, symptoms, Workout Routes, Health Documents and more of Cycle Tracking</li><li>All Data in sections, one per day</li><li>A faster first sync</li></ul>]]></description>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/health%2Fv0.3.0/lil-health-0.3.0.dmg"
+        length="33136553"
+        type="application/octet-stream"
+        sparkle:edSignature="Tqtk1wHPFcjMq6zgTKIFv6VXBY6eXhkYEK+KjXUJGnQI7jAGBFnlFLukKms7lLu8JBVeEeNwLlkFQIoFX+wfBA=="
+      />
+    </item>
+    <item>
       <title>0.2.0</title>
       <pubDate>Wed, 21 Oct 2026 02:43:18 +0000</pubDate>
       <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.2.0</link>
