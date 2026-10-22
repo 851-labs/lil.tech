@@ -20,6 +20,9 @@
     "Sync Footer", width: 260, minHeight: 0,
     states: [
       CatalogState("Syncing") { footer(.syncing(cursor: 1_200, head: 9_000)) },
+      CatalogState("Syncing, one change left") {
+        footer(.syncing(cursor: 8_999, head: 9_000))
+      },
       // Catching up on the changes since the snapshot, after a first sync.
       CatalogState("Catching up, many changes") {
         footer(.syncing(cursor: 2_000_000, head: 2_487_650))
