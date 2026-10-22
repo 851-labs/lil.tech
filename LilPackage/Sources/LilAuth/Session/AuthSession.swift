@@ -157,7 +157,7 @@ public struct SessionStore: Sendable {
     for environment: APIEnvironment, allowsOverride: Bool
   ) -> [CFString: Any] {
     let account =
-      environment == .prod && !allowsOverride
+      environment.usesDefaultLocation(allowsOverride: allowsOverride)
       ? "session" : "session \(environment.origin)"
     return [
       kSecClass: kSecClassGenericPassword,

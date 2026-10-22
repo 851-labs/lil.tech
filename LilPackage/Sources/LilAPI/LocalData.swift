@@ -27,8 +27,9 @@ extension APIEnvironment {
   }
 
   /// Whether this build keeps this server's data where it always has, rather than apart: only
-  /// prod, in a build that can't use anything else.
-  func usesDefaultLocation(allowsOverride: Bool) -> Bool {
+  /// prod, in a build that can't use anything else. The Keychain's session follows the same
+  /// rule, so a build's session and its local data are always kept apart together.
+  public func usesDefaultLocation(allowsOverride: Bool = Self.allowsOverride) -> Bool {
     self == .prod && !allowsOverride
   }
 
