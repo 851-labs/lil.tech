@@ -34,10 +34,10 @@
 /* Begin PBXFileReference section */
 		3A0000000000000000000004 /* PhoneSnapshotHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhoneSnapshotHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B0000000000000000000004 /* HealthPhoneSnapshotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HealthPhoneSnapshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		3C0000000000000000000001 /* StateCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StateCatalog.swift; path = ../../LilPackage/Tests/Health/HealthSnapshotTests/StateCatalog.swift; sourceTree = SOURCE_ROOT; };
-		3C0000000000000000000003 /* SnapshotOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotOutput.swift; path = ../../LilPackage/Tests/Health/HealthSnapshotTests/SnapshotOutput.swift; sourceTree = SOURCE_ROOT; };
-		3C0000000000000000000006 /* SignInCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SignInCatalog.swift; path = ../../LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift; sourceTree = SOURCE_ROOT; };
-		3C0000000000000000000008 /* SignInMethodsCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SignInMethodsCatalog.swift; path = ../../LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift; sourceTree = SOURCE_ROOT; };
+		3C0000000000000000000001 /* StateCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StateCatalog.swift; path = ../HealthSnapshotTests/StateCatalog.swift; sourceTree = SOURCE_ROOT; };
+		3C0000000000000000000003 /* SnapshotOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotOutput.swift; path = ../HealthSnapshotTests/SnapshotOutput.swift; sourceTree = SOURCE_ROOT; };
+		3C0000000000000000000006 /* SignInCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SignInCatalog.swift; path = ../HealthSnapshotTests/Catalogs/LilAuth/SignInCatalog.swift; sourceTree = SOURCE_ROOT; };
+		3C0000000000000000000008 /* SignInMethodsCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SignInMethodsCatalog.swift; path = ../HealthSnapshotTests/Catalogs/LilAuth/SignInMethodsCatalog.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -49,7 +49,7 @@
 		3B0000000000000000000005 /* HealthPhoneSnapshotTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			name = HealthPhoneSnapshotTests;
-			path = ../../LilPackage/Tests/Health/HealthPhoneSnapshotTests;
+			path = ../HealthPhoneSnapshotTests;
 			sourceTree = SOURCE_ROOT;
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */

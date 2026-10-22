@@ -11,6 +11,6 @@
       location = "group:LilPackage">
    </FileRef>
    <FileRef
-      location = "group:Tools/PhoneSnapshots/PhoneSnapshots.xcodeproj">
+      location = "group:LilPackage/Tests/Health/PhoneSnapshots/PhoneSnapshots.xcodeproj">
    </FileRef>
 </Workspace>
