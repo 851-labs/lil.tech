@@ -92,10 +92,10 @@ struct SyncHealthDataIntentTests {
     clock.advance(by: .seconds(1))
     #expect(try await answer() == .stillSyncing)
     #expect(
-      SyncHealthDataIntent.dialog(for: .stillSyncing)
+      SyncHealthDataIntent.message(for: .stillSyncing)
         == "Still syncing. lil health will finish in the background.")
-    #expect(SyncHealthDataIntent.dialog(for: .synced(at: synced)) == "lil health is up to date.")
-    #expect(SyncHealthDataIntent.dialog(for: .done) == "Done.")
+    #expect(SyncHealthDataIntent.message(for: .synced(at: synced)) == "lil health is up to date.")
+    #expect(SyncHealthDataIntent.message(for: .done) == "Done.")
     await store.finish()
   }
 
