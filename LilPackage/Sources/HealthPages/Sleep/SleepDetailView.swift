@@ -271,13 +271,14 @@ struct SleepDetailContent: View {
           Spacer()
           Text(SleepFormat.duration(duration))
             .foregroundStyle(.secondary)
-          if stage.isAsleep {
-            Text((duration / asleep).formatted(.percent.precision(.fractionLength(0))))
-              .foregroundStyle(.secondary)
-              .frame(width: 44, alignment: .trailing)
-          } else {
-            Spacer().frame(width: 44)
-          }
+          // Empty for Awake, which isn't sleep. A text either way, so every row's time lines up:
+          // a `Spacer` here took no spacing beside it, and moved Awake's 8 pt right.
+          Text(
+            stage.isAsleep
+              ? (duration / asleep).formatted(.percent.precision(.fractionLength(0))) : ""
+          )
+          .foregroundStyle(.secondary)
+          .frame(width: 44, alignment: .trailing)
         }
       }
     }
