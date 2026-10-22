@@ -60,46 +60,34 @@ struct MedicationsContent: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.pageBackground)
     .navigationTitle("Medications")
   }
 
+  /// A grouped form on its own background, as Metric Detail is (851-2989, 851-3004): current
+  /// medications, then archived ones, a navigation row each.
   private func list(_ medications: [HealthMedication]) -> some View {
     let current = medications.filter { !$0.isArchived }
     let archived = medications.filter(\.isArchived)
-    return ScrollView {
-      VStack(alignment: .leading, spacing: 10) {
-        if !current.isEmpty {
-          section("Your Medications", current)
-        }
-        if !archived.isEmpty {
-          section("Archived Medications", archived)
-            .padding(.top, current.isEmpty ? 0 : 14)
-        }
+    return Form {
+      if !current.isEmpty {
+        section("Your Medications", current)
       }
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
+      if !archived.isEmpty {
+        section("Archived Medications", archived)
+      }
     }
+    .formStyle(.grouped)
   }
 
   private func section(_ title: String, _ medications: [HealthMedication]) -> some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Text(title)
-        .font(.title3.bold())
-      VStack(spacing: 0) {
-        ForEach(Array(medications.enumerated()), id: \.element.id) { index, medication in
-          if index > 0 { Divider().padding(.leading, 62) }
-          NavigationLink {
-            MedicationDetailView(medication: medication)
-          } label: {
-            MedicationRow(medication: medication)
-              .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
+    Section(title) {
+      ForEach(medications) { medication in
+        NavigationLink {
+          MedicationDetailView(medication: medication)
+        } label: {
+          MedicationRow(medication: medication)
         }
       }
-      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
     }
   }
 }
@@ -123,12 +111,8 @@ struct MedicationRow: View {
       Spacer()
       Text(MedicationFormat.schedule(medication))
         .foregroundStyle(.secondary)
-      Image(systemName: "chevron.right")
-        .font(.caption.bold())
-        .foregroundStyle(.tertiary)
     }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 10)
+    .padding(.vertical, 4)
   }
 }
 
@@ -208,20 +192,35 @@ struct MedicationDetailContent: View {
   }
 
   let state: State
-  var limit = MedicationDetailRequest.limit
+  let limit: Int
+  /// How many doses the log shows at first, and how many more each Show More Doses adds. A grouped
+  /// form lays out every row, not only those on screen, so a year of doses at once would take
+  /// seconds to open (851-3004).
+  let pageSize: Int
   /// Today, which moves at midnight (`MedicationDetailView`).
   let now: Date
   /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
   @Dependency(\.calendar) private var calendar
+  /// How many doses the log shows: `pageSize`, and `pageSize` more each time Show More Doses is clicked.
+  @SwiftUI.State private var shownDoses: Int
+
+  init(state: State, limit: Int = MedicationDetailRequest.limit, pageSize: Int = 100, now: Date) {
+    self.state = state
+    self.limit = limit
+    self.pageSize = pageSize
+    self.now = now
+    _shownDoses = SwiftUI.State(initialValue: pageSize)
+  }
 
   var body: some View {
     Group {
       switch state {
       case .loading(let medication):
         page(medication) {
-          ProgressView()
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 40)
+          Section {
+            ProgressView()
+              .frame(maxWidth: .infinity, minHeight: 200)
+          }
         }
       case .loaded(let detail):
         page(detail.medication) {
@@ -239,7 +238,6 @@ struct MedicationDetailContent: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.pageBackground)
     .navigationTitle(medication?.displayName ?? "Medication")
   }
 
@@ -251,22 +249,20 @@ struct MedicationDetailContent: View {
     }
   }
 
+  /// A grouped form on its own background, as Metric Detail is (851-2989, 851-3004): the
+  /// medication, its adherence, then its log, a section a day.
   private func page(
     _ medication: HealthMedication, @ViewBuilder content: () -> some View
   ) -> some View {
-    ScrollView {
-      LazyVStack(alignment: .leading, spacing: 10) {
-        summary(medication)
-        content()
-      }
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
+    Form {
+      summary(medication)
+      content()
     }
+    .formStyle(.grouped)
   }
 
   private func summary(_ medication: HealthMedication) -> some View {
-    VStack(spacing: 0) {
+    Section {
       HStack(spacing: 12) {
         MedicationIcon(medication: medication)
         VStack(alignment: .leading, spacing: 2) {
@@ -287,71 +283,58 @@ struct MedicationDetailContent: View {
             .background(.gray, in: Capsule())
         }
       }
-      .padding(14)
-      Divider().padding(.leading, 14)
-      HStack {
-        Text("Schedule")
-        Spacer()
-        Text(MedicationFormat.schedule(medication))
-          .foregroundStyle(.secondary)
-      }
-      .padding(.horizontal, 14)
-      .padding(.vertical, 10)
+      .padding(.vertical, 4)
+      LabeledContent("Schedule", value: MedicationFormat.schedule(medication))
     }
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
   }
 
-  @ViewBuilder
   private func adherence(_ detail: MedicationDetail) -> some View {
-    // Only scheduled doses have an adherence; as-needed ones are only counted.
-    Text(
-      detail.medication.hasSchedule || detail.adherence.contains { $0.scheduled > 0 }
-        ? "Adherence" : "Doses Taken"
-    )
-    .font(.title3.bold())
-    .padding(.top, 14)
-    HStack(alignment: .top, spacing: 0) {
-      ForEach(Array(detail.adherence.enumerated()), id: \.offset) { index, adherence in
-        if index > 0 { Divider() }
-        AdherenceColumn(adherence: adherence)
-      }
-    }
-    .fixedSize(horizontal: false, vertical: true)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-  }
-
-  @ViewBuilder
-  private func log(_ detail: MedicationDetail) -> some View {
-    Text("Log")
-      .font(.title3.bold())
-      .padding(.top, 14)
-    if detail.days.isEmpty {
-      Text("No doses logged yet. Doses you log in Health on your iPhone will appear here.")
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-    }
-    ForEach(detail.days) { day in
-      Text(MedicationFormat.day(day.day, now: now, calendar: calendar))
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 14)
-        .padding(.top, 4)
-      VStack(spacing: 0) {
-        ForEach(Array(day.doses.enumerated()), id: \.element.id) { index, dose in
-          if index > 0 { Divider().padding(.leading, 46) }
-          MedicationDoseRow(
-            dose: dose, medication: detail.medication, calendar: calendar)
+    Section {
+      HStack(alignment: .top, spacing: 14) {
+        ForEach(Array(detail.adherence.enumerated()), id: \.offset) { index, adherence in
+          if index > 0 { Divider() }
+          AdherenceColumn(adherence: adherence)
         }
       }
-      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+      .fixedSize(horizontal: false, vertical: true)
+      .padding(.vertical, 6)
+    } header: {
+      // Only scheduled doses have an adherence; as-needed ones are only counted.
+      Text(
+        detail.medication.hasSchedule || detail.adherence.contains { $0.scheduled > 0 }
+          ? "Adherence" : "Doses Taken")
     }
-    if detail.isLimited {
-      Text("Showing the \(limit.formatted()) most recent doses.")
-        .font(.footnote)
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 14)
+  }
+
+  /// The log: a section a day, headed by the day, or a note before any dose is logged.
+  @ViewBuilder
+  private func log(_ detail: MedicationDetail) -> some View {
+    if detail.days.isEmpty {
+      Section("Log") {
+        Text("No doses logged yet. Doses you log in Health on your iPhone will appear here.")
+          .foregroundStyle(.secondary)
+      }
+    }
+    let days = MedicationFormat.days(detail.days, upTo: shownDoses)
+    ForEach(days) { day in
+      Section {
+        ForEach(day.doses) { dose in
+          MedicationDoseRow(dose: dose, medication: detail.medication, calendar: calendar)
+        }
+      } header: {
+        Text(MedicationFormat.day(day.day, now: now, calendar: calendar))
+      } footer: {
+        if detail.isLimited, day.id == detail.days.last?.id {
+          Text("Showing the \(limit.formatted()) most recent doses.")
+        }
+      }
+    }
+    if days.count < detail.days.count {
+      Section {
+        Button("Show More Doses") {
+          shownDoses += pageSize
+        }
+      }
     }
   }
 }
@@ -388,7 +371,6 @@ struct AdherenceColumn: View {
         .fixedSize(horizontal: false, vertical: true)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(14)
   }
 }
 
@@ -414,8 +396,7 @@ struct MedicationDoseRow: View {
           .foregroundStyle(dose.status == .taken ? .primary : .secondary)
       }
     }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 8)
+    .padding(.vertical, 2)
   }
 }
 
@@ -452,6 +433,18 @@ enum MedicationFormat {
     ]
     .compactMap { $0 }
     return parts.isEmpty ? nil : parts.joined(separator: " · ")
+  }
+
+  /// The log's newest days, whole, until they hold `doses` doses (at least one day).
+  static func days(_ days: [MedicationDoseDay], upTo doses: Int) -> [MedicationDoseDay] {
+    var shown = 0
+    var count = 0
+    for day in days {
+      guard shown < doses else { break }
+      shown += day.doses.count
+      count += 1
+    }
+    return Array(days.prefix(count))
   }
 
   /// "Scheduled" or "As Needed".

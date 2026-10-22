@@ -89,40 +89,30 @@ struct SymptomContent: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
+    // A grouped form on its own background, as Metric Detail is (851-2989, 851-3004): the summary
+    // and the chart, the period's entries, then the pages it opens.
+    Form {
+      Section {
         VStack(alignment: .leading, spacing: 12) {
           header
           chartArea
             .frame(height: 280)
         }
-        .padding(16)
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-        if let chart, !chart.entries.isEmpty {
-          entries(chart.entries)
-        }
-        VStack(spacing: 0) {
-          NavigationLink {
-            AllDataView(type: type)
-          } label: {
-            PageLinkRow("Show All Data")
-          }
-          .buttonStyle(.plain)
-          Divider().padding(.leading, 14)
-          NavigationLink {
-            DataSourcesView(type: type)
-          } label: {
-            PageLinkRow("Data Sources")
-          }
-          .buttonStyle(.plain)
-        }
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+        .padding(.vertical, 6)
       }
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
+      if let chart, !chart.entries.isEmpty {
+        entries(chart.entries)
+      }
+      Section {
+        NavigationLink("Show All Data") {
+          AllDataView(type: type)
+        }
+        NavigationLink("Data Sources") {
+          DataSourcesView(type: type)
+        }
+      }
     }
-    .background(Color.pageBackground)
+    .formStyle(.grouped)
     .navigationTitle(type.name)
     .periodControls(PagePeriod(range: $range, offset: $offset))
   }
@@ -380,37 +370,29 @@ struct SymptomContent: View {
 
   // MARK: Entries
 
+  /// The period's entries, a row each, newest first.
   private func entries(_ entries: [SymptomEntry]) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Entries")
-        .font(.title3.bold())
-      VStack(spacing: 0) {
-        ForEach(Array(entries.prefix(Self.entryLimit).enumerated()), id: \.element.id) {
-          index, entry in
-          if index > 0 { Divider().padding(.leading, 14) }
-          HStack {
-            VStack(alignment: .leading, spacing: 2) {
-              Text(entry.name)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(entry.level == nil ? .secondary : .primary)
-              Text(entry.sourceName)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text(SymptomFormat.time(entry, calendar: calendar))
+    Section {
+      ForEach(entries.prefix(Self.entryLimit)) { entry in
+        HStack {
+          VStack(alignment: .leading, spacing: 2) {
+            Text(entry.name)
+              .font(.body.weight(.semibold))
+              .foregroundStyle(entry.level == nil ? .secondary : .primary)
+            Text(entry.sourceName)
+              .font(.caption)
               .foregroundStyle(.secondary)
           }
-          .padding(.horizontal, 14)
-          .padding(.vertical, 8)
+          Spacer()
+          Text(SymptomFormat.time(entry, calendar: calendar))
+            .foregroundStyle(.secondary)
         }
       }
-      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+    } header: {
+      Text("Entries")
+    } footer: {
       if entries.count > Self.entryLimit {
         Text("Showing the \(Self.entryLimit) most recent entries in this period.")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-          .padding(.horizontal, 14)
       }
     }
   }

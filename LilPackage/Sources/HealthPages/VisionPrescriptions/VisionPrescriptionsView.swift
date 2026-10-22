@@ -68,40 +68,31 @@ struct VisionPrescriptionsContent: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.pageBackground)
     .navigationTitle("Vision Prescriptions")
   }
 
+  /// A grouped form on its own background, as Metric Detail is (851-2989, 851-3004): a
+  /// navigation row for each prescription.
   private func list(_ prescriptions: [HealthVisionPrescription]) -> some View {
     // Read once: a dependency's `now` is the time each time it's read.
     let now = now
     let calendar = calendar
-    return ScrollView {
-      VStack(alignment: .leading, spacing: 10) {
-        VStack(spacing: 0) {
-          ForEach(Array(prescriptions.enumerated()), id: \.element.id) { index, prescription in
-            if index > 0 { Divider().padding(.leading, 62) }
-            NavigationLink {
-              VisionPrescriptionDetailView(prescription: prescription)
-            } label: {
-              VisionPrescriptionRow(prescription: prescription, now: now, calendar: calendar)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+    return Form {
+      Section {
+        ForEach(prescriptions) { prescription in
+          NavigationLink {
+            VisionPrescriptionDetailView(prescription: prescription)
+          } label: {
+            VisionPrescriptionRow(prescription: prescription, now: now, calendar: calendar)
           }
         }
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+      } footer: {
         if prescriptions.count >= limit {
           Text("Showing the \(limit.formatted()) most recent prescriptions.")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 14)
         }
       }
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
     }
+    .formStyle(.grouped)
   }
 }
 
@@ -129,12 +120,8 @@ struct VisionPrescriptionRow: View {
         Text("Expires \(expires.formatted(date: .abbreviated, time: .omitted))")
           .foregroundStyle(.secondary)
       }
-      Image(systemName: "chevron.right")
-        .font(.caption.bold())
-        .foregroundStyle(.tertiary)
     }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 10)
+    .padding(.vertical, 4)
   }
 }
 
@@ -204,32 +191,26 @@ struct VisionPrescriptionDetailContent: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.pageBackground)
     .navigationTitle(prescription?.kindName ?? "Vision Prescription")
   }
 
+  /// A grouped form on its own background, as Metric Detail is (851-2989, 851-3004): what it's
+  /// for and its dates, the lenses, then its source.
   private func page(_ prescription: HealthVisionPrescription) -> some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 10) {
-        summary(prescription)
-        Text("Prescription")
-          .font(.title3.bold())
-          .padding(.top, 14)
+    Form {
+      summary(prescription)
+      Section("Prescription") {
         lenses(prescription)
-        VStack(spacing: 0) {
-          row("Source", prescription.sourceName)
-        }
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-        .padding(.top, 14)
       }
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
+      Section {
+        LabeledContent("Source", value: prescription.sourceName)
+      }
     }
+    .formStyle(.grouped)
   }
 
   private func summary(_ prescription: HealthVisionPrescription) -> some View {
-    VStack(spacing: 0) {
+    Section {
       HStack(spacing: 12) {
         VisionPrescriptionIcon(kind: prescription.kind)
         VStack(alignment: .leading, spacing: 2) {
@@ -242,24 +223,25 @@ struct VisionPrescriptionDetailContent: View {
         }
         Spacer()
       }
-      .padding(14)
-      Divider().padding(.leading, 14)
-      row("Date Issued", prescription.issued.formatted(date: .long, time: .omitted))
+      .padding(.vertical, 4)
+      LabeledContent(
+        "Date Issued", value: prescription.issued.formatted(date: .long, time: .omitted))
       if let expires = prescription.expires {
-        Divider().padding(.leading, 14)
-        row("Expiration Date", expires.formatted(date: .long, time: .omitted)) {
-          if prescription.isExpired(at: now, calendar: calendar) {
-            Text("Expired")
-              .font(.caption.bold())
-              .foregroundStyle(.white)
-              .padding(.horizontal, 6)
-              .padding(.vertical, 2)
-              .background(.orange, in: Capsule())
+        LabeledContent("Expiration Date") {
+          HStack {
+            if prescription.isExpired(at: now, calendar: calendar) {
+              Text("Expired")
+                .font(.caption.bold())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.orange, in: Capsule())
+            }
+            Text(expires.formatted(date: .long, time: .omitted))
           }
         }
       }
     }
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
   }
 
   private func lenses(_ prescription: HealthVisionPrescription) -> some View {
@@ -291,27 +273,6 @@ struct VisionPrescriptionDetailContent: View {
         }
       }
     }
-    .padding(.horizontal, 14)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-  }
-
-  private func row(_ name: String, _ value: String) -> some View {
-    row(name, value) { EmptyView() }
-  }
-
-  /// A name and its value, with `accessory` before the value.
-  private func row(
-    _ name: String, _ value: String, @ViewBuilder accessory: () -> some View
-  ) -> some View {
-    HStack {
-      Text(name)
-      Spacer()
-      accessory()
-      Text(value)
-        .foregroundStyle(.secondary)
-    }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 10)
   }
 }
 
