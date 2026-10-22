@@ -262,25 +262,6 @@ extension LazyFormSection where Destination == Never {
   }
 }
 
-/// Records (newest first) by the `component` (day, month…) they started in, as Health lists them:
-/// workouts and ECGs by month, beat-to-beat measurements and State of Mind by day.
-func sections<Record>(
-  _ records: [Record], by component: Calendar.Component, calendar: Calendar,
-  startDate: (Record) -> Int
-) -> [(start: Date, records: [Record])] {
-  var sections: [(start: Date, records: [Record])] = []
-  for record in records {
-    let start = Date(unixMilliseconds: startDate(record))
-    let section = calendar.dateInterval(of: component, for: start)?.start ?? start
-    if sections.last?.start == section {
-      sections[sections.count - 1].records.append(record)
-    } else {
-      sections.append((section, [record]))
-    }
-  }
-  return sections
-}
-
 /// A grouped form's measurements on macOS 27.
 private enum LazyFormMetrics {
   /// Between the page's edges and its sections.

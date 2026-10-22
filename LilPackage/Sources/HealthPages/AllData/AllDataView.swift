@@ -103,14 +103,14 @@ struct AllDataContent: View {
   /// builds every row at once (1,000 rows take seconds, and 100,000 crash it), and a day can have
   /// hundreds, so only the rows on screen are built.
   private func list(_ samples: [HealthSample], hasMore: Bool) -> some View {
-    let days = days(samples)
+    let days = sections(samples, by: .day, calendar: calendar, startDate: \.startDate)
     // Once, so every day's header is named against the same "now".
     let now = self.now
     return LazyForm {
       // The last day may go on in the next page, so its section stays open while that loads.
       LazyFormSections(
-        days, start: \.day, records: \.samples,
-        title: { MetricFormat.date($0.day, isDay: true, now: now, calendar: calendar) },
+        days, start: \.start, records: \.records,
+        title: { MetricFormat.date($0.start, isDay: true, now: now, calendar: calendar) },
         isOpen: hasMore && !moreFailed
       ) { sample in
         SampleDetailView(type: type, sample: sample)
@@ -129,23 +129,6 @@ struct AllDataContent: View {
       .frame(maxWidth: .infinity)
       .padding(.top, 12)
     }
-  }
-
-  /// The samples (newest first) by day, asking the calendar only when a sample leaves the day
-  /// before it.
-  private func days(_ samples: [HealthSample]) -> [(day: Date, samples: [HealthSample])] {
-    var days: [(day: Date, samples: [HealthSample])] = []
-    var current: DateInterval?
-    for sample in samples {
-      let date = Date(unixMilliseconds: sample.startDate)
-      if let current, current.contains(date), !days.isEmpty {
-        days[days.count - 1].samples.append(sample)
-      } else {
-        current = calendar.dateInterval(of: .day, for: date)
-        days.append((current?.start ?? date, [sample]))
-      }
-    }
-    return days
   }
 }
 
