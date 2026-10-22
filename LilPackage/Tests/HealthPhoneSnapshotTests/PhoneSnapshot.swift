@@ -144,6 +144,8 @@
     /// failure points at the state.
     @MainActor
     func assertPhoneSnapshots() {
+      // The app Pixelbook shows the iPhone's catalogs under (`CatalogManifest`, 851-2955).
+      checkManifest(app: "health-iphone")
       guard width == iPhone18ProSize.width, minHeight == iPhone18ProSize.height else {
         Issue.record(
           "An iPhone state fills the screen, so it takes no width or minimum height of its own.",

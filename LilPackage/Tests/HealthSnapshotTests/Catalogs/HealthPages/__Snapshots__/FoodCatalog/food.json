@@ -1,0 +1,84 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/FoodCatalog.swift",
+  "screen" : "Food",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.food-dark.png",
+      "id" : "food.food",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.food-light.png",
+      "name" : "Food",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/FoodCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.food-empty-dark.png",
+      "id" : "food.food-empty",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.food-empty-light.png",
+      "name" : "Food, empty",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/FoodCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.food-loading-dark.png",
+      "id" : "food.food-loading",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.food-loading-light.png",
+      "name" : "Food, loading",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/FoodCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.food-failed-dark.png",
+      "id" : "food.food-failed",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.food-failed-light.png",
+      "name" : "Food, failed",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/FoodCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.food-loading-more-dark.png",
+      "id" : "food.food-loading-more",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.food-loading-more-light.png",
+      "name" : "Food, loading more",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/FoodCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.food-more-failed-dark.png",
+      "id" : "food.food-more-failed",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.food-more-failed-light.png",
+      "name" : "Food, more failed",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/FoodCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.a-food-dark.png",
+      "id" : "food.a-food",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.a-food-light.png",
+      "name" : "A food",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/FoodCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.a-food-without-a-name-dark.png",
+      "id" : "food.a-food-without-a-name",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.a-food-without-a-name-light.png",
+      "name" : "A food without a name",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/FoodCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.a-food-no-nutrients-dark.png",
+      "id" : "food.a-food-no-nutrients",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.a-food-no-nutrients-light.png",
+      "name" : "A food, no nutrients",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/FoodCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.a-food-loading-dark.png",
+      "id" : "food.a-food-loading",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.a-food-loading-light.png",
+      "name" : "A food, loading",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/FoodCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.a-food-failed-dark.png",
+      "id" : "food.a-food-failed",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/FoodCatalog/food.a-food-failed-light.png",
+      "name" : "A food, failed",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/FoodCatalog.swift"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/SleepCatalog.swift",
+  "screen" : "Sleep",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.night-dark.png",
+      "id" : "sleep.night",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.night-light.png",
+      "name" : "Night",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.the-night-before-dark.png",
+      "id" : "sleep.the-night-before",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.the-night-before-light.png",
+      "name" : "The night before",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.week-dark.png",
+      "id" : "sleep.week",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.week-light.png",
+      "name" : "Week",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.night-without-stages-dark.png",
+      "id" : "sleep.night-without-stages",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.night-without-stages-light.png",
+      "name" : "Night without stages",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.no-sleep-dark.png",
+      "id" : "sleep.no-sleep",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.no-sleep-light.png",
+      "name" : "No sleep",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.loading-dark.png",
+      "id" : "sleep.loading",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.loading-light.png",
+      "name" : "Loading",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.failed-dark.png",
+      "id" : "sleep.failed",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.failed-light.png",
+      "name" : "Failed",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    }
+  ]
+}

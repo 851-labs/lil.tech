@@ -1,0 +1,91 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/ElectrocardiogramsCatalog.swift",
+  "screen" : "Electrocardiograms",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.ecgs-dark.png",
+      "id" : "electrocardiograms.ecgs",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.ecgs-light.png",
+      "name" : "ECGs",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.ecgs-at-the-limit-dark.png",
+      "id" : "electrocardiograms.ecgs-at-the-limit",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.ecgs-at-the-limit-light.png",
+      "name" : "ECGs, at the limit",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.no-ecgs-dark.png",
+      "id" : "electrocardiograms.no-ecgs",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.no-ecgs-light.png",
+      "name" : "No ECGs",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.ecgs-loading-dark.png",
+      "id" : "electrocardiograms.ecgs-loading",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.ecgs-loading-light.png",
+      "name" : "ECGs loading",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.ecgs-failed-dark.png",
+      "id" : "electrocardiograms.ecgs-failed",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.ecgs-failed-light.png",
+      "name" : "ECGs failed",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.sinus-rhythm-dark.png",
+      "id" : "electrocardiograms.sinus-rhythm",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.sinus-rhythm-light.png",
+      "name" : "Sinus rhythm",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.atrial-fibrillation-symptoms-dark.png",
+      "id" : "electrocardiograms.atrial-fibrillation-symptoms",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.atrial-fibrillation-symptoms-light.png",
+      "name" : "Atrial fibrillation, symptoms",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.poor-recording-with-gaps-dark.png",
+      "id" : "electrocardiograms.poor-recording-with-gaps",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.poor-recording-with-gaps-light.png",
+      "name" : "Poor recording, with gaps",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.tall-waves-narrow-window-dark.png",
+      "id" : "electrocardiograms.tall-waves-narrow-window",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.tall-waves-narrow-window-light.png",
+      "name" : "Tall waves, narrow window",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.recording-loading-dark.png",
+      "id" : "electrocardiograms.recording-loading",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.recording-loading-light.png",
+      "name" : "Recording loading",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.no-recording-dark.png",
+      "id" : "electrocardiograms.no-recording",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.no-recording-light.png",
+      "name" : "No recording",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.recording-failed-dark.png",
+      "id" : "electrocardiograms.recording-failed",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.recording-failed-light.png",
+      "name" : "Recording failed",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    }
+  ]
+}

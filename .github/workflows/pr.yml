@@ -6,7 +6,7 @@ name: PR
 # - preview: deploys the TypeScript workspace to a preview stage (pr-<number>) on workers.dev and
 #   comments its URL. Its checks run before every commit instead (`lefthook.yml`).
 # - destroy-preview: when the PR closes, destroys its preview stage, if there is one.
-# - pixelbook: comments how many snapshots changed. Paused (851-2816).
+# - pixelbook: publishes the PR's state catalog images to Pixelbook, and comments how many changed.
 # - pr-ok: passes when every other job passed or was skipped. It's the one check the "Protect main"
 #   ruleset requires, since the others are skipped when a PR doesn't touch their part. It doesn't
 #   require branches to be up to date with main.
@@ -170,18 +170,15 @@ jobs:
 
             Fix the cause, then rerun the failed job. For `BucketNotEmpty`, empty the bucket first: destroy reads the props saved when the stage was last deployed, so a stage deployed before `forceDestroy` keeps refusing.
 
-  # Pixelbook's snapshots are rendered and published before a push, on developers' Macs (lefthook's
-  # pre-push hook, `scripts/pixelbook publish --hook`). This never renders, since that needs Xcode:
-  # it comments how many snapshots changed since the PR's base, linked to Pixelbook's comparison
-  # (`Web/pixelbook/scripts/diff.ts`), refreshed on each push. Re-run the PR's pixelbook job after
-  # publishing by hand.
-  #
-  # Paused with the pre-push render (851-2816): with nothing published, it only commented "no
-  # snapshots" on each PR. Remove `false &&` when the render is turned back on, with main.yml's.
+  # Publishes the PR's head's and base's state catalog images to Pixelbook (`scripts/pixelbook
+  # publish`, 851-2955), and comments how many changed, linked to Pixelbook's comparison
+  # (`Web/pixelbook/scripts/diff.ts`), refreshed on each push. The images are the catalogs'
+  # committed references, read with git, so it needs no Mac and renders nothing; a commit whose
+  # catalogs are already published only gets pointers. The head's branch is pointed at its head too
+  # (`?ref=<branch>`).
   pixelbook:
-    # Fork PRs get no secrets, and their snapshots wouldn't be published.
+    # Fork PRs get no secrets.
     if: >-
-      false &&
       github.event.action != 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
     # In order per PR.
@@ -196,6 +193,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
       BASE_REF: ${{ github.event.pull_request.base.ref }}
     steps:
       - uses: actions/checkout@v7
@@ -203,25 +201,15 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - uses: ./.github/actions/setup-services
-      - name: Point the base and head at their snapshots
+      - name: Publish the base's and head's snapshots
         id: commits
         run: |
-          # The PR's merge base, or the nearest commit before it with snapshots: a merge from a
-          # branch that wasn't up to date with main has none.
-          merge_base=$(git merge-base "origin/$BASE_REF" "$HEAD_SHA")
-          base=$merge_base
-          for commit in $(git rev-list --first-parent --max-count=20 "$merge_base"); do
-            key=$(scripts/pixelbook key "$commit")
-            if curl -sfo /dev/null "https://pixelbook-assets.lil.tech/snapshots/$key/index.json"; then
-              base=$commit
-              break
-            fi
-          done
+          # The PR's merge base with its target: what the PR changes.
+          base=$(git merge-base "origin/$BASE_REF" "$HEAD_SHA")
           echo "base=$base" >> "$GITHUB_OUTPUT"
-          # main's merges are pointed at as they land, but the base may predate that, and the
-          # head's hook may have skipped while its snapshots were published from elsewhere.
-          scripts/pixelbook publish --pointers-only --commit "$base"
-          scripts/pixelbook publish --pointers-only --commit "$HEAD_SHA"
+          scripts/pixelbook publish --commit "$base"
+          # The branch is what was pushed, even when that rewinds it.
+          scripts/pixelbook publish --commit "$HEAD_SHA" --ref "$HEAD_REF" --force-ref
       - name: Count what changed
         id: diff
         env:

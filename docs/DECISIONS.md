@@ -10,7 +10,7 @@ Every architecture and product decision made so far. This file holds the decisio
 - [Sync](decisions/sync.md): How apps sync with the server (with `docs/SYNC.md`).
 - [lil health](decisions/health.md): Apple Health on the Mac: data, statistics, privacy and the apps.
 - [lil messages](decisions/messages.md): The iMessage client (paused).
-- [Pixelbook](decisions/pixelbook.md): Snapshots of every preview, published and browsable.
+- [Pixelbook](decisions/pixelbook.md): Snapshots of every state catalog, published and browsable.
 
 ## Repo
 

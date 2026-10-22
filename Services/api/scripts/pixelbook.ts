@@ -1,33 +1,30 @@
-// Pixelbook (851-2696): publishes a render (`scripts/pixelbook render`) to R2, where every stage's
-// Pixelbook reads it. Run through `scripts/pixelbook publish`, which works out the render's key
-// and checks the tree is clean; from `Services/api`:
-//   node scripts/pixelbook.ts --key <key> --commit <sha> [--render <dir>] [--ref <name> [--force-ref]]
-//     [--dry-run]
-// Without --render, it only writes the commit's and ref's pointers, and exits 3 if the key's
-// snapshots aren't published yet: render them, then run it again with --render.
+// Pixelbook (851-2696): publishes a commit's state catalog images to R2, where every stage's
+// Pixelbook reads them (851-2955). The images are the catalogs' references, committed beside
+// them with a manifest per screen (`CatalogManifest` in `HealthSnapshotTests/StateCatalog.swift`),
+// so this reads them from the commit, with git, and needs no Mac, Xcode or render. Run through
+// `scripts/pixelbook publish`, which works out the commit's key; from `Services/api`:
+//   node scripts/pixelbook.ts --key <key> --commit <sha> [--ref <name> [--force-ref]] [--dry-run]
 //
 // The bucket (prod's, `pixelbookBucketName`) holds:
-//   images/<sha256 of the pixels>.png  every image, once: an unchanged screen isn't uploaded again
+//   images/<sha256 of the PNG>.png      every image, once: an unchanged screen isn't uploaded again
 //   thumbnails/<the same sha256>.png    the image at a quarter of its size, for zoomed-out views
 //   snapshots/<key>/<app>.json          an app's manifest: its screens, states and variants
-//   snapshots/<key>/index.json          the apps rendered for that key, written last
+//   snapshots/<key>/index.json          the apps published for that key, written last
 //   commits/<sha>.json                  which key a commit's snapshots are under
 //   refs/<ref>.json                     the latest commit published from a branch, e.g. main
-// A key names what the snapshots were rendered from: the trees of the code previews come from.
+// A key names what the snapshots come from: the trees of the catalogs and their references.
 // Commits that share those trees (a branch and its squash merge, say) share snapshots.
 //
 // Credentials: see `scripts/cloudflare.ts`. PIXELBOOK_BUCKET uploads to another bucket.
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { pixelbookBucketName } from "../src/Deployment.ts";
 import { credentials } from "./cloudflare.ts";
+import { decodePng, encodePng, shrink } from "./png.ts";
 
-/** One rendered image of a state. */
+/** One image of a state. */
 export interface Variant {
   /** The object key of its image, under `images/`. */
   readonly image: string;
@@ -40,23 +37,24 @@ export interface Variant {
   readonly scale: number;
 }
 
-/** A state of a screen: one preview, in each appearance it was rendered in. */
+/** A state of a screen, in each appearance it has a reference in. */
 export interface Snapshot {
-  /** Stable across renders: the preview's module, file and name, as SnapshotPreviews names it. */
-  readonly id: string;
-  readonly module: string;
-  /** The file the preview is in, e.g. `SyncStatusViewPreviews.swift`. */
-  readonly file: string;
   /**
-   * The file's path in the repository, e.g.
-   * `LilPackage/Sources/HealthMacApp/Pages/SyncStatusViewPreviews.swift`, since modules have
-   * folders (851-2790). Missing from manifests published before, or if it wasn't found.
+   * Stable while the screen's and state's names are: `<screen>.<state>` as slugs, which name its
+   * references. Snapshots published from previews (before 851-2955) had the preview's.
    */
+  readonly id: string;
+  /** The catalog's module, its folder in `Catalogs/`, e.g. `HealthMacApp`. */
+  readonly module: string;
+  /** The catalog's file, e.g. `MetricDetailCatalog.swift`. Graphs name `module/file`. */
+  readonly file: string;
+  /** The file the state is written in, from the repository's root. */
   readonly path?: string;
+  /** Its `CatalogState("…")`'s line in that file, if it was found. */
   readonly line: number | null;
-  /** The screen, from the file's name: `SyncStatusViewPreviews.swift` → "Sync Status". */
+  /** Its place in its catalog, which a shared list of states can make differ from its line's. */
+  readonly order?: number;
   readonly screen: string;
-  /** The preview's name: the state. */
   readonly state: string;
   readonly variants: { readonly light?: Variant; readonly dark?: Variant };
 }
@@ -72,105 +70,157 @@ export interface Manifest {
   readonly snapshots: ReadonlyArray<Snapshot>;
 }
 
-/** What SnapshotPreviews writes next to each image. */
-interface Sidecar {
-  readonly display_name?: string;
-  readonly group?: string;
-  readonly context?: { readonly preview?: { readonly line?: number } };
+/**
+ * A catalog's manifest for one screen, as its snapshot test writes it
+ * (`__Snapshots__/<catalog file>/<screen>.json`). Paths are from the repository's root.
+ */
+export interface CatalogManifest {
+  readonly app: string;
+  readonly screen: string;
+  /** `Module/File.swift`, the catalog's folder in `Catalogs/` and its file. */
+  readonly catalog: string;
+  readonly states: ReadonlyArray<{
+    readonly id: string;
+    readonly name: string;
+    readonly source: string;
+    readonly light: string;
+    readonly dark: string;
+  }>;
 }
 
-/** "SyncStatusViewPreviews.swift" → "Sync Status"; "AppView.swift" → "App". */
-export const screenName = (file: string): string => {
-  const stem = file
-    .replace(/\.swift$/, "")
-    .replace(/Previews$/, "")
-    .replace(/Views?$/, "");
-  const words = stem
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
-  return words === "" ? file : words;
+/** Where catalog manifests are: `LilPackage/Tests/<target>/Catalogs/…/__Snapshots__/<file>/*.json`. */
+export const isCatalogManifest = (path: string) =>
+  /^LilPackage\/Tests\/[^/]+\/Catalogs\/.+\/__Snapshots__\/[^/]+\/[^/]+\.json$/.test(path);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Reads a catalog manifest's JSON, or says what's wrong with it. */
+export const parseCatalogManifest = (
+  json: unknown,
+): CatalogManifest | { readonly problem: string } => {
+  if (!isRecord(json)) return { problem: "it isn't an object" };
+  for (const field of ["app", "screen", "catalog"]) {
+    if (typeof json[field] !== "string") return { problem: `its "${field}" isn't a string` };
+  }
+  const states = json["states"];
+  if (!Array.isArray(states)) return { problem: `its "states" isn't a list` };
+  for (const state of states) {
+    if (
+      !isRecord(state) ||
+      !["id", "name", "source", "light", "dark"].every((field) => typeof state[field] === "string")
+    ) {
+      return { problem: "a state isn't an id, name, source, light and dark" };
+    }
+  }
+  return json as unknown as CatalogManifest;
 };
 
-/** Which platform an app's folder holds. */
+/** Which platform an app is for. */
 export const platformOf = (app: string): Manifest["platform"] =>
   app.endsWith("-mac") ? "macos" : "ios";
 
 /**
- * Finds a preview's file by its module and name, as SnapshotPreviews names it (`Module/File.swift`,
- * like Swift's `#fileID`, which leaves out a module's folders), among `files`: the repository's
- * paths. A name used twice in a module, which Swift doesn't allow, has none.
+ * Each state's line in a Swift file, by name: where its `CatalogState("…")` starts, as `#line`
+ * gives it. A name written twice takes its first line.
  */
-export const sourcePaths = (files: ReadonlyArray<string>, sources = "LilPackage/Sources") => {
-  const paths = new Map<string, string | undefined>();
-  for (const file of files) {
-    if (!file.startsWith(`${sources}/`) || !file.endsWith(".swift")) continue;
-    const module = file.slice(sources.length + 1).split("/")[0];
-    if (module === undefined || module === basename(file)) continue;
-    const id = `${module}/${basename(file)}`;
-    paths.set(id, paths.has(id) ? undefined : file);
+export const catalogStateLines = (source: string): ReadonlyMap<string, number> => {
+  const lines = new Map<string, number>();
+  // Comments become spaces, so lines and offsets stay where they were.
+  const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, (comment) =>
+    comment.replace(/[^\n]/g, " "),
+  );
+  for (const match of code.matchAll(/\bCatalogState\(\s*"((?:[^"\\]|\\.)*)"/g)) {
+    const name = (match[1] ?? "").replace(/\\(.)/g, "$1");
+    const line = code.slice(0, match.index).split("\n").length;
+    if (!lines.has(name)) lines.set(name, line);
   }
-  return (module: string, file: string) => paths.get(`${module}/${file}`);
+  return lines;
 };
 
-/** A rendered image, read from a render's folder. */
-export interface RenderedImage {
-  /** Its file name without `.png`, the same in every appearance's folder. */
-  readonly name: string;
-  readonly appearance: "light" | "dark";
-  readonly sidecar: Sidecar;
-  readonly variant: Variant;
+/** What publishing needs of a commit, read with git. */
+export interface CatalogInputs {
+  /** Every catalog manifest, by its path. */
+  readonly catalogs: ReadonlyArray<{ readonly path: string; readonly manifest: CatalogManifest }>;
+  /** Each state's source file's text, by path; missing if the commit doesn't have it. */
+  readonly sources: ReadonlyMap<string, string>;
+  /** Each reference's variant, by path; missing if the commit doesn't have it. */
+  readonly images: ReadonlyMap<string, Variant>;
 }
 
-/** An app's manifest from its rendered images, in a stable order. `pathOf` finds a file's path. */
-export const buildManifest = (
-  app: string,
+/**
+ * Every app's manifest from a commit's catalogs: their screens, in order, each state's light and
+ * dark images, and its file and line. Says what it had to leave out: a catalog whose file is gone
+ * (its manifest left behind) or a state without a reference.
+ */
+export const buildManifests = (
   key: string,
   commit: string,
-  images: ReadonlyArray<RenderedImage>,
-  pathOf: (module: string, file: string) => string | undefined,
-): Manifest => {
-  const byName = new Map<string, RenderedImage[]>();
-  for (const image of images) byName.set(image.name, [...(byName.get(image.name) ?? []), image]);
-  const snapshots = [...byName.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name, rendered]): Snapshot => {
-      const sidecar: Sidecar = rendered[0]?.sidecar ?? {};
-      const group = sidecar.group ?? "";
-      const [module = "", file = ""] = group.split("/");
+  inputs: CatalogInputs,
+): { readonly manifests: ReadonlyArray<Manifest>; readonly warnings: ReadonlyArray<string> } => {
+  const warnings: string[] = [];
+  const byApp = new Map<string, Snapshot[]>();
+  const lineCache = new Map<string, ReadonlyMap<string, number>>();
+  const linesOf = (source: string) => {
+    const lines = lineCache.get(source) ?? catalogStateLines(inputs.sources.get(source) ?? "");
+    lineCache.set(source, lines);
+    return lines;
+  };
+  const sorted = inputs.catalogs.toSorted((a, b) =>
+    a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
+  );
+  for (const { path, manifest } of sorted) {
+    const [module = "", file = ""] = manifest.catalog.split("/");
+    const sources = new Set(manifest.states.map((state) => state.source));
+    const gone = [...sources].filter((source) => !inputs.sources.has(source));
+    if (gone.length > 0) {
+      warnings.push(`${path} is left out: ${gone.join(", ")} doesn't exist. Delete it?`);
+      continue;
+    }
+    const snapshots = byApp.get(manifest.app) ?? [];
+    byApp.set(manifest.app, snapshots);
+    for (const [order, state] of manifest.states.entries()) {
       const variants: { light?: Variant; dark?: Variant } = {};
-      for (const image of rendered) variants[image.appearance] = image.variant;
-      const path = pathOf(module, file);
-      return {
-        id: name,
+      for (const appearance of ["light", "dark"] as const) {
+        const variant = inputs.images.get(state[appearance]);
+        if (variant === undefined) {
+          warnings.push(
+            `${manifest.screen}: "${state.name}" has no reference ${state[appearance]}.`,
+          );
+        } else {
+          variants[appearance] = variant;
+        }
+      }
+      if (variants.light === undefined && variants.dark === undefined) continue;
+      snapshots.push({
+        id: state.id,
         module,
         file,
-        ...(path === undefined ? {} : { path }),
-        line: sidecar.context?.preview?.line ?? null,
-        screen: screenName(file),
-        state: sidecar.display_name ?? name,
+        path: state.source,
+        line: linesOf(state.source).get(state.name) ?? null,
+        order,
+        screen: manifest.screen,
+        state: state.name,
         variants,
-      };
+      });
+    }
+  }
+  const manifests = [...byApp.entries()]
+    .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([app, snapshots]): Manifest => {
+      const ids = new Set<string>();
+      for (const { id } of snapshots) {
+        if (ids.has(id)) warnings.push(`${app} has two states ${id}: Pixelbook shows one.`);
+        ids.add(id);
+      }
+      return { version: 1, app, platform: platformOf(app), key, commit, snapshots };
     });
-  return { version: 1, app, platform: platformOf(app), key, commit, snapshots };
-};
-
-const run = promisify(execFile);
-
-/**
- * The SHA-256 of an image's pixels, as `sips` decodes them to BMP: PNG metadata differs between
- * renders of the same pixels, so it's not hashed.
- */
-const pixelHash = async (png: string, scratch: string) => {
-  const bmp = join(scratch, `${createHash("sha256").update(png).digest("hex")}.bmp`);
-  await run("sips", ["-s", "format", "bmp", png, "--out", bmp]);
-  const bytes = await readFile(bmp);
-  await rm(bmp);
-  return createHash("sha256").update(bytes).digest("hex");
+  return { manifests, warnings };
 };
 
 /**
  * A PNG's width and height, from its header, and scale, from its resolution (the pHYs chunk):
- * SnapshotPreviews writes 72 dots per inch per point, so 144 for 2x.
+ * 72 dots per inch per point, so 144 for 2x, as SnapshotTesting writes them.
  */
 export const pngInfo = (bytes: Buffer) => {
   let scale = 1;
@@ -194,15 +244,8 @@ export const pngInfo = (bytes: Buffer) => {
  */
 const thumbnailDivisor = 4;
 
-/** A copy of a variant's PNG, `thumbnailDivisor` times smaller, made with `sips`. */
-const thumbnail = async (png: string, variant: Variant, scratch: string) => {
-  const out = join(scratch, basename(variant.thumbnail));
-  const thumbnailWidth = Math.max(1, Math.round(variant.width / thumbnailDivisor));
-  await run("sips", ["--resampleWidth", String(thumbnailWidth), png, "--out", out]);
-  const bytes = await readFile(out);
-  await rm(out);
-  return bytes;
-};
+/** A PNG `thumbnailDivisor` times smaller. */
+export const thumbnail = (png: Buffer) => encodePng(shrink(decodePng(png), thumbnailDivisor));
 
 /** Runs `work` over `items`, `limit` at a time. */
 const inParallel = async <A, B>(
@@ -223,58 +266,79 @@ const inParallel = async <A, B>(
   return results;
 };
 
-/** Reads a render: `<render-dir>/<app>/<light|dark>/*.png` with their sidecars. */
-const readRender = async (dir: string) => {
-  const scratch = await mkdtemp(join(tmpdir(), "pixelbook-"));
-  try {
-    const apps = (await readdir(dir, { withFileTypes: true }))
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort();
-    const read = await Promise.all(
-      apps.map(async (app) => {
-        const files: { appearance: "light" | "dark"; path: string }[] = [];
-        for (const appearance of ["light", "dark"] as const) {
-          const folder = join(dir, app, appearance);
-          const names = await readdir(folder).catch(() => [] as string[]);
-          for (const name of names.filter((n) => n.endsWith(".png"))) {
-            files.push({ appearance, path: join(folder, name) });
-          }
-        }
-        const images = await inParallel(files, 8, async ({ appearance, path }) => {
-          // Only its header is needed: the bytes are read again to upload, if it's new.
-          const bytes = await readFile(path);
-          const sidecar = JSON.parse(
-            await readFile(path.replace(/\.png$/, ".json"), "utf8").catch(() => "{}"),
-          ) as Sidecar;
-          const hash = await pixelHash(path, scratch);
-          return {
-            image: {
-              name: basename(path, ".png"),
-              appearance,
-              sidecar,
-              variant: {
-                image: `images/${hash}.png`,
-                thumbnail: `thumbnails/${hash}.png`,
-                ...pngInfo(bytes),
-              },
-            } satisfies RenderedImage,
-            path,
-          };
-        });
-        return { app, images };
-      }),
-    );
-    return read;
-  } finally {
-    await rm(scratch, { recursive: true, force: true });
+const run = promisify(execFile);
+const root = fileURLToPath(new URL("../../..", import.meta.url));
+
+/** A blob's bytes, from git. */
+const blob = async (sha: string) =>
+  (
+    await run("git", ["cat-file", "blob", sha], {
+      cwd: root,
+      encoding: "buffer",
+      maxBuffer: 256 * 1024 * 1024,
+    })
+  ).stdout;
+
+/**
+ * A commit's catalogs, read from git rather than the working tree, so any fetched commit can be
+ * published, and the working tree can change meanwhile. Each reference is read once, and kept in
+ * `bytes` by its image's object key, for uploading.
+ */
+const readCommit = async (commit: string) => {
+  const { stdout: tree } = await run(
+    "git",
+    ["ls-tree", "-r", "--full-tree", commit, "--", "LilPackage/Tests"],
+    { cwd: root, maxBuffer: 64 * 1024 * 1024 },
+  );
+  // `<mode> blob <sha>\t<path>`.
+  const blobs = new Map<string, string>();
+  for (const line of tree.split("\n")) {
+    const match = /^\d+ blob ([0-9a-f]+)\t(.+)$/.exec(line);
+    if (match?.[1] !== undefined && match[2] !== undefined) blobs.set(match[2], match[1]);
   }
+  const problems: string[] = [];
+  const catalogs = (
+    await inParallel([...blobs.keys()].filter(isCatalogManifest), 8, async (path) => {
+      const parsed = parseCatalogManifest(
+        JSON.parse((await blob(blobs.get(path) ?? "")).toString()),
+      );
+      if ("problem" in parsed) {
+        problems.push(`${path} is left out: ${parsed.problem}.`);
+        return [];
+      }
+      return [{ path, manifest: parsed }];
+    })
+  ).flat();
+  const states = catalogs.flatMap(({ manifest }) => manifest.states);
+  const sources = new Map<string, string>();
+  for (const source of new Set(states.map((state) => state.source))) {
+    const sha = blobs.get(source);
+    if (sha !== undefined) sources.set(source, (await blob(sha)).toString());
+  }
+  const images = new Map<string, Variant>();
+  const bytes = new Map<string, Buffer>();
+  const references = [...new Set(states.flatMap((state) => [state.light, state.dark]))];
+  await inParallel(references, 8, async (path) => {
+    const sha = blobs.get(path);
+    if (sha === undefined) return;
+    const png = await blob(sha);
+    // The PNG's bytes, not its pixels: a reference only changes when it's recorded again.
+    const hash = createHash("sha256").update(png).digest("hex");
+    const variant = {
+      image: `images/${hash}.png`,
+      thumbnail: `thumbnails/${hash}.png`,
+      ...pngInfo(png),
+    };
+    images.set(path, variant);
+    bytes.set(variant.image, png);
+  });
+  return { inputs: { catalogs, sources, images } satisfies CatalogInputs, bytes, problems };
 };
 
 /**
- * Points `refs/<ref>.json` at a commit, unless that would move it back: publishing from an older
- * checkout of a branch (a stale main, say) leaves the newer commit's snapshots in place. With
- * `force`, it moves anyway: a push is the branch, even when it rewinds it.
+ * Points `refs/<ref>.json` at a commit, unless that would move it back: publishing an older
+ * commit of a branch (a re-run of an earlier merge's job, say) leaves the newer commit's snapshots
+ * in place. With `force`, it moves anyway: a push is the branch, even when it rewinds it.
  */
 const pointRef = async (
   ref: string,
@@ -289,7 +353,9 @@ const pointRef = async (
   const previous = current === undefined ? undefined : (JSON.parse(current) as { commit?: string });
   if (!force && previous?.commit !== undefined && previous.commit !== commit) {
     // Exits 0 if `commit` is an ancestor of the ref's commit; it fails if that one isn't fetched.
-    const behind = await run("git", ["merge-base", "--is-ancestor", commit, previous.commit]).then(
+    const behind = await run("git", ["merge-base", "--is-ancestor", commit, previous.commit], {
+      cwd: root,
+    }).then(
       () => true,
       () => false,
     );
@@ -305,15 +371,18 @@ const argument = (name: string) => {
   return index === -1 ? undefined : process.argv[index + 1];
 };
 
+/** A warning on a GitHub Actions run, or a line on stderr. */
+const warn = (message: string) =>
+  console.warn(process.env["GITHUB_ACTIONS"] === "true" ? `::warning::${message}` : message);
+
 const main = async () => {
-  const dir = argument("render");
   const key = argument("key");
   const commit = argument("commit");
   const ref = argument("ref");
   const dryRun = process.argv.includes("--dry-run");
   const forceRef = process.argv.includes("--force-ref");
   if (key === undefined || commit === undefined) {
-    throw new Error("usage: node scripts/pixelbook.ts --key <key> --commit <sha> [--render <dir>]");
+    throw new Error("usage: node scripts/pixelbook.ts --key <key> --commit <sha> [--ref <name>]");
   }
   const { token, account } = credentials();
   // PIXELBOOK_BUCKET: another bucket, to try this out.
@@ -405,63 +474,27 @@ const main = async () => {
 
   const index = `snapshots/${key}/index.json`;
   if ((await get(index)) === undefined) {
-    if (dir === undefined) {
-      console.log(`Snapshots for ${key} aren't published yet.`);
-      process.exit(3);
-    }
-    const render = await readRender(dir);
+    const { inputs, bytes, problems } = await readCommit(commit);
+    const { manifests, warnings } = buildManifests(key, commit, inputs);
+    for (const warning of [...problems, ...warnings]) warn(warning);
     const listed = await Promise.all([list("images/"), list("thumbnails/")]);
     const existing = new Set(listed.flatMap((keys) => [...keys]));
-    const images = new Map<string, { variant: Variant; path: string }>();
-    for (const { images: appImages } of render) {
-      for (const { image, path } of appImages) {
-        images.set(image.variant.image, { variant: image.variant, path });
-      }
-    }
-    const missing = [...images.values()].filter(({ variant }) => !existing.has(variant.image));
-    await inParallel(missing, 8, async ({ variant, path }) =>
-      put(variant.image, await readFile(path), "image/png"),
+    const variants = new Map(
+      manifests
+        .flatMap(({ snapshots }) => snapshots)
+        .flatMap(({ variants }) => [variants.light, variants.dark])
+        .flatMap((variant) => (variant === undefined ? [] : [[variant.image, variant] as const])),
     );
-    // Images published before thumbnails existed get theirs the next time they're rendered.
-    const missingThumbnails = [...images.values()].filter(
-      ({ variant }) => !existing.has(variant.thumbnail),
+    const png = (variant: Variant) => bytes.get(variant.image) ?? Buffer.alloc(0);
+    const missing = [...variants.values()].filter(({ image }) => !existing.has(image));
+    await inParallel(missing, 8, async (variant) => put(variant.image, png(variant), "image/png"));
+    const missingThumbnails = [...variants.values()].filter(
+      ({ thumbnail }) => !existing.has(thumbnail),
     );
-    const scratch = await mkdtemp(join(tmpdir(), "pixelbook-"));
-    try {
-      await inParallel(missingThumbnails, 8, async ({ variant, path }) =>
-        // A dry run only says what it would upload, so it doesn't make them.
-        dryRun
-          ? put(variant.thumbnail, "", "image/png")
-          : put(variant.thumbnail, await thumbnail(path, variant, scratch), "image/png"),
-      );
-    } finally {
-      await rm(scratch, { recursive: true, force: true });
-    }
-    // From the commit itself, not the working tree, which can change while it uploads.
-    const { stdout: files } = await run(
-      "git",
-      ["ls-tree", "-r", "--name-only", commit, "--", "LilPackage/Sources"],
-      { cwd: fileURLToPath(new URL("../../..", import.meta.url)), maxBuffer: 16 * 1024 * 1024 },
+    await inParallel(missingThumbnails, 8, async (variant) =>
+      // A dry run only says what it would upload, so it doesn't make them.
+      put(variant.thumbnail, dryRun ? "" : thumbnail(png(variant)), "image/png"),
     );
-    const pathOf = sourcePaths(files.split("\n"));
-    const manifests = render.map(({ app, images: appImages }) =>
-      buildManifest(
-        app,
-        key,
-        commit,
-        appImages.map(({ image }) => image),
-        pathOf,
-      ),
-    );
-    const unfound = manifests.flatMap(({ snapshots }) =>
-      snapshots.filter((s) => s.path === undefined),
-    );
-    if (unfound.length > 0) {
-      console.warn(
-        `Couldn't find the files of ${unfound.length} previews, so their source links assume ` +
-          `flat modules: ${[...new Set(unfound.map((s) => `${s.module}/${s.file}`))].join(", ")}`,
-      );
-    }
     for (const manifest of manifests) {
       await put(`snapshots/${key}/${manifest.app}.json`, json(manifest), "application/json");
     }
@@ -480,7 +513,7 @@ const main = async () => {
       "application/json",
     );
     console.log(
-      `${images.size} images, ${missing.length} new, ${missingThumbnails.length} thumbnails; ` +
+      `${variants.size} images, ${missing.length} new, ${missingThumbnails.length} thumbnails; ` +
         `${manifests.length} manifests`,
     );
   } else {

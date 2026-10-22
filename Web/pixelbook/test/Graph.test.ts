@@ -1,5 +1,8 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
-import { catalogStateNames, checkGraphs, previewNames, scanScreens } from "../scripts/graphs.ts";
+import { checkGraphs, previewNames, scanCatalogs, scanScreens } from "../scripts/graphs.ts";
 import { layoutFlow } from "../src/lib/Flow.ts";
 import { type Graph, graphProblems, parseGraph } from "../src/lib/Graph.ts";
 
@@ -35,10 +38,34 @@ describe("graph files", () => {
     expect(previewNames('// #Preview("Old") {}\nstruct A {}')).toBeUndefined();
   });
 
-  it("finds a catalog's state names, and skips commented-out ones", () => {
-    const source = `StateCatalog(\n  "Metric Detail", width: 760, minHeight: 820,\n  states: [\n    CatalogState("Steps, week") { a },\n    // CatalogState("Old") { b },\n    CatalogState(\n      "Say \\"hi\\"", minHeight: 400\n    ) { c },\n  ])`;
-    expect(catalogStateNames(source)).toEqual(["Steps, week", 'Say "hi"']);
-    expect(catalogStateNames("struct A {}")).toBeUndefined();
+  it("reads catalogs' states by app from their manifests", async () => {
+    const tests = await mkdtemp(join(tmpdir(), "graphs-"));
+    try {
+      const write = async (path: string, json: unknown) => {
+        await mkdir(join(tests, path, ".."), { recursive: true });
+        await writeFile(join(tests, path), JSON.stringify(json));
+      };
+      const manifest = (app: string, screen: string, names: ReadonlyArray<string>) => ({
+        app,
+        screen,
+        catalog: "LilAuth/SignInCatalog.swift",
+        states: names.map((name) => ({ id: name, name, source: "", light: "", dark: "" })),
+      });
+      const folder = "Mac/Catalogs/LilAuth/__Snapshots__/SignInCatalog";
+      await write(`${folder}/sign-in-mac.json`, manifest("health-mac", "Mac", ["Out", "Web"]));
+      await write(`${folder}/sign-in-iphone.json`, manifest("health-iphone", "iPhone", ["Out"]));
+      // Not a manifest: references, and the catalog's source.
+      await write(`${folder}/sign-in-mac.out-light.png`, "");
+      await write("Mac/Catalogs/LilAuth/SignInCatalog.swift", "");
+      const catalogs = await scanCatalogs(tests);
+      expect(catalogs.get("health-mac")?.get("LilAuth/SignInCatalog.swift")).toEqual([
+        "Out",
+        "Web",
+      ]);
+      expect(catalogs.get("health-iphone")?.get("LilAuth/SignInCatalog.swift")).toEqual(["Out"]);
+    } finally {
+      await rm(tests, { recursive: true, force: true });
+    }
   });
 
   it("says what's wrong with a graph's shape", () => {

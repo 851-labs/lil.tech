@@ -1,0 +1,63 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/WorkoutsCatalog.swift",
+  "screen" : "Workouts",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.workouts-dark.png",
+      "id" : "workouts.workouts",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.workouts-light.png",
+      "name" : "Workouts",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.no-workouts-dark.png",
+      "id" : "workouts.no-workouts",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.no-workouts-light.png",
+      "name" : "No workouts",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.workouts-loading-dark.png",
+      "id" : "workouts.workouts-loading",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.workouts-loading-light.png",
+      "name" : "Workouts loading",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.workouts-failed-dark.png",
+      "id" : "workouts.workouts-failed",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.workouts-failed-light.png",
+      "name" : "Workouts failed",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.run-with-route-dark.png",
+      "id" : "workouts.run-with-route",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.run-with-route-light.png",
+      "name" : "Run with route",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.strength-no-route-dark.png",
+      "id" : "workouts.strength-no-route",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.strength-no-route-light.png",
+      "name" : "Strength, no route",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.route-loading-dark.png",
+      "id" : "workouts.route-loading",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.route-loading-light.png",
+      "name" : "Route loading",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.route-failed-dark.png",
+      "id" : "workouts.route-failed",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.route-failed-light.png",
+      "name" : "Route failed",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    }
+  ]
+}
