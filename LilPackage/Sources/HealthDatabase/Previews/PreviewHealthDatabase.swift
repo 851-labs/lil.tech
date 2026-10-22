@@ -1,16 +1,22 @@
+import Dependencies
 public import Foundation
 import HealthCatalog
 public import SQLiteData
 
 /// A database with two weeks of synthetic health data across every category, for previews
 /// (AGENTS.md). Values are made up but plausible for each type's unit, and the same for the same
-/// `now`.
+/// `now` and `calendar`, which are otherwise the `date` and `calendar` dependencies': the wall
+/// clock and the Mac's calendar in previews. Snapshot catalogs pass fixed ones (`catalogDatabase`).
 public func makePreviewHealthDatabase(
-  now: Date = .now, calendar: Calendar = .current
+  now: Date? = nil, calendar: Calendar? = nil
 ) -> any DatabaseWriter {
+  @Dependency(\.date.now) var wallClock
+  @Dependency(\.calendar) var currentCalendar
   do {
     let database = try HealthDatabase.make()
-    try database.write { db in try PreviewData(now: now, calendar: calendar).insert(db) }
+    try database.write { db in
+      try PreviewData(now: now ?? wallClock, calendar: calendar ?? currentCalendar).insert(db)
+    }
     return database
   } catch {
     fatalError("Couldn't make the preview health database: \(error)")

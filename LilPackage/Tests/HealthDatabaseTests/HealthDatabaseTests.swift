@@ -1740,6 +1740,51 @@ struct PreviewHealthDatabaseTests {
     }
     #expect(offGrid.isEmpty)
   }
+
+  /// Snapshot catalogs' database has the same rows whatever the wall clock and the Mac's calendar
+  /// (851-2950), while previews' follows them.
+  @Test
+  func catalogDatabaseIgnoresTheWallClock() throws {
+    let later = now.addingTimeInterval(40 * 86_400 + 5 * 3600)
+    let catalog = try withWallClock(now, in: "UTC") { try contents(of: catalogDatabase) }
+    let catalogLater = try withWallClock(later, in: "Asia/Tokyo") {
+      try contents(of: makePreviewHealthDatabase(now: previewNow, calendar: previewCalendar))
+    }
+    #expect(!catalog.isEmpty)
+    #expect(catalog == catalogLater)
+
+    // The clock injected reaches the previews' database.
+    let preview = try withWallClock(now, in: "UTC") {
+      try contents(of: makePreviewHealthDatabase())
+    }
+    let previewLater = try withWallClock(later, in: "Asia/Tokyo") {
+      try contents(of: makePreviewHealthDatabase())
+    }
+    #expect(preview != previewLater)
+  }
+
+  private func withWallClock<T>(
+    _ date: Date, in timeZone: String, _ operation: () throws -> T
+  ) rethrows -> T {
+    try withDependencies {
+      $0.date.now = date
+      $0.calendar = calendar(timeZone)
+    } operation: {
+      try operation()
+    }
+  }
+
+  /// Every table's rows, sorted.
+  private func contents(of database: any DatabaseWriter) throws -> [String] {
+    try database.read { db in
+      let tables = try String.fetchAll(
+        db, sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      return try tables.flatMap { table in
+        try Row.fetchAll(db, sql: "SELECT * FROM \"\(table)\"").map { "\(table) \($0)" }
+      }
+      .sorted()
+    }
+  }
 }
 
 /// A table with the column kinds `PreparedUpsert` leaves to StructuredQueries.
