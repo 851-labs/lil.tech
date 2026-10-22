@@ -46,6 +46,8 @@ let package = Package(
       traits: ["Tagged"]
     ),
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.17.0"),
+    // Renders preview states to images in `swift test` (851-2931, an exploration).
+    .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.19.7"),
     .package(url: "https://github.com/pointfreeco/swift-tagged", from: "0.10.0"),
     .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.10.0"),
     .package(url: "https://github.com/apple/swift-openapi-runtime", from: "1.13.0"),
@@ -210,6 +212,22 @@ let package = Package(
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "SQLiteData", package: "sqlite-data"),
       ]
+    ),
+    // Preview states rendered to images by swift-snapshot-testing, without Xcode (851-2931).
+    .testTarget(
+      name: "HealthSnapshotTests",
+      dependencies: [
+        "HealthCatalog",
+        .target(name: "HealthAgentAccess", condition: .when(platforms: [.macOS])),
+        .target(name: "HealthDatabase", condition: .when(platforms: [.macOS])),
+        .target(name: "HealthMacApp", condition: .when(platforms: [.macOS])),
+        .target(name: "HealthPages", condition: .when(platforms: [.macOS])),
+        .target(name: "HealthPhoneApp", condition: .when(platforms: [.iOS])),
+        .target(name: "HealthUpload", condition: .when(platforms: [.iOS])),
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+      ],
+      exclude: ["__Snapshots__"]
     ),
     .testTarget(
       name: "HealthPagesTests",
