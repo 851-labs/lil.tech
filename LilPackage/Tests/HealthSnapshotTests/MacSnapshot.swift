@@ -6,8 +6,8 @@
   import SwiftUI
   import Testing
 
-  /// Renders `view` as Xcode's canvas shows a Mac preview, in a window with a title bar (so its
-  /// toolbar renders) of the given appearance, and compares it with its reference image,
+  /// Renders `view` as a Mac window shows it, in a window with a title bar (so its toolbar
+  /// renders) of the given appearance, and compares it with its reference image,
   /// `__Snapshots__/<test file>/<screen>.<name>-<light|dark>.png` (851-2931), the screen being a
   /// catalog's (851-2949).
   ///

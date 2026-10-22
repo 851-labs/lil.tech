@@ -108,7 +108,6 @@ Nothing needs the Xcode app (851-2948, 851-2970): the code has no `#Preview`s, a
 
 - Open `Lil.xcworkspace`, not the individual `.xcodeproj`.
 - **Macro trust.** Package macros must be trusted once per version: click the macro error, then "Trust & Enable". After a dependency update, an error saying a macro "was changed since a previous approval" means the new version needs trusting again. Approvals live in `~/Library/org.swift.swiftpm/security/macros.json`, keyed by package, macro target and git revision. If you edit that file, remove stale entries for the same target and restart Xcode, because its build service caches the list.
-- Close a worktree's workspace before `scripts/worktree remove`, or Xcode rebuilds its data.
 
 ## TypeScript (Services/ and Web/)
 
@@ -176,7 +175,7 @@ If you need to learn more about particular Effect APIs and concepts that the gui
 
 ## UI states
 
-A screen's states are a state catalog in a test target, rendered by snapshot tests without Xcode (851-2948). Check UI changes with them, and in a running app only for what they can't show. There are no `#Preview`s (851-2970).
+A screen's states are a state catalog in a test target, rendered by snapshot tests without Xcode (851-2948). Check UI changes with them, and in a running app only for what they can't show. There are no `#Preview`s (851-2970), and `scripts/format --lint` fails on one: with no `previewValue`s left, a preview would run the live dependencies.
 
 - **A catalog holds every state** of its screen's state machine: loaded, empty, loading, failed, pending, and edge-case content. The Mac's are in `HealthSnapshotTests/Catalogs/` (lil messages' in `MessagesSnapshotTests/Catalogs/`), the iPhone's in `HealthPhoneSnapshotTests/Catalogs/`. A UI change adds or updates the states it touches, and a new screen gets a catalog, never a `#Preview`.
 - **The loop:** edit, `scripts/snapshot <test>` (`--iphone` for the iPhone's), read the images. When it's right, `scripts/snapshot --record <test>` (`--iphone --record`), and have a person or agent look at every image it recorded, light and dark, before committing the references with the change.

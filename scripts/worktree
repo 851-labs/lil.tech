@@ -10,8 +10,8 @@
 #       `scripts/snapshot` use (`scripts/check` resolves its `.build-check` when it first runs).
 #       A new worktree's `.build` starts as a copy (APFS clones, `cp -c`) of the last one's, kept
 #       in `~/Library/Caches/lil.tech/worktree-package`, so resolving it fetches only what changed,
-#       rather than every dependency (851-2973). It resolves holding
-#       `/tmp/lil-worktree-package.lock`, so two at once don't share that copy.
+#       rather than every dependency (851-2973). It resolves holding `/tmp/xcode-open.lock`, so
+#       two at once don't share that copy.
 #   scripts/worktree remove <ticket-number> [--stash]
 #       Refuses while the worktree has uncommitted changes, unless `--stash` stashes them (in the
 #       main repo, with a message naming the ticket). Deletes its Xcode DerivedData and removes
@@ -214,9 +214,10 @@ delete_branch_if_done() {
 }
 
 # The lock `new` resolves holding, so two of them don't use the kept copy below at once: a
-# directory, made with `mkdir`. Builds and tests don't take it. (Agents also held it while Xcode
-# opened a workspace, until development stopped needing Xcode, 851-2970.)
-resolve_lock=/tmp/lil-worktree-package.lock
+# directory, made with `mkdir`. Builds and tests don't take it. Its name is from when agents also
+# held it while Xcode opened a workspace, until development stopped needing Xcode (851-2970). It
+# stays, since worktrees from before then run their own copy of this script, which takes it.
+resolve_lock=/tmp/xcode-open.lock
 holding_lock=false
 
 take_resolve_lock() {

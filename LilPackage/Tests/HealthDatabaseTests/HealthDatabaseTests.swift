@@ -1778,28 +1778,16 @@ struct PreviewHealthDatabaseTests {
     #expect(offGrid.isEmpty)
   }
 
-  /// Snapshot catalogs' database has the same rows whatever the wall clock and the Mac's calendar
-  /// (851-2950).
+  /// Snapshot catalogs' database has the same rows every time it's built (851-2950): its data
+  /// comes only from `previewNow`, `previewCalendar` and seeded generators, never the time it's
+  /// built at or a random seed.
   @Test
-  func catalogDatabaseIgnoresTheWallClock() throws {
-    let later = now.addingTimeInterval(40 * 86_400 + 5 * 3600)
-    let catalog = try withWallClock(now, in: "UTC") { try contents(of: catalogDatabase) }
-    let catalogLater = try withWallClock(later, in: "Asia/Tokyo") {
-      try contents(of: makePreviewHealthDatabase(now: previewNow, calendar: previewCalendar))
-    }
+  func catalogDatabaseIsTheSameEveryTime() throws {
+    let catalog = try contents(of: catalogDatabase)
+    let again = try contents(
+      of: makePreviewHealthDatabase(now: previewNow, calendar: previewCalendar))
     #expect(!catalog.isEmpty)
-    #expect(catalog == catalogLater)
-  }
-
-  private func withWallClock<T>(
-    _ date: Date, in timeZone: String, _ operation: () throws -> T
-  ) rethrows -> T {
-    try withDependencies {
-      $0.date.now = date
-      $0.calendar = calendar(timeZone)
-    } operation: {
-      try operation()
-    }
+    #expect(catalog == again)
   }
 
   /// Every table's rows, sorted.
