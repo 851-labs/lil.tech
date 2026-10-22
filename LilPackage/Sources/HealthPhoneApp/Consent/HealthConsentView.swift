@@ -113,20 +113,3 @@ private struct Point: View {
     }
   }
 }
-
-#Preview("Asking") {
-  HealthConsentView(store: Store(initialState: HealthConsentFeature.State()) { EmptyReducer() })
-}
-
-#Preview("Saving") {
-  HealthConsentView(
-    store: Store(initialState: HealthConsentFeature.State(isSaving: true)) { EmptyReducer() })
-}
-
-#Preview("Failed") {
-  HealthConsentView(
-    store: Store(
-      initialState: HealthConsentFeature.State(
-        failure: "The privacy policy changed. Update lil health to review it.")
-    ) { EmptyReducer() })
-}

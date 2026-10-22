@@ -1,0 +1,56 @@
+{
+  "app" : "health-iphone",
+  "catalog" : "HealthPhoneApp/RecentAccessCatalog.swift",
+  "screen" : "Recent Access",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.recent-access-dark.png",
+      "id" : "recent-access.recent-access",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.recent-access-light.png",
+      "name" : "Recent access",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/RecentAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.nothing-read-yet-dark.png",
+      "id" : "recent-access.nothing-read-yet",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.nothing-read-yet-light.png",
+      "name" : "Nothing read yet",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/RecentAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.loading-dark.png",
+      "id" : "recent-access.loading",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.loading-light.png",
+      "name" : "Loading",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/RecentAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.failed-dark.png",
+      "id" : "recent-access.failed",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.failed-light.png",
+      "name" : "Failed",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/RecentAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.loading-more-dark.png",
+      "id" : "recent-access.loading-more",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.loading-more-light.png",
+      "name" : "Loading more",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/RecentAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.more-failed-dark.png",
+      "id" : "recent-access.more-failed",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.more-failed-light.png",
+      "name" : "More failed",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/RecentAccessCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.long-log-dark.png",
+      "id" : "recent-access.long-log",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.long-log-light.png",
+      "name" : "Long log",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/RecentAccessCatalog.swift"
+    }
+  ]
+}

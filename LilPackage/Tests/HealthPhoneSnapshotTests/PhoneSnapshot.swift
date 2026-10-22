@@ -57,10 +57,10 @@
   }
 
   /// Shows `view` full screen in the window, in the given style, waits for it to settle, and draws
-  /// it through the window server (`drawHierarchy(in:afterScreenUpdates:)`, which is what
-  /// SnapshotTesting's `drawHierarchyInKeyWindow` does). Drawn as soon as it was laid out, a glass
-  /// button's rim came out slightly different in about one run in three: glass appears over a few
-  /// frames.
+  /// the window through the window server (`drawHierarchy(in:afterScreenUpdates:)`, which is what
+  /// SnapshotTesting's `drawHierarchyInKeyWindow` does). The window, not the view, so an alert the
+  /// view presents is in the image (851-2967). Drawn as soon as it was laid out, a glass button's
+  /// rim came out slightly different in about one run in three: glass appears over a few frames.
   @MainActor
   private func draw(_ view: some View, style: UIUserInterfaceStyle, in window: UIWindow) -> UIImage
   {
@@ -69,36 +69,49 @@
     controller.overrideUserInterfaceStyle = style
     let host = window.rootViewController
     window.rootViewController = controller
-    defer { window.rootViewController = host }
     controller.view.layoutIfNeeded()
     RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+    // An alert takes the window's style, not its presenter's: give it the state's, and let it
+    // settle again.
+    if let presented = controller.presentedViewController {
+      presented.overrideUserInterfaceStyle = style
+      RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+    }
     controller.view.layoutIfNeeded()
-    controller.removeAnimations()
+    removeAnimations(controller.view.layer)
     // 8-bit sRGB, as the Mac's: the simulator's default is 16-bit Display P3, whose images are
     // twice the size, and compare against a decoded reference with color differences of up to 11.
     let format = UIGraphicsImageRendererFormat()
     format.scale = 3
     format.preferredRange = .standard
-    return UIGraphicsImageRenderer(bounds: window.bounds, format: format).image { _ in
-      _ = controller.view.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+    let image = UIGraphicsImageRenderer(bounds: window.bounds, format: format).image { _ in
+      _ = window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+    }
+    // Taken down within the test, whose dependencies its views read: a view updated after it, as
+    // it leaves the window, would read the test context's, which report an issue.
+    controller.dismiss(animated: false)
+    window.rootViewController = host
+    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    return image
+  }
+
+  /// Removes every animation in the layer's tree, so a spinner or an indeterminate progress bar
+  /// draws its resting state. Not an alert's: without them, its glass platter wasn't drawn.
+  @MainActor
+  private func removeAnimations(_ layer: CALayer) {
+    layer.removeAllAnimations()
+    for sublayer in layer.sublayers ?? [] {
+      removeAnimations(sublayer)
     }
   }
 
   /// A hosting controller whose views don't move: it removes every animation after each layout,
-  /// and before it's drawn, so a spinner or an indeterminate progress bar draws its resting state.
-  /// Frozen mid-animation (`layer.speed = 0`), a spinner came out at a different step in each run.
+  /// so a spinner or an indeterminate progress bar draws its resting state. Frozen mid-animation
+  /// (`layer.speed = 0`), a spinner came out at a different step in each run.
   private final class StillHostingController<Content: View>: UIHostingController<Content> {
     override func viewDidLayoutSubviews() {
       super.viewDidLayoutSubviews()
-      removeAnimations()
-    }
-
-    func removeAnimations(_ layer: CALayer? = nil) {
-      let layer = layer ?? view.layer
-      layer.removeAllAnimations()
-      for sublayer in layer.sublayers ?? [] {
-        removeAnimations(sublayer)
-      }
+      removeAnimations(view.layer)
     }
   }
 

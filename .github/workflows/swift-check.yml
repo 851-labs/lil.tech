@@ -66,7 +66,9 @@ jobs:
   iphone-snapshots:
     if: inputs.iphone
     runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
-    timeout-minutes: 60
+    # Past the script's own worst case (a 30-minute build, three boots and two 10-minute test
+    # runs), so it stops and reports before GitHub does, and the cleanup steps still run.
+    timeout-minutes: 75
     env:
       # Kept between runs outside the checkout, like `check`'s builds, but apart from them.
       LIL_SNAPSHOT_DERIVED_DATA: ${{ github.workspace }}/../lil.tech-iphone-snapshots

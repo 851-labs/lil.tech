@@ -1,0 +1,91 @@
+{
+  "app" : "health-iphone",
+  "catalog" : "HealthPhoneApp/ConnectedAgentsCatalog.swift",
+  "screen" : "Connected Agents",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.connected-agents-dark.png",
+      "id" : "connected-agents.connected-agents",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.connected-agents-light.png",
+      "name" : "Connected agents",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.no-agents-dark.png",
+      "id" : "connected-agents.no-agents",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.no-agents-light.png",
+      "name" : "No agents",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.loading-dark.png",
+      "id" : "connected-agents.loading",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.loading-light.png",
+      "name" : "Loading",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.failed-dark.png",
+      "id" : "connected-agents.failed",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.failed-light.png",
+      "name" : "Failed",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.revoke-claude-dark.png",
+      "id" : "connected-agents.revoke-claude",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.revoke-claude-light.png",
+      "name" : "Revoke Claude?",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.revoke-chatgpt-dark.png",
+      "id" : "connected-agents.revoke-chatgpt",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.revoke-chatgpt-light.png",
+      "name" : "Revoke ChatGPT?",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.revoking-dark.png",
+      "id" : "connected-agents.revoking",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.revoking-light.png",
+      "name" : "Revoking",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.revoke-failed-dark.png",
+      "id" : "connected-agents.revoke-failed",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.revoke-failed-light.png",
+      "name" : "Revoke failed",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.turn-off-agent-access-dark.png",
+      "id" : "connected-agents.turn-off-agent-access",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.turn-off-agent-access-light.png",
+      "name" : "Turn off agent access?",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.turning-off-dark.png",
+      "id" : "connected-agents.turning-off",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.turning-off-light.png",
+      "name" : "Turning off",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.unverified-and-unnamed-dark.png",
+      "id" : "connected-agents.unverified-and-unnamed",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.unverified-and-unnamed-light.png",
+      "name" : "Unverified and unnamed",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.long-names-dark.png",
+      "id" : "connected-agents.long-names",
+      "light" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.long-names-light.png",
+      "name" : "Long names",
+      "source" : "LilPackage/Tests/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    }
+  ]
+}
