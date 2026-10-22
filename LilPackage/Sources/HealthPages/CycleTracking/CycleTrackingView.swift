@@ -209,53 +209,58 @@ struct CycleTrackingContent: View {
           "Couldn't Load Cycle Tracking", systemImage: "exclamationmark.triangle",
           description: Text(reason))
       case .loaded(let snapshot):
-        ScrollView {
-          VStack(alignment: .leading, spacing: 20) {
-            // The calendar stays, so other months can be reached.
-            calendarCard(snapshot)
-            if snapshot.isEmpty {
+        // A grouped form on its own background, as Metric Detail is (851-2989, 851-3002): the
+        // month's calendar, the day shown, then factors, deviations and past cycles, a section
+        // each.
+        Form {
+          // The calendar stays, so other months can be reached.
+          Section {
+            monthCalendar(snapshot)
+              .padding(.vertical, 6)
+          }
+          if snapshot.isEmpty {
+            Section {
               ContentUnavailableView(
                 "No Cycle Data", systemImage: "drop",
                 description: Text(
                   "Periods and symptoms you log in Cycle Tracking will appear here.")
               )
-              .frame(maxWidth: .infinity)
-            } else {
-              dayDetail(snapshot)
-              if !snapshot.factors.isEmpty {
-                factors("Factors", snapshot.factors)
-              }
-              if let stage = snapshot.menopause {
-                menopause(stage)
-              }
-              if !snapshot.deviations.isEmpty {
-                deviations(snapshot.deviations)
-                if snapshot.moreDeviations {
-                  moreNote(CycleHistoryRequest.deviationLimit, "cycle deviations")
-                }
-              }
-              if !snapshot.pastFactors.isEmpty {
-                factors("Past Factors", snapshot.pastFactors)
-                if snapshot.morePastFactors {
-                  moreNote(CycleHistoryRequest.pastFactorLimit, "past factors")
-                }
-              }
-              history(snapshot.periods)
+              // A form's row would otherwise give it only its ideal width, off center.
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+          } else {
+            dayDetail(snapshot)
+            if !snapshot.factors.isEmpty {
+              factors("Factors", snapshot.factors)
+            }
+            if let stage = snapshot.menopause {
+              menopause(stage)
+            }
+            if !snapshot.deviations.isEmpty {
+              deviations(
+                snapshot.deviations,
+                more: snapshot.moreDeviations
+                  ? moreNote(CycleHistoryRequest.deviationLimit, "cycle deviations") : nil)
+            }
+            if !snapshot.pastFactors.isEmpty {
+              factors(
+                "Past Factors", snapshot.pastFactors,
+                more: snapshot.morePastFactors
+                  ? moreNote(CycleHistoryRequest.pastFactorLimit, "past factors") : nil)
+            }
+            history(snapshot.periods)
           }
-          .padding(20)
-          .frame(maxWidth: 760)
-          .frame(maxWidth: .infinity)
         }
+        .formStyle(.grouped)
       }
     }
-    .background(Color.pageBackground)
     .navigationTitle("Cycle Tracking")
   }
 
   // MARK: Calendar
 
-  private func calendarCard(_ snapshot: CycleSnapshot) -> some View {
+  /// The month, its arrows, its days and what their marks mean, in one row.
+  private func monthCalendar(_ snapshot: CycleSnapshot) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
         Text(month.start.formatted(.dateTime.month(.wide).year()))
@@ -290,8 +295,6 @@ struct CycleTrackingContent: View {
       }
       legend
     }
-    .padding(16)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
   }
 
   /// The weekday initials, starting on the calendar's first weekday.
@@ -326,11 +329,12 @@ struct CycleTrackingContent: View {
     .foregroundStyle(.secondary)
   }
 
+  /// A mark and its name, close together: a form row spaces a `Label`'s icon as a row's icon.
   private func legendItem(_ name: String, @ViewBuilder mark: () -> some View) -> some View {
-    Label {
-      Text(name)
-    } icon: {
+    HStack(spacing: 6) {
       mark().frame(width: 8, height: 8)
+        .accessibilityHidden(true)
+      Text(name)
     }
   }
 
@@ -346,24 +350,18 @@ struct CycleTrackingContent: View {
   /// In the month: `DateInterval.contains` also counts its end, the next month's first instant.
   private func isInMonth(_ date: Date) -> Bool { date >= month.start && date < month.end }
 
+  /// What the day shown has logged, a row each, under its date.
   private func dayDetail(_ snapshot: CycleSnapshot) -> some View {
     let entry = snapshot.days[shownDay]
-    return VStack(alignment: .leading, spacing: 8) {
-      Text(shownDay.formatted(date: .complete, time: .omitted))
-        .font(.headline)
+    return Section {
       if let entry, entry != CycleDay() {
         if let flow = entry.flow { Text(flow.name) }
         if entry.spotting { Text("Spotting") }
         if entry.sexualActivity { Text("Sexual Activity") }
         // Each as Health names it: Cervical Mucus Quality, and Egg White on the right.
         ForEach(Array(entry.log.enumerated()), id: \.offset) { _, item in
-          HStack {
-            Text(item.name)
-            Spacer()
-            if let value = item.value {
-              Text(value)
-                .foregroundStyle(.secondary)
-            }
+          LabeledContent(item.name) {
+            if let value = item.value { Text(value) }
           }
         }
         if !entry.symptoms.isEmpty {
@@ -374,15 +372,15 @@ struct CycleTrackingContent: View {
         Text("Nothing Logged")
           .foregroundStyle(.secondary)
       }
+    } header: {
+      Text(shownDay.formatted(date: .complete, time: .omitted))
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(16)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
   }
 
-  /// Factors going on now, since when, or past ones, from when to when.
-  private func factors(_ title: String, _ factors: [CycleFactor]) -> some View {
-    section(title) {
+  /// Factors going on now, since when, or past ones, from when to when, with a note under them
+  /// if there are more.
+  private func factors(_ title: String, _ factors: [CycleFactor], more: Text? = nil) -> some View {
+    Section {
       ForEach(Array(factors.enumerated()), id: \.offset) { _, factor in
         LabeledContent {
           if let end = factor.end {
@@ -394,24 +392,32 @@ struct CycleTrackingContent: View {
           Text([factor.name, factor.detail].compactMap { $0 }.joined(separator: ": "))
         }
       }
+    } header: {
+      Text(title)
+    } footer: {
+      more
     }
   }
 
   /// Deviations Health flagged, over the months each covers (one day, if they start and end on
-  /// it).
-  private func deviations(_ deviations: [CycleDeviation]) -> some View {
-    section("Cycle Deviations") {
+  /// it), with a note under them if there are more.
+  private func deviations(_ deviations: [CycleDeviation], more: Text?) -> some View {
+    Section {
       ForEach(Array(deviations.enumerated()), id: \.offset) { _, deviation in
         LabeledContent(deviation.name) {
           Text(CycleFormat.days(from: deviation.start, to: deviation.end, calendar: calendar))
         }
       }
+    } header: {
+      Text("Cycle Deviations")
+    } footer: {
+      more
     }
   }
 
   /// The stage last logged, and since when.
   private func menopause(_ stage: MenopauseStage) -> some View {
-    section("Menopause") {
+    Section("Menopause") {
       LabeledContent {
         Text("Since \(stage.since.formatted(.dateTime.month(.abbreviated).year()))")
       } label: {
@@ -421,55 +427,27 @@ struct CycleTrackingContent: View {
   }
 
   /// Under a section that shows only the most recent `limit` of its `things`.
-  private func moreNote(_ limit: Int, _ things: String) -> some View {
+  private func moreNote(_ limit: Int, _ things: String) -> Text {
     Text("Showing the \(limit.formatted()) most recent \(things).")
-      .font(.footnote)
-      .foregroundStyle(.secondary)
   }
 
-  /// A titled card of rows.
-  private func section(_ title: String, @ViewBuilder rows: () -> some View) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text(title)
-        .font(.title3.bold())
-      VStack(alignment: .leading, spacing: 8) {
-        rows()
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(16)
-      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-    }
-  }
-
+  /// Past periods, a row each: when, how long, and the cycle each started.
   private func history(_ periods: [Period]) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Cycle History")
-        .font(.title3.bold())
-      VStack(alignment: .leading, spacing: 0) {
-        if periods.isEmpty {
-          Text("No periods logged yet.")
-            .foregroundStyle(.secondary)
-            .padding(16)
-        }
-        ForEach(Array(periods.enumerated()), id: \.offset) { index, period in
-          if index > 0 { Divider().padding(.leading, 16) }
-          HStack {
-            VStack(alignment: .leading, spacing: 2) {
-              Text(
-                "\(period.start.formatted(.dateTime.month(.abbreviated).day())) – \(period.end.formatted(.dateTime.month(.abbreviated).day().year()))"
-              )
-              .font(.headline)
-              Text("Period: \(period.length(calendar)) days")
-                .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text(period.cycleLength.map { "Cycle: \($0) days" } ?? "Current Cycle")
-              .foregroundStyle(.secondary)
-          }
-          .padding(16)
+    Section("Cycle History") {
+      if periods.isEmpty {
+        Text("No periods logged yet.")
+          .foregroundStyle(.secondary)
+      }
+      ForEach(Array(periods.enumerated()), id: \.offset) { _, period in
+        LabeledContent {
+          Text(period.cycleLength.map { "Cycle: \($0) days" } ?? "Current Cycle")
+        } label: {
+          Text(
+            "\(period.start.formatted(.dateTime.month(.abbreviated).day())) – \(period.end.formatted(.dateTime.month(.abbreviated).day().year()))"
+          )
+          Text("Period: \(period.length(calendar)) days")
         }
       }
-      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
     }
   }
 }
