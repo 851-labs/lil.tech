@@ -170,8 +170,9 @@
     func set() { value.withLock { $0 = true } }
   }
 
-  /// Writes `image`'s pixels that differ from `reference`'s in red, over a faded copy of `image`,
-  /// and describes how much changed. Through raw buffers: the tests build without optimization.
+  /// Writes `image`'s pixels that differ from `reference`'s by more than the tolerance
+  /// (`snapshotChannelTolerance`) in red, over a faded copy of `image`, and describes how much
+  /// changed and by how much. Through raw buffers: the tests build without optimization.
   private func writeDiff(reference: URL, image: URL, to output: URL) -> String {
     guard let old = pixels(of: reference), let new = pixels(of: image) else {
       return "Couldn't read the images to compare them."
@@ -182,7 +183,11 @@
     let white: UInt32 = 0xFFFF_FFFF
     let red: UInt32 = 0xFF00_00FF
     var diff = [UInt32](repeating: white, count: width * height)
+    // Pixels further apart than the tolerance (or in only one image), and those within it,
+    // which match and aren't drawn.
     var changed = 0
+    var tolerated = 0
+    var largest: UInt32 = 0
     var box = (minX: width, minY: height, maxX: -1, maxY: -1)
     old.words.withUnsafeBufferPointer { oldWords in
       new.words.withUnsafeBufferPointer { newWords in
@@ -191,7 +196,16 @@
             for x in 0..<width {
               let a: UInt32? = x < old.width && y < old.height ? oldWords[y * old.width + x] : nil
               let b: UInt32? = x < new.width && y < new.height ? newWords[y * new.width + x] : nil
-              if a != b {
+              var isChanged = a != b
+              if isChanged, let a, let b {
+                let difference = channelDifference(a, b)
+                largest = max(largest, difference)
+                if difference <= snapshotChannelTolerance {
+                  tolerated += 1
+                  isChanged = false
+                }
+              }
+              if isChanged {
                 changed += 1
                 box = (min(box.minX, x), min(box.minY, y), max(box.maxX, x), max(box.maxY, y))
                 diff[y * width + x] = red
@@ -219,10 +233,18 @@
     {
       try? png.write(to: output)
     }
-    var summary = "\(changed) of \(width * height) pixels differ"
+    let tolerance = snapshotChannelTolerance
+    var summary =
+      "\(changed) of \(width * height) pixels differ by more than \(tolerance) in a color channel"
+    if largest > 0 {
+      summary += ", by up to \(largest)"
+    }
     if changed > 0 {
       summary +=
         ", within x \(box.minX)–\(box.maxX), y \(box.minY)–\(box.maxY) (pixels, from the top left)"
+    }
+    if tolerated > 0 {
+      summary += "; \(tolerated) more differ by \(tolerance) at most, which matches"
     }
     if (old.width, old.height) != (new.width, new.height) {
       summary +=
@@ -242,6 +264,14 @@
     guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
       let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
     else { return nil }
+    return pixels(of: image)
+  }
+
+  private func pixels(of image: NSImage) -> Pixels? {
+    image.cgImage(forProposedRect: nil, context: nil, hints: nil).flatMap(pixels(of:))
+  }
+
+  private func pixels(of image: CGImage) -> Pixels? {
     var words = [UInt32](repeating: 0, count: image.width * image.height)
     let drawn = words.withUnsafeMutableBytes { buffer -> Bool in
       guard
@@ -274,10 +304,13 @@
 
   extension Snapshotting where Value == NSView, Format == NSImage {
     /// The view's layer tree drawn with `CALayer.render(in:)` at 2x, in sRGB. SnapshotTesting's
-    /// `.image` draws with `cacheDisplay(in:to:)`, which got Swift Charts' colors wrong.
+    /// `.image` draws with `cacheDisplay(in:to:)`, which got Swift Charts' colors wrong. Compared
+    /// with `.image(channelTolerance: snapshotChannelTolerance)`.
     @MainActor
     static var layerImage: Snapshotting {
-      SimplySnapshotting.image(precision: 1, perceptualPrecision: 1).pullback { view in
+      SimplySnapshotting(
+        pathExtension: "png", diffing: .image(channelTolerance: snapshotChannelTolerance)
+      ).pullback { view in
         let scale: CGFloat = 2
         let size = view.bounds.size
         let context = CGContext(
@@ -291,6 +324,64 @@
         return NSImage(cgImage: context.makeImage()!, size: size)
       }
     }
+  }
+
+  /// How far a pixel's channels may be from its reference's and still match (851-2985). The same
+  /// screen rendered on macOS 27.0 (the Mac minis) and 27.0.1 (a laptop) comes out 1 apart in
+  /// gradients, symbols and the toolbar's search field, which no one can see. Anything that moves
+  /// or recolors what's drawn is further apart.
+  let snapshotChannelTolerance = 1
+
+  extension Diffing where Value == NSImage {
+    /// SnapshotTesting's exact comparison, except that an image of the reference's size whose
+    /// every pixel is within `tolerance` of the reference's, in each channel (alpha included),
+    /// matches. One pixel further apart fails, with SnapshotTesting's message and attachments.
+    /// The image is compared as it would be recorded, through its PNG, as SnapshotTesting
+    /// compares it.
+    static func image(channelTolerance tolerance: Int) -> Diffing {
+      let exact = Diffing.image(precision: 1, perceptualPrecision: 1)
+      return .diff(toData: exact.toData, fromData: exact.fromData) { reference, image in
+        guard let failure = exact.diffV2(reference, image) else { return nil }
+        guard let old = pixels(of: reference),
+          let new = pixels(of: exact.fromData(exact.toData(image))),
+          let difference = largestChannelDifference(old, new)
+        else { return failure }
+        if difference <= tolerance { return nil }
+        return (
+          "\(failure.0) Its pixels differ by up to \(difference) in a color channel, more than "
+            + "the \(tolerance) that matches.",
+          failure.1
+        )
+      }
+    }
+  }
+
+  /// The largest difference between two images' pixels in any channel, or nil when their sizes
+  /// differ. Through raw buffers: the tests build without optimization.
+  private func largestChannelDifference(_ a: Pixels, _ b: Pixels) -> Int? {
+    guard (a.width, a.height) == (b.width, b.height) else { return nil }
+    var largest: UInt32 = 0
+    a.words.withUnsafeBufferPointer { a in
+      b.words.withUnsafeBufferPointer { b in
+        var index = 0
+        while index < a.count {
+          defer { index += 1 }
+          let (x, y) = (a[index], b[index])
+          if x != y { largest = max(largest, channelDifference(x, y)) }
+        }
+      }
+    }
+    return Int(largest)
+  }
+
+  /// The largest difference between two RGBA words' channels.
+  private func channelDifference(_ a: UInt32, _ b: UInt32) -> UInt32 {
+    var largest: UInt32 = 0
+    for shift: UInt32 in [0, 8, 16, 24] {
+      let (x, y) = (a >> shift & 0xFF, b >> shift & 0xFF)
+      largest = max(largest, x > y ? x - y : y - x)
+    }
+    return largest
   }
 
   /// A window that draws as the key window, as a preview's canvas does, at 2x on any display, so

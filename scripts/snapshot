@@ -12,9 +12,10 @@
 #                (`SNAPSHOT_TESTING_RECORD=failed`).
 #   --no-build   Run what was last built.
 # Every image goes to `LilPackage/.build/snapshots/<test file>/`, whether or not it changed; one
-# that changed gets a `.diff.png` next to it, its changed pixels in red. It prints each image's
-# path and result (`assertMacSnapshot`'s `SnapshotOutput`), with its reference's and its diff's,
-# and exits non-zero when an image differs or a test fails, except for what `--record` recorded.
+# that changed gets a `.diff.png` next to it, its pixels more than 1 apart in a color channel in
+# red (within 1 matches, `snapshotChannelTolerance`). It prints each image's path and result
+# (`assertMacSnapshot`'s `SnapshotOutput`), with its reference's and its diff's, and exits
+# non-zero when an image differs or a test fails, except for what `--record` recorded.
 set -eu
 # Filters are regular expressions, not file patterns.
 set -f
