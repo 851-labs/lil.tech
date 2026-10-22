@@ -150,14 +150,11 @@ private struct LazyGroupedListRow<Content: View>: View {
           .opacity(0.5)
           .padding(.horizontal, LazyGroupedListMetrics.rowInset)
       }
-      HStack(spacing: 10) {
-        content
-      }
-      .padding(.horizontal, LazyGroupedListMetrics.rowInset)
-      .padding(.vertical, LazyGroupedListMetrics.rowVerticalInset)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      content
+        .padding(.horizontal, LazyGroupedListMetrics.rowInset)
+        .padding(.vertical, LazyGroupedListMetrics.rowVerticalInset)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .contentShape(Rectangle())
     .background(
       .background.secondary,
       in: UnevenRoundedRectangle(
@@ -165,12 +162,16 @@ private struct LazyGroupedListRow<Content: View>: View {
         bottomTrailingRadius: isLast ? radius : 0, topTrailingRadius: isFirst ? radius : 0,
         style: .continuous)
     )
+    // It styles every button in the row, so a row that isn't a button shouldn't hold one: it would
+    // get a chevron.
     .buttonStyle(NavigationRowStyle())
   }
 }
 
 /// A row that's a button (a `NavigationLink`): plain, ending in a chevron, and pressed from
-/// anywhere on the row, its insets included.
+/// anywhere on the row, its insets included: the button takes the row's insets, then gives them
+/// back, so the row's own (`LazyGroupedListRow`, the same metrics) put its content where any other
+/// row's is. The pages a link opens don't inherit the style.
 private struct NavigationRowStyle: PrimitiveButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     Button(action: configuration.trigger) {
