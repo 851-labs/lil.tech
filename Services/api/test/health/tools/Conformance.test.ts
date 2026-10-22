@@ -19,6 +19,7 @@ import { type AgentAccess, appendAgentAccess } from "../../../src/store/AgentAcc
 import type { StoreSql } from "../../../src/store/StoreSql.ts";
 import { UserStores } from "../../../src/store/UserStores.ts";
 import { TestCore } from "../../core/TestCoreDatabase.ts";
+import { storeMcpSessions } from "../../../src/store/McpSessions.ts";
 import { TestStores, TestUserStores } from "../../store/TestUserStores.ts";
 import { postMcp, sessionless, viaStore } from "../../mcp/TestMcp.ts";
 import { batchFile, TestHealthIngestion, TestHealthOutbox } from "../TestHealthIngestion.ts";
@@ -222,6 +223,7 @@ describe("Health toolkit conformance cases", () => {
           makeCombinedMcpServer({
             registry: agentResources,
             apps: { health: healthMcpApp({ sql, record, turns }) },
+            sessions: storeMcpSessions(sql),
           }),
         ),
     },

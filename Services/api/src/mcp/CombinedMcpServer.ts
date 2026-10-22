@@ -3,7 +3,12 @@ import { McpSchema, McpServer } from "effect/ai";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import type { AgentAppRegistry } from "../oauth/Hosts.ts";
 import { agentScopesHeader } from "./AgentHeaders.ts";
-import { serveStoreMcp, type StoreMcpApp, type StoreMcpHandler } from "./StoreMcpServer.ts";
+import {
+  serveStoreMcp,
+  type StoreMcpApp,
+  type StoreMcpHandler,
+  type StoreMcpSessions,
+} from "./StoreMcpServer.ts";
 
 // The combined MCP server (851-2900, `docs/decisions/server.md`): every app's tools at the MCP
 // host's root, `https://mcp.lil.tech`, each named `<app>.<tool>` as `lil mcp` names them
@@ -12,6 +17,9 @@ import { serveStoreMcp, type StoreMcpApp, type StoreMcpHandler } from "./StoreMc
 
 /** Where the server is, on the MCP host and in the store's `fetch`. */
 export const combinedMcpPath = "/";
+
+/** Which server a session of the combined server for `set` (its apps' keys) is, where it's kept. */
+export const combinedMcpSessionsKey = (set: string) => `combined:${set}`;
 
 /**
  * Between an app's key and its tool's name (`health.summary`), as in `lil mcp`
@@ -74,6 +82,8 @@ export const makeCombinedMcpServer = (options: {
   readonly registry: AgentAppRegistry;
   /** Each app's tools in this store, by key. */
   readonly apps: Readonly<Record<string, StoreMcpApp>>;
+  /** Where the store keeps each server's sessions, by the server's key. */
+  readonly sessions: (server: string) => StoreMcpSessions;
 }): Effect.Effect<StoreMcpHandler> =>
   Effect.gen(function* () {
     const { registry, apps } = options;
@@ -97,6 +107,8 @@ export const makeCombinedMcpServer = (options: {
               );
             }
           }),
+          // Each set's own, so a session isn't started again at another set's server.
+          sessions: options.sessions(combinedMcpSessionsKey(set)),
         }).pipe(Effect.provideService(Clock.Clock, clock));
       },
     });

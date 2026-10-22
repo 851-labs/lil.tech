@@ -2,12 +2,14 @@ import { Effect } from "effect";
 import {
   healthMcpApp,
   healthMcpPath,
+  healthMcpSessionsKey,
   makeTurns,
   serveHealthMcp,
 } from "../health/tools/HealthMcpServer.ts";
 import { type AgentAppRegistry, agentResources } from "../oauth/Hosts.ts";
 import type { AgentAccess } from "../store/AgentAccessLog.ts";
 import type { AccountDeleted } from "../store/Changes.ts";
+import { storeMcpSessions } from "../store/McpSessions.ts";
 import type { StoreSql } from "../store/StoreSql.ts";
 import { combinedMcpPath, makeCombinedMcpServer } from "./CombinedMcpServer.ts";
 import type { StoreMcpApp, StoreMcpHandler } from "./StoreMcpServer.ts";
@@ -28,10 +30,13 @@ export const makeStoreMcpServers = (options: {
     const { sql, record } = options;
     // lil health's tools, once: both servers register the same handlers, in the same queue.
     const healthApp = healthMcpApp({ sql, record, turns: yield* makeTurns() });
-    const health = yield* serveHealthMcp(healthApp);
+    // Sessions are kept in the store's SQLite too, so they outlive its object (851-2947).
+    const sessions = storeMcpSessions(sql);
+    const health = yield* serveHealthMcp(healthApp, sessions(healthMcpSessionsKey));
     const combined = yield* makeCombinedMcpServer({
       registry: options.registry ?? agentResources,
       apps: { health: healthApp, ...options.otherApps },
+      sessions,
     });
     return (path: string): StoreMcpHandler | undefined =>
       path === healthMcpPath ? health : path === combinedMcpPath ? combined : undefined;

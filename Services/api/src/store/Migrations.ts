@@ -306,6 +306,19 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       rows INTEGER NOT NULL
     ) STRICT;`,
   },
+  {
+    version: 25,
+    name: "mcp_sessions",
+    // Agents' MCP sessions, so they outlive the store's object (851-2947,
+    // `src/store/McpSessions.ts`). Not an entity: it isn't synced.
+    sql: `CREATE TABLE mcp_sessions (
+      id TEXT PRIMARY KEY,
+      server TEXT NOT NULL,
+      initialize TEXT NOT NULL,
+      used_at INTEGER NOT NULL
+    ) STRICT;
+    CREATE INDEX mcp_sessions_used_at ON mcp_sessions (used_at);`,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */
