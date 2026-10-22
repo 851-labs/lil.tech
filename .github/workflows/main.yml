@@ -3,7 +3,7 @@ name: Main
 # Everything GitHub runs for a merge to main (851-2826). pr.yml runs what happens before one.
 # - changes: which parts the merge touches (`.github/actions/changes`). The jobs below skip the rest.
 # - deploy: the TypeScript workspace to staging (api.staging.lil.tech), then prod (api.lil.tech),
-#   checking each serves the merge (`scripts/check-deploy`).
+#   checking each serves the merge (`.github/actions/check-deploy`).
 # - check: the Swift checks again, on the merged code, and the iPhone's state catalogs in the
 #   simulator (`swift-check.yml`).
 # - pixelbook: publishes the merge's state catalog images to Pixelbook, and points its main at them.
@@ -70,12 +70,18 @@ jobs:
         run: pnpm run deploy:staging --yes
         working-directory: Services/api
       - name: Check staging serves this commit
-        run: scripts/check-deploy https://api.staging.lil.tech "${{ steps.version.outputs.version }}"
+        uses: ./.github/actions/check-deploy
+        with:
+          url: https://api.staging.lil.tech
+          version: ${{ steps.version.outputs.version }}
       - name: Deploy prod
         run: pnpm run deploy:prod --yes
         working-directory: Services/api
       - name: Check prod serves this commit
-        run: scripts/check-deploy https://api.lil.tech "${{ steps.version.outputs.version }}"
+        uses: ./.github/actions/check-deploy
+        with:
+          url: https://api.lil.tech
+          version: ${{ steps.version.outputs.version }}
 
   check:
     needs: changes
