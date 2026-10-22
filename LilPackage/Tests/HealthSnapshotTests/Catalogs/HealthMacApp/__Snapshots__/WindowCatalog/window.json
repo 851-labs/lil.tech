@@ -39,6 +39,13 @@
       "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.vision-prescriptions-in-health-details-dark.png",
+      "id" : "window.vision-prescriptions-in-health-details",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.vision-prescriptions-in-health-details-light.png",
+      "name" : "Vision Prescriptions in Health Details",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.a-category-dark.png",
       "id" : "window.a-category",
       "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.a-category-light.png",

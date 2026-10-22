@@ -455,6 +455,62 @@ struct AppFeatureTests {
     }
   }
 
+  /// Health Details' stack is the store's (851-3030): what it pushes is emptied as the sidebar
+  /// selects another page, and Health Details opens with nothing pushed.
+  @Test
+  func healthDetailsOpensFromTheSidebarWithNothingPushed() async {
+    let vision = HealthDatabase.visionPrescriptionType
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
+      AppFeature()
+    }
+    await store.send(\.binding.selection, .healthDetails) {
+      $0.selection = .healthDetails
+    }
+    // Its Vision link.
+    await store.send(.metricPathChanged([vision], selection: .healthDetails)) {
+      $0.metricPath = [vision]
+    }
+    await store.send(\.binding.selection, .summary) {
+      $0.selection = .summary
+      $0.metricPath = []
+    }
+    // Health Details' stack, on its way out.
+    await store.send(.metricPathChanged([], selection: .healthDetails))
+    await store.send(\.binding.selection, .healthDetails) {
+      $0.selection = .healthDetails
+    }
+  }
+
+  /// A characteristic found by search shows Health Details, whose Vision link pushes on the
+  /// result's stack. Choosing a result, or clearing the search, shows a page with nothing pushed
+  /// (851-3030).
+  @Test
+  func searchOpensHealthDetailsWithNothingPushed() async {
+    let vision = HealthDatabase.visionPrescriptionType
+    let bloodType = SidebarItem.dataType("HKCharacteristicTypeIdentifierBloodType")
+    let store = TestStore(
+      initialState: AppFeature.State(
+        isSignedIn: true, selection: .healthDetails, metricPath: [vision])
+    ) {
+      AppFeature()
+    }
+    await store.send(\.binding.searchText, "blood") {
+      $0.searchText = "blood"
+    }
+    await store.send(\.binding.selection, bloodType) {
+      $0.selection = bloodType
+      $0.metricPath = []
+    }
+    await store.send(.metricPathChanged([vision], selection: bloodType)) {
+      $0.metricPath = [vision]
+    }
+    await store.send(\.binding.searchText, "") {
+      $0.searchText = ""
+      $0.selection = .healthDetails
+      $0.metricPath = []
+    }
+  }
+
   /// A characteristic has no category: Health Details takes its place, not Summary (851-3026).
   @Test
   func clearingTheSearchSelectsHealthDetailsForACharacteristic() async {

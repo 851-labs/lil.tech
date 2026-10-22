@@ -2,6 +2,9 @@ public import Foundation
 public import SQLiteData
 
 extension HealthDatabase {
+  /// Vision Prescriptions' type: Other Data shows it, and Health Details links to it.
+  public static let visionPrescriptionType = "HKVisionPrescriptionTypeIdentifier"
+
   /// Vision prescriptions, newest issued first, at most `limit`.
   public static func visionPrescriptions(limit: Int, _ db: Database) throws
     -> [HealthVisionPrescription]

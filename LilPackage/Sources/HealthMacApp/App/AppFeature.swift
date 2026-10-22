@@ -16,8 +16,9 @@ public struct AppFeature {
     public var isSignedIn: Bool?
     public var signIn = SignInFeature.State()
     public var selection: SidebarItem? = .summary
-    /// The metrics opened in Summary's or a category's stack, as type IDs. Emptied when the
-    /// selection changes, so one's metric doesn't show under another.
+    /// The pages pushed on the selection's stack, as type IDs: metrics in Summary's or a
+    /// category's, Vision Prescriptions in Health Details'. Emptied when the selection changes, so
+    /// one's metric doesn't show under another, and when a page is opened (851-3030).
     public var metricPath: [String] = []
     public var searchText = ""
     /// Shown in the sidebar's footer, while `syncFooter` shows it.
@@ -277,8 +278,7 @@ public struct AppFeature {
           state.selection = .category(category)
         case .dataType(let type):
           // As if its row were clicked in its category, with its metric pushed. A characteristic
-          // selects Health Details, which shows it with the others and has no metric stack, so
-          // nothing's pushed there.
+          // selects Health Details, which shows it with the others, so nothing's pushed there.
           state.selection = .home(of: type)
           if type.category != nil { state.metricPath = [type.id] }
         }

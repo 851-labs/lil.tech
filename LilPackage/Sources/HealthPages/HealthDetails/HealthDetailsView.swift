@@ -6,6 +6,8 @@ public import SwiftUI
 
 /// Health Details, as in Health: the profile from the iPhone's characteristics, Not Set for any
 /// value that isn't, and the vision prescriptions. Follows the local database as sync changes it.
+/// Vision Prescriptions is a value link, to its type ID, so the stack showing Health Details needs
+/// a destination for one (`navigationDestination(for: String.self)`).
 public struct HealthDetailsView: View {
   @Fetch private var characteristics: [HealthCharacteristic]
 
@@ -84,9 +86,9 @@ struct HealthDetailsContent: View {
         )
       }
       Section("Vision") {
-        NavigationLink {
-          VisionPrescriptionsView()
-        } label: {
+        // A value, so the stack's path holds it and opening Health Details pops it (851-3030):
+        // the stack's destination for a type ID shows Vision Prescriptions.
+        NavigationLink(value: HealthDatabase.visionPrescriptionType) {
           Label {
             Text("Vision Prescriptions")
           } icon: {
