@@ -6,7 +6,8 @@
   import Testing
 
   // The sidebar's sync footer (`SyncFooterView`) through a sync: a first sync's stages, counting
-  // items left (851-2946), a catch-up, and how it rests.
+  // items left (851-2946), a catch-up, and the failures that need attention. Up to date, the
+  // sidebar hides it (851-2991, `SyncFooterVisibility`).
 
   extension MacSnapshotTests {
     @Test(arguments: syncFooterCatalog.selectedStates)
@@ -40,7 +41,6 @@
         footer(.bootstrapping(.loading(1_999_999, of: 2_000_000)))
       },
       CatalogState("Finishing up") { footer(.bootstrapping(.finishing(2_000_000))) },
-      CatalogState("Up to date") { footer(.upToDate(at: previewNow.addingTimeInterval(-120))) },
       CatalogState("Offline") { footer(.offline) },
       CatalogState("Failed") { footer(.failed("unexpectedStatus(500)")) },
     ])
