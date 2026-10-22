@@ -14,7 +14,20 @@
 # enclosure.txt.
 #
 # health-ios archives and uploads with the Apple account signed in to Xcode, from a clean tree.
-# --skip-upload stops after the archive (build/releases/health-ios/<version>/LilHealthiOS.xcarchive).
+# --skip-upload exports the build to disk instead (build/releases/health-ios/<version>/export).
+#
+# Headless (the Release workflow, .github/workflows/release.yml, 851-2827): with
+# LIL_RELEASE_ASC_KEY_PATH set, nothing comes from the login keychain or Xcode's account.
+#   LIL_RELEASE_ASC_KEY_PATH, LIL_RELEASE_ASC_KEY_ID, LIL_RELEASE_ASC_ISSUER_ID
+#       An App Store Connect API key (.p8) with the Admin role: provisioning, cloud signing and
+#       uploads (-authenticationKey*), and notarization (notarytool --key).
+#   LIL_RELEASE_KEYCHAIN (Mac apps)
+#       A keychain holding the Developer ID Application identity, in the user's search list, where
+#       the export finds it. The DMG is signed from it.
+#   LIL_RELEASE_SPARKLE_KEY_FILE (Mac apps)
+#       The app's Sparkle private key, as `generate_keys -x` exports it.
+# The archive is built unsigned and signed ad hoc with the app's entitlements, since a runner has no
+# Apple Development identity; the export signs it for distribution, as it does a local archive.
 set -euo pipefail
 
 usage="usage: scripts/release <app> <version> [--skip-notarize | --skip-upload]"
@@ -42,6 +55,7 @@ esac
 
 case "$app" in
   messages)
+    entitlements=
     scheme=LilMessages
     product="lil messages"
     dmg_name=lil-messages
@@ -51,6 +65,7 @@ case "$app" in
     provisioned=false
     ;;
   health)
+    entitlements=Apps/LilHealth/LilHealth.entitlements
     scheme=LilHealth
     product="lil health"
     dmg_name=lil-health
@@ -61,11 +76,13 @@ case "$app" in
     provisioned=true
     ;;
   health-ios)
+    entitlements=Apps/LilHealth/LilHealthiOS.entitlements
     scheme=LilHealthiOS
     product="lil health for iOS"
+    app_name="lil health"
     destination='generic/platform=iOS'
-    # Exported with Apple Distribution through Xcode's account. Cloud signing with an App Store
-    # Connect API key needs the Admin role; an App Manager key lacks the permissions.
+    # Exported with Apple Distribution through cloud signing, by Xcode's account or, headless, an
+    # App Store Connect API key with the Admin role: an App Manager key lacks the permissions.
     provisioned=true
     ;;
   *)
@@ -85,6 +102,24 @@ if ! $ios && ! $upload; then
   echo "--skip-upload is for health-ios; the Mac apps take --skip-notarize" >&2
   exit 64
 fi
+headless=false
+if [ -n "${LIL_RELEASE_ASC_KEY_PATH:-}" ]; then
+  headless=true
+  required=(LIL_RELEASE_ASC_KEY_PATH LIL_RELEASE_ASC_KEY_ID LIL_RELEASE_ASC_ISSUER_ID)
+  $ios || required+=(LIL_RELEASE_KEYCHAIN LIL_RELEASE_SPARKLE_KEY_FILE)
+  for name in "${required[@]}"; do
+    if [ -z "${!name:-}" ]; then
+      echo "headless releases (LIL_RELEASE_ASC_KEY_PATH) also need $name" >&2
+      exit 64
+    fi
+  done
+  for name in LIL_RELEASE_ASC_KEY_PATH LIL_RELEASE_KEYCHAIN LIL_RELEASE_SPARKLE_KEY_FILE; do
+    if [ -n "${!name:-}" ] && [ ! -f "${!name}" ]; then
+      echo "$name isn't a file" >&2
+      exit 64
+    fi
+  done
+fi
 # An upload is numbered after HEAD's commit count, so it must be built from that commit alone,
 # and from main: pull requests are squashed, so a branch's count is a number main reaches later
 # with other code, and App Store Connect takes each build number once per version.
@@ -103,6 +138,14 @@ provisioning=()
 if $provisioned; then
   signing_style=automatic
   provisioning=(-allowProvisioningUpdates)
+  # Headless, the API key makes and renews profiles, and cloud-signs, in place of Xcode's account.
+  if $headless; then
+    provisioning+=(
+      -authenticationKeyPath "$LIL_RELEASE_ASC_KEY_PATH"
+      -authenticationKeyID "$LIL_RELEASE_ASC_KEY_ID"
+      -authenticationKeyIssuerID "$LIL_RELEASE_ASC_ISSUER_ID"
+    )
+  fi
 fi
 team=WH4QW9ND3J
 build_number=$(git rev-list --count HEAD)
@@ -119,13 +162,40 @@ trap 'rm -rf "$out/DerivedData"' EXIT
 packages=build/releases/SourcePackages
 sparkle_bin=${SPARKLE_BIN:-$packages/artifacts/sparkle/Sparkle/bin}
 
+# The public half of the Sparkle key the DMG is signed with: from the keychain (`lil-<app>`), or
+# headless, from the private key file. `generate_keys -x` writes the key base64-encoded, as the
+# 32-byte Ed25519 seed, or in Sparkle's older format, 96 bytes that end with the public key.
+sparkle_public_key() {
+  if ! $headless; then
+    "$sparkle_bin/generate_keys" --account "lil-$app" -p | tail -1
+    return
+  fi
+  cat > "$out/sparkle-public-key.swift" <<'SWIFT'
+import CryptoKit
+import Foundation
+
+let text = try String(contentsOfFile: CommandLine.arguments[1], encoding: .utf8)
+guard let key = Data(base64Encoded: text.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+  fatalError("The Sparkle key file isn't base64")
+}
+switch key.count {
+case 32: print(try Curve25519.Signing.PrivateKey(rawRepresentation: key).publicKey.rawRepresentation.base64EncodedString())
+case 96: print(key.suffix(32).base64EncodedString())
+default: fatalError("The Sparkle key file holds \(key.count) bytes, not 32 or 96")
+}
+SWIFT
+  xcrun swift "$out/sparkle-public-key.swift" "$LIL_RELEASE_SPARKLE_KEY_FILE"
+}
+sparkle_signing=(--account "lil-$app")
+$headless && ! $ios && sparkle_signing=(--ed-key-file "$LIL_RELEASE_SPARKLE_KEY_FILE")
+
 # Installed copies only take updates signed with the key whose public half the app carries
 # (SUPublicEDKey). A wrong one can only be fixed through Sparkle's key rotation for Developer
 # ID-signed apps (docs/RELEASING.md), so it's checked before anything is built (851-2692).
 check_sparkle_key() {
   local app_key signing_key
   app_key=$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$1")
-  signing_key=$("$sparkle_bin/generate_keys" --account "lil-$app" -p | tail -1)
+  signing_key=$(sparkle_public_key)
   if [ "$app_key" != "$signing_key" ]; then
     echo "SUPublicEDKey in $1 ($app_key) isn't the lil-$app key's public half ($signing_key)" >&2
     exit 1
@@ -145,6 +215,12 @@ $ios || check_sparkle_key "$info_plist"
 # In its own derived data: a release builds from scratch, so nothing stale from Xcode's builds
 # (such as a package graph it has cached) can break or end up in it. Package checkouts are kept
 # between releases, apart from Xcode's.
+#
+# Headless, it's built unsigned: automatic signing would need an Apple Development identity, and
+# making one would mean a new certificate in the login keychain on every run. Ad hoc signatures
+# with the entitlements stand in for it, which the export replaces as it does Apple Development's.
+archive_signing=(${provisioning[@]+"${provisioning[@]}"})
+$headless && archive_signing=(CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="$team")
 echo "==> Archiving $product $version ($build_number)"
 xcodebuild archive \
   -workspace Lil.xcworkspace \
@@ -155,26 +231,103 @@ xcodebuild archive \
   -derivedDataPath "$out/DerivedData" \
   -clonedSourcePackagesDirPath "$packages" \
   -skipMacroValidation \
-  ${provisioning[@]+"${provisioning[@]}"} \
+  ${archive_signing[@]+"${archive_signing[@]}"} \
   MARKETING_VERSION="$version" \
   CURRENT_PROJECT_VERSION="$build_number" \
   -quiet
 
-if $ios; then
-  if ! $upload; then
-    echo "==> Skipping the upload: $archive"
-    exit 0
+archived_app="$archive/Products/Applications/${app_name:-$product}.app"
+info_path="$archived_app/Contents/Info.plist"
+$ios && info_path="$archived_app/Info.plist"
+# Releases set the version on the command line, never the project's placeholder (851-2817).
+check_version() {
+  local short build
+  short=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$1")
+  build=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$1")
+  if [ "$short" != "$version" ] || [ "$build" != "$build_number" ]; then
+    echo "$1 is $short ($build), not $version ($build_number)" >&2
+    exit 1
   fi
-  # The export options upload the build and keep its version and build number. Xcode's account
-  # signs, not an API key: only an Admin key has cloud signing permissions.
-  echo "==> Uploading to App Store Connect"
+}
+check_version "$info_path"
+
+# What Xcode would sign with when it builds: the entitlements, with the team's prefix, the hardened
+# runtime on the Mac, and each command line tool's bundle identifier (from the info section its
+# target embeds) with the application identifier Xcode gives it. Nested code from packages
+# (Sparkle.framework) is already signed, ad hoc, and the export re-signs it.
+sign_ad_hoc() {
+  local resolved="$out/entitlements.plist" runtime=() tool identifier
+  $ios || runtime=(--options runtime)
+  if $ios && [ -n "$(find "$archived_app" -mindepth 1 \( -name '*.framework' -o -name '*.appex' -o -name '*.dylib' \) -print -quit)" ]; then
+    echo "$archived_app has nested code, which headless signing doesn't handle yet" >&2
+    exit 1
+  fi
+  if ! $ios; then
+    for tool in "$archived_app/Contents/MacOS/"*; do
+      [ "$(basename "$tool")" = "$(basename "$archived_app" .app)" ] && continue
+      if ! file -b "$tool" | grep -q '^Mach-O'; then
+        echo "$tool isn't a Mach-O executable, which headless signing doesn't handle" >&2
+        exit 1
+      fi
+      identifier=$( (launchctl plist __TEXT,__info_plist "$tool" 2>/dev/null || true) |
+        sed -nE 's/^[[:space:]]*"CFBundleIdentifier" = "([^"]+)";$/\1/p')
+      if [ -z "$identifier" ]; then
+        echo "$tool has no bundle identifier in its info section (CREATE_INFOPLIST_SECTION_IN_BINARY)" >&2
+        exit 1
+      fi
+      /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string $team.$identifier" \
+        "$out/tool-entitlements.plist" >/dev/null
+      codesign --force --sign - "${runtime[@]}" --identifier "$identifier" \
+        --entitlements "$out/tool-entitlements.plist" "$tool"
+      rm "$out/tool-entitlements.plist"
+    done
+  fi
+  if [ -n "$entitlements" ]; then
+    sed -e "s/\$(AppIdentifierPrefix)/$team./g" -e "s/\$(TeamIdentifierPrefix)/$team./g" \
+      "$entitlements" > "$resolved"
+    if grep -q '\$(' "$resolved"; then
+      echo "$entitlements uses a build setting signing ad hoc doesn't fill in" >&2
+      exit 1
+    fi
+    codesign --force --sign - ${runtime[@]+"${runtime[@]}"} --entitlements "$resolved" "$archived_app"
+  else
+    codesign --force --sign - ${runtime[@]+"${runtime[@]}"} "$archived_app"
+  fi
+}
+if $headless; then
+  echo "==> Signing the archive ad hoc"
+  sign_ad_hoc
+fi
+
+if $ios; then
+  # The export options upload the build and keep its version and build number. Cloud signing signs
+  # it, through Xcode's account or, headless, the API key: only an Admin key has the permissions.
+  # --skip-upload exports to disk instead, signed the same way.
+  options=Apps/LilHealth/LilHealthiOS-ExportOptions.plist
+  if $upload; then
+    echo "==> Uploading to App Store Connect"
+  else
+    echo "==> Exporting, without uploading"
+    plutil -replace destination -string export -o "$out/ExportOptions.plist" "$options"
+    options="$out/ExportOptions.plist"
+  fi
   xcodebuild -exportArchive \
     -archivePath "$archive" \
     -exportPath "$export_dir" \
-    -exportOptionsPlist Apps/LilHealth/LilHealthiOS-ExportOptions.plist \
-    -allowProvisioningUpdates \
+    -exportOptionsPlist "$options" \
+    "${provisioning[@]}" \
     -quiet
-  echo "==> Uploaded $product $version (build $build_number)"
+  if $upload; then
+    echo "==> Uploaded $product $version (build $build_number)"
+    exit 0
+  fi
+  ipa="$export_dir/$app_name.ipa"
+  mkdir "$out/ipa"
+  ditto -x -k "$ipa" "$out/ipa"
+  check_version "$out/ipa/Payload/$app_name.app/Info.plist"
+  codesign --verify --strict "$out/ipa/Payload/$app_name.app"
+  rm -rf "$out/ipa"
+  echo "==> Exported $product $version (build $build_number), not uploaded: $ipa"
   exit 0
 fi
 
@@ -204,6 +357,7 @@ xcodebuild -exportArchive \
 
 # Again on what was built, in case anything changed the key on the way.
 check_sparkle_key "$export_dir/$product.app/Contents/Info.plist"
+check_version "$export_dir/$product.app/Contents/Info.plist"
 
 # The command line tools the app bundles (Contents/MacOS/lil, 851-2842, and lil-health, 851-2843)
 # are signed inside out: Xcode signs each as it copies it into the app, which it signs after, and
@@ -241,11 +395,20 @@ cp -R "$export_dir/$product.app" "$staging/"
 ln -s /Applications "$staging/Applications"
 hdiutil create -volname "$product" -srcfolder "$staging" -fs HFS+ -format UDZO -ov "$dmg" -quiet
 rm -rf "$staging"
-codesign --sign "Developer ID Application: Alexandru Turcanu ($team)" --timestamp "$dmg"
+dmg_keychain=()
+$headless && dmg_keychain=(--keychain "$LIL_RELEASE_KEYCHAIN")
+codesign --sign "Developer ID Application: Alexandru Turcanu ($team)" --timestamp \
+  ${dmg_keychain[@]+"${dmg_keychain[@]}"} "$dmg"
 
 if $notarize; then
   echo "==> Notarizing"
-  xcrun notarytool submit "$dmg" --keychain-profile lil-notary --wait
+  notary=(--keychain-profile lil-notary)
+  $headless && notary=(
+    --key "$LIL_RELEASE_ASC_KEY_PATH"
+    --key-id "$LIL_RELEASE_ASC_KEY_ID"
+    --issuer "$LIL_RELEASE_ASC_ISSUER_ID"
+  )
+  xcrun notarytool submit "$dmg" "${notary[@]}" --wait
   xcrun stapler staple "$dmg"
   echo "==> Verifying"
   spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
@@ -255,6 +418,6 @@ fi
 
 # Last, since stapling changes the DMG. With the key just checked against the app's.
 echo "==> Signing for Sparkle"
-"$sparkle_bin/sign_update" --account "lil-$app" "$dmg" | tee "$out/enclosure.txt"
+"$sparkle_bin/sign_update" "${sparkle_signing[@]}" "$dmg" | tee "$out/enclosure.txt"
 
 echo "==> $dmg (build $build_number)"

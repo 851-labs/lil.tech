@@ -1,0 +1,24 @@
+name: Select Xcode
+description: >-
+  Picks an Xcode with Swift 6.4 or later under /Applications for the rest of the job, through
+  DEVELOPER_DIR. Not `xcode-select`, which would change the machine for Codevisor's jobs too, on the
+  Mac minis we share with it.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        for developer_dir in /Applications/Xcode*.app/Contents/Developer; do
+          [[ -x "$developer_dir/usr/bin/xcodebuild" ]] || continue
+          version=$(DEVELOPER_DIR="$developer_dir" xcrun swift --version 2>/dev/null |
+            grep -oE 'Swift version [0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+' || true)
+          major=${version%%.*}
+          minor=${version#*.}
+          if [[ -n "$version" ]] && { ((major > 6)) || { ((major == 6)) && ((minor >= 4)); }; }; then
+            echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
+            DEVELOPER_DIR="$developer_dir" xcodebuild -version
+            exit 0
+          fi
+        done
+        echo "Needs an Xcode with Swift 6.4 or later under /Applications." >&2
+        exit 1
