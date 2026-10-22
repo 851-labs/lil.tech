@@ -97,41 +97,30 @@ struct SleepDetailContent: View {
   @Dependency(\.calendar) private var calendar
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
+    // A grouped form on its own background, as Metric Detail is (851-2989, 851-3000): the summary
+    // and the chart, the night's stages, then the pages it opens.
+    Form {
+      Section {
         VStack(alignment: .leading, spacing: 12) {
           header
           chartArea
             .frame(height: 240)
         }
-        .padding(16)
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-
-        if range == .day, case .loaded(let nights) = state, let night = nights.last {
-          stages(night)
-        }
-        VStack(spacing: 0) {
-          NavigationLink {
-            AllDataView(type: type)
-          } label: {
-            PageLinkRow("Show All Data")
-          }
-          .buttonStyle(.plain)
-          Divider().padding(.leading, 14)
-          NavigationLink {
-            DataSourcesView(type: type)
-          } label: {
-            PageLinkRow("Data Sources")
-          }
-          .buttonStyle(.plain)
-        }
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+        .padding(.vertical, 6)
       }
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
+      if range == .day, case .loaded(let nights) = state, let night = nights.last {
+        stages(night)
+      }
+      Section {
+        NavigationLink("Show All Data") {
+          AllDataView(type: type)
+        }
+        NavigationLink("Data Sources") {
+          DataSourcesView(type: type)
+        }
+      }
     }
-    .background(Color.pageBackground)
+    .formStyle(.grouped)
     .navigationTitle(type.name)
     // The range and ‹ Today › in the toolbar, as on other metrics (851-2866).
     .periodControls(PagePeriod(range: $range, offset: $offset))
@@ -188,11 +177,16 @@ struct SleepDetailContent: View {
     case .failed(let reason):
       ContentUnavailableView(
         "Couldn't Load Sleep", systemImage: "exclamationmark.triangle",
-        description: Text(reason))
+        description: Text(reason)
+      )
+      // A form's row would otherwise give it only its ideal width, off center.
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .loaded(let nights) where nights.isEmpty:
       ContentUnavailableView(
         "No Sleep Data", systemImage: "bed.double",
-        description: Text("Sleep tracked by your Apple Watch or iPhone will appear here."))
+        description: Text("Sleep tracked by your Apple Watch or iPhone will appear here.")
+      )
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .loaded(let nights):
       if range == .day, let night = nights.last {
         stagesChart(night)
@@ -214,7 +208,7 @@ struct SleepDetailContent: View {
       .clipShape(RoundedRectangle(cornerRadius: 3))
     }
     .chartYScale(domain: rows.map(SleepFormat.name))
-    // The stages' names, which Charts drew white on the light card (851-2869), as did the
+    // The stages' names, which Charts drew white in light mode (851-2869), as did the
     // secondary styles (`.secondary`, `Color.secondary`) set on them. The primary color, faded,
     // follows the appearance.
     .chartYAxis {
@@ -262,39 +256,31 @@ struct SleepDetailContent: View {
 
   // MARK: Stages
 
-  /// Each stage's time and share of the night's sleep.
+  /// Each stage's time and share of the night's sleep, a row each.
   private func stages(_ night: SleepNight) -> some View {
     let durations = night.durations
     let asleep = max(night.asleep, 1)
-    let rows = SleepFormat.rows(for: night)
-    return VStack(alignment: .leading, spacing: 8) {
-      Text("Stages")
-        .font(.title3.bold())
-      VStack(spacing: 0) {
-        ForEach(rows, id: \.self) { stage in
-          let duration = durations[stage] ?? 0
-          HStack {
-            Circle()
-              .fill(SleepFormat.color(stage))
-              .frame(width: 10, height: 10)
-            Text(SleepFormat.name(stage))
-            Spacer()
-            Text(SleepFormat.duration(duration))
-              .foregroundStyle(.secondary)
-            if stage.isAsleep {
-              Text((duration / asleep).formatted(.percent.precision(.fractionLength(0))))
-                .foregroundStyle(.secondary)
-                .frame(width: 44, alignment: .trailing)
-            } else {
-              Spacer().frame(width: 44)
-            }
-          }
-          .padding(.horizontal, 14)
-          .padding(.vertical, 10)
-          if stage != rows.last { Divider().padding(.leading, 14) }
+    return Section("Stages") {
+      ForEach(SleepFormat.rows(for: night), id: \.self) { stage in
+        let duration = durations[stage] ?? 0
+        HStack {
+          Circle()
+            .fill(SleepFormat.color(stage))
+            .frame(width: 10, height: 10)
+          Text(SleepFormat.name(stage))
+          Spacer()
+          Text(SleepFormat.duration(duration))
+            .foregroundStyle(.secondary)
+          // Empty for Awake, which isn't sleep. A text either way, so every row's time lines up:
+          // a `Spacer` here took no spacing beside it, and moved Awake's 8 pt right.
+          Text(
+            stage.isAsleep
+              ? (duration / asleep).formatted(.percent.precision(.fractionLength(0))) : ""
+          )
+          .foregroundStyle(.secondary)
+          .frame(width: 44, alignment: .trailing)
         }
       }
-      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
     }
   }
 }
