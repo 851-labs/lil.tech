@@ -1,6 +1,7 @@
 import CryptoKit
 import Dependencies
 import Foundation
+import LilAPI
 import Testing
 
 @testable import LilSync
@@ -50,6 +51,32 @@ struct BlobCacheTests {
   // Synthetic payloads (AGENTS.md).
   let first = Data(repeating: 1, count: 400)
   let second = Data(repeating: 2, count: 400)
+
+  /// A Release build keeps sync's caches where they always were, `<bundle ID>/LilSync` in
+  /// Caches, and a Debug build a folder per server, prod's included (851-2977).
+  @Test
+  func cachesAreKeptPerServerInDevBuildsOnly() {
+    #expect(
+      LilSyncEngine.cachesDirectory(
+        for: .prod, allowsOverride: false, bundleIdentifier: "tech.lil.health")
+        == URL.cachesDirectory.appending(
+          path: "tech.lil.health/LilSync", directoryHint: .isDirectory))
+    let caches = URL(filePath: "/home/Library/Caches/")
+    func path(_ environment: APIEnvironment, allowsOverride: Bool) -> String {
+      LilSyncEngine.cachesDirectory(
+        for: environment, allowsOverride: allowsOverride, caches: caches,
+        bundleIdentifier: "tech.lil.health"
+      )
+      .path(percentEncoded: false)
+    }
+    #expect(path(.prod, allowsOverride: false) == "/home/Library/Caches/tech.lil.health/LilSync/")
+    #expect(
+      path(.prod, allowsOverride: true)
+        == "/home/Library/Caches/tech.lil.health/Servers/api.lil.tech/LilSync/")
+    #expect(
+      path(.staging, allowsOverride: true)
+        == "/home/Library/Caches/tech.lil.health/Servers/api.staging.lil.tech/LilSync/")
+  }
   let third = Data(repeating: 3, count: 400)
 
   @Test

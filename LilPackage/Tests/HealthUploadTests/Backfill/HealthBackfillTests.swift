@@ -1,6 +1,7 @@
 import Dependencies
 import Foundation
 import HealthKit
+import LilAPI
 import LilGzip
 import LilTestSupport
 import Testing
@@ -540,6 +541,54 @@ struct HealthBackfillTests {
     #expect(try storage.loadState() == nil)
     try await backfill.run()
     #expect(health.reads.value == ["BodyTemperature@0", "BodyTemperature@0"])
+  }
+
+  /// On a device, which only uses prod, the backfill keeps today's folder; on a simulator, a
+  /// folder per server inside it, so switching servers keeps each one's backfill (851-2977).
+  @Test
+  func backfillStateIsKeptPerServerOnASimulatorOnly() {
+    #expect(
+      HealthBackfillStorage.liveDirectory(for: .prod, allowsOverride: false)
+        == URL.applicationSupportDirectory.appending(
+          path: "HealthBackfill", directoryHint: .isDirectory))
+    let support = URL(filePath: "/data/Library/Application Support/")
+    func path(_ environment: APIEnvironment, allowsOverride: Bool) -> String {
+      HealthBackfillStorage.liveDirectory(
+        for: environment, allowsOverride: allowsOverride, applicationSupport: support
+      )
+      .path(percentEncoded: false)
+    }
+    #expect(
+      path(.prod, allowsOverride: false) == "/data/Library/Application Support/HealthBackfill/")
+    #expect(
+      path(.staging, allowsOverride: true)
+        == "/data/Library/Application Support/HealthBackfill/Servers/api.staging.lil.tech/")
+    #expect(
+      path(.prod, allowsOverride: true)
+        == "/data/Library/Application Support/HealthBackfill/Servers/api.lil.tech/")
+  }
+
+  /// Signing out of one server on a simulator resets only its backfill.
+  @Test
+  func resettingOneServersBackfillLeavesAnothers() throws {
+    let support = URL.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: support) }
+    let staging = HealthBackfillStorage.directory(
+      HealthBackfillStorage.liveDirectory(
+        for: .staging, allowsOverride: true, applicationSupport: support))
+    let preview = HealthBackfillStorage.directory(
+      HealthBackfillStorage.liveDirectory(
+        for: .preview(URL(string: "https://lil-api-api-pr-1-a.851.workers.dev")!),
+        allowsOverride: true, applicationSupport: support))
+    var state = HealthBackfillState()
+    state.finished = [temperature.id]
+    try staging.saveState(state)
+    try preview.saveState(state)
+    try preview.saveFile("a", Data([1]))
+    try staging.saveState(nil)
+    #expect(try staging.loadState() == nil)
+    #expect(try preview.loadState() == state)
+    #expect(try preview.loadFile("a") == Data([1]))
   }
 
   @Test

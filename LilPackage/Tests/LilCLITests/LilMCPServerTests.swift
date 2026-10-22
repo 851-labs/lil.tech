@@ -2,6 +2,7 @@ import Foundation
 import GRDB
 import HealthAgentAccess
 import HealthDatabase
+import LilAPI
 import MCP
 import Synchronization
 import Testing
@@ -33,13 +34,16 @@ struct LilMCPServerTests {
       at: bin.appending(path: "lil-example"),
       withDestinationURL: Self.products.appending(path: "lil-example"))
     let home = root.appending(path: "home", directoryHint: .isDirectory)
-    health = home.appending(path: "Library/Application Support/tech.lil.health")
+    environment = LilMCPServer.serversEnvironment(
+      ["CFFIXED_USER_HOME": home.path, "TZ": "UTC", "PATH": "/usr/bin:/bin"], agent: "claude")
+    // The app's folder for the server `lil-health` picks, as the app picks it (851-2977).
+    health = HealthDatabase.macDirectory(
+      for: .current(environment: environment),
+      applicationSupport: home.appending(path: "Library/Application Support"))
     try FileManager.default.createDirectory(at: health, withIntermediateDirectories: true)
     try HealthDatabase.migrator.migrate(
       DatabasePool(path: health.appending(path: "Health.sqlite").path))
     access = AgentAccessStore(directory: health)
-    environment = LilMCPServer.serversEnvironment(
-      ["CFFIXED_USER_HOME": home.path, "TZ": "UTC", "PATH": "/usr/bin:/bin"], agent: "claude")
   }
 
   func dispatcher(_ apps: [String] = ["example", "health"]) -> Dispatcher {

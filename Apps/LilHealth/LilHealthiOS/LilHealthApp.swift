@@ -14,6 +14,7 @@ struct LilHealthApp: App {
     prepareDependencies {
       $0.authDevice = .current(app: "health-ios")
       $0.authenticateAPI()
+      $0.keepSettingsPerServer()
     }
     HealthBackgroundWork.register()
     // Before HealthKit delivers the change that may have woken the app.

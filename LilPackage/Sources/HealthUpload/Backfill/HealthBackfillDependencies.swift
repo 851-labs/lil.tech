@@ -386,7 +386,21 @@ public struct HealthBackfillStorage: Sendable {
 
 extension HealthBackfillStorage: DependencyKey {
   public static var liveValue: Self {
-    .directory(URL.applicationSupportDirectory.appending(path: "HealthBackfill"))
+    .directory(liveDirectory(for: .current()))
+  }
+
+  /// The backfill state's folder for `environment` (851-2977): `HealthBackfill` in Application
+  /// Support, as always, on a device, which only uses prod, and a folder per server inside it on
+  /// a simulator (`HealthBackfill/Servers/api.staging.lil.tech`), so switching servers keeps
+  /// each one's backfill, and signing out of one resets only its own.
+  static func liveDirectory(
+    for environment: APIEnvironment,
+    allowsOverride: Bool = APIEnvironment.allowsOverride,
+    applicationSupport: URL = .applicationSupportDirectory
+  ) -> URL {
+    environment.localDirectory(
+      in: applicationSupport.appending(path: "HealthBackfill", directoryHint: .isDirectory),
+      allowsOverride: allowsOverride)
   }
 
   public static var testValue: Self { .inMemory() }

@@ -1,3 +1,4 @@
+import ComposableArchitecture
 public import Dependencies
 import Foundation
 import IssueReporting
@@ -14,6 +15,15 @@ extension DependencyValues {
   /// `prepareDependencies`.
   public mutating func authenticateAPI() {
     apiAuthentication = authSessions.apiAuthentication
+  }
+
+  /// Keeps the app's settings (`@Shared(.appStorage(…))`) with this build's server, as its
+  /// session is (851-2977): a Release build keeps `UserDefaults.standard`, and a dev build a
+  /// suite per server (`APIEnvironment.localDefaults`), so signing out of one, which clears the
+  /// account's settings, leaves the Release app's and other servers'. Apps call it once, in
+  /// `prepareDependencies`, before anything reads a setting.
+  public mutating func keepSettingsPerServer() {
+    defaultAppStorage = APIEnvironment.current().localDefaults()
   }
 }
 

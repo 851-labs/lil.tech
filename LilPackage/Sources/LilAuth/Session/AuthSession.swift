@@ -158,22 +158,13 @@ public struct SessionStore: Sendable {
   ) -> [CFString: Any] {
     let account =
       environment == .prod && !allowsOverride
-      ? "session" : "session \(origin(environment.baseURL))"
+      ? "session" : "session \(environment.origin)"
     return [
       kSecClass: kSecClassGenericPassword,
       kSecAttrService: "tech.lil.auth",
       kSecAttrAccount: account,
       kSecUseDataProtectionKeychain: true,
     ]
-  }
-
-  /// `url`'s scheme, host and port, spelled one way: lowercased, without a default port.
-  static func origin(_ url: URL) -> String {
-    let scheme = url.scheme?.lowercased() ?? ""
-    let host = url.host(percentEncoded: false)?.lowercased() ?? ""
-    let defaultPort = ["https": 443, "http": 80][scheme]
-    let port = url.port.flatMap { $0 == defaultPort ? nil : ":\($0)" } ?? ""
-    return "\(scheme)://\(host)\(port)"
   }
 }
 

@@ -3645,3 +3645,28 @@ struct SymptomQueriesTests {
     #expect(appetiteWeek.entries.map(\.name) == ["No Change", "Decreased", "Increased"])
   }
 }
+
+/// Where the Mac app keeps its data (851-2977).
+struct MacDirectoryTests {
+  /// A Release build keeps today's folder, `tech.lil.health` in Application Support, so updating
+  /// moves and migrates nothing. Debug builds keep a folder per server inside it.
+  @Test
+  func releaseBuildsKeepTodaysFolder() {
+    #expect(
+      HealthDatabase.macDirectory(for: .prod, allowsOverride: false)
+        == URL.applicationSupportDirectory.appending(
+          path: "tech.lil.health", directoryHint: .isDirectory))
+    let support = URL(filePath: "/home/Library/Application Support/")
+    #expect(
+      HealthDatabase.macDirectory(for: .prod, allowsOverride: false, applicationSupport: support)
+        .path(percentEncoded: false) == "/home/Library/Application Support/tech.lil.health/")
+    #expect(
+      HealthDatabase.macDirectory(for: .staging, allowsOverride: true, applicationSupport: support)
+        .path(percentEncoded: false)
+        == "/home/Library/Application Support/tech.lil.health/Servers/api.staging.lil.tech/")
+    #expect(
+      HealthDatabase.macDirectory(for: .prod, allowsOverride: true, applicationSupport: support)
+        .path(percentEncoded: false)
+        == "/home/Library/Application Support/tech.lil.health/Servers/api.lil.tech/")
+  }
+}
