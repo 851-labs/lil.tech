@@ -233,7 +233,11 @@ let package = Package(
         .product(name: "SQLiteData", package: "sqlite-data"),
       ],
       // References, beside the tests that take them. A new folder of state catalogs adds its own.
-      exclude: ["__Snapshots__", "Catalogs/HealthMacApp/__Snapshots__"]
+      exclude: [
+        "__Snapshots__",
+        "Catalogs/HealthMacApp/__Snapshots__",
+        "Catalogs/HealthPages/__Snapshots__",
+      ]
     ),
     .testTarget(
       name: "HealthPagesTests",

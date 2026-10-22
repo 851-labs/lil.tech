@@ -1,4 +1,5 @@
 import Charts
+import Dependencies
 import HealthDatabase
 import HealthUI
 import SQLiteData
@@ -62,7 +63,10 @@ struct BloodPressureContent: View {
   @Binding var range: ChartRange
   @Binding var offset: Int
   let state: State
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`): the header
+  /// shows the period around now before a chart loads.
+  @Dependency(\.calendar) private var calendar
+  @Dependency(\.date.now) private var now
   @SwiftUI.State private var hovered: Date?
 
   static let systolicColor = Color.red
@@ -138,7 +142,7 @@ struct BloodPressureContent: View {
             : ChartFormat.bucket(point.start, range: range, calendar: calendar)
         }
           ?? ChartFormat.span(
-            chart?.interval ?? range.interval(offset: offset, now: .now, calendar: calendar),
+            chart?.interval ?? range.interval(offset: offset, now: now, calendar: calendar),
             range: range, calendar: calendar)
       )
       .foregroundStyle(.secondary)

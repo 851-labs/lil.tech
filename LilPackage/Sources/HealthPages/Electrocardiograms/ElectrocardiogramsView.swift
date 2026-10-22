@@ -41,7 +41,8 @@ struct ElectrocardiogramsContent: View {
   let state: State
   /// How many the list holds at most (`RecentElectrocardiograms.limit`), to say when it's full.
   var limit = RecentElectrocardiograms.limit
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {

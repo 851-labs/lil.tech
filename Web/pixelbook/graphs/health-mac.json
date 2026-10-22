@@ -81,7 +81,7 @@
     },
     {
       "id": "beat-to-beat",
-      "screen": "HealthPages/HeartbeatSeriesViewPreviews.swift",
+      "screen": "HealthPages/HeartbeatSeriesCatalog.swift",
       "title": "Beat-to-Beat Measurements",
       "states": [
         "Beat-to-beat measurements",
@@ -93,7 +93,7 @@
     },
     {
       "id": "heartbeat-series",
-      "screen": "HealthPages/HeartbeatSeriesViewPreviews.swift",
+      "screen": "HealthPages/HeartbeatSeriesCatalog.swift",
       "title": "Heartbeat Series",
       "states": ["A minute of beats", "Beats with a gap", "Too few beats"]
     },
@@ -140,11 +140,11 @@
     },
     {
       "id": "activity-rings",
-      "screen": "HealthPages/ActivityRingsViewPreviews.swift"
+      "screen": "HealthPages/ActivityRingsCatalog.swift"
     },
     {
       "id": "blood-pressure",
-      "screen": "HealthPages/BloodPressureViewPreviews.swift"
+      "screen": "HealthPages/BloodPressureCatalog.swift"
     },
     {
       "id": "food",
@@ -208,18 +208,18 @@
     },
     {
       "id": "workouts",
-      "screen": "HealthPages/WorkoutsViewPreviews.swift",
+      "screen": "HealthPages/WorkoutsCatalog.swift",
       "states": ["Workouts", "No workouts", "Workouts loading", "Workouts failed"]
     },
     {
       "id": "workout",
-      "screen": "HealthPages/WorkoutsViewPreviews.swift",
+      "screen": "HealthPages/WorkoutsCatalog.swift",
       "title": "Workout",
       "states": ["Run with route", "Strength, no route", "Route loading", "Route failed"]
     },
     {
       "id": "workout-routes",
-      "screen": "HealthPages/WorkoutRoutesPreviews.swift",
+      "screen": "HealthPages/WorkoutRoutesCatalog.swift",
       "title": "Workout Routes",
       "states": [
         "Workout routes",
@@ -232,7 +232,7 @@
     },
     {
       "id": "other-route",
-      "screen": "HealthPages/WorkoutRoutesPreviews.swift",
+      "screen": "HealthPages/WorkoutRoutesCatalog.swift",
       "title": "Route",
       "states": [
         "Other route",
@@ -243,12 +243,12 @@
     },
     {
       "id": "ecgs",
-      "screen": "HealthPages/ElectrocardiogramsViewPreviews.swift",
+      "screen": "HealthPages/ElectrocardiogramsCatalog.swift",
       "states": ["ECGs", "ECGs, at the limit", "No ECGs", "ECGs loading", "ECGs failed"]
     },
     {
       "id": "ecg",
-      "screen": "HealthPages/ElectrocardiogramsViewPreviews.swift",
+      "screen": "HealthPages/ElectrocardiogramsCatalog.swift",
       "title": "ECG",
       "states": [
         "Sinus rhythm",

@@ -98,7 +98,10 @@ struct ActivityRingsContent: View {
   var previous: () -> Void = {}
   var next: () -> Void = {}
   var isLatest = true
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`): today and
+  /// the days to come look different.
+  @Dependency(\.calendar) private var calendar
+  @Dependency(\.date.now) private var now
 
   var body: some View {
     Group {
@@ -156,11 +159,11 @@ struct ActivityRingsContent: View {
             } label: {
               ActivityDayCell(
                 number: calendar.component(.day, from: day), day: days[key(day)],
-                isSelected: day == shownDay, isToday: calendar.isDateInToday(day),
-                isFuture: day > calendar.startOfDay(for: .now))
+                isSelected: day == shownDay, isToday: calendar.isDate(day, inSameDayAs: now),
+                isFuture: day > calendar.startOfDay(for: now))
             }
             .buttonStyle(.plain)
-            .disabled(day > calendar.startOfDay(for: .now))
+            .disabled(day > calendar.startOfDay(for: now))
           } else {
             Color.clear.frame(height: 54)
           }
@@ -204,7 +207,7 @@ struct ActivityRingsContent: View {
   /// The selected day, or today if it's in the month, or the month's first.
   private var shownDay: Date {
     if let selected, selected >= month.start, selected < month.end { return selected }
-    let today = calendar.startOfDay(for: .now)
+    let today = calendar.startOfDay(for: now)
     return today >= month.start && today < month.end ? today : month.start
   }
 
