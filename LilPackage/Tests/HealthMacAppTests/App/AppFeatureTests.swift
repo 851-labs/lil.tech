@@ -216,7 +216,7 @@ struct AppFeatureTests {
   }
 
   @Test(.timeLimit(.minutes(1)))
-  func theSyncFooterShowsOnlyWhileSyncingAWhileOrNeedingAttention() async throws {
+  func theSyncFooterShowsOnceSyncHasGoneAWhileWithoutBeingUpToDate() async throws {
     let (updates, session) = AsyncStream<Bool>.makeStream()
     let (statuses, status) = AsyncStream<SyncStatus>.makeStream()
     let clock = ManualClock()
@@ -284,29 +284,55 @@ struct AppFeatureTests {
       $0.syncFooter = .hidden
     }
 
-    // Offline and failed need attention, and a first sync takes minutes: no wait.
+    // Offline for a moment, as after waking: the retry a second later is up to date.
     status.yield(.offline)
     await store.receive(\.syncStatusChanged) {
       $0.syncStatus = .offline
-      $0.syncFooter = .shown
+      $0.syncFooter = .delayed
     }
-    // Retrying after a failure keeps it, through the catch-up, until caught up.
-    status.yield(.syncing(cursor: 2_100, head: 50_000))
+    try await clock.waitUntilAsleep(endingIn: AppFeature.syncFooterDelay)
+    clock.advance(by: .seconds(1))
+    status.yield(.upToDate(at: syncedAt))
     await store.receive(\.syncStatusChanged) {
-      $0.syncStatus = .syncing(cursor: 2_100, head: 50_000)
+      $0.syncStatus = .upToDate(at: syncedAt)
+      $0.syncFooter = .hidden
     }
+
+    // A failure that lasts shows, counted from the first, through the retries and the catch-up
+    // after, until caught up.
     status.yield(.failed("unexpectedStatus(500)"))
     await store.receive(\.syncStatusChanged) {
       $0.syncStatus = .failed("unexpectedStatus(500)")
+      $0.syncFooter = .delayed
+    }
+    try await clock.waitUntilAsleep(endingIn: AppFeature.syncFooterDelay)
+    clock.advance(by: .seconds(1))
+    // The retry fails as the last one did, which is announced again.
+    status.yield(.failed("unexpectedStatus(500)"))
+    await store.receive(\.syncStatusChanged)
+    clock.advance(by: .seconds(1))
+    await store.receive(\.syncFooterDelayElapsed) {
+      $0.syncFooter = .shown
+    }
+    status.yield(.syncing(cursor: 2_100, head: 50_000))
+    await store.receive(\.syncStatusChanged) {
+      $0.syncStatus = .syncing(cursor: 2_100, head: 50_000)
     }
     status.yield(.upToDate(at: syncedAt))
     await store.receive(\.syncStatusChanged) {
       $0.syncStatus = .upToDate(at: syncedAt)
       $0.syncFooter = .hidden
     }
+
+    // A first sync, which takes minutes.
     status.yield(.bootstrapping(.downloading(0, of: 0)))
     await store.receive(\.syncStatusChanged) {
       $0.syncStatus = .bootstrapping(.downloading(0, of: 0))
+      $0.syncFooter = .delayed
+    }
+    try await clock.waitUntilAsleep(endingIn: AppFeature.syncFooterDelay)
+    clock.advance(by: AppFeature.syncFooterDelay)
+    await store.receive(\.syncFooterDelayElapsed) {
       $0.syncFooter = .shown
     }
 
@@ -331,6 +357,27 @@ struct AppFeatureTests {
     session.finish()
     await task.finish()
     await store.finish()
+  }
+
+  @Test
+  func theSyncFooterIgnoresAWaitThatEndsAfterItWasCancelled() async {
+    // The wait's last action can already be on its way when sync catches up and cancels it:
+    // the footer stays hidden, and one already shown stays shown.
+    let upToDate = TestStore(
+      initialState: AppFeature.State(
+        isSignedIn: true, syncStatus: .upToDate(at: Date(timeIntervalSince1970: 1_760_400_000)))
+    ) {
+      AppFeature()
+    }
+    #expect(upToDate.state.syncFooter == .hidden)
+    await upToDate.send(.syncFooterDelayElapsed)
+
+    let offline = TestStore(initialState: AppFeature.State(isSignedIn: true, syncStatus: .offline))
+    {
+      AppFeature()
+    }
+    #expect(offline.state.syncFooter == .shown)
+    await offline.send(.syncFooterDelayElapsed)
   }
 
   @Test

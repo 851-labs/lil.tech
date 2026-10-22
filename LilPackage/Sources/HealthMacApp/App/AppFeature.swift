@@ -74,7 +74,7 @@ public struct AppFeature {
     /// watching the status, so it can't miss how the pull ends.
     case syncRestarted
     case syncStatusChanged(SyncStatus)
-    /// A pull has run for `syncFooterDelay` without catching up: the footer shows.
+    /// Sync has gone `syncFooterDelay` without being up to date: the footer shows.
     case syncFooterDelayElapsed
     /// A stack's navigation changed its metrics: a card clicked, or Back. The stack says which
     /// selection it shows, so one that's going away (as the selection changes) can't empty the
@@ -94,11 +94,13 @@ public struct AppFeature {
     case syncFooterDelay
   }
 
-  /// How long a pull runs before the sidebar's footer shows it (851-2991). Everyday syncs are a
-  /// page, done in well under a second, and don't change the status at all once it's up to date;
-  /// the one at launch goes from "not run yet" to up to date. Two seconds leaves room for a slow
-  /// network at launch, so those never flash the footer, while a catch-up that takes a while
-  /// still says so soon. A first sync, a failure and being offline show at once.
+  /// How long sync goes without being up to date before the sidebar's footer shows it
+  /// (851-2991). Everyday syncs are a page, done in well under a second: once up to date, they go
+  /// from up to date straight to up to date again (`.syncing` only follows a page with more after
+  /// it), and the one at launch from "not run yet" to up to date. A failure the first retry fixes,
+  /// about a second later (e.g. offline for a moment after waking), is as brief. Two seconds
+  /// leaves room for a slow network at launch, so none of them flash the footer, while a
+  /// catch-up, a first sync or a failure that lasts still says so soon.
   static let syncFooterDelay = Duration.seconds(2)
 
   @Dependency(\.agentAccess) var agentAccess
@@ -241,13 +243,9 @@ public struct AppFeature {
         case .upToDate:
           state.syncFooter = .hidden
           return .cancel(id: CancelID.syncFooterDelay)
-        case .bootstrapping, .offline, .failed:
-          // A first sync takes minutes, and the others need the person's attention.
-          state.syncFooter = .shown
-          return .cancel(id: CancelID.syncFooterDelay)
-        case .idle, .syncing:
+        case .idle, .syncing, .bootstrapping, .offline, .failed:
           // Shown already (e.g. catching up after a first sync, or after a failure), or waiting:
-          // the wait isn't started again by each page.
+          // the wait isn't started again by each page or retry.
           guard state.syncFooter == .hidden else { return .none }
           state.syncFooter = .delayed
           return .run { [clock] send in
@@ -430,12 +428,11 @@ public struct AppFeature {
 }
 
 /// Whether the sidebar shows its sync footer (851-2991): not when everything is up to date, when
-/// it would only say so. It shows a first sync, a catch-up that runs past
-/// `AppFeature.syncFooterDelay`, and a failure or being offline, which need the person's
-/// attention.
+/// it would only say so. It shows a first sync, a catch-up, a failure and being offline, once
+/// they have lasted `AppFeature.syncFooterDelay`, and until sync is up to date again.
 public enum SyncFooterVisibility: Equatable, Sendable {
   case hidden
-  /// A pull is running, and shows if it's still running after `AppFeature.syncFooterDelay`.
+  /// Not up to date, and shows if it still isn't after `AppFeature.syncFooterDelay`.
   case delayed
   case shown
 
