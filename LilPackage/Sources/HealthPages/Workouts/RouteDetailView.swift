@@ -27,17 +27,18 @@ struct RouteDetailContent: View {
   let locations: RouteState
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
+    // A grouped form on its own background, as a workout's page is (851-3001): the route and
+    // its figures, then its map.
+    Form {
+      Section {
         header
         summary
-        RouteMapCard(route: locations, height: 420, saysWhenEmpty: true)
       }
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
+      Section {
+        RouteMapRow(route: locations, height: 420, saysWhenEmpty: true)
+      }
     }
-    .background(Color.pageBackground)
+    .formStyle(.grouped)
     .navigationTitle("Route")
   }
 
@@ -61,32 +62,26 @@ struct RouteDetailContent: View {
           .foregroundStyle(.secondary)
       }
     }
+    .padding(.vertical, 6)
   }
 
   /// Its time, and its distance once its locations are here.
   private var summary: some View {
-    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-      figure("Time", WorkoutFormat.duration(route.elapsed), .yellow)
+    LazyVGrid(
+      columns: [
+        GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading),
+      ],
+      alignment: .leading, spacing: 12
+    ) {
+      WorkoutFigure(label: "Time", value: WorkoutFormat.duration(route.elapsed), color: .yellow)
       if case .loaded(let loaded) = locations, loaded.hasMap {
-        figure(
-          "Distance",
-          (loaded.distance / 1000).formatted(.number.precision(.fractionLength(2))) + " km", .cyan)
+        WorkoutFigure(
+          label: "Distance",
+          value: (loaded.distance / 1000).formatted(.number.precision(.fractionLength(2))) + " km",
+          color: .cyan)
       }
     }
-    .padding(16)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-  }
-
-  private func figure(_ label: String, _ value: String, _ color: Color) -> some View {
-    VStack(alignment: .leading, spacing: 2) {
-      Text(label)
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-      Text(value)
-        .font(.system(.title2, design: .rounded).weight(.semibold))
-        .foregroundStyle(color)
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.vertical, 6)
   }
 }
 
