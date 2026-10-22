@@ -19,7 +19,7 @@
     "Workouts", width: 620, minHeight: 640,
     states: [
       // Tall enough for the whole list: a `List` doesn't grow to its content.
-      CatalogState("Workouts", minHeight: 860) { list(.loaded(workouts())) },
+      CatalogState("Workouts", minHeight: 860) { list(.loaded(workouts)) },
       CatalogState("No workouts") { list(.loaded([])) },
       CatalogState("Workouts loading") { list(.loading) },
       CatalogState("Workouts failed") { list(.failed("The database couldn't be read.")) },
@@ -37,8 +37,9 @@
       },
     ])
 
-  private func workouts() -> [HealthWorkout] {
-    try! catalogDatabase.read { db in try HealthDatabase.workouts(limit: 50, db) }
+  /// The catalog database's latest workouts, read once.
+  private let workouts = try! catalogDatabase.read { db in
+    try HealthDatabase.workouts(limit: 50, db)
   }
 
   @MainActor
@@ -65,12 +66,11 @@
   /// The catalog database's latest workout of `kind` (37, a run), with its heart rates.
   @MainActor
   private func detail(_ route: (HealthWorkout) -> RouteState, kind: Int = 37) -> some View {
-    let (workout, heartRates) = try! catalogDatabase.read { db in
-      let workout = try HealthDatabase.workouts(limit: 50, db).first { $0.activityType == kind }!
-      let heartRates = try HealthDatabase.samples(
+    let workout = workouts.first { $0.activityType == kind }!
+    let heartRates = try! catalogDatabase.read { db in
+      try HealthDatabase.samples(
         of: HealthDatabase.heartRateType,
         in: Date(unixMilliseconds: workout.startDate)..<Date(unixMilliseconds: workout.endDate), db)
-      return (workout, heartRates)
     }
     return NavigationStack {
       WorkoutDetailContent(workout: workout, heartRates: heartRates, route: route(workout))

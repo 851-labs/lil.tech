@@ -21,10 +21,10 @@
     states: [
       // Tall enough for the whole list: a `List` doesn't grow to its content.
       CatalogState("Workout routes", minHeight: 800) {
-        list(.loaded(workoutsWithRoutes(), otherRoutes: otherRoutes))
+        list(.loaded(workoutsWithRoutes, otherRoutes: otherRoutes))
       },
       CatalogState("Workout routes, no other routes", minHeight: 700) {
-        list(.loaded(workoutsWithRoutes()))
+        list(.loaded(workoutsWithRoutes))
       },
       CatalogState("Only other routes") { list(.loaded([], otherRoutes: otherRoutes)) },
       CatalogState("No workout routes") { list(.loaded([])) },
@@ -44,11 +44,11 @@
       },
     ])
 
-  /// The catalog database's runs and walks, as if each had a route.
-  private func workoutsWithRoutes() -> [HealthWorkout] {
-    try! catalogDatabase.read { db in try HealthDatabase.workouts(limit: 50, db) }
-      .filter { WorkoutActivity.hasPace($0.activityType) }
+  /// The catalog database's runs and walks, as if each had a route. Read once.
+  private let workoutsWithRoutes = try! catalogDatabase.read { db in
+    try HealthDatabase.workouts(limit: 50, db)
   }
+  .filter { WorkoutActivity.hasPace($0.activityType) }
 
   /// A made-up route `daysAgo` days before `previewNow` at `hour`, lasting `minutes`, that no
   /// workout shows.

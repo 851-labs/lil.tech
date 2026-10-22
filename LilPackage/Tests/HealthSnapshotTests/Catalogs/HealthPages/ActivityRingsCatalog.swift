@@ -5,7 +5,7 @@
   import Testing
 
   // Activity Rings (`ActivityRingsContent`): a made-up month of rings, the month before
-  // `previewNow`'s, so every day has passed. Synthetic data only.
+  // `previewNow`'s, so every day has passed, and a later month to go to. Synthetic data only.
 
   extension MacSnapshotTests {
     @Test(arguments: activityRingsCatalog.selectedStates)
@@ -80,7 +80,8 @@
   @MainActor
   private func activity(_ state: ActivityRingsContent.State, selected: Int? = nil) -> some View {
     NavigationStack {
-      ActivityRingsContent(month: month, selected: .constant(selected.map(day)), state: state)
+      ActivityRingsContent(
+        month: month, selected: .constant(selected.map(day)), state: state, isLatest: false)
     }
   }
 #endif
