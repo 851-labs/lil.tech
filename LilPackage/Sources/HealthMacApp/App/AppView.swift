@@ -97,7 +97,7 @@ struct SidebarView: View {
 }
 
 /// What's selected: Summary, Health Details, a category's metrics, or a metric found by
-/// search. A metric's card opens its detail, in the store's `metricPath`, so an intent can open
+/// search. A metric's row opens its detail, in the store's `metricPath`, so an intent can open
 /// one too.
 struct DetailView: View {
   let store: StoreOf<AppFeature>

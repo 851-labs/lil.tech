@@ -6,9 +6,9 @@
   import SwiftUI
   import Testing
 
-  // A Browse category (`MetricsView`): its metrics' cards from the catalog database at
-  // `previewNow`, then those without data. Synthetic data only. Its previews' "Heart, dark" is
-  // "Heart"'s dark reference.
+  // A Browse category (`MetricsView`), a grouped form: its metrics' rows from the catalog
+  // database at `previewNow`, then those without data. Synthetic data only. Its previews'
+  // "Heart, dark" is "Heart"'s dark reference.
 
   extension MacSnapshotTests {
     @Test(arguments: categoryCatalog.selectedStates)
@@ -18,7 +18,7 @@
   }
 
   let categoryCatalog = StateCatalog(
-    "Category", width: 760, minHeight: 720,
+    "Category", width: 760, minHeight: 480,
     states: [
       // Some metrics have data, the rest are under No Data Available.
       CatalogState("Heart") { metrics(.heart) },
