@@ -25,6 +25,8 @@
   @Suite(
     .serialized,
     .dependencies {
+      // Before the catalog database is built, which formats dates.
+      fixTimeZoneAndLocale()
       $0.defaultDatabase = catalogDatabase
       $0.date.now = previewNow
       $0.calendar = previewCalendar
@@ -57,7 +59,7 @@
     // MetricDetailViewPreviews.swift, "Environmental sound levels, week": a chart from fixed dates.
     @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
     func soundLevelsChart(appearance: NSAppearance.Name) {
-      let calendar = Calendar.current
+      let calendar = previewCalendar
       let today = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_760_400_000))
       let days = (0..<7).map { calendar.date(byAdding: .day, value: $0 - 6, to: today)! }
       let ranges: [(Double, Double)] = [
@@ -73,7 +75,8 @@
       let view = NavigationStack {
         MetricDetailContent(
           type: HealthCatalog.type(id: "HKQuantityTypeIdentifierEnvironmentalAudioExposure")!,
-          range: .constant(.week), offset: .constant(0), state: .loaded(chart))
+          range: .constant(.week), offset: .constant(0), state: .loaded(chart),
+          calendar: previewCalendar)
       }
       .previewFrame(width: 760, height: 720)
       assertMacSnapshot(of: view, appearance: appearance, named: "sound-levels-week")

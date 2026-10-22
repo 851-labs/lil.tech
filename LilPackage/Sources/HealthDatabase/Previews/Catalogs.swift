@@ -22,7 +22,8 @@ public let previewCalendar: Calendar = {
 
 /// The synthetic database of snapshot catalogs: the preview database's data at `previewNow`, in
 /// `previewCalendar`, so the same rows on any day and any Mac. Built once per process. A catalog's
-/// suite makes it the `defaultDatabase` (`.dependency(\.defaultDatabase, catalogDatabase)`), and
-/// its states read it, never write to it.
+/// suite makes it the `defaultDatabase`, with `previewNow` and `previewCalendar` the `date` and
+/// `calendar` (a `.dependencies { … }` trait, as `MacSnapshotTests`'), and its states read it,
+/// never write to it.
 public let catalogDatabase: any DatabaseWriter = makePreviewHealthDatabase(
   now: previewNow, calendar: previewCalendar)
