@@ -1,3 +1,4 @@
+import HealthDatabase
 import SwiftUI
 
 // A grouped form's look for lists too long to be a `Form`: All Data and Food (851-3005), and the
@@ -111,7 +112,7 @@ struct LazyFormSections<Record: Identifiable, Destination: View, Row: View>: Vie
   let sections: [(start: Date, records: [Record])]
   let title: (Date) -> String
   /// Whether the first section is the page's first, rather than under a chart.
-  var isFirst = true
+  let isFirst: Bool
   let destination: ((Record) -> Destination)?
   let row: (Record) -> Row
 
@@ -120,6 +121,14 @@ struct LazyFormSections<Record: Identifiable, Destination: View, Row: View>: Vie
     _ sections: [(start: Date, records: [Record])], title: @escaping (Date) -> String,
     isFirst: Bool = true, @ViewBuilder destination: @escaping (Record) -> Destination,
     @ViewBuilder row: @escaping (Record) -> Row
+  ) {
+    self.init(
+      sections: sections, title: title, isFirst: isFirst, destination: destination, row: row)
+  }
+
+  fileprivate init(
+    sections: [(start: Date, records: [Record])], title: @escaping (Date) -> String,
+    isFirst: Bool, destination: ((Record) -> Destination)?, row: @escaping (Record) -> Row
   ) {
     self.sections = sections
     self.title = title
@@ -143,11 +152,7 @@ extension LazyFormSections where Destination == Never {
     _ sections: [(start: Date, records: [Record])], title: @escaping (Date) -> String,
     isFirst: Bool = true, @ViewBuilder row: @escaping (Record) -> Row
   ) {
-    self.sections = sections
-    self.title = title
-    self.isFirst = isFirst
-    self.destination = nil
-    self.row = row
+    self.init(sections: sections, title: title, isFirst: isFirst, destination: nil, row: row)
   }
 }
 
@@ -157,7 +162,7 @@ extension LazyFormSections where Destination == Never {
 struct LazyFormSection<Records: RandomAccessCollection, Destination: View, Row: View>: View
 where Records.Element: Identifiable {
   let title: String?
-  /// The page's first section has no section above it to keep clear of.
+  /// Whether the section is the page's first, with no section above it to keep clear of.
   let isFirst: Bool
   let records: Records
   let destination: ((Records.Element) -> Destination)?
@@ -165,7 +170,7 @@ where Records.Element: Identifiable {
 
   /// A section whose records open `destination`.
   init(
-    _ title: String? = nil, isFirst: Bool = false, records: Records,
+    _ title: String? = nil, isFirst: Bool = true, records: Records,
     @ViewBuilder destination: @escaping (Records.Element) -> Destination,
     @ViewBuilder row: @escaping (Records.Element) -> Row
   ) {
@@ -188,19 +193,19 @@ where Records.Element: Identifiable {
       LazyFormHeader(title: title, isFirst: isFirst)
     }
     ForEach(records) { record in
-      let isFirst = record.id == records.first?.id
-      let isLast = record.id == records.last?.id
+      let isFirstRow = record.id == records.first?.id
+      let isLastRow = record.id == records.last?.id
       if let destination {
         NavigationLink {
           destination(record)
         } label: {
-          LazyFormRow(isFirst: isFirst, isLast: isLast) {
+          LazyFormRow(isFirst: isFirstRow, isLast: isLastRow) {
             row(record)
           }
         }
         .buttonStyle(.plain)
       } else {
-        LazyFormRow(isFirst: isFirst, isLast: isLast, showsChevron: false) {
+        LazyFormRow(isFirst: isFirstRow, isLast: isLastRow, showsChevron: false) {
           row(record)
         }
       }
@@ -211,11 +216,30 @@ where Records.Element: Identifiable {
 extension LazyFormSection where Destination == Never {
   /// A section whose records open nothing, so their rows have no chevron.
   init(
-    _ title: String? = nil, isFirst: Bool = false, records: Records,
+    _ title: String? = nil, isFirst: Bool = true, records: Records,
     @ViewBuilder row: @escaping (Records.Element) -> Row
   ) {
     self.init(title: title, isFirst: isFirst, records: records, destination: nil, row: row)
   }
+}
+
+/// Records (newest first) by the `component` (day, month…) they started in, as Health lists them:
+/// workouts and ECGs by month, beat-to-beat measurements and State of Mind by day.
+func sections<Record>(
+  _ records: [Record], by component: Calendar.Component, calendar: Calendar,
+  startDate: (Record) -> Int
+) -> [(start: Date, records: [Record])] {
+  var sections: [(start: Date, records: [Record])] = []
+  for record in records {
+    let start = Date(unixMilliseconds: startDate(record))
+    let section = calendar.dateInterval(of: component, for: start)?.start ?? start
+    if sections.last?.start == section {
+      sections[sections.count - 1].records.append(record)
+    } else {
+      sections.append((section, [record]))
+    }
+  }
+  return sections
 }
 
 /// A grouped form's measurements on macOS 27.

@@ -68,8 +68,8 @@ struct HealthNotificationsContent: View {
       case .loaded(let notifications):
         List {
           ForEach(
-            monthSections(
-              notifications, calendar: calendar,
+            sections(
+              notifications, by: .month, calendar: calendar,
               startDate: { kind.listedDate(of: $0.sample).unixMilliseconds }),
             id: \.start
           ) { section in

@@ -283,7 +283,7 @@ struct ScoredAssessmentsContent: View {
           .frame(height: 220)
           .padding(.vertical, 6)
       }
-      LazyFormSection("All Assessments", records: assessments) { assessment in
+      LazyFormSection("All Assessments", isFirst: false, records: assessments) { assessment in
         HStack {
           VStack(alignment: .leading, spacing: 2) {
             Text(kind.riskName(assessment.risk))

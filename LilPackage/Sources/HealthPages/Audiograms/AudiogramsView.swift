@@ -70,7 +70,7 @@ struct AudiogramsContent: View {
   private func list(_ audiograms: [HealthAudiogram]) -> some View {
     LazyForm {
       LazyFormSections(
-        monthSections(audiograms, calendar: calendar, startDate: \.startDate),
+        sections(audiograms, by: .month, calendar: calendar, startDate: \.startDate),
         title: { $0.formatted(.dateTime.month(.wide).year()) }
       ) { audiogram in
         // Built when opened: it decodes the audiogram's points.

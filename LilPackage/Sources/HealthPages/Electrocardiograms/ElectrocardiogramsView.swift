@@ -70,7 +70,7 @@ struct ElectrocardiogramsContent: View {
   private func list(_ recordings: [HealthElectrocardiogram]) -> some View {
     LazyForm {
       LazyFormSections(
-        monthSections(recordings, calendar: calendar, startDate: \.startDate),
+        sections(recordings, by: .month, calendar: calendar, startDate: \.startDate),
         title: { $0.formatted(.dateTime.month(.wide).year()) }
       ) { recording in
         ElectrocardiogramDetailView(recording: recording)

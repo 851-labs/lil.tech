@@ -102,7 +102,7 @@ struct WorkoutsContent: View {
   private func list(_ workouts: [HealthWorkout], otherRoutes: [HealthWorkoutRoute]) -> some View {
     LazyForm {
       LazyFormSections(
-        monthSections(workouts, calendar: calendar, startDate: \.startDate),
+        sections(workouts, by: .month, calendar: calendar, startDate: \.startDate),
         title: { $0.formatted(.dateTime.month(.wide).year()) }
       ) { workout in
         WorkoutDetailView(workout: workout)
@@ -130,31 +130,6 @@ struct WorkoutsContent: View {
   private func limitNote(_ what: String) -> String {
     "Showing the \(limit.formatted()) most recent \(what)."
   }
-}
-
-/// Records (newest first) by the month they started in, as Health lists workouts and ECGs.
-func monthSections<Record>(
-  _ records: [Record], calendar: Calendar, startDate: (Record) -> Int
-) -> [(start: Date, records: [Record])] {
-  sections(records, by: .month, calendar: calendar, startDate: startDate)
-}
-
-/// Records (newest first) by the `component` (day, month…) they started in.
-func sections<Record>(
-  _ records: [Record], by component: Calendar.Component, calendar: Calendar,
-  startDate: (Record) -> Int
-) -> [(start: Date, records: [Record])] {
-  var sections: [(start: Date, records: [Record])] = []
-  for record in records {
-    let start = Date(unixMilliseconds: startDate(record))
-    let section = calendar.dateInterval(of: component, for: start)?.start ?? start
-    if sections.last?.start == section {
-      sections[sections.count - 1].records.append(record)
-    } else {
-      sections.append((section, [record]))
-    }
-  }
-  return sections
 }
 
 /// A workout in the list: its activity, the figure that matters most for it, and when.
