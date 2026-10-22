@@ -343,13 +343,17 @@ struct ConnectedAgentsFeatureTests {
   @Test
   func describesAgentsAndReads() {
     #expect(unnamed.isUnused)
-    #expect(unnamed.lastUsedDescription(now: .now) == "Not used yet")
+    #expect(unnamed.lastUsedDescription(now: claude.lastUsedAt) == "Not used yet")
     #expect(!claude.isUnused)
-    #expect(claude.lastUsedDescription(now: .now).hasPrefix("Last used "))
-    // Relative to the `now` it's given, not the clock's.
-    #expect(
-      claude.lastUsedDescription(now: claude.lastUsedAt.addingTimeInterval(2 * 3600))
-        != claude.lastUsedDescription(now: claude.lastUsedAt.addingTimeInterval(3 * 86_400)))
+    // Before the `now` it's given, not the clock's: "Last used 2 hours ago", in the Mac's locale.
+    let ago = RelativeDateTimeFormatter()
+    ago.dateTimeStyle = .named
+    for interval: TimeInterval in [2 * 3600, 3 * 86_400] {
+      let now = claude.lastUsedAt.addingTimeInterval(interval)
+      #expect(
+        claude.lastUsedDescription(now: now)
+          == "Last used \(ago.localizedString(for: claude.lastUsedAt, relativeTo: now))")
+    }
     // One that read only in its first minute, before the server's 5-minute throttle on
     // `lastUsedAt` would have recorded it (851-2872).
     let connectedAt = Date.now.addingTimeInterval(-90)
@@ -358,7 +362,9 @@ struct ConnectedAgentsFeatureTests {
       connectedAt: connectedAt, firstUsedAt: connectedAt.addingTimeInterval(30),
       lastUsedAt: connectedAt.addingTimeInterval(30))
     #expect(!readAtOnce.isUnused)
-    #expect(readAtOnce.lastUsedDescription(now: .now).hasPrefix("Last used "))
+    #expect(
+      readAtOnce.lastUsedDescription(now: connectedAt.addingTimeInterval(90)).hasPrefix(
+        "Last used "))
     // Even in the millisecond it connected.
     var sameMoment = readAtOnce
     sameMoment.firstUsedAt = connectedAt

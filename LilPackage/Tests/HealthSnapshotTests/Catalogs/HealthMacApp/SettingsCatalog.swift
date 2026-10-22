@@ -16,7 +16,8 @@
   //
   // `EmptyReducer`s, so the panes' tasks don't replace the states shown. Switches that are on
   // draw gray: their tint is Liquid Glass, which doesn't render offscreen (851-2957). The panes
-  // grow to their content, where the window (480 by 380 pt) scrolls them.
+  // grow to their content, where the window (480 by 380 pt) scrolls them. The MCP server URL is
+  // staging's, whatever `LIL_API_URL` says (`fixAPIEnvironment()`).
 
   extension MacSnapshotTests {
     @Test(arguments: settingsCatalog.selectedStates)

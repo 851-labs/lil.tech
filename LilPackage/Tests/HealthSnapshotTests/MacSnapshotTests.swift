@@ -17,6 +17,7 @@
     .dependencies {
       // Before the catalog database is built, which formats dates.
       fixTimeZoneAndLocale()
+      fixAPIEnvironment()
       $0.defaultDatabase = catalogDatabase
       $0.date.now = previewNow
       $0.calendar = previewCalendar
