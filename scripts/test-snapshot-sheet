@@ -1,0 +1,121 @@
+#!/bin/sh
+# Checks `scripts/snapshot-sheet` (851-3062) against a made-up run in a repository of its own: a
+# state unchanged, one recorded since the merge base, one new, one removed, and one that differs
+# without being recorded. `scripts/check --swift` runs it.
+set -eu
+
+scripts=$(cd "$(dirname "$0")" && pwd)
+temporary=$(mktemp -d)
+trap 'rm -rf "$temporary"' EXIT
+repo="$temporary/repo"
+output="$temporary/snapshots"
+references="$repo/Catalogs/__Snapshots__/ScreenCatalog"
+mkdir -p "$references" "$output/ScreenCatalog"
+repo=$(cd "$repo" && pwd -P)
+references="$repo/Catalogs/__Snapshots__/ScreenCatalog"
+
+# png <path> <gray>: a 4 by 2 PNG of that gray (0–255), so each gray has its own bytes.
+png() {
+  python3 -I -c '
+import struct, sys, zlib
+def chunk(kind, data):
+    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+gray = int(sys.argv[2])
+rows = b"".join(b"\0" + bytes([gray] * 4) for _ in range(2))
+open(sys.argv[1], "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 4, 2, 8, 0, 0, 0, 0))
+    + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+' "$1" "$2"
+}
+
+git() {
+  command git -C "$repo" -c user.name=Test -c user.email=test@example.com -c commit.gpgsign=false "$@"
+}
+
+# The merge base: same, changed, removed and unrecorded, light and dark.
+git init -q
+for state in same changed removed unrecorded; do
+  png "$references/screen.$state-light.png" 10
+  png "$references/screen.$state-dark.png" 20
+done
+git add .
+git commit -q -m base
+git update-ref refs/remotes/origin/main HEAD
+# The branch: `changed` recorded again, `new` added, `removed` deleted.
+git checkout -q -b change
+png "$references/screen.changed-light.png" 30
+png "$references/screen.changed-dark.png" 40
+png "$references/screen.new-light.png" 50
+png "$references/screen.new-dark.png" 60
+git rm -q "$references/screen.removed-light.png" "$references/screen.removed-dark.png"
+git add .
+git commit -q -m change
+
+# The run, as `SnapshotOutput` reports it: `unrecorded`'s light image differs from its reference.
+: >"$output/report.tsv"
+for state in same changed new unrecorded; do
+  for appearance in light dark; do
+    name="screen.$state-$appearance.png"
+    result=matches
+    cp "$references/$name" "$output/ScreenCatalog/$name"
+    if [ "$state-$appearance" = unrecorded-light ]; then
+      result=differs
+      png "$output/ScreenCatalog/$name" 70
+    fi
+    printf '%s\t%s\t%s\t\n' "$result" "$output/ScreenCatalog/$name" "$references/$name" \
+      >>"$output/report.tsv"
+  done
+done
+
+"$scripts/snapshot-sheet" "$output" >"$temporary/log"
+
+before="$output/sheet/before/ScreenCatalog"
+after="$output/ScreenCatalog"
+# Cells, as `scripts/contact-sheet` takes them (`\t` a tab).
+expected=$(printf '%b' "ScreenCatalog/screen.changed: changed
+light, before\t$before/screen.changed-light.png
+light, after\t$after/screen.changed-light.png
+dark, before\t$before/screen.changed-dark.png
+dark, after\t$after/screen.changed-dark.png
+ScreenCatalog/screen.new: new
+light, before (none, new)\t
+light, after\t$after/screen.new-light.png
+dark, before (none, new)\t
+dark, after\t$after/screen.new-dark.png
+ScreenCatalog/screen.unrecorded: changed, not recorded
+light, before\t$before/screen.unrecorded-light.png
+light, after (not recorded)\t$after/screen.unrecorded-light.png
+dark, before\t$before/screen.unrecorded-dark.png
+dark, after\t$after/screen.unrecorded-dark.png
+ScreenCatalog/screen.removed: removed
+light, before\t$before/screen.removed-light.png
+light, after (none, removed)\t
+dark, before\t$before/screen.removed-dark.png
+dark, after (none, removed)\t")
+status=0
+if [ "$(cat "$output/sheet/cells.tsv")" != "$expected" ]; then
+  echo "error: scripts/snapshot-sheet's cells aren't the expected ones:" >&2
+  printf '%s\n' "$expected" | diff - "$output/sheet/cells.tsv" >&2 || true
+  status=1
+fi
+# The befores are the merge base's, not the working tree's.
+git show "origin/main:Catalogs/__Snapshots__/ScreenCatalog/screen.changed-light.png" \
+  >"$temporary/base.png"
+if ! cmp -s "$before/screen.changed-light.png" "$temporary/base.png"; then
+  echo "error: the before of screen.changed-light isn't the merge base's." >&2
+  status=1
+fi
+for sheet in sheet.png sheet.jpg; do
+  if [ ! -s "$output/$sheet" ]; then
+    echo "error: scripts/snapshot-sheet didn't write $sheet." >&2
+    status=1
+  fi
+done
+if ! grep -q "(1 changed, 1 new, 1 removed, 1 not recorded)" "$temporary/log"; then
+  echo "error: scripts/snapshot-sheet's summary is wrong:" >&2
+  cat "$temporary/log" >&2
+  status=1
+fi
+if [ "$status" = 0 ]; then
+  echo "scripts/snapshot-sheet: ok"
+fi
+exit "$status"

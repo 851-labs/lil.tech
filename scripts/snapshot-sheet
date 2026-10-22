@@ -1,0 +1,173 @@
+#!/bin/sh
+# Makes the before/after sheet for a UI change (AGENTS.md › UI states, 851-3062) from the last
+# `scripts/snapshot` run, which `scripts/snapshot --sheet` runs it after.
+# Usage: scripts/snapshot-sheet [--iphone | <output>]
+#   <output>  The run's folder, with its `report.tsv`: `LilPackage/.build/snapshots` (lil health's
+#             or lil messages' Mac catalogs, whichever ran last) when none is given, and
+#             `LilPackage/.build/snapshots-iphone` with `--iphone`.
+# A state is on the sheet when its run changed (`differs`, `failed`), or its reference in the
+# working tree isn't the one on the branch's merge base with `origin/main` (recorded since, or new).
+# Each state is a row: its light and dark images before (from the merge base) and after (the
+# run's), labeled, with new states' befores empty. A reference the merge base has in a catalog the
+# run covered, but the working tree doesn't (a renamed or removed state), is a row with no after.
+# Writes `<output>/sheet.png`, full size, and `<output>/sheet.jpg`, half size, to attach, and
+# prints their paths. The befores are in `<output>/sheet/before/<test file>/`.
+set -eu
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+case "${1:-}" in
+  "") output="$root/LilPackage/.build/snapshots" ;;
+  --iphone) output="$root/LilPackage/.build/snapshots-iphone" ;;
+  -*)
+    echo "usage: scripts/snapshot-sheet [--iphone | <output>]" >&2
+    exit 2
+    ;;
+  *) output=$(cd "$1" && pwd) ;;
+esac
+report="$output/report.tsv"
+if [ ! -s "$report" ]; then
+  echo "error: no snapshots in $output. Run scripts/snapshot first." >&2
+  exit 1
+fi
+
+# The references' repository: this one, or the one the tests were built from.
+first=$(head -n 1 "$report" | cut -f 3)
+repo=$(git -C "$(dirname "$first")" rev-parse --show-toplevel 2>/dev/null || true)
+if [ -z "$repo" ]; then
+  echo "error: $first isn't in a git repository." >&2
+  exit 1
+fi
+if ! base=$(git -C "$repo" merge-base HEAD origin/main 2>/dev/null); then
+  echo "error: no merge base with origin/main to compare with. Run git fetch origin main." >&2
+  exit 1
+fi
+
+sheet="$output/sheet"
+rm -rf "$sheet" "$output/sheet.png" "$output/sheet.jpg"
+mkdir -p "$sheet/before"
+
+# The blob a path has on the merge base, or nothing.
+base_blob() {
+  git -C "$repo" rev-parse -q --verify "$base:$1" 2>/dev/null || true
+}
+# Writes a reference's before to `$sheet/before/<test file>/<name>.png`, and prints its path.
+extract_before() {
+  path="$sheet/before/$(basename "$(dirname "$1")")/$(basename "$1")"
+  mkdir -p "$(dirname "$path")"
+  git -C "$repo" cat-file blob "$2" >"$path"
+  echo "$path"
+}
+# The state a reference shows, `<test file>/<test>.<state>`, and its appearance, `light`, `dark`
+# or nothing, from its name, `<test>.<state>-<appearance>.png`.
+state_of() {
+  name=$(basename "$1" .png)
+  case "$name" in
+    *-light) echo "$(basename "$(dirname "$1")")/${name%-light}	light" ;;
+    *-dark) echo "$(basename "$(dirname "$1")")/${name%-dark}	dark" ;;
+    *) echo "$(basename "$(dirname "$1")")/$name	" ;;
+  esac
+}
+
+# A line per image: state, appearance, its change (or `same`), before, after.
+images="$sheet/images.tsv"
+: >"$images"
+while IFS='	' read -r result image reference _; do
+  # From the repository's top, which git gives without symbolic links.
+  folder=$(cd "$(dirname "$reference")" 2>/dev/null && pwd -P) || folder=$(dirname "$reference")
+  reference="$folder/$(basename "$reference")"
+  echo "$folder" >>"$sheet/folders"
+  relative=${reference#"$repo"/}
+  blob=$(base_blob "$relative")
+  current=""
+  if [ -f "$reference" ]; then
+    current=$(git -C "$repo" hash-object "$reference")
+  fi
+  before=""
+  if [ -n "$blob" ]; then
+    before=$(extract_before "$reference" "$blob")
+  fi
+  after=""
+  if [ -f "$image" ]; then
+    after=$image
+  fi
+  case "$result" in
+    differs) change=unrecorded ;;
+    failed) change=failed ;;
+    *)
+      if [ -z "$blob" ]; then
+        change=new
+      elif [ "$blob" != "$current" ]; then
+        change=changed
+      else
+        change=same
+      fi
+      ;;
+  esac
+  printf '%s\t%s\t%s\t%s\n' "$(state_of "$reference")" "$change" "$before" "$after" >>"$images"
+done <"$report"
+
+# References the merge base has in the catalogs the run covered, but the working tree doesn't.
+sort -u "$sheet/folders" |
+  while IFS= read -r folder; do
+    git -C "$repo" ls-tree --name-only "$base" -- "${folder#"$repo"/}/" | while IFS= read -r relative; do
+      case "$relative" in *.png) ;; *) continue ;; esac
+      [ -e "$repo/$relative" ] && continue
+      blob=$(base_blob "$relative")
+      printf '%s\t%s\t%s\t%s\n' "$(state_of "$repo/$relative")" removed \
+        "$(extract_before "$repo/$relative" "$blob")" "" >>"$images"
+    done
+  done
+
+# Each state with a change, in the run's order, as `scripts/contact-sheet`'s cells: a heading
+# with what changed, then each appearance's before and after, light first.
+cells="$sheet/cells.tsv"
+awk -F '\t' '
+  !($1 in seen) { seen[$1] = 1; order[++states] = $1 }
+  {
+    key = $1 SUBSEP $2
+    if (!(key in change)) { appearances[$1] = appearances[$1] SUBSEP $2 }
+    change[key] = $3; before[key] = $4; after[key] = $5
+    if ($3 != "same") { changed[$1] = 1 }
+    if ($3 == "new" || $3 == "removed" || $3 == "unrecorded" || $3 == "failed") { what[$1] = $3 }
+  }
+  END {
+    for (i = 1; i <= states; i++) {
+      state = order[i]
+      if (!(state in changed)) { continue }
+      count[what[state] == "" ? "changed" : what[state]]++
+      kind = what[state] == "" ? "changed" : what[state] == "unrecorded" ? "changed, not recorded" : what[state]
+      print state ": " kind
+      # Light, dark, then any other.
+      n = split(appearances[state], list, SUBSEP)
+      for (pass = 1; pass <= 3; pass++) {
+        for (j = 2; j <= n; j++) {
+          a = list[j]
+          if ((pass == 1) != (a == "light") || (pass == 2) != (a == "dark")) { continue }
+          key = state SUBSEP a
+          prefix = a == "" ? "" : a ", "
+          print prefix "before" (before[key] == "" ? " (none, new)" : "") "\t" before[key]
+          label = change[key] == "removed" ? " (none, removed)" : change[key] == "failed" ? " (failed)" : change[key] == "unrecorded" ? " (not recorded)" : ""
+          print prefix "after" label "\t" after[key]
+        }
+      }
+    }
+    summary = ""
+    split("changed new removed unrecorded failed", kinds, " ")
+    for (k = 1; k <= 5; k++) {
+      if (count[kinds[k]] > 0) { summary = summary (summary == "" ? "" : ", ") count[kinds[k]] " " (kinds[k] == "unrecorded" ? "not recorded" : kinds[k]) }
+    }
+    print summary > "/dev/stderr"
+  }
+' "$images" >"$cells" 2>"$sheet/summary"
+
+if [ ! -s "$cells" ]; then
+  echo "No state changed from $(git -C "$repo" rev-parse --short "$base") (the merge base with origin/main): no sheet."
+  exit 0
+fi
+"$root/scripts/contact-sheet" "$output/sheet.png" 4 - <"$cells"
+width=$(sips -g pixelWidth "$output/sheet.png" | awk '/pixelWidth/ { print $2 }')
+sips -s format jpeg -s formatOptions 70 --resampleWidth $((width / 2)) "$output/sheet.png" \
+  --out "$output/sheet.jpg" >/dev/null
+echo "Sheet of the states that changed ($(cat "$sheet/summary")) against $(git -C "$repo" rev-parse --short "$base") (the merge base with origin/main):"
+echo "  $output/sheet.png"
+echo "  $output/sheet.jpg (half size, to attach)"
