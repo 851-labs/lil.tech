@@ -1,20 +1,18 @@
-// Flowchart mode's graph files (`graphs/<app>.json`): how an app's screens connect, which previews
-// can't say. A node is a screen, named by the file its previews or state catalog are in, and an edge is the action
-// that goes from one to another. The files ship with the viewer, so a PR's preview shows its graphs.
+// Flowchart mode's graph files (`graphs/<app>.json`): how an app's screens connect, which state
+// catalogs can't say. A node is a screen, named by its state catalog's file, and an edge is the
+// action that goes from one to another. The files ship with the viewer, so a PR's preview shows
+// its graphs.
 /** A screen on the flowchart. */
 export interface GraphScreen {
   /** Unique in the file; edges use it. */
   readonly id: string;
-  /**
-   * The file its previews are in, as `Module/File.swift`, or its state catalog, a test target's
-   * `Catalogs/Module/File.swift` (851-2949).
-   */
+  /** Its state catalog, a test target's `Catalogs/Module/File.swift`, as `Module/File.swift` (851-2949). */
   readonly screen: string;
-  /** Which previews (states) to show, first by default. All of the file's, in source order, if left out. */
+  /** Which states to show, first by default. All of the catalog's, in its order, if left out. */
   readonly states?: ReadonlyArray<string>;
   /**
-   * Its name, if not its file's: a file can hold several screens' previews (a list and its
-   * detail, say), each a screen here with its own `states`.
+   * Its name, if not its file's: a catalog file can hold several screens' states (a list and
+   * its detail, say), each a screen here with its own `states`.
    */
   readonly title?: string;
   /** Moves the screen from where the automatic layout puts it, in points. */
@@ -83,27 +81,24 @@ export const parseGraph = (json: unknown): Graph | { readonly problems: Readonly
   return problems.length > 0 ? { problems } : (json as unknown as Graph);
 };
 
-/**
- * Each preview file's preview names, or state catalog's state names, keyed by `Module/File.swift`,
- * in source order.
- */
-export type Previews = ReadonlyMap<string, ReadonlyArray<string>>;
+/** Each state catalog's state names, keyed by `Module/File.swift`, in the catalog's order. */
+export type CatalogStates = ReadonlyMap<string, ReadonlyArray<string>>;
 
 /** What in a graph refers to something that doesn't exist. */
-export const graphProblems = (graph: Graph, previews: Previews): ReadonlyArray<string> => {
+export const graphProblems = (graph: Graph, catalogs: CatalogStates): ReadonlyArray<string> => {
   const problems: string[] = [];
   const ids = new Set<string>();
   for (const screen of graph.screens) {
     if (ids.has(screen.id)) problems.push(`Two screens are "${screen.id}".`);
     ids.add(screen.id);
-    const states = previews.get(screen.screen);
+    const states = catalogs.get(screen.screen);
     if (states === undefined) {
-      problems.push(`"${screen.id}": ${screen.screen} has no previews.`);
+      problems.push(`"${screen.id}": ${screen.screen} isn't a state catalog.`);
       continue;
     }
     for (const state of screen.states ?? []) {
       if (!states.includes(state)) {
-        problems.push(`"${screen.id}": ${screen.screen} has no preview "${state}".`);
+        problems.push(`"${screen.id}": ${screen.screen} has no state "${state}".`);
       }
     }
   }
@@ -113,13 +108,13 @@ export const graphProblems = (graph: Graph, previews: Previews): ReadonlyArray<s
         problems.push(`An edge goes ${edge.from} → ${edge.to}, but "${end}" isn't a screen.`);
     }
   }
-  // A file split into several screens by `states` has every preview on one of them, so a new preview there
-  // can't go missing from the flowchart.
+  // A file split into several screens by `states` has every state on one of them, so a new state
+  // there can't go missing from the flowchart.
   for (const [file, screens] of Map.groupBy(graph.screens, (screen) => screen.screen)) {
     // One screen's `states` can be a selection; several split the file.
     if (screens.length < 2 || screens.some((screen) => screen.states === undefined)) continue;
     const shown = new Set(screens.flatMap((screen) => screen.states ?? []));
-    const missing = (previews.get(file) ?? []).filter((state) => !shown.has(state));
+    const missing = (catalogs.get(file) ?? []).filter((state) => !shown.has(state));
     if (missing.length > 0) {
       const names = missing.map((state) => `"${state}"`).join(", ");
       problems.push(

@@ -6,7 +6,6 @@ import {
   catalogStateNames,
   checkGraphs,
   manifestProblems,
-  previewNames,
   scanCatalogs,
   scanScreens,
 } from "../scripts/graphs.ts";
@@ -18,33 +17,20 @@ const graph: Graph = {
   screens: [
     {
       id: "summary",
-      screen: "HealthMacApp/SummaryViewPreviews.swift",
+      screen: "HealthMacApp/SummaryCatalog.swift",
       states: ["Pinned", "Loading"],
     },
-    { id: "metric", screen: "HealthMacApp/MetricDetailViewPreviews.swift" },
+    { id: "metric", screen: "HealthMacApp/MetricDetailCatalog.swift" },
   ],
   edges: [{ from: "summary", to: "metric", label: "Choose a metric" }],
 };
 
-const previews = new Map([
-  ["HealthMacApp/SummaryViewPreviews.swift", ["Pinned", "Loading"]],
-  ["HealthMacApp/MetricDetailViewPreviews.swift", ["Steps, week"]],
+const catalogs = new Map([
+  ["HealthMacApp/SummaryCatalog.swift", ["Pinned", "Loading"]],
+  ["HealthMacApp/MetricDetailCatalog.swift", ["Steps, week"]],
 ]);
 
 describe("graph files", () => {
-  it("finds previews' names in Swift, over one line or several", () => {
-    const source = `#Preview("Pinned") {}\n#Preview(\n  "Group",\n  traits: .x\n) {}\n#Preview("Say \\"hi\\"") {}`;
-    expect(previewNames(source)).toEqual(["Pinned", "Group", 'Say "hi"']);
-  });
-
-  it("skips commented-out previews, and counts unnamed ones", () => {
-    expect(
-      previewNames('// #Preview("Old") {}\n/* #Preview("Older") {} */\n#Preview("New") {}'),
-    ).toEqual(["New"]);
-    expect(previewNames('#Preview {\n  Text("Hi")\n}')).toEqual([]);
-    expect(previewNames('// #Preview("Old") {}\nstruct A {}')).toBeUndefined();
-  });
-
   it("finds a catalog's state names, outside comments and strings", () => {
     const source = [
       "StateCatalog(",
@@ -175,45 +161,45 @@ describe("graph files", () => {
     });
   });
 
-  it("catches a split file's previews that aren't on any screen", () => {
+  it("catches a split catalog's states that aren't on any screen", () => {
     const pinned = {
       id: "pinned",
-      screen: "HealthMacApp/SummaryViewPreviews.swift",
+      screen: "HealthMacApp/SummaryCatalog.swift",
       states: ["Pinned"],
     };
     const split: Graph = {
       app: "health-mac",
       screens: [
         pinned,
-        { id: "editor", screen: "HealthMacApp/SummaryViewPreviews.swift", title: "E", states: [] },
+        { id: "editor", screen: "HealthMacApp/SummaryCatalog.swift", title: "E", states: [] },
       ],
       edges: [],
     };
-    expect(graphProblems(split, previews)).toEqual([
-      `HealthMacApp/SummaryViewPreviews.swift's "Loading" isn't on any screen.`,
+    expect(graphProblems(split, catalogs)).toEqual([
+      `HealthMacApp/SummaryCatalog.swift's "Loading" isn't on any screen.`,
     ]);
     // On one screen, `states` is just a selection.
-    expect(graphProblems({ ...split, screens: [pinned] }, previews)).toEqual([]);
+    expect(graphProblems({ ...split, screens: [pinned] }, catalogs)).toEqual([]);
   });
 
   it("catches references to screens, states and nodes that don't exist", () => {
-    expect(graphProblems(graph, previews)).toEqual([]);
+    expect(graphProblems(graph, catalogs)).toEqual([]);
     const broken: Graph = {
       ...graph,
       screens: [
-        { id: "summary", screen: "HealthMacApp/SummaryViewPreviews.swift", states: ["Pined"] },
-        { id: "summary", screen: "HealthMacApp/Gone.swift" },
+        { id: "summary", screen: "HealthMacApp/SummaryCatalog.swift", states: ["Pined"] },
+        { id: "summary", screen: "HealthMacApp/GoneCatalog.swift" },
       ],
     };
-    expect(graphProblems(broken, previews)).toEqual([
-      '"summary": HealthMacApp/SummaryViewPreviews.swift has no preview "Pined".',
+    expect(graphProblems(broken, catalogs)).toEqual([
+      '"summary": HealthMacApp/SummaryCatalog.swift has no state "Pined".',
       'Two screens are "summary".',
-      '"summary": HealthMacApp/Gone.swift has no previews.',
+      `"summary": HealthMacApp/GoneCatalog.swift isn't a state catalog.`,
       'An edge goes summary → metric, but "metric" isn\'t a screen.',
     ]);
   });
 
-  it("checks the real graphs against the real previews and catalogs", async () => {
+  it("checks the real graphs against the real catalogs", async () => {
     const problems = await checkGraphs(await scanScreens());
     expect(Object.fromEntries(problems)).toEqual({});
     expect(await manifestProblems()).toEqual([]);

@@ -7,12 +7,11 @@
 pre-commit:
   parallel: true
   jobs:
-    # Pixelbook's graph files name previews and catalog states (from the catalogs' manifests), so
-    # renaming one in Swift is checked against them.
+    # Pixelbook's graph files name state catalogs and their states (from the catalogs' manifests),
+    # so renaming one in Swift is checked against them.
     - name: pixelbook
       run: scripts/check --hook --pixelbook
       glob:
-        - "LilPackage/Sources/**/*.swift"
         - "LilPackage/Tests/*/Catalogs/**/*.swift"
         - "LilPackage/Tests/*/Catalogs/**/*.json"
         - "Web/pixelbook/graphs/**"
