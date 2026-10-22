@@ -4,7 +4,7 @@
 # snapshot tests' bundle directly, rather than every test bundle twice (XCTest's, then Swift
 # Testing's) as `swift test --filter` does. The images are the ones `swift test` takes.
 # With `--iphone`, the iPhone's instead, in the simulator (851-2953).
-# Usage: scripts/snapshot [--record] [--no-build] [<filter>…]
+# Usage: scripts/snapshot [--messages] [--record] [--no-build] [<filter>…]
 #        scripts/snapshot --iphone [--record] [--no-build] [<test>…]
 #        scripts/snapshot --iphone --delete-simulator
 #   <filter>     Which tests to run, as for `swift test --filter`: a regular expression matched
@@ -14,6 +14,8 @@
 #   --record     Record new references for the images that changed or have none
 #                (`SNAPSHOT_TESTING_RECORD=failed`).
 #   --no-build   Run what was last built.
+#   --messages   lil messages' state catalogs (`MessagesSnapshotTests`, 851-2968) instead of lil
+#                health's, e.g. `scripts/snapshot --messages messageThread`.
 #   --iphone     The iPhone's state catalogs (`HealthPhoneSnapshotTests`), hosted by an app in the
 #                iPhone 18 Pro simulator, so Liquid Glass renders. <test> is a test's name in
 #                `PhoneSnapshotTests`, e.g. `syncStatus`, not a regular expression.
@@ -41,6 +43,7 @@ set -f
 record=false
 build=true
 iphone=false
+messages=false
 delete_simulator=false
 filters=""
 for arg in "$@"; do
@@ -48,9 +51,10 @@ for arg in "$@"; do
     --record) record=true ;;
     --no-build) build=false ;;
     --iphone) iphone=true ;;
+    --messages) messages=true ;;
     --delete-simulator) delete_simulator=true ;;
     -*)
-      echo "usage: scripts/snapshot [--iphone] [--record] [--no-build] [<filter>…]" >&2
+      echo "usage: scripts/snapshot [--iphone | --messages] [--record] [--no-build] [<filter>…]" >&2
       echo "       scripts/snapshot --iphone --delete-simulator" >&2
       exit 2
       ;;
@@ -60,6 +64,10 @@ for arg in "$@"; do
 done
 if $delete_simulator && ! $iphone; then
   echo "error: --delete-simulator is for --iphone's simulator." >&2
+  exit 2
+fi
+if $iphone && $messages; then
+  echo "error: lil messages has no iPhone catalogs." >&2
   exit 2
 fi
 
@@ -323,7 +331,11 @@ if [ ! -x "$helper" ]; then
   exit 1
 fi
 # The test target with the snapshot tests (`assertMacSnapshot`).
-target=HealthSnapshotTests
+if $messages; then
+  target=MessagesSnapshotTests
+else
+  target=HealthSnapshotTests
+fi
 products="$package/.build/debug"
 bundle="$products/$target.xctest/Contents/MacOS/$target"
 output="$package/.build/snapshots"

@@ -1,9 +1,11 @@
 #if os(macOS)
   import Foundation
-  import HealthDatabase
   import Testing
 
-  /// Makes `previewCalendar`'s time zone and locale (`en_US`) the process's, once (851-2950). Text
+  // Shared with MessagesSnapshotTests, which links this file (851-2968). Each target says which
+  // calendar its catalogs use, `snapshotCalendar`.
+
+  /// Makes `snapshotCalendar`'s time zone and locale (`en_US`) the process's, once (851-2950). Text
   /// a view formats itself (`formatted()`) uses the process's locale, not the view's
   /// environment's, so it would otherwise follow the Mac's. Call it before anything reads
   /// `Locale.current`, which reads the settings once: a catalog suite's dependencies trait calls it
@@ -24,8 +26,8 @@
   }()
 
   private let timeZoneAndLocale: Void = {
-    NSTimeZone.default = previewCalendar.timeZone
-    let locale = previewCalendar.locale!
+    NSTimeZone.default = snapshotCalendar.timeZone
+    let locale = snapshotCalendar.locale!
     // The argument domain overrides the Mac's settings, as `-AppleLocale` on the command line
     // would, including those that change a locale's formats (12- or 24-hour time, the first
     // weekday, units), here set to the locale's own. Merged, so launch arguments still apply.

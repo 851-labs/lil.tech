@@ -41,7 +41,7 @@ struct MessageThreadResizeTests {
     }
 
     _ = NSApplication.shared
-    let viewController = MessageThreadViewController(store: store)
+    let viewController = MessageThreadViewController.forTesting(store: store)
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
       styleMask: [.titled, .resizable],

@@ -1,0 +1,1 @@
+../HealthSnapshotTests/MacSnapshot.swift

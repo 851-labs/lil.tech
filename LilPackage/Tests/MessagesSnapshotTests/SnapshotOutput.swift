@@ -1,0 +1,1 @@
+../HealthSnapshotTests/SnapshotOutput.swift

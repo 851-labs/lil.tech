@@ -1,0 +1,63 @@
+{
+  "app" : "messages-mac",
+  "catalog" : "MessagesConversationList/ConversationListCatalog.swift",
+  "screen" : "Conversation List",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.messages-dark.png",
+      "id" : "conversation-list.messages",
+      "light" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.messages-light.png",
+      "name" : "Messages",
+      "source" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/ConversationListCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.spam-dark.png",
+      "id" : "conversation-list.spam",
+      "light" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.spam-light.png",
+      "name" : "Spam",
+      "source" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/ConversationListCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.recently-deleted-dark.png",
+      "id" : "conversation-list.recently-deleted",
+      "light" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.recently-deleted-light.png",
+      "name" : "Recently Deleted",
+      "source" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/ConversationListCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.selection-dark.png",
+      "id" : "conversation-list.selection",
+      "light" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.selection-light.png",
+      "name" : "Selection",
+      "source" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/ConversationListCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.without-contact-names-dark.png",
+      "id" : "conversation-list.without-contact-names",
+      "light" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.without-contact-names-light.png",
+      "name" : "Without Contact Names",
+      "source" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/ConversationListCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.empty-dark.png",
+      "id" : "conversation-list.empty",
+      "light" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.empty-light.png",
+      "name" : "Empty",
+      "source" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/ConversationListCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.empty-spam-dark.png",
+      "id" : "conversation-list.empty-spam",
+      "light" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.empty-spam-light.png",
+      "name" : "Empty Spam",
+      "source" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/ConversationListCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.load-failed-dark.png",
+      "id" : "conversation-list.load-failed",
+      "light" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/__Snapshots__/ConversationListCatalog/conversation-list.load-failed-light.png",
+      "name" : "Load Failed",
+      "source" : "LilPackage/Tests/MessagesSnapshotTests/Catalogs/MessagesConversationList/ConversationListCatalog.swift"
+    }
+  ]
+}

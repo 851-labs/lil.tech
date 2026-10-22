@@ -541,6 +541,31 @@ let package = Package(
         "MessagesSending"
       ]
     ),
+    // lil messages for Mac's state catalogs (851-2968), rendered as HealthSnapshotTests' are. Its
+    // snapshot support is HealthSnapshotTests' own files, linked (symlinks), as the iPhone's
+    // target builds them. Synthetic conversations only, never a real `chat.db`.
+    .testTarget(
+      name: "MessagesSnapshotTests",
+      dependencies: [
+        "MessagesConversationList",
+        "MessagesDatabase",
+        "MessagesMacApp",
+        "MessagesOnboarding",
+        "MessagesThread",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+        .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
+        .product(name: "Tagged", package: "swift-tagged"),
+      ],
+      // References, beside the tests that take them. A new folder of state catalogs adds its own.
+      exclude: [
+        "Catalogs/MessagesConversationList/__Snapshots__",
+        "Catalogs/MessagesMacApp/__Snapshots__",
+        "Catalogs/MessagesOnboarding/__Snapshots__",
+        "Catalogs/MessagesThread/__Snapshots__",
+      ]
+    ),
     .target(
       name: "MessagesThread",
       dependencies: [

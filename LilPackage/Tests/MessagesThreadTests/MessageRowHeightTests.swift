@@ -73,7 +73,7 @@ struct MessageRowHeightTests {
       EmptyReducer<MessageThreadFeature.State, MessageThreadFeature.Action>()
     }
     _ = NSApplication.shared
-    let viewController = MessageThreadViewController(store: store)
+    let viewController = MessageThreadViewController.forTesting(store: store)
     _ = viewController.view
 
     let items = MessageThreadViewController.items(messages: messages, pendingMessages: pending)

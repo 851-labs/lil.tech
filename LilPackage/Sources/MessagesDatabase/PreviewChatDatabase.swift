@@ -1,14 +1,14 @@
-import Foundation
+public import Foundation
 public import SQLiteData
 public import Tagged
 
-/// A seeded in-memory `chat.db` for Xcode previews. Tests seed their own data instead.
+/// A seeded in-memory `chat.db` of synthetic conversations, for snapshot catalogs
+/// (`MessagesSnapshotTests`, 851-2968). Other tests seed their own data instead.
 ///
-/// Dates are relative to 10:30 today, so every call produces identical rows and timestamps that
-/// read naturally ("10:20 AM", "Yesterday", a weekday).
-public func makePreviewChatDatabase() throws -> DatabaseQueue {
-  let calendar = Calendar.current
-  let now = calendar.date(bySettingHour: 10, minute: 30, second: 0, of: Date()) ?? Date()
+/// Dates are relative to 10:30 on `now`'s day in `calendar`, so every call for the same day
+/// produces identical rows, and timestamps read naturally ("10:20 AM", "Yesterday", a weekday).
+public func makePreviewChatDatabase(now: Date, calendar: Calendar) throws -> DatabaseQueue {
+  let now = calendar.date(bySettingHour: 10, minute: 30, second: 0, of: now) ?? now
   func minutesAgo(_ minutes: Double) -> Date { now.addingTimeInterval(-minutes * 60) }
 
   let database = try makeInMemoryChatDatabase()
@@ -248,7 +248,7 @@ public enum PreviewChatDatabase {
         (0, "I’m in! Which trail?", 1_496),
         (2, "How about the coastal one? It’s supposed to be sunny all weekend.", 1_490),
         (1, "Perfect, let’s meet at 9", 1_485),
-        (0, "See you there 🥾", 1_480),
+        (0, "See you there!", 1_480),
       ]
     ),
     (
