@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Effect, Exit } from "effect";
 import {
   healthMcpApp,
   makeHealthMcpServer,
@@ -86,6 +86,46 @@ const startSession = (send: Sender, url: string, protocolVersion: string, scopes
     return { session: session!, headers };
   });
 
+/**
+ * A server with no tools over a store's sessions, counting how often it looks one up, and whose
+ * next look-up can be made to fail, as the store's storage might.
+ */
+const serverCountingFinds = () => {
+  const { sql } = makeTestStore();
+  const kept = storeMcpSessions(sql)("health");
+  let finds = 0;
+  let failing = false;
+  const sessions: StoreMcpSessions = {
+    ...kept,
+    find: (id) =>
+      Effect.suspend(() => {
+        finds++;
+        if (!failing) return kept.find(id);
+        failing = false;
+        return Effect.die(new Error("SQLITE_BUSY"));
+      }),
+  };
+  const serve = () =>
+    Effect.map(
+      serveStoreMcp({
+        name: "lil health",
+        instructions: "",
+        path: "/health",
+        register: Effect.void,
+        sessions,
+      }),
+      viaStore,
+    );
+  return {
+    sessions,
+    serve,
+    finds: () => finds,
+    failNextFind: () => {
+      failing = true;
+    },
+  };
+};
+
 const summaryCall = (name = "summary") => inSession("tools/call", { name, arguments: {} });
 
 describe("MCP sessions kept in the store", () => {
@@ -117,24 +157,7 @@ describe("MCP sessions kept in the store", () => {
 
   it.effect("start a session again once, however many of its requests come at once", () =>
     Effect.gen(function* () {
-      const { sql } = makeTestStore();
-      const kept = storeMcpSessions(sql)("health");
-      let finds = 0;
-      const counting: StoreMcpSessions = {
-        ...kept,
-        find: (id) => Effect.suspend(() => (finds++, kept.find(id))),
-      };
-      const serve = () =>
-        Effect.map(
-          serveStoreMcp({
-            name: "lil health",
-            instructions: "",
-            path: "/health",
-            register: Effect.void,
-            sessions: counting,
-          }),
-          viaStore,
-        );
+      const { serve, finds } = serverCountingFinds();
       const { headers } = yield* startSession(yield* serve(), healthUrl, "2025-11-25");
       const after = yield* serve();
       const responses = yield* Effect.all(
@@ -145,7 +168,22 @@ describe("MCP sessions kept in the store", () => {
         responses.map((response) => response.status),
         [200, 200, 200, 200, 200],
       );
-      assert.strictEqual(finds, 1);
+      assert.strictEqual(finds(), 1);
+    }),
+  );
+
+  it.effect("try starting a session again on the next request, if starting it failed", () =>
+    Effect.gen(function* () {
+      const { serve, failNextFind } = serverCountingFinds();
+      const { headers } = yield* startSession(yield* serve(), healthUrl, "2025-11-25");
+      const after = yield* serve();
+      failNextFind();
+      // A 500, as the store's `fetch` answers a defect.
+      const failed = yield* Effect.exit(postMcp(after, healthUrl, inSession("ping"), headers));
+      assert.isTrue(Exit.isFailure(failed));
+      // Still kept, and started again this time.
+      const retried = yield* postMcp(after, healthUrl, inSession("ping"), headers);
+      assert.strictEqual(retried.status, 200);
     }),
   );
 
