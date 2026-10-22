@@ -237,6 +237,7 @@ let package = Package(
       exclude: [
         "Catalogs/HealthMacApp/__Snapshots__",
         "Catalogs/HealthPages/__Snapshots__",
+        "Catalogs/LilAuth/__Snapshots__",
       ]
     ),
     .testTarget(

@@ -3,7 +3,7 @@
   "screens": [
     {
       "id": "app",
-      "screen": "HealthPhoneApp/AppView.swift",
+      "screen": "HealthPhoneApp/AppCatalog.swift",
       "title": "Launch",
       "states": [
         "Signed in",
@@ -17,15 +17,15 @@
     },
     {
       "id": "sign-in",
-      "screen": "LilAuth/SignInView.swift"
+      "screen": "LilAuth/SignInCatalog.swift"
     },
     {
       "id": "consent",
-      "screen": "HealthPhoneApp/HealthConsentView.swift"
+      "screen": "HealthPhoneApp/HealthConsentCatalog.swift"
     },
     {
       "id": "access",
-      "screen": "HealthPhoneApp/HealthAccessView.swift"
+      "screen": "HealthPhoneApp/HealthAccessCatalog.swift"
     },
     {
       "id": "sync",
@@ -33,22 +33,22 @@
     },
     {
       "id": "settings",
-      "screen": "HealthPhoneApp/SettingsSheetPreviews.swift",
+      "screen": "HealthPhoneApp/SettingsSheetCatalog.swift",
       "title": "Settings"
     },
     {
       "id": "sign-in-methods",
-      "screen": "LilAuth/SignInMethodsSectionPreviews.swift",
+      "screen": "LilAuth/SignInMethodsCatalog.swift",
       "title": "Sign-In Methods"
     },
     {
       "id": "connected-agents",
-      "screen": "HealthPhoneApp/ConnectedAgentsViewPreviews.swift",
+      "screen": "HealthPhoneApp/ConnectedAgentsCatalog.swift",
       "title": "Connected Agents"
     },
     {
       "id": "recent-access",
-      "screen": "HealthPhoneApp/RecentAccessViewPreviews.swift",
+      "screen": "HealthPhoneApp/RecentAccessCatalog.swift",
       "title": "Recent Access"
     }
   ],

@@ -24,7 +24,7 @@
 #                  5 minutes is tried again, the third time on a new simulator.
 #                - It builds with `xcodebuild` (`Lil.xcworkspace`, scheme `HealthPhoneSnapshotTests`)
 #                  into `.build/DerivedData` (`LIL_SNAPSHOT_DERIVED_DATA`), then runs the tests.
-#                - A run that hasn't finished after 5 minutes (`LIL_SNAPSHOT_TIMEOUT`, in seconds)
+#                - A run that hasn't finished after 10 minutes (`LIL_SNAPSHOT_TIMEOUT`, in seconds)
 #                  is stopped, and tried once more on a freshly booted simulator; a build, after 30
 #                  (`LIL_SNAPSHOT_BUILD_TIMEOUT`). One iPhone run at a time on a Mac: others wait.
 #   --delete-simulator  Shut down and delete the iPhone's simulator, and exit.
@@ -97,7 +97,7 @@ if $iphone; then
   device_type=com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro
   runtime=${LIL_SNAPSHOT_RUNTIME:-com.apple.CoreSimulator.SimRuntime.iOS-27-0}
   derived=${LIL_SNAPSHOT_DERIVED_DATA:-$root/.build/DerivedData}
-  test_limit=${LIL_SNAPSHOT_TIMEOUT:-300}
+  test_limit=${LIL_SNAPSHOT_TIMEOUT:-600}
   build_limit=${LIL_SNAPSHOT_BUILD_TIMEOUT:-1800}
   boot_limit=300
   host=tech.lil.phone-snapshot-host

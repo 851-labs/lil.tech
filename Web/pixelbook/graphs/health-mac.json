@@ -3,7 +3,7 @@
   "screens": [
     {
       "id": "sign-in",
-      "screen": "LilAuth/SignInView.swift"
+      "screen": "LilAuth/SignInCatalog.swift"
     },
     {
       "id": "app",
@@ -34,7 +34,7 @@
     },
     {
       "id": "sign-in-methods",
-      "screen": "LilAuth/SignInMethodsSectionPreviews.swift",
+      "screen": "LilAuth/SignInMethodsCatalog.swift",
       "title": "Sign-In Methods"
     },
     {

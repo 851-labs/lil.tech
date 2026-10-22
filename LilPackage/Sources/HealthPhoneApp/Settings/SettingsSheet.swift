@@ -10,9 +10,9 @@ import SwiftUI
 struct SettingsSheet: View {
   @Bindable var store: StoreOf<SyncStatusFeature>
 
-  /// Whether this is a preview, which uses preview dependencies (`SWIFT_DEPENDENCIES_CONTEXT`).
+  /// Whether this is the app, not a preview or a snapshot test (`SWIFT_DEPENDENCIES_CONTEXT`).
   @Dependency(\.context) private var context
-  private var isPreview: Bool { context == .preview }
+  private var isLive: Bool { context == .live }
   /// Withdrawing consent or deleting the account: the sheet waits behind a progress overlay.
   private var isBusy: Bool { store.isDeletingAccount || store.isWithdrawingConsent }
 
@@ -77,8 +77,8 @@ struct SettingsSheet: View {
           }
         }
         #if targetEnvironment(simulator)
-          // Not in previews (Xcode's or Pixelbook's), which also run in the simulator.
-          if !isPreview {
+          // Not in previews or snapshot tests, which also run in the simulator.
+          if isLive {
             SyntheticHealthSection()
           }
         #endif

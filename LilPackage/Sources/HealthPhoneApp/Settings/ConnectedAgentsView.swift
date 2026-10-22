@@ -24,6 +24,10 @@ struct ConnectedAgentsView: View {
   /// Whether it has asked for the agents since it opened: coming back from Recent Access isn't
   /// opening it again.
   @State private var hasAppeared = false
+  /// For the rows' "Last used", from dependencies, so snapshot catalogs fix it (`previewNow`).
+  /// Read here, not in each row: SwiftUI can make rows outside the scope the view was made in,
+  /// where a test's dependencies don't reach (851-2967).
+  @Dependency(\.date.now) private var now
 
   var body: some View {
     List {
@@ -44,7 +48,7 @@ struct ConnectedAgentsView: View {
         case .loaded(let agents):
           ForEach(agents) { agent in
             let isRevoking = store.revoking.contains(agent.id)
-            ConnectedAgentRow(agent: agent, isRevoking: isRevoking)
+            ConnectedAgentRow(agent: agent, isRevoking: isRevoking, now: now)
               .swipeActions {
                 // Not `.destructive`, which would take the row away before it's confirmed.
                 Button("Revoke") { store.send(.revokeButtonTapped(agent)) }
@@ -113,10 +117,10 @@ struct ConnectedAgentsView: View {
 struct ConnectedAgentRow: View {
   let agent: ConnectedAgent
   let isRevoking: Bool
+  /// What "Last used" is relative to.
+  let now: Date
 
   private static let date = Date.FormatStyle.dateTime.month(.abbreviated).day().year()
-  /// From dependencies, so snapshot catalogs fix it (`previewNow`).
-  @Dependency(\.date.now) private var now
 
   var body: some View {
     HStack {
