@@ -194,5 +194,7 @@
     override var isKeyWindow: Bool { true }
     override var isMainWindow: Bool { true }
     override var canBecomeKey: Bool { true }
+    /// 2x on any Mac, so a 1x display (the Mac minis') renders the same images as a laptop.
+    override var backingScaleFactor: CGFloat { 2 }
   }
 #endif
