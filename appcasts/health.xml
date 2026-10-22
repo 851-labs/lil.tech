@@ -3,6 +3,21 @@
   <channel>
     <title>lil health</title>
     <item>
+      <title>0.4.0</title>
+      <pubDate>Thu, 22 Oct 2026 21:36:36 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.4.0</link>
+      <sparkle:version>390</sparkle:version>
+      <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<ul><li>A new look: every page is a native grouped list, on the window’s own background</li><li>Open a page, sync or export from the command line (<code>lil health open</code>, <code>sync</code> and <code>export</code>), and export from Shortcuts</li><li>Date of birth, blood type and the other characteristics open Health Details</li><li>The sidebar’s sync footer only shows while syncing, or when sync needs attention</li><li>The Settings window can be resized</li><li>Removed: pinned metrics on Summary</li></ul>]]></description>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/health%2Fv0.4.0/lil-health-0.4.0.dmg"
+        length="33253471"
+        type="application/octet-stream"
+        sparkle:edSignature="pJes9Jdz5d1zoqnj4X+/1ZxzKd3fSzXsSFgFDV1m/XWEGhKevdW7jMY8QjrziYARK3H0Ds+DpiVr5zL7o/lEBA=="
+      />
+    </item>
+    <item>
       <title>0.3.0</title>
       <pubDate>Thu, 22 Oct 2026 00:36:20 +0000</pubDate>
       <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.3.0</link>
