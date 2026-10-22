@@ -38,7 +38,7 @@ private func appView(
 #Preview("First sync") {
   appView(
     AppFeature.State(
-      isSignedIn: true, syncStatus: .bootstrapping(downloadedParts: 12, totalParts: 80)))
+      isSignedIn: true, syncStatus: .bootstrapping(.downloading(300_000, of: 2_000_000))))
 }
 
 #Preview("Health Details") {
@@ -80,7 +80,7 @@ private func appView(
 #Preview("First sync, smallest window") {
   appView(
     AppFeature.State(
-      isSignedIn: true, syncStatus: .bootstrapping(downloadedParts: 12, totalParts: 80)),
+      isSignedIn: true, syncStatus: .bootstrapping(.downloading(300_000, of: 2_000_000))),
     width: 800, height: 480)
 }
 

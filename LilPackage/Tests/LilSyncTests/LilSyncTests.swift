@@ -1056,7 +1056,54 @@ struct LilSyncBootstrapTests {
     running.cancel()
     await running.value
     observing.cancel()
-    #expect(statuses.value.contains(.bootstrapping(downloadedParts: 2, totalParts: 2)))
+    #expect(
+      statuses.value.contains {
+        if case .bootstrapping = $0 { true } else { false }
+      })
+  }
+
+  @Test
+  func aBootstrapCountsRecordsDownloadedThenLoadedThenFinishes() async throws {
+    // Parts of 2, 2 and 1 records (851-2946).
+    let all = (1...5).map { Note(id: "n\($0)", title: "\($0)") }
+    try server.publishSnapshot(seq: 5, notes: all)
+    let database = try makeDatabase(bootstrapped: false)
+    let engine = engine(database: database)
+    let statuses = LockIsolated<[SyncStatus]>([])
+    let updates = await engine.statusUpdates()
+    let observing = Task {
+      for await status in updates { statuses.withValue { $0.append(status) } }
+    }
+    try await engine.bootstrap()
+    // The bootstrap's last status: an observer always gets the newest.
+    try await eventually { statuses.value.last == .bootstrapping(.finishing(5)) }
+    observing.cancel()
+
+    let progress = statuses.value.compactMap { status -> BootstrapProgress? in
+      if case .bootstrapping(let progress) = status { progress } else { nil }
+    }
+    // Each stage counts up to the snapshot's records, and the stages come in order. (An observer
+    // sees only the newest status, so some steps may be missed.)
+    let stages: [BootstrapProgress.Stage] = [.downloading, .loading, .finishing]
+    for (earlier, later) in zip(progress, progress.dropFirst()) {
+      let (a, b) = try (
+        #require(stages.firstIndex(of: earlier.stage)), #require(stages.firstIndex(of: later.stage))
+      )
+      #expect(a < b || (a == b && earlier.records <= later.records))
+    }
+    #expect(progress.allSatisfy { $0.totalRecords == 5 || $0 == .downloading(0, of: 0) })
+    #expect(progress.allSatisfy { $0.records <= $0.totalRecords })
+    #expect(try storedNotes(database) == all)
+  }
+
+  @Test
+  func bootstrapProgressCountsRecordsLeft() {
+    #expect(BootstrapProgress.downloading(0, of: 0).recordsLeft == 0)
+    #expect(BootstrapProgress.downloading(25_000, of: 1_000_000).recordsLeft == 975_000)
+    #expect(BootstrapProgress.loading(1_000_000, of: 1_000_000).recordsLeft == 0)
+    // A part with more records than its manifest said.
+    #expect(BootstrapProgress.loading(1_000_001, of: 1_000_000).recordsLeft == 0)
+    #expect(BootstrapProgress.finishing(1_000_000).recordsLeft == 0)
   }
 }
 

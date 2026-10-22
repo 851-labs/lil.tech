@@ -86,10 +86,10 @@ struct SyncHealthDataIntentTests {
     let (request, answer) = makeRequest(.sync)
     await store.send(.appActionRequested(request))
     await store.receive(\.syncRestarted)
-    sync.set(.bootstrapping(downloadedParts: 1, totalParts: 80))
+    sync.set(.bootstrapping(.downloading(1_000, of: 80_000)))
     try await clock.waitUntilAsleep(endingIn: .seconds(60))
     clock.advance(by: .seconds(59))
-    sync.set(.bootstrapping(downloadedParts: 40, totalParts: 80))
+    sync.set(.bootstrapping(.downloading(40_000, of: 80_000)))
     clock.advance(by: .seconds(1))
     #expect(try await answer() == .stillSyncing)
     await store.finish()
@@ -98,7 +98,7 @@ struct SyncHealthDataIntentTests {
   @Test(.timeLimit(.minutes(1)))
   func waitsForAPullAlreadyRunning() async throws {
     // A bootstrap that runs until cancelled.
-    let sync = FakeSync(.bootstrapping(downloadedParts: 3, totalParts: 80), hangingRuns: 1)
+    let sync = FakeSync(.bootstrapping(.downloading(3_000, of: 80_000)), hangingRuns: 1)
     let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
       AppFeature()
     } withDependencies: {
@@ -112,7 +112,7 @@ struct SyncHealthDataIntentTests {
     let (request, answer) = makeRequest(.sync)
     await store.send(.appActionRequested(request))
     try await eventually { sync.observerCount == 1 }
-    sync.set(.bootstrapping(downloadedParts: 80, totalParts: 80))
+    sync.set(.bootstrapping(.downloading(80_000, of: 80_000)))
     sync.set(.upToDate(at: synced))
     #expect(try await answer() == .synced(at: synced))
     #expect(sync.events.value == ["run"])

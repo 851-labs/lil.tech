@@ -163,15 +163,14 @@ private struct CategoryRow: View {
 /// How an upload's progress reads, here and in the system's task UI: what's left, as backup apps
 /// say it ("321 items left" in Google Photos, items remaining in iCloud Photos), with the bar or
 /// ring showing the share done. Records are "items", and the types they come in aren't
-/// mentioned.
+/// mentioned (`ItemsCopy`, which the Mac's sync footer shares).
 enum UploadCopy {
   /// "1,234,567 items left" once counted. Otherwise, and when the estimate runs out (it counts
   /// samples, and some upload as several items), what's gone up: "630,368 items uploaded".
   /// Counting can fail for a type, or be paused, so there's no "Counting…" to get stuck on.
   static func left(records: Int, totalRecords: Int?) -> String {
     if let totalRecords, totalRecords > records {
-      let left = totalRecords - records
-      return left == 1 ? "1 item left" : "\(left.formatted()) items left"
+      return ItemsCopy.left(totalRecords - records)
     }
     return records == 1 ? "1 item uploaded" : "\(records.formatted()) items uploaded"
   }
