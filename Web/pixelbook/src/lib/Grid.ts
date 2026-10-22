@@ -69,9 +69,11 @@ export const spacing = {
 
 export const byText = (a: string, b: string) => a.localeCompare(b, "en");
 
-/** A screen's states in the order they're written in its file. */
+/** A screen's states in their catalog's order, or previews in the order they're written. */
 export const sourceOrder = (a: Snapshot, b: Snapshot) =>
-  (a.line ?? 0) - (b.line ?? 0) || byText(a.state, b.state);
+  (a.order !== undefined && b.order !== undefined ? a.order - b.order : 0) ||
+  (a.line ?? 0) - (b.line ?? 0) ||
+  byText(a.state, b.state);
 
 /** A row of tiles, placed from x = 0 and y = 0. */
 export const layoutRow = (

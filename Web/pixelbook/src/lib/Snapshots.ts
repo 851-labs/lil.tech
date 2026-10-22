@@ -1,5 +1,6 @@
 // Pixelbook's snapshots, published by `scripts/pixelbook publish` to a public R2 bucket that every
-// stage reads. The types mirror what `Services/api/scripts/pixelbook.ts` writes.
+// stage reads: the state catalogs' images (851-2955), or, before them, rendered previews. The
+// types mirror what `Services/api/scripts/pixelbook.ts` writes.
 
 /** The bucket's public domain (`pixelbookAssetsDomain` in `Services/api/src/Deployment.ts`). */
 export const assetsUrl = "https://pixelbook-assets.lil.tech";
@@ -30,14 +31,25 @@ export interface Variant {
   readonly scale: number;
 }
 
-/** A state of a screen: one preview, in each color scheme it was rendered in. */
+/**
+ * A state of a screen, in each color scheme it has an image in: a state catalog's state
+ * (851-2955), or a preview in snapshots published before.
+ */
 export interface Snapshot {
+  /** `<screen>.<state>` as slugs for a catalog's state; a preview's module, file and name. */
   readonly id: string;
+  /** The catalog's module (its folder in `Catalogs/`), or the preview's. */
   readonly module: string;
+  /** The catalog's file, or the preview's: graphs name `module/file`. */
   readonly file: string;
-  /** The file's path in the repository; missing from manifests published before 851-2790. */
+  /**
+   * The file it's written in, in the repository; missing from manifests published before
+   * 851-2790.
+   */
   readonly path?: string;
   readonly line: number | null;
+  /** Its place in its catalog; previews have none, and are in the order of their lines. */
+  readonly order?: number;
   readonly screen: string;
   readonly state: string;
   readonly variants: Partial<Record<Scheme, Variant>>;
@@ -140,7 +152,7 @@ export const tileImageUrl = (variant: Variant, density: number) =>
     ? `${assetsUrl}/${variant.thumbnail}`
     : imageUrl(variant);
 
-/** Where a snapshot's preview is, on GitHub, at the commit it was rendered from. */
+/** Where a snapshot's state is written, on GitHub, at the commit it was published from. */
 const repositoryUrl = "https://github.com/851-labs/lil.tech";
 
 /** A commit on GitHub. */
@@ -150,11 +162,11 @@ export const commitUrl = (commit: string) => `${repositoryUrl}/commit/${commit}`
 export const compareUrl = (base: string, head: string) =>
   `${repositoryUrl}/compare/${base}...${head}`;
 
-/** A preview's file in the repository. */
+/** A state's or preview's file in the repository. */
 export const sourcePath = (snapshot: Snapshot) =>
   snapshot.path ?? `LilPackage/Sources/${snapshot.module}/${snapshot.file}`;
 
-/** A preview's file and line on GitHub, at a commit. */
+/** A state's or preview's file and line on GitHub, at a commit. */
 export const sourceUrl = (snapshot: Snapshot, commit: string) =>
   `${repositoryUrl}/blob/${commit}/` +
   // Older manifests have no path: their modules had no folders.

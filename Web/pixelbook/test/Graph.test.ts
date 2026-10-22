@@ -1,5 +1,15 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
-import { catalogStateNames, checkGraphs, previewNames, scanScreens } from "../scripts/graphs.ts";
+import {
+  catalogStateNames,
+  checkGraphs,
+  manifestProblems,
+  previewNames,
+  scanCatalogs,
+  scanScreens,
+} from "../scripts/graphs.ts";
 import { layoutFlow } from "../src/lib/Flow.ts";
 import { type Graph, graphProblems, parseGraph } from "../src/lib/Graph.ts";
 
@@ -35,10 +45,123 @@ describe("graph files", () => {
     expect(previewNames('// #Preview("Old") {}\nstruct A {}')).toBeUndefined();
   });
 
-  it("finds a catalog's state names, and skips commented-out ones", () => {
-    const source = `StateCatalog(\n  "Metric Detail", width: 760, minHeight: 820,\n  states: [\n    CatalogState("Steps, week") { a },\n    // CatalogState("Old") { b },\n    CatalogState(\n      "Say \\"hi\\"", minHeight: 400\n    ) { c },\n  ])`;
-    expect(catalogStateNames(source)).toEqual(["Steps, week", 'Say "hi"']);
-    expect(catalogStateNames("struct A {}")).toBeUndefined();
+  it("finds a catalog's state names, outside comments and strings", () => {
+    const source = [
+      "StateCatalog(",
+      '  "Metric Detail", width: 760, minHeight: 820,',
+      "  states: [",
+      '    CatalogState("Steps, week") { a },',
+      '    // CatalogState("Old") { b },',
+      "    CatalogState(",
+      '      "Say \\"hi\\" \\u{2019}", minHeight: 400',
+      "    ) { c },",
+      '    CatalogState("Link") { Text("https://lil.tech CatalogState(\\"No\\")") },',
+      '    CatalogState("After the link") { d },',
+      "  ])",
+    ].join("\n");
+    expect(catalogStateNames(source)).toEqual([
+      "Steps, week",
+      'Say "hi" \u2019',
+      "Link",
+      "After the link",
+    ]);
+    expect(catalogStateNames("struct A {}")).toEqual([]);
+  });
+
+  describe("catalog manifests", () => {
+    const folder = "LilPackage/Tests/Mac/Catalogs/LilAuth";
+    const manifest = (app: string, screen: string, names: ReadonlyArray<string>) => ({
+      app,
+      screen,
+      catalog: "LilAuth/SignInCatalog.swift",
+      states: names.map((name) => ({
+        id: name,
+        name,
+        source: `${folder}/SignInCatalog.swift`,
+        light: `${folder}/__Snapshots__/SignInCatalog/${name}-light.png`,
+        dark: `${folder}/__Snapshots__/SignInCatalog/${name}-dark.png`,
+      })),
+    });
+    /** A repository with SignInCatalog's Mac and iPhone manifests and references. */
+    const withRepository = async (
+      swift: string,
+      manifests: Record<string, unknown>,
+      check: (repository: string) => Promise<void>,
+    ) => {
+      const repository = await mkdtemp(join(tmpdir(), "graphs-"));
+      try {
+        const write = async (path: string, contents: string) => {
+          await mkdir(join(repository, path, ".."), { recursive: true });
+          await writeFile(join(repository, path), contents);
+        };
+        await write(`${folder}/SignInCatalog.swift`, swift);
+        for (const [file, json] of Object.entries(manifests)) {
+          await write(`${folder}/__Snapshots__/SignInCatalog/${file}`, JSON.stringify(json));
+        }
+        for (const name of ["Out", "Web"]) {
+          for (const appearance of ["light", "dark"]) {
+            await write(`${folder}/__Snapshots__/SignInCatalog/${name}-${appearance}.png`, "");
+          }
+        }
+        await check(repository);
+      } finally {
+        await rm(repository, { recursive: true, force: true });
+      }
+    };
+    const swift = [
+      '#if os(macOS)\nlet c = StateCatalog("Mac", states: s + [CatalogState("Web") {}])',
+      '#else\nlet c = StateCatalog(phone: "iPhone", states: s)\n#endif',
+      'let s = [CatalogState("Out") {}]',
+    ].join("\n");
+    const both = {
+      "mac.json": manifest("health-mac", "Mac", ["Out", "Web"]),
+      "iphone.json": manifest("health-iphone", "iPhone", ["Out"]),
+    };
+
+    it("gives each app its catalogs' states", async () => {
+      await withRepository(swift, both, async (repository) => {
+        const catalogs = await scanCatalogs(repository);
+        expect(catalogs.get("health-mac")?.get("LilAuth/SignInCatalog.swift")).toEqual([
+          "Out",
+          "Web",
+        ]);
+        expect(catalogs.get("health-iphone")?.get("LilAuth/SignInCatalog.swift")).toEqual(["Out"]);
+        expect(await manifestProblems(repository)).toEqual([]);
+      });
+    });
+
+    it("finds manifests that are out of date or left behind", async () => {
+      const renamed = swift.replace('"Out"', '"Signed out"').replace('"Mac"', '"Mac app"');
+      await withRepository(renamed, both, async (repository) => {
+        expect(await manifestProblems(repository)).toEqual([
+          `${folder}/__Snapshots__/SignInCatalog/iphone.json: "Out" isn't in ${folder}/SignInCatalog.swift any more.`,
+          `${folder}/__Snapshots__/SignInCatalog/mac.json: its screen, "Mac", isn't in ${folder}/SignInCatalog.swift. If it was renamed, delete the manifest and the old references.`,
+          `${folder}/SignInCatalog.swift: "Web" isn't in a manifest.`,
+          `${folder}/SignInCatalog.swift: "Signed out" isn't in a manifest.`,
+        ]);
+      });
+      await withRepository(
+        swift,
+        {
+          "mac.json": manifest("health-mac", "Mac", ["Out", "Web", "New"]),
+          "old.json": {
+            ...manifest("health-mac", "Old", ["Out"]),
+            states: manifest("health-mac", "Old", ["Out"]).states.map((state) => ({
+              ...state,
+              source: `${folder}/OldCatalog.swift`,
+            })),
+          },
+        },
+        async (repository) => {
+          expect(await manifestProblems(repository)).toEqual([
+            `${folder}/__Snapshots__/SignInCatalog/mac.json: "New" isn't in ${folder}/SignInCatalog.swift any more.`,
+            `${folder}/__Snapshots__/SignInCatalog/mac.json: "New" has no reference ${folder}/__Snapshots__/SignInCatalog/New-light.png.`,
+            `${folder}/__Snapshots__/SignInCatalog/mac.json: "New" has no reference ${folder}/__Snapshots__/SignInCatalog/New-dark.png.`,
+            `${folder}/__Snapshots__/SignInCatalog/old.json: ${folder}/OldCatalog.swift doesn't exist. Delete the manifest.`,
+          ]);
+        },
+      );
+    });
   });
 
   it("says what's wrong with a graph's shape", () => {
@@ -93,6 +216,7 @@ describe("graph files", () => {
   it("checks the real graphs against the real previews and catalogs", async () => {
     const problems = await checkGraphs(await scanScreens());
     expect(Object.fromEntries(problems)).toEqual({});
+    expect(await manifestProblems()).toEqual([]);
   });
 });
 

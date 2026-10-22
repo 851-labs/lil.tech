@@ -45,20 +45,9 @@ struct SnapshotOutput {
     guard let output = ProcessInfo.processInfo.environment["LIL_SNAPSHOT_OUTPUT"] else {
       return nil
     }
-    // Where SnapshotTesting keeps the reference: `__Snapshots__/<test file>/<test>.<name>.png`
-    // next to the test file, with its names made safe as SnapshotTesting does
-    // (`sanitizePathComponent`, which isn't public).
-    func sanitized(_ component: String) -> String {
-      component
-        .replacingOccurrences(of: "\\W+", with: "-", options: .regularExpression)
-        .replacingOccurrences(of: "^-|-$", with: "", options: .regularExpression)
-    }
-    let testFile = URL(filePath: "\(file)")
-    let folder = testFile.deletingPathExtension().lastPathComponent
-    let fileName = "\(sanitized(testName)).\(sanitized(name)).png"
-    image = URL(filePath: output).appending(components: folder, fileName)
-    reference = testFile.deletingLastPathComponent()
-      .appending(components: "__Snapshots__", folder, fileName)
+    reference = referenceURL(file: file, testName: testName, name: name)
+    let folder = reference.deletingLastPathComponent().lastPathComponent
+    image = URL(filePath: output).appending(components: folder, reference.lastPathComponent)
     diff = image.deletingPathExtension().appendingPathExtension("diff.png")
     reportFile = URL(filePath: output).appending(component: "report.tsv")
     previousReference = modificationDate(of: reference)
@@ -122,6 +111,22 @@ struct SnapshotOutput {
     handle.write(Data(line.utf8))
     try? handle.close()
   }
+}
+
+/// Where SnapshotTesting keeps a PNG reference: `__Snapshots__/<test file>/<test>.<name>.png` next
+/// to the test file, with its names made safe as SnapshotTesting does (`sanitizePathComponent`,
+/// which isn't public).
+func referenceURL(file: StaticString, testName: String, name: String) -> URL {
+  func sanitized(_ component: String) -> String {
+    component
+      .replacingOccurrences(of: "\\W+", with: "-", options: .regularExpression)
+      .replacingOccurrences(of: "^-|-$", with: "", options: .regularExpression)
+  }
+  let testFile = URL(filePath: "\(file)")
+  return testFile.deletingLastPathComponent()
+    .appending(
+      components: "__Snapshots__", testFile.deletingPathExtension().lastPathComponent,
+      "\(sanitized(testName)).\(sanitized(name)).png")
 }
 
 /// From the file system each time (a `URL` caches its resource values).

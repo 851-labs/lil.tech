@@ -19,7 +19,7 @@ export const comment = (
   books: { readonly base: Book | undefined; readonly head: Book | undefined },
 ): string => {
   if (books.head === undefined) {
-    return `${marker}\n**Pixelbook** has no snapshots of ${short(head)} yet: \`scripts/pixelbook publish\` publishes them (lefthook's pre-push hook does too, when it isn't paused).`;
+    return `${marker}\n**Pixelbook** has no snapshots of ${short(head)} yet: \`scripts/pixelbook publish --commit ${head}\` publishes them.`;
   }
   if (books.base === undefined) {
     return `${marker}\n**Pixelbook** has no snapshots of the base, ${short(base)}, to compare with. [Snapshots of ${short(head)}](${pixelbookUrl}/?commit=${head})`;

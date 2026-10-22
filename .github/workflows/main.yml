@@ -6,7 +6,7 @@ name: Main
 #   checking each serves the merge (`scripts/check-deploy`).
 # - check: the Swift checks again, on the merged code, and the iPhone's state catalogs in the
 #   simulator (`swift-check.yml`).
-# - pixelbook: points Pixelbook's main at the merge's snapshots. Paused (851-2816).
+# - pixelbook: publishes the merge's state catalog images to Pixelbook, and points its main at them.
 #
 # Nothing here is ever cancelled, so every merge is deployed and checked: jobs that must not
 # overlap queue in order (`queue: max` keeps up to 100 waiting, where the default keeps one and
@@ -84,15 +84,12 @@ jobs:
     with:
       iphone: true
 
-  # Pixelbook's snapshots are published before a push, on developers' Macs, but no one pushes
-  # main's squash merges. A merge shares its branch's snapshots when the branch was up to date with
-  # main, so this points main at them (`publish --pointers-only`). Otherwise it warns, and main
-  # keeps its last published commit until someone runs `scripts/pixelbook publish` on it.
-  #
-  # Paused with the pre-push render (851-2816): with nothing published, it only warned on each
-  # merge. Remove `false &&` when the render is turned back on, with pr.yml's.
+  # Publishes the merge's state catalog images to Pixelbook and points main at them
+  # (`scripts/pixelbook publish`, 851-2955). They're the catalogs' committed references, read with
+  # git, so it needs no Mac and renders nothing. A merge whose catalogs a branch already published
+  # (its PR's head, when it was up to date with main) only moves pointers.
   pixelbook:
-    if: false && github.event_name == 'push'
+    if: github.event_name == 'push'
     # In order, so main's pointer doesn't move back.
     concurrency:
       group: main-pixelbook
@@ -108,5 +105,5 @@ jobs:
           # All of main, so a late or re-run job can tell its commit is behind main's pointer.
           fetch-depth: 0
       - uses: ./.github/actions/setup-services
-      - name: Point main at this commit's snapshots
-        run: scripts/pixelbook publish --pointers-only --ref main
+      - name: Publish this commit's snapshots and point main at them
+        run: scripts/pixelbook publish --ref main

@@ -8,6 +8,9 @@
   // States of lil health for Mac, light and dark (851-2931), from fixed dates. Synthetic data
   // only. State catalogs (`Catalogs/`, 851-2949) add their tests to this suite, one per screen.
 
+  /// The app Pixelbook shows these catalogs under (`CatalogManifest`, 851-2955).
+  let pixelbookApp = "health-mac"
+
   // Serialized: a snapshot runs the main run loop, where another could start and change the
   // app's appearance. Views that read the database, the date or the calendar get the catalogs'
   // (851-2950).

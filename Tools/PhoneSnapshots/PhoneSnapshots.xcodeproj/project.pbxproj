@@ -305,7 +305,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				EXCLUDED_SOURCE_FILE_NAMES = "*.png";
+				EXCLUDED_SOURCE_FILE_NAMES = "*.png *.json";
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.health-phone-snapshot-tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -317,7 +317,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				EXCLUDED_SOURCE_FILE_NAMES = "*.png";
+				EXCLUDED_SOURCE_FILE_NAMES = "*.png *.json";
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.health-phone-snapshot-tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";

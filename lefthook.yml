@@ -1,35 +1,20 @@
 # Checks before every commit (`docs/DECISIONS.md`): each job runs when the commit touches its part of
 # the repo. The Swift checks run on GitHub instead, on our Mac minis (`.github/workflows/swift-check.yml`).
-# Set up once per clone with `lefthook install`; skip in an emergency with `LEFTHOOK=0 git commit …`
-# (or `git push`).
-
-# Before a push, when it isn't paused: publishes the pushed commit's Pixelbook snapshots, rendering
-# them (a few minutes) unless a commit with the same inputs already did (`scripts/pixelbook publish
-# --hook`). It skips with a note when it can't publish (offline, uncommitted changes, pushing
-# something other than HEAD); a preview that fails to render blocks the push, like a failing check.
-#
-# Paused (851-2816): the iPhone simulator kept hanging renders, and the render lock queued pushes
-# behind each other. Remove `skip`, and the `false &&` in the pixelbook jobs of
-# `pr.yml` and `main.yml`, to turn it back on.
-pre-push:
-  jobs:
-    - name: pixelbook
-      skip: true
-      # Git gives the hook the remote's name and URL ({1}, {2}).
-      run: scripts/pixelbook publish --hook {2}
-      # Git lists the pushed refs on stdin.
-      use_stdin: true
+# Set up once per clone with `lefthook install`; skip in an emergency with `LEFTHOOK=0 git commit …`.
+# Nothing runs before a push: Pixelbook, which used to render and publish there, is published by
+# CI from the committed state catalog images (851-2955).
 
 pre-commit:
   parallel: true
   jobs:
-    # Pixelbook's graph files name previews and catalog states, so renaming one in Swift is checked
-    # against them.
+    # Pixelbook's graph files name previews and catalog states (from the catalogs' manifests), so
+    # renaming one in Swift is checked against them.
     - name: pixelbook
       run: scripts/check --hook --pixelbook
       glob:
         - "LilPackage/Sources/**/*.swift"
         - "LilPackage/Tests/*/Catalogs/**/*.swift"
+        - "LilPackage/Tests/*/Catalogs/**/*.json"
         - "Web/pixelbook/graphs/**"
         - "Web/pixelbook/src/lib/Graph.ts"
         - "Web/pixelbook/scripts/graphs.ts"

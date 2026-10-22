@@ -1,0 +1,63 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthMacApp/CategoryCatalog.swift",
+  "screen" : "Category",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.heart-dark.png",
+      "id" : "category.heart",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.heart-light.png",
+      "name" : "Heart",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.activity-dark.png",
+      "id" : "category.activity",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.activity-light.png",
+      "name" : "Activity",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.respiratory-dark.png",
+      "id" : "category.respiratory",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.respiratory-light.png",
+      "name" : "Respiratory",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.medications-dark.png",
+      "id" : "category.medications",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.medications-light.png",
+      "name" : "Medications",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.medications-none-logged-dark.png",
+      "id" : "category.medications-none-logged",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.medications-none-logged-light.png",
+      "name" : "Medications, none logged",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.no-data-dark.png",
+      "id" : "category.no-data",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.no-data-light.png",
+      "name" : "No data",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.loading-dark.png",
+      "id" : "category.loading",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.loading-light.png",
+      "name" : "Loading",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.failed-dark.png",
+      "id" : "category.failed",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.failed-light.png",
+      "name" : "Failed",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthPages/HealthDocumentsCatalog.swift",
+  "screen" : "Health Documents",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.health-documents-dark.png",
+      "id" : "health-documents.health-documents",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.health-documents-light.png",
+      "name" : "Health documents",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/HealthDocumentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.health-documents-at-the-limit-dark.png",
+      "id" : "health-documents.health-documents-at-the-limit",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.health-documents-at-the-limit-light.png",
+      "name" : "Health documents, at the limit",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/HealthDocumentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.no-health-documents-dark.png",
+      "id" : "health-documents.no-health-documents",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.no-health-documents-light.png",
+      "name" : "No health documents",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/HealthDocumentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.health-documents-loading-dark.png",
+      "id" : "health-documents.health-documents-loading",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.health-documents-loading-light.png",
+      "name" : "Health documents loading",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/HealthDocumentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.health-documents-failed-dark.png",
+      "id" : "health-documents.health-documents-failed",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.health-documents-failed-light.png",
+      "name" : "Health documents failed",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/HealthDocumentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.visit-summary-dark.png",
+      "id" : "health-documents.visit-summary",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.visit-summary-light.png",
+      "name" : "Visit summary",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/HealthDocumentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.some-not-shown-dark.png",
+      "id" : "health-documents.some-not-shown",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.some-not-shown-light.png",
+      "name" : "Some not shown",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/HealthDocumentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.malformed-document-dark.png",
+      "id" : "health-documents.malformed-document",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.malformed-document-light.png",
+      "name" : "Malformed document",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/HealthDocumentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.document-loading-dark.png",
+      "id" : "health-documents.document-loading",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.document-loading-light.png",
+      "name" : "Document loading",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/HealthDocumentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.document-failed-dark.png",
+      "id" : "health-documents.document-failed",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.document-failed-light.png",
+      "name" : "Document failed",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/HealthDocumentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.document-no-longer-shared-dark.png",
+      "id" : "health-documents.document-no-longer-shared",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.document-no-longer-shared-light.png",
+      "name" : "Document no longer shared",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/HealthDocumentsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.document-xml-dark.png",
+      "id" : "health-documents.document-xml",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/HealthDocumentsCatalog/health-documents.document-xml-light.png",
+      "name" : "Document XML",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/HealthDocumentsCatalog.swift"
+    }
+  ]
+}
