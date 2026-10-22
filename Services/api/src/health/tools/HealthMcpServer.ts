@@ -7,10 +7,15 @@ import {
   agentGrantHeader,
   agentToolHeader,
 } from "../../mcp/AgentHeaders.ts";
-import { serveStoreMcp, type StoreMcpApp } from "../../mcp/StoreMcpServer.ts";
+import {
+  serveStoreMcp,
+  type StoreMcpApp,
+  type StoreMcpSessions,
+} from "../../mcp/StoreMcpServer.ts";
 import { agentResources } from "../../oauth/Hosts.ts";
 import type { AgentAccess } from "../../store/AgentAccessLog.ts";
 import type { AccountDeleted } from "../../store/Changes.ts";
+import { storeMcpSessions } from "../../store/McpSessions.ts";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { HealthToolError, type HealthToolHandlers, HealthToolkit } from "./HealthToolkit.ts";
 import { type HealthToolImplementations, storeHealthTools } from "./StoreHealthTools.ts";
@@ -269,14 +274,24 @@ export const makeHealthMcpServer = (
 ) =>
   Effect.gen(function* () {
     const turns = options.turns ?? (yield* makeTurns(options.maxQueued));
-    return yield* serveHealthMcp(healthMcpApp({ ...options, turns }));
+    return yield* serveHealthMcp(
+      healthMcpApp({ ...options, turns }),
+      storeMcpSessions(options.sql)(healthMcpSessionsKey),
+    );
   });
 
-/** lil health's own server, serving `app` (`healthMcpApp`) at `healthMcpPath`. */
-export const serveHealthMcp = (app: StoreMcpApp) =>
+/** Which server a session of lil health's own server is, where the store keeps sessions. */
+export const healthMcpSessionsKey = "health";
+
+/**
+ * lil health's own server, serving `app` (`healthMcpApp`) at `healthMcpPath`, with its sessions
+ * kept in `sessions`.
+ */
+export const serveHealthMcp = (app: StoreMcpApp, sessions: StoreMcpSessions) =>
   serveStoreMcp({
     name: "lil health",
     instructions: app.instructions,
     path: healthMcpPath,
     register: app.register,
+    sessions,
   });

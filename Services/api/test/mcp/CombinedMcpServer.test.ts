@@ -13,6 +13,7 @@ import {
 } from "../../src/mcp/AgentHeaders.ts";
 import { makeCombinedMcpServer } from "../../src/mcp/CombinedMcpServer.ts";
 import { agentResources } from "../../src/oauth/Hosts.ts";
+import { storeMcpSessions } from "../../src/store/McpSessions.ts";
 import { makeTestStore } from "../store/TestUserStores.ts";
 import { registryWithMail } from "../oauth/TestAgents.ts";
 import { testMailApp } from "./TestMailApp.ts";
@@ -60,6 +61,7 @@ const makeServer = Effect.gen(function* () {
       health: healthMcpApp({ sql, record: store.recordAgentAccess, turns }),
       mail: testMailApp,
     },
+    sessions: storeMcpSessions(sql),
   });
   return { sql, send: viaStore(server) };
 });
@@ -219,6 +221,7 @@ describe("the combined MCP server in the store", () => {
         yield* makeCombinedMcpServer({
           registry: agentResources,
           apps: { health: healthMcpApp({ sql, record, turns }) },
+          sessions: storeMcpSessions(sql),
         }),
       );
       const ownCall = sessionless("tools/call", { name: "summary", arguments: {} });
