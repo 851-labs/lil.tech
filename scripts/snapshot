@@ -4,8 +4,8 @@
 # snapshot tests' bundle directly, rather than every test bundle twice (XCTest's, then Swift
 # Testing's) as `swift test --filter` does. The images are the ones `swift test` takes.
 # With `--iphone`, the iPhone's instead, in the simulator (851-2953).
-# Usage: scripts/snapshot [--messages] [--record] [--no-build] [<filter>…]
-#        scripts/snapshot --iphone [--record] [--no-build] [<test>…]
+# Usage: scripts/snapshot [--messages] [--record] [--sheet] [--no-build] [<filter>…]
+#        scripts/snapshot --iphone [--record] [--sheet] [--no-build] [<test>…]
 #        scripts/snapshot --iphone --delete-simulator
 #   <filter>     Which tests to run, as for `swift test --filter`: a regular expression matched
 #                against a test's ID, `HealthSnapshotTests.MacSnapshotTests/metricDetail(_:)`,
@@ -13,6 +13,10 @@
 #                matches one. Every snapshot test when none is given.
 #   --record     Record new references for the images that changed or have none
 #                (`SNAPSHOT_TESTING_RECORD=failed`).
+#   --sheet      Then make the before/after sheet of the states that changed from the branch's
+#                merge base with `origin/main`, recorded or not, to attach to the PR and the ticket
+#                (`scripts/snapshot-sheet`, 851-3062): `<output>/sheet.jpg`, and `sheet.png` at
+#                full size, light and dark, with new and removed states marked.
 #   --no-build   Run what was last built.
 #   --messages   lil messages' state catalogs (`MessagesSnapshotTests`, 851-2968) instead of lil
 #                health's, e.g. `scripts/snapshot --messages messageThread`.
@@ -41,6 +45,7 @@ set -eu
 set -f
 
 record=false
+sheet=false
 build=true
 iphone=false
 messages=false
@@ -49,12 +54,13 @@ filters=""
 for arg in "$@"; do
   case "$arg" in
     --record) record=true ;;
+    --sheet) sheet=true ;;
     --no-build) build=false ;;
     --iphone) iphone=true ;;
     --messages) messages=true ;;
     --delete-simulator) delete_simulator=true ;;
     -*)
-      echo "usage: scripts/snapshot [--iphone | --messages] [--record] [--no-build] [<filter>…]" >&2
+      echo "usage: scripts/snapshot [--iphone | --messages] [--record] [--sheet] [--no-build] [<filter>…]" >&2
       echo "       scripts/snapshot --iphone --delete-simulator" >&2
       exit 2
       ;;
@@ -98,6 +104,15 @@ print_report() {
       recorded | rerecorded) recorded=$((recorded + 1)) ;;
     esac
   done <"$output/report.tsv"
+}
+
+# With --sheet, makes the sheet from the run's report (`scripts/snapshot-sheet`). A sheet that
+# fails fails the run.
+make_sheet() {
+  if $sheet; then
+    echo
+    "$root/scripts/snapshot-sheet" "$output" || status=1
+  fi
 }
 
 if $iphone; then
@@ -320,6 +335,7 @@ for device in sorted(devices, key=lambda device: device["state"] != "Booted"):
     grep -E "^✘ " "$output/test.log" | head -n 20 >&2 || true
     echo "See $output/test.log." >&2
   fi
+  make_sheet
   exit "$status"
 fi
 
@@ -408,4 +424,5 @@ if $record && [ "$status" = 1 ]; then
     status=0
   fi
 fi
+make_sheet
 exit "$status"

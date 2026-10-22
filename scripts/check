@@ -3,7 +3,8 @@
 # Pixelbook parts a commit touches; GitHub runs the Swift part on our Mac minis (`swift-check.yml`).
 # Usage: scripts/check [--hook] [--swift] [--services] [--pixelbook]   (every part when none is given)
 #   --swift     Swift lint (with a check that the server's copy of the Health catalog is fresh),
-#               the package's tests, and the apps' builds, with the iPhone's snapshot tests'.
+#               `scripts/snapshot --sheet`'s check, the package's tests, and the apps' builds,
+#               with the iPhone's snapshot tests'.
 #   --services  Format, lint and type checks (`scripts/format --lint --services`, which also checks
 #               the OpenAPI spec is fresh), the generated Swift client regenerated and compared,
 #               and every workspace package's tests.
@@ -72,6 +73,7 @@ fi
 
 if $swift; then
   step scripts/format --lint --swift
+  step scripts/test-snapshot-sheet
   step sh -c 'cd LilPackage && swift test --quiet --scratch-path "$1/package"' _ "$scratch"
   # Unsigned: this only checks that the apps build.
   step xcodebuild -workspace Lil.xcworkspace -scheme LilMessages -destination 'platform=macOS' \

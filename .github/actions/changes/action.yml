@@ -24,7 +24,7 @@ runs:
         # The paths `scripts/check --swift` checks (with the server's copy of the Health catalog,
         # which it compares with the Swift one, and the Health toolkit's tools and conformance
         # cases, which the Mac's tests read), and the CI files that run it.
-        SWIFT: '^(LilPackage/|Apps/|Tools/|Lil\.xcworkspace/|\.swift-format$|scripts/(format|check|snapshot|generate-health-catalog)$|Services/api/health-catalog\.json$|Services/api/mcp-tools\.json$|Services/api/test/health/tools/conformance/|\.github/workflows/(pr|main|swift-check)\.yml$|\.github/actions/(changes|select-xcode)/)'
+        SWIFT: '^(LilPackage/|Apps/|Tools/|Lil\.xcworkspace/|\.swift-format$|scripts/(format|check|snapshot|snapshot-sheet|test-snapshot-sheet|contact-sheet|generate-health-catalog)$|Services/api/health-catalog\.json$|Services/api/mcp-tools\.json$|Services/api/test/health/tools/conformance/|\.github/workflows/(pr|main|swift-check)\.yml$|\.github/actions/(changes|select-xcode)/)'
         # The TypeScript workspace, the scripts and generated client the deploys use, and the CI
         # files that deploy it.
         SERVICES: '^(Services/|Web/|package\.json$|pnpm-workspace\.yaml$|pnpm-lock\.yaml$|\.node-version$|vite\.config\.ts$|tsconfig\.json$|tsconfig\.base\.json$|scripts/generate-api-client$|LilPackage/Sources/LilAPIGenerated/|\.github/workflows/(pr|main)\.yml$|\.github/actions/(setup-services|changes|comment|check-deploy)/)'

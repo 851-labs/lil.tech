@@ -1,38 +1,156 @@
 #!/usr/bin/env swift
 // Usage: scripts/contact-sheet <output.png> <columns> <image.png>...
+//        scripts/contact-sheet <output.png> <columns> - <cells
 // Lays images out in a grid, each labeled with its file name.
+// With `-`, the cells come from standard input, a line each (`scripts/snapshot --sheet`'s,
+// 851-3062): `<label>\t<image.png>` is an image with that label, `<label>\t` a cell with only its
+// label (a state with no before), and a line without a tab a heading, across the sheet, that
+// starts a new row. Each row is as tall as its tallest image.
 import AppKit
 
-let args = CommandLine.arguments
-let output = URL(fileURLWithPath: args[1])
-let columns = Int(args[2])!
-let images = args.dropFirst(3).map { path -> (String, NSBitmapImageRep) in
-  let rep = NSBitmapImageRep(data: try! Data(contentsOf: URL(fileURLWithPath: path)))!
-  let name = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
-  return (name, rep)
+enum Cell {
+  case heading(String)
+  case image(String, NSBitmapImageRep?)
 }
-let cellWidth = images.map { $0.1.pixelsWide }.max()!
-let cellHeight = images.map { $0.1.pixelsHigh }.max()!
-let labelHeight = 60, gap = 24
-let rows = (images.count + columns - 1) / columns
+
+func image(at path: String) -> NSBitmapImageRep {
+  guard let data = FileManager.default.contents(atPath: path),
+    let rep = NSBitmapImageRep(data: data)
+  else {
+    FileHandle.standardError.write(Data("error: couldn't read the image \(path).\n".utf8))
+    exit(1)
+  }
+  return rep
+}
+
+let args = CommandLine.arguments
+guard args.count >= 4, let columns = Int(args[2]), columns > 0 else {
+  FileHandle.standardError.write(
+    Data("usage: scripts/contact-sheet <output.png> <columns> (<image.png>... | -)\n".utf8))
+  exit(2)
+}
+let output = URL(fileURLWithPath: args[1])
+var cells: [Cell] = []
+if args[3] == "-" {
+  while let line = readLine() {
+    guard !line.isEmpty else { continue }
+    let parts = line.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
+    cells.append(
+      parts.count == 2
+        ? .image(String(parts[0]), parts[1].isEmpty ? nil : image(at: String(parts[1])))
+        : .heading(line))
+  }
+} else {
+  cells = args.dropFirst(3).map { path in
+    .image(URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent, image(at: path))
+  }
+}
+
+// Rows: a heading, if any, and up to `columns` cells.
+struct Row {
+  var heading: String?
+  var cells: [(label: String, image: NSBitmapImageRep?)] = []
+  /// The size of a cell without an image: the row's largest image, or a placeholder's.
+  var imageSize: (width: Int, height: Int) {
+    let images = cells.compactMap(\.image)
+    return images.isEmpty
+      ? (cellWidth, 300) : (images.map(\.pixelsWide).max()!, images.map(\.pixelsHigh).max()!)
+  }
+  var height: Int {
+    (heading == nil ? 0 : headingHeight) + (cells.isEmpty ? 0 : labelHeight + imageSize.height)
+  }
+}
+var rows: [Row] = []
+for cell in cells {
+  switch cell {
+  case .heading(let text):
+    rows.append(Row(heading: text))
+  case .image(let label, let rep):
+    if rows.isEmpty || rows[rows.count - 1].cells.count == columns {
+      rows.append(Row())
+    }
+    rows[rows.count - 1].cells.append((label, rep))
+  }
+}
+let reps = rows.flatMap { $0.cells.compactMap(\.image) }
+guard !reps.isEmpty else {
+  FileHandle.standardError.write(Data("error: no images.\n".utf8))
+  exit(1)
+}
+let cellWidth = reps.map(\.pixelsWide).max()!
+// Labels grow with the images, so they stay readable on a sheet of large ones.
+let scale = max(1, Double(cellWidth) / 800)
+let labelSize = 32 * scale
+let headingSize = 44 * scale
+let labelHeight = Int(60 * scale)
+let headingHeight = Int(80 * scale)
+let gap = 24
 let width = columns * cellWidth + (columns + 1) * gap
-let height = rows * (cellHeight + labelHeight) + (rows + 1) * gap
-let canvas = NSBitmapImageRep(
-  bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
-  samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-  bytesPerRow: 0, bitsPerPixel: 0)!
+let height = rows.map { $0.height + gap }.reduce(gap, +)
+// A sheet of many large images is drawn smaller, to stay under 150 megapixels (600 MB to draw)
+// and 60,000 pixels high, so it can be made at all, and its half-size JPEG (65,535 at most) too.
+let fit = min(
+  1, 60_000 / Double(height), (150_000_000 / (Double(width) * Double(height))).squareRoot())
+if fit < 1 {
+  FileHandle.standardError.write(
+    Data(
+      "note: the sheet is drawn at \(Int(fit * 100))% of its size, to fit; fewer images at once draw larger.\n"
+        .utf8))
+}
+guard
+  let canvas = NSBitmapImageRep(
+    bitmapDataPlanes: nil, pixelsWide: Int(Double(width) * fit),
+    pixelsHigh: Int(Double(height) * fit), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+    isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
+else {
+  FileHandle.standardError.write(Data("error: couldn't make a \(width) by \(height) sheet.\n".utf8))
+  exit(1)
+}
 NSGraphicsContext.saveGraphicsState()
 NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: canvas)
+let transform = NSAffineTransform()
+transform.scale(by: fit)
+transform.concat()
 NSColor(white: 0.93, alpha: 1).setFill()
 NSRect(x: 0, y: 0, width: width, height: height).fill()
-for (index, (name, rep)) in images.enumerated() {
-  let column = index % columns, row = index / columns
-  let x = gap + column * (cellWidth + gap)
-  let top = height - gap - row * (cellHeight + labelHeight + gap)
-  (name as NSString).draw(
-    at: NSPoint(x: x, y: top - labelHeight + 14),
-    withAttributes: [.font: NSFont.boldSystemFont(ofSize: 32), .foregroundColor: NSColor.black])
-  rep.draw(in: NSRect(x: x, y: top - labelHeight - rep.pixelsHigh, width: rep.pixelsWide, height: rep.pixelsHigh))
+// From the top: AppKit's origin is the bottom left.
+var top = height - gap
+for row in rows {
+  var cellsTop = top
+  if let heading = row.heading {
+    (heading as NSString).draw(
+      at: NSPoint(x: Double(gap), y: Double(top - headingHeight) + 20 * scale),
+      withAttributes: [
+        .font: NSFont.boldSystemFont(ofSize: headingSize), .foregroundColor: NSColor.black,
+      ])
+    cellsTop -= headingHeight
+  }
+  for (column, (label, rep)) in row.cells.enumerated() {
+    let x = gap + column * (cellWidth + gap)
+    (label as NSString).draw(
+      at: NSPoint(x: Double(x), y: Double(cellsTop - labelHeight) + 14 * scale),
+      withAttributes: [
+        .font: NSFont.boldSystemFont(ofSize: labelSize), .foregroundColor: NSColor.black,
+      ])
+    let imageTop = cellsTop - labelHeight
+    if let rep {
+      rep.draw(
+        in: NSRect(
+          x: x, y: imageTop - rep.pixelsHigh, width: rep.pixelsWide, height: rep.pixelsHigh))
+    } else {
+      // A dashed outline where the image would be.
+      let (outlineWidth, outlineHeight) = row.imageSize
+      let outline = NSBezierPath(
+        rect: NSRect(
+          x: x + 2, y: imageTop - outlineHeight + 2, width: outlineWidth - 4,
+          height: outlineHeight - 4))
+      outline.lineWidth = 4
+      outline.setLineDash([16, 12], count: 2, phase: 0)
+      NSColor(white: 0.6, alpha: 1).setStroke()
+      outline.stroke()
+    }
+  }
+  top -= row.height + gap
 }
 NSGraphicsContext.restoreGraphicsState()
 try! canvas.representation(using: .png, properties: [:])!.write(to: output)
