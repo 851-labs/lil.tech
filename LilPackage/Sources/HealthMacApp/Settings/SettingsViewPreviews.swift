@@ -162,6 +162,26 @@ private func agents(
   agents(isSignedIn: false)
 }
 
+// How to connect a local agent (851-2865), on its own, tall enough to see it all: `lil mcp` first,
+// then `lil health mcp` for lil health only (851-2898).
+
+@MainActor
+private func setup(commandLineTool: URL?) -> some View {
+  Form {
+    AgentSetupSection(commandLineTool: commandLineTool)
+  }
+  .formStyle(.grouped)
+  .previewFrame(width: SettingsView.width, height: 560)
+}
+
+#Preview("Connect an agent") {
+  setup(commandLineTool: URL(filePath: "/usr/local/bin/lil"))
+}
+
+#Preview("Connect an agent: without lil") {
+  setup(commandLineTool: nil)
+}
+
 // The Agents pane's remote agents (851-2853), on their own, tall enough to see them all.
 // Synthetic agents and reads.
 

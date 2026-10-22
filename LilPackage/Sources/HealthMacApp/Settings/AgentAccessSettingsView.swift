@@ -128,30 +128,40 @@ struct AgentAccessEntryRow: View {
   }
 }
 
-/// How to connect an agent to `lil-health mcp`, a local MCP server agents start themselves
-/// (851-2865): Claude Code's command, and for other agents a local (stdio) server's command and
-/// arguments, with `lil`'s full path, since apps don't get the shell's `PATH`. lil health has no
-/// help book, so it's said here.
+/// How to connect an agent to a local MCP server agents start themselves (851-2865): Claude
+/// Code's command, and for other agents a local (stdio) server's command and arguments, with
+/// `lil`'s full path, since apps don't get the shell's `PATH`. `lil mcp` comes first, one server for
+/// every lil app (851-2898), then `lil health mcp` for agents that should only see lil health. lil
+/// health has no help book, so it's said here.
 struct AgentSetupSection: View {
   /// Where `lil` is installed, if it is.
   let commandLineTool: URL?
 
-  static let arguments = "health mcp"
+  /// `lil mcp`'s arguments: every lil app's tools.
+  static let arguments = "mcp"
+  /// `lil health mcp`'s: lil health's only.
+  static let healthArguments = "health mcp"
 
-  /// Claude Code's command, with `lil`'s full path once it's known: an agent started from an IDE
-  /// or the Dock may not have `~/.local/bin` on its `PATH`.
+  /// Claude Code's command for `lil mcp`, with `lil`'s full path once it's known: an agent started
+  /// from an IDE or the Dock may not have `~/.local/bin` on its `PATH`.
   static func claudeCode(_ lil: String) -> String {
-    "claude mcp add --scope user lil-health -- \(lil) health mcp"
+    "claude mcp add --scope user lil -- \(lil) \(arguments)"
   }
+
+  /// Claude Code's command for lil health's own server.
+  static func claudeCodeHealth(_ lil: String) -> String {
+    "claude mcp add --scope user lil-health -- \(lil) \(healthArguments)"
+  }
+
+  private var path: String? { commandLineTool?.path(percentEncoded: false) }
 
   var body: some View {
     Section {
-      if let path = commandLineTool?.path(percentEncoded: false) {
-        CopyableRow(title: "Claude Code", value: Self.claudeCode(path))
+      CopyableRow(title: "Claude Code", value: Self.claudeCode(path ?? "lil"))
+      if let path {
         CopyableRow(title: "Other agents: command", value: path)
         CopyableRow(title: "Other agents: arguments", value: Self.arguments)
       } else {
-        CopyableRow(title: "Claude Code", value: Self.claudeCode("lil"))
         // A bare `lil` wouldn't start from an app, which doesn't get the shell's `PATH`.
         LabeledContent("Other agents") {
           Text("Once lil is installed, its path appears here.")
@@ -164,14 +174,30 @@ struct AgentSetupSection: View {
       Group {
         if commandLineTool == nil {
           Text(
-            "These need the lil command. Install it with lil health › Install Command Line Tool…, then add lil-health to your agent as a local (stdio) MCP server."
+            "These need the lil command. Install it with lil health › Install Command Line Tool…, then add lil to your agent as a local (stdio) MCP server: one server for every lil app."
           )
         } else {
           Text(
-            "Add lil-health to your agent as a local (stdio) MCP server. The agent starts it when it needs it, and it answers while access is on."
+            "Add lil to your agent as a local (stdio) MCP server: one server for every lil app. The agent starts it when it needs it, and it answers while access is on."
           )
         }
       }
+      .foregroundStyle(.secondary)
+    }
+
+    Section {
+      CopyableRow(title: "Claude Code", value: Self.claudeCodeHealth(path ?? "lil"))
+      if path != nil {
+        CopyableRow(title: "Other agents: arguments", value: Self.healthArguments)
+      }
+    } header: {
+      Text("Connect an Agent to lil health Only")
+    } footer: {
+      Text(
+        path == nil
+          ? "For an agent that should only see lil health, add lil-health instead."
+          : "For an agent that should only see lil health, add lil-health instead: the same command, with these arguments."
+      )
       .foregroundStyle(.secondary)
     }
   }
