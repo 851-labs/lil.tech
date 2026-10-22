@@ -130,7 +130,8 @@
   private let iPhone18ProSize = CGSize(width: 402, height: 874)
 
   extension StateCatalog {
-    /// An iPhone screen's catalog: its states fill the screen, so they take no size.
+    /// An iPhone screen's catalog: its states fill the screen, so they take no size (a state that
+    /// gives one fails).
     init(phone screen: String, states: [CatalogState]) {
       self.init(
         screen, width: iPhone18ProSize.width, minHeight: iPhone18ProSize.height, states: states)
@@ -143,6 +144,13 @@
     /// failure points at the state.
     @MainActor
     func assertPhoneSnapshots() {
+      guard width == iPhone18ProSize.width, minHeight == iPhone18ProSize.height else {
+        Issue.record(
+          "An iPhone state fills the screen, so it takes no width or minimum height of its own.",
+          sourceLocation: SourceLocation(
+            fileID: "\(fileID)", filePath: "\(filePath)", line: Int(line), column: Int(column)))
+        return
+      }
       for style in [UIUserInterfaceStyle.light, .dark] {
         assertPhoneSnapshot(
           of: view(), style: style, named: slug, screen: screenSlug, fileID: fileID,

@@ -106,7 +106,7 @@ if $iphone; then
   # One run at a time on this Mac: they share the simulator.
   lock="${TMPDIR:-/tmp}/lil-snapshot-iphone.lock"
   if [ -z "${LIL_SNAPSHOT_IPHONE_LOCKED:-}" ]; then
-    lockf -s -t 0 "$lock" true 2>/dev/null ||
+    lockf -k -s -t 0 "$lock" true 2>/dev/null ||
       echo "Waiting for another iPhone snapshot run on this Mac to finish…"
     LIL_SNAPSHOT_IPHONE_LOCKED=1 exec lockf -k -t 3600 "$lock" "$root/scripts/snapshot" "$@"
   fi
@@ -130,30 +130,42 @@ if $iphone; then
     ' "$@" </dev/null
   }
 
-  # The simulator's identifier and state, e.g. `A5C5…432B Booted`, or nothing if there's none.
-  find_device() {
-    limit 120 xcrun simctl list -j devices | python3 -I -c '
+  # The simulators of that name, a line each with its identifier and state, booted ones first,
+  # e.g. `A5C5…432B Booted`; nothing if there's none. Two can share the name when deleting a hung
+  # one failed. Three tries, since under load `simctl` can stop answering; exits if it never does.
+  find_devices() {
+    for _ in 1 2 3; do
+      if limit 120 xcrun simctl list -j devices >"${TMPDIR:-/tmp}/lil-snapshot-devices.json" &&
+        python3 -I -c '
 import json, sys
-name, runtime = sys.argv[1:]
-for device in json.load(sys.stdin)["devices"].get(runtime, []):
-    if device["name"] == name and device.get("isAvailable", True):
-        print(device["udid"], device["state"])
-        break
-' "$simulator" "$runtime"
+name, runtime, path = sys.argv[1:]
+devices = [device for device in json.load(open(path))["devices"].get(runtime, [])
+    if device["name"] == name and device.get("isAvailable", True)]
+for device in sorted(devices, key=lambda device: device["state"] != "Booted"):
+    print(device["udid"], device["state"])
+' "$simulator" "$runtime" "${TMPDIR:-/tmp}/lil-snapshot-devices.json"; then
+        return 0
+      fi
+    done
+    echo "error: \`simctl list\` didn't answer in 3 tries. Is CoreSimulator stuck?" >&2
+    exit 1
   }
 
-  info=$(find_device)
-  device=${info%% *}
+  devices=$(find_devices) || exit 1
   if $delete_simulator; then
-    if [ -z "$device" ]; then
+    if [ -z "$devices" ]; then
       echo "No simulator named $simulator."
       exit 0
     fi
-    limit 120 xcrun simctl shutdown "$device" 2>/dev/null || true
-    limit 120 xcrun simctl delete "$device"
-    echo "Deleted the simulator $simulator ($device)."
+    for device in $(echo "$devices" | cut -d " " -f 1); do
+      limit 120 xcrun simctl shutdown "$device" 2>/dev/null || true
+      limit 120 xcrun simctl delete "$device"
+      echo "Deleted the simulator $simulator ($device)."
+    done
     exit 0
   fi
+  info=$(echo "$devices" | head -n 1)
+  device=${info%% *}
 
   create_device() {
     if ! device=$(limit 120 xcrun simctl create "$simulator" "$device_type" "$runtime"); then
@@ -176,13 +188,13 @@ for device in json.load(sys.stdin)["devices"].get(runtime, []):
   # minutes, the last on a new simulator, since a boot under load sometimes crashes
   # ("launchd_sim may have crashed"), never finishes, or leaves it hanging.
   boot() {
-    attempt=1
+    boot_attempt=1
     while ! { limit "$boot_limit" xcrun simctl bootstatus "$device" -b >"$output/boot.log" 2>&1 &&
       responds; }; do
-      echo "warning: the simulator didn't boot, or doesn't answer (try $attempt of 3)." >&2
+      echo "warning: the simulator didn't boot, or doesn't answer (try $boot_attempt of 3)." >&2
       grep -iE "error|fail" "$output/boot.log" | tail -n 3 >&2 || true
       limit 120 xcrun simctl shutdown "$device" >/dev/null 2>&1 || true
-      case $attempt in
+      case $boot_attempt in
         2)
           limit 120 xcrun simctl delete "$device" || true
           create_device
@@ -192,7 +204,7 @@ for device in json.load(sys.stdin)["devices"].get(runtime, []):
           exit 1
           ;;
       esac
-      attempt=$((attempt + 1))
+      boot_attempt=$((boot_attempt + 1))
     done
   }
 

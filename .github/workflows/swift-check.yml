@@ -68,8 +68,8 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
     timeout-minutes: 60
     env:
-      # Kept between runs, like `check`'s builds, but apart from them.
-      LIL_SNAPSHOT_DERIVED_DATA: ${{ github.workspace }}/../lil.tech-check-main/PhoneSnapshots
+      # Kept between runs outside the checkout, like `check`'s builds, but apart from them.
+      LIL_SNAPSHOT_DERIVED_DATA: ${{ github.workspace }}/../lil.tech-iphone-snapshots
       LIL_SNAPSHOT_SIMULATOR: lil-snapshots-ci
     steps:
       - uses: actions/checkout@v7
@@ -77,6 +77,15 @@ jobs:
           set-safe-directory: false
 
       - uses: ./.github/actions/select-xcode
+
+      # As `check`'s: started over past 20 GB, since the disks are Codevisor's too.
+      - name: Limit the kept build
+        run: |
+          if [ -d "$LIL_SNAPSHOT_DERIVED_DATA" ] &&
+            [ "$(du -sk "$LIL_SNAPSHOT_DERIVED_DATA" | cut -f1)" -gt $((20 * 1024 * 1024)) ]; then
+            echo "Starting over: $LIL_SNAPSHOT_DERIVED_DATA is over 20 GB"
+            rm -rf "$LIL_SNAPSHOT_DERIVED_DATA"
+          fi
 
       - name: Snapshot the iPhone's state catalogs
         run: scripts/snapshot --iphone

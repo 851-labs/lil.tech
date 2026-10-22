@@ -3,7 +3,7 @@
 # Pixelbook parts a commit touches; GitHub runs the Swift part on our Mac minis (`swift-check.yml`).
 # Usage: scripts/check [--hook] [--swift] [--services] [--pixelbook]   (every part when none is given)
 #   --swift     Swift lint (with a check that the server's copy of the Health catalog is fresh),
-#               the package's tests, and the apps' builds.
+#               the package's tests, and the apps' builds, with the iPhone's snapshot tests'.
 #   --services  Format, lint and type checks (`scripts/format --lint --services`, which also checks
 #               the OpenAPI spec is fresh), the generated Swift client regenerated and compared,
 #               and every workspace package's tests.
@@ -83,6 +83,12 @@ if $swift; then
     -destination 'generic/platform=iOS Simulator' -derivedDataPath "$scratch/DerivedData" \
     -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO \
     build -quiet
+  # The iPhone's snapshot tests only compile here: they run in the simulator, after merges
+  # (`scripts/snapshot --iphone`, 851-2953).
+  step xcodebuild -workspace Lil.xcworkspace -scheme HealthPhoneSnapshotTests \
+    -destination 'generic/platform=iOS Simulator' -derivedDataPath "$scratch/DerivedData" \
+    -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO \
+    build-for-testing -quiet
 fi
 
 if $services; then
