@@ -8,9 +8,6 @@ public import SwiftUI
 /// value that isn't, and the vision prescriptions. Follows the local database as sync changes it.
 public struct HealthDetailsView: View {
   @Fetch private var characteristics: [HealthCharacteristic]
-  /// For ages. From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
-  @Dependency(\.date.now) private var now
-  @Dependency(\.calendar) private var calendar
 
   public init() {
     _characteristics = Fetch(
@@ -21,8 +18,7 @@ public struct HealthDetailsView: View {
     HealthDetailsContent(
       state: $characteristics.loadError.map { .failed($0.localizedDescription) }
         ?? ($characteristics.isLoading && characteristics.isEmpty
-          ? .loading : .loaded(HealthDetails(characteristics: characteristics))),
-      now: now, calendar: calendar)
+          ? .loading : .loaded(HealthDetails(characteristics: characteristics))))
   }
 }
 
@@ -42,8 +38,9 @@ struct HealthDetailsContent: View {
   }
 
   let state: State
-  var now = Date.now
-  var calendar = Calendar.current
+  /// For ages. From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
+  @Dependency(\.date.now) private var now
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {

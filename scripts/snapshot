@@ -5,8 +5,8 @@
 # Testing's) as `swift test --filter` does. The images are the ones `swift test` takes.
 # Usage: scripts/snapshot [--record] [--no-build] [<filter>…]
 #   <filter>     Which tests to run, as for `swift test --filter`: a regular expression matched
-#                against a test's ID, `HealthSnapshotTests.MacSnapshotTests/notificationsList(appearance:)`,
-#                so its name (`notificationsList`) or part of it. With several, each test that
+#                against a test's ID, `HealthSnapshotTests.MacSnapshotTests/metricDetail(_:)`,
+#                so its name (`metricDetail`) or part of it. With several, each test that
 #                matches one. Every snapshot test when none is given.
 #   --record     Record new references for the images that changed or have none
 #                (`SNAPSHOT_TESTING_RECORD=failed`).

@@ -49,7 +49,8 @@ struct HealthNotificationsContent: View {
 
   let kind: HealthNotificationKind
   let state: State
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {
@@ -98,7 +99,7 @@ struct HealthNotificationsContent: View {
 struct NotificationRow: View {
   let kind: HealthNotificationKind
   let notification: HealthNotification
-  var calendar = Calendar.current
+  let calendar: Calendar
 
   var body: some View {
     HStack(spacing: 12) {
@@ -184,18 +185,18 @@ struct NotificationDetailContent: View {
   let kind: HealthNotificationKind
   let notification: HealthNotification
   var heartRates: HeartRates = .loading
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
+  @Dependency(\.calendar) private var calendar
   /// Parsed once, not on every render.
   private let metadata: [(key: String, value: String)]
 
   init(
     kind: HealthNotificationKind, notification: HealthNotification,
-    heartRates: HeartRates = .loading, calendar: Calendar = .current
+    heartRates: HeartRates = .loading
   ) {
     self.kind = kind
     self.notification = notification
     self.heartRates = heartRates
-    self.calendar = calendar
     metadata = notification.sample.metadataEntries
   }
 
