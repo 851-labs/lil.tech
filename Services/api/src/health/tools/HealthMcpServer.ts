@@ -36,18 +36,32 @@ export const healthMcpResultCeiling = 256 * 1024;
  * every call in flight. Each call's request is an incoming request, so once the last one of a
  * burst has come, the most the store has left to do is the calls in its queue: at most this many
  * of the heaviest calls (about 0.7 seconds each on a year of a Watch wearer's data, 851-2906),
- * about 11 seconds. A single call that takes 30 seconds would still be too long.
+ * about 7 seconds, which leaves room for calls up to about 3 seconds. A single call that takes 30
+ * seconds would still be too long.
  *
  * It counts calls rather than timing their wait, because a store can't time it: its clock only
  * moves at I/O, not while it computes, so it lags behind a burst's work (851-2907, 851-2941).
  */
-export const healthMcpMaxQueuedCalls = 16;
+export const healthMcpMaxQueuedCalls = 10;
 
 /** Waits for the next JavaScript task, so the runtime can commit the store's writes and send answers. */
 const nextTask = Effect.callback<void>((resume) => {
   const timer = setTimeout(() => resume(Effect.void), 0);
   return Effect.sync(() => clearTimeout(timer));
 });
+
+/** What a call that comes when the queue is full gets. */
+const busy = Effect.logWarning("Agent tool call refused: busy").pipe(
+  Effect.andThen(
+    Effect.fail(
+      new HealthToolError({
+        message:
+          "lil health is busy answering other calls from your agents. " +
+          "Try again in a few seconds, with fewer calls at once.",
+      }),
+    ),
+  ),
+);
 
 /**
  * Runs a store's tool calls one at a time, each in a JavaScript task of its own, and refuses those
@@ -64,35 +78,15 @@ const nextTask = Effect.callback<void>((resume) => {
  */
 export const makeTurns = (maxQueued: number = healthMcpMaxQueuedCalls) =>
   Effect.gen(function* () {
-    const semaphore = yield* Semaphore.make(1);
-    let queued = 0;
-    const enter = Effect.suspend(() => {
-      if (queued < maxQueued) {
-        queued += 1;
-        return Effect.void;
-      }
-      return Effect.logWarning("Agent tool call refused: busy").pipe(
-        Effect.annotateLogs({ queued }),
-        Effect.andThen(
-          Effect.fail(
-            new HealthToolError({
-              message:
-                "lil health is busy answering other calls from your agents. " +
-                "Try again in a few seconds, with fewer calls at once.",
-            }),
-          ),
-        ),
-      );
-    });
-    const leave = Effect.sync(() => {
-      queued -= 1;
-    });
+    const places = yield* Semaphore.make(maxQueued);
+    const turn = yield* Semaphore.make(1);
     return <A, E, R>(call: Effect.Effect<A, E, R>): Effect.Effect<A, E | HealthToolError, R> =>
-      Effect.acquireUseRelease(
-        enter,
-        () => semaphore.withPermit(Effect.andThen(nextTask, call)),
-        () => leave,
-      );
+      turn
+        .withPermit(Effect.andThen(nextTask, call))
+        .pipe(
+          places.withPermitsIfAvailable(1),
+          Effect.flatMap(Option.match({ onNone: () => busy, onSome: Effect.succeed })),
+        );
   });
 
 /**
@@ -232,7 +226,7 @@ export const healthMcpApp = (options: {
   readonly turns: Turns;
   /** The largest answer, as JSON (`healthMcpResultCeiling`, but tests make it smaller). */
   readonly resultCeiling?: number;
-  /** Each tool's implementation (`storeHealthTools`, but tests slow some down). */
+  /** Each tool's implementation (`storeHealthTools`, but tests replace some). */
   readonly handlers?: HealthToolImplementations;
 }): StoreMcpApp => {
   const { record, turns, resultCeiling = healthMcpResultCeiling } = options;

@@ -1,8 +1,9 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Deferred, Effect, Fiber } from "effect";
 import {
   healthMcpMaxQueuedCalls,
   makeHealthMcpServer,
+  makeTurns,
 } from "../../../src/health/tools/HealthMcpServer.ts";
 import { HealthToolError } from "../../../src/health/tools/HealthToolkit.ts";
 import { storeHealthTools } from "../../../src/health/tools/StoreHealthTools.ts";
@@ -217,11 +218,14 @@ describe("the Health MCP server in the store", () => {
       const server = yield* makeHealthMcpServer({ sql, record: store.recordAgentAccess });
       const burst = healthMcpMaxQueuedCalls + 4;
       const responses = yield* callsAtOnce(viaStore(server), burst, true);
-      assert.deepStrictEqual(
-        responses.map((response) => [response.status, isError(response)]),
-        Array.from({ length: burst }, (_, index) => [200, index >= healthMcpMaxQueuedCalls]),
+      assert.isTrue(responses.every((response) => response.status === 200));
+      const outcomes = responses.map(isError);
+      assert.strictEqual(
+        outcomes.filter((error) => error === false).length,
+        healthMcpMaxQueuedCalls,
       );
-      const refused = responses.at(-1)?.message?.["result"] as Record<string, unknown>;
+      assert.strictEqual(outcomes.filter((error) => error === true).length, 4);
+      const refused = responses.find(isError)?.message?.["result"] as Record<string, unknown>;
       const [content] = refused["content"] as Array<{ readonly text: string }>;
       assert.match(content!.text, /busy.*Try again/);
       // Refused before reading anything, so not logged.
@@ -257,5 +261,23 @@ describe("the Health MCP server in the store", () => {
       );
       assert.strictEqual(calls, 2);
     }),
+  );
+
+  it.effect(
+    "refuses a call at once when its queue is full, and makes room for one interrupted",
+    () =>
+      Effect.gen(function* () {
+        const turns = yield* makeTurns(1);
+        const started = yield* Deferred.make<void>();
+        // Holds the queue's one place until it's interrupted.
+        const holding = yield* Effect.forkChild(
+          turns(Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never))),
+        );
+        yield* Deferred.await(started);
+        const refused = yield* Effect.flip(turns(Effect.succeed("read")));
+        assert.match(refused.message, /busy/);
+        yield* Fiber.interrupt(holding);
+        assert.strictEqual(yield* turns(Effect.succeed("read")), "read");
+      }),
   );
 });
