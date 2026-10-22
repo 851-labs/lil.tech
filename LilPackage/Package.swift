@@ -547,7 +547,6 @@ let package = Package(
     .testTarget(
       name: "MessagesSnapshotTests",
       dependencies: [
-        "MessagesContacts",
         "MessagesConversationList",
         "MessagesDatabase",
         "MessagesMacApp",
@@ -557,6 +556,7 @@ let package = Package(
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         .product(name: "SQLiteData", package: "sqlite-data"),
+        .product(name: "Tagged", package: "swift-tagged"),
       ],
       // References, beside the tests that take them. A new folder of state catalogs adds its own.
       exclude: [

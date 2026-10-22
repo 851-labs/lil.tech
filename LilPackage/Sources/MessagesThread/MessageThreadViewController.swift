@@ -22,10 +22,11 @@ final class MessageThreadViewController: NSViewController {
   private var rowHeights: [Item: CGFloat] = [:]
   private var rowHeightsWidth: CGFloat = 0
   // What timestamps and read receipts are relative to, from dependencies so snapshot catalogs
-  // (851-2968) show the same text every day.
-  @Dependency(\.date.now) private var now
-  @Dependency(\.calendar) private var calendar
-  @Dependency(\.locale) private var locale
+  // (851-2968) show the same text every day. Resolved once: a `@Dependency` property resolves
+  // again on every read, and every row reads them.
+  private let date: DateGenerator
+  private let calendar: Calendar
+  private let locale: Locale
 
   enum Item: Hashable {
     case message(Message.ID)
@@ -63,6 +64,12 @@ final class MessageThreadViewController: NSViewController {
 
   init(store: StoreOf<MessageThreadFeature>) {
     self.store = store
+    @Dependency(\.date) var date
+    @Dependency(\.calendar) var calendar
+    @Dependency(\.locale) var locale
+    self.date = date
+    self.calendar = calendar
+    self.locale = locale
     super.init(nibName: nil, bundle: nil)
   }
 
@@ -260,7 +267,7 @@ final class MessageThreadViewController: NSViewController {
 
   /// A separator's label, as of now.
   private func timestamp(_ date: Date) -> ThreadTimestamp {
-    ThreadTimestamp(date, now: now, calendar: calendar, locale: locale)
+    ThreadTimestamp(date, now: self.date.now, calendar: calendar, locale: locale)
   }
 
   /// What a message shows under it: "Edited", then its delivery status.
@@ -268,7 +275,7 @@ final class MessageThreadViewController: NSViewController {
     MessageCellView.statusText(
       isEdited: message.dateEdited != nil,
       status: MessageStatus.of(message, showsReceipt: message.id == receiptMessageID),
-      now: now, calendar: calendar, locale: locale)
+      now: date.now, calendar: calendar, locale: locale)
   }
 
   /// A row's height. Heights are explicit, not automatic, so the document height is exact before

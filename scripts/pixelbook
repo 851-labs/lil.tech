@@ -201,7 +201,8 @@ if ! verified=$(codesign --verify --strict "$framework" 2>&1); then
 fi
 
 echo "==> Building for macOS and the iPhone simulator"
-for scheme in HealthMacSnapshots MessagesMacSnapshots; do
+# Not MessagesMacSnapshots: lil messages has no previews left, only state catalogs (851-2968).
+for scheme in HealthMacSnapshots; do
   xcodebuild build-for-testing -project "$project" -scheme "$scheme" -destination "$mac" \
     -derivedDataPath "$derived" -onlyUsePackageVersionsFromResolvedFile -skipMacroValidation -quiet
 done
@@ -257,7 +258,8 @@ run() {
 }
 
 # The runs, as <app>:<scheme>, each in light and dark.
-mac_apps=(health-mac:HealthMacSnapshots messages-mac:MessagesMacSnapshots)
+# Not messages-mac, which has no previews left to render (851-2968): it would fail as empty.
+mac_apps=(health-mac:HealthMacSnapshots)
 iphone_apps=(health-iphone:HealthPhoneSnapshots)
 
 # The Mac's runs and the iPhone's go side by side (851-2749): the iPhone's run in the simulator,

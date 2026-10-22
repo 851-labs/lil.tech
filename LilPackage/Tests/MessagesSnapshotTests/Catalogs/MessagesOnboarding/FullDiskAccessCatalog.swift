@@ -4,7 +4,8 @@
   import SwiftUI
   import Testing
 
-  // Full Disk Access onboarding (`FullDiskAccessView`), before and while checking again.
+  // Full Disk Access onboarding (`FullDiskAccessView`), before and while checking again. Stores
+  // have no reducer, so the app becoming active during a snapshot can't start a check.
 
   extension MacSnapshotTests {
     @Test(arguments: fullDiskAccessCatalog.selectedStates)
@@ -18,12 +19,12 @@
     states: [
       CatalogState("Default") {
         FullDiskAccessView(
-          store: Store(initialState: FullDiskAccessFeature.State()) { FullDiskAccessFeature() })
+          store: Store(initialState: FullDiskAccessFeature.State()) { EmptyReducer() })
       },
       CatalogState("Checking") {
         FullDiskAccessView(
           store: Store(initialState: FullDiskAccessFeature.State(isChecking: true)) {
-            FullDiskAccessFeature()
+            EmptyReducer()
           })
       },
     ])

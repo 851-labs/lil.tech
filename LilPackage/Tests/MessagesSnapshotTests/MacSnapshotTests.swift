@@ -2,7 +2,6 @@
   import AppKit
   import DependenciesTestSupport
   import Foundation
-  import MessagesContacts
   import MessagesDatabase
   import SQLiteData
   import Testing
@@ -12,16 +11,14 @@
   // (`Catalogs/`) add their tests to this suite, one per screen.
 
   // Serialized: a snapshot runs the main run loop, where another could start and change the
-  // app's appearance. Views that read the chat database, contacts, the date or the calendar get
-  // the catalogs'.
+  // app's appearance. Views that read the date or the calendar get the catalogs'. Stores have no
+  // reducer, so nothing reads the chat database or contacts: states get them in their state.
   @MainActor
   @Suite(
     .serialized,
     .dependencies {
       // Before the catalog database is built, which formats dates.
       fixTimeZoneAndLocale()
-      $0.chatDatabase = .constant(catalogChatDatabase)
-      $0.contactNames = .constant(catalogContacts)
       $0.date.now = previewNow
       $0.calendar = previewCalendar
       $0.timeZone = previewCalendar.timeZone
@@ -35,7 +32,8 @@
   }
 
   /// The fixed "now" of lil messages' catalogs: Tuesday, August 13, 2024, 3 PM in
-  /// `previewCalendar`'s time zone, lil health's (`HealthDatabase.previewNow`).
+  /// `previewCalendar`'s time zone, lil health's (`HealthDatabase.previewNow`), copied since this
+  /// target imports none of lil health's modules.
   let previewNow = Date(timeIntervalSince1970: 1_723_586_400)
 
   /// Gregorian, in Los Angeles, with `en_US`'s formats, as lil health's catalogs.
@@ -59,17 +57,6 @@
 
   /// The address whose contact has a photo, `catalogContactPhoto`.
   let catalogContactPhotoAddress = "+14155550101"
-
-  /// The preview database's contacts, one with a photo.
-  let catalogContacts = ContactIndex(
-    PreviewChatDatabase.contactNames.map {
-      ContactIndex.Contact(
-        name: $0.name,
-        phoneNumbers: [$0.address],
-        emails: [$0.address],
-        thumbnailImageData: $0.address == catalogContactPhotoAddress ? catalogContactPhoto : nil
-      )
-    })
 
   /// A synthetic contact photo: a smiley on a gradient. Catalogs never use real contact photos.
   /// Drawn into a bitmap of a fixed size, in light, so it's the same on every Mac: drawn outside
