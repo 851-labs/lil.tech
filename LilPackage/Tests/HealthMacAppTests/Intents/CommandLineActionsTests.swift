@@ -44,12 +44,14 @@ struct CommandLineActionsTests {
 
     let (signals, signal) = AsyncStream<Void>.makeStream()
     let (updates, session) = AsyncStream<Bool>.makeStream()
+    let broughtForward = LockIsolated(0)
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     } withDependencies: {
       $0.agentAccess = .live(accessStore)
       $0.agentAccess.reset = {}
       $0.agentAccess.actionsRequested = { signals }
+      $0.agentAccess.bringAppForward = { broughtForward.withValue { $0 += 1 } }
       $0.auth.signedInUpdates = { updates }
       // The action waits for the stored session to be checked, as after a launch.
       $0.healthAppActions = HealthAppActions(
@@ -77,6 +79,8 @@ struct CommandLineActionsTests {
       $0.selection = .category(.heart)
       $0.metricPath = []
     }
+    // Open brings the app forward, as the intent does.
+    #expect(broughtForward.value == 2)
     // Claimed once: signaled again, nothing more runs.
     signal.yield()
     await task.cancel()
@@ -91,11 +95,15 @@ struct CommandLineActionsTests {
     let sync = try ask(.sync)
     let export = try ask(.export(folder: folder.path(percentEncoded: false)))
     let unknownPage = try ask(.open(page: "type:HKQuantityTypeIdentifierTeleportCount"))
+    // A relative path would be the app's: the command sends absolute ones.
+    let relativeFolder = try ask(.export(folder: "Downloads"))
     let asked = LockIsolated<[HealthAppAction]>([])
+    let broughtForward = LockIsolated(0)
     let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
       AppFeature()
     } withDependencies: {
       $0.agentAccess = .live(accessStore)
+      $0.agentAccess.bringAppForward = { broughtForward.withValue { $0 += 1 } }
       $0.healthAppActions.perform = { action, _ in
         asked.withValue { $0.append(action) }
         switch action {
@@ -106,7 +114,7 @@ struct CommandLineActionsTests {
       }
     }
     let claimed = try accessStore.claimActions()
-    #expect(claimed.map(\.id) == [open, sync, export, unknownPage])
+    #expect(claimed.map(\.id) == [open, sync, export, unknownPage, relativeFolder])
     await store.send(.commandLineActionsClaimed(claimed))
     await store.finish()
 
@@ -126,6 +134,11 @@ struct CommandLineActionsTests {
     #expect(
       try await finished(unknownPage)
         == .failed(.unknownPage("type:HKQuantityTypeIdentifierTeleportCount")))
+    #expect(
+      try await finished(relativeFolder)
+        == .failed(AgentActionFailure(reason: .failed, message: "There's no folder at Downloads.")))
+    // Only for the page that opened.
+    #expect(broughtForward.value == 1)
   }
 
   @Test(.timeLimit(.minutes(1)))
@@ -182,6 +195,10 @@ struct CommandLineActionsTests {
       let action = AgentAction.export(folder: folder.path(percentEncoded: false))
       #expect(action.command == HealthAppAction.export(to: folder).command)
     }
+    // With or without the trailing slash a folder's URL has.
+    #expect(
+      AgentAction.export(folder: "/tmp/lil export").command
+        == HealthAppAction.export(to: URL(filePath: "/tmp/lil export/")).command)
     #expect(AgentAction.sync.command == HealthAppAction.sync.command)
   }
 }

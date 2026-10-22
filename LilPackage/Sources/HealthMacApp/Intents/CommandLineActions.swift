@@ -14,6 +14,10 @@ extension HealthAppAction {
     case .sync:
       self = .sync
     case .export(let folder):
+      // A relative path would be the app's, not the command's: the command sends absolute ones.
+      guard folder.hasPrefix("/") else {
+        throw AgentActionFailure(reason: .failed, message: "There's no folder at \(folder).")
+      }
       self = .export(to: URL(filePath: folder, directoryHint: .isDirectory))
     }
   }

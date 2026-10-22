@@ -338,6 +338,26 @@
           """) == "ok|exported|/tmp/lil/a.tar\n")
     }
 
+    /// A row another program finished without a result: reading it throws, rather than trapping
+    /// the command that polls it.
+    @Test(.timeLimit(.minutes(1)))
+    func anOutcomeWithoutAResultThrows() throws {
+      try store.setEnabled(true, at: date(0))
+      let me = AgentProcess.current
+      try sqlite3(
+        """
+        INSERT INTO actionRequests
+          (id, action, requestedAt, requesterPID, requesterStartedAt, finishedAt, outcome)
+        VALUES ('0123456789abcdef0123456789abcdef', '{"action":"sync"}',
+          \(date(1).timeIntervalSince1970), \(me.pid), \(me.startedAt),
+          \(date(2).timeIntervalSince1970), 'ok');
+        """)
+      #expect(throws: DecodingError.self) {
+        try store.outcome(
+          id: AgentActionRequest.ID(rawValue: "0123456789abcdef0123456789abcdef"), at: date(3))
+      }
+    }
+
     @Test
     func encodesActionsFlat() throws {
       let encoder = JSONEncoder()
@@ -404,7 +424,7 @@
       var pid: pid_t = 0
       let arguments = ["/bin/sleep", "60"]
       var argv = arguments.map { strdup($0) } + [nil]
-      defer { argv.forEach { free($0) } }
+      defer { for argument in argv { free(argument) } }
       let status = posix_spawn(&pid, "/bin/sleep", nil, nil, &argv, environ)
       guard status == 0, let process = AgentProcess(pid: pid) else {
         throw POSIXError(.init(rawValue: status) ?? .ESRCH)

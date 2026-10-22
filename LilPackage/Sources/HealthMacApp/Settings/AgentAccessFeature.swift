@@ -1,3 +1,4 @@
+import AppKit
 public import ComposableArchitecture
 public import Foundation
 public import HealthAgentAccess
@@ -167,6 +168,10 @@ struct AgentAccessClient: Sendable {
   /// Writes how the app answered a request.
   var finishAction:
     @Sendable (_ id: AgentActionRequest.ID, _ outcome: AgentActionOutcome) async throws -> Void
+  /// Brings the app forward, for the command line's Open, as the intent does with
+  /// `continueInForeground`. macOS may leave another app in front: the command opens the app
+  /// through Launch Services as well (851-2896).
+  var bringAppForward: @Sendable () async -> Void
 }
 
 extension AgentAccessClient: DependencyKey {
@@ -185,7 +190,16 @@ extension AgentAccessClient: DependencyKey {
       commandLineTool: { CommandLineToolInstaller.installedLocation() },
       actionsRequested: { AgentActionSignal.signals() },
       claimActions: { try store.claimActions() },
-      finishAction: { try store.finish(id: $0, outcome: $1) }
+      finishAction: { try store.finish(id: $0, outcome: $1) },
+      bringAppForward: {
+        await MainActor.run {
+          NSApplication.shared.unhide(nil)
+          for window in NSApplication.shared.windows where window.isMiniaturized {
+            window.deminiaturize(nil)
+          }
+          NSApplication.shared.activate()
+        }
+      }
     )
   }
 
@@ -200,7 +214,8 @@ extension AgentAccessClient: DependencyKey {
       // Nothing asks unless a test does, as with `HealthAppActions.requests`.
       actionsRequested: { AsyncStream { $0.finish() } },
       claimActions: unimplemented("AgentAccessClient.claimActions", placeholder: []),
-      finishAction: unimplemented("AgentAccessClient.finishAction")
+      finishAction: unimplemented("AgentAccessClient.finishAction"),
+      bringAppForward: {}
     )
   }
 }

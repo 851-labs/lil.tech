@@ -227,7 +227,8 @@ public struct AgentProcess: Equatable, Sendable {
     self.startedAt = startedAt
   }
 
-  /// The process with this ID, if it's running (and not a zombie waiting for its parent).
+  /// The process with this ID, if it's running (and not a zombie waiting for its parent) and
+  /// this process may read when it started.
   public init?(pid: Int32) {
     #if os(macOS)
       var info = proc_bsdinfo()
@@ -248,9 +249,24 @@ public struct AgentProcess: Equatable, Sendable {
     Self(pid: getpid()) ?? Self(pid: getpid(), startedAt: 0)
   }
 
-  /// Whether it's still running: a process with its ID that started when it did.
+  /// Whether it's still running: a process with its ID that started when it did. One this
+  /// process may not look at (a sandbox can deny it) counts as running, rather than as gone:
+  /// only one that's known to have ended is.
   public var isRunning: Bool {
-    Self(pid: pid) == self
+    if let running = Self(pid: pid) { return running == self }
+    #if os(macOS)
+      // A zombie, which `proc_pidinfo` can't read but `kill` still reaches, has ended.
+      var process = kinfo_proc()
+      var size = MemoryLayout<kinfo_proc>.size
+      var name = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+      if sysctl(&name, 4, &process, &size, nil, 0) == 0, size > 0 {
+        return process.kp_proc.p_stat != SZOMB
+      }
+      // Not readable either: gone only if there's no such process (ESRCH).
+      return kill(pid, 0) == 0 || errno == EPERM
+    #else
+      return true
+    #endif
   }
 }
 
@@ -466,8 +482,9 @@ extension AgentAccessStore {
   private static func outcome(_ row: Row) throws -> AgentActionOutcome? {
     switch row["outcome"] as String? {
     case "ok":
-      let json: String = row["result"]
-      return .ok(try JSONDecoder().decode(AgentActionResult.self, from: Data(json.utf8)))
+      // Optional, so a row another program wrote without a result throws rather than traps.
+      let json: String? = row["result"]
+      return .ok(try JSONDecoder().decode(AgentActionResult.self, from: Data((json ?? "").utf8)))
     case "failed":
       let reason = AgentActionFailure.Reason(rawValue: row["failureReason"] ?? "") ?? .failed
       return .failed(AgentActionFailure(reason: reason, message: row["error"] ?? ""))

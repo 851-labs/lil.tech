@@ -341,18 +341,25 @@ public struct AppFeature {
   /// the outcome for the command to read. Not cancelled by signing out: that fails the action,
   /// and the failure is written.
   private func performCommandLineAction(_ request: AgentActionRequest) -> Effect<Action> {
-    .run { [agentAccess, healthAppActions] _ in
+    .run { [agentAccess, healthAppActions, clock] _ in
       let outcome: AgentActionOutcome
       do {
         let action = try HealthAppAction(request.action)
+        // Forward first, then the page, as the intent does.
+        if case .open = action { await agentAccess.bringAppForward() }
         outcome = .ok(AgentActionResult(try await healthAppActions.perform(action, { _ in })))
       } catch {
         outcome = .failed(AgentActionFailure(error))
       }
-      do {
-        try await agentAccess.finishAction(request.id, outcome)
-      } catch {
-        reportIssue(error)
+      // Tried again, since the command waits on it: a request left claimed without an outcome
+      // reads as running for as long as the app runs.
+      for attempt in 1...3 {
+        do {
+          return try await agentAccess.finishAction(request.id, outcome)
+        } catch {
+          guard attempt < 3 else { return reportIssue(error) }
+          try? await clock.sleep(for: .seconds(1))
+        }
       }
     }
   }
