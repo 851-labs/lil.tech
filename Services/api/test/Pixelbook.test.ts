@@ -89,6 +89,8 @@ describe("Pixelbook manifests", () => {
       '    "Say \\"hi\\"", minHeight: 400', // 10
       "  ) { c },", // 11
       '  CatalogState("Apple\'s page") { d },', // 12
+      '  CatalogState("Link") { Text("https://lil.tech") }, CatalogState("Then") { e },', // 13
+      '  CatalogState("It\\u{2019}s") { f },', // 14
       "]",
     ].join("\n");
     assert.deepStrictEqual(
@@ -96,6 +98,9 @@ describe("Pixelbook manifests", () => {
       [
         ["Apple's page", 4],
         ['Say "hi"', 9],
+        ["Link", 13],
+        ["Then", 13],
+        ["It\u2019s", 14],
       ],
     );
   });
@@ -152,6 +157,30 @@ describe("Pixelbook manifests", () => {
         variants: { light: variant("l1"), dark: variant("d1") },
       },
     ]);
+  });
+
+  it("numbers the states of a catalog file's screens one after another", () => {
+    const first = catalog("health-mac", "A", ["One", "Two"]);
+    const second = catalog("health-mac", "B", ["Three"]);
+    const images = new Map<string, Variant>(
+      [...first.states, ...second.states].map((state) => [state.light, variant(state.id)]),
+    );
+    const { manifests } = buildManifests("k", "c", {
+      catalogs: [
+        { path: `${references}/b.json`, manifest: second },
+        { path: `${references}/a.json`, manifest: first },
+      ],
+      sources: new Map([[source, ""]]),
+      images,
+    });
+    assert.deepStrictEqual(
+      manifests[0]?.snapshots.map(({ state, order }) => [state, order]),
+      [
+        ["One", 0],
+        ["Two", 1],
+        ["Three", 2],
+      ],
+    );
   });
 
   it("leaves out what's missing, and says so", () => {

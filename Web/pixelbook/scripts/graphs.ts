@@ -31,50 +31,159 @@ export const previewNames = (source: string): ReadonlyArray<string> | undefined 
 /** Each graph's app's screens: preview files, and the app's state catalogs. */
 export type Screens = (app: string) => Previews;
 
+/** Swift's escapes in a string literal: `\"`, `\\`, `\n`, `\t`, `\r`, `\0`, `\'` and `\u{…}`. */
+const unescapeSwift = (literal: string) =>
+  literal.replace(/\\(u\{([0-9a-fA-F]{1,8})\}|.)/g, (_, escape: string, hex?: string) =>
+    hex === undefined
+      ? (({ n: "\n", t: "\t", r: "\r", "0": "\0" } as Record<string, string>)[escape] ?? escape)
+      : String.fromCodePoint(Number.parseInt(hex, 16)),
+  );
+
+/** Swift's string literals, unescaped, outside comments (a `//` in a string isn't one). */
+const stringLiterals = (source: string): ReadonlyArray<string> =>
+  [...source.matchAll(/"((?:[^"\\\n]|\\.)*)"|\/\*[\s\S]*?\*\/|\/\/.*$/gm)].flatMap(([, literal]) =>
+    literal === undefined ? [] : [unescapeSwift(literal)],
+  );
+
 /**
- * Every state catalog's states, by app, from the manifests their snapshot tests write beside
- * their references (`<Target>/Catalogs/<Module>/__Snapshots__/<File>/<screen>.json`, 851-2955),
- * which say which app each screen is in: a catalog can be built for one platform, or differ on
- * each. Keyed by `Module/File.swift`, as graphs name them, in the catalog's order.
+ * A Swift file's state catalog states' names, in source order: `CatalogState("Name")`, over one
+ * line or several, outside comments and strings.
  */
-export const scanCatalogs = async (
-  tests = join(root, "LilPackage/Tests"),
-): Promise<ReadonlyMap<string, Previews>> => {
-  const apps = new Map<string, Map<string, ReadonlyArray<string>>>();
+export const catalogStateNames = (source: string): ReadonlyArray<string> =>
+  [
+    ...source.matchAll(
+      /"(?:[^"\\\n]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*$|\bCatalogState\(\s*"((?:[^"\\]|\\.)*)"/gm,
+    ),
+  ].flatMap(([, name]) => (name === undefined ? [] : [unescapeSwift(name)]));
+
+/** A catalog manifest, as its snapshot test writes it (`CatalogManifest` in `StateCatalog.swift`). */
+interface CatalogManifest {
+  readonly app: string;
+  readonly screen: string;
+  /** `Module/File.swift`, as graphs name catalogs. */
+  readonly catalog: string;
+  readonly states: ReadonlyArray<{
+    readonly name: string;
+    readonly source: string;
+    readonly light: string;
+    readonly dark: string;
+  }>;
+}
+
+/** A catalog manifest, or `undefined` if it isn't one. */
+const parseManifest = (json: unknown): CatalogManifest | undefined => {
+  if (typeof json !== "object" || json === null) return undefined;
+  const { app, screen, catalog, states } = json as Record<string, unknown>;
+  const isState = (state: unknown) =>
+    typeof state === "object" &&
+    state !== null &&
+    ["name", "source", "light", "dark"].every(
+      (field) => typeof (state as Record<string, unknown>)[field] === "string",
+    );
+  return typeof app === "string" &&
+    typeof screen === "string" &&
+    typeof catalog === "string" &&
+    Array.isArray(states) &&
+    states.every(isState)
+    ? (json as CatalogManifest)
+    : undefined;
+};
+
+/**
+ * Every catalog manifest (`<Target>/Catalogs/<Module>/__Snapshots__/<File>/<screen>.json`,
+ * 851-2955) and catalog file in LilPackage's test targets, by their paths from the repository's
+ * root.
+ */
+const readCatalogs = async (repository: string) => {
+  const manifests: { readonly path: string; readonly manifest: CatalogManifest }[] = [];
+  const files: string[] = [];
+  const tests = join(repository, "LilPackage/Tests");
   for (const target of await readdir(tests, { withFileTypes: true })) {
     const folder = join(tests, target.name, "Catalogs");
     if (!target.isDirectory() || !existsSync(folder)) continue;
-    const files = await readdir(folder, { recursive: true });
-    for (const file of files.filter((name) =>
-      /(^|\/)__Snapshots__\/[^/]+\/[^/]+\.json$/.test(name),
-    )) {
-      const path = join(folder, file);
-      const manifest = parseManifest(JSON.parse(await readFile(path, "utf8")));
-      if (manifest === undefined) throw new Error(`${path} isn't a catalog manifest.`);
-      const catalogs = apps.get(manifest.app) ?? new Map<string, ReadonlyArray<string>>();
-      apps.set(manifest.app, catalogs);
-      // A catalog file can hold several screens.
-      catalogs.set(manifest.catalog, [
-        ...(catalogs.get(manifest.catalog) ?? []),
-        ...manifest.states,
-      ]);
+    for (const file of (await readdir(folder, { recursive: true })).toSorted()) {
+      const path = `LilPackage/Tests/${target.name}/Catalogs/${file}`;
+      if (/(^|\/)__Snapshots__\/[^/]+\/[^/]+\.json$/.test(file)) {
+        const manifest = parseManifest(JSON.parse(await readFile(join(repository, path), "utf8")));
+        if (manifest === undefined) throw new Error(`${path} isn't a catalog manifest.`);
+        manifests.push({ path, manifest });
+      } else if (file.endsWith(".swift") && !file.includes("__Snapshots__")) {
+        files.push(path);
+      }
     }
+  }
+  return { manifests, files };
+};
+
+/**
+ * Every state catalog's states, by app, from the manifests their snapshot tests write beside their
+ * references, which say which app each screen is in: a catalog can be built for one platform, or
+ * differ on each. Keyed by `Module/File.swift`, as graphs name them, in the catalog's order.
+ */
+export const scanCatalogs = async (repository = root): Promise<ReadonlyMap<string, Previews>> => {
+  const apps = new Map<string, Map<string, ReadonlyArray<string>>>();
+  for (const { manifest } of (await readCatalogs(repository)).manifests) {
+    const catalogs = apps.get(manifest.app) ?? new Map<string, ReadonlyArray<string>>();
+    apps.set(manifest.app, catalogs);
+    // A catalog file can hold several screens.
+    const names = manifest.states.map((state) => state.name);
+    catalogs.set(manifest.catalog, [...(catalogs.get(manifest.catalog) ?? []), ...names]);
   }
   return apps;
 };
 
-/** A catalog manifest's app, catalog and state names, or `undefined` if it isn't one. */
-const parseManifest = (json: unknown) => {
-  if (typeof json !== "object" || json === null) return undefined;
-  const { app, catalog, states } = json as Record<string, unknown>;
-  if (typeof app !== "string" || typeof catalog !== "string" || !Array.isArray(states)) {
-    return undefined;
+/**
+ * What's out of date in the catalogs' manifests, which their tests only rewrite when they run (the
+ * iPhone's only after merging): a manifest whose catalog file is gone or whose screen was renamed
+ * (left behind), a state it has that isn't in its file any more, or a missing reference, and a
+ * state in a catalog file that no manifest has.
+ */
+export const manifestProblems = async (repository = root): Promise<ReadonlyArray<string>> => {
+  const problems: string[] = [];
+  const { manifests, files } = await readCatalogs(repository);
+  const sources = new Map<string, string | undefined>();
+  const source = async (path: string) => {
+    if (!sources.has(path)) {
+      sources.set(path, await readFile(join(repository, path), "utf8").catch(() => undefined));
+    }
+    return sources.get(path);
+  };
+  const inManifests = new Set<string>();
+  for (const { path, manifest } of manifests) {
+    const paths = [...new Set(manifest.states.map((state) => state.source))];
+    const texts = await Promise.all(paths.map(source));
+    const gone = paths.filter((_, index) => texts[index] === undefined);
+    if (gone.length > 0) {
+      problems.push(`${path}: ${gone.join(", ")} doesn't exist. Delete the manifest.`);
+      continue;
+    }
+    if (!texts.some((text) => stringLiterals(text ?? "").includes(manifest.screen))) {
+      problems.push(
+        `${path}: its screen, "${manifest.screen}", isn't in ${paths.join(", ")}. If it was ` +
+          "renamed, delete the manifest and the old references.",
+      );
+      continue;
+    }
+    for (const state of manifest.states) {
+      inManifests.add(`${state.source}\n${state.name}`);
+      if (!catalogStateNames((await source(state.source)) ?? "").includes(state.name)) {
+        problems.push(`${path}: "${state.name}" isn't in ${state.source} any more.`);
+      }
+      for (const reference of [state.light, state.dark]) {
+        if (!existsSync(join(repository, reference))) {
+          problems.push(`${path}: "${state.name}" has no reference ${reference}.`);
+        }
+      }
+    }
   }
-  const names = states.map((state: unknown) =>
-    typeof state === "object" && state !== null ? (state as { name?: unknown }).name : undefined,
-  );
-  if (!names.every((name) => typeof name === "string")) return undefined;
-  return { app, catalog, states: names as ReadonlyArray<string> };
+  for (const file of files) {
+    for (const name of catalogStateNames((await source(file)) ?? "")) {
+      if (!inManifests.has(`${file}\n${name}`)) {
+        problems.push(`${file}: "${name}" isn't in a manifest.`);
+      }
+    }
+  }
+  return problems;
 };
 
 /** Every screen a graph can name, by app: preview files and its catalogs, which can't share a name. */
@@ -151,12 +260,20 @@ if (import.meta.main) {
     console.error(`Web/pixelbook/graphs/${file}:`);
     for (const problem of list) console.error(`  ${problem}`);
   }
-  if (problems.size > 0) {
+  const stale = await manifestProblems();
+  if (stale.length > 0) {
+    console.error("State catalogs' Pixelbook manifests:");
+    for (const problem of stale) console.error(`  ${problem}`);
+  }
+  if (problems.size > 0 || stale.length > 0) {
     console.error(
-      "A state catalog's states come from its manifest, which its snapshot test writes " +
-        "(scripts/snapshot, or scripts/snapshot --iphone): run it after adding or renaming states.",
+      "A state catalog's manifest is written by its snapshot test (scripts/snapshot <test>, or " +
+        "scripts/snapshot --iphone <test>): run it after adding, renaming or removing states, " +
+        "and commit the manifest with the references.",
     );
     process.exit(1);
   }
-  console.log("Pixelbook's graphs match the previews and catalogs.");
+  console.log(
+    "Pixelbook's graphs match the previews and catalogs, whose manifests are up to date.",
+  );
 }

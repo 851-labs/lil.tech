@@ -81,6 +81,13 @@
       "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-more-doses-than-a-page-dark.png",
+      "id" : "medications.medication-more-doses-than-a-page",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-more-doses-than-a-page-light.png",
+      "name" : "Medication, more doses than a page",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/MedicationsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-loading-dark.png",
       "id" : "medications.medication-loading",
       "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/MedicationsCatalog/medications.medication-loading-light.png",

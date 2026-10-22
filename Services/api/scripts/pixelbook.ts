@@ -120,18 +120,32 @@ export const parseCatalogManifest = (
 export const platformOf = (app: string): Manifest["platform"] =>
   app.endsWith("-mac") ? "macos" : "ios";
 
+/** Swift's escapes in a string literal: `\"`, `\\`, `\n`, `\t`, `\r`, `\0`, `\'` and `\u{…}`. */
+export const unescapeSwift = (literal: string) =>
+  literal.replace(/\\(u\{([0-9a-fA-F]{1,8})\}|.)/g, (_, escape: string, hex?: string) =>
+    hex === undefined
+      ? (({ n: "\n", t: "\t", r: "\r", "0": "\0" } as Record<string, string>)[escape] ?? escape)
+      : String.fromCodePoint(Number.parseInt(hex, 16)),
+  );
+
+/**
+ * Swift with its comments made spaces, so lines and offsets stay where they were. String literals
+ * are kept as they are, so a `//` in one isn't taken for a comment.
+ */
+export const withoutSwiftComments = (source: string) =>
+  source.replace(/"(?:[^"\\\n]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*$/gm, (match) =>
+    match.startsWith('"') ? match : match.replace(/[^\n]/g, " "),
+  );
+
 /**
  * Each state's line in a Swift file, by name: where its `CatalogState("…")` starts, as `#line`
  * gives it. A name written twice takes its first line.
  */
 export const catalogStateLines = (source: string): ReadonlyMap<string, number> => {
   const lines = new Map<string, number>();
-  // Comments become spaces, so lines and offsets stay where they were.
-  const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, (comment) =>
-    comment.replace(/[^\n]/g, " "),
-  );
+  const code = withoutSwiftComments(source);
   for (const match of code.matchAll(/\bCatalogState\(\s*"((?:[^"\\]|\\.)*)"/g)) {
-    const name = (match[1] ?? "").replace(/\\(.)/g, "$1");
+    const name = unescapeSwift(match[1] ?? "");
     const line = code.slice(0, match.index).split("\n").length;
     if (!lines.has(name)) lines.set(name, line);
   }
@@ -166,6 +180,8 @@ export const buildManifests = (
     lineCache.set(source, lines);
     return lines;
   };
+  // A catalog file can hold several screens: their states are numbered one after another.
+  const orders = new Map<string, number>();
   const sorted = inputs.catalogs.toSorted((a, b) =>
     a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
   );
@@ -179,7 +195,7 @@ export const buildManifests = (
     }
     const snapshots = byApp.get(manifest.app) ?? [];
     byApp.set(manifest.app, snapshots);
-    for (const [order, state] of manifest.states.entries()) {
+    for (const state of manifest.states) {
       const variants: { light?: Variant; dark?: Variant } = {};
       for (const appearance of ["light", "dark"] as const) {
         const variant = inputs.images.get(state[appearance]);
@@ -192,6 +208,8 @@ export const buildManifests = (
         }
       }
       if (variants.light === undefined && variants.dark === undefined) continue;
+      const order = orders.get(`${manifest.app}/${manifest.catalog}`) ?? 0;
+      orders.set(`${manifest.app}/${manifest.catalog}`, order + 1);
       snapshots.push({
         id: state.id,
         module,
@@ -299,9 +317,14 @@ const readCommit = async (commit: string) => {
   const problems: string[] = [];
   const catalogs = (
     await inParallel([...blobs.keys()].filter(isCatalogManifest), 8, async (path) => {
-      const parsed = parseCatalogManifest(
-        JSON.parse((await blob(blobs.get(path) ?? "")).toString()),
-      );
+      let json: unknown;
+      try {
+        json = JSON.parse((await blob(blobs.get(path) ?? "")).toString());
+      } catch (error) {
+        problems.push(`${path} is left out: it isn't JSON (${String(error)}).`);
+        return [];
+      }
+      const parsed = parseCatalogManifest(json);
       if ("problem" in parsed) {
         problems.push(`${path} is left out: ${parsed.problem}.`);
         return [];
@@ -491,10 +514,19 @@ const main = async () => {
     const missingThumbnails = [...variants.values()].filter(
       ({ thumbnail }) => !existing.has(thumbnail),
     );
-    await inParallel(missingThumbnails, 8, async (variant) =>
+    await inParallel(missingThumbnails, 8, async (variant) => {
       // A dry run only says what it would upload, so it doesn't make them.
-      put(variant.thumbnail, dryRun ? "" : thumbnail(png(variant)), "image/png"),
-    );
+      if (dryRun) return put(variant.thumbnail, "", "image/png");
+      let small: Buffer;
+      try {
+        small = thumbnail(png(variant));
+      } catch (error) {
+        // A PNG it can't read (not 8-bit RGBA or RGB) gets itself as its thumbnail.
+        warn(`Couldn't shrink ${variant.image}, so it's its own thumbnail: ${String(error)}`);
+        small = png(variant);
+      }
+      return put(variant.thumbnail, small, "image/png");
+    });
     for (const manifest of manifests) {
       await put(`snapshots/${key}/${manifest.app}.json`, json(manifest), "application/json");
     }
