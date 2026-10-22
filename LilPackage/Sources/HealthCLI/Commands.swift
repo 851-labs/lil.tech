@@ -269,12 +269,20 @@ struct MCPCommand: ParsableCommand {
     abstract: "Runs a local MCP server for agents, on standard input and output.",
     discussion: """
       Agents such as Claude Code start it themselves, with lil health's tools (summary, metric, \
-      sleep…) and the catalog of data types. Add it to Claude Code with:
+      sleep…) and the catalog of data types.
+
+      Rather than this server, add `lil mcp`: one server for every lil app, with these tools \
+      as health.summary and so on. Add it to Claude Code with:
+
+        claude mcp add --scope user lil -- lil mcp
+
+      For an agent that should only see lil health, add this one instead:
 
         claude mcp add --scope user lil-health -- lil health mcp
 
       Elsewhere (Codevisor, other agents), add a stdio server whose command is `lil`, by its \
-      full path (`which lil`: apps don't get your shell's PATH), with the arguments `health mcp`.
+      full path (`which lil`: apps don't get your shell's PATH), with the arguments `mcp`, or \
+      `health mcp` for lil health only.
 
       Each tool call answers only while command-line and agent access is on, and is logged \
       there, like a command.

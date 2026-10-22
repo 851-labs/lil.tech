@@ -126,6 +126,21 @@
         Command Line Tool…). It's off until you turn on “Allow command-line and agent access” in
         Settings › Agents, which also shows how to connect an agent to it.
       </p>
+      <p>
+        Connect an agent to <code>lil mcp</code>: one local server for every lil app, with lil
+        health's tools among them. In Claude Code:
+      </p>
+      <pre><code>claude mcp add --scope user lil -- lil mcp</code></pre>
+      <p>
+        For an agent that should only see lil health, use <code>lil health mcp</code> instead:
+        <code>claude mcp add --scope user lil-health -- lil health mcp</code>.
+      </p>
+      <p>
+        Other agents take a local (stdio) server: the command is <code>lil</code>'s full path, with
+        the arguments <code>mcp</code>, or <code>health mcp</code> for lil health only. Use the full
+        path in Claude Code too if it can't find <code>lil</code>, as when it's started from an app
+        rather than a terminal. Settings › Agents shows the commands with it, ready to copy.
+      </p>
 
       <h2>If something doesn't work</h2>
       <ul>
