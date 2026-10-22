@@ -76,11 +76,11 @@ public struct AppFeature {
     case syncStatusChanged(SyncStatus)
     /// Sync has gone `syncFooterDelay` without being up to date: the footer shows.
     case syncFooterDelayElapsed
-    /// A stack's navigation changed its metrics: a card clicked, or Back. The stack says which
+    /// A stack's navigation changed its metrics: a row clicked, or Back. The stack says which
     /// selection it shows, so one that's going away (as the selection changes) can't empty the
     /// path the next one opens with.
     case metricPathChanged([String], selection: SidebarItem?)
-    /// Shows a page, as the sidebar and a metric's card do: the window's part is the intent's.
+    /// Shows a page, as the sidebar and a metric's row do: the window's part is the intent's.
     case pageOpened(HealthPage)
     case task
   }

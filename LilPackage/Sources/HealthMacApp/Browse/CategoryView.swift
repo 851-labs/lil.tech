@@ -24,7 +24,7 @@ struct CategoryView: View {
     MetricsView(
       category: category,
       state: $summaries.loadError.map { .failed($0.localizedDescription) }
-        ?? ($summaries.isLoading ? .loading : .loaded(summaries)))
+        ?? ($summaries.isLoading && summaries.isEmpty ? .loading : .loaded(summaries)))
   }
 }
 
@@ -63,7 +63,7 @@ struct MetricsView: View {
       case .loading:
         Section {
           ProgressView()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 200)
         }
       case .failed(let reason):
         Section {
