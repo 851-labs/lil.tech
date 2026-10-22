@@ -217,13 +217,24 @@ let package = Package(
     .testTarget(
       name: "HealthSnapshotTests",
       dependencies: [
+        "HealthAgentAccess",
         "HealthCatalog",
-        .target(name: "HealthAgentAccess", condition: .when(platforms: [.macOS])),
-        .target(name: "HealthDatabase", condition: .when(platforms: [.macOS])),
-        .target(name: "HealthMacApp", condition: .when(platforms: [.macOS])),
-        .target(name: "HealthPages", condition: .when(platforms: [.macOS])),
-        .target(name: "HealthPhoneApp", condition: .when(platforms: [.iOS])),
-        .target(name: "HealthUpload", condition: .when(platforms: [.iOS])),
+        "HealthDatabase",
+        "HealthMacApp",
+        "HealthPages",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+      ],
+      exclude: ["__Snapshots__"]
+    ),
+    // The iPhone's, in the simulator (`xcodebuild test -scheme HealthPhoneSnapshotTests`). Its
+    // own target: Xcode builds a target's dependencies for every platform, conditions or not.
+    .testTarget(
+      name: "HealthPhoneSnapshotTests",
+      dependencies: [
+        "HealthCatalog",
+        "HealthPhoneApp",
+        "HealthUpload",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
       ],
