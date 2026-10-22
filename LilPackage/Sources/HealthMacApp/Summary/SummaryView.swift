@@ -104,7 +104,7 @@ struct SummaryContent: View {
             if let type = HealthCatalog.type(id: summary.id) {
               NavigationLink(value: summary.id) {
                 if summary.hasData {
-                  SummaryMetricRow(type: type, summary: summary, now: now, calendar: calendar)
+                  MetricRow(type: type, summary: summary, now: now, calendar: calendar)
                 } else {
                   LabeledContent {
                     Text("No Data")
@@ -151,49 +151,5 @@ struct SummaryContent: View {
         }
       }
     }
-  }
-}
-
-/// One of Summary's metrics with data, in a form row: its name, when it's from, its latest value
-/// and a week's chart.
-struct SummaryMetricRow: View {
-  let type: HealthDataType
-  let summary: MetricSummary
-  let now: Date
-  let calendar: Calendar
-
-  /// The category's, as `HealthTypeLabel`'s.
-  private var color: Color { type.category?.color ?? .secondary }
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      HStack {
-        HealthTypeLabel(type: type)
-          .font(.headline)
-        Spacer()
-        if let date = summary.latestDate {
-          Text(
-            MetricFormat.date(date, isDay: summary.isDailyTotal, now: now, calendar: calendar)
-          )
-          .foregroundStyle(.secondary)
-        }
-      }
-      if let value = summary.latestValue {
-        HStack(alignment: .bottom) {
-          let (number, unit) = MetricFormat.value(value, unit: summary.unit, typeID: type.id)
-          HStack(alignment: .firstTextBaseline, spacing: 3) {
-            Text(number)
-              .font(.system(.title, design: .rounded).bold())
-            Text(unit)
-              .font(.callout.weight(.medium))
-              .foregroundStyle(.secondary)
-          }
-          Spacer()
-          Sparkline(days: summary.days, isTotals: summary.isDailyTotal, color: color)
-            .frame(width: 120, height: 36)
-        }
-      }
-    }
-    .padding(.vertical, 6)
   }
 }
