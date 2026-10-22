@@ -1,6 +1,5 @@
 #if os(macOS)
   import AppKit
-  import ObjectiveC
   import ComposableArchitecture
   import Foundation
   import HealthAgentAccess
@@ -12,11 +11,11 @@
   import SwiftUI
   import Testing
 
-  // Preview states of lil health for Mac, rendered by swift-snapshot-testing (851-2931). Each
-  // builds the same view as the `#Preview` it names. Synthetic data only.
+  // Preview states of lil health for Mac, light and dark (851-2931). Each builds the same view as
+  // the `#Preview` it names, from fixed dates. Synthetic data only.
 
   @MainActor
-  @Suite(.snapshots(record: .missing))
+  @Suite
   struct MacSnapshotTests {
     /// The previews' synthetic database, prepared once per process, as a preview context does.
     static let database: Void = preparePreviewDatabase()
@@ -44,7 +43,7 @@
           range: .constant(.week), offset: .constant(0), state: .loaded(chart))
       }
       .previewFrame(width: 760, height: 720)
-      snapshot(view, appearance: appearance, named: "sound-levels-week")
+      assertMacSnapshot(of: view, appearance: appearance, named: "sound-levels-week")
     }
 
     // HealthNotificationsViewPreviews.swift, "High heart rate notifications": a `List`.
@@ -73,7 +72,7 @@
           ]))
       }
       .previewFrame(width: 620, height: 520)
-      snapshot(view, appearance: appearance, named: "high-heart-rate-notifications")
+      assertMacSnapshot(of: view, appearance: appearance, named: "high-heart-rate-notifications")
     }
 
     // SettingsViewPreviews.swift, "Agents: on, with a log": Settings › Agents, a grouped `Form`.
@@ -102,99 +101,7 @@
         isEnabled: true, isLoading: false, logFailure: nil)
       let view = AgentAccessSettingsView(store: Store(initialState: state) { EmptyReducer() })
         .previewFrame(width: SettingsView.width, height: SettingsView.height)
-      snapshot(view, appearance: appearance, named: "agents-on-with-a-log")
+      assertMacSnapshot(of: view, appearance: appearance, named: "agents-on-with-a-log")
     }
-  }
-
-  /// Renders `view` in an offscreen window of the given appearance, as a preview's canvas would,
-  /// and compares it with its reference image. Prints how long it took.
-  ///
-  /// The window has a title bar, so toolbars render, and the snapshot is of the whole window
-  /// (its frame view), as Xcode's canvas shows a Mac preview.
-  @MainActor
-  func snapshot(
-    _ view: some View, appearance: NSAppearance.Name, named name: String,
-    fileID: StaticString = #fileID, file: StaticString = #filePath, testName: String = #function,
-    line: UInt = #line, column: UInt = #column
-  ) {
-    let clock = ContinuousClock()
-    let start = clock.now
-    prepareApp()
-    // The app's too, as Pixelbook sets it: Swift Charts' axis labels resolve their color with the
-    // app's appearance, so a dark snapshot after a light one could get light mode's labels.
-    NSApplication.shared.appearance = NSAppearance(named: appearance)
-    let controller = NSHostingController(
-      rootView: view.environment(\.controlActiveState, .key))
-    controller.sizingOptions = [.preferredContentSize]
-    let window = KeyWindow(contentViewController: controller)
-    window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-    window.title = name
-    window.appearance = NSAppearance(named: appearance)
-    window.setContentSize(controller.view.fittingSize)
-    window.setFrameOrigin(CGPoint(x: -20_000, y: -20_000))
-    // Let SwiftUI lay out and draw once, and `onAppear` and charts settle.
-    controller.view.layoutSubtreeIfNeeded()
-    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-    let frameView = window.contentView!.superview!
-    let suffix = appearance == .darkAqua ? "dark" : "light"
-    let strategy: Snapshotting<NSView, NSImage> =
-      ProcessInfo.processInfo.environment["SNAPSHOT_STRATEGY"] == "cacheDisplay"
-      ? .image : .layerImage
-    assertSnapshot(
-      of: frameView, as: strategy, named: "\(name)-\(suffix)", fileID: fileID, file: file,
-      testName: "mac", line: line, column: column)
-    window.contentViewController = nil
-    print("snapshot \(name)-\(suffix): \(clock.now - start) at \(frameView.bounds.size)")
-  }
-
-  /// An app to draw in: a test process has none, so windows would draw as an inactive app's
-  /// (gray switches and window buttons). It says it's active, without activating, so it never takes
-  /// focus from the apps on the Mac's screen.
-  @MainActor
-  private func prepareApp() {
-    _ = appIsActive
-  }
-
-  @MainActor
-  private let appIsActive: Void = {
-    let app = NSApplication.shared
-    app.setActivationPolicy(.accessory)
-    let original = class_getInstanceMethod(
-      NSApplication.self, #selector(getter: NSApplication.isActive))!
-    let block: @convention(block) (NSApplication) -> Bool = { _ in true }
-    method_setImplementation(original, imp_implementationWithBlock(block))
-  }()
-
-  extension Snapshotting where Value == NSView, Format == NSImage {
-    /// The view's layer tree drawn with `CALayer.render(in:)` at 2x, in sRGB. Unlike `.image`
-    /// (`cacheDisplay(in:to:)`), it keeps Swift Charts' colors as the screen shows them.
-    @MainActor
-    static var layerImage: Snapshotting {
-      SimplySnapshotting.image(precision: 1, perceptualPrecision: 1).pullback { view in
-        let layer = view.layer!
-        let scale: CGFloat = 2
-        let size = view.bounds.size
-        let context = CGContext(
-          data: nil, width: Int(size.width * scale), height: Int(size.height * scale),
-          bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
-          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-        context.scaleBy(x: scale, y: scale)
-        (view.window?.effectiveAppearance ?? view.effectiveAppearance)
-          .performAsCurrentDrawingAppearance {
-            layer.render(in: context)
-          }
-        return NSImage(cgImage: context.makeImage()!, size: size)
-      }
-    }
-  }
-
-  /// A window that draws as the key window, as a preview's canvas does: controls in a window that
-  /// isn't key draw inactive (a switch that's on shows gray, not the accent color).
-  private final class KeyWindow: NSWindow {
-    override var isKeyWindow: Bool { true }
-    override var isMainWindow: Bool { true }
-    override var canBecomeKey: Bool { true }
-    /// 2x on any Mac, so a 1x display (the Mac minis') renders the same images as a laptop.
-    override var backingScaleFactor: CGFloat { 2 }
   }
 #endif
