@@ -7,7 +7,7 @@
 // device go once per file as a `health_provenance` record, which the record refers to.
 import { createHash } from "node:crypto";
 
-/** The iPhone's backfill reads this many records a page (`docs/SYNC.md`)... */
+/** The iPhone's backfill reads this many records a page (`docs/sync/protocol.md`)... */
 export const pageRecords = 10_000;
 /** ...and writes them to files of at most this many, uploaded at once. */
 export const fileRecords = 5_000;

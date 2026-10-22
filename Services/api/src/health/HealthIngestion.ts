@@ -8,8 +8,9 @@ import { type UserStoreClient, UserStores } from "../store/UserStores.ts";
 import type { HealthBatch, RejectedLine } from "./HealthBatches.ts";
 import { healthEntities } from "./HealthEntities.ts";
 
-// Health ingestion (`docs/SYNC.md`): the iPhone uploads gzip NDJSON batch files, one mutation per
-// line, which the API stores in R2 and queues. The queue consumer applies them to the user's store.
+// Health ingestion (`docs/sync/protocol.md`): the iPhone uploads gzip NDJSON batch files, one
+// mutation per line, which the API stores in R2 and queues. The queue consumer applies them to the
+// user's store.
 
 /** What the queue carries for an uploaded batch. */
 export interface HealthBatchMessage {
@@ -62,7 +63,7 @@ export class HealthBatchQueue extends Context.Service<
 
 /**
  * The most mutations applied per store call. Each call is one transaction in the store, and
- * each costs a round trip, so big batches are applied in few of them (`docs/SYNC.md`). But
+ * each costs a round trip, so big batches are applied in few of them (`docs/sync/protocol.md`). But
  * nothing else runs in the store during one, so uploads' calls to the store wait behind it,
  * which bigger calls made slower without making ingestion measurably faster (851-2667).
  */
@@ -108,7 +109,7 @@ const parseLine = (
   if (entity === undefined) return Result.fail(`Not a health entity: ${mutation.entity}`);
   if (entity.deviceScoped !== undefined) {
     if (deviceId === undefined) return Result.fail(`${entity.name} needs the uploading device`);
-    // Its records were deleted when it signed out (`docs/SYNC.md`), and mustn't come back.
+    // Its records were deleted when it signed out (`docs/sync/protocol.md`), and mustn't come back.
     if (deviceRetired) return Result.fail(deviceSignedOut);
     if (!entity.deviceScoped.id.test(mutation.id)) {
       return Result.fail(`Invalid ${entity.name} ID ${mutation.id}`);

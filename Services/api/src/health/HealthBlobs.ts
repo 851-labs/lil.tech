@@ -4,8 +4,8 @@ import type { OpenedPart, PartRange } from "../sync/SnapshotParts.ts";
 import type { BatchFilesUnavailable } from "./HealthIngestion.ts";
 
 // Health payloads too big for sync rows (ECG voltages, workout routes' locations) are
-// uploaded as blobs, and rows refer to them by their SHA-256 (`docs/SYNC.md`). A blob's key is
-// its user and its hash, so blobs are immutable and only their owner can reach them.
+// uploaded as blobs, and rows refer to them by their SHA-256 (`docs/sync/protocol.md`). A blob's
+// key is its user and its hash, so blobs are immutable and only their owner can reach them.
 
 /** A blob's SHA-256, as lowercase hex: its name. */
 export const HealthBlobHash = Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/));

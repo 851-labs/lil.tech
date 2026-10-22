@@ -6,7 +6,7 @@ import type { StoreSql } from "./StoreSql.ts";
 // Deletes the store's health blobs (`src/health/HealthBlobs.ts`) that no record refers to any
 // more, once they've been unreferenced for `blobGracePeriodMs`. That's longer than Durable Object
 // point-in-time recovery (30 days), so a restored store never refers to a deleted blob. Runs from
-// the store's alarm at most once a day (`docs/SYNC.md`).
+// the store's alarm at most once a day (`docs/sync/protocol.md`).
 
 const day = 24 * 60 * 60 * 1000;
 export const blobGracePeriodMs = 35 * day;

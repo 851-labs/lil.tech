@@ -26,7 +26,7 @@ extension HealthEncoder {
   /// Statistics buckets are 30 minutes, starting on UTC half-hours.
   public static let bucketSeconds: TimeInterval = 1800
 
-  /// A bucket's sum. The server stamps it with this iPhone (`docs/SYNC.md`).
+  /// A bucket's sum. The server stamps it with this iPhone (`docs/sync/protocol.md`).
   public static func statistic(type: String, bucket: HealthBucket, unit: String) -> HealthMutation {
     let start = Int(milliseconds(bucket.start))
     return .upsert(

@@ -5,7 +5,8 @@ import { documentQuery } from "../OpenApiAnnotations.ts";
 import { ChangesCompacted, ChangesPage, Mutation, StorageFull } from "../store/Changes.ts";
 import { UserStoreUnavailable } from "../store/UserStores.ts";
 
-// The sync part of the API definition (`docs/SYNC.md`). Like `Api.ts`, it holds no server code.
+// The sync part of the API definition (`docs/sync/protocol.md`). Like `Api.ts`, it holds no server
+// code.
 
 export const maxChangesLimit = 5000;
 
@@ -123,8 +124,8 @@ export class SyncApi extends HttpApiGroup.make("sync")
     }),
   )
   .add(
-    // Writes from apps, to entities they may write (`docs/SYNC.md`): only `health_pin` today,
-    // which Macs from before pins were retired (851-2990) still write.
+    // Writes from apps, to entities they may write (`docs/sync/protocol.md`): only `health_pin`
+    // today, which Macs from before pins were retired (851-2990) still write.
     HttpApiEndpoint.post("pushMutations", "/v1/sync/mutations", {
       payload: PushMutations,
       success: PushedMutations,

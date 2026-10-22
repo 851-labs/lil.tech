@@ -3,9 +3,9 @@ import type { Mutation } from "./Changes.ts";
 import type { Entity } from "./Entities.ts";
 import type { StoreSql } from "./StoreSql.ts";
 
-// Devices that signed out for good. Their device-scoped records (`docs/SYNC.md`) are deleted a
-// chunk at a time by the store's alarm, through the change log, so clients delete them too. A
-// device-scoped entity with many rows needs an index on `device`, like `health_statistic`'s.
+// Devices that signed out for good. Their device-scoped records (`docs/sync/protocol.md`) are
+// deleted a chunk at a time by the store's alarm, through the change log, so clients delete them
+// too. A device-scoped entity with many rows needs an index on `device`, like `health_statistic`'s.
 
 /** Why the store refuses a retired device's records. */
 export const deviceSignedOut = "The device signed out";

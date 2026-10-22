@@ -8,7 +8,7 @@ import OpenAPIRuntime
 import Testing
 
 /// A store's latest snapshot, served from memory: gzip NDJSON parts of each entity's records, as
-/// a store writes them (`docs/SYNC.md`). For `LilSyncEngine.bootstrap()` without a stage.
+/// a store writes them (`docs/sync/protocol.md`). For `LilSyncEngine.bootstrap()` without a stage.
 struct TestSnapshot {
   let manifest: Components.Schemas.SnapshotManifest
   let parts: [String: Data]

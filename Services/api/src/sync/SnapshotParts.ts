@@ -4,8 +4,8 @@ import { SessionKey } from "../auth/Tokens.ts";
 import type { Snapshot } from "../store/Snapshots.ts";
 import type { SnapshotManifest } from "./SyncApi.ts";
 
-// Downloading snapshot parts (`docs/SYNC.md`): manifests carry short-lived signed URLs, which
-// stream the part from R2 without an `Authorization` header, so background downloads work.
+// Downloading snapshot parts (`docs/sync/protocol.md`): manifests carry short-lived signed URLs,
+// which stream the part from R2 without an `Authorization` header, so background downloads work.
 // Health blobs' download URLs are signed the same way.
 
 /** How long a part URL works. */

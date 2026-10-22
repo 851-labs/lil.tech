@@ -553,7 +553,7 @@ public enum HealthDatabase {
 
   /// The sync schema number to pass to `SyncClient.live(entities:syncSchema:)`. Bump it in a
   /// release that starts storing a new field of an entity it already has, so Macs synced by an
-  /// earlier release bootstrap again and get it (`docs/SYNC.md`). New entities need no bump.
+  /// earlier release bootstrap again and get it (`docs/sync/protocol.md`). New entities need none.
   public static let syncSchema = 2
 
   /// The health entities, for ``LilSyncEngine/init(entities:syncSchema:partsDirectory:)``.

@@ -15,7 +15,7 @@ export const readMeta = (sql: StoreSql, key: string, fallback: number): number =
 /** The newest `seq` in the store's change log, or 0 before the first change. */
 export const readHead = (sql: StoreSql) => readMeta(sql, "head", 0);
 
-/** The store's epoch (`docs/SYNC.md`), which starts at 1. */
+/** The store's epoch (`docs/sync/protocol.md`), which starts at 1. */
 export const readEpoch = (sql: StoreSql) => readMeta(sql, "epoch", 1);
 
 /** The highest `seq` compaction has deleted, or 0. */
@@ -61,7 +61,8 @@ const toRow = (
  * Whether upserts' changes carry a copy of their row (`changes.row`) as well as their key (store
  * migration 17). Code from before 851-2673 can't serve changes without one, so copies stayed until
  * it was live. Rolling back to it or later is safe. Rolling back further needs copies turned on
- * first, and then the changes logged without one compacted away, or a new epoch (`docs/SYNC.md`).
+ * first, and then the changes logged without one compacted away, or a new epoch
+ * (`docs/sync/protocol.md`).
  */
 export const logsRowCopies = false;
 
@@ -135,8 +136,8 @@ const readLoggedRows = (
 
 /**
  * Applies `mutations` in order and appends one change per record that changed, all in one
- * synchronous transaction (`docs/SYNC.md`). Throws `InvalidMutation` (and writes nothing) if any
- * mutation can't be applied.
+ * synchronous transaction (`docs/sync/protocol.md`). Throws `InvalidMutation` (and writes nothing)
+ * if any mutation can't be applied.
  *
  * - `head` is read and advanced inside the transaction, so `seq` values have no gaps even when
  *   calls interleave between transactions.
@@ -147,7 +148,7 @@ const readLoggedRows = (
  * - An upsert's change keeps the record's key (`key`, and its ID), and a copy of its row while
  *   `copyRows` (`logsRowCopies`). Without one, `readChanges` serves it with the whole record as
  *   it is now. Rolling the server back past an entity schema change therefore needs a new epoch
- *   (see `docs/SYNC.md`).
+ *   (see `docs/sync/protocol.md`).
  * - For an entity with key fields (`Entity.key`), upserts find the record by them and its ID, so
  *   they must include them. A delete leaves a tombstone, and the record's row is removed later
  *   (`src/store/Tombstones.ts`): it can't be found by its ID alone. Its first delete is appended

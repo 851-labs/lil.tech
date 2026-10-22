@@ -130,8 +130,8 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   }
 }
 
-/// Uploads a user's Health data (`docs/SYNC.md`): first the whole history (the backfill), then
-/// what changes, every type a page at a time with anchored queries. A page's anchor is only
+/// Uploads a user's Health data (`docs/sync/protocol.md`): first the whole history (the backfill),
+/// then what changes, every type a page at a time with anchored queries. A page's anchor is only
 /// saved once all of its batches are accepted, so if the app is killed, the page is uploaded
 /// again (batch IDs make that safe) and nothing is skipped.
 public actor HealthBackfill {

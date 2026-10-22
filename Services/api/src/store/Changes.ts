@@ -1,9 +1,9 @@
 import { Schema } from "effect";
 
-// The change log's wire types and errors (`docs/SYNC.md`), shared by the store and the API
+// The change log's wire types and errors (`docs/sync/protocol.md`), shared by the store and the API
 // definition. Responses only grow: clients skip ops, entities and fields they don't know.
 
-/** One write to a store, as clients push it (`docs/SYNC.md`). */
+/** One write to a store, as clients push it (`docs/sync/protocol.md`). */
 export const Mutation = Schema.Union([
   Schema.Struct({
     entity: Schema.String,

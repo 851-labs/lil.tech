@@ -1,7 +1,7 @@
 import Foundation
 
 /// One line of a health batch file: a mutation of a health entity, in the push format
-/// (`docs/SYNC.md`). Upserts carry whole records.
+/// (`docs/sync/protocol.md`). Upserts carry whole records.
 public struct HealthMutation: Encodable, Equatable, Sendable {
   public enum Operation: String, Encodable, Sendable {
     case upsert, delete

@@ -3,7 +3,7 @@ export type SqlRow = Record<string, SqlValue>;
 
 /**
  * Synchronous access to a store's SQLite database. A Durable Object interleaves requests at every
- * `await`, so store writes run synchronously inside `transaction` (see `docs/SYNC.md`).
+ * `await`, so store writes run synchronously inside `transaction` (see `docs/sync/protocol.md`).
  */
 export interface StoreSql {
   /** Runs one statement and returns its rows. */

@@ -147,7 +147,8 @@ describe("health entities", () => {
           row: record[field] as Mutation extends { row: infer R } ? R : never,
         }));
 
-      // The log serves each record's current row (`docs/SYNC.md`), so it's read after each step.
+      // The log serves each record's current row (`docs/sync/protocol.md`), so it's read after each
+      // step.
       const read = (after: number) => {
         const page = readChanges(sql, entitiesByName, after, 100);
         return "changes" in page ? page.changes : assert.fail("compacted");

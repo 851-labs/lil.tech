@@ -5,7 +5,8 @@ import type { SqlValue, StoreSql } from "./StoreSql.ts";
 // Records of an entity with key fields (`Entity.key`) are stored in their key's order, so one
 // can't be found by its ID alone. A delete leaves a tombstone instead (`applyMutations`), and the
 // change log has the delete at once. The store's alarm removes the rows later, in passes over
-// each such table a chunk at a time. Until then, reads skip tombstoned records (`docs/SYNC.md`).
+// each such table a chunk at a time. Until then, reads skip tombstoned records
+// (`docs/sync/protocol.md`).
 
 export const tombstonePolicy = {
   /**

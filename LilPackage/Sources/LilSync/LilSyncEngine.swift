@@ -13,8 +13,8 @@ public enum SyncStatus: Equatable, Sendable {
   /// Catching up, a page at a time. `cursor` and `head` give progress: `head - cursor` changes
   /// are left.
   case syncing(cursor: Int, head: Int)
-  /// Starting over from a snapshot (`docs/SYNC.md`), as a new device does, or one whose local
-  /// data is from another epoch or behind compacted changes.
+  /// Starting over from a snapshot (`docs/sync/protocol.md`), as a new device does, or one whose
+  /// local data is from another epoch or behind compacted changes.
   case bootstrapping(BootstrapProgress)
   /// Caught up with the server as of `at`, the end of the last pull.
   case upToDate(at: Date)
@@ -66,8 +66,9 @@ public struct BootstrapProgress: Equatable, Sendable {
   }
 }
 
-/// Pulls a user's change log into the local database (`docs/SYNC.md`): each page is applied
-/// together with the new cursor in one transaction, so the cursor never runs ahead of the data.
+/// Pulls a user's change log into the local database (`docs/sync/protocol.md`): each page is
+/// applied together with the new cursor in one transaction, so the cursor never runs ahead of the
+/// data.
 ///
 /// Named so it doesn't clash with SQLiteData's CloudKit `SyncEngine`.
 public actor LilSyncEngine {
@@ -101,9 +102,9 @@ public actor LilSyncEngine {
   private var wake: CheckedContinuation<Void, Never>?
 
   /// - Parameters:
-  ///   - syncSchema: The app's sync schema number (`docs/SYNC.md`). Bump it in a release that
-  ///     starts storing a new field of an entity it already had: local data synced with a lower
-  ///     number is bootstrapped again, so what was skipped before arrives. New entities don't
+  ///   - syncSchema: The app's sync schema number (`docs/sync/protocol.md`). Bump it in a release
+  ///     that starts storing a new field of an entity it already had: local data synced with a
+  ///     lower number is bootstrapped again, so what was skipped before arrives. New entities don't
   ///     need a bump: the engine bootstraps again by itself when `entities` gains one.
   ///   - partsDirectory: Where to keep downloaded snapshot parts until they're loaded. Defaults
   ///     to a folder in the app's caches, the server's own (``cachesDirectory(for:allowsOverride:caches:bundleIdentifier:)``).
@@ -207,9 +208,9 @@ public actor LilSyncEngine {
   /// greeting alone doesn't count.
   static let stableConnection = Duration.seconds(60)
 
-  /// Keeps a live notice connection open until the task running it is cancelled (`docs/SYNC.md`):
-  /// a notice of a `head` past the local cursor runs a pull (``syncNow()``). The app runs it
-  /// alongside ``run()`` while it's active.
+  /// Keeps a live notice connection open until the task running it is cancelled
+  /// (`docs/sync/protocol.md`): a notice of a `head` past the local cursor runs a pull
+  /// (``syncNow()``). The app runs it alongside ``run()`` while it's active.
   ///
   /// Each connection gets its token from `authentication` (refreshed if needed; `nil` means signed
   /// out, which is retried like any failure). When the server closes a connection because its
@@ -276,11 +277,11 @@ public actor LilSyncEngine {
   }
 
   /// Writes `mutations` to the local tables, and queues them for the server, which gets them
-  /// before the next pull, started now (`docs/SYNC.md`). Only for entities apps may write (none
-  /// since pins were retired, 851-2990). Until the server has them and the cursor passes them,
-  /// pulled changes don't undo them. Waits for a pull or bootstrap in progress, so it lands after it, and before signing
-  /// out deletes the local data. A push the server refuses as invalid is dropped, and the local
-  /// data is replaced from a snapshot, so it matches the server again.
+  /// before the next pull, started now (`docs/sync/protocol.md`). Only for entities apps may write
+  /// (none since pins were retired, 851-2990). Until the server has them and the cursor passes
+  /// them, pulled changes don't undo them. Waits for a pull or bootstrap in progress, so it lands
+  /// after it, and before signing out deletes the local data. A push the server refuses as invalid
+  /// is dropped, and the local data is replaced from a snapshot, so it matches the server again.
   public func push(_ mutations: [SyncMutation]) async throws {
     guard !mutations.isEmpty else { return }
     let pending = PendingMutation(
@@ -458,7 +459,7 @@ public actor LilSyncEngine {
             }
           } catch let error as DecodingError {
             // A row this app can't read would otherwise block every later change. It's skipped;
-            // an app version that understands it bootstraps again (`docs/SYNC.md`).
+            // an app version that understands it bootstraps again (`docs/sync/protocol.md`).
             reportIssue("Skipped \(change.entity) change \(change.seq): \(error)")
           } catch SyncError.missingRow(let seq) {
             reportIssue("Skipped \(change.entity) change \(seq): an upsert without a row")
@@ -479,7 +480,7 @@ public actor LilSyncEngine {
     }
   }
 
-  /// Replaces the local data with the latest snapshot (`docs/SYNC.md`):
+  /// Replaces the local data with the latest snapshot (`docs/sync/protocol.md`):
   ///
   /// 1. Downloads every part of the registered entities and checks its SHA-256. Verified parts are
   ///    kept on disk until loaded, so an interrupted bootstrap only downloads what's missing.
