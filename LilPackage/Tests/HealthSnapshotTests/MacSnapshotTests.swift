@@ -33,4 +33,7 @@
       prepareSnapshotEnvironment()
     }
   }
+
+  /// The calendar whose time zone and locale `fixTimeZoneAndLocale()` makes the process's.
+  let snapshotCalendar = previewCalendar
 #endif

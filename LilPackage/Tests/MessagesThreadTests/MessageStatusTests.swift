@@ -63,20 +63,26 @@ struct MessageStatusTests {
   @MainActor
   @Test
   func statusTextStacksEditedAboveTheStatus() {
-    #expect(MessageCellView.statusText(isEdited: false, status: nil) == nil)
-    #expect(MessageCellView.statusText(isEdited: true, status: nil)?.string == "Edited")
+    #expect(statusText(isEdited: false, status: nil) == nil)
+    #expect(statusText(isEdited: true, status: nil)?.string == "Edited")
     #expect(
-      MessageCellView.statusText(isEdited: true, status: .delivered)?.string == "Edited\nDelivered"
+      statusText(isEdited: true, status: .delivered)?.string == "Edited\nDelivered"
     )
   }
 
   @MainActor
   @Test
   func notDeliveredIsRed() throws {
-    let text = try #require(MessageCellView.statusText(isEdited: false, status: .notDelivered))
+    let text = try #require(statusText(isEdited: false, status: .notDelivered))
     let color = text.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
     #expect(color == .systemRed)
   }
+}
+
+@MainActor
+private func statusText(isEdited: Bool, status: MessageStatus?) -> NSAttributedString? {
+  MessageCellView.statusText(
+    isEdited: isEdited, status: status, now: now, calendar: calendar, locale: locale)
 }
 
 /// Tuesday, September 8, 2026 at 4:43 PM UTC.

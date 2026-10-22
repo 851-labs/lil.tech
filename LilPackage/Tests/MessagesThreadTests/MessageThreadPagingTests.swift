@@ -31,7 +31,7 @@ struct MessageThreadPagingTests {
     }
 
     _ = NSApplication.shared
-    let viewController = MessageThreadViewController(store: store)
+    let viewController = MessageThreadViewController.forTesting(store: store)
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 480, height: 640),
       styleMask: [.titled, .resizable],

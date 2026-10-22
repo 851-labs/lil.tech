@@ -21,6 +21,11 @@ final class MessageThreadViewController: NSViewController {
   private var hasScrolledToBottomAfterLayout = false
   private var rowHeights: [Item: CGFloat] = [:]
   private var rowHeightsWidth: CGFloat = 0
+  // What timestamps and read receipts are relative to, from dependencies so snapshot catalogs
+  // (851-2968) show the same text every day.
+  @Dependency(\.date.now) private var now
+  @Dependency(\.calendar) private var calendar
+  @Dependency(\.locale) private var locale
 
   enum Item: Hashable {
     case message(Message.ID)
@@ -94,7 +99,7 @@ final class MessageThreadViewController: NSViewController {
         let cell =
           tableView.makeView(withIdentifier: SeparatorCellView.identifier, owner: nil)
           as? SeparatorCellView ?? SeparatorCellView()
-        cell.configure(with: ThreadTimestamp(date, now: Date()))
+        cell.configure(with: timestamp(date))
         return cell
       }
       let cell =
@@ -240,7 +245,7 @@ final class MessageThreadViewController: NSViewController {
           with: message,
           links: links(for: message),
           senderName: sender.map { senderNames[$0] ?? formattedHandle($0) },
-          status: MessageStatus.of(message, showsReceipt: id == receiptMessageID),
+          status: statusText(for: message),
           maxTextWidth: maxTextWidth
         )
       }
@@ -253,6 +258,19 @@ final class MessageThreadViewController: NSViewController {
     }
   }
 
+  /// A separator's label, as of now.
+  private func timestamp(_ date: Date) -> ThreadTimestamp {
+    ThreadTimestamp(date, now: now, calendar: calendar, locale: locale)
+  }
+
+  /// What a message shows under it: "Edited", then its delivery status.
+  private func statusText(for message: ThreadMessage) -> NSAttributedString? {
+    MessageCellView.statusText(
+      isEdited: message.dateEdited != nil,
+      status: MessageStatus.of(message, showsReceipt: message.id == receiptMessageID),
+      now: now, calendar: calendar, locale: locale)
+  }
+
   /// A row's height. Heights are explicit, not automatic, so the document height is exact before
   /// anything scrolls: automatic heights only measure visible rows and estimate the rest, which made
   /// scroll-to-bottom and the anchoring of prepended pages land in the wrong place. They're computed
@@ -261,15 +279,14 @@ final class MessageThreadViewController: NSViewController {
     let maxTextWidth = MessageCellView.maxTextWidth(forRowWidth: rowWidth)
     switch item {
     case .separator(let date):
-      return SeparatorCellView.height(for: ThreadTimestamp(date, now: Date()))
+      return SeparatorCellView.height(for: timestamp(date))
     case .message(let id):
       guard let message = messagesByID[id] else { return 1 }
       let sender = isGroup && !message.isFromMe ? message.senderAddress : nil
-      let status = MessageStatus.of(message, showsReceipt: id == receiptMessageID)
       return MessageCellView.height(
         text: MessageCellView.displayText(for: message),
         senderName: sender.map { senderNames[$0] ?? formattedHandle($0) },
-        status: MessageCellView.statusText(isEdited: message.dateEdited != nil, status: status),
+        status: statusText(for: message),
         maxTextWidth: maxTextWidth
       )
     case .pending(let id):
@@ -289,7 +306,7 @@ final class MessageThreadViewController: NSViewController {
     let cell: NSView
     if case .separator(let date) = item {
       let separator = SeparatorCellView()
-      separator.configure(with: ThreadTimestamp(date, now: Date()))
+      separator.configure(with: timestamp(date))
       cell = separator
     } else {
       let messageCell = MessageCellView()
@@ -579,7 +596,7 @@ final class MessageCellView: NSTableCellView {
     with message: ThreadMessage,
     links: [MessageLink],
     senderName: String?,
-    status: MessageStatus?,
+    status: NSAttributedString?,
     maxTextWidth: CGFloat
   ) {
     bodyText.preferredMaxLayoutWidth = maxTextWidth
@@ -589,7 +606,7 @@ final class MessageCellView: NSTableCellView {
       links: links,
       style: message.isFromMe ? (message.isTextMessage ? .textMessage : .iMessage) : .received,
       senderName: senderName,
-      status: Self.statusText(isEdited: message.dateEdited != nil, status: status)
+      status: status
     )
     bubble.alphaValue = 1
   }
@@ -612,7 +629,9 @@ final class MessageCellView: NSTableCellView {
   }
 
   /// "Edited" under edited messages, then the delivery status, with failures in red.
-  static func statusText(isEdited: Bool, status: MessageStatus?) -> NSAttributedString? {
+  static func statusText(
+    isEdited: Bool, status: MessageStatus?, now: Date, calendar: Calendar, locale: Locale
+  ) -> NSAttributedString? {
     var lines: [NSAttributedString] = []
     if isEdited {
       lines.append(NSAttributedString(string: "Edited", attributes: statusAttributes()))
@@ -620,7 +639,7 @@ final class MessageCellView: NSTableCellView {
     if let status {
       lines.append(
         NSAttributedString(
-          string: status.text(now: Date()),
+          string: status.text(now: now, calendar: calendar, locale: locale),
           attributes: statusAttributes(
             color: status == .notDelivered ? .systemRed : .secondaryLabelColor)
         )

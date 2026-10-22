@@ -38,19 +38,3 @@ public struct FullDiskAccessView: View {
     }
   }
 }
-
-#Preview("Default") {
-  FullDiskAccessView(
-    store: Store(initialState: FullDiskAccessFeature.State()) {
-      FullDiskAccessFeature()
-    }
-  )
-}
-
-#Preview("Checking") {
-  FullDiskAccessView(
-    store: Store(initialState: FullDiskAccessFeature.State(isChecking: true)) {
-      FullDiskAccessFeature()
-    }
-  )
-}
