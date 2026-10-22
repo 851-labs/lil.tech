@@ -25,15 +25,15 @@
       CatalogState("Workouts failed") { list(.failed("The database couldn't be read.")) },
       // A workout.
       // The route without the map: MapKit doesn't draw offscreen (`drawsRouteMaps`).
-      CatalogState("Run with route", width: 760, minHeight: 1300) {
+      CatalogState("Run with route", width: 760) {
         detail { .loaded(LoadedRoute(route(of: $0))) }
           .environment(\.drawsRouteMaps, false)
       },
-      CatalogState("Strength, no route", width: 760, minHeight: 1300) {
+      CatalogState("Strength, no route", width: 760) {
         detail({ _ in .none }, kind: 50)
       },
-      CatalogState("Route loading", width: 760, minHeight: 1300) { detail { _ in .loading } },
-      CatalogState("Route failed", width: 760, minHeight: 1300) {
+      CatalogState("Route loading", width: 760) { detail { _ in .loading } },
+      CatalogState("Route failed", width: 760) {
         detail { _ in .failed("The route couldn't be downloaded.") }
       },
     ])

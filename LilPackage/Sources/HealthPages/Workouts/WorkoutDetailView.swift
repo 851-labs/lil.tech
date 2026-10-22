@@ -76,19 +76,25 @@ struct WorkoutDetailContent: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
+    // A grouped form on its own background, as Metric Detail is (851-2989, 851-3001): the
+    // workout and its figures, then a section each for heart rate, the route, splits and
+    // segments.
+    Form {
+      Section {
         header
         summary
-        if !heartRates.isEmpty { heartRateCard }
-        routeSection
-        segments
       }
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
+      if !heartRates.isEmpty { heartRateSection }
+      let map = RouteMapRow(route: route, height: 300)
+      if map.showsSomething {
+        Section("Route") { map }
+      }
+      if case .loaded(let loaded) = route, loaded.hasMap, !splits.isEmpty {
+        splitsSection
+      }
+      segmentsSection
     }
-    .background(Color.pageBackground)
+    .formStyle(.grouped)
     .navigationTitle(WorkoutActivity.name(workout.activityType))
   }
 
@@ -114,26 +120,23 @@ struct WorkoutDetailContent: View {
           .foregroundStyle(.secondary)
       }
     }
+    .padding(.vertical, 6)
   }
 
-  /// The figures Health shows for a workout, those it recorded.
+  /// The figures Health shows for a workout, those it recorded, two to a line as in Health.
   private var summary: some View {
     let figures = summaryFigures
-    return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+    return LazyVGrid(
+      columns: [
+        GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading),
+      ],
+      alignment: .leading, spacing: 12
+    ) {
       ForEach(figures, id: \.label) { figure in
-        VStack(alignment: .leading, spacing: 2) {
-          Text(figure.label)
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-          Text(figure.value)
-            .font(.system(.title2, design: .rounded).weight(.semibold))
-            .foregroundStyle(figure.color)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        WorkoutFigure(label: figure.label, value: figure.value, color: figure.color)
       }
     }
-    .padding(16)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+    .padding(.vertical, 6)
   }
 
   private var summaryFigures: [(label: String, value: String, color: Color)] {
@@ -167,114 +170,107 @@ struct WorkoutDetailContent: View {
 
   // MARK: Heart rate
 
-  private var heartRateCard: some View {
+  private var heartRateSection: some View {
     let values = heartRates.compactMap(\.value)
-    return VStack(alignment: .leading, spacing: 8) {
-      HStack {
-        Text("Heart Rate")
-          .font(.headline)
-        Spacer()
+    return Section("Heart Rate") {
+      VStack(alignment: .leading, spacing: 12) {
         if let low = values.min(), let high = values.max() {
           Text("\(Int(low.rounded()))–\(Int(high.rounded())) BPM")
-            .foregroundStyle(.secondary)
+            .font(.system(.title3, design: .rounded).weight(.semibold))
+            .foregroundStyle(.red)
         }
-      }
-      Chart(heartRates) { sample in
-        if let value = sample.value {
-          LineMark(
-            x: .value("Time", Date(unixMilliseconds: sample.startDate)),
-            y: .value("BPM", value)
-          )
-          .foregroundStyle(.red)
-          .interpolationMethod(.catmullRom)
+        Chart(heartRates) { sample in
+          if let value = sample.value {
+            LineMark(
+              x: .value("Time", Date(unixMilliseconds: sample.startDate)),
+              y: .value("BPM", value)
+            )
+            .foregroundStyle(.red)
+            .interpolationMethod(.catmullRom)
+          }
         }
-      }
-      .chartYScale(domain: .automatic(includesZero: false))
-      .chartXAxis {
-        AxisMarks { _ in
-          AxisGridLine()
-          AxisValueLabel(format: .dateTime.hour().minute())
+        .chartYScale(domain: .automatic(includesZero: false))
+        .chartXAxis {
+          AxisMarks { _ in
+            AxisGridLine()
+            AxisValueLabel(format: .dateTime.hour().minute())
+          }
         }
+        .frame(height: 160)
       }
-      .frame(height: 160)
-    }
-    .padding(16)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-  }
-
-  // MARK: Route and splits
-
-  @ViewBuilder private var routeSection: some View {
-    RouteMapCard(route: route, height: 300)
-    if case .loaded(let loaded) = route, loaded.hasMap {
-      splitsTable
+      .padding(.vertical, 6)
     }
   }
 
-  private var splitsTable: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Splits")
-        .font(.title3.bold())
-      VStack(spacing: 0) {
-        HStack {
-          Text("KM").frame(width: 50, alignment: .leading)
-          Text("Time").frame(maxWidth: .infinity, alignment: .leading)
-          Text("Pace").frame(maxWidth: .infinity, alignment: .trailing)
-        }
+  // MARK: Splits
+
+  /// A row per kilometer, under a row naming the columns.
+  private var splitsSection: some View {
+    Section("Splits") {
+      splitRow("KM", "Time", "Pace")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        ForEach(Array(splits.enumerated()), id: \.offset) { index, split in
-          Divider().padding(.leading, 14)
-          HStack {
-            Text(
-              split.distance < 990
-                ? (Double(index) + split.distance / 1000).formatted(
-                  .number.precision(.fractionLength(2)))
-                : "\(index + 1)"
-            )
-            .frame(width: 50, alignment: .leading)
-            Text(WorkoutFormat.duration(split.duration))
-              .frame(maxWidth: .infinity, alignment: .leading)
-            Text(WorkoutFormat.pace(split.pace))
-              .foregroundStyle(.cyan)
-              .frame(maxWidth: .infinity, alignment: .trailing)
-          }
-          .monospacedDigit()
-          .padding(.horizontal, 14)
-          .padding(.vertical, 8)
-        }
+      ForEach(Array(splits.enumerated()), id: \.offset) { index, split in
+        splitRow(
+          split.distance < 990
+            ? (Double(index) + split.distance / 1000).formatted(
+              .number.precision(.fractionLength(2)))
+            : "\(index + 1)",
+          WorkoutFormat.duration(split.duration),
+          WorkoutFormat.pace(split.pace), paceColor: .cyan
+        )
+        .monospacedDigit()
       }
-      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+    }
+  }
+
+  private func splitRow(
+    _ kilometer: String, _ time: String, _ pace: String, paceColor: Color? = nil
+  ) -> some View {
+    HStack {
+      Text(kilometer).frame(width: 50, alignment: .leading)
+      Text(time).frame(maxWidth: .infinity, alignment: .leading)
+      Text(pace)
+        // The column names' row is secondary throughout.
+        .foregroundStyle(paceColor ?? .secondary)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
   }
 
   // MARK: Segments
 
-  @ViewBuilder private var segments: some View {
+  @ViewBuilder private var segmentsSection: some View {
     let segments = workout.decodedEvents.filter { $0.type == WorkoutEvent.segment }
     if !segments.isEmpty {
-      VStack(alignment: .leading, spacing: 8) {
-        Text("Segments")
-          .font(.title3.bold())
-        VStack(spacing: 0) {
-          ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
-            if index > 0 { Divider().padding(.leading, 14) }
-            HStack {
-              Text("Segment \(index + 1)")
-              Spacer()
-              Text(WorkoutFormat.duration(segment.duration))
-                .monospacedDigit()
-                .foregroundStyle(.yellow)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+      Section("Segments") {
+        ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
+          LabeledContent("Segment \(index + 1)") {
+            Text(WorkoutFormat.duration(segment.duration))
+              .monospacedDigit()
+              .foregroundStyle(.yellow)
           }
         }
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
       }
     }
+  }
+}
+
+/// One of a workout's or a route's figures: its label, and its value in its color.
+struct WorkoutFigure: View {
+  let label: String
+  let value: String
+  let color: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(label)
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+      Text(value)
+        .font(.system(.title2, design: .rounded).weight(.semibold))
+        .foregroundStyle(color)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 

@@ -37,46 +37,46 @@ struct LoadedRoute {
   var hasMap: Bool { locations.count > 1 }
 }
 
-/// A route's map in a card, colored by pace, or how its loading is going.
-struct RouteMapCard: View {
+/// A route's map in a form row, colored by pace, or how its loading is going.
+struct RouteMapRow: View {
   let route: RouteState
   var height: CGFloat = 300
   /// Whether a route without locations says so, rather than showing nothing.
   var saysWhenEmpty = false
 
-  var body: some View {
+  /// Whether it shows anything, so a page can leave out its section.
+  var showsSomething: Bool {
     switch route {
-    case .loading:
-      card {
-        ProgressView()
-          .frame(maxWidth: .infinity, minHeight: height * 0.8)
-      }
-    case .failed(let reason):
-      card {
-        ContentUnavailableView(
-          "Couldn't Load the Route", systemImage: "map", description: Text(reason))
-      }
-    case .loaded(let loaded) where loaded.hasMap:
-      card {
-        RouteMap(locations: loaded.locations)
-          .frame(height: height)
-          .clipShape(RoundedRectangle(cornerRadius: 8))
-      }
-    case .none, .loaded:
-      if saysWhenEmpty {
-        card {
-          ContentUnavailableView(
-            "No Locations", systemImage: "map",
-            description: Text("This route has no locations to show."))
-        }
-      }
+    case .loading, .failed: true
+    case .loaded(let loaded) where loaded.hasMap: true
+    case .none, .loaded: saysWhenEmpty
     }
   }
 
-  private func card(@ViewBuilder _ content: () -> some View) -> some View {
-    content()
-      .frame(maxWidth: .infinity)
-      .padding(12)
-      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+  var body: some View {
+    switch route {
+    case .loading:
+      ProgressView()
+        .frame(maxWidth: .infinity, minHeight: height * 0.8)
+    case .failed(let reason):
+      ContentUnavailableView(
+        "Couldn't Load the Route", systemImage: "map", description: Text(reason)
+      )
+      // A form's row would otherwise give it only its ideal width, off center.
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+    case .loaded(let loaded) where loaded.hasMap:
+      RouteMap(locations: loaded.locations)
+        .frame(height: height)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(.vertical, 6)
+    case .none, .loaded:
+      if saysWhenEmpty {
+        ContentUnavailableView(
+          "No Locations", systemImage: "map",
+          description: Text("This route has no locations to show.")
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
+    }
   }
 }
