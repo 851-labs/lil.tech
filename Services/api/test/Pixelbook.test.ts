@@ -57,6 +57,12 @@ describe("Pixelbook manifests", () => {
         "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.json",
       ),
     );
+    // Before the product folders (851-3065).
+    assert.isTrue(
+      isCatalogManifest(
+        "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.json",
+      ),
+    );
     assert.isFalse(isCatalogManifest(`${references}/sign-in-mac.signed-out-light.png`));
     assert.isFalse(isCatalogManifest("Web/pixelbook/graphs/health-mac.json"));
     assert.isFalse(

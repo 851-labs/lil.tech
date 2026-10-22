@@ -169,6 +169,14 @@ export const compareUrl = (base: string, head: string) =>
 export const sourcePath = (snapshot: Snapshot) =>
   snapshot.path ?? `LilPackage/Sources/${snapshot.module}/${snapshot.file}`;
 
+/**
+ * A state's or preview's file as the inspector shows it: from its target's folder, without
+ * `LilPackage/Sources/` or `LilPackage/Tests/` and the product folder, if it's in one
+ * (`Health/HealthSnapshotTests/…`, 851-3065).
+ */
+export const sourceLabel = (snapshot: Snapshot) =>
+  sourcePath(snapshot).replace(/^LilPackage\/(Sources|Tests)\/((\w+)\/(?=\3))?/, "");
+
 /** A state's or preview's file and line on GitHub, at a commit. */
 export const sourceUrl = (snapshot: Snapshot, commit: string) =>
   `${repositoryUrl}/blob/${commit}/` +

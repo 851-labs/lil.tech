@@ -11,7 +11,7 @@ import {
   platformNames,
   schemeNames,
   schemes,
-  sourcePath,
+  sourceLabel,
   sourceUrl,
 } from "../lib/Snapshots.ts";
 import { Actions } from "./Actions.tsx";
@@ -101,10 +101,7 @@ export function FrameView({
           </Detail>
           <Detail name="Source">
             <ExternalLink href={sourceUrl(snapshot, commit)}>
-              {sourcePath(snapshot).replace(
-                /^LilPackage\/(Sources|Tests)\/((Health|Messages|Lil)\/)?/,
-                "",
-              )}
+              {sourceLabel(snapshot)}
               {snapshot.line === null ? "" : `:${snapshot.line}`}
             </ExternalLink>
           </Detail>
