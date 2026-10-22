@@ -49,6 +49,8 @@ struct HealthNotificationsContent: View {
 
   let kind: HealthNotificationKind
   let state: State
+  /// How many the list holds at most (`RecentNotifications.limit`), to say when it's full.
+  var limit = RecentNotifications.limit
   /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
   @Dependency(\.calendar) private var calendar
 
@@ -66,32 +68,37 @@ struct HealthNotificationsContent: View {
         ContentUnavailableView(
           "No \(kind.name)", systemImage: kind.symbol, description: Text(kind.emptyDescription))
       case .loaded(let notifications):
-        List {
-          ForEach(
-            sections(
-              notifications, by: .month, calendar: calendar,
-              startDate: { kind.listedDate(of: $0.sample).unixMilliseconds }),
-            id: \.start
-          ) { section in
-            Section(section.start.formatted(NotificationFormat.month(calendar))) {
-              ForEach(section.records) { notification in
-                NavigationLink {
-                  NotificationDetailView(kind: kind, notification: notification)
-                } label: {
-                  NotificationRow(kind: kind, notification: notification, calendar: calendar)
-                }
-              }
+        list(notifications)
+      }
+    }
+    .navigationTitle(kind.name)
+  }
+
+  /// A section per month, in a grouped list (`LazyGroupedList`): a `Form` builds every row at
+  /// once, and the list holds up to 1,000.
+  private func list(_ notifications: [HealthNotification]) -> some View {
+    let months = sections(
+      notifications, by: .month, calendar: calendar,
+      startDate: { kind.listedDate(of: $0.sample).unixMilliseconds })
+    return LazyGroupedList {
+      ForEach(months, id: \.start) { month in
+        Section {
+          ForEach(month.records) { notification in
+            NavigationLink {
+              NotificationDetailView(kind: kind, notification: notification)
+            } label: {
+              NotificationRow(kind: kind, notification: notification, calendar: calendar)
             }
           }
-          if notifications.count >= RecentNotifications.limit {
-            Text("Showing the \(RecentNotifications.limit.formatted()) most recent notifications.")
-              .font(.footnote)
-              .foregroundStyle(.secondary)
+        } header: {
+          Text(month.start.formatted(NotificationFormat.month(calendar)))
+        } footer: {
+          if month.start == months.last?.start, notifications.count >= limit {
+            Text("Showing the \(limit.formatted()) most recent notifications.")
           }
         }
       }
     }
-    .navigationTitle(kind.name)
   }
 }
 
