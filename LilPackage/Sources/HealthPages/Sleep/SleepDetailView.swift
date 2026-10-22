@@ -12,12 +12,16 @@ public struct SleepDetailView: View {
   let type: HealthDataType
   @State private var range = SleepRange.day
   @State private var offset = 0
-  /// Today, moved on at midnight, so the nights shown follow.
-  @State private var today = Date.now
+  /// Today, moved on at midnight, so the nights shown follow. From the `date` dependency, so
+  /// snapshot catalogs fix it (`previewNow`).
+  @State private var today: Date
   @Fetch private var nights: [SleepNight] = []
+  @Dependency(\.date) private var date
 
   public init(type: HealthDataType) {
     self.type = type
+    @Dependency(\.date.now) var now
+    _today = State(initialValue: now)
   }
 
   public var body: some View {
@@ -31,7 +35,7 @@ public struct SleepDetailView: View {
         SleepRequest(range: range, offset: offset, day: today), scheduler: MainQueueScheduler())
     }
     .onReceive(calendarDayChanges()) {
-      today = .now
+      today = date.now
     }
   }
 }

@@ -7,7 +7,7 @@
     },
     {
       "id": "app",
-      "screen": "HealthMacApp/AppViewPreviews.swift",
+      "screen": "HealthMacApp/WindowCatalog.swift",
       "title": "Window",
       "states": [
         "Summary",
@@ -25,7 +25,7 @@
     },
     {
       "id": "sync-footer",
-      "screen": "HealthMacApp/SyncFooterView.swift"
+      "screen": "HealthMacApp/SyncFooterCatalog.swift"
     },
     {
       "id": "settings",
@@ -39,18 +39,18 @@
     },
     {
       "id": "summary",
-      "screen": "HealthMacApp/SummaryViewPreviews.swift",
-      "states": ["Pinned", "Nothing pinned", "Loading", "Failed"]
+      "screen": "HealthMacApp/SummaryCatalog.swift",
+      "states": ["Pinned", "Nothing pinned", "Loading", "Failed", "Week comparisons"]
     },
     {
       "id": "pin-editor",
-      "screen": "HealthMacApp/SummaryViewPreviews.swift",
+      "screen": "HealthMacApp/SummaryCatalog.swift",
       "title": "Pin Editor",
       "states": ["Edit", "Edit, searching"]
     },
     {
       "id": "category",
-      "screen": "HealthMacApp/CategoryViewPreviews.swift"
+      "screen": "HealthMacApp/CategoryCatalog.swift"
     },
     {
       "id": "metric",

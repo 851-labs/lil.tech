@@ -102,23 +102,5 @@
       .previewFrame(width: SettingsView.width, height: SettingsView.height)
       assertMacSnapshot(of: view, appearance: appearance, named: "agents-on-with-a-log")
     }
-
-    // SyncFooterView.swift: the sidebar's sync footer through a first sync (851-2946).
-    @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
-    func syncFooter(appearance: NSAppearance.Name) {
-      let states: [(String, SyncStatus)] = [
-        ("downloading-very-large", .bootstrapping(.downloading(1_250_000, of: 48_731_204))),
-        ("downloaded-saving-starts", .bootstrapping(.loading(0, of: 2_000_000))),
-        ("saving-one-left", .bootstrapping(.loading(1_999_999, of: 2_000_000))),
-        ("finishing-up", .bootstrapping(.finishing(2_000_000))),
-        ("catching-up", .syncing(cursor: 2_000_000, head: 2_487_650)),
-      ]
-      for (name, status) in states {
-        let view = SyncFooterView(status: status, retry: {})
-          .frame(width: 260)
-          .background(.background)
-        assertMacSnapshot(of: view, appearance: appearance, named: "sync-footer-\(name)")
-      }
-    }
   }
 #endif

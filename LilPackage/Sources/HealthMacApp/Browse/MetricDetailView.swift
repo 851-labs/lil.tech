@@ -107,13 +107,17 @@ struct MetricChartRequest: FetchKeyRequest {
 
   func fetch(_ db: Database) throws -> MetricChart? {
     guard let type = HealthCatalog.type(id: typeID) else { return nil }
+    // The dependencies where the fetch started (SQLiteData passes them on), so snapshot
+    // catalogs fix them.
+    @Dependency(\.date.now) var now
+    @Dependency(\.calendar) var calendar
     if HealthDatabase.categoryChartTypes.contains(typeID) {
       // Stand hours, mindful minutes, handwashing and toothbrushing (851-2831).
       return try HealthDatabase.categoryChart(
-        of: typeID, range: range, offset: offset, now: .now, calendar: .current, db)
+        of: typeID, range: range, offset: offset, now: now, calendar: calendar, db)
     }
     return try HealthDatabase.metricChart(
-      of: type, range: range, offset: offset, now: .now, calendar: .current, db)
+      of: type, range: range, offset: offset, now: now, calendar: calendar, db)
   }
 }
 
@@ -130,10 +134,12 @@ struct MetricOverlaysRequest: FetchKeyRequest {
   let offset: Int
 
   func fetch(_ db: Database) throws -> [MetricOverlay] {
-    try lines.compactMap { line in
+    @Dependency(\.date.now) var now
+    @Dependency(\.calendar) var calendar
+    return try lines.compactMap { line in
       guard let type = HealthCatalog.type(id: line.typeID) else { return nil }
       let chart = try HealthDatabase.metricChart(
-        of: type, range: range, offset: offset, now: .now, calendar: .current, db)
+        of: type, range: range, offset: offset, now: now, calendar: calendar, db)
       return MetricOverlay(
         name: line.name, color: line.color, points: chart.points, range: range, offset: offset)
     }
