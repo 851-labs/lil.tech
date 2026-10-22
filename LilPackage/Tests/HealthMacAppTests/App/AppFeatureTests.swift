@@ -481,6 +481,15 @@ struct AppFeatureTests {
     }
   }
 
+  /// Health Details' Vision link pushes this ID, which its stack shows with `MetricDetail`: it must
+  /// be the catalog's Vision Prescriptions, or the link opens "Unknown Data Type" (851-3030).
+  @Test
+  func healthDetailsVisionLinkIsTheCatalogsVisionPrescriptions() {
+    let type = HealthCatalog.type(id: HealthDatabase.visionPrescriptionType)
+    #expect(type?.kind == .visionPrescription)
+    #expect(type?.name == "Vision Prescriptions")
+  }
+
   /// A characteristic found by search shows Health Details, whose Vision link pushes on the
   /// result's stack. Choosing a result, or clearing the search, shows a page with nothing pushed
   /// (851-3030).
