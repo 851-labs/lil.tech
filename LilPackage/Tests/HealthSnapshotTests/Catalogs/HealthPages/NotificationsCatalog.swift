@@ -8,8 +8,7 @@
   // A kind's notifications (`HealthNotificationsContent`) and a notification's detail
   // (`NotificationDetailContent`). Synthetic data only: made-up notifications, with metadata as
   // the iPhone uploads it (quantities as their descriptions). Dated before October 14, 2025, not
-  // `previewNow`: the views show no date relative to now, and "High heart rate notifications"
-  // keeps the pixels it had as `MacSnapshotTests.notificationsList` (851-2931).
+  // `previewNow`: the views show no date relative to now.
 
   extension MacSnapshotTests {
     @Test(arguments: notificationsCatalog.selectedStates)
