@@ -1,3 +1,4 @@
+import Dependencies
 import HealthUI
 import LilSync
 import SwiftUI
@@ -7,9 +8,11 @@ import SwiftUI
 struct SyncFooterView: View {
   let status: SyncStatus
   let retry: () -> Void
+  /// From dependencies, so snapshot catalogs fix it (`previewNow`): "Updated 2 minutes ago".
+  @Dependency(\.date.now) private var now
 
   var body: some View {
-    let content = SyncFooterContent(status)
+    let content = SyncFooterContent(status, now: now)
     HStack(alignment: .center, spacing: 8) {
       icon
         .frame(width: 16)
@@ -83,7 +86,8 @@ struct SyncFooterContent: Equatable {
   var detail: String?
   var bar: Bar
 
-  init(_ status: SyncStatus) {
+  /// `now` is what "Updated 2 minutes ago" counts from.
+  init(_ status: SyncStatus, now: Date) {
     switch status {
     case .idle:
       self.init(title: "Syncing…", detail: nil, bar: .none)
@@ -108,7 +112,9 @@ struct SyncFooterContent: Equatable {
     case .upToDate(let date):
       self.init(
         title: "Up to date",
-        detail: "Updated \(date.formatted(.relative(presentation: .named)))", bar: .none)
+        detail:
+          "Updated \(Date.AnchoredRelativeFormatStyle(anchor: date, presentation: .named).format(now))",
+        bar: .none)
     case .offline:
       self.init(title: "Offline", detail: "Syncs when you're back online", bar: .none)
     case .failed:
@@ -133,61 +139,4 @@ struct SyncFooterContent: Equatable {
       title: title, detail: ItemsCopy.left(progress.recordsLeft),
       bar: .determinate(done: progress.records, total: progress.totalRecords))
   }
-}
-
-@MainActor
-private func footer(_ status: SyncStatus) -> some View {
-  SyncFooterView(status: status, retry: {})
-    .frame(width: 260)
-    .background(.background)
-}
-
-#Preview("Syncing") {
-  footer(.syncing(cursor: 1_200, head: 9_000))
-}
-
-// Catching up on the changes since the snapshot, after a first sync.
-#Preview("Catching up, many changes") {
-  footer(.syncing(cursor: 2_000_000, head: 2_487_650))
-}
-
-#Preview("Downloading, starting") {
-  footer(.bootstrapping(.downloading(0, of: 0)))
-}
-
-#Preview("Downloading") {
-  footer(.bootstrapping(.downloading(300_000, of: 2_000_000)))
-}
-
-#Preview("Downloading, very large") {
-  footer(.bootstrapping(.downloading(1_250_000, of: 48_731_204)))
-}
-
-// Every part downloaded: the count starts again for saving them, rather than sitting at zero.
-#Preview("Downloaded, saving starts") {
-  footer(.bootstrapping(.loading(0, of: 2_000_000)))
-}
-
-#Preview("Saving") {
-  footer(.bootstrapping(.loading(1_385_000, of: 2_000_000)))
-}
-
-#Preview("Saving, one left") {
-  footer(.bootstrapping(.loading(1_999_999, of: 2_000_000)))
-}
-
-#Preview("Finishing up") {
-  footer(.bootstrapping(.finishing(2_000_000)))
-}
-
-#Preview("Up to date") {
-  footer(.upToDate(at: .now.addingTimeInterval(-120)))
-}
-
-#Preview("Offline") {
-  footer(.offline)
-}
-
-#Preview("Failed") {
-  footer(.failed("unexpectedStatus(500)"))
 }

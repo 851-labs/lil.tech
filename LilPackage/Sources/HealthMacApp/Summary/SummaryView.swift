@@ -71,7 +71,11 @@ struct HighlightsRequest: FetchKeyRequest {
   }
 
   func fetch(_ db: Database) throws -> [Highlight] {
-    try HealthDatabase.highlights(now: .now, calendar: .current, db)
+    // The dependencies where the fetch started (SQLiteData passes them on), so snapshot
+    // catalogs fix them.
+    @Dependency(\.date.now) var now
+    @Dependency(\.calendar) var calendar
+    return try HealthDatabase.highlights(now: now, calendar: calendar, db)
   }
 }
 
@@ -87,8 +91,10 @@ struct PinnedSummaries: FetchKeyRequest {
   }
 
   func fetch(_ db: Database) throws -> [MetricSummary] {
-    try ids.compactMap(HealthCatalog.type(id:)).map {
-      try HealthDatabase.metricSummary(of: $0, now: .now, calendar: .current, db)
+    @Dependency(\.date.now) var now
+    @Dependency(\.calendar) var calendar
+    return try ids.compactMap(HealthCatalog.type(id:)).map {
+      try HealthDatabase.metricSummary(of: $0, now: now, calendar: calendar, db)
     }
   }
 }
@@ -106,7 +112,8 @@ struct SummaryContent: View {
   var highlights: State<[Highlight]> = .loaded([])
   let edit: () -> Void
   let pin: (String) -> Void
-  var now = Date.now
+  /// From dependencies, so snapshot catalogs fix it (`previewNow`).
+  @Dependency(\.date.now) private var now
 
   var body: some View {
     ScrollView {

@@ -33,7 +33,11 @@ struct CategorySummaries: FetchKeyRequest {
   let category: HealthCategory
 
   func fetch(_ db: Database) throws -> [MetricSummary] {
-    try HealthDatabase.metricSummaries(in: category, now: .now, calendar: .current, db)
+    // The dependencies where the fetch started (SQLiteData passes them on), so snapshot
+    // catalogs fix them.
+    @Dependency(\.date.now) var now
+    @Dependency(\.calendar) var calendar
+    return try HealthDatabase.metricSummaries(in: category, now: now, calendar: calendar, db)
   }
 }
 
@@ -47,7 +51,8 @@ struct MetricsView: View {
 
   let category: HealthCategory
   let state: State
-  var now = Date.now
+  /// From dependencies, so snapshot catalogs fix it (`previewNow`).
+  @Dependency(\.date.now) private var now
 
   var body: some View {
     Group {
@@ -119,6 +124,8 @@ struct MetricCard: View {
   let summary: MetricSummary
   let color: Color
   let now: Date
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -129,7 +136,7 @@ struct MetricCard: View {
         Spacer()
         if let date = summary.latestDate {
           Text(
-            MetricFormat.date(date, isDay: summary.isDailyTotal, now: now, calendar: .current)
+            MetricFormat.date(date, isDay: summary.isDailyTotal, now: now, calendar: calendar)
           )
           .foregroundStyle(.secondary)
         }
