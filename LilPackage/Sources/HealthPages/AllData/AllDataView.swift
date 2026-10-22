@@ -99,35 +99,25 @@ struct AllDataContent: View {
     .navigationTitle("All \(type.name) Data")
   }
 
-  /// A section per day under its name, in a grouped form's look (`LazyForm`): a grouped `Form`
+  /// A section per day under its name, in a grouped list (`LazyGroupedList`): a grouped `Form`
   /// builds every row at once (1,000 rows take seconds, and 100,000 crash it), and a day can have
   /// hundreds, so only the rows on screen are built.
   private func list(_ samples: [HealthSample], hasMore: Bool) -> some View {
     let days = sections(samples, by: .day, calendar: calendar, startDate: \.startDate)
     // Once, so every day's header is named against the same "now".
     let now = self.now
-    return LazyForm {
-      // The last day may go on in the next page, so its section stays open while that loads.
-      LazyFormSections(
-        days, start: \.start, records: \.records,
-        title: { MetricFormat.date($0.start, isDay: true, now: now, calendar: calendar) },
-        isOpen: hasMore && !moreFailed
-      ) { sample in
-        SampleDetailView(type: type, sample: sample)
-      } row: { sample in
-        SampleRow(type: type, sample: sample, calendar: calendar)
-      }
-      Group {
-        if moreFailed {
-          Button("Couldn't load more. Try Again", action: loadMore)
-        } else if hasMore {
-          // Loads the next page when the end of the list comes into view.
-          ProgressView()
-            .onAppear(perform: loadMore)
+    return LazyGroupedList(hasMore: hasMore, moreFailed: moreFailed, loadMore: loadMore) {
+      ForEach(days, id: \.start) { day in
+        Section(MetricFormat.date(day.start, isDay: true, now: now, calendar: calendar)) {
+          ForEach(day.records) { sample in
+            NavigationLink {
+              SampleDetailView(type: type, sample: sample)
+            } label: {
+              SampleRow(type: type, sample: sample, calendar: calendar)
+            }
+          }
         }
       }
-      .frame(maxWidth: .infinity)
-      .padding(.top, 12)
     }
   }
 }

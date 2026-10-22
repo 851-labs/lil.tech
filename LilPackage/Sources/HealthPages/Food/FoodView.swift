@@ -95,39 +95,30 @@ struct FoodContent: View {
     .navigationTitle("Food")
   }
 
-  /// A section per day under its name and energy, in a grouped form's look, as All Data's
-  /// (`LazyForm`, so only the rows on screen are built).
+  /// A section per day under its name and energy, in a grouped list, as All Data's
+  /// (`LazyGroupedList`, so only the rows on screen are built).
   private func list(_ foods: [Food], hasMore: Bool) -> some View {
     // Read once: a dependency's `now` is the time each time it's read.
     let now = now
     let calendar = calendar
     let days = HealthDatabase.foodDays(foods, calendar: calendar)
-    return LazyForm {
-      // The last day may go on in the next page, so its section stays open while that loads. Its
-      // total, which would leave those foods out, waits for them, even once loading more failed.
-      LazyFormSections(
-        days, start: \.day, records: \.foods,
-        title: { day in
+    return LazyGroupedList(hasMore: hasMore, moreFailed: moreFailed, loadMore: loadMore) {
+      ForEach(days, id: \.day) { day in
+        // The last day may go on in the next page. Its total, which would leave those foods out,
+        // waits for them, even once loading more failed.
+        Section(
           FoodFormat.dayHeader(
             day, isComplete: !(hasMore && day.day == days.last?.day), now: now, calendar: calendar)
-        },
-        isOpen: hasMore && !moreFailed
-      ) { food in
-        FoodDetailView(food: food)
-      } row: { food in
-        FoodRow(food: food, calendar: calendar)
-      }
-      Group {
-        if moreFailed {
-          Button("Couldn't load more. Try Again", action: loadMore)
-        } else if hasMore {
-          // Loads the next page when the end of the list comes into view.
-          ProgressView()
-            .onAppear(perform: loadMore)
+        ) {
+          ForEach(day.foods) { food in
+            NavigationLink {
+              FoodDetailView(food: food)
+            } label: {
+              FoodRow(food: food, calendar: calendar)
+            }
+          }
         }
       }
-      .frame(maxWidth: .infinity)
-      .padding(.top, 12)
     }
   }
 }

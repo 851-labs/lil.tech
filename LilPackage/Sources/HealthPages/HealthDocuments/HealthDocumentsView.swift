@@ -65,17 +65,22 @@ struct HealthDocumentsContent: View {
     .navigationTitle("Health Documents")
   }
 
-  /// One section, in a grouped form's look (`LazyForm`): a `Form` builds every row at once, and
+  /// One section, in a grouped list (`LazyGroupedList`): a `Form` builds every row at once, and
   /// the list holds up to 500.
   private func list(_ documents: [HealthDocument]) -> some View {
-    LazyForm {
-      LazyFormSection(records: documents) { document in
-        HealthDocumentDetailView(document: document)
-      } row: { document in
-        HealthDocumentRow(document: document)
-      }
-      if documents.count >= limit {
-        LazyFormFooter("Showing the \(limit.formatted()) most recent documents.")
+    LazyGroupedList {
+      Section {
+        ForEach(documents) { document in
+          NavigationLink {
+            HealthDocumentDetailView(document: document)
+          } label: {
+            HealthDocumentRow(document: document)
+          }
+        }
+      } footer: {
+        if documents.count >= limit {
+          Text("Showing the \(limit.formatted()) most recent documents.")
+        }
       }
     }
   }

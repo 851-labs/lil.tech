@@ -65,21 +65,28 @@ struct AudiogramsContent: View {
     .navigationTitle("Audiograms")
   }
 
-  /// A section per month, in a grouped form's look (`LazyForm`): a `Form` builds every row at
+  /// A section per month, in a grouped list (`LazyGroupedList`): a `Form` builds every row at
   /// once, and the list holds up to 500.
   private func list(_ audiograms: [HealthAudiogram]) -> some View {
-    LazyForm {
-      LazyFormSections(
-        sections(audiograms, by: .month, calendar: calendar, startDate: \.startDate),
-        title: { $0.formatted(.dateTime.month(.wide).year()) }
-      ) { audiogram in
-        // Built when opened: it decodes the audiogram's points.
-        Lazy { AudiogramDetailView(audiogram: audiogram) }
-      } row: { audiogram in
-        AudiogramRow(audiogram: audiogram)
-      }
-      if audiograms.count >= limit {
-        LazyFormFooter("Showing the \(limit.formatted()) most recent audiograms.")
+    let months = sections(audiograms, by: .month, calendar: calendar, startDate: \.startDate)
+    return LazyGroupedList {
+      ForEach(months, id: \.start) { month in
+        Section {
+          ForEach(month.records) { audiogram in
+            NavigationLink {
+              // Built when opened: it decodes the audiogram's points.
+              Lazy { AudiogramDetailView(audiogram: audiogram) }
+            } label: {
+              AudiogramRow(audiogram: audiogram)
+            }
+          }
+        } header: {
+          Text(month.start.formatted(.dateTime.month(.wide).year()))
+        } footer: {
+          if month.start == months.last?.start, audiograms.count >= limit {
+            Text("Showing the \(limit.formatted()) most recent audiograms.")
+          }
+        }
       }
     }
   }
