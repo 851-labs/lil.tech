@@ -3,7 +3,7 @@ import SwiftUI
 // iOS's grouped list (`List` with `.listStyle(.insetGrouped)`) for the Mac, which has none, for
 // lists too long to be a `Form`: All Data and Food (851-3005), and the record lists (workouts,
 // ECGs, audiograms, beat-to-beat measurements, Health Documents, State of Mind and assessments,
-// 851-3032), which hold 500 to 2,000 records at most. A grouped `Form` builds every row at once on
+// 851-3032) and Health notifications (851-3033), which hold 500 to 2,000 records at most. A grouped `Form` builds every row at once on
 // macOS, however few are on screen (851-2820): 1,000 rows took 3.9 s and 10,000 took 51 s on
 // macOS 27, and 100,000 crashed it. This draws what it draws, from a `LazyVStack`, so only the
 // rows on screen are built: its background and its sections' fill (`.background` and
