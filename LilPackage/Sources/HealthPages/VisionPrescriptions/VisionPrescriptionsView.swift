@@ -1,3 +1,4 @@
+import Dependencies
 import Foundation
 import HealthDatabase
 import HealthUI
@@ -42,8 +43,9 @@ struct VisionPrescriptionsContent: View {
   let state: State
   /// How many the list holds at most (`RecentVisionPrescriptions.limit`), to say when it's full.
   var limit = RecentVisionPrescriptions.limit
-  var now = Date.now
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
+  @Dependency(\.date.now) private var now
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {
@@ -183,8 +185,9 @@ struct VisionPrescriptionRequest: FetchKeyRequest {
 /// no longer shared.
 struct VisionPrescriptionDetailContent: View {
   let prescription: HealthVisionPrescription?
-  var now = Date.now
-  var calendar = Calendar.current
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
+  @Dependency(\.date.now) private var now
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {

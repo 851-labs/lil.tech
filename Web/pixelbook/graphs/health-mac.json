@@ -148,7 +148,7 @@
     },
     {
       "id": "food",
-      "screen": "HealthPages/FoodViewPreviews.swift",
+      "screen": "HealthPages/FoodCatalog.swift",
       "title": "Food",
       "states": [
         "Food",
@@ -161,7 +161,7 @@
     },
     {
       "id": "food-item",
-      "screen": "HealthPages/FoodViewPreviews.swift",
+      "screen": "HealthPages/FoodCatalog.swift",
       "title": "A food",
       "states": [
         "A food",
@@ -177,7 +177,7 @@
     },
     {
       "id": "health-documents",
-      "screen": "HealthPages/HealthDocumentsViewPreviews.swift",
+      "screen": "HealthPages/HealthDocumentsCatalog.swift",
       "title": "Health Documents",
       "states": [
         "Health documents",
@@ -189,7 +189,7 @@
     },
     {
       "id": "health-document",
-      "screen": "HealthPages/HealthDocumentsViewPreviews.swift",
+      "screen": "HealthPages/HealthDocumentsCatalog.swift",
       "title": "Health Document",
       "states": [
         "Visit summary",
@@ -202,7 +202,7 @@
     },
     {
       "id": "health-document-xml",
-      "screen": "HealthPages/HealthDocumentsViewPreviews.swift",
+      "screen": "HealthPages/HealthDocumentsCatalog.swift",
       "title": "Document XML",
       "states": ["Document XML"]
     },
@@ -262,7 +262,7 @@
     },
     {
       "id": "audiograms",
-      "screen": "HealthPages/AudiogramsViewPreviews.swift",
+      "screen": "HealthPages/AudiogramsCatalog.swift",
       "states": [
         "Audiograms",
         "Audiograms, at the limit",
@@ -273,7 +273,7 @@
     },
     {
       "id": "audiogram",
-      "screen": "HealthPages/AudiogramsViewPreviews.swift",
+      "screen": "HealthPages/AudiogramsCatalog.swift",
       "title": "Audiogram",
       "states": [
         "Little to no hearing loss",

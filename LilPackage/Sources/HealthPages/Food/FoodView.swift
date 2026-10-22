@@ -66,8 +66,9 @@ struct FoodContent: View {
   let state: State
   var moreFailed = false
   let loadMore: () -> Void
-  var calendar = Calendar.current
-  var now = Date.now
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
+  @Dependency(\.date.now) private var now
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {

@@ -1,3 +1,4 @@
+import Dependencies
 import Foundation
 import HealthCatalog
 import HealthDatabase
@@ -207,8 +208,10 @@ struct MedicationDetailContent: View {
 
   let state: State
   var limit = MedicationDetailRequest.limit
-  var now = Date.now
-  var calendar = Calendar.current
+  /// Today, which moves at midnight (`MedicationDetailView`).
+  let now: Date
+  /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
+  @Dependency(\.calendar) private var calendar
 
   var body: some View {
     Group {
