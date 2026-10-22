@@ -6,8 +6,8 @@ import HealthUI
 import SQLiteData
 import SwiftUI
 
-/// Summary: the everyday metrics' cards (`HealthDatabase.summaryTypes`), and highlights. Follows
-/// the local database as sync changes it.
+/// Summary: the everyday metrics (`HealthDatabase.summaryTypes`), a row each, and highlights.
+/// Follows the local database as sync changes it.
 struct SummaryView: View {
   @Fetch private var summaries: [MetricSummary]
   @Fetch private var highlights: [Highlight]
@@ -84,8 +84,10 @@ struct SummaryContent: View {
   @Dependency(\.calendar) private var calendar
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 10) {
+    // A grouped form on its own background, as Metric Detail is (851-2989): a section of the
+    // everyday metrics, a row each, then the highlights.
+    Form {
+      Section {
         switch state {
         case .loading:
           ProgressView()
@@ -93,41 +95,38 @@ struct SummaryContent: View {
         case .failed(let reason):
           ContentUnavailableView(
             "Couldn't Load Summary", systemImage: "exclamationmark.triangle",
-            description: Text(reason))
+            description: Text(reason)
+          )
+          // A form's row would otherwise give it only its ideal width, off center.
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .loaded(let summaries):
           ForEach(summaries) { summary in
             if let type = HealthCatalog.type(id: summary.id) {
               NavigationLink(value: summary.id) {
                 if summary.hasData {
-                  MetricCard(
-                    type: type, summary: summary, color: type.category?.color ?? .accentColor,
-                    now: now, calendar: calendar)
+                  SummaryMetricRow(type: type, summary: summary, now: now, calendar: calendar)
                 } else {
-                  NoDataCard(type: type)
+                  LabeledContent {
+                    Text("No Data")
+                  } label: {
+                    HealthTypeLabel(type: type)
+                      .font(.headline)
+                  }
                 }
               }
-              .buttonStyle(.plain)
             }
           }
         }
-        VStack(alignment: .leading, spacing: 10) {
-          highlightsSection
-        }
-        .padding(.top, 14)
       }
-      // As wide as the column, whatever its content, so the headings stay on the left.
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
+      Section("Highlights") {
+        highlightsSection
+      }
     }
-    .background(Color.pageBackground)
+    .formStyle(.grouped)
     .navigationTitle("Summary")
   }
 
   @ViewBuilder private var highlightsSection: some View {
-    Text("Highlights")
-      .font(.title2.bold())
     switch highlights {
     case .loading:
       ProgressView()
@@ -135,45 +134,66 @@ struct SummaryContent: View {
     case .failed(let reason):
       ContentUnavailableView(
         "Couldn't Load Highlights", systemImage: "exclamationmark.triangle",
-        description: Text(reason))
+        description: Text(reason)
+      )
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .loaded(let highlights) where highlights.isEmpty:
       Text(
         "Highlights appear once there are a couple of weeks of steps, energy, heart or weight data to compare."
       )
       .foregroundStyle(.secondary)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(14)
-      .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
     case .loaded(let highlights):
       ForEach(highlights) { highlight in
         if let type = HealthCatalog.type(id: highlight.typeID) {
           NavigationLink(value: highlight.typeID) {
-            HighlightCard(highlight: highlight, type: type)
+            HighlightRow(highlight: highlight, type: type)
           }
-          .buttonStyle(.plain)
         }
       }
     }
   }
 }
 
-/// A metric without data yet.
-struct NoDataCard: View {
+/// One of Summary's metrics with data, in a form row: its name, when it's from, its latest value
+/// and a week's chart.
+struct SummaryMetricRow: View {
   let type: HealthDataType
+  let summary: MetricSummary
+  let now: Date
+  let calendar: Calendar
+
+  /// The category's, as `HealthTypeLabel`'s.
+  private var color: Color { type.category?.color ?? .secondary }
 
   var body: some View {
-    HStack {
-      HealthTypeLabel(type: type)
-        .font(.headline)
-      Spacer()
-      Text("No Data")
-        .foregroundStyle(.secondary)
-      Image(systemName: "chevron.right")
-        .font(.caption.bold())
-        .foregroundStyle(.tertiary)
+    VStack(alignment: .leading, spacing: 6) {
+      HStack {
+        HealthTypeLabel(type: type)
+          .font(.headline)
+        Spacer()
+        if let date = summary.latestDate {
+          Text(
+            MetricFormat.date(date, isDay: summary.isDailyTotal, now: now, calendar: calendar)
+          )
+          .foregroundStyle(.secondary)
+        }
+      }
+      if let value = summary.latestValue {
+        HStack(alignment: .bottom) {
+          let (number, unit) = MetricFormat.value(value, unit: summary.unit, typeID: type.id)
+          HStack(alignment: .firstTextBaseline, spacing: 3) {
+            Text(number)
+              .font(.system(.title, design: .rounded).bold())
+            Text(unit)
+              .font(.callout.weight(.medium))
+              .foregroundStyle(.secondary)
+          }
+          Spacer()
+          Sparkline(days: summary.days, isTotals: summary.isDailyTotal, color: color)
+            .frame(width: 120, height: 36)
+        }
+      }
     }
-    .padding(14)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-    .contentShape(RoundedRectangle(cornerRadius: 12))
+    .padding(.vertical, 6)
   }
 }
