@@ -1,6 +1,7 @@
 #!/bin/sh
 # Runs our checks (`docs/DECISIONS.md`). The pre-commit hook (`lefthook.yml`) runs the services and
-# Pixelbook parts a commit touches; GitHub runs the Swift part on our Mac minis (`swift-check.yml`).
+# Pixelbook parts a commit touches; GitHub runs the Swift and Pixelbook parts on our Mac minis
+# (`swift-check.yml`), rendering snapshots without comparing them (`LIL_SNAPSHOT_RENDER_ONLY`).
 # Usage: scripts/check [--hook] [--swift] [--services] [--pixelbook]   (every part when none is given)
 #   --swift     Swift lint (with a check that the server's copy of the Health catalog is fresh),
 #               `scripts/snapshot --sheet`'s check, the package's tests, and the apps' builds,

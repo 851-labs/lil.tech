@@ -9,7 +9,7 @@
   /// Renders `view` as a Mac window shows it, in a window with a title bar (so its toolbar
   /// renders) of the given appearance, and compares it with its reference image,
   /// `__Snapshots__/<test file>/<screen>.<name>-<light|dark>.png` (851-2931), the screen being a
-  /// catalog's (851-2949).
+  /// catalog's (851-2949). Only renders it on CI (`snapshotsRenderOnly`, 851-3071).
   ///
   /// The window is never on screen and the app never activates, so this needs no Xcode, no
   /// Screen Recording access and no display of a particular scale, and runs beside other agents.
@@ -45,6 +45,15 @@
     RunLoop.main.run(until: Date().addingTimeInterval(0.05))
     let suffix = appearance == .darkAqua ? "dark" : "light"
     let output = SnapshotOutput(file: file, testName: screen, name: "\(name)-\(suffix)")
+    if snapshotsRenderOnly {
+      if let output {
+        output.render(window.contentView!.superview!, as: .layerImage)
+      } else {
+        Snapshotting.layerImage.snapshot(window.contentView!.superview!).run { _ in }
+      }
+      window.close()
+      return
+    }
     // The window's frame view: its title bar and toolbar, and the content. `assertSnapshot` is
     // these two calls (for Swift Testing, which these tests use); `scripts/snapshot` needs the
     // result in between.
