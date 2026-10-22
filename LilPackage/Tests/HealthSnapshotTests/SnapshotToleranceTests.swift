@@ -4,9 +4,10 @@
   import Testing
 
   // `.image(channelTolerance:)`, which snapshots are compared with (851-2985), on made-up images:
-  // within the tolerance they match, and a real change still fails.
-  struct SnapshotToleranceTests {
-    let diffing = Diffing<NSImage>.image(channelTolerance: snapshotChannelTolerance)
+  // within the tolerance they match, and a real change still fails. In `MacSnapshotTests`, which
+  // is serialized, so they never run beside a snapshot.
+  extension MacSnapshotTests {
+    var diffing: Diffing<NSImage> { .image(channelTolerance: snapshotChannelTolerance) }
 
     /// A 16×16 image: a light gradient, with a dark 4×4 square at `square`.
     func image(
@@ -37,33 +38,33 @@
       diffing.fromData(diffing.toData(image))
     }
 
-    @Test func sameImageMatches() {
+    @Test func toleranceSameImage() {
       #expect(diffing.diffV2(recorded(image()), image()) == nil)
     }
 
-    @Test func everyPixelOneApartMatches() {
+    @Test func toleranceEveryPixelOneApart() {
       // Up in one channel and down in another, everywhere, as the minis' gradients are.
       let image = image { x, y in (UInt8(101 + x), UInt8(149 + y), 201) }
       #expect(diffing.diffV2(recorded(self.image()), image) == nil)
     }
 
-    @Test func onePixelTwoApartFails() throws {
+    @Test func toleranceOnePixelTwoApart() throws {
       let image = image { x, y in (x == 0 && y == 0 ? 102 : UInt8(100 + x), UInt8(150 + y), 200) }
       let failure = try #require(diffing.diffV2(recorded(self.image()), image))
       #expect(failure.0.contains("differ by up to 2"))
     }
 
-    @Test func squareMovedOnePixelFails() throws {
+    @Test func toleranceSquareMovedOnePixel() throws {
       let failure = try #require(diffing.diffV2(recorded(image()), image(square: (7, 6))))
       #expect(failure.0.contains("differ by up to"))
     }
 
-    @Test func recoloredFails() {
+    @Test func toleranceRecolored() {
       let image = image { x, y in (UInt8(100 + x), UInt8(150 + y), 190) }
       #expect(diffing.diffV2(recorded(self.image()), image) != nil)
     }
 
-    @Test func otherSizeFails() {
+    @Test func toleranceOtherSize() {
       #expect(diffing.diffV2(recorded(image()), image(width: 17)) != nil)
     }
   }

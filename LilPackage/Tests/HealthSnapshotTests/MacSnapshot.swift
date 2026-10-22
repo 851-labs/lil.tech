@@ -254,7 +254,7 @@
   }
 
   /// An image's pixels as premultiplied RGBA in sRGB, top row first, a word each.
-  struct Pixels {
+  private struct Pixels {
     let width: Int
     let height: Int
     let words: [UInt32]
@@ -358,7 +358,7 @@
 
   /// The largest difference between two images' pixels in any channel, or nil when their sizes
   /// differ. Through raw buffers: the tests build without optimization.
-  func largestChannelDifference(_ a: Pixels, _ b: Pixels) -> Int? {
+  private func largestChannelDifference(_ a: Pixels, _ b: Pixels) -> Int? {
     guard (a.width, a.height) == (b.width, b.height) else { return nil }
     var largest: UInt32 = 0
     a.words.withUnsafeBufferPointer { a in
