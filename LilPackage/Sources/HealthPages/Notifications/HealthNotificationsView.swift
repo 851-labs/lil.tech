@@ -49,6 +49,8 @@ struct HealthNotificationsContent: View {
 
   let kind: HealthNotificationKind
   let state: State
+  /// How many the list holds at most (`RecentNotifications.limit`), to say when it's full.
+  var limit = RecentNotifications.limit
   /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
   @Dependency(\.calendar) private var calendar
 
@@ -66,32 +68,41 @@ struct HealthNotificationsContent: View {
         ContentUnavailableView(
           "No \(kind.name)", systemImage: kind.symbol, description: Text(kind.emptyDescription))
       case .loaded(let notifications):
-        List {
-          ForEach(
-            monthSections(
-              notifications, calendar: calendar,
-              startDate: { kind.listedDate(of: $0.sample).unixMilliseconds }),
-            id: \.month
-          ) { section in
-            Section(section.month.formatted(NotificationFormat.month(calendar))) {
-              ForEach(section.records) { notification in
-                NavigationLink {
-                  NotificationDetailView(kind: kind, notification: notification)
-                } label: {
-                  NotificationRow(kind: kind, notification: notification, calendar: calendar)
-                }
-              }
-            }
-          }
-          if notifications.count >= RecentNotifications.limit {
-            Text("Showing the \(RecentNotifications.limit.formatted()) most recent notifications.")
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-          }
-        }
+        list(notifications)
       }
     }
     .navigationTitle(kind.name)
+  }
+
+  /// A section per month, in a grouped form's look (`LazyForm`): a `Form` builds every row at
+  /// once, and the list holds up to 1,000.
+  private func list(_ notifications: [HealthNotification]) -> some View {
+    let months = monthSections(
+      notifications, calendar: calendar,
+      startDate: { kind.listedDate(of: $0.sample).unixMilliseconds })
+    return LazyForm {
+      ForEach(months, id: \.month) { section in
+        LazyFormHeader(
+          title: section.month.formatted(NotificationFormat.month(calendar)),
+          isFirst: section.month == months.first?.month)
+        ForEach(section.records) { notification in
+          NavigationLink {
+            NotificationDetailView(kind: kind, notification: notification)
+          } label: {
+            LazyFormRow(
+              isFirst: notification.id == section.records.first?.id,
+              isLast: notification.id == section.records.last?.id
+            ) {
+              NotificationRow(kind: kind, notification: notification, calendar: calendar)
+            }
+          }
+          .buttonStyle(.plain)
+        }
+      }
+      if notifications.count >= limit {
+        LazyFormFooter("Showing the \(limit.formatted()) most recent notifications.")
+      }
+    }
   }
 }
 

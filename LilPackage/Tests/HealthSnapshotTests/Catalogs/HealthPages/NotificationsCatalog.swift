@@ -28,6 +28,9 @@
         list(.walkingSteadiness, .loaded(walkingSteadiness))
       },
       CatalogState("Noise notifications") { list(.noise, .loaded(noise)) },
+      CatalogState("Noise notifications, at the limit") {
+        list(.noise, .loaded(noise), limit: noise.count)
+      },
       CatalogState("Low cardio fitness, missing metadata") {
         list(.lowCardioFitness, .loaded(lowCardioFitness))
       },
@@ -157,11 +160,12 @@
   }
 
   @MainActor
-  private func list(_ kind: HealthNotificationKind, _ state: HealthNotificationsContent.State)
-    -> some View
-  {
+  private func list(
+    _ kind: HealthNotificationKind, _ state: HealthNotificationsContent.State,
+    limit: Int = RecentNotifications.limit
+  ) -> some View {
     NavigationStack {
-      HealthNotificationsContent(kind: kind, state: state)
+      HealthNotificationsContent(kind: kind, state: state, limit: limit)
     }
   }
 

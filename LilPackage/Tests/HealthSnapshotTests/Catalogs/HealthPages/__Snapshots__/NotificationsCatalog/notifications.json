@@ -25,6 +25,13 @@
       "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/NotificationsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/NotificationsCatalog/notifications.noise-notifications-at-the-limit-dark.png",
+      "id" : "notifications.noise-notifications-at-the-limit",
+      "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/NotificationsCatalog/notifications.noise-notifications-at-the-limit-light.png",
+      "name" : "Noise notifications, at the limit",
+      "source" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/NotificationsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/NotificationsCatalog/notifications.low-cardio-fitness-missing-metadata-dark.png",
       "id" : "notifications.low-cardio-fitness-missing-metadata",
       "light" : "LilPackage/Tests/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/NotificationsCatalog/notifications.low-cardio-fitness-missing-metadata-light.png",
