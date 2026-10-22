@@ -6,7 +6,7 @@ import HealthUI
 import SQLiteData
 import SwiftUI
 
-/// A Browse category: its metrics as cards with their latest value and week, then those without
+/// A Browse category: its metrics as rows with their latest value and week, then those without
 /// data. Follows the local database as sync changes it.
 struct CategoryView: View {
   let category: HealthCategory
@@ -56,72 +56,60 @@ struct MetricsView: View {
   @Dependency(\.calendar) private var calendar
 
   var body: some View {
-    Group {
+    // A grouped form on its own background, as Metric Detail is (851-2989): a section of the
+    // metrics with data, a row each, then one of those without.
+    Form {
       switch state {
       case .loading:
-        ProgressView()
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
+        Section {
+          ProgressView()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
       case .failed(let reason):
-        ContentUnavailableView(
-          "Couldn't Load \(category.name)", systemImage: "exclamationmark.triangle",
-          description: Text(reason))
+        Section {
+          ContentUnavailableView(
+            "Couldn't Load \(category.name)", systemImage: "exclamationmark.triangle",
+            description: Text(reason)
+          )
+          // A form's row would otherwise give it only its ideal width, off center.
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
       case .loaded(let summaries):
-        list(summaries)
+        sections(summaries)
       }
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.pageBackground)
+    .formStyle(.grouped)
     .navigationTitle(category.name)
   }
 
-  private func list(_ summaries: [MetricSummary]) -> some View {
+  @ViewBuilder private func sections(_ summaries: [MetricSummary]) -> some View {
     let withData = summaries.filter(\.hasData)
     let without = summaries.filter { !$0.hasData }
-    return ScrollView {
-      VStack(alignment: .leading, spacing: 10) {
+    if !withData.isEmpty {
+      Section {
         ForEach(withData) { summary in
           if let type = HealthCatalog.type(id: summary.id) {
             NavigationLink(value: summary.id) {
-              MetricCard(
+              MetricRow(
                 type: type, summary: summary, color: category.color, now: now, calendar: calendar)
             }
-            .buttonStyle(.plain)
           }
-        }
-        if !without.isEmpty {
-          Text("No Data Available")
-            .font(.title3.bold())
-            .padding(.top, withData.isEmpty ? 0 : 14)
-          VStack(spacing: 0) {
-            ForEach(Array(without.enumerated()), id: \.element.id) { index, summary in
-              if index > 0 { Divider().padding(.leading, 14) }
-              NavigationLink(value: summary.id) {
-                HStack {
-                  Text(HealthCatalog.type(id: summary.id)?.name ?? summary.id)
-                  Spacer()
-                  Image(systemName: "chevron.right")
-                    .font(.caption.bold())
-                    .foregroundStyle(.tertiary)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
-              }
-              .buttonStyle(.plain)
-            }
-          }
-          .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
         }
       }
-      .padding(20)
-      .frame(maxWidth: 760)
-      .frame(maxWidth: .infinity)
+    }
+    if !without.isEmpty {
+      Section("No Data Available") {
+        ForEach(without) { summary in
+          NavigationLink(HealthCatalog.type(id: summary.id)?.name ?? summary.id, value: summary.id)
+        }
+      }
     }
   }
 }
 
-/// One metric with data: its name, when it's from, its latest value and a week's chart.
-struct MetricCard: View {
+/// One metric with data, in a form row: its name, when it's from, its latest value and a week's
+/// chart.
+struct MetricRow: View {
   let type: HealthDataType
   let summary: MetricSummary
   let color: Color
@@ -129,7 +117,7 @@ struct MetricCard: View {
   let calendar: Calendar
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: 6) {
       HStack {
         Label(type.name, systemImage: type.category?.symbolName ?? "circle")
           .font(.headline)
@@ -141,9 +129,6 @@ struct MetricCard: View {
           )
           .foregroundStyle(.secondary)
         }
-        Image(systemName: "chevron.right")
-          .font(.caption.bold())
-          .foregroundStyle(.tertiary)
       }
       if let value = summary.latestValue {
         HStack(alignment: .bottom) {
@@ -161,9 +146,7 @@ struct MetricCard: View {
         }
       }
     }
-    .padding(14)
-    .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-    .contentShape(RoundedRectangle(cornerRadius: 12))
+    .padding(.vertical, 6)
   }
 }
 

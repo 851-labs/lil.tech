@@ -276,7 +276,7 @@ public struct AppFeature {
         case .category(let category):
           state.selection = .category(category)
         case .dataType(let type):
-          // As if its card were clicked in its category.
+          // As if its row were clicked in its category.
           state.selection = type.category.map(SidebarItem.category) ?? .summary
           state.metricPath = [type.id]
         }
