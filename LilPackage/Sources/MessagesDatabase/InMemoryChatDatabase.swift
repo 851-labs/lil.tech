@@ -2,7 +2,7 @@ public import SQLiteData
 
 /// Creates an empty, in-memory database with the same schema as the parts of `chat.db` we query.
 ///
-/// Table names, column names, types and defaults match the real `chat.db`. Tests and previews seed
+/// Table names, column names, types and defaults match the real `chat.db`. Tests and catalogs seed
 /// their own synthetic rows. Never copy real Messages data into a seed.
 public func makeInMemoryChatDatabase() throws -> DatabaseQueue {
   let database = try DatabaseQueue()

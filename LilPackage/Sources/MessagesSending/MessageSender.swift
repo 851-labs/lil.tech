@@ -53,10 +53,6 @@ extension MessageSender: DependencyKey {
   public static var testValue: Self {
     Self(send: unimplemented("MessageSender.send"))
   }
-
-  public static var previewValue: Self {
-    Self { _, _ in }
-  }
 }
 
 extension DependencyValues {

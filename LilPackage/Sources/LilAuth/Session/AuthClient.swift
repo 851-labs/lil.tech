@@ -292,15 +292,6 @@ extension AuthClient: DependencyKey {
     )
   }
 
-  public static let previewValue = Self(
-    signInWithApple: { _, _ throws(SignInError) in },
-    signInWithGoogle: { _, _ throws(SignInError) in },
-    signOut: {},
-    deleteAccount: { () throws(AccountDeletionError) in },
-    signedInUpdates: { AsyncStream { $0.yield(false) } },
-    signInToTestAccount: { _ throws(SignInError) in }
-  )
-
   public static var testValue: Self {
     Self(
       signInWithApple: { _, _ throws(SignInError) in

@@ -32,8 +32,6 @@ extension AccountDevices: DependencyKey {
     }
   }
 
-  public static let previewValue = Self { 0 }
-
   public static var testValue: Self {
     Self {
       reportIssue("Unimplemented: @Dependency(\\.accountDevices).otherInstallsOfThisApp")

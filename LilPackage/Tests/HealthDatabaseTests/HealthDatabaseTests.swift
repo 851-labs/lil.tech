@@ -1779,7 +1779,7 @@ struct PreviewHealthDatabaseTests {
   }
 
   /// Snapshot catalogs' database has the same rows whatever the wall clock and the Mac's calendar
-  /// (851-2950), while previews' follows them.
+  /// (851-2950).
   @Test
   func catalogDatabaseIgnoresTheWallClock() throws {
     let later = now.addingTimeInterval(40 * 86_400 + 5 * 3600)
@@ -1789,15 +1789,6 @@ struct PreviewHealthDatabaseTests {
     }
     #expect(!catalog.isEmpty)
     #expect(catalog == catalogLater)
-
-    // The clock injected reaches the previews' database.
-    let preview = try withWallClock(now, in: "UTC") {
-      try contents(of: makePreviewHealthDatabase())
-    }
-    let previewLater = try withWallClock(later, in: "Asia/Tokyo") {
-      try contents(of: makePreviewHealthDatabase())
-    }
-    #expect(preview != previewLater)
   }
 
   private func withWallClock<T>(

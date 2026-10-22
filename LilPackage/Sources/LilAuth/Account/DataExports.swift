@@ -162,12 +162,6 @@ extension DataExportClient: DependencyKey {
     )
   }
 
-  public static let previewValue = Self(
-    request: { () throws(DataExportError) in DataExport(requestedAt: .now, url: nil) },
-    latest: { () throws(DataExportError) in nil },
-    download: { _ in AsyncThrowingStream { $0.finish() } }
-  )
-
   public static var testValue: Self {
     Self(
       request: { () throws(DataExportError) in

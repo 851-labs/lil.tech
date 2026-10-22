@@ -77,7 +77,7 @@ public struct SessionStore: Sendable {
     self.save = save
   }
 
-  /// A store in memory, for tests and previews.
+  /// A store in memory, for tests and catalogs.
   public static func inMemory(_ session: AuthSession? = nil) -> Self {
     let stored = LockIsolated(session)
     return Self(load: { stored.value }, save: { stored.setValue($0) })
@@ -191,5 +191,4 @@ struct KeychainItems: Sendable {
 extension SessionStore: DependencyKey {
   public static let liveValue = Self.keychain(for: .current())
   public static var testValue: Self { .inMemory() }
-  public static var previewValue: Self { .inMemory() }
 }

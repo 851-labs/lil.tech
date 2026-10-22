@@ -2,7 +2,7 @@ public import Foundation
 public import SQLiteData
 
 // What snapshot catalogs share (851-2950), so their images only change when the UI does: one
-// "now", one calendar, and the preview database built from them. Catalogs pass `previewNow` and
+// "now", one calendar, and the synthetic database built from them. Catalogs pass `previewNow` and
 // `previewCalendar` to everything that asks for the date, and nothing a catalog state reaches reads
 // `Date()`, `.now` or `Calendar.current`.
 
@@ -20,7 +20,7 @@ public let previewCalendar: Calendar = {
   return calendar
 }()
 
-/// The synthetic database of snapshot catalogs: the preview database's data at `previewNow`, in
+/// The synthetic database of snapshot catalogs: `makePreviewHealthDatabase`'s at `previewNow`, in
 /// `previewCalendar`, so the same rows on any day and any Mac. Built once per process. A catalog's
 /// suite makes it the `defaultDatabase`, with `previewNow` and `previewCalendar` the `date` and
 /// `calendar` (a `.dependencies { … }` trait, as `MacSnapshotTests`'), and its states read it,

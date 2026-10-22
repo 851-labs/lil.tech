@@ -46,7 +46,7 @@ let package = Package(
       traits: ["Tagged"]
     ),
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.17.0"),
-    // Renders preview states to images in `swift test` (HealthSnapshotTests, 851-2931).
+    // Renders state catalogs to images in `swift test` (HealthSnapshotTests, 851-2931).
     .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.19.7"),
     .package(url: "https://github.com/pointfreeco/swift-tagged", from: "0.10.0"),
     .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.10.0"),
@@ -203,8 +203,7 @@ let package = Package(
       ]
     ),
     // lil health for Mac's data pages (Sleep, Workouts, Medications…), which HealthMacApp's browse
-    // and sidebar open, and what the Mac's pages and shell share (page colors, MetricFormat,
-    // previewFrame).
+    // and sidebar open, and what the Mac's pages and shell share (page colors, MetricFormat).
     .target(
       name: "HealthPages",
       dependencies: [
@@ -216,7 +215,7 @@ let package = Package(
         .product(name: "SQLiteData", package: "sqlite-data"),
       ]
     ),
-    // Preview states of lil health for Mac, rendered to images in `swift test` by
+    // State catalogs of lil health for Mac, rendered to images in `swift test` by
     // swift-snapshot-testing and compared with the references in `__Snapshots__` (851-2931).
     .testTarget(
       name: "HealthSnapshotTests",

@@ -8,7 +8,7 @@
 
   // The sidebar (`ConversationListView`), from the catalog `chat.db`. Synthetic data only, and a
   // synthetic contact photo. On its own, at the sidebar's ideal width, not in a split view as the
-  // previews had it: a split view's sidebar is Liquid Glass, which doesn't draw offscreen
+  // old previews had it: a split view's sidebar is Liquid Glass, which doesn't draw offscreen
   // (851-2957), so the list came out blank. Stores have no reducer: offscreen, the list's `.task`
   // could still run before the image, and loading would replace the seeded state (an empty list
   // shows nothing while it loads).

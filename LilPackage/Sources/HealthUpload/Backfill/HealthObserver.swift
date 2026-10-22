@@ -114,8 +114,6 @@ extension HealthObserver: DependencyKey {
   public static var testValue: Self {
     Self { _, _ in reportIssue("Unimplemented: @Dependency(\\.healthObserver).start") }
   }
-
-  public static let previewValue = Self { _, _ in }
 }
 
 extension HealthBackfillType {

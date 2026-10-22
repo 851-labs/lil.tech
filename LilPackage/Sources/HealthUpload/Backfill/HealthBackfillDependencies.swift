@@ -329,7 +329,7 @@ public struct HealthBackfillStorage: Sendable {
     self.removeFile = removeFile
   }
 
-  /// In memory, for tests and previews.
+  /// In memory, for tests and catalogs.
   public static func inMemory() -> Self {
     let state = LockIsolated<HealthBackfillState?>(nil)
     let files = LockIsolated<[String: Data]>([:])
@@ -504,7 +504,7 @@ public struct HealthRecordCounter: Sendable {
     self.count = count
   }
 
-  /// Counting isn't available (tests that don't count, previews): the total stays unknown.
+  /// Counting isn't available (tests that don't count): the total stays unknown.
   public struct Unavailable: Error {}
 
   /// Objects per counting query: enough to be quick, few enough to keep memory down while the

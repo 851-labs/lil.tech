@@ -28,9 +28,6 @@ private enum APIKey: DependencyKey {
   static var testValue: any APIProtocol {
     Client(serverURL: APIEnvironment.staging.baseURL, transport: UnimplementedTransport())
   }
-  static var previewValue: any APIProtocol {
-    Client(serverURL: APIEnvironment.staging.baseURL, transport: OfflineTransport())
-  }
 }
 
 extension Client {
@@ -79,18 +76,6 @@ struct UnimplementedTransport: ClientTransport {
   ) async throws -> (HTTPResponse, HTTPBody?) {
     reportIssue("Unimplemented: @Dependency(\\.api) received \(operationID)")
     throw UnimplementedRequest(operationID: operationID)
-  }
-}
-
-/// Fails every request without reporting, for SwiftUI previews, which never hit the network.
-struct OfflineTransport: ClientTransport {
-  func send(
-    _ request: HTTPRequest,
-    body: HTTPBody?,
-    baseURL: URL,
-    operationID: String
-  ) async throws -> (HTTPResponse, HTTPBody?) {
-    throw URLError(.notConnectedToInternet)
   }
 }
 

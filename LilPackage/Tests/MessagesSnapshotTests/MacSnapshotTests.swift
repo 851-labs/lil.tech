@@ -7,7 +7,7 @@
   import Testing
 
   // States of lil messages for Mac, light and dark (851-2968), from a fixed "now" and the
-  // synthetic preview `chat.db`. Never the real `chat.db` (AGENTS.md, Privacy). State catalogs
+  // synthetic `chat.db`. Never the real `chat.db` (AGENTS.md, Privacy). State catalogs
   // (`Catalogs/`) add their tests to this suite, one per screen.
 
   /// The app Pixelbook shows these catalogs under (`CatalogManifest`, 851-2955).
@@ -54,7 +54,7 @@
   /// to it.
   let catalogChatDatabase = try! makePreviewChatDatabase(now: previewNow, calendar: previewCalendar)
 
-  /// The preview database's contact names, by address.
+  /// The synthetic `chat.db`'s contact names, by address.
   let catalogContactNames = Dictionary(
     uniqueKeysWithValues: PreviewChatDatabase.contactNames.map { ($0.address, $0.name) })
 

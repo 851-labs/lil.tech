@@ -38,5 +38,4 @@ extension LaunchSignIn: DependencyKey {
   }
 
   public static let testValue = Self { false }
-  public static let previewValue = Self { false }
 }

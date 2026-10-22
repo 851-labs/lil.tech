@@ -7,7 +7,7 @@ import OSLog
 /// and in the device's log (`subsystem: tech.lil.health`, category `Backfill`). Type names,
 /// counts and timings only: never Health values.
 ///
-/// Off until the app turns it on, so tests and previews write nothing.
+/// Off until the app turns it on, so tests write nothing.
 public enum BackfillLog {
   public static let isEnabled = LockIsolated(false)
 

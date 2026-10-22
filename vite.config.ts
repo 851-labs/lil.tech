@@ -19,7 +19,6 @@ const outsideWorkspace = [
   "/.claude/",
   "/*.md",
   "/*.yml",
-  "/.mcp.json",
   "/skills-lock.json",
   // Generated: by Services/api/scripts/openapi.ts and mcp-tools.ts, by drizzle-kit
   // (scripts/migrations.ts), and from the Swift Health catalog (scripts/generate-health-catalog).

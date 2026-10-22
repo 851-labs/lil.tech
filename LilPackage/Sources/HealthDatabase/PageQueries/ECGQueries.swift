@@ -35,7 +35,7 @@ extension HealthDatabase {
     }
   }
 
-  /// A plausible lead-I trace for previews and tests: beats at `beatsPerMinute`, each a P wave,
+  /// A plausible lead-I trace for catalogs and tests: beats at `beatsPerMinute`, each a P wave,
   /// QRS complex and T wave, in microvolts. Not real data.
   public static func syntheticElectrocardiogram(
     seconds: Double = 30, samplingFrequency: Double = 512, beatsPerMinute: Double = 68

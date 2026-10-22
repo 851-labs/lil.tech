@@ -138,7 +138,7 @@ struct MedicationDetailView: View {
   @State private var today = Date.now
   @Dependency(\.calendar) private var calendar
   /// Read by the view's task, not in its initializer: a list's links make their destinations as
-  /// they show, so reading then would touch the database for every row, previews included.
+  /// they show, so reading then would touch the database for every row, catalogs included.
   @Fetch private var detail: MedicationDetail?? = nil
 
   /// Opens with `medication` while its doses are read.

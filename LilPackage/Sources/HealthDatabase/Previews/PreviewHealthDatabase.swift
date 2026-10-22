@@ -1,21 +1,15 @@
-import Dependencies
 public import Foundation
 import HealthCatalog
 public import SQLiteData
 
-/// A database with two weeks of synthetic health data across every category, for previews
-/// (AGENTS.md). Values are made up but plausible for each type's unit, and the same for the same
-/// `now` and `calendar`, which are otherwise the `date` and `calendar` dependencies': the wall
-/// clock and the Mac's calendar in previews. Snapshot catalogs pass fixed ones (`catalogDatabase`).
-public func makePreviewHealthDatabase(
-  now: Date? = nil, calendar: Calendar? = nil
-) -> any DatabaseWriter {
-  @Dependency(\.date.now) var wallClock
-  @Dependency(\.calendar) var currentCalendar
+/// A database with two weeks of synthetic health data across every category, for snapshot
+/// catalogs (`catalogDatabase`, AGENTS.md › UI states). Values are made up but plausible for each
+/// type's unit, and the same for the same `now` and `calendar`.
+public func makePreviewHealthDatabase(now: Date, calendar: Calendar) -> any DatabaseWriter {
   do {
     let database = try HealthDatabase.make()
     try database.write { db in
-      try PreviewData(now: now ?? wallClock, calendar: calendar ?? currentCalendar).insert(db)
+      try PreviewData(now: now, calendar: calendar).insert(db)
     }
     return database
   } catch {
@@ -164,7 +158,7 @@ private struct PreviewData {
   }
 
   /// A run, a walk or a strength workout most days, with their statistics, and segments for
-  /// the runs. Routes are left out: their locations are blobs, which previews pass directly.
+  /// the runs. Routes are left out: their locations are blobs, which catalogs pass directly.
   private func insertWorkouts(_ db: Database) throws {
     var random = SplitMix64(seed: "HKWorkoutTypeIdentifier")
     var workouts: [HealthWorkout] = []
@@ -388,7 +382,7 @@ private struct PreviewData {
   }
 }
 
-/// A small seeded generator, so preview data is the same every time.
+/// A small seeded generator, so the data is the same every time.
 struct SplitMix64: RandomNumberGenerator {
   private var state: UInt64
 

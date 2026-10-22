@@ -3,10 +3,10 @@ import SwiftUI
 import Synchronization
 import Testing
 
-// State catalogs (851-2949): a screen's UI states, where `#Preview`s were. Each state builds its
-// view from fixed synthetic data and the catalogs' fixed date (`previewNow`, 851-2950), and one
-// test per catalog snapshots every state in light and dark. The types are free of AppKit, so the
-// iPhone's and lil messages' tests can use them too.
+// State catalogs (851-2949): a screen's UI states, in place of SwiftUI previews. Each state
+// builds its view from fixed synthetic data and the catalogs' fixed date (`previewNow`,
+// 851-2950), and one test per catalog snapshots every state in light and dark. The types are free
+// of AppKit, so the iPhone's and lil messages' tests can use them too.
 
 /// A screen and its named states. States take the catalog's size unless they give their own.
 struct StateCatalog: Sendable {

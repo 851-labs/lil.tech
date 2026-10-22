@@ -129,7 +129,7 @@ public enum PreviewChatDatabase {
   /// The "Weekend Plans" group chat.
   public static let groupChatID: Chat.ID = 2
 
-  /// Names for the preview handles, for a preview `ContactIndex`.
+  /// Names for the handles, for the catalogs' `ContactIndex`.
   public static let contactNames: [(name: String, address: String)] = [
     ("Ada Lovelace", "+14155550101"),
     ("Grace Hopper", "+14155550102"),

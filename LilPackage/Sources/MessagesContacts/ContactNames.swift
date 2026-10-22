@@ -89,10 +89,6 @@ extension ContactNames: DependencyKey {
       photos: unimplemented("ContactNames.photos", placeholder: [:])
     )
   }
-
-  public static var previewValue: Self {
-    .constant(ContactIndex([]))
-  }
 }
 
 extension DependencyValues {
