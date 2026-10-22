@@ -57,16 +57,25 @@ extension HealthCLI {
     /// 60 s), then a little more for it to answer. The app answers first; this only stops a
     /// command waiting on an app that stopped answering. 75 s.
     public var syncWait: Duration
+    /// For `open` to answer once claimed: the app's wait for sign-in after a launch
+    /// (`HealthAppActions.signInWait`, 10 s), then a little more. 15 s.
+    public var openWait: Duration
     /// Between looks at the request.
     public var pollInterval: Duration
+    /// Between looks at an export the app has claimed, which can take minutes: the request's
+    /// database isn't opened five times a second all that while.
+    public var slowPollInterval: Duration
 
     public init(
       claimWait: Duration = .seconds(15), syncWait: Duration = .seconds(75),
-      pollInterval: Duration = .milliseconds(200)
+      openWait: Duration = .seconds(15), pollInterval: Duration = .milliseconds(200),
+      slowPollInterval: Duration = .seconds(1)
     ) {
       self.claimWait = claimWait
       self.syncWait = syncWait
+      self.openWait = openWait
       self.pollInterval = pollInterval
+      self.slowPollInterval = slowPollInterval
     }
   }
 }

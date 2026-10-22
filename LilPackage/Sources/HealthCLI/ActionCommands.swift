@@ -110,7 +110,18 @@ struct ExportCommand: ActionCommand {
   @OptionGroup var output: OutputOptions
 
   func action() throws -> AgentAction {
-    .export(folder: Self.absolutePath(folder))
+    let path = Self.absolutePath(folder)
+    // Checked here too, so it's a data error (65) rather than the app's failure (75): retrying
+    // doesn't help.
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+      isDirectory.boolValue
+    else {
+      throw HealthCLI.ActionError(
+        "There's no folder at \((path as NSString).abbreviatingWithTildeInPath).",
+        status: HealthCLI.Status.dataError)
+    }
+    return .export(folder: path)
   }
 
   /// The folder as an absolute path, which the app needs: relative to the current directory, with
@@ -154,8 +165,9 @@ extension HealthCLI {
 
   /// Asks the app for the command's action, then waits for its answer: logged and checked as
   /// `AgentAccessStore.requestAction` does, then the app is woken (or launched) and has
-  /// `Timing.claimWait` to claim the request, then as long as the action takes (`open`: the
-  /// claim; `sync`: `Timing.syncWait`; `export`: until the archive is saved, or Ctrl-C).
+  /// `Timing.claimWait` to claim the request, then as long as the action takes (`open`: at most
+  /// `Timing.openWait`; `sync`: `Timing.syncWait`; `export`: until the archive is saved, or
+  /// Ctrl-C).
   static func perform(_ command: any ActionCommand, context: Context) throws -> String {
     let action = try command.action()
     let app = context.app
@@ -193,15 +205,21 @@ extension HealthCLI {
       state = try store.outcome(id: id)
     }
 
-    // Until it's done.
-    let doneDeadline = clock.now + context.timing.syncWait
-    while state == .running {
-      if isOpen { return output(.done, action: action, command: command, context: context) }
-      if app.isInterrupted() { throw ActionError.interrupted(action, claimed: true) }
-      if case .sync = action, clock.now >= doneDeadline {
-        return output(.stillSyncing, action: action, command: command, context: context)
+    // Until it's done. `open` and `sync` stop waiting once the app should have answered, since
+    // it has the request and finishes without the command; `export` waits for the archive.
+    let doneDeadline: ContinuousClock.Instant? =
+      switch action {
+      case .open: clock.now + context.timing.openWait
+      case .sync: clock.now + context.timing.syncWait
+      case .export: nil
       }
-      app.sleep(context.timing.pollInterval)
+    while state == .running {
+      if app.isInterrupted() { throw ActionError.interrupted(action, claimed: true) }
+      if let doneDeadline, clock.now >= doneDeadline {
+        return output(
+          isOpen ? .done : .stillSyncing, action: action, command: command, context: context)
+      }
+      app.sleep(doneDeadline == nil ? context.timing.slowPollInterval : context.timing.pollInterval)
       state = try store.outcome(id: id)
     }
 
@@ -236,7 +254,7 @@ extension HealthCLI {
     case .synced(let date):
       let time =
         (try? ToolTime(timeZone: context.timeZone).localTime(date))
-        ?? ISO8601DateFormatter().string(from: date)
+        ?? Date.ISO8601FormatStyle(timeZone: .current).format(date)
       json = ["status": "upToDate", "syncedAt": time]
       text =
         "lil health is up to date, as of \(time.prefix(16).replacingOccurrences(of: "T", with: " "))."
@@ -248,10 +266,7 @@ extension HealthCLI {
       text = path
     }
     guard command.output.json else { return text + "\n" }
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    let data = (try? encoder.encode(ActionOutput(result: json))) ?? Data()
-    return String(decoding: data, as: UTF8.self) + "\n"
+    return (try? encode(ActionOutput(result: json))) ?? ""
   }
 
   private struct ActionOutput: Encodable {

@@ -96,6 +96,9 @@ private struct ActionFolder {
       path: "HealthCLIActionTests-\(UUID().uuidString)", directoryHint: .isDirectory)
     store = AgentAccessStore(directory: directory)
     try store.setEnabled(enabled)
+    // `export`'s default, which it checks is there.
+    try FileManager.default.createDirectory(
+      at: URL.downloadsDirectory, withIntermediateDirectories: true)
   }
 
   func run(
@@ -118,6 +121,12 @@ private func json(_ text: String) -> NSDictionary? {
   try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? NSDictionary
 }
 
+extension String {
+  fileprivate func trimmingSuffix(_ suffix: String) -> String {
+    count > 1 && hasSuffix(suffix) ? String(dropLast(suffix.count)) : self
+  }
+}
+
 @Suite
 struct HealthCLIActionTests {
   // MARK: - open
@@ -126,7 +135,7 @@ struct HealthCLIActionTests {
   func opensAPageInTheRunningAppAndBringsItForward() throws {
     let folder = try ActionFolder()
     defer { folder.remove() }
-    let app = FakeApp(folder.store, behavior: .claimOnly)
+    let app = FakeApp(folder.store, behavior: .answer(.ok(.done)))
     let outcome = folder.run(["open", "heart", "rate"], app: app)
     #expect(outcome == HealthCLI.Outcome(output: "Opened Heart Rate in lil health.\n"))
     #expect(app.calls.withLock { $0 } == ["signal", "activate"])
@@ -148,6 +157,23 @@ struct HealthCLIActionTests {
       json(outcome.output)
         == ["outcome": "ok", "result": ["page": "health-details", "name": "Health Details"]])
     #expect(app.calls.withLock { $0 } == ["activate"])
+  }
+
+  @Test
+  func waitsForTheAppToOpenThePage() throws {
+    let folder = try ActionFolder()
+    defer { folder.remove() }
+    // Launched signed out: the app claims the request, then fails it.
+    let signedOut = FakeApp(folder.store, running: false, behavior: .answer(.failed(.signedOut)))
+    #expect(
+      folder.run(["open", "Steps"], app: signedOut)
+        == HealthCLI.Outcome(error: "lil-health: Sign in to lil health first.\n", status: 69))
+    // Claimed, but slow to answer: the app has it, and opens it without the command.
+    let slow = FakeApp(folder.store, behavior: .claimOnly)
+    #expect(
+      folder.run(
+        ["open", "Steps"], app: slow, timing: HealthCLI.Timing(openWait: .milliseconds(200)))
+        == HealthCLI.Outcome(output: "Opened Steps in lil health.\n"))
   }
 
   @Test
@@ -251,12 +277,22 @@ struct HealthCLIActionTests {
       app.claimed.withLock { $0.map(\.action) }
         == [.export(folder: URL.downloadsDirectory.path(percentEncoded: false))])
     #expect(
-      json(folder.run(["export", "--to", "/tmp/lil-export", "--json"], app: app).output)
+      json(folder.run(["export", "--to", folder.directory.path, "--json"], app: app).output)
         == ["outcome": "ok", "result": ["path": path]])
-    #expect(app.claimed.withLock { $0.last?.action } == .export(folder: "/tmp/lil-export"))
+    let directory = folder.directory.standardizedFileURL.path(percentEncoded: false)
+      .trimmingSuffix("/")
+    #expect(app.claimed.withLock { $0.last?.action } == .export(folder: directory))
     #expect(
       try folder.store.entries().map(\.command)
-        == ["export /tmp/lil-export", "export ~/Downloads"])
+        == ["export \((directory as NSString).abbreviatingWithTildeInPath)", "export ~/Downloads"])
+
+    // A folder that isn't there: retrying won't help, so it's a data error, and nothing's asked.
+    let missing = folder.run(["export", "--to", "/nonexistent-2896"], app: app)
+    #expect(
+      missing
+        == HealthCLI.Outcome(
+          error: "lil-health: There's no folder at /nonexistent-2896.\n", status: 65))
+    #expect(try folder.store.entries().count == 2)
   }
 
   @Test

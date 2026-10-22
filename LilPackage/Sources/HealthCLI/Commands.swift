@@ -23,8 +23,8 @@ struct LilHealthCommand: ParsableCommand {
       open, sync and export ask lil health to do it, under the same setting, launching it if \
       it isn't running.
 
-      Exit statuses: 64 for a usage error, 65 for an unknown type, time zone, date or page, 69 \
-      if there's no lil health data to read, or lil health isn't installed, didn't answer or \
+      Exit statuses: 64 for a usage error, 65 for an unknown type, time zone, date, page or \
+      folder, 69 if there's no lil health data to read, or lil health isn't installed, didn't answer or \
       isn't signed in, 75 if its sync or export failed, 77 while access is off.
       """,
     subcommands: [

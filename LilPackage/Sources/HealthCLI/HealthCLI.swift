@@ -27,6 +27,11 @@ public enum HealthCLI {
     let outcome = run(arguments, context: .live())
     FileHandle.standardOutput.write(Data(outcome.output.utf8))
     FileHandle.standardError.write(Data(outcome.error.utf8))
+    if outcome.status == Status.interrupted {
+      // Ended by Ctrl-C, as shells tell: a loop running the command stops too.
+      signal(SIGINT, SIG_DFL)
+      raise(SIGINT)
+    }
     exit(outcome.status)
   }
 
@@ -135,9 +140,14 @@ public enum HealthCLI {
     let tools = HealthTools(now: context.now(), defaultTimeZone: context.timeZone)
     let answer = try database.read { db in try command.answer(tools, db) }
     guard command.output.json else { return answer.text }
+    return try encode(answer.json)
+  }
+
+  /// `--json`'s output: pretty, with sorted keys, and a line of its own.
+  static func encode(_ value: some Encodable) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    return String(decoding: try encoder.encode(answer.json), as: UTF8.self) + "\n"
+    return String(decoding: try encoder.encode(value), as: UTF8.self) + "\n"
   }
 
   private static func failure(_ error: any Error) -> Outcome {
