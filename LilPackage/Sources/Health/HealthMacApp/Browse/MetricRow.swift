@@ -50,8 +50,10 @@ struct MetricRow: View {
         HStack(alignment: .bottom) {
           SoundExposureStatus(exposure: exposure)
           Spacer()
-          Sparkline(days: summary.days, isTotals: false, isRanges: true, color: color)
-            .frame(width: 120, height: 36)
+          Sparkline(
+            days: summary.days, style: type.chartStyle ?? .ranges, color: color, calendar: calendar
+          )
+          .frame(width: 120, height: 36)
         }
       } else if let summary, let value = summary.latestValue {
         HStack(alignment: .bottom) {
@@ -64,8 +66,11 @@ struct MetricRow: View {
               .foregroundStyle(.secondary)
           }
           Spacer()
-          Sparkline(days: summary.days, isTotals: summary.isDailyTotal, color: color)
-            .frame(width: 120, height: 36)
+          // Every quantity type has a style: bars for totals (851-3097).
+          Sparkline(
+            days: summary.days, style: type.chartStyle ?? .ranges, color: color, calendar: calendar
+          )
+          .frame(width: 120, height: 36)
         }
       } else if summary == nil || summary?.hasData == false {
         // Loading, or no data: the value's line all the same, the chart's place kept.
@@ -120,41 +125,86 @@ struct SoundExposureStatus: View {
   }
 }
 
-/// A week at a glance: bars for daily totals, a line for daily averages, or each day's range from
-/// its lowest to its highest value.
+/// A week at a glance, in the type's chart style, as iPad Health's rows draw it (851-3101): the
+/// days in gray and the latest in `color`. Bars are each day's total, from 0 (or below it, for
+/// values that are); ranges its lowest to its highest reading, and dots and a line through them
+/// its average, on an axis fitted to them, as Metric Detail's are (`fittedDomain`), the line's latest a hollow circle. Always the
+/// whole week, its latest day at the right, however few days have data.
 struct Sparkline: View {
   let days: [DailyValue]
-  let isTotals: Bool
-  var isRanges = false
+  let style: HealthDataType.ChartStyle
   let color: Color
+  let calendar: Calendar
+
+  /// The days before the latest.
+  private static let gray = Color.gray.opacity(0.55)
 
   var body: some View {
     Chart(days, id: \.day) { day in
-      if isRanges {
-        // A capsule, and a dot for a day whose values were all the same. Days without a range
-        // are left out rather than drawn another way.
-        if let minimum = day.minimum, let maximum = day.maximum {
-          RuleMark(
-            x: .value("Day", day.day, unit: .day), yStart: .value("Lowest", minimum),
-            yEnd: .value("Highest", maximum)
-          )
-          .lineStyle(StrokeStyle(lineWidth: 5, lineCap: .round))
-          .foregroundStyle(color)
-        }
-      } else if isTotals {
+      let isLatest = day.day == days.last?.day
+      switch style {
+      case .bars:
         BarMark(x: .value("Day", day.day, unit: .day), y: .value("Value", day.value))
-          .foregroundStyle(color.opacity(0.8))
-      } else {
-        LineMark(x: .value("Day", day.day, unit: .day), y: .value("Value", day.value))
-          .foregroundStyle(color)
+          .foregroundStyle(isLatest ? color : Self.gray)
+      case .ranges:
+        // A capsule from the lowest to the highest reading: a dot for a day of one.
+        RuleMark(
+          x: .value("Day", day.day, unit: .day),
+          yStart: .value("Lowest", day.minimum ?? day.value),
+          yEnd: .value("Highest", day.maximum ?? day.value)
+        )
+        .lineStyle(StrokeStyle(lineWidth: 5, lineCap: .round))
+        .foregroundStyle(isLatest ? color : Self.gray)
+      case .dots:
         PointMark(x: .value("Day", day.day, unit: .day), y: .value("Value", day.value))
-          .foregroundStyle(color)
-          .symbolSize(12)
+          .foregroundStyle(isLatest ? color : Self.gray)
+          .symbolSize(30)
+      case .line:
+        LineMark(x: .value("Day", day.day, unit: .day), y: .value("Value", day.value))
+          .foregroundStyle(Self.gray)
+          .lineStyle(StrokeStyle(lineWidth: 2))
+        PointMark(x: .value("Day", day.day, unit: .day), y: .value("Value", day.value))
+          .symbol {
+            if isLatest {
+              // Hollow: the row's fill inside, over the line.
+              Circle()
+                .strokeBorder(color, lineWidth: 2)
+                .background(Circle().fill(.background.secondary))
+                .frame(width: 9, height: 9)
+            } else {
+              Circle()
+                .fill(Self.gray)
+                .frame(width: 4.5, height: 4.5)
+            }
+          }
       }
     }
-    .chartYScale(domain: .automatic(includesZero: !isRanges))
+    .chartXScale(domain: week)
+    .chartYScale(domain: yDomain)
     .chartXAxis(.hidden)
     .chartYAxis(.hidden)
     .chartLegend(.hidden)
+  }
+
+  /// The week the summary's days cover, ending with the latest's.
+  private var week: ClosedRange<Date> {
+    let week = HealthDatabase.weekEnding(on: days.last?.day ?? .distantPast, calendar: calendar)
+    return week.lowerBound...week.upperBound
+  }
+
+  private var yDomain: ClosedRange<Double> {
+    switch style {
+    case .bars:
+      // The highest at the top: a sparkline has no axis to round up to.
+      let low = min(days.map(\.value).min() ?? 0, 0)
+      let high = max(days.map(\.value).max() ?? 0, 0)
+      return low...(high > low ? high : low + 1)
+    case .ranges:
+      // Fitted, unlike the page's from 0: a sound level's 60–75 dB would be a sliver at the top.
+      return fittedDomain(days.flatMap { [$0.minimum ?? $0.value, $0.maximum ?? $0.value] })
+        ?? 0...1
+    case .dots, .line:
+      return fittedDomain(days.map(\.value)) ?? 0...1
+    }
   }
 }

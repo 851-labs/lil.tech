@@ -397,6 +397,27 @@ struct BrowseQueriesTests {
     #expect(summary.days.map(\.value) == [71, 71.5])
   }
 
+  /// A range sparkline's capsules (851-3101): each day's lowest and highest reading, beside its
+  /// average, which dots and lines draw.
+  @Test
+  func aDiscreteTypesDaysHaveTheirLowestAndHighestReadings() throws {
+    let heartRate = "HKQuantityTypeIdentifierHeartRate"
+    try database.write { db in
+      try HealthSample.insert {
+        // Before the week ending today.
+        sample(heartRate, at: utc(8, day: 7), value: 200)
+        sample(heartRate, at: utc(8, day: 12), value: 60)
+        sample(heartRate, at: utc(9, day: 12), value: 90)
+        sample(heartRate, at: utc(20, day: 12), value: 120)
+        sample(heartRate, at: utc(8), value: 72)
+      }.execute(db)
+    }
+    let summary = try summary(heartRate)
+    #expect(summary.days.map(\.day) == [utc(0, day: 12), utc(0)])
+    #expect(summary.days.map(\.minimum) == [60, 72])
+    #expect(summary.days.map(\.maximum) == [120, 72])
+  }
+
   @Test
   func typesWithoutAValueShowWhenTheyWereLastRecorded() throws {
     let headache = "HKCategoryTypeIdentifierHeadache"

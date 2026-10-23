@@ -16,7 +16,8 @@ public struct MetricSummary: Equatable, Identifiable, Sendable {
   /// Whether `latestDate` is a whole day (a total) rather than a moment.
   public var isDailyTotal: Bool
   /// One value a day for the week ending on the latest day, oldest first: totals for cumulative
-  /// types, averages for discrete ones. Days without data are left out.
+  /// types, averages for discrete ones, with their lowest and highest readings for range charts.
+  /// Days without data are left out.
   public var days: [DailyValue]
   /// Whether it has data without a date: medications shared before any of their doses are
   /// logged, since a medication's date is its latest dose's.
@@ -236,8 +237,9 @@ extension HealthDatabase {
     return gregorian.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
   }
 
-  /// The `summaryDays` days ending with `day` (a start of day).
-  private static func weekEnding(on day: Date, calendar: Calendar) -> Range<Date> {
+  /// The `summaryDays` days ending with `day` (a start of day): the week a summary's `days`
+  /// cover, which the rows' sparklines span.
+  public static func weekEnding(on day: Date, calendar: Calendar) -> Range<Date> {
     let end = calendar.date(byAdding: .day, value: 1, to: day) ?? day
     let start = calendar.date(byAdding: .day, value: 1 - summaryDays, to: day) ?? day
     return start..<end

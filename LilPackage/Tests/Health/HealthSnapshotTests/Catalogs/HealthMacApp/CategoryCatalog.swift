@@ -24,6 +24,13 @@
       CatalogState("Heart") { metrics(.heart) },
       CatalogState("Activity") { metrics(.activity) },
       CatalogState("Respiratory") { metrics(.respiratory) },
+      // Every row's sparkline in its type's chart style (851-3101): Activity's bars, Heart's
+      // ranges, dots and lines, Body Measurements' lines and Mobility's dots.
+      CatalogState("Body Measurements") { metrics(.bodyMeasurements) },
+      CatalogState("Mobility") { metrics(.mobility) },
+      // A week with few readings: one heart rate a day, so each range is a dot, and a single
+      // resting heart rate, a line's one point.
+      CatalogState("Heart, a few readings") { metrics(.heart, .loaded(fewReadings())) },
       CatalogState("Medications") { metrics(.medications) },
       // Shared medications without doses yet: Medications has data, without a date.
       CatalogState("Medications, none logged") {
@@ -75,5 +82,34 @@
   /// The app's request, at the suite's date and calendar.
   private func summaries(_ category: HealthCategory) -> [MetricSummary] {
     try! catalogDatabase.read { db in try CategorySummaries(category: category).fetch(db) }
+  }
+
+  /// Heart's types with a few days of readings in the week before `previewNow`, the rest
+  /// without data.
+  private func fewReadings() -> [MetricSummary] {
+    let calendar = previewCalendar
+    let today = calendar.startOfDay(for: previewNow)
+    func day(_ offset: Int) -> Date { calendar.date(byAdding: .day, value: offset, to: today)! }
+    let latest = calendar.date(byAdding: .hour, value: 8, to: today)!
+    let summaries = [
+      MetricSummary(
+        id: "HKQuantityTypeIdentifierHeartRate", latestDate: latest, latestValue: 64,
+        unit: "count/min",
+        days: [(-5, 71.0), (-3, 58), (-2, 66), (0, 64)].map { offset, value in
+          DailyValue(day: day(offset), value: value, minimum: value, maximum: value)
+        }),
+      MetricSummary(
+        id: "HKQuantityTypeIdentifierRestingHeartRate", latestDate: latest, latestValue: 57,
+        unit: "count/min", days: [DailyValue(day: day(0), value: 57, minimum: 57, maximum: 57)]),
+      MetricSummary(
+        id: "HKQuantityTypeIdentifierHeartRateVariabilitySDNN", latestDate: latest,
+        latestValue: 48, unit: "ms",
+        days: [(-6, 41.0), (-1, 52), (0, 48)].map { offset, value in
+          DailyValue(day: day(offset), value: value, minimum: value - 6, maximum: value + 9)
+        }),
+    ]
+    return HealthCatalog.types(in: .heart).map { type in
+      summaries.first { $0.id == type.id } ?? MetricSummary(id: type.id)
+    }
   }
 #endif
