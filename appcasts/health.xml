@@ -3,6 +3,21 @@
   <channel>
     <title>lil health</title>
     <item>
+      <title>0.4.2</title>
+      <pubDate>Fri, 23 Oct 2026 15:23:28 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.4.2</link>
+      <sparkle:version>423</sparkle:version>
+      <sparkle:shortVersionString>0.4.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<ul><li>Charts that fit each kind of data: weight and other body measurements as a line, heart rate as ranges, HRV and mobility as dots, on an axis fitted to your readings</li><li>Sleep: Month and 6 Months, each night at clock time with its stages in order, and highlights for bedtime, this month vs last, heart rate while asleep, the last 7 days and last night's stages</li><li>Your units: miles, pounds, °F and more, following your Mac's region settings, including workout splits</li><li>Hearing: a 7-day exposure status for environmental and headphone sound</li><li>Sign Out is now in Settings › Account, and Settings reads simpler</li><li>Loading spinners only show when something is slow</li></ul>]]></description>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/health%2Fv0.4.2/lil-health-0.4.2.dmg"
+        length="33810500"
+        type="application/octet-stream"
+        sparkle:edSignature="gJJviDequVXFEIbSsT0zEPUwWKoU4SInBo24mW0N7brZu3I1KAgKJ32FusFd7ReF5i65qVs+rdMpzbx++rgNBw=="
+      />
+    </item>
+    <item>
       <title>0.4.1</title>
       <pubDate>Fri, 23 Oct 2026 02:54:52 +0000</pubDate>
       <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.4.1</link>
