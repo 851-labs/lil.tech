@@ -1051,7 +1051,7 @@ struct WorkoutQueriesTests {
     let splits = HealthDatabase.splits(locations)
     // About 2 km: one full kilometer at about 300 seconds, the rest carried into the next.
     #expect(splits.first?.distance == 1000)
-    #expect(splits.allSatisfy { abs($0.pace - 300) < 3 })
+    #expect(splits.allSatisfy { abs($0.duration / $0.distance * 1000 - 300) < 3 })
     // Every meter counts once: the splits add up to the route.
     let total = zip(locations, locations.dropFirst()).reduce(0) {
       $0 + HealthDatabase.distance($1.0, $1.1)

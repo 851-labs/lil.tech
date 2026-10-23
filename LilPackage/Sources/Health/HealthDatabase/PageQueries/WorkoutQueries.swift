@@ -99,7 +99,28 @@ extension HealthWorkout {
 
   /// The workout's distance in meters, whichever kind it recorded.
   public static func distance(in statistics: [String: WorkoutStatistic]) -> Double? {
-    distanceTypes.lazy.compactMap { statistics[$0]?.sum }.first
+    distanceStatistic(in: statistics)?.meters
+  }
+
+  /// Which kind of distance the workout recorded (the first of `distanceTypes` with a sum), and
+  /// how far, in meters.
+  public static func distanceStatistic(in statistics: [String: WorkoutStatistic]) -> (
+    type: String, meters: Double
+  )? {
+    for type in distanceTypes {
+      if let meters = statistics[type]?.sum { return (type, meters) }
+    }
+    return nil
+  }
+
+  /// The unit a swim's pool is measured in, from its lap length (`HKLapLength`, written as the
+  /// quantity's description: "25 yd", "50 m"), or nil without one.
+  public var lapLengthUnit: String? {
+    guard let metadata,
+      let object = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any],
+      let (_, unit) = HealthDatabase.quantity(object["HKLapLength"]), !unit.isEmpty
+    else { return nil }
+    return unit
   }
 }
 
@@ -159,7 +180,8 @@ public struct RouteLocation: Equatable, Sendable {
   }
 }
 
-/// One stretch of a route: a kilometer (the last one may be shorter) and how long it took.
+/// One stretch of a route: a kilometer or a mile (the last one may be shorter), in meters, and
+/// how long it took.
 public struct RouteSplit: Equatable, Sendable {
   public var distance: Double
   public var duration: TimeInterval
@@ -168,9 +190,6 @@ public struct RouteSplit: Equatable, Sendable {
     self.distance = distance
     self.duration = duration
   }
-
-  /// Seconds per kilometer.
-  public var pace: TimeInterval { distance > 0 ? duration / distance * 1000 : 0 }
 }
 
 extension HealthDatabase {
@@ -335,9 +354,10 @@ extension HealthDatabase {
     }
   }
 
-  /// The route cut into kilometers (the last one may be shorter), each with how long it took,
-  /// leaving out the time it was paused. A kilometer ends where the route crosses it, between
-  /// two points, so the distance past it counts toward the next one.
+  /// The route cut into splits of `meters` (a kilometer, or a mile in the US and UK, 851-3176;
+  /// the last one may be shorter), each with how long it took, leaving out the time it was
+  /// paused. A split ends where the route crosses its distance, between two points, so the
+  /// distance past it counts toward the next one.
   public static func splits(
     _ locations: [RouteLocation], pauses: [DateInterval] = [], every meters: Double = 1000
   ) -> [RouteSplit] {
@@ -357,7 +377,7 @@ extension HealthDatabase {
       let step = Self.distance(previous, location)
       var stepStart = previous.time
       var left = step
-      // A step can cross more than one kilometer (a GPS gap).
+      // A step can cross more than one split (a GPS gap).
       while covered + left >= meters, left > 0 {
         let needed = meters - covered
         let crossing = stepStart.addingTimeInterval(

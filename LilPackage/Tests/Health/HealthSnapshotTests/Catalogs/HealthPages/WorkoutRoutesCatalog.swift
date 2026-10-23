@@ -39,6 +39,11 @@
         route { .loaded(LoadedRoute(locations(of: $0))) }
           .environment(\.drawsRouteMaps, false)
       },
+      // Its distance in miles (851-3176).
+      CatalogState("Other route, US", width: 760, locale: Locale(identifier: "en_US")) {
+        route { .loaded(LoadedRoute(locations(of: $0))) }
+          .environment(\.drawsRouteMaps, false)
+      },
       CatalogState("Other route loading", width: 760) { route { _ in .loading } },
       CatalogState("Other route failed", width: 760) {
         route { _ in .failed("The route couldn't be downloaded.") }

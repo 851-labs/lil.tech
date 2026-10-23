@@ -32,10 +32,24 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.workouts-us-dark.png",
+      "id" : "workouts.workouts-us",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.workouts-us-light.png",
+      "name" : "Workouts, US",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.run-with-route-dark.png",
       "id" : "workouts.run-with-route",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.run-with-route-light.png",
       "name" : "Run with route",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.run-with-route-us-dark.png",
+      "id" : "workouts.run-with-route-us",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.run-with-route-us-light.png",
+      "name" : "Run with route, US",
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
     },
     {
