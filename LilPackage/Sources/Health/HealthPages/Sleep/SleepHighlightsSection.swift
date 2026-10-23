@@ -1,5 +1,7 @@
 import Foundation
+import HealthCatalog
 import HealthDatabase
+import HealthUI
 import LilUI
 import SQLiteData
 import SwiftUI
@@ -44,6 +46,7 @@ struct SleepHighlightsSection: View {
       Section("Highlights") {
         if let bedtime = highlights.bedtime { BedtimeHighlight(bedtime: bedtime) }
         if let months = highlights.months { SleepMonthsHighlight(months: months) }
+        if let heartRate = highlights.heartRate { SleepHeartRateHighlight(heartRate: heartRate) }
       }
     }
   }
@@ -97,6 +100,8 @@ enum SleepHighlightStyle {
   static let average = Color.mint
   /// Earlier nights or months, as Summary's highlights draw the earlier week.
   static let earlier = ComparisonBars.earlierColor
+  /// Heart's color, for heart rate while asleep.
+  static let heart = HealthCategory.heart.color
   /// Heights of the highlights' charts.
   static let chartHeight: CGFloat = 120
 

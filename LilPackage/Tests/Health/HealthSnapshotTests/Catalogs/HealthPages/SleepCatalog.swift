@@ -92,7 +92,7 @@
       // Below Show All Data and Data Sources, which don't move as they load or come and go. Taller
       // than the page, so its window doesn't grow to fit, to a half point, which moved everything
       // in it by 0.5 pt (`LayoutShiftTests`).
-      CatalogState("Night with highlights", minHeight: 1200) {
+      CatalogState("Night with highlights", minHeight: 1500) {
         detail(.day, .loaded(nights(.day)), highlights: .loaded(highlights))
       },
       CatalogState("Highlights loading") {
@@ -113,6 +113,10 @@
       // 5% or more under last month's average.
       CatalogState("Less sleep this month", minHeight: 250) {
         highlightsOnly(SleepHighlights(months: months(this: 6.9 * 3600, last: 7.65 * 3600)))
+      },
+      // A reading every 15 minutes, so each range is one reading, drawn a beat tall.
+      CatalogState("Heart rate, a reading a range", minHeight: 300) {
+        highlightsOnly(SleepHighlights(heartRate: steadyHeartRate))
       },
       CatalogState("More sleep this month", minHeight: 250) {
         highlightsOnly(SleepHighlights(months: months(this: 8.2 * 3600, last: 7.65 * 3600)))
@@ -173,6 +177,18 @@
       thisMonthAverage: this, lastMonthAverage: last)
   }
 
+  /// Last night from 10:50 PM to 6:50 AM, a reading every 15 minutes, between 52 and 58.
+  private var steadyHeartRate: SleepHeartRate {
+    let start = previewCalendar.startOfDay(for: previewNow).addingTimeInterval(-70 * 60)
+    return SleepHeartRate(
+      start: start, end: start.addingTimeInterval(8 * 3600),
+      ranges: (0..<32).map { index in
+        let value = Double(52 + (index * 5) % 7)
+        return .init(
+          start: start.addingTimeInterval(Double(index) * 900), minimum: value, maximum: value)
+      })
+  }
+
   /// Without enough data for highlights, unless it's given them.
   @MainActor
   private func detail(
@@ -199,11 +215,14 @@
   /// PM for 6.5 to 8 hours, in 90-minute cycles of Core, Deep, Core and REM, sometimes awake a few
   /// minutes between them. The same every run. The week before `previewNow` has what the page has
   /// to handle: a night that starts after midnight (Aug 9), none (Aug 10), and one with an hour
-  /// awake and unrecorded, then a nap that isn't part of it (Aug 11).
+  /// awake and unrecorded, then a nap that isn't part of it (Aug 11). The last two nights have
+  /// heart rate readings too.
   let sleepCatalogDatabase: any DatabaseWriter = {
     let calendar = previewCalendar
     let today = calendar.startOfDay(for: previewNow)
     var random = SplitMix64(seed: "sleepCatalogDatabase")
+    // Its own, so adding heart rate didn't change the nights.
+    var heartRandom = SplitMix64(seed: "sleepCatalogDatabase heart rate")
     var samples: [HealthSample] = []
     func record(_ stage: SleepStage, _ start: Date, _ end: Date) {
       samples.append(
@@ -262,6 +281,23 @@
         stages(from: start, to: end)
       }
       record(.inBed, start.addingTimeInterval(-12 * 60), end.addingTimeInterval(8 * 60))
+      // The Watch's heart rate every 5 minutes through the last two nights, for their highlight
+      // (851-3110): settling from the mid 60s into the 50s, up for a dream about 4 hours in.
+      if back <= 1 {
+        var time = start
+        while time < end {
+          let hours = time.timeIntervalSince(start) / 3600
+          let spike = abs(hours - 4.2) < 0.15 ? 16.0 : 0
+          let value = (52 + 13 * exp(-hours / 1.5) + heartRandom.next(in: 0...6) + spike).rounded()
+          samples.append(
+            HealthSample(
+              id: "heart-\(samples.count)", type: HealthDatabase.heartRateType,
+              startDate: time.unixMilliseconds, endDate: time.unixMilliseconds, value: value,
+              unit: "count/min", sourceName: "Apple Watch",
+              sourceBundleID: "com.apple.health.watch"))
+          time.addTimeInterval(5 * 60)
+        }
+      }
     }
     do {
       let database = try HealthDatabase.make()

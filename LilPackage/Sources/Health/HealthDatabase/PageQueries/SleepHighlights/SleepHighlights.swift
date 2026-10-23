@@ -8,14 +8,20 @@ public struct SleepHighlights: Equatable, Sendable {
   public var bedtime: BedtimeConsistency?
   /// This month's average time asleep against last month's.
   public var months: SleepMonthComparison?
+  /// Heart rate while asleep last night.
+  public var heartRate: SleepHeartRate?
 
-  public init(bedtime: BedtimeConsistency? = nil, months: SleepMonthComparison? = nil) {
+  public init(
+    bedtime: BedtimeConsistency? = nil, months: SleepMonthComparison? = nil,
+    heartRate: SleepHeartRate? = nil
+  ) {
     self.bedtime = bedtime
     self.months = months
+    self.heartRate = heartRate
   }
 
   /// Whether there's nothing to show.
-  public var isEmpty: Bool { bedtime == nil && months == nil }
+  public var isEmpty: Bool { bedtime == nil && months == nil && heartRate == nil }
 }
 
 extension HealthDatabase {
@@ -33,9 +39,14 @@ extension HealthDatabase {
       ?? today
     let count = (calendar.dateComponents([.day], from: first, to: today).day ?? 0) + 1
     let nights = try sleepNights(endingOn: today, count: count, calendar: calendar, db)
+    // A night's sleep ending today, not a day's (`latestBedtime`).
+    let lastNight = nights.last.flatMap {
+      $0.day == today && $0.nightBedtime(calendar: calendar) != nil ? $0 : nil
+    }
     return SleepHighlights(
       bedtime: BedtimeConsistency(nights: nights, today: today, calendar: calendar),
-      months: SleepMonthComparison(nights: nights, today: today, calendar: calendar))
+      months: SleepMonthComparison(nights: nights, today: today, calendar: calendar),
+      heartRate: try lastNight.flatMap { try sleepHeartRate(during: $0, db) })
   }
 
   /// Where `date` goes in the night that started at `start`, in hours from the start of `day`,
