@@ -10,6 +10,7 @@ import {
   saveHealthBatch,
   touchQueuedHealthBatch,
 } from "../health/HealthBatchStore.ts";
+import { seedWelcomeCards } from "../health/cards/WelcomeSeed.ts";
 import { DisposableBucket } from "../Deployment.ts";
 import { makeStoreMcpServers } from "../mcp/StoreMcpServers.ts";
 import { requestPath } from "../oauth/Requests.ts";
@@ -636,6 +637,34 @@ export const makeUserStore = (
 
 export type UserStoreMethods = ReturnType<typeof makeUserStore>;
 
+/**
+ * A store as the Worker starts it: its methods (`makeUserStore`, which migrates its schema), then
+ * the welcome cards, once per store, before it serves anything (851-3203, `seedWelcomeCards`). So
+ * a new account's store seeds on its first request, and an existing one the first time it starts
+ * on code that seeds: nothing runs over every account.
+ */
+export const startUserStore = Effect.fnUntraced(function* (
+  ...args: Parameters<typeof makeUserStore>
+) {
+  const store = makeUserStore(...args);
+  const [sql, registry = entities] = args;
+  // A store past its hard limit takes no upserts (`apply`), the seed's included: it seeds once
+  // it's back under.
+  if (sql.databaseSize() >= storageHardLimitBytes) return store;
+  const seeded = seedWelcomeCards(sql, registry, yield* Clock.currentTimeMillis);
+  if (seeded._tag === "Seeded" && seeded.appended > 0) {
+    yield* Effect.logInfo(`Seeded the welcome cards: ${seeded.appended} changes`);
+  } else if (seeded._tag === "Full") {
+    yield* Effect.logWarning(`Not seeding the welcome cards: the store has ${seeded.cards} cards`);
+  } else if (seeded._tag === "Failed") {
+    yield* Effect.logError(
+      "Seeding the welcome cards failed: trying again next start",
+      seeded.error,
+    );
+  }
+  return store;
+});
+
 /** A store as a Durable Object: its RPC methods, plus what the Worker forwards to it. */
 export type UserStoreShape = UserStoreMethods & {
   /**
@@ -778,7 +807,7 @@ export const UserStoreLive = UserStore.make(
       );
       const sql = fromDurableObjectStorage(state.raw.storage);
       // A migration that fails stops the object from starting, rather than serving an old schema.
-      const store = makeUserStore(sql, entities, files, sockets, blobFiles);
+      const store = yield* startUserStore(sql, entities, files, sockets, blobFiles);
       const mcpServers = yield* makeStoreMcpServers({ sql, record: store.recordAgentAccess });
       return {
         ...store,
