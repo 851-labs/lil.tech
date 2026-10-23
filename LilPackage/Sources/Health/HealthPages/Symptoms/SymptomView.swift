@@ -14,24 +14,34 @@ public struct SymptomView: View {
   let type: HealthDataType
   @State private var range = ChartRange.week
   @State private var offset = 0
-  /// Moves at midnight, so the periods do.
-  @State private var today = Date.now
+  /// Moves at midnight, so the periods do. From the `date` dependency, as the calendar is.
+  @State private var today: Date
   /// The last period loaded. While another loads, the page keeps showing it (851-3089).
   @Fetch private var chart: SymptomChart? = nil
 
+  @Dependency(\.date) private var date
+  @Dependency(\.calendar) private var calendar
+
   public init(type: HealthDataType) {
     self.type = type
+    @Dependency(\.date.now) var now
+    _today = State(initialValue: now)
   }
 
   public var body: some View {
     SymptomContent(type: type, range: $range, offset: $offset, state: state, now: today)
-      .task(id: [type.id, range.rawValue, String(offset), today.formatted(.iso8601)]) {
+      // Today's start in the page's calendar, so a new day is a new load.
+      .task(id: [
+        type.id, range.rawValue, String(offset),
+        "\(calendar.startOfDay(for: today).timeIntervalSince1970)",
+      ]) {
         _ = try? await $chart.load(
-          SymptomRequest(typeID: type.id, range: range, offset: offset, now: today),
+          SymptomRequest(
+            typeID: type.id, range: range, offset: offset, now: today, calendar: calendar),
           scheduler: MainQueueScheduler())
       }
       .onReceive(calendarDayChanges()) {
-        today = .now
+        today = date.now
       }
   }
 
@@ -39,7 +49,7 @@ public struct SymptomView: View {
   private var state: SymptomContent.State {
     if let error = $chart.loadError { return .failed(error.localizedDescription) }
     guard let chart else { return .loading }
-    let interval = range.interval(offset: offset, now: today, calendar: .current)
+    let interval = range.interval(offset: offset, now: today, calendar: calendar)
     return .loaded(
       chart, isUpdating: $chart.isLoading || chart.range != range || chart.interval != interval)
   }
@@ -51,10 +61,11 @@ struct SymptomRequest: FetchKeyRequest {
   let offset: Int
   /// The day it's for, so a new day is a new request.
   let now: Date
+  let calendar: Calendar
 
   func fetch(_ db: Database) throws -> SymptomChart? {
     try HealthDatabase.symptomChart(
-      of: typeID, range: range, offset: offset, now: now, calendar: .current, db)
+      of: typeID, range: range, offset: offset, now: now, calendar: calendar, db)
   }
 }
 

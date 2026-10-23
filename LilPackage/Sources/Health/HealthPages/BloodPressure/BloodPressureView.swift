@@ -12,22 +12,32 @@ public import SwiftUI
 public struct BloodPressureView: View {
   @State private var range = ChartRange.week
   @State private var offset = 0
-  /// Moves at midnight, so the periods do.
-  @State private var today = Date.now
+  /// Moves at midnight, so the periods do. From the `date` dependency, as the calendar is.
+  @State private var today: Date
   /// The last period loaded. While another loads, the page keeps showing it (851-3089).
   @Fetch private var period: BloodPressurePeriod? = nil
 
-  public init() {}
+  @Dependency(\.date) private var date
+  @Dependency(\.calendar) private var calendar
+
+  public init() {
+    @Dependency(\.date.now) var now
+    _today = State(initialValue: now)
+  }
 
   public var body: some View {
     BloodPressureContent(range: $range, offset: $offset, state: state)
-      .task(id: [range.rawValue, String(offset), today.formatted(.iso8601)]) {
+      // Today's start in the page's calendar, so a new day is a new load.
+      .task(id: [
+        range.rawValue, String(offset),
+        "\(calendar.startOfDay(for: today).timeIntervalSince1970)",
+      ]) {
         _ = try? await $period.load(
-          BloodPressureRequest(range: range, offset: offset, now: today),
+          BloodPressureRequest(range: range, offset: offset, now: today, calendar: calendar),
           scheduler: MainQueueScheduler())
       }
       .onReceive(calendarDayChanges()) {
-        today = .now
+        today = date.now
       }
   }
 
@@ -35,7 +45,7 @@ public struct BloodPressureView: View {
   private var state: BloodPressureContent.State {
     if let error = $period.loadError { return .failed(error.localizedDescription) }
     guard let period else { return .loading }
-    let interval = range.interval(offset: offset, now: today, calendar: .current)
+    let interval = range.interval(offset: offset, now: today, calendar: calendar)
     return .loaded(
       period,
       isUpdating: $period.isLoading || period.range != range || period.chart.interval != interval)
@@ -53,12 +63,13 @@ struct BloodPressureRequest: FetchKeyRequest {
   let offset: Int
   /// The day it's for, so a new day is a new request.
   let now: Date
+  let calendar: Calendar
 
   func fetch(_ db: Database) throws -> BloodPressurePeriod? {
     BloodPressurePeriod(
       range: range,
       chart: try HealthDatabase.bloodPressureChart(
-        range: range, offset: offset, now: now, calendar: .current, db))
+        range: range, offset: offset, now: now, calendar: calendar, db))
   }
 }
 
