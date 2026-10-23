@@ -81,6 +81,27 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.sidebar-health-categories-expanded-dark.png",
+      "id" : "window.sidebar-health-categories-expanded",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.sidebar-health-categories-expanded-light.png",
+      "name" : "Sidebar, Health Categories expanded",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.sidebar-health-categories-collapsed-dark.png",
+      "id" : "window.sidebar-health-categories-collapsed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.sidebar-health-categories-collapsed-light.png",
+      "name" : "Sidebar, Health Categories collapsed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.sidebar-health-categories-collapsed-a-category-selected-dark.png",
+      "id" : "window.sidebar-health-categories-collapsed-a-category-selected",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.sidebar-health-categories-collapsed-a-category-selected-light.png",
+      "name" : "Sidebar, Health Categories collapsed, a category selected",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.search-results-dark.png",
       "id" : "window.search-results",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.search-results-light.png",
