@@ -50,8 +50,8 @@ enum HealthMCPServer {
   static let instructions = """
     Reads the person's Apple Health data that lil health has synced to this Mac, read-only and \
     offline. Start with summary; find types with list_types or search. Every call is logged in \
-    lil health › Settings… › Agents, and fails while the person has command-line and agent \
-    access turned off there.
+    lil health › Settings… › Agents, and fails while Allow access on this Mac is off \
+    there.
     """
 
   /// Serves on standard input and output until the client closes them, then exits.
