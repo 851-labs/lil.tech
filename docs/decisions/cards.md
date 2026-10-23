@@ -485,6 +485,14 @@ The others differ only in the table's columns: HeartRate `avg` `ranges`, ActiveE
 - **Editing a seed card** is like editing any card. `seed` stays, so a later version could offer "Restore Default Cards" (not in v1).
 - **Before the first pull,** a new Mac or iPhone shows Summary's loading state while sync starts, not seed cards of its own.
 - **The `summary` tool doesn't change:** it shows the six everyday metrics, as `HealthDatabase.summaryTypes` does, whatever the cards are. Agents read cards with `list_cards`.
+- **As shipped (851-3203):**
+  - **Where:** `seedWelcomeCards` (`Services/api/src/health/cards/WelcomeSeed.ts`), which reads `card-seed.json`, called by `startUserStore` (`UserStore.ts`): `makeUserStore` (which migrates), then the seed. The Durable Object's start calls it, and Alchemy runs that under `blockConcurrencyWhile`, so no request reaches a store before it's seeded, and requests arriving together wait for one seed. A store starts again after every eviction or hibernation, and each later start only reads the flag.
+  - **The flag** is `meta.health_cards_seeded`, the seed's time in Unix ms. Its presence counts, not its value. A deleted store (`meta.deleted`) is never seeded, before or after its wipe.
+  - **Rows:** each seed card's row from `card-seed.json`, with `createdAt` and `updatedAt` at the store's start, in Summary's order, so `seq`s `head + 1` to `head + 6` (1 to 6 for a new account). Existing accounts' come after what their logs already hold.
+  - **Seed IDs already stored** are left as they are, never overwritten, and only the missing ones are written. A store can only lack the flag but hold seed cards if something wrote them without seeding (nothing does) or the flag alone was lost: a point-in-time restore takes the flag back with the rows, since they're one transaction.
+  - **If the store refuses the seed** (only possible past 194 cards, which no account has before the seed), the flag is still set, with no cards, and the Worker logs a warning, so a store never fails to start over it. A seed that wrote something logs `Seeded the welcome cards: 6 changes`.
+  - **No alarm:** the seed doesn't set the store's alarm, so six changes alone never start a snapshot. The next write sets it as usual. Until a snapshot, devices pull the six from the change log.
+  - **Tests** use `makeUserStore`, which doesn't seed, so their logs start empty. The seed's own tests (`test/health/cards/WelcomeSeed.test.ts`) use `startUserStore`.
 
 ## MCP tools (851-3215, 851-3216, 851-3217)
 
