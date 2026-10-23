@@ -59,7 +59,9 @@ struct AgentAccessForm: View {
         VStack(alignment: .leading, spacing: 6) {
           // App actions (851-2892), which Shortcuts, Siri and Spotlight run, check the same
           // setting: they open pages, sync and export.
-          Text("Lets agents, the lil command and Shortcuts use your Health data on this Mac.")
+          Text(
+            "Lets agents, the lil command, Shortcuts and Siri read and export your Health data on this Mac."
+          )
           // The disclosure the privacy policy and agents consent rely on (851-2840).
           Label {
             Text("Agents usually send what they read to their AI provider, under its own terms.")
@@ -274,11 +276,10 @@ struct AgentSetupSection: View {
   /// `lil mcp`'s arguments: every lil app's tools.
   static let arguments = "mcp"
 
-  /// Claude Code's command adding `lil` with these arguments as the server `name`, with `lil`'s
-  /// full path once it's known: an agent started from an IDE or the Dock may not have
-  /// `~/.local/bin` on its `PATH`.
-  static func claudeCode(name: String, lil: String, arguments: String) -> String {
-    "claude mcp add --scope user \(name) -- \(lil) \(arguments)"
+  /// Claude Code's command adding `lil mcp` as the server `lil`, with `lil`'s full path once it's
+  /// known: an agent started from an IDE or the Dock may not have `~/.local/bin` on its `PATH`.
+  static func claudeCode(lil: String) -> String {
+    "claude mcp add --scope user lil -- \(lil) \(arguments)"
   }
 
   private var path: String? { commandLineTool?.path(percentEncoded: false) }
@@ -287,7 +288,7 @@ struct AgentSetupSection: View {
     Section {
       CopyableRow(
         title: "Claude Code",
-        value: Self.claudeCode(name: "lil", lil: path ?? "lil", arguments: Self.arguments))
+        value: Self.claudeCode(lil: path ?? "lil"))
       if let path {
         CopyableRow(title: "Other agents: command", value: path)
         CopyableRow(title: "Other agents: arguments", value: Self.arguments)
@@ -295,9 +296,7 @@ struct AgentSetupSection: View {
         // A bare `lil` wouldn't start from an app, which doesn't get the shell's `PATH`. The
         // menu item's install: the pane finds `lil` within a few seconds of it.
         LabeledContent("Other agents") {
-          Button("Install Command Line Tool…") {
-            Task { await installCommandLineTool() }
-          }
+          InstallCommandLineToolButton()
         }
       }
     } header: {
@@ -392,8 +391,10 @@ struct ConnectedAgentsSections: View {
         Text(failure)
           .foregroundStyle(.red)
       } else {
-        Text("Connected agents can read your Health data until you revoke them.")
-          .foregroundStyle(.secondary)
+        Text(
+          "Connected agents can read all your Health data, from anywhere, until you revoke them."
+        )
+        .foregroundStyle(.secondary)
       }
     }
 

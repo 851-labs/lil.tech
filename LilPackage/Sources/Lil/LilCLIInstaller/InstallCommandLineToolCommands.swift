@@ -9,9 +9,19 @@
 
     public var body: some Commands {
       CommandGroup(after: .appInfo) {
-        Button("Install Command Line Tool…") {
-          Task { await installCommandLineTool() }
-        }
+        InstallCommandLineToolButton()
+      }
+    }
+  }
+
+  /// "Install Command Line Tool…": the menu item, and a settings pane's button where `lil` isn't
+  /// installed yet.
+  public struct InstallCommandLineToolButton: View {
+    public init() {}
+
+    public var body: some View {
+      Button("Install Command Line Tool…") {
+        Task { await installCommandLineTool() }
       }
     }
   }
@@ -19,11 +29,10 @@
   /// Whether an install is under way, so starting another meanwhile does nothing.
   @MainActor private var isInstalling = false
 
-  /// Asks where to install `lil`, installs it, and says how that went: the menu item's action, and
-  /// a settings pane's Install Command Line Tool… button's. Alerts rather than SwiftUI
+  /// Asks where to install `lil`, installs it, and says how that went. Alerts rather than SwiftUI
   /// presentation: a menu command has no view to present from.
   @MainActor
-  public func installCommandLineTool() async {
+  private func installCommandLineTool() async {
     // Before asking where: an install already under way would ignore the answer.
     guard !isInstalling else { return }
     guard let bundled = Bundle.main.url(forAuxiliaryExecutable: "lil") else {
