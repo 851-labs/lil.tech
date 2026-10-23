@@ -104,7 +104,7 @@
       CatalogState("Weight, month with a gap") { measurement(weight, .month, offset: -1) },
       CatalogState("Weight, 6 months") { measurement(weight, .sixMonths) },
       CatalogState("Weight, year") { measurement(weight, .year) },
-      // Other lines: every other weigh-in, on a percent axis, and every fourth day.
+      // Other lines: body fat on even days' weigh-ins, on a percent axis, and every fourth day.
       CatalogState("Body fat percentage, month") { measurement(bodyFat, .month) },
       CatalogState("Cardio fitness, 6 months") { measurement(cardioFitness, .sixMonths) },
       // Category types charted like metrics (851-2831).
@@ -194,7 +194,7 @@
   /// A year of synthetic body measurements up to `previewNow`, longer than the catalog database's
   /// two weeks, so 6 months and a year have something to show (851-3097). A weigh-in most
   /// mornings, drifting down from about 74 to 71 kg, with no reading ten days in July; body fat
-  /// at every other weigh-in; and cardio fitness every fourth day, rising.
+  /// with the weigh-ins of even-numbered days; and cardio fitness every fourth day, rising.
   private let measurementsDatabase: any DatabaseWriter = {
     let calendar = previewCalendar
     let today = calendar.startOfDay(for: previewNow)

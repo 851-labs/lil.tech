@@ -587,6 +587,26 @@ struct ChartQueriesTests {
     #expect(week.summary == .range(minimum: 55, maximum: 100))
     #expect(try chart(heartRate, .week, offset: -1).summary == nil)
   }
+
+  /// A line's (or dots') period is its average over every reading, not over the days' averages,
+  /// as Health's weight is (851-3097).
+  @Test
+  func aLineTypeChartsEachBucketsAverageAndThePeriodsAverage() throws {
+    let weight = try #require(HealthCatalog.type(id: "HKQuantityTypeIdentifierBodyMass"))
+    #expect(weight.chartStyle == .line)
+    try database.write { db in
+      try HealthSample.insert {
+        sample(weight.id, at: utc(7, day: 13), value: 70)
+        sample(weight.id, at: utc(7, day: 15), value: 71)
+        sample(weight.id, at: utc(19, day: 15), value: 72)
+      }.execute(db)
+    }
+    let week = try chart(weight, .week)
+    #expect(week.points.map(\.value) == [70, 71.5])
+    // (70 + 71 + 72) / 3, not (70 + 71.5) / 2.
+    #expect(week.summary == .average(71))
+    #expect(try chart(weight, .week, offset: -1).summary == nil)
+  }
 }
 
 @Suite

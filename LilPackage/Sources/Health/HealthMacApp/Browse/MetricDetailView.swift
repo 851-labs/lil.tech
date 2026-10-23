@@ -383,12 +383,10 @@ struct MetricDetailContent: View {
     case .loaded(let loaded, _):
       let chart = loaded.chart
       Chart {
-        if style.isAverage {
-          ForEach(chart.points, id: \.start) { point in
+        ForEach(chart.points, id: \.start) { point in
+          if style.isAverage {
             average(point, in: chart)
-          }
-        } else {
-          ForEach(chart.points, id: \.start) { point in
+          } else {
             bar(point, in: chart)
           }
         }
@@ -486,12 +484,15 @@ struct MetricDetailContent: View {
 
   /// Averages' values, with room above and below, rather than from zero: a weight's change of a
   /// kilogram would be a flat line at the top of a chart from 0 (851-3097). A single value, or
-  /// several the same, gets a few percent of itself each side.
+  /// several the same, gets a few percent of itself each side, and values that are all 0 a unit.
+  /// Never below 0 for values that aren't (a UV index, blood alcohol).
   private func averageDomain(_ chart: MetricChart) -> ClosedRange<Double>? {
     let values = chart.points.map(\.value)
     guard let low = values.min(), let high = values.max() else { return nil }
-    let padding = Swift.max((high - low) * 0.2, Swift.abs(high) * 0.02, 0.01)
-    return (low - padding)...(high + padding)
+    var padding = Swift.max((high - low) * 0.2, Swift.abs(high) * 0.02, Swift.abs(low) * 0.02)
+    if padding == 0 { padding = 1 }
+    let lower = low >= 0 ? Swift.max(low - padding, 0) : low - padding
+    return lower...(high + padding)
   }
 
   private func isHovered(_ point: ChartPoint, in chart: MetricChart) -> Bool {
