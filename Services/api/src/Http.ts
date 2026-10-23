@@ -96,7 +96,7 @@ import {
   SnapshotParts,
   toManifest,
 } from "./sync/SnapshotParts.ts";
-import { entityNames, MutationRejected, SnapshotGone, SnapshotNotReady } from "./sync/SyncApi.ts";
+import { MutationRejected, SnapshotGone, SnapshotNotReady } from "./sync/SyncApi.ts";
 // The committed spec (see scripts/openapi.ts), so the served contract is exactly the committed one.
 import openApiSpec from "../openapi.json" with { type: "json" };
 
@@ -519,11 +519,7 @@ export const SyncHandlers = HttpApiBuilder.group(
       .handle("changes", ({ query }) =>
         sessionStore.pipe(
           Effect.flatMap((store) =>
-            store.readChanges(
-              query.after,
-              query.limit,
-              query.entities === undefined ? undefined : entityNames(query.entities),
-            ),
+            store.readChanges(query.after, query.limit, query.entities?.split(",")),
           ),
         ),
       )

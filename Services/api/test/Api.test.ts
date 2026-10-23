@@ -1118,7 +1118,7 @@ describe("GET /v1/sync/changes", () => {
         assert.strictEqual((yield* pull(handler, tokens.accessToken, "?limit=5000")).status, 200);
         const most = Array.from({ length: 32 }, (_, index) => `e${index}`).join(",");
         assert.strictEqual(
-          (yield* pull(handler, tokens.accessToken, `?entities=${most},e0`)).status,
+          (yield* pull(handler, tokens.accessToken, `?entities=${most}`)).status,
           200,
         );
       }),

@@ -157,6 +157,8 @@ private final class FakeServer: Sendable {
     var filters: [String?] = []
     /// Ignore `entities`, like a server from before the filter (851-3221).
     var ignoresEntities = false
+    /// Answer with a `next` one past the page's, like a broken server that skips a change.
+    var skipping = false
     /// Changes written while a request for changes is answered, by request number (1-based):
     /// they're given the next `seq`s after it.
     var arriving: [Int: [Components.Schemas.Change]] = [:]
@@ -364,7 +366,9 @@ private final class FakeServer: Sendable {
             state.changes.filter { $0.seq > after && only?.contains(Substring($0.entity)) != false }
               .prefix(size))
         let head = state.changes.last?.seq ?? 0
-        let next = only != nil && page.count < size ? max(head, after) : page.last?.seq ?? after
+        let next =
+          (only != nil && page.count < size ? max(head, after) : page.last?.seq ?? after)
+          + (state.skipping ? 1 : 0)
         if state.stuck {
           return try json(
             .ok,
@@ -1721,6 +1725,22 @@ struct LilSyncCatchUpTests {
     await #expect(throws: SyncError.unexpectedPage) { try await engine().pull() }
     #expect(server.state.filters == ["tag"])
     #expect(try state()?.entities == "note")
+  }
+
+  @Test
+  func refusesAFilteredPageWhoseNextSkipsAChange() async throws {
+    try await olderReleaseSyncedTo8()
+    server.append(tag("t4", "Tag 4"))
+    server.append(upsert("n4", "Note 4"))
+    // The first page, 5 and 7, says to go on after 8, skipping it.
+    server.state.withValue { $0.skipping = true }
+    await #expect(throws: SyncError.unexpectedPage) { try await engine().pull() }
+    // The snapshot's tags were loaded, but none of the page's changes, and the catch-up didn't
+    // move past them.
+    #expect(try storedTags() == [Tag(id: "t1", title: "Tag 1"), Tag(id: "t2", title: "Tag 2")])
+    let state = try #require(try state())
+    #expect([state.catchUpAfter, state.cursor] == [4, 8])
+    #expect(state.entities == "note")
   }
 
   @Test

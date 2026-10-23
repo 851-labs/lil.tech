@@ -13,11 +13,6 @@ export const maxChangesLimit = 5000;
 /** The most entities one `entities` filter names. */
 export const maxChangesEntities = 32;
 
-/** An `entities` filter's names, without repeats (`ChangesQuery`). */
-export const entityNames = (entities: string): ReadonlyArray<string> => [
-  ...new Set(entities.split(",")),
-];
-
 const ChangesQuery = {
   /** The client's cursor: the `seq` of the last change it applied. 0 for nothing. */
   after: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
@@ -38,8 +33,8 @@ const ChangesQuery = {
     }).check(
       Schema.makeFilter(
         (entities: string) =>
-          (entities.split(",").every((name) => /^[a-z][a-z0-9_]*$/.test(name)) &&
-            entityNames(entities).length <= maxChangesEntities) ||
+          (entities.split(",").length <= maxChangesEntities &&
+            entities.split(",").every((name) => /^[a-z][a-z0-9_]*$/.test(name))) ||
           `must be at most ${maxChangesEntities} comma-separated entity names`,
       ),
     ),

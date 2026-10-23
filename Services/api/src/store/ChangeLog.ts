@@ -368,8 +368,8 @@ const changeColumns = "seq, entity, id, op, row, key, at";
 /**
  * Up to `limit` changes of the entities named `only` after `after`, in `seq` order, from the
  * `(entity, seq)` index (`changes_entity_seq`). Each entity's first `limit` seqs are read from the
- * index alone, so the page's changes are the only rows read, however many changes of other
- * entities lie between them.
+ * index alone, then only the page's changes, by `seq`, however many changes of other entities lie
+ * between them.
  */
 const readChangesOf = (
   sql: StoreSql,
@@ -388,19 +388,13 @@ const readChangesOf = (
         )
         .map((change) => change["seq"] as number),
     )
-    .sort((a, b) => a - b);
-  const last = seqs[Math.min(limit, seqs.length) - 1];
-  if (last === undefined) return [];
-  return only
-    .flatMap((entity) =>
-      sql.exec(
-        `SELECT ${changeColumns} FROM changes WHERE entity = ? AND seq > ? AND seq <= ? ORDER BY seq`,
-        entity,
-        after,
-        last,
-      ),
-    )
-    .sort((a, b) => (a["seq"] as number) - (b["seq"] as number));
+    .sort((a, b) => a - b)
+    .slice(0, limit);
+  if (seqs.length === 0) return [];
+  return sql.exec(
+    `SELECT ${changeColumns} FROM changes WHERE seq IN (SELECT value FROM json_each(?)) ORDER BY seq`,
+    JSON.stringify(seqs),
+  );
 };
 
 /**

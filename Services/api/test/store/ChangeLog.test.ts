@@ -16,7 +16,7 @@ import {
   defineEntity,
   type Entity,
 } from "../../src/store/Entities.ts";
-import type { StoreSql } from "../../src/store/StoreSql.ts";
+import type { SqlValue, StoreSql } from "../../src/store/StoreSql.ts";
 import { makeUserStore } from "../../src/store/UserStore.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
 import { makeTestStore, testNote } from "./TestUserStores.ts";
@@ -551,19 +551,26 @@ describe("readChanges with an entities filter", () => {
     assert.deepInclude(read(sql, 2, 10, ["test_card"]), { next: 8 });
   });
 
-  it("reads each entity's changes from the (entity, seq) index", () => {
+  it("reads each entity's seqs from the (entity, seq) index, then the page by seq", () => {
     const sql = makeMixed();
-    for (const query of [
-      "SELECT seq FROM changes WHERE entity = 'test_card' AND seq > 0 ORDER BY seq LIMIT 10",
-      "SELECT * FROM changes WHERE entity = 'test_card' AND seq > 0 AND seq <= 8 ORDER BY seq",
-    ]) {
-      const plan = sql
-        .exec(`EXPLAIN QUERY PLAN ${query}`)
+    const plan = (query: string, ...params: Array<SqlValue>) =>
+      sql
+        .exec(`EXPLAIN QUERY PLAN ${query}`, ...params)
         .map((step) => step["detail"] as string)
         .join("\n");
-      assert.include(plan, "changes_entity_seq", query);
-      assert.notInclude(plan, "TEMP B-TREE", query);
-    }
+    const seqs = plan(
+      "SELECT seq FROM changes WHERE entity = ? AND seq > ? ORDER BY seq LIMIT ?",
+      "test_card",
+      0,
+      10,
+    );
+    assert.include(seqs, "COVERING INDEX changes_entity_seq");
+    assert.notInclude(seqs, "TEMP B-TREE");
+    const page = plan(
+      "SELECT * FROM changes WHERE seq IN (SELECT value FROM json_each(?)) ORDER BY seq",
+      "[3,6]",
+    );
+    assert.include(page, "INTEGER PRIMARY KEY");
   });
 });
 
