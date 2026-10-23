@@ -10,16 +10,9 @@ import SwiftUI
 /// Where sleep goes on a chart's clock-time axis.
 enum SleepClock {
   /// Where `date` goes in the night that started at `start`, in hours from the start of `day`,
-  /// the night's, on the local clock as it read when the night started: 11 PM the evening before
-  /// is -1, 7:30 AM is 7.5. Each night is placed at the clock time it started, so a daylight
-  /// saving change doesn't move the nights after it, and runs its true length from there, so a
-  /// night across the change stays one unbroken column, though it ends an hour off the clock (at
-  /// 6 AM for 7 AM in spring, 8 AM in the fall): the clock's repeated hour, or skipped one, can't
-  /// draw a night over itself or leave a hole in it.
+  /// the night's (`HealthDatabase.clockHours`): 11 PM the evening before is -1, 7:30 AM is 7.5.
   static func hours(_ date: Date, from day: Date, start: Date, calendar: Calendar) -> Double {
-    let zone = calendar.timeZone
-    let shift = zone.secondsFromGMT(for: start) - zone.secondsFromGMT(for: day)
-    return (date.timeIntervalSince(day) + Double(shift)) / 3600
+    HealthDatabase.clockHours(date, from: day, start: start, calendar: calendar)
   }
 
   /// The middle `ratio` of `day`'s slot on the x-axis, by the page's calendar rather than the

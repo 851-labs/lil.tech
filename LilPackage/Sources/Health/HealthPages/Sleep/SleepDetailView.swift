@@ -9,7 +9,8 @@ public import SwiftUI
 
 /// Sleep, as in Health: a night's stages (D), the nights of a week or a month at the clock times
 /// they ran (W, M), or a bar a week (6M), with time in bed and asleep, the range and earlier
-/// periods in the toolbar. Follows the local database as sync changes it.
+/// periods in the toolbar, then highlights about the last nights (851-3103). Follows the local
+/// database as sync changes it.
 public struct SleepDetailView: View {
   let type: HealthDataType
   @State private var range = SleepRange.day
@@ -20,6 +21,8 @@ public struct SleepDetailView: View {
   /// The last nights loaded, for the period they're for. While another period loads, the page
   /// keeps showing them (851-3084).
   @Fetch private var period: SleepPeriod? = nil
+  /// Highlights about today's night and the ones before it, whichever period is shown.
+  @Fetch private var highlights: SleepHighlights? = nil
   @Dependency(\.date) private var date
   @Dependency(\.calendar) private var calendar
 
@@ -30,19 +33,27 @@ public struct SleepDetailView: View {
   }
 
   public var body: some View {
-    SleepDetailContent(type: type, range: $range, offset: $offset, state: state, now: today)
-      // Today's start in the page's calendar, so a new local day is a new load (an ISO date is
-      // UTC's, which stayed the same at local midnight west of it).
-      .task(id: [
-        range.rawValue, String(offset), "\(calendar.startOfDay(for: today).timeIntervalSince1970)",
-      ]) {
-        _ = try? await $period.load(
-          SleepRequest(range: range, offset: offset, day: today, calendar: calendar),
-          scheduler: MainQueueScheduler())
-      }
-      .onReceive(calendarDayChanges()) {
-        today = date.now
-      }
+    SleepDetailContent(
+      type: type, range: $range, offset: $offset, state: state, highlights: highlightsState,
+      now: today
+    )
+    // Today's start in the page's calendar, so a new local day is a new load (an ISO date is
+    // UTC's, which stayed the same at local midnight west of it).
+    .task(id: [
+      range.rawValue, String(offset), "\(calendar.startOfDay(for: today).timeIntervalSince1970)",
+    ]) {
+      _ = try? await $period.load(
+        SleepRequest(range: range, offset: offset, day: today, calendar: calendar),
+        scheduler: MainQueueScheduler())
+    }
+    // Highlights are today's, so only a new day loads them again.
+    .task(id: calendar.startOfDay(for: today)) {
+      _ = try? await $highlights.load(
+        SleepHighlightsRequest(day: today, calendar: calendar), scheduler: MainQueueScheduler())
+    }
+    .onReceive(calendarDayChanges()) {
+      today = date.now
+    }
   }
 
   /// The nights loaded last, updating while they're another period's or a load is running.
@@ -53,6 +64,12 @@ public struct SleepDetailView: View {
     return .loaded(
       period, isUpdating: $period.isLoading || period.range != range || period.lastDay != requested
     )
+  }
+
+  /// The highlights loaded last. A new day's replace them once they've loaded.
+  private var highlightsState: SleepHighlightsSection.State {
+    if let error = $highlights.loadError { return .failed(error.localizedDescription) }
+    return highlights.map { .loaded($0) } ?? .loading
   }
 }
 
@@ -166,6 +183,8 @@ struct SleepDetailContent: View {
   @Binding private var selectedRange: SleepRange
   @Binding private var selectedOffset: Int
   let state: State
+  /// Highlights about the last nights, the page's last section (851-3103).
+  let highlights: SleepHighlightsSection.State
   /// Today, as the page loads it, for the nights shown.
   let now: Date
   /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
@@ -173,18 +192,21 @@ struct SleepDetailContent: View {
 
   init(
     type: HealthDataType, range: Binding<SleepRange>, offset: Binding<Int>, state: State,
-    now: Date
+    highlights: SleepHighlightsSection.State, now: Date
   ) {
     self.type = type
     _selectedRange = range
     _selectedOffset = offset
     self.state = state
+    self.highlights = highlights
     self.now = now
   }
 
   var body: some View {
     // A grouped form on its own background, as Metric Detail is (851-2989, 851-3000): the summary
-    // and the chart, the night's stages, then the pages it opens.
+    // and the chart, the night's stages, the pages it opens, then the highlights. They go last,
+    // after Show All Data as in Health, since what they show is only known once they've loaded:
+    // nothing is below them to move when they arrive, or come and go (851-3103).
     Form {
       Section {
         VStack(alignment: .leading, spacing: 12) {
@@ -212,7 +234,9 @@ struct SleepDetailContent: View {
         NavigationLink("Data Sources") {
           DataSourcesView(type: type)
         }
+        .layoutAnchor("Data Sources")
       }
+      SleepHighlightsSection(state: highlights)
     }
     .formStyle(.grouped)
     .navigationTitle(type.name)
