@@ -25,11 +25,12 @@ public struct SleepMonthComparison: Equatable, Sendable {
   /// Nights with sleep last month needs: a third of it.
   public static let minimumLastMonth = 10
 
+  /// From `nights`, nights' sleep only (`SleepNight.latestBedtime`), as `sleepHighlights` reads
+  /// them.
   init?(nights: [SleepNight], today: Date, calendar: Calendar) {
     guard let thisMonth = calendar.dateInterval(of: .month, for: today)?.start,
       let lastMonth = calendar.date(byAdding: .month, value: -1, to: thisMonth)
     else { return nil }
-    let nights = nights.filter { $0.nightBedtime(calendar: calendar) != nil }
     let this = nights.filter { $0.day >= thisMonth }.map(\.asleep)
     let last = nights.filter { $0.day >= lastMonth && $0.day < thisMonth }.map(\.asleep)
     guard this.count >= Self.minimumThisMonth, last.count >= Self.minimumLastMonth else {

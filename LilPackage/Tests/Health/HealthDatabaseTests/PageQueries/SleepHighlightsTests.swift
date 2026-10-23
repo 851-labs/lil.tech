@@ -272,4 +272,44 @@ struct SleepHighlightsTests {
     #expect(heartRate.maximum == 55)
     #expect(heartRate.ranges.count == 24)
   }
+
+  // MARK: Week
+
+  @Test
+  func weekAveragesTheLast7Nights() throws {
+    // Four of the last 7 nights, and one before them.
+    try insert(
+      night(0, hours: 8) + night(-2, hours: 7) + night(-4, hours: 6) + night(-6, hours: 7)
+        + night(-7, hours: 2))
+    let week = try #require(try highlights().week)
+    #expect(week.firstDay == day(-6))
+    #expect(week.nights.map(\.day) == [day(-6), day(-4), day(-2), today])
+    #expect(week.average == 7 * 3600)
+  }
+
+  @Test
+  func weekNeedsFourNights() throws {
+    try insert(night(0) + night(-2) + night(-4) + night(-7))
+    #expect(try highlights().week == nil)
+  }
+
+  @Test
+  func weekLeavesOutADaysSleep() throws {
+    // Four nights, and a nap on a day without one: still four, averaging 7 hours.
+    try insert(
+      night(0) + night(-2) + night(-4) + night(-6) + night(-1, bedtime: 14, hours: 1))
+    let week = try #require(try highlights().week)
+    #expect(week.nights.count == 4)
+    #expect(week.average == 7 * 3600)
+  }
+
+  @Test
+  func weeksFirstNightCountsTowardTheFour() throws {
+    // Four nights, the first of them 6 days back: shown. Without it: not.
+    try insert(night(-6) + night(-4) + night(-2) + night(0))
+    #expect(try highlights().week?.nights.count == 4)
+    try database.write { db in try HealthSample.delete().execute(db) }
+    try insert(night(-4) + night(-2) + night(0))
+    #expect(try highlights().week == nil)
+  }
 }

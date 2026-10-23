@@ -47,6 +47,7 @@ struct SleepHighlightsSection: View {
         if let bedtime = highlights.bedtime { BedtimeHighlight(bedtime: bedtime) }
         if let months = highlights.months { SleepMonthsHighlight(months: months) }
         if let heartRate = highlights.heartRate { SleepHeartRateHighlight(heartRate: heartRate) }
+        if let week = highlights.week { SleepWeekHighlight(week: week) }
       }
     }
   }

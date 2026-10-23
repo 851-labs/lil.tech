@@ -92,7 +92,7 @@
       // Below Show All Data and Data Sources, which don't move as they load or come and go. Taller
       // than the page, so its window doesn't grow to fit, to a half point, which moved everything
       // in it by 0.5 pt (`LayoutShiftTests`).
-      CatalogState("Night with highlights", minHeight: 1700) {
+      CatalogState("Night with highlights", minHeight: 2100) {
         detail(.day, .loaded(nights(.day)), highlights: .loaded(highlights))
       },
       CatalogState("Highlights loading") {
@@ -117,6 +117,10 @@
       // A reading every 15 minutes, so each range is one reading, drawn a beat tall.
       CatalogState("Heart rate, a reading a range", minHeight: 300) {
         highlightsOnly(SleepHighlights(heartRate: steadyHeartRate))
+      },
+      // Four nights of the seven, the fewest it shows: the others' slots stay empty.
+      CatalogState("Last 7 days, nights missing", minHeight: 300) {
+        highlightsOnly(SleepHighlights(week: weekWithGaps))
       },
       CatalogState("More sleep this month", minHeight: 250) {
         highlightsOnly(SleepHighlights(months: months(this: 8.2 * 3600, last: 7.65 * 3600)))
@@ -186,6 +190,17 @@
         let value = Double(52 + (index * 5) % 7)
         return .init(
           start: start.addingTimeInterval(Double(index) * 900), minimum: value, maximum: value)
+      })
+  }
+
+  /// Four of the last 7 nights, between 6 and 8 hours.
+  private var weekWithGaps: SleepWeekAverage {
+    let today = previewCalendar.startOfDay(for: previewNow)
+    let day = { previewCalendar.date(byAdding: .day, value: $0, to: today)! }
+    return SleepWeekAverage(
+      firstDay: day(-6),
+      nights: [(-6, 7.4), (-3, 6.1), (-1, 8.0), (0, 7.2)].map {
+        .init(day: day($0.0), asleep: $0.1 * 3600)
       })
   }
 
