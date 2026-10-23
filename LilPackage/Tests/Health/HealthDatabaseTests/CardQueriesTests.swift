@@ -129,6 +129,8 @@ struct CardQueriesTests {
         sample(
           heartRate, date(10, 20, 10), 80, source: "com.apple.health.phone", provenance: phone.id)
         sample(heartRate, date(10, 20, 11), 100, source: "com.example.strap")
+        // A device that isn't JSON matches no model, and doesn't fail the card.
+        sample(heartRate, date(10, 20, 12), 120, source: "com.example.strap", device: "{")
       }
       .execute(db)
     }
@@ -145,7 +147,9 @@ struct CardQueriesTests {
     #expect(try values(#"{"deviceModels": ["Watch"]}"#) == [60])
     #expect(try values(#"{"deviceModels": ["iPhone", "Watch"]}"#) == [60, 80])
     #expect(
-      try values(#"{"sources": ["com.example.strap", "com.apple.health.phone"]}"#) == [80, 100])
+      try values(#"{"sources": ["com.example.strap", "com.apple.health.phone"]}"#) == [
+        80, 100, 120,
+      ])
     #expect(
       try values(#"{"sources": ["com.apple.health.phone"], "deviceModels": ["Watch"]}"#) == [])
   }

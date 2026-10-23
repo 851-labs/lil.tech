@@ -33,7 +33,15 @@ public enum ChartRange: String, CaseIterable, Hashable, Sendable {
   }
 
   /// The card range of the same name, whose periods these are (851-3195).
-  public var card: CardRange { CardRange(rawValue: rawValue) ?? .week }
+  public var card: CardRange {
+    switch self {
+    case .day: .day
+    case .week: .week
+    case .month: .month
+    case .sixMonths: .sixMonths
+    case .year: .year
+    }
+  }
 
   /// How many periods from the one containing `now` the one containing `date` is: 0 for the
   /// current one, -1 for the one before, positive for one after.

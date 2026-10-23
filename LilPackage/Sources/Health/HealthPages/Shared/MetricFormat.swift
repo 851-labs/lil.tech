@@ -261,13 +261,6 @@ extension MetricFormat {
   /// if it pins one, else the locale's for its lead's type, as Metric Detail shows the type
   /// (`unit(_:typeID:locale:)`). A count of readings is a plain number in any locale.
   public static func unit(of spec: CardSpec, locale: Locale) -> DisplayUnit {
-    let leadType: String? =
-      switch spec.lead {
-      case .series(let series): series.type
-      case .formula(let formula):
-        spec.series.first { $0.id == formula.operation.seriesIDs[0] }?.type
-      case nil: nil
-      }
     var shown: DisplayUnit
     switch spec.valueUnit {
     case .readings?:
@@ -276,10 +269,14 @@ extension MetricFormat {
       if let pinned = spec.display.unit,
         let conversion = CardDisplayUnit.conversion(from: catalogUnit, to: pinned)
       {
-        shown = DisplayUnit(
-          cardUnitLabels[pinned] ?? pinned, scale: conversion.scale, offset: conversion.offset)
+        shown =
+          pinned == "st"
+          // Stones and pounds, as the UK weighs people, plotted in pounds, as its locale's are.
+          ? DisplayUnit("", scale: conversion.scale * 14, compound: .stonesAndPounds)
+          : DisplayUnit(
+            cardUnitLabels[pinned] ?? pinned, scale: conversion.scale, offset: conversion.offset)
       } else {
-        return unit(catalogUnit, typeID: leadType ?? "", locale: locale)
+        return unit(catalogUnit, typeID: spec.leadType ?? "", locale: locale)
       }
     case nil:
       shown = DisplayUnit("")

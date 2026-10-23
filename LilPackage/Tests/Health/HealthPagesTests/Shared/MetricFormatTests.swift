@@ -253,6 +253,8 @@ struct MetricFormatTests {
     #expect(MetricFormat.duration(150) == ("2.5", "min"))
   }
 
+  private let bodyMassID = "HKQuantityTypeIdentifierBodyMass"
+
   /// A card shows its lead's type in the locale's unit, unless it pins one (851-3195).
   @Test
   func cardsShowTheLocalesUnitOrTheOnePinned() throws {
@@ -264,6 +266,13 @@ struct MetricFormatTests {
     let pound = MetricFormat.unit(of: pinned, locale: metric)
     #expect(pound.label == "lb")
     #expect(pound.format(pound.convert(70)) == "154.3")
+    pinned.display.unit = "st"
+    let stones = MetricFormat.unit(of: pinned, locale: metric)
+    #expect(
+      stones.format(stones.convert(72))
+        == MetricFormat.unit("kg", typeID: bodyMassID, locale: uk).format(
+          MetricFormat.unit("kg", typeID: bodyMassID, locale: uk).convert(72)))
+    #expect(stones.format(stones.convert(72)) == "11 st 4.7 lb")
     let temperature = try CardSpec(
       inputJSON: Data(
         #"{"version": 1, "display": {"name": "T", "unit": "degF"}, "series": [{"type": "Body Temperature"}]}"#

@@ -84,10 +84,12 @@ extension HealthDatabase {
       arguments += StatementArguments(sources)
     }
     if let models = filter?.deviceModels {
-      // The device is the sample's own, or its provenance's (851-2674).
+      // The device is the sample's own, or its provenance's (851-2674). JSON that doesn't parse
+      // matches no model, rather than failing the card.
       join = #"LEFT JOIN "healthProvenances" AS "p" ON "p"."id" = "s"."provenance""#
+      let device = #"coalesce("s"."device", "p"."device")"#
       conditions.append(
-        #"json_extract(coalesce("s"."device", "p"."device"), '$.model') IN (\#(placeholders(models.count)))"#
+        #"CASE WHEN json_valid(\#(device)) THEN json_extract(\#(device), '$.model') END IN (\#(placeholders(models.count)))"#
       )
       arguments += StatementArguments(models)
     }

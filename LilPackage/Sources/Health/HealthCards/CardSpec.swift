@@ -251,10 +251,25 @@ public struct CardSpec: Hashable, Sendable {
     return nil
   }
 
+  /// The series a formula's unit and type come from: its (first) series.
+  public func leadingSeries(of formula: Formula) -> Series? {
+    let id = formula.operation.seriesIDs[0]
+    return series.first { $0.id == id }
+  }
+
   /// The value unit of a formula: its (first) series'.
   public func valueUnit(of formula: Formula) -> CardValueUnit? {
-    let id = formula.operation.seriesIDs[0]
-    return series.first { $0.id == id }?.valueUnit
+    leadingSeries(of: formula)?.valueUnit
+  }
+
+  /// The type the lead's values are of: the lead series', or a formula's first series'. Its
+  /// locale's unit is the card's display unit when it doesn't pin one.
+  public var leadType: String? {
+    switch lead {
+    case .series(let series): series.type
+    case .formula(let formula): leadingSeries(of: formula)?.type
+    case nil: nil
+    }
   }
 
   /// The lead's value unit, which every visible line shares.
