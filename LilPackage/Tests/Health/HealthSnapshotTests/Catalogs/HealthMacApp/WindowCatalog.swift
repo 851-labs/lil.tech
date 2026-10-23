@@ -140,10 +140,13 @@
   }
 
   /// The window in a state: `EmptyReducer` never runs the window's task, which would replace the
-  /// state with the real session's.
+  /// state with the real session's. Health Categories is expanded, in a value of the state's own,
+  /// so it's never read from defaults.
   @MainActor
   private func window(_ state: AppFeature.State) -> some View {
-    AppView(store: Store(initialState: state) { EmptyReducer() })
+    var state = state
+    state.$isCategoriesExpanded = Shared(value: true)
+    return AppView(store: Store(initialState: state) { EmptyReducer() })
   }
 
   /// The sidebar's rows on their own, in the list's own style: the sidebar's draws the selection
