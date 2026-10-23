@@ -13,8 +13,16 @@ struct StateCatalog: Sendable {
   /// The screen's name, e.g. "Metric Detail". Its slug starts its references' names.
   let screen: String
   let states: [CatalogState]
+  /// Groups of its states that must lay out what's below their content in the same place, e.g.
+  /// loading and loaded (851-3084): `LayoutShiftTests` checks the views each marks with
+  /// `layoutAnchor` are at the same frames.
+  let sameLayout: [SameLayout]
 
-  init(_ screen: String, width: CGFloat, minHeight: CGFloat, states: [CatalogState]) {
+  /// `sameLayout` names groups of `states` (`SameLayout`).
+  init(
+    _ screen: String, width: CGFloat, minHeight: CGFloat, states: [CatalogState],
+    sameLayout: [[String]] = []
+  ) {
     self.screen = screen
     let states = states.map { state in
       var state = state
@@ -35,6 +43,17 @@ struct StateCatalog: Sendable {
       state.manifest = manifest
       return state
     }
+    let named = Dictionary(uniqueKeysWithValues: self.states.map { ($0.name, $0) })
+    self.sameLayout = sameLayout.map { names in
+      SameLayout(
+        screen: screen,
+        states: names.map { name in
+          guard let state = named[name] else {
+            fatalError("\(screen) has no state named \(name) for sameLayout.")
+          }
+          return state
+        })
+    }
   }
 
   /// The states its test snapshots: all of them, or those whose names match `LIL_SNAPSHOT_STATE`,
@@ -48,6 +67,17 @@ struct StateCatalog: Sendable {
       fatalError("LIL_SNAPSHOT_STATE isn't a regular expression: \(pattern)")
     }
     return states.filter { $0.name.contains(regex) }
+  }
+}
+
+/// States of a screen that must lay out what's below their content in the same place
+/// (`StateCatalog.sameLayout`, 851-3084).
+struct SameLayout: Sendable, CustomTestStringConvertible {
+  let screen: String
+  let states: [CatalogState]
+
+  var testDescription: String {
+    "\(screen): \(states.map(\.name).joined(separator: ", "))"
   }
 }
 
