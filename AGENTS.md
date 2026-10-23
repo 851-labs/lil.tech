@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Read `docs/DECISIONS.md` before starting work. It records the architecture and product decisions that apply everywhere, and links each area's own file under `docs/decisions/` (Distribution and CI, Server, Accounts, Sync, lil health, lil messages, Pixelbook). Read the areas your change touches too.
+Read `docs/DECISIONS.md` before starting work. It records the architecture and product decisions that apply everywhere, and links each area's own file under `docs/decisions/` (Distribution and CI, Server, Accounts, Sync, lil health, lil messages, Pixelbook, Cards). Read the areas your change touches too.
 
 ## Workflow
 
