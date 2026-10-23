@@ -151,18 +151,22 @@ struct HealthDocumentDetailContent: View {
           showsXML = true
         }
         .help("Show the document's XML")
-        .disabled(!isLoaded)
+        .disabled(xml == nil)
       }
     }
     .sheet(isPresented: $showsXML) {
-      if case .loaded(let xml, _) = state {
+      if let xml {
         DocumentXMLSheet(title: document.displayTitle, id: document.xml, xml: xml)
       }
     }
   }
 
-  private var isLoaded: Bool {
-    if case .loaded = state { true } else { false }
+  /// The document's XML, once it's loaded, whether or not it could be read as a page.
+  private var xml: Data? {
+    switch state {
+    case .loaded(let xml, _), .unreadable(let xml, _): xml
+    case .loading, .failed: nil
+    }
   }
 
   @ViewBuilder private var content: some View {

@@ -55,8 +55,8 @@ struct RouteMapRow: View {
 
   var body: some View {
     Group {
+      // The map's own space whatever's in it, so nothing moves when it arrives (851-3091).
       switch route {
-      // The map's own space, so nothing moves when it arrives (851-3091).
       case .loading:
         ProgressView()
           .frame(maxWidth: .infinity)
@@ -69,30 +69,23 @@ struct RouteMapRow: View {
         .frame(maxWidth: .infinity)
         .frame(height: height)
         .padding(.vertical, 6)
-      default:
-        loaded
+      case .loaded(let loaded) where loaded.hasMap:
+        RouteMap(locations: loaded.locations)
+          .frame(height: height)
+          .clipShape(RoundedRectangle(cornerRadius: 8))
+          .padding(.vertical, 6)
+      case .none, .loaded:
+        if saysWhenEmpty {
+          ContentUnavailableView(
+            "No Locations", systemImage: "map",
+            description: Text("This route has no locations to show.")
+          )
+          .frame(maxWidth: .infinity)
+          .frame(height: height)
+          .padding(.vertical, 6)
+        }
       }
     }
     .layoutAnchor("Route")
-  }
-
-  @ViewBuilder private var loaded: some View {
-    switch route {
-    case .loading, .failed:
-      EmptyView()
-    case .loaded(let loaded) where loaded.hasMap:
-      RouteMap(locations: loaded.locations)
-        .frame(height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .padding(.vertical, 6)
-    case .none, .loaded:
-      if saysWhenEmpty {
-        ContentUnavailableView(
-          "No Locations", systemImage: "map",
-          description: Text("This route has no locations to show.")
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-      }
-    }
   }
 }

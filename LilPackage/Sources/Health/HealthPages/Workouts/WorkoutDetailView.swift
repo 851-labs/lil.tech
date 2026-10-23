@@ -15,7 +15,9 @@ struct WorkoutDetailView: View {
   @Dependency(\.defaultDatabase) private var database
   @Dependency(\.blobCache) private var blobCache
   @State private var heartRates: [HealthSample] = []
-  @State private var route = RouteState.loading
+  /// `.none` until the workout's route is known to exist: a workout without one never shows a
+  /// placeholder for it (851-3091).
+  @State private var route = RouteState.none
 
   var body: some View {
     WorkoutDetailContent(workout: workout, heartRates: heartRates, route: route)
@@ -28,9 +30,20 @@ struct WorkoutDetailView: View {
             in: Date(unixMilliseconds: workout.startDate)..<Date(unixMilliseconds: workout.endDate),
             db)
         }
-        async let loaded = loadRoute(workout)
+        async let row = routeRow(workout)
+        // Both from the local database, set together, so the heart rate and the route's
+        // placeholder arrive at once, and only then the route, which may have to be downloaded.
+        let found = await row
         heartRates = Self.mainSource(await samples ?? [])
-        route = await loaded
+        switch found {
+        case .failure(let error):
+          route = .failed(error.localizedDescription)
+        case .success(nil):
+          route = .none
+        case .success(let route?):
+          self.route = .loading
+          self.route = await .load(route.locations, from: blobCache)
+        }
       }
   }
 
@@ -43,14 +56,14 @@ struct WorkoutDetailView: View {
     return samples.filter { $0.sourceBundleID == source }
   }
 
-  private func loadRoute(_ workout: HealthWorkout) async -> RouteState {
-    let route: HealthWorkoutRoute?
+  /// The workout's route, if it has one.
+  private func routeRow(_ workout: HealthWorkout) async -> Result<HealthWorkoutRoute?, any Error> {
     do {
-      route = try await database.read { db in try HealthDatabase.route(of: workout, db) }
+      return .success(
+        try await database.read { db in try HealthDatabase.route(of: workout, db) })
     } catch {
-      return .failed(error.localizedDescription)
+      return .failure(error)
     }
-    return await .load(route?.locations, from: blobCache)
   }
 }
 
