@@ -31,9 +31,8 @@ struct HealthDetailsTests {
       details
         == HealthDetails(
           dateOfBirth: BirthDate(year: 1990, month: 4, day: 2), sex: .female,
-          bloodType: .abNegative, skinType: .typeIV, wheelchairUse: .no, hasSynced: true))
+          bloodType: .abNegative, skinType: .typeIV, wheelchairUse: .no))
     #expect(details.bloodType?.name == "AB−")
-    #expect(details.skinType?.name == "Type IV")
   }
 
   @Test
@@ -44,18 +43,8 @@ struct HealthDetailsTests {
       characteristic("BloodType", #""zPositive""#),
       characteristic("FitzpatrickSkinType", "oops"),
     ])
-    #expect(details == HealthDetails(hasSynced: true))
+    #expect(details == HealthDetails())
     #expect(HealthDetails(characteristics: []) == HealthDetails())
-  }
-
-  @Test
-  func onlyHealthDetailsOwnCharacteristicsCountAsSynced() {
-    let details = HealthDetails(characteristics: [
-      characteristic("ActivityMoveMode", #""activeEnergy""#)
-    ])
-    #expect(!details.hasSynced)
-    #expect(
-      HealthDetails(characteristics: [characteristic("WheelchairUse", #""notSet""#)]).hasSynced)
   }
 
   @Test

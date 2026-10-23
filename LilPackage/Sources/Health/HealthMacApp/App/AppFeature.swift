@@ -271,8 +271,9 @@ public struct AppFeature {
           state.selection = .category(category)
         case .dataType(let type):
           // As if its row were clicked in its category, with its metric pushed. Only types with a
-          // category are pages (`HealthPage.dataType`).
-          state.selection = type.category.map(SidebarItem.category) ?? .summary
+          // category are pages (`HealthPage.dataType`), so there's always one.
+          guard let category = type.category else { return .none }
+          state.selection = .category(category)
           state.metricPath = [type.id]
         }
         return .none

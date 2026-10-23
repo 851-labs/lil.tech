@@ -36,6 +36,8 @@ public enum AgentAction: Equatable, Sendable {
   /// The name the sidebar shows for a page ID, or the ID itself if it isn't one.
   static func pageName(_ id: String) -> String {
     if id == "summary" { return "Summary" }
+    // Health Details' ID, in the log from before it went (851-3187).
+    if id == "health-details" { return "Health Details" }
     if id.hasPrefix("category:"),
       let category = HealthCategory(rawValue: String(id.dropFirst("category:".count)))
     {
