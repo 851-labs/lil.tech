@@ -1,7 +1,8 @@
 #!/bin/sh
 # Checks `scripts/snapshot-sheet` (851-3062) against a made-up run in a repository of its own: a
 # state unchanged, one recorded since the merge base, one new and not committed yet, one removed,
-# one that differs without being recorded, and one that failed. `scripts/check --swift` runs it.
+# one that differs without being recorded, and one that failed; then only the new one, which has no
+# befores. `scripts/check --swift` runs it.
 set -eu
 # Not the repository a hook or another git command is working on.
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR GIT_PREFIX
@@ -142,6 +143,24 @@ LIL_SNAPSHOT_STATE=same "$scripts/snapshot-sheet" "$output" >"$temporary/log"
 if [ "$(cat "$output/sheet/cells.tsv")" != "$(printf '%b' "$cells")" ]; then
   fail "with LIL_SNAPSHOT_STATE, scripts/snapshot-sheet's cells aren't the expected ones:"
   printf '%b\n' "$cells" | diff - "$output/sheet/cells.tsv" >&2 || true
+fi
+
+# Only new states changed, so there are no befores to write (851-3180): a sheet, and no errors.
+grep -F "/screen.new-" "$output/report.tsv" >"$temporary/report.tsv"
+mv "$temporary/report.tsv" "$output/report.tsv"
+new=$(printf '%b' "$cells" | sed -n '/^ScreenCatalog\/screen.new:/,/^dark, after/p')
+if ! LIL_SNAPSHOT_STATE=new "$scripts/snapshot-sheet" "$output" >"$temporary/log" \
+  2>"$temporary/errors" || [ -s "$temporary/errors" ]; then
+  fail "with only new states, scripts/snapshot-sheet failed or printed errors:"
+  cat "$temporary/errors" >&2
+fi
+if [ "$(cat "$output/sheet/cells.tsv")" != "$new" ]; then
+  fail "with only new states, scripts/snapshot-sheet's cells aren't the expected ones:"
+  printf '%s\n' "$new" | diff - "$output/sheet/cells.tsv" >&2 || true
+fi
+if [ ! -s "$output/sheet.png" ] || ! grep -q "(1 new)" "$temporary/log"; then
+  fail "with only new states, scripts/snapshot-sheet didn't make the sheet:"
+  cat "$temporary/log" >&2
 fi
 
 # Nothing changed (in the states picked): no sheet.

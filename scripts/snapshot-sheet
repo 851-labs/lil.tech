@@ -121,7 +121,9 @@ fi
 
 # Each state with a change, in the run's order, as `scripts/contact-sheet`'s cells: a heading
 # with what changed, then each appearance's before and after, light first. The befores to write
-# from git go to `befores.tsv`, `<blob>\t<path>`, and the counts to `summary`.
+# from git go to `befores.tsv`, `<blob>\t<path>`, and the counts to `summary`. `befores.tsv` is
+# made empty first, since only states with a before write it (none, when every one is new).
+: >"$sheet/befores.tsv"
 awk -F '\t' -v befores="$sheet/before" -v list="$sheet/befores.tsv" -v summary="$sheet/summary" '
   BEGIN {
     # What a state shows as, its most notable change first.
