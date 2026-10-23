@@ -235,7 +235,10 @@ struct ActivityRingsContent: View {
             calendar: calendar, canChoose: { $0 <= today }
           ) { selected = day }
         } else {
-          Color.clear.frame(height: 54)
+          // A day's cell, hidden, so a week of blanks is as tall as a week of days (851-3090).
+          ActivityDayCell(number: 0, day: nil, isSelected: false, isToday: false, isFuture: true)
+            .hidden()
+            .accessibilityHidden(true)
         }
       }
     }

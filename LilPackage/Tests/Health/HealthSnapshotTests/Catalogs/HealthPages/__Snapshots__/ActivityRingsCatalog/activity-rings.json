@@ -39,6 +39,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.a-six-week-month-dark.png",
+      "id" : "activity-rings.a-six-week-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.a-six-week-month-light.png",
+      "name" : "A six-week month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.no-rings-this-month-dark.png",
       "id" : "activity-rings.no-rings-this-month",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.no-rings-this-month-light.png",

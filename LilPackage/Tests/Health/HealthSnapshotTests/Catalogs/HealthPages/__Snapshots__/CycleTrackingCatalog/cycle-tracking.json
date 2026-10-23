@@ -74,6 +74,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.a-six-week-month-dark.png",
+      "id" : "cycle-tracking.a-six-week-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.a-six-week-month-light.png",
+      "name" : "A six-week month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/CycleTrackingCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.no-cycle-data-dark.png",
       "id" : "cycle-tracking.no-cycle-data",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/CycleTrackingCatalog/cycle-tracking.no-cycle-data-light.png",

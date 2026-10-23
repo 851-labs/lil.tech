@@ -142,6 +142,13 @@
       CatalogState("A month without logs") {
         cycle(.loaded(CycleSnapshot(month: month, days: [:], periods: periods, factors: [])))
       },
+      // June 2024 starts on a Saturday: six weeks of days, as tall as July's five and a blank.
+      CatalogState("A six-week month") {
+        let june = ChartRange.month.interval(offset: -2, now: previewNow, calendar: calendar)
+        cycle(
+          .loaded(CycleSnapshot(month: june, days: [:], periods: periods, factors: [])),
+          chosen: june)
+      },
       CatalogState("No cycle data") {
         cycle(.loaded(CycleSnapshot(month: month, days: [:], periods: [], factors: [])))
       },
@@ -161,7 +168,7 @@
       [
         "Cycle Tracking", "Cycle Tracking loading", "Cycle Tracking, loading the month after",
         "Cycle Tracking failed", "With factors", "A day with tests", "A month without logs",
-        "No cycle data",
+        "No cycle data", "A six-week month",
       ]
     ])
 

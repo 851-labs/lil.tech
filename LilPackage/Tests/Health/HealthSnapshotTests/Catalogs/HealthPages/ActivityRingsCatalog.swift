@@ -32,6 +32,12 @@
       CatalogState("Move in minutes") {
         activity(.loaded(ActivityMonth(month: month, days: days)), selected: 12)
       },
+      // June 2024 starts on a Saturday: six weeks of days, as tall as July's five and a blank.
+      CatalogState("A six-week month") {
+        let june = previewCalendar.dateInterval(
+          of: .month, for: previewCalendar.date(byAdding: .month, value: -1, to: month.start)!)!
+        activity(.loaded(ActivityMonth(month: june, days: [:])), shown: june.start)
+      },
       CatalogState("No rings this month") {
         activity(.loaded(ActivityMonth(month: month, days: [:])), selected: 3)
       },
@@ -52,6 +58,7 @@
       [
         "Activity Rings", "Activity Rings loading", "Activity Rings, loading the month before",
         "Goal passed twice", "Paused", "Without a Watch", "Move in minutes", "No rings this month",
+        "A six-week month",
       ]
     ])
 
