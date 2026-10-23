@@ -1,4 +1,5 @@
 import HealthCatalog
+import HealthPages
 
 /// Averages' values, with room above and below, rather than from zero: a weight's change of a
 /// kilogram would be a flat line at the top of a chart from 0 (851-3097). A single value, or
@@ -17,7 +18,8 @@ func fittedDomain(_ values: [Double]) -> ClosedRange<Double>? {
 /// day's total, usually reach, a tenth of that for a total's hourly bars (`hourly`), so the
 /// chart keeps its gridlines and a scale that reads as the type's while the header says No Data,
 /// rather than an axis with no marks. In `unit`, what the values are stored in (the type's, or a
-/// category chart's).
+/// category chart's): Metric Detail plots it `converted(by:)` the type's display unit (851-3105),
+/// so 5,000 m is 0–5 km.
 func emptyDomain(for type: HealthDataType, unit: String?, hourly: Bool = false)
   -> ClosedRange<Double>
 {
@@ -56,9 +58,18 @@ private func typicalTop(_ type: HealthDataType, unit: String?) -> Double {
   case "L": return 5
   case "L/min": return 600
   case "ml/(kg*min)": return 60
-  case "count", "times", "cm", "m/s", "mcS", "appleEffortScore", "kcal/(kg*hr)": return 10
+  case "count", "times", "cm", "mcS", "appleEffortScore", "kcal/(kg*hr)": return 10
+  // 0–25 km/h, as speeds show (stair speeds stay in m/s, and are their own).
+  case "m/s": return type.id.contains("Stair") ? 1 : 25 / 3.6
   // A distance's total, or a length: a height, a step.
   case "m": return type.aggregation?.isCumulative == true ? 5_000 : 2
   default: return 100
+  }
+}
+
+extension ClosedRange<Double> {
+  /// Both ends in `unit`, as Metric Detail plots values (851-3105).
+  func converted(by unit: MetricFormat.DisplayUnit) -> ClosedRange<Double> {
+    unit.convert(lowerBound)...unit.convert(upperBound)
   }
 }
