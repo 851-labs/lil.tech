@@ -43,6 +43,7 @@ struct SleepHighlightsSection: View {
     case .loaded(let highlights):
       Section("Highlights") {
         if let bedtime = highlights.bedtime { BedtimeHighlight(bedtime: bedtime) }
+        if let months = highlights.months { SleepMonthsHighlight(months: months) }
       }
     }
   }

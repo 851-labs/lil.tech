@@ -6,27 +6,37 @@ public import SQLiteData
 public struct SleepHighlights: Equatable, Sendable {
   /// Last night's bedtime against the last two weeks'.
   public var bedtime: BedtimeConsistency?
+  /// This month's average time asleep against last month's.
+  public var months: SleepMonthComparison?
 
-  public init(bedtime: BedtimeConsistency? = nil) {
+  public init(bedtime: BedtimeConsistency? = nil, months: SleepMonthComparison? = nil) {
     self.bedtime = bedtime
+    self.months = months
   }
 
   /// Whether there's nothing to show.
-  public var isEmpty: Bool { bedtime == nil }
+  public var isEmpty: Bool { bedtime == nil && months == nil }
 }
 
 extension HealthDatabase {
-  /// Sleep's highlights as of `today`, from `sleepNights`' nights, so they read as the page's
-  /// nights do. "Last night" is the night ending today; without one, the highlights about it
-  /// aren't shown.
+  /// Sleep's highlights as of `today`, from `sleepNights`' nights since the start of last month
+  /// or the last two weeks, whichever starts first, so they read as the page's nights do. "Last
+  /// night" is the night ending today; without one, the highlights about it aren't shown.
   public static func sleepHighlights(
     today: Date, calendar: Calendar, _ db: Database
   ) throws -> SleepHighlights {
     let today = calendar.startOfDay(for: today)
-    let nights = try sleepNights(
-      endingOn: today, count: BedtimeConsistency.days, calendar: calendar, db)
+    guard
+      let lastMonth = calendar.dateInterval(of: .month, for: today)
+        .flatMap({ calendar.date(byAdding: .month, value: -1, to: $0.start) }),
+      let twoWeeks = calendar.date(byAdding: .day, value: 1 - BedtimeConsistency.days, to: today)
+    else { return SleepHighlights() }
+    let first = min(lastMonth, twoWeeks)
+    let count = (calendar.dateComponents([.day], from: first, to: today).day ?? 0) + 1
+    let nights = try sleepNights(endingOn: today, count: count, calendar: calendar, db)
     return SleepHighlights(
-      bedtime: BedtimeConsistency(nights: nights, today: today, calendar: calendar))
+      bedtime: BedtimeConsistency(nights: nights, today: today, calendar: calendar),
+      months: SleepMonthComparison(nights: nights, today: today, calendar: calendar))
   }
 
   /// Where `date` goes in the night that started at `start`, in hours from the start of `day`,

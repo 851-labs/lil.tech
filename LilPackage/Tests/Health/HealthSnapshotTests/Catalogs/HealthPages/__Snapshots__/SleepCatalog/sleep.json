@@ -149,6 +149,13 @@
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.bedtime-as-usual-light.png",
       "name" : "Bedtime as usual",
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.less-sleep-this-month-dark.png",
+      "id" : "sleep.less-sleep-this-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.less-sleep-this-month-light.png",
+      "name" : "Less sleep this month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
     }
   ]
 }

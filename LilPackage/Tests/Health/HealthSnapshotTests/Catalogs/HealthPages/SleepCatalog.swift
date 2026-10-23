@@ -102,6 +102,10 @@
       CatalogState("Bedtime as usual", minHeight: 300) {
         highlightsOnly(SleepHighlights(bedtime: bedtime(lastNight: -1.05)))
       },
+      // 5% or more under last month's average.
+      CatalogState("Less sleep this month", minHeight: 250) {
+        highlightsOnly(SleepHighlights(months: months(this: 6.9 * 3600, last: 7.65 * 3600)))
+      },
     ],
     // What's below the content stays put while it loads, and from one range to another but D,
     // which lists the night's stages (851-3084).
@@ -144,6 +148,15 @@
     }
     return BedtimeConsistency(
       firstDay: day(-13), nights: nights + [.init(day: today, bedtime: lastNight)])
+  }
+
+  /// Made-up averages for August so far and July.
+  private func months(this: TimeInterval, last: TimeInterval) -> SleepMonthComparison {
+    let thisMonth = previewCalendar.dateInterval(of: .month, for: previewNow)!.start
+    return SleepMonthComparison(
+      thisMonth: thisMonth,
+      lastMonth: previewCalendar.date(byAdding: .month, value: -1, to: thisMonth)!,
+      thisMonthAverage: this, lastMonthAverage: last)
   }
 
   /// Without enough data for highlights, unless it's given them.
