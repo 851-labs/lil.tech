@@ -38,17 +38,25 @@ public struct Highlight: Equatable, Identifiable, Sendable {
 
   /// Whether `current` is meaningfully above or below `previous`.
   public var direction: Direction {
-    // From nothing, anything is a change.
-    guard previous != 0 else { return current > 0 ? .up : current < 0 ? .down : .same }
-    let change = (current - previous) / abs(previous)
-    let threshold = kind == .week ? HealthDatabase.weekChange : HealthDatabase.trendChange
-    if change >= threshold { return .up }
-    if change <= -threshold { return .down }
-    return .same
+    Direction(
+      from: previous, to: current,
+      threshold: kind == .week ? HealthDatabase.weekChange : HealthDatabase.trendChange)
   }
 
   public enum Direction: Equatable, Sendable {
     case up, down, same
+
+    /// Up or down from `previous` to `current` by `threshold` (a share of `previous`) or more,
+    /// otherwise about the same. Summary's highlights and Sleep's month comparison (851-3109).
+    init(from previous: Double, to current: Double, threshold: Double) {
+      // From nothing, anything is a change.
+      guard previous != 0 else {
+        self = current > 0 ? .up : current < 0 ? .down : .same
+        return
+      }
+      let change = (current - previous) / abs(previous)
+      self = change >= threshold ? .up : change <= -threshold ? .down : .same
+    }
   }
 }
 

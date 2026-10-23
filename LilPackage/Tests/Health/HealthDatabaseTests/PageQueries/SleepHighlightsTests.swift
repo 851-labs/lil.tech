@@ -137,4 +137,63 @@ struct SleepHighlightsTests {
     try insert((-6 ... -1).flatMap { night($0) } + night(0, bedtime: 14, hours: 1))
     #expect(try highlights().bedtime == nil)
   }
+
+  // MARK: Months
+
+  @Test
+  func monthsCompareAverageTimeAsleep() throws {
+    // Five nights of 8 hours this month, ten of 7 in September.
+    try insert(
+      (-4...0).flatMap { night($0, hours: 8) } + (-30 ... -21).flatMap { night($0, hours: 7) })
+    let months = try #require(try highlights().months)
+    #expect(months.thisMonth == day(-14))
+    #expect(months.lastMonth == calendar.date(byAdding: .month, value: -1, to: day(-14)))
+    #expect(months.thisMonthAverage == 8 * 3600)
+    #expect(months.lastMonthAverage == 7 * 3600)
+    #expect(months.direction == .up)
+  }
+
+  @Test
+  func monthsWithin5PercentAreAboutTheSame() throws {
+    try insert(
+      (-4...0).flatMap { night($0, hours: 7.2) } + (-30 ... -21).flatMap { night($0, hours: 7) })
+    #expect(try highlights().months?.direction == .same)
+  }
+
+  @Test
+  func monthsNeedEnoughNightsInEach() throws {
+    // Four nights this month.
+    try insert((-3...0).flatMap { night($0) } + (-30 ... -21).flatMap { night($0) })
+    #expect(try highlights().months == nil)
+    // Five this month, nine last month.
+    try insert(night(-4))
+    try database.write { db in
+      // September 15's night, the first.
+      let cutoff = day(-30).addingTimeInterval(3600).unixMilliseconds
+      try HealthSample.where { $0.startDate < cutoff }.delete().execute(db)
+    }
+    #expect(try highlights().months == nil)
+  }
+
+  @Test
+  func monthsChangeFrom5Percent() throws {
+    // 5% under September's 8 hours exactly: less.
+    try insert(
+      (-4...0).flatMap { night($0, hours: 7.6) } + (-30 ... -21).flatMap { night($0, hours: 8) })
+    #expect(try highlights().months?.direction == .down)
+  }
+
+  @Test
+  func monthsLeaveOutNapsAndTheMonthBefore() throws {
+    // Five nights of 8 hours, and a 1-hour nap on a day without a night; ten nights of 8 hours in
+    // September, and August's of 2, before last month.
+    try insert(
+      (-4...0).flatMap { night($0, hours: 8) } + night(-6, bedtime: 14, hours: 1)
+        + (-30 ... -21).flatMap { night($0, hours: 8) }
+        + (-50 ... -46).flatMap { night($0, hours: 2) })
+    let months = try #require(try highlights().months)
+    #expect(months.thisMonthAverage == 8 * 3600)
+    #expect(months.lastMonthAverage == 8 * 3600)
+    #expect(months.direction == .same)
+  }
 }

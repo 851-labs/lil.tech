@@ -28,53 +28,20 @@ struct HighlightRow: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  /// The two weeks' averages as bars, this week in the category's color. Each row has its own
-  /// line above its bar, the week's name and its average, so neither can run into the other bar
-  /// (851-2824): Charts placed the names as axis labels, between the bars, where they collided.
+  /// The two weeks' averages as bars, this week in the category's color.
   private var comparison: some View {
-    // Both bars on one scale, the longer one full width.
-    let longest = max(highlight.previous, highlight.current)
-    return VStack(alignment: .leading, spacing: 8) {
-      // Rolling weeks ending yesterday, as the sentence says, not calendar weeks.
-      comparisonRow(
-        "7 Days Before", highlight.previous, longest: longest, color: Self.earlierColor)
-      comparisonRow("Last 7 Days", highlight.current, longest: longest, color: color)
-    }
+    // Rolling weeks ending yesterday, as the sentence says, not calendar weeks.
+    ComparisonBars(
+      earlier: .init(
+        "7 Days Before", value: highlight.previous,
+        text: HighlightText.text(highlight.previous, type), color: Self.earlierColor),
+      recent: .init(
+        "Last 7 Days", value: highlight.current,
+        text: HighlightText.text(highlight.current, type), color: color))
   }
 
-  private func comparisonRow(
-    _ label: String, _ value: Double, longest: Double, color: some ShapeStyle
-  ) -> some View {
-    // Nothing for a week of nothing, or a value that isn't one.
-    let share = longest > 0 && value > 0 ? min(value / longest, 1) : 0
-    return VStack(alignment: .leading, spacing: 4) {
-      HStack(alignment: .firstTextBaseline) {
-        Text(label)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-        Spacer()
-        // The average stays whole; the name gives way.
-        Text(HighlightText.text(value, type))
-          .fontWeight(.semibold)
-          .foregroundStyle(.secondary)
-          .monospacedDigit()
-          .fixedSize()
-          .layoutPriority(1)
-      }
-      .font(.caption)
-      GeometryReader { proxy in
-        // At least a dot, so a week of very little still shows.
-        Capsule()
-          .fill(color)
-          .frame(width: share > 0 ? max(proxy.size.width * share, Self.barHeight) : 0)
-      }
-      .frame(height: Self.barHeight)
-    }
-  }
-
-  private static let barHeight: CGFloat = 18
   /// The earlier period, in both kinds of highlight.
-  private static let earlierColor = Color.gray.opacity(0.35)
+  private static let earlierColor = ComparisonBars.earlierColor
 
   /// Each week's average, the last 4 in color, with both periods' averages as lines.
   private var trend: some View {
