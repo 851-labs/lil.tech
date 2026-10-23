@@ -82,7 +82,7 @@ public struct HealthAccessView: View {
       Text(
         """
         lil health uploads your Health data so you can see it on your Mac. Next, allow \
-        everything, then choose All Recorded Data and Future Data.
+        everything, then choose All Recorded Data and Future Data to see your whole history.
         """)
     } else {
       Text(
@@ -108,7 +108,7 @@ public struct HealthAccessView: View {
       .controlSize(.large)
       .disabled(store.isChoosing)
       Text(
-        "If something's missing later, check Settings › Privacy & Security › Health › lil health."
+        "If something's missing, or only recent history shows, check Settings › Privacy & Security › Health › lil health."
       )
       .font(.footnote)
       .multilineTextAlignment(.center)

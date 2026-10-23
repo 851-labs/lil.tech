@@ -91,7 +91,7 @@ private struct StatusHeader: View {
         Label("Storage full", systemImage: "externaldrive.badge.exclamationmark")
           .foregroundStyle(.red)
         Text(
-          "New Health data isn't uploaded. What's already uploaded is safe."
+          "Your lil account is full. What's already uploaded is safe."
         )
         .font(.subheadline)
         .foregroundStyle(.secondary)

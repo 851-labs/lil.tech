@@ -77,14 +77,11 @@
             }
           }
           Button("Not Now", role: .cancel) {}
-        } message: { outdated in
-          Text(message(outdated))
+        } message: { _ in
+          Text(
+            "\(appName) comes with a newer version. Updating asks for an administrator’s password."
+          )
         }
-    }
-
-    private func message(_ outdated: [CommandLineToolInstaller.Outdated]) -> String {
-      let installed = outdated.map(\.directory.path).formatted(.list(type: .and))
-      return "\(appName) comes with a newer version than the one in \(installed)."
     }
   }
 #endif

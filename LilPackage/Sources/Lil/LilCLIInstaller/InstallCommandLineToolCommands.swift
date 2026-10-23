@@ -45,7 +45,8 @@
     // For all users is /usr/local/bin, for me only ~/.local/bin: the alert after says where it went.
     let question = NSAlert()
     question.messageText = "Install the lil command line tool?"
-    question.informativeText = "Use \(appName) from Terminal."
+    question.informativeText =
+      "Use \(appName) from Terminal. Installing for all users may ask for an administrator’s password."
     question.addButton(withTitle: "Install for All Users")
     question.addButton(withTitle: "Install for Me Only")
     question.addButton(withTitle: "Cancel")
@@ -70,11 +71,13 @@
     defer { isInstalling = false }
     do {
       switch try await CommandLineToolInstaller.install(bundled, into: directory) {
-      case .installed(let url, _):
+      case .installed(let url, let replacedVersion):
         let path =
           directory == CommandLineToolInstaller.Destination.user.directory
           ? " If your shell can’t find it, add ~/.local/bin to your PATH." : ""
-        showAlert("lil is installed", "It’s at \(url.path). Try “lil help” in Terminal.\(path)")
+        showAlert(
+          replacedVersion == nil ? "lil is installed" : "lil is updated",
+          "It’s at \(url.path). Try “lil help” in Terminal.\(path)")
       case .upToDate(let url, _):
         showAlert(
           "lil is already installed",

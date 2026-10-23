@@ -347,14 +347,14 @@ extension AlertState where Action == AppFeature.Action.Alert {
   /// One lil health account holds one Health history: two iPhones only agree on it when Health
   /// syncs them through iCloud (`docs/DECISIONS.md`).
   public static func otherIPhones(_ count: Int) -> Self {
-    let each = count == 1 ? "both" : "each"
+    let iPhones = count == 1 ? "both iPhones" : "each iPhone"
     return Self {
       TextState(count == 1 ? "Another iPhone uses this account" : "Other iPhones use this account")
     } actions: {
       ButtonState(role: .cancel) { TextState("OK") }
     } message: {
       TextState(
-        "Use the same Apple ID on \(each), with Health turned on in iCloud, or your data may be counted twice or go missing."
+        "Use the same Apple ID on \(iPhones), with Health turned on in iCloud, or your data may be counted twice or go missing."
       )
     }
   }

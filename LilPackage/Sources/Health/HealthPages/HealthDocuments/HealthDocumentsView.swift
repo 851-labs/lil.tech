@@ -60,7 +60,8 @@ struct HealthDocumentsContent: View {
         ContentUnavailableView(
           "No Health Documents", systemImage: "doc.text",
           description: Text(
-            "Visit summaries and other documents from your health providers will appear here."))
+            "Visit summaries and other documents you share with lil health on your iPhone will appear here."
+          ))
       case .loaded(let documents):
         list(documents)
       }

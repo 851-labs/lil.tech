@@ -419,7 +419,7 @@ public struct HealthBatchUploader: Sendable {
     public let statusCode: Int
 
     public var errorDescription: String? {
-      "lil health's server had a problem. Please try again."
+      "lil health's server couldn't take this upload (HTTP \(statusCode))."
     }
 
     /// The server failing for a moment (e.g. the user's store busy or restarting), so the upload
