@@ -16,6 +16,8 @@ public struct SettingsView: View {
   let store: StoreOf<AppFeature>
   @Environment(\.openWindow) private var openWindow
   @Environment(\.dismissWindow) private var dismissWindow
+  /// Whether the window is open: SwiftUI may keep this view after it closes.
+  @State private var isOpen = false
 
   public init(store: StoreOf<AppFeature>) {
     self.store = store
@@ -38,10 +40,12 @@ public struct SettingsView: View {
         .tabItem { Label("Agents", systemImage: "terminal") }
     }
     .background(ResizableWindow())
+    .onAppear { isOpen = true }
+    .onDisappear { isOpen = false }
     .onChange(of: store.isSignedIn) { wasSignedIn, isSignedIn in
       // From Sign Out here, or the session ending elsewhere (e.g. the account deleted on the
-      // iPhone). Not while the session is first checked.
-      guard wasSignedIn == true, isSignedIn == false else { return }
+      // iPhone). Not while the session is first checked, nor once the window has closed.
+      guard isOpen, wasSignedIn == true, isSignedIn == false else { return }
       openWindow(id: AppView.windowID)
       dismissWindow()
     }

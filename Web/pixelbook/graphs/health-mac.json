@@ -452,9 +452,9 @@
       "label": "lil health › Settings…, or ⌘,"
     },
     {
-      "from": "app",
+      "from": "settings",
       "to": "sign-in",
-      "label": "lil health › Sign Out"
+      "label": "Account › Sign Out…, which closes Settings"
     },
     {
       "from": "settings",

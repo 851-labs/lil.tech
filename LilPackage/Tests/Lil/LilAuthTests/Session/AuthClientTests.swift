@@ -30,6 +30,20 @@ struct AuthClientTests {
     #expect(try store.load() == session(1))
   }
 
+  /// An app that opened signed in (a scripted run whose session outlived the last) stays signed
+  /// out once it signs out, rather than signing straight back in to the test account (851-3096).
+  @Test
+  func signingOutSpendsTheScriptedSignIn() async throws {
+    let launchSignIn = LaunchSignIn.once(true)
+    let (auth, store) = makeAuth(launchSignIn: launchSignIn) { _, _ in
+      Issue.record("No session, so the server isn't told")
+      return (HTTPResponse(status: .noContent), nil)
+    }
+    await auth.signOut()
+    #expect(try store.load() == nil)
+    #expect(!launchSignIn.claim())
+  }
+
   @Test
   func unusableAuthorizationCodesAreLeftOut() {
     #expect(AppleCredential.authorizationCode("c0de") == "c0de")
@@ -172,6 +186,7 @@ struct AuthClientTests {
 /// with `respond`.
 private func makeAuth(
   stored: AuthSession? = nil,
+  launchSignIn: LaunchSignIn = .testValue,
   respond: @escaping @Sendable (HTTPRequest, HTTPBody?) async throws -> (HTTPResponse, HTTPBody?)
 ) -> (AuthClient, SessionStore) {
   let store = SessionStore.inMemory(stored)
@@ -179,6 +194,7 @@ private func makeAuth(
     $0.sessionStore = store
     $0.api = Client.mock(respond)
     $0.date.now = now
+    $0.launchSignIn = launchSignIn
   } operation: {
     withDependencies {
       $0.authSessions = AuthSessions()

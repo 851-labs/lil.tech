@@ -110,7 +110,6 @@ public struct AppFeature {
   @Dependency(\.continuousClock) var clock
   @Dependency(\.defaultAppStorage) var defaultAppStorage
   @Dependency(\.healthAppActions) var healthAppActions
-  @Dependency(\.launchSignIn) var launchSignIn
   @Dependency(\.sync) var sync
 
   public init() {}
@@ -174,9 +173,6 @@ public struct AppFeature {
         state.isSignedIn = isSignedIn
         if isSignedIn {
           guard wasSignedIn != true else { return .none }
-          // Opened signed in: a scripted run's sign-in to the test account (`LaunchSignIn`) is
-          // for an app that opens signed out, so signing out later stays signed out (851-3096).
-          if wasSignedIn == nil { _ = launchSignIn.claim() }
           // Until the first pull has run for a while, or needs attention.
           state.syncFooter = .hidden
           return startSync()

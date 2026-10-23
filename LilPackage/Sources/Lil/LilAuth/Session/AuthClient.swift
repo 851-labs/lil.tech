@@ -182,6 +182,7 @@ extension AuthClient: DependencyKey {
     @Dependency(\.authSessions) var sessions
     @Dependency(\.authDevice) var device
     @Dependency(\.date) var date
+    @Dependency(\.launchSignIn) var launchSignIn
     /// Calls a sign-in endpoint and starts the session it returns.
     @Sendable func signIn(
       _ call: @Sendable () async throws -> SignInOutcome
@@ -238,7 +239,14 @@ extension AuthClient: DependencyKey {
           }
         }
       },
-      signOut: { await sessions.signOut() },
+      signOut: {
+        // Signing out on purpose stays signed out: a scripted run's sign-in to the test account
+        // (`LaunchSignIn`) is spent, if the app opened signed in and hadn't used it (851-3096).
+        // A session that ends by itself (rejected, or the account deleted) doesn't come here, so
+        // a scripted run whose stored session had gone stale still signs in.
+        _ = launchSignIn.claim()
+        await sessions.signOut()
+      },
       deleteAccount: { () throws(AccountDeletionError) in
         let output: Operations.DeleteMe.Output
         do {

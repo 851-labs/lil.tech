@@ -400,7 +400,7 @@ extension AlertState where Action == AccountFeature.Action.Alert {
       ButtonState(role: .cancel) { TextState("Cancel") }
     } message: {
       TextState(
-        "Your Health data will be removed from this Mac. Your account, and the data your iPhone syncs to it, stay."
+        "Your Health data will be removed from this Mac, and its command-line and agent access turned off. Your account, and the data your iPhone syncs to it, stay."
       )
     }
   }

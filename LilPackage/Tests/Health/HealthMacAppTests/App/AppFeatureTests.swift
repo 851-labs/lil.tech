@@ -380,49 +380,6 @@ struct AppFeatureTests {
     await offline.send(.syncFooterDelayElapsed)
   }
 
-  /// `LIL_SIGN_IN_TO_TEST_ACCOUNT=1` signs in an app that opens signed out. One that opens
-  /// signed in (a scripted run whose session outlived the last) stays signed out once it signs
-  /// out, rather than signing straight back in (851-3096).
-  @Test
-  func openingSignedInSpendsTheScriptedSignIn() async {
-    let (updates, continuation) = AsyncStream<Bool>.makeStream()
-    let pending = LockIsolated(true)
-    let store = TestStore(initialState: AppFeature.State()) {
-      AppFeature()
-    } withDependencies: {
-      $0.agentAccess.reset = {}
-      $0.auth.signedInUpdates = { updates }
-      $0.launchSignIn = LaunchSignIn {
-        pending.withValue { pending in
-          defer { pending = false }
-          return pending
-        }
-      }
-      $0.sync = .constant(.idle)
-      $0.continuousClock = ManualClock()
-    }
-
-    let task = await store.send(.task)
-    continuation.yield(true)
-    await store.receive(\.signedInChanged) {
-      $0.isSignedIn = true
-      $0.syncFooter = .hidden
-    }
-    #expect(!pending.value)
-    await store.receive(\.syncStatusChanged) {
-      $0.syncFooter = .delayed
-    }
-    continuation.yield(false)
-    await store.receive(\.signedInChanged) {
-      $0.isSignedIn = false
-      $0.syncFooter = .hidden
-    }
-    // Spent: no sign-in starts.
-    await store.receive(\.signIn.readyToSignIn)
-    await task.cancel()
-    await store.finish()
-  }
-
   @Test
   func searchFindsDataTypesByName() {
     var state = AppFeature.State(isSignedIn: true)
