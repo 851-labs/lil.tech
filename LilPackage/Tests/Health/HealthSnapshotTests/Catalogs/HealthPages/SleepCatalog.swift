@@ -92,7 +92,7 @@
       // Below Show All Data and Data Sources, which don't move as they load or come and go. Taller
       // than the page, so its window doesn't grow to fit, to a half point, which moved everything
       // in it by 0.5 pt (`LayoutShiftTests`).
-      CatalogState("Night with highlights", minHeight: 1500) {
+      CatalogState("Night with highlights", minHeight: 1700) {
         detail(.day, .loaded(nights(.day)), highlights: .loaded(highlights))
       },
       CatalogState("Highlights loading") {

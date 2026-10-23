@@ -41,7 +41,9 @@ public struct BedtimeConsistency: Equatable, Sendable {
     let recent = nights.filter { $0.day >= first && $0.day <= today }.compactMap { night in
       night.nightBedtime(calendar: calendar).map { Night(day: night.day, bedtime: $0) }
     }
-    guard recent.count >= Self.minimumNights, recent.last?.day == today else { return nil }
+    guard recent.count >= Self.minimumNights,
+      SleepNight.lastNight(in: nights, today: today, calendar: calendar) != nil
+    else { return nil }
     self.init(firstDay: first, nights: recent)
   }
 

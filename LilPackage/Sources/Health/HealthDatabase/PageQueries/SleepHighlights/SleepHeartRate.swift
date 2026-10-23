@@ -21,12 +21,17 @@ public struct SleepHeartRate: Equatable, Sendable {
   public var start: Date
   public var end: Date
   /// The stretches with readings, oldest first.
-  public var ranges: [Range]
+  public let ranges: [Range]
+  /// The lowest and highest readings.
+  public let minimum: Double
+  public let maximum: Double
 
   public init(start: Date, end: Date, ranges: [Range]) {
     self.start = start
     self.end = end
     self.ranges = ranges
+    minimum = ranges.map(\.minimum).min() ?? 0
+    maximum = ranges.map(\.maximum).max() ?? 0
   }
 
   /// Each range's span.
@@ -34,14 +39,12 @@ public struct SleepHeartRate: Equatable, Sendable {
   /// Readings it needs while asleep: a Watch takes one every few minutes, so ten is about an
   /// hour's, enough for a range to say something.
   public static let minimumReadings = 10
-
-  public var minimum: Double { ranges.map(\.minimum).min() ?? 0 }
-  public var maximum: Double { ranges.map(\.maximum).max() ?? 0 }
 }
 
 extension HealthDatabase {
-  /// Every source's heart rate readings that start while `night`'s sleep lasts, from its first
-  /// stretch asleep to its last, a range every 15 minutes. `nil` under `minimumReadings`.
+  /// Every source's heart rate readings that start in one of `night`'s stretches asleep, so not
+  /// while lying awake, or up in the night, a range every 15 minutes from falling asleep. `nil`
+  /// under `minimumReadings`.
   static func sleepHeartRate(during night: SleepNight, _ db: Database) throws -> SleepHeartRate? {
     let asleep = night.segments.filter(\.stage.isAsleep)
     guard let start = asleep.map(\.start).min(), let end = asleep.map(\.end).max() else {
@@ -58,6 +61,11 @@ extension HealthDatabase {
       .select { ($0.startDate, $0.value) }
       .fetchAll(db)
       .compactMap { start, value in value.map { (start: start, value: $0) } }
+      .filter { reading in
+        asleep.contains {
+          $0.start.unixMilliseconds <= reading.start && reading.start < $0.end.unixMilliseconds
+        }
+      }
     guard readings.count >= SleepHeartRate.minimumReadings else { return nil }
     let interval = Int(SleepHeartRate.interval * 1000)
     var ranges: [SleepHeartRate.Range] = []

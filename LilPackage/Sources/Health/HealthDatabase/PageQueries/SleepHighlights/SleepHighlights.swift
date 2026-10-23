@@ -39,10 +39,7 @@ extension HealthDatabase {
       ?? today
     let count = (calendar.dateComponents([.day], from: first, to: today).day ?? 0) + 1
     let nights = try sleepNights(endingOn: today, count: count, calendar: calendar, db)
-    // A night's sleep ending today, not a day's (`latestBedtime`).
-    let lastNight = nights.last.flatMap {
-      $0.day == today && $0.nightBedtime(calendar: calendar) != nil ? $0 : nil
-    }
+    let lastNight = SleepNight.lastNight(in: nights, today: today, calendar: calendar)
     return SleepHighlights(
       bedtime: BedtimeConsistency(nights: nights, today: today, calendar: calendar),
       months: SleepMonthComparison(nights: nights, today: today, calendar: calendar),
@@ -75,6 +72,12 @@ extension SleepNight {
   /// leave out: its "bedtime" (2 PM) says nothing about when bedtime is, and its hour asleep
   /// would pull an average of nights down.
   public static let latestBedtime: Double = 12
+
+  /// Last night among `nights` (by day, oldest first): the one ending `today`, if it's a night's
+  /// sleep, not a day's (`latestBedtime`). Every highlight about last night asks this.
+  static func lastNight(in nights: [SleepNight], today: Date, calendar: Calendar) -> SleepNight? {
+    nights.last.flatMap { $0.day == today && $0.nightBedtime(calendar: calendar) != nil ? $0 : nil }
+  }
 
   /// Its bedtime by the clock, placed as Sleep's W and M charts place it (from its first segment,
   /// 851-3098), if it's a night's sleep rather than a day's (`latestBedtime`).

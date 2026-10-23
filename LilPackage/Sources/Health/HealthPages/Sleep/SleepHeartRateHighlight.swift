@@ -33,8 +33,9 @@ struct SleepHeartRateHighlight: View {
     let half = SleepHeartRate.interval / 2
     return Chart(Array(ranges.enumerated()), id: \.offset) { index, range in
       // At least a beat tall, so a range of one reading shows.
+      // In its range's middle, or at the night's end for a last range cut short by waking.
       BarMark(
-        x: .value("Time", range.start.addingTimeInterval(half)),
+        x: .value("Time", min(range.start.addingTimeInterval(half), heartRate.end)),
         yStart: .value("Minimum", range.minimum - (range.minimum == range.maximum ? 0.5 : 0)),
         yEnd: .value("Maximum", range.maximum + (range.minimum == range.maximum ? 0.5 : 0)),
         width: .fixed(5)
@@ -56,13 +57,19 @@ struct SleepHeartRateHighlight: View {
         AxisValueLabel(format: .dateTime.hour())
       }
     }
-    // Room above and below for the labels.
-    .chartYScale(domain: (heartRate.minimum - 12)...(heartRate.maximum + 12))
+    // Room above and below for the labels: a label's height is about an eighth of the plot, so
+    // a sixth of the range on each side, and at least 8 beats.
+    .chartYScale(domain: (heartRate.minimum - padding)...(heartRate.maximum + padding))
     .chartYAxis {
       AxisMarks(position: .trailing, values: .automatic(desiredCount: 3))
     }
     .frame(height: SleepHighlightStyle.chartHeight + 20)
+    // Hours in the page's calendar and time zone, as the nights and ranges are.
+    .environment(\.calendar, calendar)
+    .environment(\.timeZone, calendar.timeZone)
   }
+
+  private var padding: Double { max(8, (heartRate.maximum - heartRate.minimum) / 6 + 4) }
 
   private static let inside = AnnotationOverflowResolution(x: .fit(to: .chart), y: .disabled)
 

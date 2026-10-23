@@ -236,8 +236,7 @@ struct SleepHighlightsTests {
     try insert(
       night(0) + (0..<9).map { heartRate(55, at: asleep.addingTimeInterval(Double($0) * 300)) })
     #expect(try highlights().heartRate == nil)
-    // Ten, but the night before last night's.
-    try database.write { db in try HealthSample.delete().execute(db) }
+    // Ten more, but in the night before last night's.
     let before = day(-1).addingTimeInterval(-3600)
     try insert(
       night(-1) + (0..<10).map { heartRate(55, at: before.addingTimeInterval(Double($0) * 300)) })
@@ -252,5 +251,25 @@ struct SleepHighlightsTests {
       night(0, bedtime: 14, hours: 2)
         + (0..<24).map { heartRate(60, at: nap.addingTimeInterval(Double($0) * 300)) })
     #expect(try highlights().heartRate == nil)
+  }
+
+  @Test
+  func heartRateLeavesOutTimeAwakeInTheNight() throws {
+    // Asleep from 11 PM to 1 AM, up for an hour, then asleep until 6.
+    let asleep = today.addingTimeInterval(-3600)
+    try insert([
+      sample(.core, asleep, 2), sample(.awake, asleep.addingTimeInterval(2 * 3600), 1),
+      sample(.core, asleep.addingTimeInterval(3 * 3600), 4),
+    ])
+    // Every 10 minutes from 11 PM to 6 AM, 100 while up, 55 asleep.
+    try insert(
+      (0..<42).map { index in
+        let time = asleep.addingTimeInterval(Double(index) * 600)
+        let up = (12..<18).contains(index)
+        return heartRate(up ? 100 : 55, at: time)
+      })
+    let heartRate = try #require(try highlights().heartRate)
+    #expect(heartRate.maximum == 55)
+    #expect(heartRate.ranges.count == 24)
   }
 }
