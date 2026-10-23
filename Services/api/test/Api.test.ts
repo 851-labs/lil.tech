@@ -1014,6 +1014,40 @@ describe("GET /v1/sync/changes", () => {
     ),
   );
 
+  it.live("serves only the entities a filter names, moving next past the rest", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { user, tokens } = yield* signIn;
+        const store = (yield* UserStores).forUser(user.id);
+        yield* store.applyMutations([note("n1"), note("n2"), note("n3")]);
+        const seqs = (body: unknown) =>
+          (body as { changes: Array<{ seq: number }> }).changes.map((change) => change.seq);
+
+        // Every change is a note, so a cards-only pull skips them all, up to the head.
+        const cards = yield* pull(handler, tokens.accessToken, "?entities=health_card");
+        assert.strictEqual(cards.status, 200);
+        assert.deepStrictEqual(cards.body, {
+          epoch: 1,
+          changes: [],
+          next: 3,
+          head: 3,
+          hasMore: false,
+        });
+
+        const notes = yield* pull(
+          handler,
+          tokens.accessToken,
+          "?after=1&limit=1&entities=health_card,test_note",
+        );
+        assert.deepStrictEqual(seqs(notes.body), [2]);
+        assert.deepInclude(notes.body, { next: 2, head: 3, hasMore: true });
+        const rest = yield* pull(handler, tokens.accessToken, "?after=2&entities=test_note");
+        assert.deepStrictEqual(seqs(rest.body), [3]);
+        assert.deepInclude(rest.body, { next: 3, hasMore: false });
+      }),
+    ),
+  );
+
   it.live("returns an empty log for a new user", () =>
     withApi((handler) =>
       Effect.gen(function* () {
@@ -1066,10 +1100,27 @@ describe("GET /v1/sync/changes", () => {
           new Request("https://api.lil.tech/v1/sync/changes"),
         );
         assert.strictEqual(unauthenticated.status, 401);
-        for (const query of ["?after=-1", "?after=x", "?limit=0", "?limit=5001", "?limit=1.5"]) {
+        const tooMany = Array.from({ length: 33 }, (_, index) => `e${index}`).join(",");
+        for (const query of [
+          "?after=-1",
+          "?after=x",
+          "?limit=0",
+          "?limit=5001",
+          "?limit=1.5",
+          "?entities=",
+          "?entities=health_card,",
+          "?entities=Health_Card",
+          "?entities=health%20card",
+          `?entities=${tooMany}`,
+        ]) {
           assert.strictEqual((yield* pull(handler, tokens.accessToken, query)).status, 400, query);
         }
         assert.strictEqual((yield* pull(handler, tokens.accessToken, "?limit=5000")).status, 200);
+        const most = Array.from({ length: 32 }, (_, index) => `e${index}`).join(",");
+        assert.strictEqual(
+          (yield* pull(handler, tokens.accessToken, `?entities=${most},e0`)).status,
+          200,
+        );
       }),
     ),
   );
@@ -2777,6 +2828,14 @@ describe("makeOpenApiSpec", () => {
       [
         ["after", { type: "integer", minimum: 0, maximum: 9007199254740991, default: 0 }],
         ["limit", { type: "integer", minimum: 1, maximum: 5000, default: 1000 }],
+        [
+          "entities",
+          {
+            type: "string",
+            description:
+              "Only these entities' changes, comma-separated, e.g. `health_card`. A page may then have gaps, and `next` moves past the changes it skipped, up to `head`.",
+          },
+        ],
       ],
     );
     // Every endpoint with query parameters needs `documentQuery`.

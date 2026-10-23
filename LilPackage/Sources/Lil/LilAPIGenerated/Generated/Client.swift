@@ -1853,6 +1853,13 @@ public struct Client: APIProtocol {
                     name: "limit",
                     value: input.query.limit
                 )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "entities",
+                    value: input.query.entities
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept
