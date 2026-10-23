@@ -3954,17 +3954,22 @@ public enum Operations {
                 public var after: Swift.Int?
                 /// - Remark: Generated from `#/paths/v1/sync/changes/GET/query/limit`.
                 public var limit: Swift.Int?
+                /// - Remark: Generated from `#/paths/v1/sync/changes/GET/query/entities`.
+                public var entities: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - after:
                 ///   - limit:
+                ///   - entities:
                 public init(
                     after: Swift.Int? = nil,
-                    limit: Swift.Int? = nil
+                    limit: Swift.Int? = nil,
+                    entities: Swift.String? = nil
                 ) {
                     self.after = after
                     self.limit = limit
+                    self.entities = entities
                 }
             }
             public var query: Operations.SyncChanges.Input.Query

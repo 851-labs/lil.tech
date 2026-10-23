@@ -153,6 +153,12 @@ private final class FakeServer: Sendable {
     var requests: [Int] = []
     /// The `limit` of each request for changes.
     var limits: [Int] = []
+    /// The `entities` filter of each request for changes, if any.
+    var filters: [String?] = []
+    /// Ignore `entities`, like a server from before the filter (851-3221).
+    var ignoresEntities = false
+    /// Answer with a `next` one past the page's, like a broken server that skips a change.
+    var skipping = false
     /// Changes written while a request for changes is answered, by request number (1-based):
     /// they're given the next `seq`s after it.
     var arriving: [Int: [Components.Schemas.Change]] = [:]
@@ -323,9 +329,11 @@ private final class FakeServer: Sendable {
       let query = URLComponents(string: request.path ?? "")?.queryItems ?? []
       let after = Int(query.first { $0.name == "after" }?.value ?? "0") ?? 0
       let limit = Int(query.first { $0.name == "limit" }?.value ?? "1000") ?? 1000
+      let filter = query.first { $0.name == "entities" }?.value
       return try state.withValue { state in
         state.requests.append(after)
         state.limits.append(limit)
+        state.filters.append(filter)
         defer {
           for change in state.arriving.removeValue(forKey: state.requests.count) ?? [] {
             var change = change
@@ -347,11 +355,20 @@ private final class FakeServer: Sendable {
         if after < state.horizon {
           return try json(.gone, ["_tag": "ChangesCompacted", "reason": "compacted"])
         }
+        // As the server does: only the named entities' changes, and a page of them that isn't
+        // full ends at the head.
+        let only = state.ignoresEntities ? nil : filter.map { Set($0.split(separator: ",")) }
+        let size = min(pageSize, limit)
         let page =
           state.stuck
-          ? [] : Array(state.changes.filter { $0.seq > after }.prefix(min(pageSize, limit)))
-        let next = page.last?.seq ?? after
+          ? []
+          : Array(
+            state.changes.filter { $0.seq > after && only?.contains(Substring($0.entity)) != false }
+              .prefix(size))
         let head = state.changes.last?.seq ?? 0
+        let next =
+          (only != nil && page.count < size ? max(head, after) : page.last?.seq ?? after)
+          + (state.skipping ? 1 : 0)
         if state.stuck {
           return try json(
             .ok,
@@ -1612,6 +1629,7 @@ struct LilSyncCatchUpTests {
     server.state.withValue {
       $0.requests = []
       $0.limits = []
+      $0.filters = []
       $0.downloads = []
       $0.snapshotRequests = 0
     }
@@ -1642,11 +1660,12 @@ struct LilSyncCatchUpTests {
 
     #expect(try storedTags() == tagsAt8 + [Tag(id: "t4", title: "Tag 4")])
     #expect(try storedNotes() == notesAt8 + [Note(id: "n4", title: "Note 4")])
-    // Only the tags' parts were downloaded, then the changes from the snapshot to the cursor,
-    // never past it, then the pull carried on from the cursor.
+    // Only the tags' parts were downloaded, then the tags' changes from the snapshot to the
+    // cursor (5 and 7, then 8), never past it, then the pull carried on from the cursor.
     #expect(server.state.downloads.sorted() == tagParts.sorted())
-    #expect(server.state.requests == [4, 6, 8])
-    #expect(server.state.limits == [4, 2, LilSyncEngine.pageSize])
+    #expect(server.state.requests == [4, 7, 8])
+    #expect(server.state.limits == [4, 1, LilSyncEngine.pageSize])
+    #expect(server.state.filters == ["tag", "tag", nil])
     let state = try #require(try state())
     #expect(state.cursor == 10)
     #expect(state.entities == "note,tag")
@@ -1656,6 +1675,72 @@ struct LilSyncCatchUpTests {
     // Caught up for good: the next pull asks for no snapshot.
     try await engine().pull()
     #expect(server.state.snapshotRequests == 1)
+  }
+
+  @Test
+  func aServerWithoutTheEntitiesFilterSendsEveryChangeAndTheCatchUpSkipsTheRest() async throws {
+    try await olderReleaseSyncedTo8()
+    server.state.withValue { $0.ignoresEntities = true }
+
+    try await engine().pull()
+
+    #expect(try storedTags() == tagsAt8)
+    #expect(try storedNotes() == notesAt8)
+    // Pages without gaps, of every entity, as before 851-3221.
+    #expect(server.state.requests == [4, 6, 8])
+    #expect(server.state.limits == [4, 2, LilSyncEngine.pageSize])
+    #expect(try state()?.entities == "note,tag")
+  }
+
+  @Test
+  func aFilteredPageThatIsntFullEndsTheCatchUpAtTheCursor() async throws {
+    // A tag among notes: the cursor is at 5, and a note arrives at 6.
+    server.append(upsert("n1", "Note 1"))
+    server.append(tag("t1", "Tag 1"))
+    for n in 2...4 { server.append(upsert("n\(n)", "Note \(n)")) }
+    let older = older
+    try await older.bootstrap()
+    try await older.pull()
+    server.append(upsert("n5", "Note 5"))
+    server.state.withValue {
+      $0.requests = []
+      $0.filters = []
+    }
+
+    try await engine().pull()
+
+    #expect(try storedTags() == [Tag(id: "t1", title: "Tag 1")])
+    #expect(try storedNotes().map(\.id) == ["n1", "n2", "n3", "n4", "n5"])
+    // The tags' one page skipped to the head, 6, past the cursor, 5: the catch-up stopped there,
+    // and the pull went on from 5.
+    #expect(server.state.requests == [0, 5])
+    #expect(server.state.filters == ["tag", nil])
+    #expect(try state()?.cursor == 6)
+  }
+
+  @Test
+  func refusesAFilteredPageThatMakesNoProgress() async throws {
+    try await olderReleaseSyncedTo8()
+    server.state.withValue { $0.stuck = true }
+    await #expect(throws: SyncError.unexpectedPage) { try await engine().pull() }
+    #expect(server.state.filters == ["tag"])
+    #expect(try state()?.entities == "note")
+  }
+
+  @Test
+  func refusesAFilteredPageWhoseNextSkipsAChange() async throws {
+    try await olderReleaseSyncedTo8()
+    server.append(tag("t4", "Tag 4"))
+    server.append(upsert("n4", "Note 4"))
+    // The first page, 5 and 7, says to go on after 8, skipping it.
+    server.state.withValue { $0.skipping = true }
+    await #expect(throws: SyncError.unexpectedPage) { try await engine().pull() }
+    // The snapshot's tags were loaded, but none of the page's changes, and the catch-up didn't
+    // move past them.
+    #expect(try storedTags() == [Tag(id: "t1", title: "Tag 1"), Tag(id: "t2", title: "Tag 2")])
+    let state = try #require(try state())
+    #expect([state.catchUpAfter, state.cursor] == [4, 8])
+    #expect(state.entities == "note")
   }
 
   @Test
@@ -1673,7 +1758,7 @@ struct LilSyncCatchUpTests {
     #expect(statuses.value.contains(.bootstrapping(.finishing(2))))
     #expect(
       statuses.value.drop { $0 != .syncing(cursor: 4, head: 8) } == [
-        .syncing(cursor: 4, head: 8), .syncing(cursor: 6, head: 8), .upToDate(at: syncedAt),
+        .syncing(cursor: 4, head: 8), .syncing(cursor: 7, head: 8), .upToDate(at: syncedAt),
       ])
   }
 
@@ -1718,21 +1803,20 @@ struct LilSyncCatchUpTests {
     let engine = engine()
 
     await #expect(throws: SyncError.unexpectedStatus(500)) { try await engine.pull() }
-    // The snapshot and the first page are kept, with how far the catch-up got.
-    #expect(
-      try storedTags() == [Tag(id: "t1", title: "Tag 1, renamed"), Tag(id: "t2", title: "Tag 2")])
+    // The snapshot and the first page (changes 5 and 7) are kept, with how far the catch-up got.
+    #expect(try storedTags() == [Tag(id: "t1", title: "Tag 1, renamed")])
     var state = try #require(try state())
     #expect(state.cursor == 8)
     #expect(state.entities == "note")
-    #expect([state.catchUpAfter, state.catchUpUntil] == [6, 8])
+    #expect([state.catchUpAfter, state.catchUpUntil] == [7, 8])
     #expect(state.catchUpEntities == "tag")
 
     server.state.withValue { $0.failing = [] }
     try await engine.pull()
     #expect(try storedTags() == tagsAt8)
     #expect(try storedNotes() == notesAt8)
-    // Resumed after 6, without the snapshot again.
-    #expect(server.state.requests == [4, 6, 6, 8])
+    // Resumed after 7, without the snapshot again.
+    #expect(server.state.requests == [4, 7, 7, 8])
     #expect(server.state.snapshotRequests == 1)
     #expect(server.state.downloads.count == tagParts.count)
     state = try #require(try self.state())
@@ -1756,7 +1840,7 @@ struct LilSyncCatchUpTests {
     #expect(try storedNotes() == notesAt8 + [Note(id: "n5", title: "Note 5")])
     #expect(try state()?.cursor == 11)
     // The catch-up stopped at the cursor it started at, 8, though the store had more.
-    #expect(server.state.requests == [4, 6, 8, 10])
+    #expect(server.state.requests == [4, 7, 8, 10])
   }
 
   @Test
@@ -1839,7 +1923,7 @@ struct LilSyncCatchUpTests {
 
     #expect(try storedTags() == [Tag(id: "t1", title: "Tag 1"), Tag(id: "t2", title: "Tag 2")])
     #expect(try storedNotes() == [Note(id: "n1", title: "Note 1")])
-    #expect(server.state.requests == [0, 2, 3])
+    #expect(server.state.requests == [0, 3])
   }
 
   @Test
@@ -1875,22 +1959,22 @@ struct LilSyncCatchUpTests {
     server.state.withValue { $0.failing = [2] }
     let engine = engine()
     await #expect(throws: (any Error).self) { try await engine.pull() }
-    #expect(try state()?.catchUpAfter == 6)
+    #expect(try state()?.catchUpAfter == 7)
 
-    // Meanwhile a snapshot at 7 is published, and the changes it covers are compacted.
-    try server.publishSnapshot(
-      id: "snp_2", seq: 7, notes: notesAt8, tags: [Tag(id: "t1", title: "Tag 1, renamed")])
+    // Meanwhile a snapshot at 8 is published, and the changes it covers are compacted.
+    try server.publishSnapshot(id: "snp_2", seq: 8, notes: notesAt8, tags: tagsAt8)
     server.state.withValue {
       $0.failing = []
-      $0.horizon = 7
+      $0.horizon = 8
       $0.requests = []
     }
     try await engine.pull()
 
     #expect(try storedTags() == tagsAt8)
     #expect(try storedNotes() == notesAt8)
-    // After 6 was gone, so it started over from snp_2.
-    #expect(server.state.requests == [6, 7, 8])
+    // After 7 was gone, so it started over from snp_2, which needs no changes before the cursor.
+    #expect(server.state.requests == [7, 8])
+    #expect(server.state.snapshotRequests == 2)
     #expect(try state()?.entities == "note,tag")
   }
 

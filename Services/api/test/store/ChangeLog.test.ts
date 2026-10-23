@@ -9,8 +9,14 @@ import {
 } from "../../src/store/ChangeLog.ts";
 import type { Mutation } from "../../src/store/Changes.ts";
 import { entities } from "../../src/store/Registry.ts";
-import { Column, columnName, createEntityTable, defineEntity } from "../../src/store/Entities.ts";
-import type { StoreSql } from "../../src/store/StoreSql.ts";
+import {
+  Column,
+  columnName,
+  createEntityTable,
+  defineEntity,
+  type Entity,
+} from "../../src/store/Entities.ts";
+import type { SqlValue, StoreSql } from "../../src/store/StoreSql.ts";
 import { makeUserStore } from "../../src/store/UserStore.ts";
 import { makeTestStoreSql } from "./TestStoreSql.ts";
 import { makeTestStore, testNote } from "./TestUserStores.ts";
@@ -439,6 +445,132 @@ describe("readChanges", () => {
       (readChanges(sql, noteEntities, 1, 10) as unknown as { changes: Array<unknown> }).changes,
       1,
     );
+  });
+});
+
+describe("readChanges with an entities filter", () => {
+  const card = defineEntity("test_card", { clientWritable: true, fields: { title: Column.text } });
+  const both = new Map<string, Entity>([
+    [note.name, note],
+    [card.name, card],
+  ]);
+  const upsertCard = (id: string): Mutation => ({
+    entity: "test_card",
+    op: "upsert",
+    id,
+    row: { title: `Card ${id}` },
+  });
+  /** Notes at 1, 2, 4, 5, 7 and 8, cards at 3 and 6: 8 changes. */
+  const makeMixed = () => {
+    const { sql } = makeStore();
+    sql.script(createEntityTable(card));
+    applyMutations(sql, both, [upsert("n1"), upsert("n2"), upsertCard("c1")], 0);
+    applyMutations(sql, both, [upsert("n3"), upsert("n4"), upsertCard("c2")], 0);
+    applyMutations(sql, both, [upsert("n5"), remove("n5")], 0);
+    return sql;
+  };
+  const read = (sql: StoreSql, after: number, limit: number, only: ReadonlyArray<string>) => {
+    const page = readChanges(sql, both, after, limit, only);
+    if (!("changes" in page)) return assert.fail("compacted");
+    return { ...page, changes: page.changes.map((change) => [change.seq, change.id]) };
+  };
+
+  it("serves only those entities' changes, and moves next past the rest up to head", () => {
+    const sql = makeMixed();
+    assert.deepStrictEqual(read(sql, 0, 10, ["test_card"]), {
+      epoch: 1,
+      changes: [
+        [3, "c1"],
+        [6, "c2"],
+      ],
+      next: 8,
+      head: 8,
+      hasMore: false,
+    });
+    assert.deepInclude(read(sql, 3, 10, ["test_card"]), { changes: [[6, "c2"]], next: 8 });
+    // Nothing after the cursor: still up to head.
+    assert.deepInclude(read(sql, 6, 10, ["test_card"]), { changes: [], next: 8, hasMore: false });
+    assert.deepInclude(read(sql, 8, 10, ["test_card"]), { changes: [], next: 8, hasMore: false });
+    // An entity with no changes, or one the store doesn't know.
+    assert.deepInclude(read(sql, 0, 10, ["nothing_here"]), { changes: [], next: 8 });
+  });
+
+  it("ends a full page at its last change", () => {
+    const sql = makeMixed();
+    // Full: there may be more, so next is the last change's seq.
+    assert.deepInclude(read(sql, 0, 1, ["test_card"]), {
+      changes: [[3, "c1"]],
+      next: 3,
+      head: 8,
+      hasMore: true,
+    });
+    assert.deepInclude(read(sql, 3, 1, ["test_card"]), { changes: [[6, "c2"]], next: 6 });
+    assert.deepInclude(read(sql, 6, 1, ["test_card"]), { changes: [], next: 8, hasMore: false });
+  });
+
+  it("merges several entities in log order, cut at the limit", () => {
+    const sql = makeMixed();
+    assert.deepInclude(read(sql, 1, 4, ["test_card", "test_note"]), {
+      changes: [
+        [2, "n2"],
+        [3, "c1"],
+        [4, "n3"],
+        [5, "n4"],
+      ],
+      next: 5,
+      hasMore: true,
+    });
+    // Repeated names count once, and an unfiltered read is unchanged.
+    assert.deepInclude(read(sql, 5, 10, ["test_card", "test_card", "test_note"]), {
+      changes: [
+        [6, "c2"],
+        [7, "n5"],
+        [8, "n5"],
+      ],
+      next: 8,
+    });
+    const unfiltered = readChanges(sql, both, 0, 3);
+    assert.deepInclude(unfiltered, { next: 3, hasMore: true });
+  });
+
+  it("stops before a copyless upsert of an entity it doesn't know, as without a filter", () => {
+    const sql = makeMixed();
+    // A reader without `test_card`, as after a rollback.
+    const page = readChanges(sql, noteEntities, 0, 10, ["test_card"]);
+    assert.deepInclude(page, { changes: [], next: 0, head: 8, hasMore: true });
+  });
+
+  it("refuses a cursor older than the compaction horizon", () => {
+    const sql = makeMixed();
+    sql.exec("DELETE FROM changes WHERE seq <= 2");
+    sql.exec("INSERT INTO meta (key, value) VALUES ('horizon', 2)");
+    assert.strictEqual(
+      (readChanges(sql, both, 0, 10, ["test_card"]) as { _tag?: string })._tag,
+      "ChangesCompacted",
+    );
+    assert.deepInclude(read(sql, 2, 10, ["test_card"]), { next: 8 });
+  });
+
+  it("reads each entity's seqs from the (entity, seq) index, then the page by seq", () => {
+    const sql = makeMixed();
+    const plan = (query: string, ...params: Array<SqlValue>) =>
+      sql
+        .exec(`EXPLAIN QUERY PLAN ${query}`, ...params)
+        .map((step) => step["detail"] as string)
+        .join("\n");
+    const seqs = plan(
+      "SELECT seq FROM changes WHERE entity = ? AND seq > ? ORDER BY seq LIMIT ?",
+      "test_card",
+      0,
+      10,
+    );
+    assert.include(seqs, "COVERING INDEX changes_entity_seq");
+    assert.notInclude(seqs, "TEMP B-TREE");
+    const page = plan(
+      "SELECT * FROM changes WHERE seq IN (SELECT value FROM json_each(?)) ORDER BY seq",
+      "[3,6]",
+    );
+    assert.include(page, "INTEGER PRIMARY KEY");
   });
 });
 

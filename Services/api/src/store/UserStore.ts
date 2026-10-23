@@ -357,14 +357,14 @@ export const makeUserStore = (
         yield* Effect.promise(() => sql.setAlarm(now + 1));
         alarmAt = now + 1;
       }),
-    /** A page of the change log (see `readChanges`). */
-    readChanges: (after: number, limit: number) =>
+    /** A page of the change log, of only the entities named `only` if given (see `readChanges`). */
+    readChanges: (after: number, limit: number, only?: ReadonlyArray<string>) =>
       Effect.suspend(() => {
         // A deleted store reads as empty, even before it's wiped.
         if (deleted) {
           return Effect.succeed({ epoch: 1, changes: [], next: 0, head: 0, hasMore: false });
         }
-        const page = readChanges(sql, entitiesByName, after, limit);
+        const page = readChanges(sql, entitiesByName, after, limit, only);
         return page instanceof ChangesCompacted ? Effect.fail(page) : Effect.succeed(page);
       }),
     /** An uploaded health batch's status, or `null` if it was never received. */

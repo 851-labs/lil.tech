@@ -46,10 +46,11 @@ Every write to a store goes through `applyMutations`, which updates the entity t
 ## Pulling changes
 
 ```
-GET /v1/sync/changes?after=<seq>&limit=<n>
+GET /v1/sync/changes?after=<seq>&limit=<n>[&entities=<entity>,<entity>…]
 ```
 
 - `after` is the client's cursor (0 for a client with nothing). `limit` defaults to 1000, and the maximum is 5000.
+- `entities` (optional, 851-3221) asks for only those entities' changes, comma-separated, e.g. `entities=health_card`: at most 32 names, each `snake_case` (`400` otherwise). Names the store doesn't know match nothing.
 - The Mac asks for 5,000 at a time, and downloads the next page while it writes one. A catch-up then runs at about the speed of decoding pages: about 7,600 changes a second for health samples in a Release build (851-2649).
 - The response:
 
@@ -69,6 +70,12 @@ GET /v1/sync/changes?after=<seq>&limit=<n>
   - `next` is the cursor to send on the next request: the `seq` of the last change returned, or `after` if none were.
   - `head` is the newest `seq` in the store, so clients can show progress.
   - `hasMore` is true when `next < head`.
+- **With `entities`,** a page holds up to `limit` of those entities' changes, in `seq` order, so it has gaps where the others' were. A client that filters checks that its changes come after its cursor in order, rather than that they're dense, and that `next` is as below, so a page can't skip a change unnoticed.
+  - A full page's `next` is its last change's `seq`, as without a filter: there may be more. A page that isn't full has every matching change up to `head`, so its `next` is `head` (or `after`, if that's ahead of `head`): the cursor moves past the changes it skipped, and `hasMore` is false. So a client pulling one small entity keeps up with a store that's taking in millions of others, in one request. (More than 32 entities can't be named at once; LilSync's catch-up then pulls every change and skips the rest.)
+  - **Why:** the iPhone stores only `health_card` (851-3205), not the millions of Health records it uploads, and a catch-up of a new entity (below) needs only that entity's changes. Both used to download every change and skip almost all of them.
+  - **How:** an `(entity, seq)` index on `changes` (store migration 26). The store reads each named entity's first `limit` seqs after `after` from the index alone, keeps the first `limit` of them, and reads only those changes, by `seq`, so the changes skipped are never read. The index costs one more entry written per change. A page that stops before a change it can't serve (above) does so with a filter too, with `next` at the last change it returned.
+  - `limit` and cursors keep their meaning, and compaction applies as before: a filtered pull with `after < horizon` gets `410`.
+  - Servers from before the filter ignore `entities` and send every change; a client skips the ones it doesn't store, as it always does.
 - The client applies a page in **one local transaction**: every change in order, then the new cursor and epoch. If the transaction fails, the cursor doesn't move and the page is fetched again.
 - Unknown entities and unknown fields are skipped, but the cursor still moves past them. See [Schema changes](#schema-changes) for how a client catches up once it understands them: a new entity alone, a new field with a bootstrap.
 
@@ -248,11 +255,11 @@ POST /v1/sync/mutations
 - **Catching up after an update:** each app has a `syncSchema` number (`LilSyncEngine(entities:syncSchema:)`, e.g. `HealthDatabase.syncSchema`), bumped when a release starts storing a new field of an entity it already had. `lilSyncState` records the number the local data was bootstrapped with (missing counts as 1), and which entities it holds. A client whose local database was synced with a lower `syncSchema` bootstraps again from a snapshot. After a downgrade, the older release records its own number and entities, so coming back bootstraps again (a new field) or catches up (a new entity). Snapshots carry every field, so the new data arrives without the server knowing anything about client versions.
 - **Catching up a new entity** (851-3222): a release that starts storing an entity (or a newer one, back after a downgrade) catches up that entity alone, rather than bootstrapping everything again, which would download a Mac's whole Health copy for a few cards. New entities need no `syncSchema` bump. Before its next pull, the client:
   1. Asks for the latest snapshot (`GET /v1/sync/snapshot`), taken at `S`, and loads only the new entities' parts, as a bootstrap does, over their tables, cleared first (an earlier release may have left rows). The other entities and the cursor stay as they are.
-  2. Pulls the changes after `S`, up to its cursor `C`, with `limit` at most `C - after`, so a page never goes past `C`, and applies only the new entities' changes. Then it records them as held, and the pull carries on from `C` for every entity, including changes written during the catch-up. A store without a snapshot has its whole log (nothing is compacted without one), so `S` is 0. A snapshot newer than the cursor (`S >= C`) needs no changes: pulling from `C` applies the ones between on top, which converges as on a bootstrap.
+  2. Pulls the new entities' changes after `S` (`entities`, 851-3221), up to its cursor `C`, with `limit` at most `C - after`, so a full page never goes past `C`, and applies them. A page that isn't full moves `next` to `head`, past `C`: the catch-up stops at `C`, ignoring any of its changes after `C`, which the pull from `C` applies. Then it records them as held, and the pull carries on from `C` for every entity, including changes written during the catch-up. A store without a snapshot has its whole log (nothing is compacted without one), so `S` is 0. A snapshot newer than the cursor (`S >= C`) needs no changes: pulling from `C` applies the ones between on top, which converges as on a bootstrap.
   - **Interruptions:** `lilSyncState` records the catch-up once the snapshot's records are loaded (`catchUpEntities`, `catchUpAfter`, `catchUpUntil`), and how far it got with each page, in the page's transaction. An interrupted load starts over, from the latest snapshot, without downloading the parts it kept. An interrupted pull resumes after its last page. The cursor doesn't move until the catch-up is done, so a catch-up whose `C` isn't the cursor any more (an older release pulled meanwhile) starts over.
   - **Starting over:** a snapshot replaced and deleted while its parts download (`410` from `GET /v1/sync/snapshots/<id>`), or a resumed catch-up whose changes after `S` were compacted meanwhile (`410`), starts the catch-up over once, from the latest snapshot.
   - **Falling back:** a new epoch, any other `410`, or one after starting over, bootstraps everything, as before. So does a `syncSchema` bump, which also covers new entities.
-  - **Cost:** the new entity's parts, then `C - S` changes of every entity, since the change feed has no filter yet. A snapshot is written after a quarter of a store's records changed (at least 50,000) or a week, so that's at most about a quarter of a full bootstrap's records, usually far fewer, and nothing is loaded but the new entity. Once the feed takes an `entities` filter (851-3221), the catch-up asks for only the new entities' changes, and stops once `next` reaches `C`.
+  - **Cost:** the new entity's parts, then only its changes between `S` and `C` (851-3221), usually one request. Before the `entities` filter, it was `C - S` changes of every entity, at most about a quarter of a full bootstrap's records (a snapshot is written after a quarter of a store's records changed, at least 50,000, or a week), and a server without the filter still sends those.
   - Unsent pushes are written again on top after each step, as after a pull.
 - **Server-side migrations** go through a new epoch, as described in [Migrations and restores](#migrations-and-restores).
 - **Rolling the server back** past an entity schema change also needs a new epoch. The older code writes log rows without the newer fields, so clients would apply incomplete rows.
@@ -284,6 +291,7 @@ An epoch mismatch isn't an error status: pulls always return the store's `epoch`
 | Limit | Value |
 |---|---|
 | Changes per pull page | 1,000 by default, 5,000 maximum |
+| Entities per `entities` filter | 32 |
 | Mutations per push | 500 |
 | Records per snapshot part | 25,000 (one part per alarm, about a second's work) |
 | Changes compacted per alarm | 50,000 |

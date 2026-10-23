@@ -895,6 +895,15 @@
               "default": 1000
             },
             "required": false
+          },
+          {
+            "name": "entities",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "description": "Only these entities' changes, comma-separated, e.g. `health_card`. A page may then have gaps, and `next` moves past the changes it skipped, up to `head`."
+            },
+            "required": false
           }
         ],
         "security": [

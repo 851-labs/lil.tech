@@ -321,6 +321,13 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
     ) STRICT;
     CREATE INDEX mcp_sessions_used_at ON mcp_sessions (used_at);`,
   },
+  {
+    version: 26,
+    name: "changes_entity_seq",
+    // The change feed's `entities` filter (851-3221, `readChanges`): one entity's changes in log
+    // order, without reading the others' (e.g. a phone pulling cards past millions of samples).
+    sql: "CREATE INDEX changes_entity_seq ON changes (entity, seq);",
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

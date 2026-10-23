@@ -517,7 +517,11 @@ export const SyncHandlers = HttpApiBuilder.group(
     );
     return handlers
       .handle("changes", ({ query }) =>
-        sessionStore.pipe(Effect.flatMap((store) => store.readChanges(query.after, query.limit))),
+        sessionStore.pipe(
+          Effect.flatMap((store) =>
+            store.readChanges(query.after, query.limit, query.entities?.split(",")),
+          ),
+        ),
       )
       .handle("snapshot", () =>
         Effect.gen(function* () {

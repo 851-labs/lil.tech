@@ -363,24 +363,66 @@ export const applyMutations = (
     return { head, appended: head - start };
   });
 
+const changeColumns = "seq, entity, id, op, row, key, at";
+
+/**
+ * Up to `limit` changes of the entities named `only` after `after`, in `seq` order, from the
+ * `(entity, seq)` index (`changes_entity_seq`). Each entity's first `limit` seqs are read from the
+ * index alone, then only the page's changes, by `seq`, however many changes of other entities lie
+ * between them.
+ */
+const readChangesOf = (
+  sql: StoreSql,
+  only: ReadonlyArray<string>,
+  after: number,
+  limit: number,
+): Array<SqlRow> => {
+  const seqs = only
+    .flatMap((entity) =>
+      sql
+        .exec(
+          "SELECT seq FROM changes WHERE entity = ? AND seq > ? ORDER BY seq LIMIT ?",
+          entity,
+          after,
+          limit,
+        )
+        .map((change) => change["seq"] as number),
+    )
+    .sort((a, b) => a - b)
+    .slice(0, limit);
+  if (seqs.length === 0) return [];
+  return sql.exec(
+    `SELECT ${changeColumns} FROM changes WHERE seq IN (SELECT value FROM json_each(?)) ORDER BY seq`,
+    JSON.stringify(seqs),
+  );
+};
+
 /**
  * Up to `limit` changes after `after`, or `ChangesCompacted` if some of them were deleted. Reads
  * in one transaction, so `epoch`, `head` and the page agree. Upserts come with their records'
  * current rows (`readLoggedRows`); one whose record is gone is served as a delete.
+ *
+ * With `only`, the page holds only those entities' changes (851-3221), so it may have gaps. A page
+ * that isn't full has every matching change up to `head`, so its `next` is `head`: the cursor
+ * moves past the changes it skipped.
  */
 export const readChanges = (
   sql: StoreSql,
   entities: ReadonlyMap<string, Entity>,
   after: number,
   limit: number,
+  only?: ReadonlyArray<string>,
 ): ChangesPage | ChangesCompacted =>
   sql.transaction(() => {
     if (after < readHorizon(sql)) return new ChangesCompacted({ reason: "compacted" });
-    const read = sql.exec(
-      "SELECT seq, entity, id, op, row, key, at FROM changes WHERE seq > ? ORDER BY seq LIMIT ?",
-      after,
-      limit,
-    );
+    const read =
+      only === undefined
+        ? sql.exec(
+            `SELECT ${changeColumns} FROM changes WHERE seq > ? ORDER BY seq LIMIT ?`,
+            after,
+            limit,
+          )
+        : readChangesOf(sql, [...new Set(only)], after, limit);
     // A change logged without a copy, of an entity this code doesn't know (e.g. after a
     // rollback), can't be served: the page stops before it, so clients wait for code that knows it
     // rather than skip it for good.
@@ -410,6 +452,9 @@ export const readChanges = (
       return row === undefined ? { ...base, op: "delete" } : { ...base, op: "upsert", row };
     });
     const head = readHead(sql);
-    const next = changes.at(-1)?.seq ?? after;
+    // A filtered page that isn't full, and didn't stop early, has every matching change up to
+    // `head`.
+    const caughtUp = only !== undefined && unknown === -1 && read.length < limit;
+    const next = caughtUp ? Math.max(head, after) : (changes.at(-1)?.seq ?? after);
     return { epoch: readEpoch(sql), changes, next, head, hasMore: next < head };
   });

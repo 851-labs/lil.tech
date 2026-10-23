@@ -77,6 +77,8 @@ public actor LilSyncEngine {
   /// Changes per pull, the most the server sends. The next page downloads while one is written,
   /// so a big catch-up runs at about the speed of decoding pages (851-2649).
   static let pageSize = 5000
+  /// The most entities the change feed's `entities` filter takes (`maxChangesEntities`).
+  static let maxFilteredEntities = 32
   /// How long to wait between pulls with nothing new, unless ``syncNow()`` is called.
   static let idleInterval = Duration.seconds(60)
 
@@ -496,8 +498,8 @@ public actor LilSyncEngine {
   ///
   /// 1. Loads only their parts of the latest snapshot, taken at `S`, as a bootstrap does, over
   ///    their tables, cleared first. The other entities and the cursor stay as they are.
-  /// 2. Pulls the changes after `S`, up to the cursor, and applies only theirs, recording how
-  ///    far it got with each page, so an interrupted catch-up resumes there.
+  /// 2. Pulls only their changes after `S` (the change feed's `entities` filter), up to the
+  ///    cursor, recording how far it got with each page, so an interrupted catch-up resumes there.
   /// 3. Records them as held, so pulling carries on from the cursor for every entity.
   ///
   /// A store without a snapshot has its whole log, so the changes are pulled from the start. A
@@ -567,16 +569,21 @@ public actor LilSyncEngine {
     let catchingUp = entities.filter { missing.contains($0.key) }
     while after < until {
       setStatus(.syncing(cursor: after, head: until))
-      // Never past the cursor, where the pull after the catch-up carries on for every entity.
+      // Only the new entities' changes (851-3221), and never past the cursor, where the pull
+      // after the catch-up carries on for every entity. A page of them that isn't full moves
+      // `next` past the other entities' changes to the head, beyond the cursor. More entities
+      // than a filter takes are caught up from every change, skipping the rest.
       let page: Components.Schemas.ChangesPage
       do {
-        page = try await fetchPage(after: after, limit: min(Self.pageSize, until - after))
+        page = try await fetchPage(
+          after: after, limit: min(Self.pageSize, until - after),
+          entities: missing.count <= Self.maxFilteredEntities ? missing : nil)
       } catch SyncError.needsBootstrap {
         // Only for a 410.
         throw CatchUpRestart.changesCompacted
       }
       if page.epoch != epoch || page.head < until { throw SyncError.needsBootstrap }
-      try Self.check(page, after: after)
+      try Self.check(page, after: after, filtered: true)
       if page.next < until, !page.hasMore { throw SyncError.unexpectedPage }
       try Task.checkCancellation()
       let changes = page.changes.filter { $0.seq <= until && catchingUp[$0.entity] != nil }
@@ -963,10 +970,14 @@ public actor LilSyncEngine {
     }
   }
 
+  /// A page of changes after `cursor`, of only `entities` if given (851-3221): a page that may
+  /// have gaps, to check with `check(_:after:filtered:)`.
   private func fetchPage(
-    after cursor: Int, limit: Int = pageSize
+    after cursor: Int, limit: Int = pageSize, entities: Set<String>? = nil
   ) async throws -> Components.Schemas.ChangesPage {
-    switch try await api.syncChanges(query: .init(after: cursor, limit: limit)) {
+    let query = Operations.SyncChanges.Input.Query(
+      after: cursor, limit: limit, entities: entities.map { $0.sorted().joined(separator: ",") })
+    switch try await api.syncChanges(query: query) {
     case .ok(let ok):
       return try ok.body.json
     case .gone:
@@ -987,7 +998,27 @@ public actor LilSyncEngine {
 
   /// A page must continue right after the cursor with no gaps, since a gap would silently lose
   /// changes, and must make progress when there's more.
-  private static func check(_ page: Components.Schemas.ChangesPage, after cursor: Int) throws {
+  ///
+  /// A `filtered` page, of only some entities (851-3221), has gaps where the others' changes
+  /// were. Its changes must still come after the cursor, in order. With more to come, `next` is
+  /// its last change, as without a filter; otherwise every change up to `head` was either sent or
+  /// skipped, so it's `head`. (A server that ignores the filter sends a page without gaps, which
+  /// passes too.)
+  private static func check(
+    _ page: Components.Schemas.ChangesPage, after cursor: Int, filtered: Bool = false
+  ) throws {
+    if filtered {
+      var last = cursor
+      for change in page.changes {
+        guard change.seq > last else { throw SyncError.unexpectedPage }
+        last = change.seq
+      }
+      let next = page.hasMore ? last : max(page.head, cursor)
+      if page.next != next || (page.hasMore && page.next <= cursor) {
+        throw SyncError.unexpectedPage
+      }
+      return
+    }
     for (offset, change) in page.changes.enumerated() where change.seq != cursor + offset + 1 {
       throw SyncError.needsBootstrap
     }
