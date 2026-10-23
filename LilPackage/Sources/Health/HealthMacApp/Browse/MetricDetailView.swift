@@ -439,9 +439,13 @@ struct MetricDetailContent: View {
         }
       }
       .chartXScale(domain: domain(chart))
-      // Fitted in the unit plotted.
+      // Fitted in the unit plotted. An empty period keeps a scale of the type's, in it too
+      // (851-3102).
       .chartYDomain(
-        style.isAverage ? fittedDomain(chart.points.map { shown.convert($0.value) }) : nil
+        chart.points.isEmpty
+          ? emptyDomain(for: type, unit: unit, hourly: isCumulative && range == .day)
+            .converted(by: shown)
+          : style.isAverage ? fittedDomain(chart.points.map { shown.convert($0.value) }) : nil
       )
       .chartPlotStyle { $0.clipped() }
       .chartXSelection(value: $hovered)
@@ -454,13 +458,10 @@ struct MetricDetailContent: View {
           AxisMarks(position: .trailing)
         }
       }
-      .overlay {
-        if chart.points.isEmpty {
-          Text("No Data")
-            .font(.title3.weight(.medium))
-            .foregroundStyle(.secondary)
-        }
-      }
+      .emptyChartAccessibility(
+        chart.points.isEmpty,
+        label: ChartFormat.noData(
+          ChartFormat.span(chart.interval, range: range, calendar: calendar)))
     }
   }
 

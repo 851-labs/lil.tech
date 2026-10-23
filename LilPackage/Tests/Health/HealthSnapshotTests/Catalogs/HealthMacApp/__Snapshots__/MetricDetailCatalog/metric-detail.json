@@ -81,6 +81,20 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.body-fat-percentage-no-data-dark.png",
+      "id" : "metric-detail.body-fat-percentage-no-data",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.body-fat-percentage-no-data-light.png",
+      "name" : "Body fat percentage, no data",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-no-data-dark.png",
+      "id" : "metric-detail.steps-no-data",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-no-data-light.png",
+      "name" : "Steps, no data",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.loading-dark.png",
       "id" : "metric-detail.loading",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.loading-light.png",

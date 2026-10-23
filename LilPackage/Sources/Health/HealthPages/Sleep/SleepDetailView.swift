@@ -135,6 +135,9 @@ struct SleepPeriod: Equatable, Sendable {
   let nights: [SleepNight]
   /// 6M's bars, averaged as it loads rather than each time the chart draws.
   var weeks: [SleepWeek] = []
+  /// Whether any sleep was ever recorded: a period without nights then shows its chart empty,
+  /// and an account without any says so (851-3102).
+  var hasSleep = true
 }
 
 struct SleepRequest: FetchKeyRequest {
@@ -159,7 +162,8 @@ struct SleepRequest: FetchKeyRequest {
       endingOn: lastDay, count: count, calendar: calendar, db)
     return SleepPeriod(
       range: range, firstDay: firstDay, lastDay: lastDay, nights: nights,
-      weeks: range == .sixMonths ? SleepWeek.weeks(nights, calendar: calendar) : [])
+      weeks: range == .sixMonths ? SleepWeek.weeks(nights, calendar: calendar) : [],
+      hasSleep: try !nights.isEmpty || HealthDatabase.hasSleep(db))
   }
 }
 
@@ -343,28 +347,62 @@ struct SleepDetailContent: View {
       )
       // A form's row would otherwise give it only its ideal width, off center.
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-    case .loaded(let period, _) where period.nights.isEmpty:
+    // Never any sleep: where it comes from. A period without sleep, when there's some
+    // elsewhere, shows its chart empty, as Health does, under the header's No Data (851-3102).
+    case .loaded(let period, _) where !period.hasSleep:
       ContentUnavailableView(
         "No Sleep Data", systemImage: "bed.double",
         description: Text("Sleep tracked by your Apple Watch or iPhone will appear here.")
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .loaded(let period, _):
-      switch period.range {
-      case .day:
-        if let night = period.nights.last { stagesChart(night) }
-      case .week, .month:
-        SleepNightsChart(period: period, calendar: calendar)
-      case .sixMonths:
-        SleepWeeksChart(period: period, calendar: calendar)
+      Group {
+        switch period.range {
+        case .day:
+          if let night = period.nights.last {
+            stagesChart(night)
+          } else {
+            emptyNightChart(period.lastDay)
+          }
+        case .week, .month:
+          SleepNightsChart(period: period, calendar: calendar)
+        case .sixMonths:
+          SleepWeeksChart(period: period, calendar: calendar)
+        }
       }
+      .emptyChartAccessibility(period.nights.isEmpty, label: ChartFormat.noData(span))
     }
   }
 
   /// The night's stages over time, a row each, as in Health.
   private func stagesChart(_ night: SleepNight) -> some View {
-    let rows = SleepFormat.rows(for: night)
-    return Chart(Array(night.segments.enumerated()), id: \.offset) { _, segment in
+    stagesChart(night.segments, rows: SleepFormat.rows(for: night))
+  }
+
+  /// A day without a night (851-3102): the rows of the stages a Watch records, empty, over the
+  /// hours a night usually takes (`SleepClock.axis`'s without times, 10 PM to 8 AM), so the
+  /// chart keeps its axes and gridlines under the header's No Data.
+  private func emptyNightChart(_ day: Date) -> some View {
+    let hours = SleepClock.axis([]).domain
+    let start = clockTime(hours.lowerBound, from: day)
+    let end = clockTime(hours.upperBound, from: day)
+    return stagesChart([], rows: [.awake, .rem, .core, .deep])
+      .chartXScale(domain: start...end)
+  }
+
+  /// The time the clock reads `hours` from the start of `day` (-2 is 10 PM the evening before),
+  /// so a daylight saving change doesn't move the empty night's ends.
+  private func clockTime(_ hours: Double, from day: Date) -> Date {
+    let days = Int((hours / 24).rounded(.down))
+    let hour = Int(hours) - days * 24
+    return calendar.date(byAdding: .day, value: days, to: day)
+      .flatMap { calendar.date(bySettingHour: hour, minute: 0, second: 0, of: $0) }
+      ?? day.addingTimeInterval(hours * 3600)
+  }
+
+  /// Stages over time, a row each.
+  private func stagesChart(_ segments: [SleepSegment], rows: [SleepStage]) -> some View {
+    Chart(Array(segments.enumerated()), id: \.offset) { _, segment in
       BarMark(
         xStart: .value("Start", segment.start), xEnd: .value("End", segment.end),
         y: .value("Stage", SleepFormat.name(segment.stage)), height: .ratio(0.7)

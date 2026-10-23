@@ -81,6 +81,20 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.6-months-without-sleep-dark.png",
+      "id" : "sleep.6-months-without-sleep",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.6-months-without-sleep-light.png",
+      "name" : "6 Months without sleep",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.never-recorded-dark.png",
+      "id" : "sleep.never-recorded",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.never-recorded-light.png",
+      "name" : "Never recorded",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.6-months-dark.png",
       "id" : "sleep.6-months",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.6-months-light.png",
