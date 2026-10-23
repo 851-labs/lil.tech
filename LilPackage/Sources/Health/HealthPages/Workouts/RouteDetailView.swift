@@ -25,6 +25,8 @@ struct RouteDetailView: View {
 struct RouteDetailContent: View {
   let route: HealthWorkoutRoute
   let locations: RouteState
+  /// For its distance's unit, km or mi (851-3176).
+  @Dependency(\.locale) private var locale
 
   var body: some View {
     // A grouped form on its own background, as a workout's page is (851-3001): the route and
@@ -77,7 +79,8 @@ struct RouteDetailContent: View {
       if case .loaded(let loaded) = locations, loaded.hasMap {
         WorkoutFigure(
           label: "Distance",
-          value: (loaded.distance / 1000).formatted(.number.precision(.fractionLength(2))) + " km",
+          value: WorkoutFormat.distance(
+            loaded.distance, in: WorkoutFormat.splitUnit(locale: locale)),
           color: .cyan)
       }
     }

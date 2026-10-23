@@ -91,6 +91,14 @@ public enum MetricFormat {
     }
   }
 
+  /// A swim's distance in a pool measured in yards or metres, which Health shows in the pool's
+  /// unit whatever the locale (a workout's lap length, 851-3176), with `locale`'s numbers.
+  public static func swimmingUnit(yards: Bool, locale: Locale) -> DisplayUnit {
+    var shown = yards ? DisplayUnit("yd", scale: 1 / yard) : DisplayUnit("m")
+    shown.locale = locale
+    return shown
+  }
+
   // Exact, by definition.
   private static let inch = 0.0254
   private static let foot = 0.3048

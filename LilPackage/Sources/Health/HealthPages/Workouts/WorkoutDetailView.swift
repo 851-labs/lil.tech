@@ -9,7 +9,7 @@ import SQLiteData
 import SwiftUI
 
 /// A workout, as in Health: its summary figures, heart rate over the workout, the route colored
-/// by pace with its kilometer splits, and its segments.
+/// by pace with its splits (per kilometer or mile, by the locale), and its segments.
 struct WorkoutDetailView: View {
   let workout: HealthWorkout
   @Dependency(\.defaultDatabase) private var database
@@ -75,14 +75,21 @@ struct WorkoutDetailContent: View {
   /// Decoded and worked out once, not on every render.
   private let statistics: [String: WorkoutStatistic]
   private let splits: [RouteSplit]
+  /// What distances, paces and splits are in, by the locale (851-3176).
+  private let locale: Locale
+  /// A kilometer or a mile.
+  private let splitUnit: MetricFormat.DisplayUnit
 
   init(workout: HealthWorkout, heartRates: [HealthSample], route: RouteState) {
     self.workout = workout
     self.heartRates = heartRates
     self.route = route
+    @Dependency(\.locale) var locale
+    self.locale = locale
     statistics = workout.decodedStatistics
+    splitUnit = WorkoutFormat.splitUnit(locale: locale)
     if case .loaded(let loaded) = route {
-      splits = HealthDatabase.splits(loaded.locations, pauses: workout.pauses)
+      splits = WorkoutFormat.splits(loaded.locations, pauses: workout.pauses, in: splitUnit)
     } else {
       splits = []
     }
@@ -157,23 +164,22 @@ struct WorkoutDetailContent: View {
       ("Workout Time", WorkoutFormat.duration(workout.duration), .yellow),
       ("Elapsed Time", WorkoutFormat.duration(workout.elapsed), .yellow),
     ]
-    if let meters = WorkoutFormat.distance(statistics), meters > 0 {
-      figures.append(
-        (
-          "Distance", (meters / 1000).formatted(.number.precision(.fractionLength(2))) + " km",
-          .cyan
-        ))
+    if let (meters, unit) = WorkoutFormat.distance(of: workout, statistics, locale: locale),
+      meters > 0
+    {
+      figures.append(("Distance", WorkoutFormat.distance(meters, in: unit), .cyan))
       if WorkoutActivity.hasPace(workout.activityType), workout.duration > 0 {
         figures.append(
-          ("Avg. Pace", WorkoutFormat.pace(workout.duration / meters * 1000), .cyan))
+          ("Avg. Pace", WorkoutFormat.pace(workout.duration, over: meters, in: unit), .cyan))
       }
     }
     let active = statistics[WorkoutFormat.activeEnergy]?.sum
     if let active {
-      figures.append(("Active Calories", "\(Int(active.rounded())) kcal", .pink))
+      figures.append(("Active Calories", WorkoutFormat.energy(active, locale: locale), .pink))
     }
     if let active, let basal = statistics[WorkoutFormat.basalEnergy]?.sum {
-      figures.append(("Total Calories", "\(Int((active + basal).rounded())) kcal", .pink))
+      figures.append(
+        ("Total Calories", WorkoutFormat.energy(active + basal, locale: locale), .pink))
     }
     if let average = statistics[WorkoutFormat.heartRate]?.average {
       figures.append(("Avg. Heart Rate", "\(Int(average.rounded())) BPM", .red))
@@ -217,20 +223,23 @@ struct WorkoutDetailContent: View {
 
   // MARK: Splits
 
-  /// A row per kilometer, under a row naming the columns.
+  /// A row per kilometer or mile, under a row naming the columns. The last, shorter one is
+  /// numbered by how far the route went: 5.02.
   private var splitsSection: some View {
     Section("Splits") {
-      splitRow("KM", "Time", "Pace")
+      splitRow(splitUnit.label.uppercased(), "Time", "Pace")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
       ForEach(Array(splits.enumerated()), id: \.offset) { index, split in
+        let length = splitUnit.convert(split.distance)
         splitRow(
-          split.distance < 990
-            ? (Double(index) + split.distance / 1000).formatted(
-              .number.precision(.fractionLength(2)))
-            : "\(index + 1)",
+          length < 0.99
+            ? (Double(index) + length).formatted(
+              .number.precision(.fractionLength(2)).locale(locale))
+            : (index + 1).formatted(.number.locale(locale)),
           WorkoutFormat.duration(split.duration),
-          WorkoutFormat.pace(split.pace), paceColor: .cyan
+          WorkoutFormat.pace(split.duration, over: split.distance, in: splitUnit),
+          paceColor: .cyan
         )
         .monospacedDigit()
       }
@@ -238,10 +247,10 @@ struct WorkoutDetailContent: View {
   }
 
   private func splitRow(
-    _ kilometer: String, _ time: String, _ pace: String, paceColor: Color? = nil
+    _ number: String, _ time: String, _ pace: String, paceColor: Color? = nil
   ) -> some View {
     HStack {
-      Text(kilometer).frame(width: 50, alignment: .leading)
+      Text(number).frame(width: 50, alignment: .leading)
       Text(time).frame(maxWidth: .infinity, alignment: .leading)
       Text(pace)
         // The column names' row is secondary throughout.

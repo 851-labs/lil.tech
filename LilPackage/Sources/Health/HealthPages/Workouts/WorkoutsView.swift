@@ -156,6 +156,8 @@ struct WorkoutsContent: View {
 /// A workout in the list: its activity, the figure that matters most for it, and when.
 struct WorkoutRow: View {
   let workout: HealthWorkout
+  /// For its distance's unit (851-3176).
+  @Dependency(\.locale) private var locale
 
   var body: some View {
     HStack(spacing: 12) {
@@ -167,7 +169,7 @@ struct WorkoutRow: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(WorkoutActivity.name(workout.activityType))
           .font(.headline)
-        Text(WorkoutFormat.headline(workout, workout.decodedStatistics))
+        Text(WorkoutFormat.headline(workout, workout.decodedStatistics, locale: locale))
           .font(.system(.title3, design: .rounded).weight(.semibold))
           .foregroundStyle(.green)
       }
@@ -179,28 +181,93 @@ struct WorkoutRow: View {
   }
 }
 
-/// How workouts' figures read.
+/// How workouts' figures read, in the locale's units (851-3176): distances in km or mi (a swim's
+/// in its pool's m or yd), paces and splits per km or per mi, as `MetricFormat` picks them for
+/// the type. Stored values stay in SI.
 enum WorkoutFormat {
   static let activeEnergy = HealthWorkout.activeEnergyType
   static let basalEnergy = "HKQuantityTypeIdentifierBasalEnergyBurned"
   static let heartRate = HealthWorkout.heartRateType
+  static let walkingRunningDistance = "HKQuantityTypeIdentifierDistanceWalkingRunning"
+  static let swimmingDistance = "HKQuantityTypeIdentifierDistanceSwimming"
 
-  /// The workout's distance in meters, whichever kind it recorded.
-  static func distance(_ statistics: [String: WorkoutStatistic]) -> Double? {
-    HealthWorkout.distance(in: statistics)
+  /// The workout's distance in meters, whichever kind it recorded, and the unit it's shown in:
+  /// that kind's, km or mi by the locale, except a swim's, in the pool's unit as Health shows it
+  /// (`swimmingUnit`).
+  static func distance(
+    of workout: HealthWorkout, _ statistics: [String: WorkoutStatistic], locale: Locale
+  ) -> (meters: Double, unit: MetricFormat.DisplayUnit)? {
+    for type in HealthWorkout.distanceTypes {
+      guard let meters = statistics[type]?.sum else { continue }
+      let unit =
+        type == swimmingDistance
+        ? swimmingUnit(workout, locale: locale)
+        : MetricFormat.unit("m", typeID: type, locale: locale)
+      return (meters, unit)
+    }
+    return nil
+  }
+
+  /// A swim's distance unit, as Health shows it: the pool's (its lap length's, metres or yards,
+  /// whatever the locale), or the locale's when it has none (open water, or an app that doesn't
+  /// say): yards in the US, metres elsewhere.
+  static func swimmingUnit(_ workout: HealthWorkout, locale: Locale) -> MetricFormat.DisplayUnit {
+    // A quantity's description, "25 yd" or "50 m" (`HealthEncoder.json`).
+    let metadata =
+      workout.metadata.flatMap {
+        try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]
+      } ?? [:]
+    let lapUnit = (metadata["HKLapLength"] as? String)?.split(separator: " ").last
+    switch lapUnit {
+    case "yd": return MetricFormat.swimmingUnit(yards: true, locale: locale)
+    case "m": return MetricFormat.swimmingUnit(yards: false, locale: locale)
+    default: return MetricFormat.unit("m", typeID: swimmingDistance, locale: locale)
+    }
+  }
+
+  /// The unit a route's distance and splits are in: a kilometer or a mile, whatever the
+  /// activity, as Health splits them.
+  static func splitUnit(locale: Locale) -> MetricFormat.DisplayUnit {
+    MetricFormat.unit("m", typeID: walkingRunningDistance, locale: locale)
+  }
+
+  /// The route cut into `unit`'s lengths, 1,000 or 1,609.344 m: recomputed per mile, not
+  /// kilometers relabelled.
+  static func splits(
+    _ locations: [RouteLocation], pauses: [DateInterval], in unit: MetricFormat.DisplayUnit
+  ) -> [RouteSplit] {
+    HealthDatabase.splits(locations, pauses: pauses, every: 1 / unit.scale)
+  }
+
+  /// `meters` in `unit`: "5.02 km" or "3.12 mi", with two decimals as Health writes a workout's,
+  /// or "1,500 m" for a swim.
+  static func distance(_ meters: Double, in unit: MetricFormat.DisplayUnit) -> String {
+    let shown = unit.convert(meters)
+    let number =
+      unit.label == "km" || unit.label == "mi"
+      ? shown.formatted(.number.precision(.fractionLength(2)).locale(unit.locale))
+      : unit.format(shown)
+    return "\(number) \(unit.label)"
   }
 
   /// Distance if it has one, otherwise active energy, otherwise its time.
-  static func headline(_ workout: HealthWorkout, _ statistics: [String: WorkoutStatistic])
-    -> String
-  {
-    if let meters = distance(statistics), meters > 0 {
-      return (meters / 1000).formatted(.number.precision(.fractionLength(2))) + " km"
+  static func headline(
+    _ workout: HealthWorkout, _ statistics: [String: WorkoutStatistic], locale: Locale
+  ) -> String {
+    if let (meters, unit) = distance(of: workout, statistics, locale: locale), meters > 0 {
+      return distance(meters, in: unit)
     }
     if let energy = statistics[activeEnergy]?.sum, energy > 0 {
-      return "\(Int(energy.rounded())) kcal"
+      return self.energy(energy, locale: locale)
     }
     return duration(workout.duration)
+  }
+
+  /// "412 kcal", in `MetricFormat`'s unit for energy, which no locale changes.
+  static func energy(_ kilocalories: Double, locale: Locale) -> String {
+    let (number, unit) = MetricFormat.value(
+      kilocalories, unit: "kcal", typeID: activeEnergy, locale: locale)
+    return "\(number) \(unit)"
   }
 
   /// "0:42:18", or "42:18" under an hour, as Health shows workout times.
@@ -212,9 +279,13 @@ enum WorkoutFormat {
       : String(format: "%d:%02d", minutes, rest)
   }
 
-  /// "5'12\"/km".
-  static func pace(_ secondsPerKilometer: TimeInterval) -> String {
-    let total = Int(secondsPerKilometer.rounded())
-    return String(format: "%d'%02d\"/km", total / 60, total % 60)
+  /// `seconds` to cover `meters`, per `unit`'s one: "5'12\"/km", "8'22\"/mi".
+  static func pace(_ seconds: TimeInterval, over meters: Double, in unit: MetricFormat.DisplayUnit)
+    -> String
+  {
+    let per = seconds / unit.convert(meters)
+    guard per.isFinite, per >= 0 else { return "–" }
+    let total = Int(per.rounded())
+    return String(format: "%d'%02d\"/%@", total / 60, total % 60, unit.label)
   }
 }

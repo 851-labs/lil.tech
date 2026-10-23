@@ -159,7 +159,8 @@ public struct RouteLocation: Equatable, Sendable {
   }
 }
 
-/// One stretch of a route: a kilometer (the last one may be shorter) and how long it took.
+/// One stretch of a route: a kilometer or a mile (the last one may be shorter), in meters, and
+/// how long it took.
 public struct RouteSplit: Equatable, Sendable {
   public var distance: Double
   public var duration: TimeInterval
@@ -335,9 +336,10 @@ extension HealthDatabase {
     }
   }
 
-  /// The route cut into kilometers (the last one may be shorter), each with how long it took,
-  /// leaving out the time it was paused. A kilometer ends where the route crosses it, between
-  /// two points, so the distance past it counts toward the next one.
+  /// The route cut into splits of `meters` (a kilometer, or a mile in the US and UK, 851-3176;
+  /// the last one may be shorter), each with how long it took, leaving out the time it was
+  /// paused. A split ends where the route crosses its distance, between two points, so the
+  /// distance past it counts toward the next one.
   public static func splits(
     _ locations: [RouteLocation], pauses: [DateInterval] = [], every meters: Double = 1000
   ) -> [RouteSplit] {
@@ -357,7 +359,7 @@ extension HealthDatabase {
       let step = Self.distance(previous, location)
       var stepStart = previous.time
       var left = step
-      // A step can cross more than one kilometer (a GPS gap).
+      // A step can cross more than one split (a GPS gap).
       while covered + left >= meters, left > 0 {
         let needed = meters - covered
         let crossing = stepStart.addingTimeInterval(

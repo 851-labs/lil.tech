@@ -22,9 +22,16 @@
       CatalogState("No workouts") { list(.loaded([])) },
       CatalogState("Workouts loading") { list(.loading) },
       CatalogState("Workouts failed") { list(.failed("The database couldn't be read.")) },
+      // In the locale's units (851-3176): miles.
+      CatalogState("Workouts, US", locale: us) { list(.loaded(workouts)) },
       // A workout.
       // The route without the map: MapKit doesn't draw offscreen (`drawsRouteMaps`).
       CatalogState("Run with route", width: 760) {
+        detail { .loaded(LoadedRoute(route(of: $0))) }
+          .environment(\.drawsRouteMaps, false)
+      },
+      // Miles, pace per mile, and splits recomputed per mile.
+      CatalogState("Run with route, US", width: 760, locale: us) {
         detail { .loaded(LoadedRoute(route(of: $0))) }
           .environment(\.drawsRouteMaps, false)
       },
@@ -40,6 +47,8 @@
     sameLayout: [
       ["Run with route", "Route loading", "Route failed"]
     ])
+
+  private let us = Locale(identifier: "en_US")
 
   /// The catalog database's latest workouts, read once.
   private let workouts = try! catalogDatabase.read { db in

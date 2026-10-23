@@ -60,6 +60,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutRoutesCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutRoutesCatalog/workout-routes.other-route-us-dark.png",
+      "id" : "workout-routes.other-route-us",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutRoutesCatalog/workout-routes.other-route-us-light.png",
+      "name" : "Other route, US",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutRoutesCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutRoutesCatalog/workout-routes.other-route-loading-dark.png",
       "id" : "workout-routes.other-route-loading",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutRoutesCatalog/workout-routes.other-route-loading-light.png",

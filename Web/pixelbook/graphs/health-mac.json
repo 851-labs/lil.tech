@@ -309,13 +309,19 @@
     {
       "id": "workouts",
       "screen": "HealthPages/WorkoutsCatalog.swift",
-      "states": ["Workouts", "No workouts", "Workouts loading", "Workouts failed"]
+      "states": ["Workouts", "No workouts", "Workouts loading", "Workouts failed", "Workouts, US"]
     },
     {
       "id": "workout",
       "screen": "HealthPages/WorkoutsCatalog.swift",
       "title": "Workout",
-      "states": ["Run with route", "Strength, no route", "Route loading", "Route failed"]
+      "states": [
+        "Run with route",
+        "Run with route, US",
+        "Strength, no route",
+        "Route loading",
+        "Route failed"
+      ]
     },
     {
       "id": "workout-routes",
@@ -337,6 +343,7 @@
       "title": "Route",
       "states": [
         "Other route",
+        "Other route, US",
         "Other route loading",
         "Other route failed",
         "Other route without locations"
