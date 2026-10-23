@@ -96,6 +96,13 @@
       CatalogState("Sidebar, Health Categories collapsed", width: 240, minHeight: 640) {
         sidebar(categoriesExpanded: false)
       },
+      // A category stays selected while its row is hidden, rather than the selection jumping to
+      // Summary: no row is highlighted, and the window still shows the category.
+      CatalogState(
+        "Sidebar, Health Categories collapsed, a category selected", width: 240, minHeight: 640
+      ) {
+        sidebar(selection: .category(.heart), categoriesExpanded: false)
+      },
       CatalogState("Search results") {
         window(AppFeature.State(isSignedIn: true, searchText: "heart"))
       },
@@ -132,16 +139,32 @@
   /// black off screen, and the search the sidebar adds would go in a toolbar outside a split
   /// view, whose glass button draws differently from run to run.
   @MainActor
-  private func sidebar(categoriesExpanded: Bool) -> some View {
-    SidebarList(store: Store(initialState: AppFeature.State(isSignedIn: true)) { EmptyReducer() })
-      .defaultAppStorage(sidebarDefaults(categoriesExpanded: categoriesExpanded))
+  private func sidebar(
+    selection: SidebarItem = .summary, categoriesExpanded: Bool
+  ) -> some View {
+    SidebarList(
+      store: Store(initialState: AppFeature.State(isSignedIn: true, selection: selection)) {
+        EmptyReducer()
+      }
+    )
+    .defaultAppStorage(sidebarDefaults(categoriesExpanded: categoriesExpanded))
   }
 
-  /// Defaults of its own, so the sidebar never reads whether Health Categories is expanded from
-  /// the test process's.
+  /// Defaults of the catalog's own, so the sidebar never reads whether Health Categories is
+  /// expanded from the test process's: one suite for each, in the temporary folder, made once.
+  @MainActor
   private func sidebarDefaults(categoriesExpanded: Bool) -> UserDefaults {
-    let defaults = UserDefaults(
-      suiteName: "\(NSTemporaryDirectory())WindowCatalog.\(UUID().uuidString)")!
+    categoriesExpanded ? expandedDefaults : collapsedDefaults
+  }
+
+  @MainActor private let expandedDefaults = catalogDefaults(categoriesExpanded: true)
+  @MainActor private let collapsedDefaults = catalogDefaults(categoriesExpanded: false)
+
+  private func catalogDefaults(categoriesExpanded: Bool) -> UserDefaults {
+    let name =
+      "\(NSTemporaryDirectory())WindowCatalog.\(categoriesExpanded ? "expanded" : "collapsed")"
+    let defaults = UserDefaults(suiteName: name)!
+    defaults.removePersistentDomain(forName: name)
     defaults.set(categoriesExpanded, forKey: SidebarList.categoriesExpandedKey)
     return defaults
   }
