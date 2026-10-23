@@ -87,7 +87,8 @@
   /// What every snapshot shares, set once in the target's test process (SwiftPM runs each test
   /// target in its own): a time zone and locale, so times, dates and numbers read the same on
   /// every Mac (references are recorded in the team's, `fixTimeZoneAndLocale()`), and an app to own
-  /// windows, which a test process doesn't have, as an accessory, so it never takes focus.
+  /// windows, which a test process doesn't have, as an accessory, so it never takes focus. And no
+  /// wallpaper tinting (`turnOffDesktopTinting()`).
   @MainActor
   func prepareSnapshotEnvironment() {
     _ = snapshotEnvironment
@@ -96,8 +97,23 @@
   @MainActor
   private let snapshotEnvironment: Void = {
     fixTimeZoneAndLocale()
+    turnOffDesktopTinting()
     NSApplication.shared.setActivationPolicy(.accessory)
   }()
+
+  /// Turns off the Mac's "Allow wallpaper tinting in windows" (`AppleReduceDesktopTinting`) for
+  /// this process, as `-AppleReduceDesktopTinting YES` on the command line would, so no image
+  /// depends on that setting or the desktop picture (851-3172). Offscreen, the windows themselves
+  /// never take the tint, but views Swift Charts draws do: a sparkline's hollow latest dot, filled
+  /// with `.background.secondary`, came out 16 levels lighter in dark mode (gray 58, not 42) once
+  /// the setting was on, and every dark image with one failed. AppKit reads the setting once, so
+  /// this runs before the first window, from the suite's `init`.
+  private func turnOffDesktopTinting() {
+    let defaults = UserDefaults.standard
+    var arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+    arguments["AppleReduceDesktopTinting"] = true
+    defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+  }
 
   extension Snapshotting where Value == NSView, Format == NSImage {
     /// The view's layer tree drawn with `CALayer.render(in:)` at 2x, in sRGB. SnapshotTesting's
