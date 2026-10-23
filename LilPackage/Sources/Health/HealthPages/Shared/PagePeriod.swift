@@ -1,13 +1,88 @@
+import Dependencies
 public import HealthDatabase
+import SQLiteData
 public import SwiftUI
 
 /// A page's ranges, such as D, W, M, 6M and Y (`ChartRange`) or Sleep's D and W.
 public protocol PeriodRange: CaseIterable, Hashable, RawRepresentable<String>, Sendable {
   /// What one of the range's periods is called, e.g. "Week" for W.
   var periodName: String { get }
+  /// The start of the first day the period `offset` periods from the current one shows.
+  func firstDay(offset: Int, now: Date, calendar: Calendar) -> Date
+  /// The start of the last day the period `offset` periods from the current one shows, which
+  /// for the current one can be after today (this week's Saturday).
+  func lastDay(offset: Int, now: Date, calendar: Calendar) -> Date
+  /// How many periods from the current one the one containing `date` is (0 the current one, -1
+  /// the one before).
+  func offset(containing date: Date, now: Date, calendar: Calendar) -> Int
+}
+
+extension PeriodRange {
+  /// The period a page opens on (851-3188): the one with its latest data, `latest`, when that's
+  /// before the current one, so a type last recorded weeks ago doesn't open on an empty period.
+  /// Otherwise, or without any data, the current one.
+  public func openingOffset(latest: Date?, now: Date, calendar: Calendar) -> Int {
+    guard let latest else { return 0 }
+    return min(offset(containing: latest, now: now, calendar: calendar), 0)
+  }
+
+  /// This range's period with most of what `range`'s period `offset` shows: what choosing it
+  /// shows (851-3188). From the current period, the current one. A longer range's is the one
+  /// with its middle day (W → M: the month with most of the week); a shorter range's the last
+  /// one mostly inside it (M → W: the month's last week, unless that's mostly the next month's),
+  /// so going back and forth comes back to the same period. Ranges are listed shortest first.
+  func offset(showing range: Self, offset: Int, now: Date, calendar: Calendar) -> Int {
+    guard offset < 0 else { return 0 }
+    let first = range.firstDay(offset: offset, now: now, calendar: calendar)
+    let last = range.lastDay(offset: offset, now: now, calendar: calendar)
+    let all = Array(Self.allCases)
+    guard let index = all.firstIndex(of: self), let shown = all.firstIndex(of: range),
+      index < shown
+    else {
+      return min(
+        self.offset(containing: middleDay(first, last, calendar), now: now, calendar: calendar), 0)
+    }
+    var target = min(self.offset(containing: last, now: now, calendar: calendar), 0)
+    let middle = middleDay(
+      firstDay(offset: target, now: now, calendar: calendar),
+      lastDay(offset: target, now: now, calendar: calendar), calendar)
+    if middle > last { target -= 1 }
+    return target
+  }
+}
+
+/// The day halfway from `first` to `last`, the earlier of two.
+private func middleDay(_ first: Date, _ last: Date, _ calendar: Calendar) -> Date {
+  let days = calendar.dateComponents([.day], from: first, to: last).day ?? 0
+  return calendar.date(byAdding: .day, value: days / 2, to: first) ?? first
+}
+
+extension PeriodRange {
+  /// `openingOffset(latest:now:calendar:)` for a type's latest data in the database, read when
+  /// the page is made, before it first draws, so it never shows the current period and then
+  /// moves (851-3084). One seek of an index (`HealthDatabase.latestPeriodDate`), on the main
+  /// thread: a pool's reads don't wait for sync's writes.
+  public func openingOffset(of typeID: String) -> Int {
+    @Dependency(\.defaultDatabase) var database
+    @Dependency(\.date.now) var now
+    @Dependency(\.calendar) var calendar
+    let latest = try? database.read { db in
+      try HealthDatabase.latestPeriodDate(of: typeID, by: now, calendar: calendar, db)
+    }
+    return openingOffset(latest: latest ?? nil, now: now, calendar: calendar)
+  }
 }
 
 extension ChartRange: PeriodRange {
+  public func firstDay(offset: Int, now: Date, calendar: Calendar) -> Date {
+    interval(offset: offset, now: now, calendar: calendar).start
+  }
+
+  public func lastDay(offset: Int, now: Date, calendar: Calendar) -> Date {
+    let interval = interval(offset: offset, now: now, calendar: calendar)
+    return calendar.startOfDay(for: interval.end.addingTimeInterval(-1))
+  }
+
   public var periodName: String {
     switch self {
     case .day: "Day"
@@ -36,21 +111,34 @@ public struct PagePeriod: Equatable {
   public let selected: Int
   /// 0 is the current period, -1 the one before, when this was made.
   public let offset: Int
-  /// The page's range, as an index in `ranges`. Setting it starts at the range's current period,
-  /// in the same change, so it loads once.
+  /// The day its periods are counted from, so a period kept over midnight (the View menu's) is
+  /// replaced by one counting from the new day.
+  private let day: Date
+  /// The page's range, as an index in `ranges`. Setting it keeps the time shown, moving to the
+  /// range's period with most of the shown one (W → M shows the week's month, 851-3188), in the
+  /// same change, so it loads once.
   let rangeSelection: Binding<Int>
   private let liveOffset: Binding<Int>
 
-  public init<R: PeriodRange>(range: Binding<R>, offset: Binding<Int>) {
+  /// `now` and `calendar` are what the page's periods are counted from.
+  public init<R: PeriodRange>(
+    range: Binding<R>, offset: Binding<Int>, now: Date, calendar: Calendar
+  ) {
     let all = Array(R.allCases)
     ranges = all.map { Range(label: $0.rawValue, name: $0.periodName) }
     selected = all.firstIndex(of: range.wrappedValue) ?? 0
     self.offset = offset.wrappedValue
+    day = calendar.startOfDay(for: now)
     rangeSelection = Binding(
       get: { all.firstIndex(of: range.wrappedValue) ?? 0 },
       set: { index in
         guard all.indices.contains(index), all[index] != range.wrappedValue else { return }
-        (range.wrappedValue, offset.wrappedValue) = (all[index], 0)
+        let next = all[index]
+        (range.wrappedValue, offset.wrappedValue) = (
+          next,
+          next.offset(
+            showing: range.wrappedValue, offset: offset.wrappedValue, now: now, calendar: calendar)
+        )
       })
     liveOffset = offset
   }
@@ -58,7 +146,8 @@ public struct PagePeriod: Equatable {
   /// The name of the shown range's periods, e.g. "Week".
   public var name: String { ranges[selected].name }
 
-  /// Shows the range at `index`, from its current period. Choosing the one shown changes nothing.
+  /// Shows the range at `index`, at its period with most of the one shown. Choosing the one
+  /// shown changes nothing.
   public func select(_ index: Int) {
     rangeSelection.wrappedValue = index
   }
@@ -76,6 +165,7 @@ public struct PagePeriod: Equatable {
 
   public static func == (lhs: Self, rhs: Self) -> Bool {
     lhs.ranges == rhs.ranges && lhs.selected == rhs.selected && lhs.offset == rhs.offset
+      && lhs.day == rhs.day
   }
 }
 

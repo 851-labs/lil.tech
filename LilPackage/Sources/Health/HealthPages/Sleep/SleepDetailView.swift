@@ -14,7 +14,8 @@ public import SwiftUI
 public struct SleepDetailView: View {
   let type: HealthDataType
   @State private var range = SleepRange.day
-  @State private var offset = 0
+  /// Today's night, or the latest with sleep before it (851-3188).
+  @State private var offset: Int
   /// Today, moved on at midnight, so the nights shown follow. From the `date` dependency, so
   /// snapshot catalogs fix it (`previewNow`).
   @State private var today: Date
@@ -30,6 +31,7 @@ public struct SleepDetailView: View {
     self.type = type
     @Dependency(\.date.now) var now
     _today = State(initialValue: now)
+    _offset = State(initialValue: SleepRange.day.openingOffset(of: type.id))
   }
 
   public var body: some View {
@@ -122,6 +124,35 @@ enum SleepRange: String, CaseIterable, Hashable, Sendable, PeriodRange {
       case .sixMonths: calendar.date(byAdding: .day, value: 1 - 26 * 7, to: last)
       }
     return day.map(calendar.startOfDay) ?? last
+  }
+
+  /// How many periods from today's the one with `date`'s night is: 0 for today's, -1 for the one
+  /// before.
+  func offset(containing date: Date, now: Date, calendar: Calendar) -> Int {
+    let night = calendar.startOfDay(for: date)
+    let days = { (from: Date) in
+      calendar.dateComponents([.day], from: calendar.startOfDay(for: from), to: night).day ?? 0
+    }
+    var offset =
+      switch self {
+      case .day: days(now)
+      case .week: Int((Double(days(now)) / 7).rounded(.up))
+      case .month:
+        calendar.dateComponents([.month], from: calendar.startOfDay(for: now), to: night).month ?? 0
+      case .sixMonths:
+        Int((Double(days(lastDay(offset: 0, now: now, calendar: calendar))) / 182).rounded(.up))
+      }
+    // Settled against the periods' own days, which are what the page shows.
+    for _ in 0..<4 {
+      if night < firstDay(offset: offset, now: now, calendar: calendar) {
+        offset -= 1
+      } else if night > lastDay(offset: offset, now: now, calendar: calendar) {
+        offset += 1
+      } else {
+        break
+      }
+    }
+    return offset
   }
 }
 
@@ -253,7 +284,8 @@ struct SleepDetailContent: View {
     }
     .navigationTitle(type.name)
     // The range and ‹ Today › in the toolbar, as on other metrics (851-2866).
-    .periodControls(PagePeriod(range: $selectedRange, offset: $selectedOffset))
+    .periodControls(
+      PagePeriod(range: $selectedRange, offset: $selectedOffset, now: now, calendar: calendar))
   }
 
   // MARK: Period shown

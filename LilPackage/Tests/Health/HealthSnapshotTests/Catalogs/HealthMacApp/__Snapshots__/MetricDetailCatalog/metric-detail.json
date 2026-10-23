@@ -338,6 +338,27 @@
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.toothbrushing-no-data-light.png",
       "name" : "Toothbrushing, no data",
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.dietary-energy-last-logged-weeks-ago-opening-dark.png",
+      "id" : "metric-detail.dietary-energy-last-logged-weeks-ago-opening",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.dietary-energy-last-logged-weeks-ago-opening-light.png",
+      "name" : "Dietary energy, last logged weeks ago, opening",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.dietary-energy-last-logged-weeks-ago-dark.png",
+      "id" : "metric-detail.dietary-energy-last-logged-weeks-ago",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.dietary-energy-last-logged-weeks-ago-light.png",
+      "name" : "Dietary energy, last logged weeks ago",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.never-recorded-opening-dark.png",
+      "id" : "metric-detail.never-recorded-opening",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.never-recorded-opening-light.png",
+      "name" : "Never recorded, opening",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
     }
   ]
 }

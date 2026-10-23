@@ -2,6 +2,7 @@
   import HealthCatalog
   import HealthDatabase
   @testable import HealthMacApp
+  import HealthPages
   import SQLiteData
   import SwiftUI
   import Testing
@@ -172,6 +173,25 @@
         detail(HealthDatabase.handwashingType, .month, state: .loading)
       },
       CatalogState("Toothbrushing, no data") { noData(HealthDatabase.toothbrushingType) },
+      // Last logged three weeks ago, as the page opens on it (851-3188): that week, never this
+      // one. Its first frame, read before the chart loads, already shows the week's dates.
+      CatalogState("Dietary energy, last logged weeks ago, opening") {
+        opened(dietaryEnergy, in: staleDatabase)
+      },
+      CatalogState("Dietary energy, last logged weeks ago") {
+        let offset = withDependencies {
+          $0.defaultDatabase = staleDatabase
+        } operation: {
+          ChartRange.week.openingOffset(of: dietaryEnergy)
+        }
+        return detail(
+          dietaryEnergy, .week, offset: offset,
+          chart: storedChart(dietaryEnergy, .week, offset: offset, in: staleDatabase))
+      },
+      // Never recorded: this week, as before.
+      CatalogState("Never recorded, opening") {
+        opened(dietaryEnergy, in: try! HealthDatabase.make())
+      },
     ],
     // What's below the chart stays put while it loads, and whatever the period shows (851-3084).
     // Heart rate keeps a row for its lines' legend.
@@ -189,6 +209,8 @@
         "Walking + running distance, day", "Weight, month, US", "Weight, month, UK",
         "Weight, no data, US", "Walking + running distance, week, US", "Walking speed, week, US",
         "Body temperature, week, US", "Height, week, US",
+        "Dietary energy, last logged weeks ago, opening", "Dietary energy, last logged weeks ago",
+        "Never recorded, opening",
       ],
       [
         "Heart rate with resting and walking", "Heart rate, loading", "Heart rate without lines",
@@ -197,6 +219,7 @@
     ])
 
   private let steps = "HKQuantityTypeIdentifierStepCount"
+  private let dietaryEnergy = "HKQuantityTypeIdentifierDietaryEnergyConsumed"
   /// The US's units: miles, pounds, °F (851-3116).
   private let us = Locale(identifier: "en_US")
   private let heartRate = HealthDatabase.heartRateType
@@ -221,6 +244,25 @@
         type: type, range: .constant(range), offset: .constant(offset), state: shown)
     }
   }
+
+  /// A type's page as it first draws when opened, from `database`: the period it opens on, before
+  /// its chart loads (in a `.task`, which a snapshot doesn't run).
+  @MainActor
+  private func opened(_ id: String, in database: any DatabaseWriter) -> some View {
+    withDependencies {
+      $0.defaultDatabase = database
+    } operation: {
+      NavigationStack {
+        MetricDetailView(type: HealthCatalog.type(id: id)!)
+      }
+    }
+  }
+
+  /// The catalog's synthetic data, but as the iPhone last synced it 26 days before `previewNow`,
+  /// on Thursday, July 18: nothing since.
+  private let staleDatabase = makePreviewHealthDatabase(
+    now: previewCalendar.date(byAdding: .day, value: -26, to: previewNow)!,
+    calendar: previewCalendar)
 
   /// A type's detail for this week, without data.
   @MainActor

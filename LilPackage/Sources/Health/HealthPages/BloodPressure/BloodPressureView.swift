@@ -12,7 +12,8 @@ public import SwiftUI
 /// it. Systolic and Diastolic keep their own pages.
 public struct BloodPressureView: View {
   @State private var range = ChartRange.week
-  @State private var offset = 0
+  /// This week, or the latest period with data before it (851-3188).
+  @State private var offset: Int
   /// Moves at midnight, so the periods do. From the `date` dependency, as the calendar is.
   @State private var today: Date
   /// The last period loaded. While another loads, the page keeps showing it (851-3089).
@@ -24,6 +25,8 @@ public struct BloodPressureView: View {
   public init() {
     @Dependency(\.date.now) var now
     _today = State(initialValue: now)
+    _offset = State(
+      initialValue: ChartRange.week.openingOffset(of: HealthDatabase.bloodPressureType))
   }
 
   public var body: some View {
@@ -149,7 +152,8 @@ struct BloodPressureContent: View {
     }
     .formStyle(.grouped)
     .navigationTitle("Blood Pressure")
-    .periodControls(PagePeriod(range: $selectedRange, offset: $selectedOffset))
+    .periodControls(
+      PagePeriod(range: $selectedRange, offset: $selectedOffset, now: now, calendar: calendar))
   }
 
   // MARK: Header
