@@ -44,6 +44,9 @@ jobs:
       # pull requests', so a branch's leftovers never reach main's check. (A called workflow sees
       # its caller's event.)
       LIL_CHECK_SCRATCH: ${{ github.workspace }}/../lil.tech-check-${{ github.event_name == 'pull_request' && 'pr' || 'main' }}
+      # The references are rendered here (851-3070): compared within 1, and a state without one is
+      # recorded, and fails, for `scripts/fetch-snapshots` (`snapshotsRenderReferences`).
+      LIL_SNAPSHOT_CI: "1"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -127,6 +130,8 @@ jobs:
       # Kept between runs outside the checkout, like `check`'s builds, but apart from them.
       LIL_SNAPSHOT_DERIVED_DATA: ${{ github.workspace }}/../lil.tech-iphone-snapshots
       LIL_SNAPSHOT_SIMULATOR: lil-snapshots-ci
+      # As `check`'s.
+      LIL_SNAPSHOT_CI: "1"
     steps:
       - uses: actions/checkout@v7
         with:

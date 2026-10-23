@@ -129,10 +129,13 @@ export const scanCatalogs = async (
 /**
  * What's out of date in the catalogs' manifests, which their tests only rewrite when they run (the
  * iPhone's only after merging): a manifest whose catalog file is gone or whose screen was renamed
- * (left behind), a state it has that isn't in its file any more, or a missing reference, and a
- * state in a catalog file that no manifest has.
+ * (left behind), a state it has that isn't in its file any more, or a missing reference (unless
+ * `references` is false), and a state in a catalog file that no manifest has.
  */
-export const manifestProblems = async (repository = root): Promise<ReadonlyArray<string>> => {
+export const manifestProblems = async (
+  repository = root,
+  { references = true }: { readonly references?: boolean } = {},
+): Promise<ReadonlyArray<string>> => {
   const problems: string[] = [];
   const { manifests, files } = await readCatalogs(repository);
   const sources = new Map<string, string | undefined>();
@@ -163,7 +166,7 @@ export const manifestProblems = async (repository = root): Promise<ReadonlyArray
       if (!catalogStateNames((await source(state.source)) ?? "").includes(state.name)) {
         problems.push(`${path}: "${state.name}" isn't in ${state.source} any more.`);
       }
-      for (const reference of [state.light, state.dark]) {
+      for (const reference of references ? [state.light, state.dark] : []) {
         if (!existsSync(join(repository, reference))) {
           problems.push(`${path}: "${state.name}" has no reference ${reference}.`);
         }
@@ -232,16 +235,29 @@ const appProblems = (graph: Graph, file: string, apps: Map<string, string>) => {
   return problems;
 };
 
+// With `--allow-missing-references` (the pre-commit hook's), a missing reference is a warning: a
+// new state's references come from CI, which renders them on the Mac minis, after the push
+// (`scripts/fetch-snapshots`, 851-3070). The Swift check, on CI, still fails on one.
 if (import.meta.main) {
   const problems = await checkGraphs(await scanScreens());
   for (const [file, list] of problems) {
     console.error(`Web/pixelbook/graphs/${file}:`);
     for (const problem of list) console.error(`  ${problem}`);
   }
-  const stale = await manifestProblems();
+  const allowMissing = process.argv.includes("--allow-missing-references");
+  const stale = await manifestProblems(root, { references: !allowMissing });
   if (stale.length > 0) {
     console.error("State catalogs' Pixelbook manifests:");
     for (const problem of stale) console.error(`  ${problem}`);
+  }
+  if (allowMissing) {
+    const missing = (await manifestProblems()).filter((problem) => !stale.includes(problem));
+    for (const problem of missing) console.warn(`warning: ${problem}`);
+    if (missing.length > 0) {
+      console.warn(
+        "CI renders new states' references: push, then bring them in with scripts/fetch-snapshots.",
+      );
+    }
   }
   if (problems.size > 0 || stale.length > 0) {
     console.error(

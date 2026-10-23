@@ -145,6 +145,11 @@ describe("graph files", () => {
             `${folder}/__Snapshots__/SignInCatalog/mac.json: "New" has no reference ${folder}/__Snapshots__/SignInCatalog/New-dark.png.`,
             `${folder}/__Snapshots__/SignInCatalog/old.json: ${folder}/OldCatalog.swift doesn't exist. Delete the manifest.`,
           ]);
+          // A new state's references come from CI after the push (851-3070).
+          expect(await manifestProblems(repository, { references: false })).toEqual([
+            `${folder}/__Snapshots__/SignInCatalog/mac.json: "New" isn't in ${folder}/SignInCatalog.swift any more.`,
+            `${folder}/__Snapshots__/SignInCatalog/old.json: ${folder}/OldCatalog.swift doesn't exist. Delete the manifest.`,
+          ]);
         },
       );
     });

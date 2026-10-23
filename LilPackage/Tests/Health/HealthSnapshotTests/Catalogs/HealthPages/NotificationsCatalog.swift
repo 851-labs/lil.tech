@@ -33,10 +33,9 @@
       CatalogState("Low cardio fitness, missing metadata") {
         list(.lowCardioFitness, .loaded(lowCardioFitness))
       },
-      // Its lungs symbol draws a few pixels 2 apart on the minis (M6) and on the laptop (M1 Pro)
-      // that recorded its references, on the same macOS 27.0.1: past the tolerance (851-2985),
-      // so the minis' render fails against them. The midpoint pixels set by hand (851-2965) went
-      // when 851-3033 re-recorded it. CI doesn't compare images for now (851-3071).
+      // Its lungs symbol draws a few pixels 2 apart on the minis (M6) and on a laptop (M1 Pro),
+      // on the same macOS 27.0.1: past CI's tolerance (851-2985), within a laptop's. Its
+      // references are the minis', as every one is (851-3070).
       CatalogState("Sleep apnea notifications") { list(.sleepApnea, .loaded(sleepApnea)) },
       CatalogState("No high heart rate notifications") { list(.highHeartRate, .loaded([])) },
       CatalogState("No walking steadiness notifications") {
