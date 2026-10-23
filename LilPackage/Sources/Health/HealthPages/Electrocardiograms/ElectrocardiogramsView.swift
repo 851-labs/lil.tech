@@ -124,7 +124,13 @@ struct ElectrocardiogramRow: View {
 struct ElectrocardiogramDetailView: View {
   let recording: HealthElectrocardiogram
   @Dependency(\.blobCache) private var blobCache
-  @State private var trace = ElectrocardiogramDetailContent.Trace.loading
+  /// None at once for a recording without measurements, rather than paper for them first.
+  @State private var trace: ElectrocardiogramDetailContent.Trace
+
+  init(recording: HealthElectrocardiogram) {
+    self.recording = recording
+    _trace = State(initialValue: recording.voltages == nil ? .none : .loading)
+  }
 
   var body: some View {
     ElectrocardiogramDetailContent(recording: recording, trace: trace)
@@ -182,6 +188,7 @@ struct ElectrocardiogramDetailContent: View {
       }
       Section {
         LabeledContent("Symptoms", value: ECGFormat.symptoms(recording))
+          .layoutAnchor("Symptoms")
         LabeledContent("Recorded With", value: recording.sourceName)
         if let frequency = recording.samplingFrequency {
           LabeledContent(
@@ -194,12 +201,13 @@ struct ElectrocardiogramDetailContent: View {
     .navigationTitle("ECG")
   }
 
-  /// The trace, or a placeholder about as tall.
+  /// The trace, or what's in its place: while it loads, or if it fails, the recording's paper
+  /// without it, so nothing moves when it arrives (851-3091).
   @ViewBuilder private var traceView: some View {
     switch trace {
     case .loading:
-      ProgressView()
-        .frame(maxWidth: .infinity, minHeight: 270)
+      paper
+        .overlay { ProgressView() }
     case .none:
       ContentUnavailableView(
         "No Recording", systemImage: "waveform.path.ecg",
@@ -207,30 +215,54 @@ struct ElectrocardiogramDetailContent: View {
       )
       .frame(maxWidth: .infinity, minHeight: 270)
     case .failed(let reason):
-      ContentUnavailableView(
-        "Couldn't Load the Recording", systemImage: "exclamationmark.triangle",
-        description: Text(reason)
-      )
-      .frame(maxWidth: .infinity, minHeight: 270)
-    case .loaded(let microvolts):
-      let frequency = recording.measurementsPerSecond
-      let range = ECGStrip.range(microvolts)
-      VStack(alignment: .leading, spacing: 8) {
-        ForEach(
-          Array(
-            HealthDatabase.electrocardiogramStrips(
-              microvolts, samplingFrequency: frequency, seconds: ECGStrip.seconds
-            )
-            .enumerated()), id: \.offset
-        ) { _, strip in
-          ECGStrip(microvolts: strip, samplingFrequency: frequency, millivolts: range)
+      paper
+        .hidden()
+        // At least as tall as its message, in a narrow window.
+        .frame(minHeight: 270)
+        .overlay {
+          ContentUnavailableView(
+            "Couldn't Load the Recording", systemImage: "exclamationmark.triangle",
+            description: Text(reason))
         }
-        Text("25 mm/s, 10 mm/mV, Lead I")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-      }
-      .frame(maxWidth: ECGStrip.maxWidth)
+    case .loaded(let microvolts):
+      strips(
+        HealthDatabase.electrocardiogramStrips(
+          microvolts, samplingFrequency: recording.measurementsPerSecond,
+          seconds: ECGStrip.seconds),
+        millivolts: ECGStrip.range(microvolts))
     }
+  }
+}
+
+extension ElectrocardiogramDetailContent {
+  /// The recording's strips of paper, with no trace, at the standard range: as many as its
+  /// measurements fill, as they'll be cut (30 seconds' worth if it doesn't say). A trace with
+  /// taller waves widens the range, and its strips, when it arrives.
+  fileprivate var paper: some View {
+    let count = HealthDatabase.electrocardiogramStripCount(
+      measurements: recording.voltageCount, samplingFrequency: recording.measurementsPerSecond,
+      seconds: ECGStrip.seconds)
+    return strips(
+      Array(repeating: [], count: count > 0 ? count : 3), millivolts: ECGStrip.range([])
+    )
+    .accessibilityHidden(true)
+  }
+
+  /// Strips of trace on paper, with the caption under them: the loaded trace's, or empty ones.
+  fileprivate func strips(
+    _ strips: [ArraySlice<Float>], millivolts: ClosedRange<Double>
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      ForEach(Array(strips.enumerated()), id: \.offset) { _, strip in
+        ECGStrip(
+          microvolts: strip, samplingFrequency: recording.measurementsPerSecond,
+          millivolts: millivolts)
+      }
+      Text("25 mm/s, 10 mm/mV, Lead I")
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+    }
+    .frame(maxWidth: ECGStrip.maxWidth)
   }
 }
 

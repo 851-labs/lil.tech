@@ -49,6 +49,11 @@
       CatalogState("Recording failed", width: 860) {
         detail(recordings[0], .failed("The recording couldn't be downloaded."))
       },
+    ],
+    // The trace's paper keeps its place and height, loading or not, so the details below stay put
+    // (851-3091).
+    sameLayout: [
+      ["Sinus rhythm", "Recording loading", "Recording failed", "Atrial fibrillation, symptoms"]
     ])
 
   private func recording(

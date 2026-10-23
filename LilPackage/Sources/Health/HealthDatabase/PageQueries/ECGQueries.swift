@@ -29,10 +29,23 @@ extension HealthDatabase {
   public static func electrocardiogramStrips(
     _ microvolts: [Float], samplingFrequency: Double, seconds: Double
   ) -> [ArraySlice<Float>] {
-    let perStrip = max(1, Int((samplingFrequency * seconds).rounded()))
+    let perStrip = measurementsPerStrip(samplingFrequency: samplingFrequency, seconds: seconds)
     return stride(from: 0, to: microvolts.count, by: perStrip).map {
       microvolts[$0..<min($0 + perStrip, microvolts.count)]
     }
+  }
+
+  /// How many strips `count` measurements fill, as `electrocardiogramStrips` cuts them: what a
+  /// page lays out for a recording before its measurements have loaded (851-3091).
+  public static func electrocardiogramStripCount(
+    measurements count: Int, samplingFrequency: Double, seconds: Double
+  ) -> Int {
+    let perStrip = measurementsPerStrip(samplingFrequency: samplingFrequency, seconds: seconds)
+    return (count + perStrip - 1) / perStrip
+  }
+
+  private static func measurementsPerStrip(samplingFrequency: Double, seconds: Double) -> Int {
+    max(1, Int((samplingFrequency * seconds).rounded()))
   }
 
   /// A plausible lead-I trace for catalogs and tests: beats at `beatsPerMinute`, each a P wave,

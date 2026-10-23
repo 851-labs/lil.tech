@@ -135,6 +135,7 @@ struct HealthDocumentDetailContent: View {
           Section {
             DocumentTitle(document: document)
               .padding(.vertical, 4)
+              .layoutAnchor("Title")
             DocumentDetails(document: document)
           }
           content
@@ -142,20 +143,29 @@ struct HealthDocumentDetailContent: View {
         .formStyle(.grouped)
       }
     }
+    // Always there, so the toolbar, and the page under it, doesn't move when the XML arrives
+    // (851-3091): until then there's nothing to show.
     .toolbar {
       ToolbarItem {
-        if case .loaded = state {
-          Button("Show XML", systemImage: "chevron.left.forwardslash.chevron.right") {
-            showsXML = true
-          }
-          .help("Show the document's XML")
+        Button("Show XML", systemImage: "chevron.left.forwardslash.chevron.right") {
+          showsXML = true
         }
+        .help("Show the document's XML")
+        .disabled(xml == nil)
       }
     }
     .sheet(isPresented: $showsXML) {
-      if case .loaded(let xml, _) = state {
+      if let xml {
         DocumentXMLSheet(title: document.displayTitle, id: document.xml, xml: xml)
       }
+    }
+  }
+
+  /// The document's XML, once it's loaded, whether or not it could be read as a page.
+  private var xml: Data? {
+    switch state {
+    case .loaded(let xml, _), .unreadable(let xml, _): xml
+    case .loading, .failed: nil
     }
   }
 

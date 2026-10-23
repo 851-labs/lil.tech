@@ -54,29 +54,38 @@ struct RouteMapRow: View {
   }
 
   var body: some View {
-    switch route {
-    case .loading:
-      ProgressView()
-        .frame(maxWidth: .infinity, minHeight: height * 0.8)
-    case .failed(let reason):
-      ContentUnavailableView(
-        "Couldn't Load the Route", systemImage: "map", description: Text(reason)
-      )
-      // A form's row would otherwise give it only its ideal width, off center.
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-    case .loaded(let loaded) where loaded.hasMap:
-      RouteMap(locations: loaded.locations)
-        .frame(height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .padding(.vertical, 6)
-    case .none, .loaded:
-      if saysWhenEmpty {
+    Group {
+      // The map's own space whatever's in it, so nothing moves when it arrives (851-3091).
+      switch route {
+      case .loading:
+        ProgressView()
+          .frame(maxWidth: .infinity)
+          .frame(height: height)
+          .padding(.vertical, 6)
+      case .failed(let reason):
         ContentUnavailableView(
-          "No Locations", systemImage: "map",
-          description: Text("This route has no locations to show.")
+          "Couldn't Load the Route", systemImage: "map", description: Text(reason)
         )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .padding(.vertical, 6)
+      case .loaded(let loaded) where loaded.hasMap:
+        RouteMap(locations: loaded.locations)
+          .frame(height: height)
+          .clipShape(RoundedRectangle(cornerRadius: 8))
+          .padding(.vertical, 6)
+      case .none, .loaded:
+        if saysWhenEmpty {
+          ContentUnavailableView(
+            "No Locations", systemImage: "map",
+            description: Text("This route has no locations to show.")
+          )
+          .frame(maxWidth: .infinity)
+          .frame(height: height)
+          .padding(.vertical, 6)
+        }
       }
     }
+    .layoutAnchor("Route")
   }
 }
