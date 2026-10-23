@@ -103,6 +103,18 @@
       ) {
         sidebar(selection: .category(.heart), categoriesExpanded: false)
       },
+      // Opening a category from elsewhere (an intent, `lil-health open`, clearing the search)
+      // while the section is collapsed expands it, so the category's row shows selected
+      // (851-3225). The state is the reducer's, from the collapsed one above.
+      CatalogState(
+        "Sidebar, a category opened while Health Categories was collapsed", width: 240,
+        minHeight: 640
+      ) {
+        SidebarList(
+          store: opened(
+            .category(.heart),
+            in: sidebarState(selection: .category(.heart), categoriesExpanded: false)))
+      },
       CatalogState("Search results") {
         window(AppFeature.State(isSignedIn: true, searchText: "heart"))
       },
@@ -128,11 +140,12 @@
   }
 
   /// The window in a state: `EmptyReducer` never runs the window's task, which would replace the
-  /// state with the real session's.
+  /// state with the real session's. Health Categories is expanded, in a value of the state's own,
+  /// so it's never read from defaults.
   @MainActor
   private func window(_ state: AppFeature.State) -> some View {
-    AppView(store: Store(initialState: state) { EmptyReducer() })
-      .defaultAppStorage(sidebarDefaults(categoriesExpanded: true))
+    state.$isCategoriesExpanded = Shared(value: true)
+    return AppView(store: Store(initialState: state) { EmptyReducer() })
   }
 
   /// The sidebar's rows on their own, in the list's own style: the sidebar's draws the selection
@@ -142,30 +155,27 @@
   private func sidebar(
     selection: SidebarItem = .summary, categoriesExpanded: Bool
   ) -> some View {
-    SidebarList(
-      store: Store(initialState: AppFeature.State(isSignedIn: true, selection: selection)) {
-        EmptyReducer()
-      }
-    )
-    .defaultAppStorage(sidebarDefaults(categoriesExpanded: categoriesExpanded))
+    sidebar(sidebarState(selection: selection, categoriesExpanded: categoriesExpanded))
   }
 
-  /// Defaults of the catalog's own, so the sidebar never reads whether Health Categories is
-  /// expanded from the test process's: one suite for each, in the temporary folder, made once.
   @MainActor
-  private func sidebarDefaults(categoriesExpanded: Bool) -> UserDefaults {
-    categoriesExpanded ? expandedDefaults : collapsedDefaults
+  private func sidebar(_ state: AppFeature.State) -> some View {
+    SidebarList(store: Store(initialState: state) { EmptyReducer() })
   }
 
-  @MainActor private let expandedDefaults = catalogDefaults(categoriesExpanded: true)
-  @MainActor private let collapsedDefaults = catalogDefaults(categoriesExpanded: false)
+  /// Signed in, with Health Categories expanded or not in a value of the state's own, so the
+  /// sidebar never reads it from defaults.
+  private func sidebarState(selection: SidebarItem, categoriesExpanded: Bool) -> AppFeature.State {
+    let state = AppFeature.State(isSignedIn: true, selection: selection)
+    state.$isCategoriesExpanded = Shared(value: categoriesExpanded)
+    return state
+  }
 
-  private func catalogDefaults(categoriesExpanded: Bool) -> UserDefaults {
-    let name =
-      "\(NSTemporaryDirectory())WindowCatalog.\(categoriesExpanded ? "expanded" : "collapsed")"
-    let defaults = UserDefaults(suiteName: name)!
-    defaults.removePersistentDomain(forName: name)
-    defaults.set(categoriesExpanded, forKey: SidebarList.categoriesExpandedKey)
-    return defaults
+  /// A store that has opened a page, as an intent does.
+  @MainActor
+  private func opened(_ page: HealthPage, in state: AppFeature.State) -> StoreOf<AppFeature> {
+    let store = Store(initialState: state) { AppFeature() }
+    store.send(.pageOpened(page))
+    return store
   }
 #endif
