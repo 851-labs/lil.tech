@@ -443,7 +443,8 @@ struct MetricDetailContent: View {
       // (851-3102).
       .chartYDomain(
         chart.points.isEmpty
-          ? emptyDomain(for: type, unit: unit).converted(by: shown)
+          ? emptyDomain(for: type, unit: unit, hourly: isCumulative && range == .day)
+            .converted(by: shown)
           : style.isAverage ? fittedDomain(chart.points.map { shown.convert($0.value) }) : nil
       )
       .chartPlotStyle { $0.clipped() }

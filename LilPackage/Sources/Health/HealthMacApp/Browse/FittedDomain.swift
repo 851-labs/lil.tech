@@ -14,35 +14,50 @@ func fittedDomain(_ values: [Double]) -> ClosedRange<Double>? {
 }
 
 /// An empty period's y-axis (851-3102): from 0 to about as high as the type's readings, or a
-/// day's total, usually reach, so the chart keeps its gridlines and a scale that reads as the
-/// type's while the header says No Data, rather than an axis with no marks. In `unit`, what the
-/// values are stored in (the type's, or a category chart's).
-func emptyDomain(for type: HealthDataType, unit: String?) -> ClosedRange<Double> {
-  switch type.id {
-  case "HKQuantityTypeIdentifierStepCount": return 0...10_000
-  case "HKQuantityTypeIdentifierBodyMassIndex": return 0...40
-  case "HKQuantityTypeIdentifierSixMinuteWalkTestDistance": return 0...600
-  case "HKQuantityTypeIdentifierUnderwaterDepth": return 0...40
+/// day's total, usually reach, a tenth of that for a total's hourly bars (`hourly`), so the
+/// chart keeps its gridlines and a scale that reads as the type's while the header says No Data,
+/// rather than an axis with no marks. In `unit`, what the values are stored in (the type's, or a
+/// category chart's).
+func emptyDomain(for type: HealthDataType, unit: String?, hourly: Bool = false)
+  -> ClosedRange<Double>
+{
+  let top = typicalTop(type, unit: unit)
+  return 0...(hourly ? top / 10 : top)
+}
+
+/// About the most a type's readings, or a day's total, reach.
+private func typicalTop(_ type: HealthDataType, unit: String?) -> Double {
+  switch type.id.replacingOccurrences(of: "HKQuantityTypeIdentifier", with: "") {
+  case "StepCount", "NikeFuel": return 10_000
+  case "PushCount": return 5_000
+  case "SwimmingStrokeCount": return 2_000
+  case "BodyMassIndex": return 40
+  case "SixMinuteWalkTestDistance": return 600
+  case "UnderwaterDepth": return 40
+  case "RunningGroundContactTime": return 300
+  // 0.1%, over the stored fraction.
+  case "BloodAlcoholContent": return 0.001
   default: break
   }
   switch unit {
-  case "%": return 0...1
-  case "count/min", "mmHg", "ms": return 0...150
-  case "mg/dL": return 0...200
-  case "dBASPL", "kg", "g", "mcg": return 0...100
-  case "degC": return 0...40
-  case "kcal", "mg": return 0...1_000
-  case "mL": return 0...2_000
-  case "min": return 0...60
-  case "hr": return 0...12
-  case "IU": return 0...50
-  case "W": return 0...300
-  case "L": return 0...5
-  case "L/min": return 0...600
-  case "ml/(kg*min)": return 0...60
-  case "count", "times", "cm", "m/s", "mcS", "appleEffortScore", "kcal/(kg*hr)": return 0...10
+  case "%": return 1
+  case "count/min", "mmHg", "ms": return 150
+  case "mg/dL": return 200
+  case "dBASPL", "kg", "mcg": return 100
+  case "g": return 300
+  case "degC": return 40
+  case "mg": return 1_000
+  case "kcal", "mL": return 2_500
+  case "min": return 60
+  case "hr": return 12
+  case "IU": return 50
+  case "W": return 300
+  case "L": return 5
+  case "L/min": return 600
+  case "ml/(kg*min)": return 60
+  case "count", "times", "cm", "m/s", "mcS", "appleEffortScore", "kcal/(kg*hr)": return 10
   // A distance's total, or a length: a height, a step.
-  case "m": return type.aggregation?.isCumulative == true ? 0...5_000 : 0...2
-  default: return 0...100
+  case "m": return type.aggregation?.isCumulative == true ? 5_000 : 2
+  default: return 100
   }
 }

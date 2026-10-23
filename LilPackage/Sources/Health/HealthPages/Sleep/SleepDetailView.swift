@@ -384,10 +384,20 @@ struct SleepDetailContent: View {
   /// chart keeps its axes and gridlines under the header's No Data.
   private func emptyNightChart(_ day: Date) -> some View {
     let hours = SleepClock.axis([]).domain
-    let start = day.addingTimeInterval(hours.lowerBound * 3600)
-    let end = day.addingTimeInterval(hours.upperBound * 3600)
+    let start = clockTime(hours.lowerBound, from: day)
+    let end = clockTime(hours.upperBound, from: day)
     return stagesChart([], rows: [.awake, .rem, .core, .deep])
       .chartXScale(domain: start...end)
+  }
+
+  /// The time the clock reads `hours` from the start of `day` (-2 is 10 PM the evening before),
+  /// so a daylight saving change doesn't move the empty night's ends.
+  private func clockTime(_ hours: Double, from day: Date) -> Date {
+    let days = Int((hours / 24).rounded(.down))
+    let hour = Int(hours) - days * 24
+    return calendar.date(byAdding: .day, value: days, to: day)
+      .flatMap { calendar.date(bySettingHour: hour, minute: 0, second: 0, of: $0) }
+      ?? day.addingTimeInterval(hours * 3600)
   }
 
   /// Stages over time, a row each.

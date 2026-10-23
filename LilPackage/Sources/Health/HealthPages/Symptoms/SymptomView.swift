@@ -307,10 +307,10 @@ struct SymptomContent: View {
   }
 
   /// What VoiceOver reads for a period with nothing charted: "No data for Oct 2025", or "Not
-  /// present, Oct 2025" when its entries say it wasn't there.
+  /// present in Oct 2025" when its entries say it wasn't there.
   private func emptyLabel(_ chart: SymptomChart) -> String {
     let span = ChartFormat.span(chart.interval, range: range, calendar: calendar)
-    return chart.entries.isEmpty ? ChartFormat.noData(span) : "Not present, \(span)"
+    return chart.entries.isEmpty ? ChartFormat.noData(span) : ChartFormat.notPresent(span)
   }
 
   /// A bar: an entry over its time (a day), a day's highest level, or a week's or month's days.
