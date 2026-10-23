@@ -41,14 +41,12 @@
         .appending(path: "Downloads").path(percentEncoded: false)
       try store.requestAction(.open(page: Self.steps), process: "zsh", at: date(1))
       try store.requestAction(.open(page: "summary"), process: "zsh", at: date(2))
-      try store.requestAction(.open(page: "health-details"), process: "zsh", at: date(3))
-      try store.requestAction(.open(page: "category:heart"), process: "zsh", at: date(4))
-      try store.requestAction(.sync, process: "claude", at: date(5))
-      try store.requestAction(.export(folder: downloads), process: "claude", at: date(6))
+      try store.requestAction(.open(page: "category:heart"), process: "zsh", at: date(3))
+      try store.requestAction(.sync, process: "claude", at: date(4))
+      try store.requestAction(.export(folder: downloads), process: "claude", at: date(5))
       #expect(
         try store.entries().reversed().map(\.command) == [
-          "open Steps", "open Summary", "open Health Details", "open Heart", "sync",
-          "export ~/Downloads",
+          "open Steps", "open Summary", "open Heart", "sync", "export ~/Downloads",
         ])
       #expect(try store.entries().map(\.process).first == "claude")
     }

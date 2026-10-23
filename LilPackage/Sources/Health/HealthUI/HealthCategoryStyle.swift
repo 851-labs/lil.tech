@@ -25,27 +25,20 @@ extension HealthCategory {
   }
 }
 
-/// How Health Details, the page of the characteristics, looks in the sidebar and in Shortcuts.
-public enum HealthDetailsStyle {
-  public static let symbolName = "person.text.rectangle.fill"
-  public static let color = Color.accentColor
-}
-
 extension HealthDataType {
   /// The type's color, for its icon and charts: its category's.
   public var color: Color { category?.color ?? Self.uncategorizedColor }
 
-  /// The color of a type without a category: the characteristics, so Health Details' color, where
-  /// Health shows them. Unlike gray, it stands out in charts, next to a highlight's gray earlier
-  /// week and through the opacity of bars and fills.
-  public static let uncategorizedColor = HealthDetailsStyle.color
+  /// The color of a type without a category: the characteristics. Unlike gray, it stands out in
+  /// charts, next to a highlight's gray earlier week and through the opacity of bars and fills.
+  public static let uncategorizedColor = Color.accentColor
 
   /// The SF Symbol shown with the type: its category's.
   public var symbolName: String { category?.symbolName ?? Self.uncategorizedSymbolName }
 
-  /// The symbol of a type without a category: the characteristics, so Health Details' icon, where
-  /// Health shows them. Neither a question mark, which reads as an error, nor a plain circle.
-  public static let uncategorizedSymbolName = HealthDetailsStyle.symbolName
+  /// The symbol of a type without a category: the characteristics, so a profile's, as Health
+  /// Details has. Neither a question mark, which reads as an error, nor a plain circle.
+  public static let uncategorizedSymbolName = "person.text.rectangle.fill"
 }
 
 /// A category's name with its icon in its color, as in Health's lists, and white on a selected
@@ -99,7 +92,7 @@ public struct TintedIcon: View {
   public var body: some View {
     let isProminent = prominence == .increased
     Image(systemName: systemName)
-      // Two-tone symbols (Summary, Health Details, Medications) go wholly white too.
+      // Two-tone symbols (Summary, Medications) go wholly white too.
       .symbolRenderingMode(isProminent ? .monochrome : nil)
       .foregroundStyle(isProminent ? AnyShapeStyle(.primary) : AnyShapeStyle(color))
   }

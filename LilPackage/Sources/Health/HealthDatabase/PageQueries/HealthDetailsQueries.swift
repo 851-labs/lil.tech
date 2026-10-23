@@ -1,5 +1,4 @@
 public import Foundation
-public import HealthCatalog
 public import SQLiteData
 
 extension HealthDatabase {
@@ -11,7 +10,8 @@ extension HealthDatabase {
 
 /// Health Details, the profile Health keeps: date of birth, sex, blood type, skin type and
 /// wheelchair use, as the iPhone encodes them (`HealthEncoder`). `nil` is Not Set, as Health shows
-/// a value that was never set, or one this app can't read.
+/// a value that was never set, or one this app can't read. For the tools (`health_details`): lil
+/// health for Mac has no page for them (851-3187).
 public struct HealthDetails: Equatable, Sendable {
   public var dateOfBirth: BirthDate?
   public var sex: BiologicalSex?
@@ -26,14 +26,6 @@ public struct HealthDetails: Equatable, Sendable {
   public static let characteristicIDs: Set<String> = [
     "DateOfBirth", "BiologicalSex", "BloodType", "FitzpatrickSkinType", "WheelchairUse",
   ].reduce(into: []) { $0.insert("HKCharacteristicTypeIdentifier\($1)") }
-
-  /// Whether lil health for Mac has a page for the type, which its Open intent, sidebar search and
-  /// `lil-health open` agree on: a type with a category opens in it, and a characteristic Health
-  /// Details shows opens Health Details (851-3026). Activity Move Mode, which it doesn't show, is
-  /// nowhere in the app.
-  public static func hasPage(_ type: HealthDataType) -> Bool {
-    type.category != nil || characteristicIDs.contains(type.id)
-  }
 
   public init(
     dateOfBirth: BirthDate? = nil, sex: BiologicalSex? = nil, bloodType: BloodType? = nil,

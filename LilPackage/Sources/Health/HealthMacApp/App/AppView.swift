@@ -1,6 +1,5 @@
 public import ComposableArchitecture
 import HealthCatalog
-import HealthPages
 import HealthUI
 import LilAuth
 import LilUI
@@ -47,8 +46,7 @@ public struct AppView: View {
   }
 }
 
-/// iPad Health's sidebar: Summary and Health Details, then the Health categories, and a search for
-/// data types.
+/// iPad Health's sidebar: Summary, then the Health categories, and a search for data types.
 struct SidebarView: View {
   @Bindable var store: StoreOf<AppFeature>
   @FocusState private var isSearchFocused: Bool
@@ -73,11 +71,6 @@ struct SidebarView: View {
       } else {
         TintedLabel("Summary", systemImage: "heart.text.square.fill", color: .accentColor)
           .tag(SidebarItem.summary)
-        TintedLabel(
-          "Health Details", systemImage: HealthDetailsStyle.symbolName,
-          color: HealthDetailsStyle.color
-        )
-        .tag(SidebarItem.healthDetails)
         Section("Health Categories") {
           ForEach(HealthCategory.allCases) { category in
             HealthCategoryLabel(category)
@@ -103,10 +96,9 @@ struct SidebarView: View {
   }
 }
 
-/// What's selected: Summary, Health Details, a category's metrics, or a metric found by
-/// search. Each stack's pushed pages are type IDs in the store's `metricPath` (a metric's row
-/// opens its detail, Health Details' link Vision Prescriptions), so an intent can open one, and
-/// opening a page pops them (851-3030).
+/// What's selected: Summary, a category's metrics, or a metric found by search. Each stack's
+/// pushed pages are type IDs in the store's `metricPath` (a metric's row opens its detail), so an
+/// intent can open one, and opening a page pops them (851-3030).
 struct DetailView: View {
   let store: StoreOf<AppFeature>
 
@@ -116,10 +108,6 @@ struct DetailView: View {
       stack(for: store.selection) {
         SummaryView()
       }
-    case .healthDetails:
-      stack(for: .healthDetails) {
-        HealthDetailsView()
-      }
     case .category(let category):
       stack(for: .category(category)) {
         CategoryView(category: category)
@@ -127,7 +115,6 @@ struct DetailView: View {
       // A new stack for each category, so one's pushed metric doesn't show under another.
       .id(category)
     case .dataType(let id):
-      // A characteristic's result shows Health Details, which links to Vision Prescriptions.
       stack(for: .dataType(id)) {
         MetricDetail(typeID: id)
       }

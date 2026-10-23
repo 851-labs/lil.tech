@@ -32,20 +32,6 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
     },
     {
-      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.health-details-dark.png",
-      "id" : "window.health-details",
-      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.health-details-light.png",
-      "name" : "Health Details",
-      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
-    },
-    {
-      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.vision-prescriptions-in-health-details-dark.png",
-      "id" : "window.vision-prescriptions-in-health-details",
-      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.vision-prescriptions-in-health-details-light.png",
-      "name" : "Vision Prescriptions in Health Details",
-      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
-    },
-    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.a-category-dark.png",
       "id" : "window.a-category",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.a-category-light.png",
@@ -57,6 +43,13 @@
       "id" : "window.a-two-tone-category",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.a-two-tone-category-light.png",
       "name" : "A two-tone category",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.vision-prescriptions-in-body-measurements-dark.png",
+      "id" : "window.vision-prescriptions-in-body-measurements",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.vision-prescriptions-in-body-measurements-light.png",
+      "name" : "Vision Prescriptions in Body Measurements",
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
     },
     {
@@ -99,13 +92,6 @@
       "id" : "window.a-search-result",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.a-search-result-light.png",
       "name" : "A search result",
-      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
-    },
-    {
-      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.a-characteristic-found-by-search-dark.png",
-      "id" : "window.a-characteristic-found-by-search",
-      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.a-characteristic-found-by-search-light.png",
-      "name" : "A characteristic found by search",
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
     },
     {
