@@ -325,8 +325,7 @@ struct MetricDetailContent: View {
       return point.minimum == point.maximum ? "AVERAGE" : "RANGE"
     }
     switch chart?.summary {
-    case .total: return "TOTAL"
-    case .dailyAverage: return periodCaption
+    case .total, .dailyAverage: return periodCaption
     case .range: return "RANGE"
     case .average: return "AVERAGE"
     case .averageDuration: return "AVERAGE DURATION"
