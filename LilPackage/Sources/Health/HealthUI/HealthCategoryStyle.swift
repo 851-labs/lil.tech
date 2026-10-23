@@ -4,24 +4,31 @@ public import HealthCatalog
 public import SwiftUI
 
 extension HealthCategory {
-  /// The category's color in Health, for its icon.
-  public var color: Color {
-    switch self {
-    case .activity: .orange
-    case .bodyMeasurements: .purple
-    case .cycleTracking: .pink
-    case .hearing: .blue
-    case .heart: .red
-    case .medications: .teal
-    case .mentalWellbeing: .cyan
-    case .mobility: .orange
-    case .nutrition: .green
-    case .respiratory: .cyan
-    case .sleep: .mint
-    case .symptoms: .indigo
-    case .vitals: .red
-    case .otherData: .blue
-    }
+  /// The category's color in Health, for its icon: `colorName`'s.
+  public var color: Color { Color(paletteName: colorName) }
+}
+
+extension Color {
+  /// A card palette color by name (`CardColor`, `HealthCategory.colorName`): SwiftUI's system color
+  /// of that name, the same on the Mac and the iPhone, light and dark. Gray for a name it doesn't
+  /// know.
+  public init(paletteName: String) {
+    self =
+      switch paletteName {
+      case "red": .red
+      case "orange": .orange
+      case "yellow": .yellow
+      case "green": .green
+      case "mint": .mint
+      case "teal": .teal
+      case "cyan": .cyan
+      case "blue": .blue
+      case "indigo": .indigo
+      case "purple": .purple
+      case "pink": .pink
+      case "brown": .brown
+      default: .gray
+      }
   }
 }
 

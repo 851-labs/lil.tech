@@ -1,19 +1,19 @@
 {
   "categories": [
-    { "id": "activity", "name": "Activity" },
-    { "id": "bodyMeasurements", "name": "Body Measurements" },
-    { "id": "cycleTracking", "name": "Cycle Tracking" },
-    { "id": "hearing", "name": "Hearing" },
-    { "id": "heart", "name": "Heart" },
-    { "id": "medications", "name": "Medications" },
-    { "id": "mentalWellbeing", "name": "Mental Wellbeing" },
-    { "id": "mobility", "name": "Mobility" },
-    { "id": "nutrition", "name": "Nutrition" },
-    { "id": "respiratory", "name": "Respiratory" },
-    { "id": "sleep", "name": "Sleep" },
-    { "id": "symptoms", "name": "Symptoms" },
-    { "id": "vitals", "name": "Vitals" },
-    { "id": "otherData", "name": "Other Data" }
+    { "id": "activity", "name": "Activity", "symbol": "flame.fill", "color": "orange" },
+    { "id": "bodyMeasurements", "name": "Body Measurements", "symbol": "figure", "color": "purple" },
+    { "id": "cycleTracking", "name": "Cycle Tracking", "symbol": "circle.dotted.circle", "color": "pink" },
+    { "id": "hearing", "name": "Hearing", "symbol": "ear", "color": "blue" },
+    { "id": "heart", "name": "Heart", "symbol": "heart.fill", "color": "red" },
+    { "id": "medications", "name": "Medications", "symbol": "pills.fill", "color": "teal" },
+    { "id": "mentalWellbeing", "name": "Mental Wellbeing", "symbol": "brain.head.profile", "color": "cyan" },
+    { "id": "mobility", "name": "Mobility", "symbol": "figure.walk.motion", "color": "orange" },
+    { "id": "nutrition", "name": "Nutrition", "symbol": "carrot.fill", "color": "green" },
+    { "id": "respiratory", "name": "Respiratory", "symbol": "lungs.fill", "color": "cyan" },
+    { "id": "sleep", "name": "Sleep", "symbol": "bed.double.fill", "color": "mint" },
+    { "id": "symptoms", "name": "Symptoms", "symbol": "list.bullet.clipboard", "color": "indigo" },
+    { "id": "vitals", "name": "Vitals", "symbol": "waveform.path.ecg", "color": "red" },
+    { "id": "otherData", "name": "Other Data", "symbol": "plus", "color": "blue" }
   ],
   "types": [
     { "id": "HKQuantityTypeIdentifierStepCount", "name": "Steps", "kind": "quantity", "category": "activity", "alsoListedIn": [], "unit": "count", "aggregation": "cumulative", "chartStyle": "bars", "introduced": "8.0", "readAuthorization": "standard" },

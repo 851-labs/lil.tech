@@ -1,0 +1,767 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Card spec",
+  "description": "A lil health card spec, version 1, in canonical form (docs/decisions/cards.md). Generated from HealthCards by scripts/generate-health-cards: don't edit.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "display": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "symbol": {
+          "type": "string",
+          "enum": [
+            "flame.fill",
+            "figure",
+            "circle.dotted.circle",
+            "ear",
+            "heart.fill",
+            "pills.fill",
+            "brain.head.profile",
+            "figure.walk.motion",
+            "carrot.fill",
+            "lungs.fill",
+            "bed.double.fill",
+            "list.bullet.clipboard",
+            "waveform.path.ecg",
+            "plus",
+            "heart.text.square.fill",
+            "bolt.heart.fill",
+            "waveform",
+            "drop.fill",
+            "thermometer.medium",
+            "scalemass.fill",
+            "ruler.fill",
+            "eye.fill",
+            "hand.raised.fill",
+            "brain",
+            "cross.case.fill",
+            "figure.walk",
+            "figure.run",
+            "figure.stairs",
+            "figure.pool.swim",
+            "figure.outdoor.cycle",
+            "bicycle",
+            "figure.strengthtraining.traditional",
+            "figure.mind.and.body",
+            "figure.cooldown",
+            "bolt.fill",
+            "timer",
+            "stopwatch.fill",
+            "moon.fill",
+            "moon.zzz.fill",
+            "zzz",
+            "sun.max.fill",
+            "sunrise.fill",
+            "sunset.fill",
+            "clock.fill",
+            "alarm.fill",
+            "fork.knife",
+            "cup.and.saucer.fill",
+            "waterbottle.fill",
+            "leaf.fill",
+            "chart.line.uptrend.xyaxis",
+            "chart.bar.fill",
+            "gauge.with.dots.needle.50percent",
+            "star.fill",
+            "target",
+            "flag.fill"
+          ]
+        },
+        "color": {
+          "type": "string",
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "mint",
+            "teal",
+            "cyan",
+            "blue",
+            "indigo",
+            "purple",
+            "pink",
+            "brown",
+            "gray"
+          ]
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "kg",
+                "lb",
+                "st",
+                "cm",
+                "m",
+                "km",
+                "in",
+                "ft",
+                "yd",
+                "mi",
+                "degC",
+                "degF",
+                "km/hr",
+                "mi/hr",
+                "m/s",
+                "mL",
+                "L",
+                "fl_oz_us",
+                "kcal",
+                "kJ"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "symbol",
+        "color",
+        "unit"
+      ],
+      "additionalProperties": false
+    },
+    "series": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16,
+            "pattern": "^[a-z][a-z0-9]{0,15}$"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "HKQuantityTypeIdentifierStepCount",
+              "HKQuantityTypeIdentifierDistanceWalkingRunning",
+              "HKQuantityTypeIdentifierActiveEnergyBurned",
+              "HKQuantityTypeIdentifierBasalEnergyBurned",
+              "HKQuantityTypeIdentifierAppleExerciseTime",
+              "HKQuantityTypeIdentifierAppleMoveTime",
+              "HKQuantityTypeIdentifierAppleStandTime",
+              "HKQuantityTypeIdentifierFlightsClimbed",
+              "HKQuantityTypeIdentifierPushCount",
+              "HKQuantityTypeIdentifierDistanceWheelchair",
+              "HKQuantityTypeIdentifierDistanceCycling",
+              "HKQuantityTypeIdentifierCyclingCadence",
+              "HKQuantityTypeIdentifierCyclingFunctionalThresholdPower",
+              "HKQuantityTypeIdentifierCyclingPower",
+              "HKQuantityTypeIdentifierCyclingSpeed",
+              "HKQuantityTypeIdentifierDistanceSwimming",
+              "HKQuantityTypeIdentifierSwimmingStrokeCount",
+              "HKQuantityTypeIdentifierDistanceDownhillSnowSports",
+              "HKQuantityTypeIdentifierDistanceCrossCountrySkiing",
+              "HKQuantityTypeIdentifierCrossCountrySkiingSpeed",
+              "HKQuantityTypeIdentifierDistancePaddleSports",
+              "HKQuantityTypeIdentifierPaddleSportsSpeed",
+              "HKQuantityTypeIdentifierDistanceRowing",
+              "HKQuantityTypeIdentifierRowingSpeed",
+              "HKQuantityTypeIdentifierDistanceSkatingSports",
+              "HKQuantityTypeIdentifierRunningPower",
+              "HKQuantityTypeIdentifierRunningSpeed",
+              "HKQuantityTypeIdentifierPhysicalEffort",
+              "HKQuantityTypeIdentifierWorkoutEffortScore",
+              "HKQuantityTypeIdentifierEstimatedWorkoutEffortScore",
+              "HKQuantityTypeIdentifierBodyMass",
+              "HKQuantityTypeIdentifierHeight",
+              "HKQuantityTypeIdentifierBodyMassIndex",
+              "HKQuantityTypeIdentifierBodyFatPercentage",
+              "HKQuantityTypeIdentifierLeanBodyMass",
+              "HKQuantityTypeIdentifierWaistCircumference",
+              "HKQuantityTypeIdentifierAppleSleepingWristTemperature",
+              "HKQuantityTypeIdentifierElectrodermalActivity",
+              "HKQuantityTypeIdentifierBasalBodyTemperature",
+              "HKQuantityTypeIdentifierEnvironmentalAudioExposure",
+              "HKQuantityTypeIdentifierHeadphoneAudioExposure",
+              "HKQuantityTypeIdentifierEnvironmentalSoundReduction",
+              "HKQuantityTypeIdentifierHeartRate",
+              "HKQuantityTypeIdentifierRestingHeartRate",
+              "HKQuantityTypeIdentifierWalkingHeartRateAverage",
+              "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+              "HKQuantityTypeIdentifierHeartRateVariabilityRMSSD",
+              "HKQuantityTypeIdentifierHeartRateRecoveryOneMinute",
+              "HKQuantityTypeIdentifierVO2Max",
+              "HKQuantityTypeIdentifierAtrialFibrillationBurden",
+              "HKQuantityTypeIdentifierBloodPressureSystolic",
+              "HKQuantityTypeIdentifierBloodPressureDiastolic",
+              "HKQuantityTypeIdentifierTimeInDaylight",
+              "HKQuantityTypeIdentifierWalkingSpeed",
+              "HKQuantityTypeIdentifierWalkingStepLength",
+              "HKQuantityTypeIdentifierWalkingAsymmetryPercentage",
+              "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage",
+              "HKQuantityTypeIdentifierAppleWalkingSteadiness",
+              "HKQuantityTypeIdentifierSixMinuteWalkTestDistance",
+              "HKQuantityTypeIdentifierStairAscentSpeed",
+              "HKQuantityTypeIdentifierStairDescentSpeed",
+              "HKQuantityTypeIdentifierRunningStrideLength",
+              "HKQuantityTypeIdentifierRunningGroundContactTime",
+              "HKQuantityTypeIdentifierRunningVerticalOscillation",
+              "HKQuantityTypeIdentifierDietaryEnergyConsumed",
+              "HKQuantityTypeIdentifierDietaryWater",
+              "HKQuantityTypeIdentifierDietaryCaffeine",
+              "HKQuantityTypeIdentifierDietaryCarbohydrates",
+              "HKQuantityTypeIdentifierDietaryFiber",
+              "HKQuantityTypeIdentifierDietarySugar",
+              "HKQuantityTypeIdentifierDietaryProtein",
+              "HKQuantityTypeIdentifierDietaryFatTotal",
+              "HKQuantityTypeIdentifierDietaryFatSaturated",
+              "HKQuantityTypeIdentifierDietaryFatMonounsaturated",
+              "HKQuantityTypeIdentifierDietaryFatPolyunsaturated",
+              "HKQuantityTypeIdentifierDietaryCholesterol",
+              "HKQuantityTypeIdentifierDietarySodium",
+              "HKQuantityTypeIdentifierDietaryPotassium",
+              "HKQuantityTypeIdentifierDietaryCalcium",
+              "HKQuantityTypeIdentifierDietaryChloride",
+              "HKQuantityTypeIdentifierDietaryIron",
+              "HKQuantityTypeIdentifierDietaryMagnesium",
+              "HKQuantityTypeIdentifierDietaryManganese",
+              "HKQuantityTypeIdentifierDietaryPhosphorus",
+              "HKQuantityTypeIdentifierDietaryZinc",
+              "HKQuantityTypeIdentifierDietaryCopper",
+              "HKQuantityTypeIdentifierDietaryChromium",
+              "HKQuantityTypeIdentifierDietaryIodine",
+              "HKQuantityTypeIdentifierDietaryMolybdenum",
+              "HKQuantityTypeIdentifierDietarySelenium",
+              "HKQuantityTypeIdentifierDietaryVitaminA",
+              "HKQuantityTypeIdentifierDietaryThiamin",
+              "HKQuantityTypeIdentifierDietaryRiboflavin",
+              "HKQuantityTypeIdentifierDietaryNiacin",
+              "HKQuantityTypeIdentifierDietaryPantothenicAcid",
+              "HKQuantityTypeIdentifierDietaryVitaminB6",
+              "HKQuantityTypeIdentifierDietaryBiotin",
+              "HKQuantityTypeIdentifierDietaryFolate",
+              "HKQuantityTypeIdentifierDietaryVitaminB12",
+              "HKQuantityTypeIdentifierDietaryVitaminC",
+              "HKQuantityTypeIdentifierDietaryVitaminD",
+              "HKQuantityTypeIdentifierDietaryVitaminE",
+              "HKQuantityTypeIdentifierDietaryVitaminK",
+              "HKQuantityTypeIdentifierRespiratoryRate",
+              "HKQuantityTypeIdentifierOxygenSaturation",
+              "HKQuantityTypeIdentifierAppleSleepingBreathingDisturbances",
+              "HKQuantityTypeIdentifierForcedVitalCapacity",
+              "HKQuantityTypeIdentifierForcedExpiratoryVolume1",
+              "HKQuantityTypeIdentifierPeakExpiratoryFlowRate",
+              "HKQuantityTypeIdentifierInhalerUsage",
+              "HKQuantityTypeIdentifierBodyTemperature",
+              "HKQuantityTypeIdentifierBloodGlucose",
+              "HKQuantityTypeIdentifierBloodAlcoholContent",
+              "HKQuantityTypeIdentifierNumberOfAlcoholicBeverages",
+              "HKQuantityTypeIdentifierInsulinDelivery",
+              "HKQuantityTypeIdentifierNumberOfTimesFallen",
+              "HKQuantityTypeIdentifierPeripheralPerfusionIndex",
+              "HKQuantityTypeIdentifierUVExposure",
+              "HKQuantityTypeIdentifierUnderwaterDepth",
+              "HKQuantityTypeIdentifierWaterTemperature"
+            ]
+          },
+          "aggregation": {
+            "type": "string",
+            "enum": [
+              "sum",
+              "avg",
+              "min",
+              "max",
+              "first",
+              "latest",
+              "count"
+            ]
+          },
+          "window": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "asleep"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "beforeSleep"
+                        ]
+                      },
+                      "minutes": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 240
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "minutes"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "afterWaking"
+                        ]
+                      },
+                      "minutes": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 240
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "minutes"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "workout"
+                        ]
+                      },
+                      "activities": {
+                        "anyOf": [
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "enum": [
+                                1,
+                                2,
+                                3,
+                                4,
+                                5,
+                                6,
+                                7,
+                                8,
+                                9,
+                                10,
+                                11,
+                                12,
+                                13,
+                                14,
+                                15,
+                                16,
+                                17,
+                                18,
+                                19,
+                                20,
+                                21,
+                                22,
+                                23,
+                                24,
+                                25,
+                                26,
+                                27,
+                                28,
+                                29,
+                                30,
+                                31,
+                                32,
+                                33,
+                                34,
+                                35,
+                                36,
+                                37,
+                                38,
+                                39,
+                                40,
+                                41,
+                                42,
+                                43,
+                                44,
+                                45,
+                                46,
+                                47,
+                                48,
+                                49,
+                                50,
+                                51,
+                                52,
+                                53,
+                                54,
+                                55,
+                                56,
+                                57,
+                                58,
+                                59,
+                                60,
+                                61,
+                                62,
+                                63,
+                                64,
+                                65,
+                                66,
+                                67,
+                                68,
+                                69,
+                                70,
+                                71,
+                                72,
+                                73,
+                                74,
+                                75,
+                                76,
+                                77,
+                                78,
+                                79,
+                                80,
+                                82,
+                                83,
+                                84,
+                                3000
+                              ]
+                            },
+                            "minItems": 1,
+                            "maxItems": 10,
+                            "uniqueItems": true
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "activities"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "timeOfDay"
+                        ]
+                      },
+                      "from": {
+                        "type": "string",
+                        "minLength": 5,
+                        "maxLength": 5,
+                        "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                      },
+                      "to": {
+                        "type": "string",
+                        "minLength": 5,
+                        "maxLength": 5,
+                        "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "from",
+                      "to"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "filter": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "sources": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "minItems": 1,
+                        "maxItems": 10
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "deviceModels": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "minItems": 1,
+                        "maxItems": 10
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "sources",
+                  "deviceModels"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "aggregation",
+          "window",
+          "filter",
+          "label",
+          "hidden"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 4
+    },
+    "formulas": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16,
+                "pattern": "^[a-z][a-z0-9]{0,15}$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "movingAverage"
+                ]
+              },
+              "of": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16,
+                "pattern": "^[a-z][a-z0-9]{0,15}$"
+              },
+              "points": {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 30
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "hidden": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "of",
+              "points",
+              "label",
+              "hidden"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16,
+                "pattern": "^[a-z][a-z0-9]{0,15}$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "difference"
+                ]
+              },
+              "of": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 16,
+                  "pattern": "^[a-z][a-z0-9]{0,15}$"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "hidden": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "of",
+              "label",
+              "hidden"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "minItems": 0,
+      "maxItems": 2
+    },
+    "bucket": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "hour",
+        "day",
+        "night",
+        "week",
+        "month"
+      ]
+    },
+    "range": {
+      "type": "string",
+      "enum": [
+        "D",
+        "W",
+        "M",
+        "6M",
+        "Y"
+      ]
+    },
+    "chart": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": [
+            "bars",
+            "ranges",
+            "dots",
+            "line"
+          ]
+        },
+        "goal": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "style",
+        "goal"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "version",
+    "display",
+    "series",
+    "formulas",
+    "bucket",
+    "range",
+    "chart"
+  ],
+  "additionalProperties": false
+}

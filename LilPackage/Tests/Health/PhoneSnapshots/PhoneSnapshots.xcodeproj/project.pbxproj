@@ -20,6 +20,7 @@
 		3D0000000000000000000017 /* LilAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 3D0000000000000000000007 /* LilAuth */; };
 		3D0000000000000000000018 /* LilAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 3D0000000000000000000008 /* LilAPI */; };
 		3D0000000000000000000019 /* LilUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3D0000000000000000000009 /* LilUI */; };
+		3D000000000000000000001A /* HealthCards in Frameworks */ = {isa = PBXBuildFile; productRef = 3D000000000000000000000A /* HealthCards */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,6 +77,7 @@
 				3D0000000000000000000017 /* LilAuth in Frameworks */,
 				3D0000000000000000000018 /* LilAPI in Frameworks */,
 				3D0000000000000000000019 /* LilUI in Frameworks */,
+				3D000000000000000000001A /* HealthCards in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -162,6 +164,7 @@
 				3D0000000000000000000007 /* LilAuth */,
 				3D0000000000000000000008 /* LilAPI */,
 				3D0000000000000000000009 /* LilUI */,
+				3D000000000000000000000A /* HealthCards */,
 			);
 			productName = HealthPhoneSnapshotTests;
 			productReference = 3B0000000000000000000004 /* HealthPhoneSnapshotTests.xctest */;
@@ -412,6 +415,10 @@
 		3D0000000000000000000009 /* LilUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = LilUI;
+		};
+		3D000000000000000000000A /* HealthCards */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthCards;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

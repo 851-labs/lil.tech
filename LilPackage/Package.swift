@@ -10,6 +10,7 @@ let package = Package(
   ],
   products: [
     .library(name: "HealthAgentAccess", targets: ["HealthAgentAccess"]),
+    .library(name: "HealthCards", targets: ["HealthCards"]),
     .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
     .library(name: "HealthCLI", targets: ["HealthCLI"]),
     .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
@@ -79,6 +80,22 @@ let package = Package(
         "HealthAgentAccess"
       ],
       path: "Tests/Health/HealthAgentAccessTests"
+    ),
+    // Cards' shared core (851-3194): the card spec, its canonicalizer and validator, the
+    // welcome seed and positions, free of UI and databases so every platform builds it. It
+    // generates the server's card files (scripts/generate-health-cards).
+    .target(
+      name: "HealthCards",
+      dependencies: ["HealthCatalog"],
+      path: "Sources/Health/HealthCards"
+    ),
+    .testTarget(
+      name: "HealthCardsTests",
+      dependencies: [
+        "HealthCards",
+        "HealthCatalog",
+      ],
+      path: "Tests/Health/HealthCardsTests"
     ),
     .target(
       name: "HealthCatalog",

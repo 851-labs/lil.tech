@@ -1,16 +1,18 @@
 #!/bin/sh
 # Formats every Swift file with swift-format, and the TypeScript workspace (Services/, Web/)
-# with Vite+ (Oxfmt), and regenerates the server's copy of the Health catalog, the API's OpenAPI
+# with Vite+ (Oxfmt), and regenerates the server's copy of the Health catalog, the server's card
+# files (the card spec's schema, the welcome seed and the validation cases), the API's OpenAPI
 # spec, its MCP tool definitions and the Swift client.
 # Usage: scripts/format [--lint] [--swift | --services]
 #   --lint   Check without changing files: swift-format lint, a check that
-#            Services/api/health-catalog.json is up to date and one that no Swift code has a
+#            Services/api/health-catalog.json and the card files are up to date
+#            (scripts/generate-health-cards), and one that no Swift code has a
 #            `#Preview` or `PreviewProvider` (851-2970), plus `vp check`
 #            (format, lint and type check) for the workspace, plus a check that
 #            Services/api/openapi.json, Services/api/mcp-tools.json, the core D1
 #            migrations and the generated Swift client are up to date. Runs every check
 #            and exits non-zero if any fails.
-#   --swift     Only the Swift part, with the Health catalog.
+#   --swift     Only the Swift part, with the Health catalog and card files.
 #   --services  Only the TypeScript workspace, with the spec, tools and client.
 set -u
 
@@ -51,6 +53,7 @@ if $services_only; then
 elif $lint; then
   xcrun swift-format lint --strict --parallel $files || status=1
   scripts/generate-health-catalog --check || status=1
+  scripts/generate-health-cards --check || status=1
   # UI states are state catalogs (AGENTS.md › UI states). A preview would also run the live
   # dependencies, since none has a `previewValue` any more: real iMessages, the API, the Keychain.
   if git grep -n -E '#Preview|PreviewProvider' -- '*.swift'; then
@@ -62,6 +65,8 @@ else
   xcrun swift-format format --in-place --parallel $files || status=1
   # The server's copy of the Health catalog, generated from the Swift one (851-2857).
   scripts/generate-health-catalog || status=1
+  # The server's card files, generated from HealthCards (851-3194).
+  scripts/generate-health-cards || status=1
 fi
 
 if $swift_only; then

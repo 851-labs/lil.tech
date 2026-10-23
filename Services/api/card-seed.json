@@ -1,0 +1,197 @@
+{
+  "description": "The welcome seed (docs/decisions/cards.md): the health_card rows every store starts with, but for createdAt and updatedAt. Generated from HealthCards.welcomeSeed by scripts/generate-health-cards: don't edit.",
+  "cards": [
+    {
+      "id": "card_seed_steps",
+      "seed": "steps",
+      "position": "a0",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Steps",
+          "symbol": "flame.fill",
+          "color": "orange",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "aggregation": "sum",
+            "window": null,
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "auto",
+        "range": "W",
+        "chart": {
+          "style": "bars",
+          "goal": null
+        }
+      }
+    },
+    {
+      "id": "card_seed_heart_rate",
+      "seed": "heart_rate",
+      "position": "a1",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Heart Rate",
+          "symbol": "heart.fill",
+          "color": "red",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "window": null,
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "auto",
+        "range": "W",
+        "chart": {
+          "style": "ranges",
+          "goal": null
+        }
+      }
+    },
+    {
+      "id": "card_seed_active_energy",
+      "seed": "active_energy",
+      "position": "a2",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Active Energy",
+          "symbol": "flame.fill",
+          "color": "orange",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+            "aggregation": "sum",
+            "window": null,
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "auto",
+        "range": "W",
+        "chart": {
+          "style": "bars",
+          "goal": null
+        }
+      }
+    },
+    {
+      "id": "card_seed_walking_running_distance",
+      "seed": "walking_running_distance",
+      "position": "a3",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Walking + Running Distance",
+          "symbol": "flame.fill",
+          "color": "orange",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierDistanceWalkingRunning",
+            "aggregation": "sum",
+            "window": null,
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "auto",
+        "range": "W",
+        "chart": {
+          "style": "bars",
+          "goal": null
+        }
+      }
+    },
+    {
+      "id": "card_seed_resting_heart_rate",
+      "seed": "resting_heart_rate",
+      "position": "a4",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Resting Heart Rate",
+          "symbol": "heart.fill",
+          "color": "red",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "aggregation": "avg",
+            "window": null,
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "auto",
+        "range": "W",
+        "chart": {
+          "style": "line",
+          "goal": null
+        }
+      }
+    },
+    {
+      "id": "card_seed_weight",
+      "seed": "weight",
+      "position": "a5",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Weight",
+          "symbol": "figure",
+          "color": "purple",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "aggregation": "avg",
+            "window": null,
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "auto",
+        "range": "W",
+        "chart": {
+          "style": "line",
+          "goal": null
+        }
+      }
+    }
+  ]
+}

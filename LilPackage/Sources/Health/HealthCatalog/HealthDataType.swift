@@ -46,7 +46,7 @@ public struct HealthDataType: Hashable, Identifiable, Sendable {
   /// How a quantity type's charts draw it, as iPad Health's do (851-3097,
   /// docs/decisions/health.md has every type's). Fixed per type, rather than picked from the data
   /// each time, which would flip a chart between styles from one period to the next.
-  public enum ChartStyle: String, Hashable, Sendable {
+  public enum ChartStyle: String, CaseIterable, Hashable, Sendable {
     /// A bar per period, its total: every cumulative type (steps, energy, nutrition).
     case bars
     /// A capsule per period, from its lowest to its highest reading: types measured many times a

@@ -39,6 +39,28 @@ public enum HealthCategory: String, CaseIterable, Hashable, Identifiable, Sendab
     }
   }
 
+  /// The category's color in Health, for its icon: a card palette name (`CardColor`), which
+  /// `HealthUI` draws as SwiftUI's system color of that name. The default color of a card whose
+  /// first series is of the category's types.
+  public var colorName: String {
+    switch self {
+    case .activity: "orange"
+    case .bodyMeasurements: "purple"
+    case .cycleTracking: "pink"
+    case .hearing: "blue"
+    case .heart: "red"
+    case .medications: "teal"
+    case .mentalWellbeing: "cyan"
+    case .mobility: "orange"
+    case .nutrition: "green"
+    case .respiratory: "cyan"
+    case .sleep: "mint"
+    case .symptoms: "indigo"
+    case .vitals: "red"
+    case .otherData: "blue"
+    }
+  }
+
   public var name: String {
     switch self {
     case .activity: "Activity"
