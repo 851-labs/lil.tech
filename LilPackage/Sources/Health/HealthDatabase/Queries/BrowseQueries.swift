@@ -21,10 +21,14 @@ public struct MetricSummary: Equatable, Identifiable, Sendable {
   /// Whether it has data without a date: medications shared before any of their doses are
   /// logged, since a medication's date is its latest dose's.
   public var hasUndatedData: Bool
+  /// For sound levels, the exposure of the week `days` covers, which Health's rows show in
+  /// place of the latest value (851-3100). `nil` for other types, or without data.
+  public var soundExposure: SoundExposure?
 
   public init(
     id: String, latestDate: Date? = nil, latestValue: Double? = nil, unit: String? = nil,
-    isDailyTotal: Bool = false, days: [DailyValue] = [], hasUndatedData: Bool = false
+    isDailyTotal: Bool = false, days: [DailyValue] = [], hasUndatedData: Bool = false,
+    soundExposure: SoundExposure? = nil
   ) {
     self.id = id
     self.latestDate = latestDate
@@ -33,6 +37,7 @@ public struct MetricSummary: Equatable, Identifiable, Sendable {
     self.isDailyTotal = isDailyTotal
     self.days = days
     self.hasUndatedData = hasUndatedData
+    self.soundExposure = soundExposure
   }
 
   public var hasData: Bool { latestDate != nil || hasUndatedData }
@@ -41,10 +46,15 @@ public struct MetricSummary: Equatable, Identifiable, Sendable {
 public struct DailyValue: Equatable, Sendable {
   public var day: Date
   public var value: Double
+  /// A discrete type's lowest and highest values that day, for range bars. `nil` for totals.
+  public var minimum: Double?
+  public var maximum: Double?
 
-  public init(day: Date, value: Double) {
+  public init(day: Date, value: Double, minimum: Double? = nil, maximum: Double? = nil) {
     self.day = day
     self.value = value
+    self.minimum = minimum
+    self.maximum = maximum
   }
 }
 
@@ -134,20 +144,23 @@ extension HealthDatabase {
       unit: type.unit, isDailyTotal: true, days: days)
   }
 
-  /// The latest sample, and daily averages for the week ending on its day.
+  /// The latest sample, and daily averages and ranges for the week ending on its day. Sound
+  /// levels add that week's exposure.
   private static func discreteSummary(
     of type: HealthDataType, calendar: Calendar, _ db: Database
   ) throws -> MetricSummary {
     guard let latest = try latestSample(of: type.id, db) else { return MetricSummary(id: type.id) }
     let date = Date(unixMilliseconds: latest.startDate)
-    let days = try discreteStatistics(
-      of: type.id, in: weekEnding(on: calendar.startOfDay(for: date), calendar: calendar),
-      by: .day, calendar: calendar, db
-    )
-    .map { DailyValue(day: $0.start, value: $0.average) }
+    let week = weekEnding(on: calendar.startOfDay(for: date), calendar: calendar)
+    let days = try discreteStatistics(of: type.id, in: week, by: .day, calendar: calendar, db)
+      .map {
+        DailyValue(day: $0.start, value: $0.average, minimum: $0.minimum, maximum: $0.maximum)
+      }
+    let exposure =
+      soundLevelTypes.contains(type.id) ? try soundExposure(of: type.id, in: week, db) : nil
     return MetricSummary(
       id: type.id, latestDate: date, latestValue: latest.value, unit: latest.unit ?? type.unit,
-      days: days)
+      days: days, soundExposure: exposure)
   }
 
   /// When a type without a single value was last recorded, from wherever it's stored. `nil` for

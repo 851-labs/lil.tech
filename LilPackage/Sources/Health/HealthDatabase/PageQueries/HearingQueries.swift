@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 public import SQLiteData
 
 extension HealthDatabase {
@@ -12,6 +12,42 @@ extension HealthDatabase {
     "HKQuantityTypeIdentifierHeadphoneAudioExposure",
   ]
 
+  /// The sound a week may hold before it's over the limit: 40 hours at `loudSoundLevel`, the
+  /// WHO's safe listening level for adults, which Health's 7-day exposure and headphone
+  /// notifications use (851-3100). Every 3 dB louder halves the time (equal energy).
+  public static let weeklySoundAllowance: TimeInterval = 40 * 3600
+
+  /// How much of `weeklySoundAllowance` a sound level type's samples in `range` add up to
+  /// (851-3100): each sample's time in the range, weighted by its energy against
+  /// `loudSoundLevel`'s, so an hour at 80 dB is 1/40 of the limit and an hour at 90 dB 10/40.
+  /// Time without samples counts as quiet, as nothing measured it. `nil` without samples in the
+  /// range.
+  public static func soundExposure(
+    of type: String, in range: Range<Date>, _ db: Database
+  ) throws -> SoundExposure? {
+    let lower = range.lowerBound.unixMilliseconds
+    let upper = range.upperBound.unixMilliseconds
+    // Samples that start up to a day early can reach into the range; Health's are minutes long.
+    let earliest = range.lowerBound.addingTimeInterval(-86_400).unixMilliseconds
+    let rows =
+      try HealthSample
+      .where {
+        $0.type.eq(type) && $0.startDate >= earliest && $0.startDate < upper
+          && $0.endDate > lower
+      }
+      .select { ($0.startDate, $0.endDate, $0.value) }
+      .fetchAll(db)
+    var seconds = 0.0
+    var hasSamples = false
+    for (start, end, value) in rows {
+      guard let value else { continue }
+      hasSamples = true
+      let overlap = Double(min(end, upper) - max(start, lower)) / 1000
+      seconds += max(overlap, 0) * pow(10, (value - loudSoundLevel) / 10)
+    }
+    return hasSamples ? SoundExposure(dose: seconds / weeklySoundAllowance) : nil
+  }
+
   /// Audiograms, newest first, at most `limit`.
   public static func audiograms(limit: Int, _ db: Database) throws -> [HealthAudiogram] {
     try HealthAudiogram
@@ -19,6 +55,19 @@ extension HealthDatabase {
       .limit(limit)
       .fetchAll(db)
   }
+}
+
+/// A week's sound exposure against Health's limit (`HealthDatabase.soundExposure`).
+public struct SoundExposure: Equatable, Sendable {
+  /// The share of the weekly limit used: 1 is the limit, 0.5 half of it.
+  public var dose: Double
+
+  public init(dose: Double) {
+    self.dose = dose
+  }
+
+  /// Whether it reached the limit, which Health calls loud.
+  public var isOverLimit: Bool { dose >= 1 }
 }
 
 /// An ear, as HealthKit numbers them (`HKAudiogramSensitivityTest.Side`).

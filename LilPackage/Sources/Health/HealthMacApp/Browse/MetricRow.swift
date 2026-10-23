@@ -9,7 +9,8 @@ import SwiftUI
 /// latest value and a week's chart. Its height is the same with a value, without data ("No
 /// Data"), or while it loads (no summary yet, "–"), so nothing moves as Summary loads or a
 /// metric's data arrives (851-3092). A row with data but no latest value to show (a medication's)
-/// is its name and date.
+/// is its name and date. Sound levels show their week's exposure in place of a value, over the
+/// limit or not, beside each day's range, as Health's cards do (851-3100).
 struct MetricRow: View {
   let type: HealthDataType
   /// Nil while it loads.
@@ -45,7 +46,14 @@ struct MetricRow: View {
           .foregroundStyle(.secondary)
         }
       }
-      if let summary, let value = summary.latestValue {
+      if let summary, let exposure = summary.soundExposure {
+        HStack(alignment: .bottom) {
+          SoundExposureStatus(exposure: exposure)
+          Spacer()
+          Sparkline(days: summary.days, isTotals: false, isRanges: true, color: color)
+            .frame(width: 120, height: 36)
+        }
+      } else if let summary, let value = summary.latestValue {
         HStack(alignment: .bottom) {
           let (number, unit) = MetricFormat.value(value, unit: summary.unit, typeID: type.id)
           HStack(alignment: .firstTextBaseline, spacing: 3) {
@@ -81,15 +89,59 @@ struct MetricRow: View {
   }
 }
 
-/// A week at a glance: bars for daily totals, a line for daily averages.
+/// "7-Day Exposure" and whether it's within the limit: "OK" by a green dot, or "Loud" by a
+/// yellow one, as Health and the Watch's Noise app put it. Two short lines, so the row keeps the
+/// height of one with a value.
+struct SoundExposureStatus: View {
+  let exposure: SoundExposure
+
+  private var status: String { exposure.isOverLimit ? "Loud" : "OK" }
+  /// Rounded down, so a week just under the limit never reads as 100% and OK.
+  private var share: String {
+    exposure.dose.formatted(.percent.precision(.fractionLength(0)).rounded(rule: .down))
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 1) {
+      Text("7-Day Exposure")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+      HStack(spacing: 5) {
+        Circle()
+          .fill(exposure.isOverLimit ? Color.yellow : .green)
+          .frame(width: 8, height: 8)
+        Text(status)
+          .font(.system(.title2, design: .rounded).bold())
+      }
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("7-Day Exposure")
+    .accessibilityValue("\(status), \(share) of the weekly limit")
+  }
+}
+
+/// A week at a glance: bars for daily totals, a line for daily averages, or each day's range from
+/// its lowest to its highest value.
 struct Sparkline: View {
   let days: [DailyValue]
   let isTotals: Bool
+  var isRanges = false
   let color: Color
 
   var body: some View {
     Chart(days, id: \.day) { day in
-      if isTotals {
+      if isRanges {
+        // A capsule, and a dot for a day whose values were all the same. Days without a range
+        // are left out rather than drawn another way.
+        if let minimum = day.minimum, let maximum = day.maximum {
+          RuleMark(
+            x: .value("Day", day.day, unit: .day), yStart: .value("Lowest", minimum),
+            yEnd: .value("Highest", maximum)
+          )
+          .lineStyle(StrokeStyle(lineWidth: 5, lineCap: .round))
+          .foregroundStyle(color)
+        }
+      } else if isTotals {
         BarMark(x: .value("Day", day.day, unit: .day), y: .value("Value", day.value))
           .foregroundStyle(color.opacity(0.8))
       } else {
@@ -100,6 +152,7 @@ struct Sparkline: View {
           .symbolSize(12)
       }
     }
+    .chartYScale(domain: .automatic(includesZero: !isRanges))
     .chartXAxis(.hidden)
     .chartYAxis(.hidden)
     .chartLegend(.hidden)
