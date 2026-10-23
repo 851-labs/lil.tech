@@ -110,8 +110,8 @@
         "Sidebar, a category opened while Health Categories was collapsed", width: 240,
         minHeight: 640
       ) {
-        sidebar(
-          opened(
+        SidebarList(
+          store: opened(
             .category(.heart),
             in: sidebarState(selection: .category(.heart), categoriesExpanded: false)))
       },
@@ -144,7 +144,6 @@
   /// so it's never read from defaults.
   @MainActor
   private func window(_ state: AppFeature.State) -> some View {
-    var state = state
     state.$isCategoriesExpanded = Shared(value: true)
     return AppView(store: Store(initialState: state) { EmptyReducer() })
   }
@@ -167,15 +166,16 @@
   /// Signed in, with Health Categories expanded or not in a value of the state's own, so the
   /// sidebar never reads it from defaults.
   private func sidebarState(selection: SidebarItem, categoriesExpanded: Bool) -> AppFeature.State {
-    var state = AppFeature.State(isSignedIn: true, selection: selection)
+    let state = AppFeature.State(isSignedIn: true, selection: selection)
     state.$isCategoriesExpanded = Shared(value: categoriesExpanded)
     return state
   }
 
-  /// The state after the store opens a page, as an intent does.
-  private func opened(_ page: HealthPage, in state: AppFeature.State) -> AppFeature.State {
-    var state = state
-    _ = AppFeature().reduce(into: &state, action: .pageOpened(page))
-    return state
+  /// A store that has opened a page, as an intent does.
+  @MainActor
+  private func opened(_ page: HealthPage, in state: AppFeature.State) -> StoreOf<AppFeature> {
+    let store = Store(initialState: state) { AppFeature() }
+    store.send(.pageOpened(page))
+    return store
   }
 #endif
