@@ -146,6 +146,12 @@
           HealthDatabase.toothbrushingType, .year,
           values: [1.8, 1.9, 2, 1.7, 2, 1.9, 2, 2, 1.6, 1.8], summary: .averageDuration(118))
       },
+      // Sessions' AVERAGE DURATION while loading and without sessions too, so the caption doesn't
+      // change as the chart loads (851-3107).
+      CatalogState("Handwashing, loading") {
+        detail(HealthDatabase.handwashingType, .month, state: .loading)
+      },
+      CatalogState("Toothbrushing, no data") { noData(HealthDatabase.toothbrushingType) },
     ],
     // What's below the chart stays put while it loads, and whatever the period shows (851-3084).
     // Heart rate keeps a row for its lines' legend.
@@ -155,7 +161,8 @@
         "Steps, the week before", "Steps, day", "Steps, 6 months", "No data",
         "Body fat percentage, no data", "Steps, no data", "Failed",
         "Environmental sound levels, week", "Stand hours, day", "Mindful minutes, week",
-        "Handwashing, month", "Toothbrushing, year", "Blood oxygen, month", "Weight, day",
+        "Handwashing, month", "Toothbrushing, year", "Handwashing, loading",
+        "Toothbrushing, no data", "Blood oxygen, month", "Weight, day",
         "Weight, last week", "Weight, month", "Weight, month with a gap", "Weight, 6 months",
         "Weight, year", "Body fat percentage, month", "Cardio fitness, 6 months",
         "Walking speed, week", "Running speed, week", "Walking + running distance, week",

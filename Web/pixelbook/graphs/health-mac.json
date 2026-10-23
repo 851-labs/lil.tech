@@ -137,6 +137,8 @@
         "Mindful minutes, week",
         "Handwashing, month",
         "Toothbrushing, year",
+        "Handwashing, loading",
+        "Toothbrushing, no data",
         "Heart rate variability, week",
         "Blood oxygen, month"
       ]
