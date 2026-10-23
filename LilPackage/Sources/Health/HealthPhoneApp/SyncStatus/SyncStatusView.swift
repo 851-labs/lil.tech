@@ -28,7 +28,7 @@ public struct SyncStatusView: View {
             Text("Categories")
           } footer: {
             Text(
-              "Health doesn't tell apps what you turned off. If a category stays empty, check its access in the Settings app."
+              "If a category stays empty, check Settings › Privacy & Security › Health › lil health."
             )
           }
         }
@@ -63,7 +63,7 @@ private struct StatusHeader: View {
         Label("Not uploading", systemImage: "hand.raised")
           .foregroundStyle(.secondary)
         Text(
-          "lil health uploads your Health data only with your consent. Anything uploaded before stays in your account until you delete it."
+          "lil health needs your consent to upload your Health data."
         )
         .font(.subheadline)
         .foregroundStyle(.secondary)
@@ -74,7 +74,7 @@ private struct StatusHeader: View {
       case .needsHealthAccess:
         Label("Health access needed", systemImage: "heart.text.square")
           .foregroundStyle(.pink)
-        Text("lil health can't upload what Health hasn't shared with it.")
+        Text("lil health needs access to your Health data to upload it.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
         Button("Review Access") { store.send(.reviewHealthAccessButtonTapped) }
@@ -91,7 +91,7 @@ private struct StatusHeader: View {
         Label("Storage full", systemImage: "externaldrive.badge.exclamationmark")
           .foregroundStyle(.red)
         Text(
-          "Your lil account is full, so new Health data isn't uploaded. Everything uploaded so far is safe."
+          "New Health data isn't uploaded. What's already uploaded is safe."
         )
         .font(.subheadline)
         .foregroundStyle(.secondary)
@@ -113,7 +113,7 @@ private struct StatusHeader: View {
         Label("Upload paused", systemImage: "pause.circle")
           .foregroundStyle(.orange)
         UploadCounts(records: records, totalRecords: totalRecords)
-        Text("It continues in the background, or now.")
+        Text("It'll continue in the background.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
         Button("Continue") { store.send(.retryButtonTapped) }

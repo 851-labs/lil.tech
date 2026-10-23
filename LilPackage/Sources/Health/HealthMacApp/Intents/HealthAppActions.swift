@@ -88,7 +88,7 @@ public enum HealthAppActionError: Error, Equatable, LocalizedError,
       "lil health is still exporting. It'll be saved to \(folderName)."
     case .folderNotFound(let path): "There's no folder at \(path)."
     case .folderNotWritable(let path):
-      "lil health can't save to \(path). Check that the folder can be written to, and that lil health may use it, in System Settings › Privacy & Security › Files & Folders."
+      "lil health can't save to \(path). Check its access in System Settings › Privacy & Security › Files & Folders."
     }
   }
 

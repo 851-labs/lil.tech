@@ -8,7 +8,7 @@ public import Foundation
 public struct OpenHealthPageIntent: OpenIntent {
   public static let title: LocalizedStringResource = "Open in lil health"
   public static let description = IntentDescription(
-    "Opens Summary, Health Details, a Health category or a data type in lil health. Needs Allow access on this Mac, in lil health's Settings › Agents."
+    "Opens a page in lil health, such as Summary or Steps. Needs Allow access on this Mac, in lil health's Settings › Agents."
   )
   /// In the background until access is checked, so the app only comes forward when it's on.
   public static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]

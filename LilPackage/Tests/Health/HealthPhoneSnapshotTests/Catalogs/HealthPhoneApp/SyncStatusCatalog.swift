@@ -62,7 +62,8 @@
       CatalogState("Failed") {
         statusView(
           SyncStatusFeature.State(
-            progress: progress(done: 25, failure: "The server answered HTTP 503")))
+            progress: progress(
+              done: 25, failure: "lil health's server had a problem. Please try again.")))
       },
       CatalogState("Storage full") {
         statusView(
