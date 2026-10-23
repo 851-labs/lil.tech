@@ -648,12 +648,18 @@ export const startUserStore = Effect.fnUntraced(function* (
 ) {
   const store = makeUserStore(...args);
   const [sql, registry = entities] = args;
+  // A store past its hard limit takes no upserts (`apply`), the seed's included: it seeds once
+  // it's back under.
+  if (sql.databaseSize() >= storageHardLimitBytes) return store;
   const seeded = seedWelcomeCards(sql, registry, yield* Clock.currentTimeMillis);
-  if (seeded._tag === "Seeded") {
+  if (seeded._tag === "Seeded" && seeded.appended > 0) {
     yield* Effect.logInfo(`Seeded the welcome cards: ${seeded.appended} changes`);
-  } else if (seeded._tag === "Refused") {
-    yield* Effect.logWarning(
-      `The welcome cards were refused, so none were seeded: ${seeded.message}`,
+  } else if (seeded._tag === "Full") {
+    yield* Effect.logWarning(`Not seeding the welcome cards: the store has ${seeded.cards} cards`);
+  } else if (seeded._tag === "Failed") {
+    yield* Effect.logError(
+      "Seeding the welcome cards failed: trying again next start",
+      seeded.error,
     );
   }
   return store;

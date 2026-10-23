@@ -3,9 +3,10 @@ import type { Schema } from "effect";
 // scripts/generate-health-cards, which scripts/format runs (851-3194).
 import seedJson from "../../../card-seed.json" with { type: "json" };
 import { applyMutations, readMeta } from "../../store/ChangeLog.ts";
-import { InvalidMutation, type Mutation } from "../../store/Changes.ts";
+import type { Mutation } from "../../store/Changes.ts";
 import type { Entity } from "../../store/Entities.ts";
 import type { StoreSql } from "../../store/StoreSql.ts";
+import { storeMaxCards } from "./CardSpec.ts";
 import { HealthCard } from "./HealthCards.ts";
 
 // The welcome seed (851-3203, `docs/decisions/cards.md`, The welcome seed): every account starts
@@ -47,16 +48,25 @@ const seedMutations = (at: number, stored: ReadonlySet<string>): ReadonlyArray<M
 export type SeedOutcome =
   /** It was seeded before, or is deleted, or keeps no cards: nothing changed. */
   | { readonly _tag: "Skipped" }
-  /** It's seeded now, with the cards it didn't have already (`appended` changes). */
+  /** It's seeded now, with the cards it didn't have already (`appended` changes, maybe 0). */
   | { readonly _tag: "Seeded"; readonly appended: number }
-  /** The store refused the seed (say, it already holds 200 cards): marked seeded, with none. */
-  | { readonly _tag: "Refused"; readonly message: string };
+  /**
+   * It already holds so many cards that the seed's would pass the store's limit: marked seeded,
+   * with none, since an account with that many cards is no newcomer.
+   */
+  | { readonly _tag: "Full"; readonly cards: number }
+  /**
+   * Seeding failed (a seed card refused, which only a bug does, or a write failed): nothing was
+   * written, the flag included, so the next start tries again, once the bug is fixed.
+   */
+  | { readonly _tag: "Failed"; readonly error: unknown };
 
 /**
  * Seeds the store with the welcome cards, once: if `meta` has no `health_cards_seeded` and the
  * store isn't deleted, it upserts the six through `applyMutations`, so they're in the change log
  * and every device pulls them, and sets the flag, in one transaction. Called when the store
- * starts, after its migrations, before it serves anything (`startUserStore`).
+ * starts, after its migrations, before it serves anything (`startUserStore`). It never throws, so
+ * a store always starts.
  *
  * A seed card the store already has (a store that lost its flag, say) is left as it is, never
  * overwritten: the fixed IDs mean seeding again could only ever write the same six. A store whose
@@ -69,31 +79,35 @@ export const seedWelcomeCards = (
 ): SeedOutcome => {
   const entities = new Map(registry.map((entity) => [entity.name, entity]));
   if (!entities.has(HealthCard.name)) return { _tag: "Skipped" };
-  return sql.transaction((): SeedOutcome => {
-    // A deleted store stays empty. Both are read inside the transaction, though the store seeds
-    // before it serves anything, so no request can be waiting on it.
-    const seeded = sql.exec("SELECT 1 FROM meta WHERE key = ?", seededKey).length > 0;
-    if (seeded || readMeta(sql, "deleted", 0) === 1) {
-      return { _tag: "Skipped" };
-    }
-    const stored = new Set(
-      sql
-        .exec(
-          `SELECT id FROM "${HealthCard.name}" WHERE id IN (SELECT value FROM json_each(?))`,
-          JSON.stringify(welcomeSeed.map((card) => card.id)),
-        )
-        .map((row) => row["id"] as string),
-    );
-    let outcome: SeedOutcome;
-    try {
-      // A nested transaction: refused, it writes nothing, and the flag is still set below.
-      const { appended } = applyMutations(sql, entities, seedMutations(at, stored), at);
-      outcome = { _tag: "Seeded", appended };
-    } catch (error) {
-      if (!(error instanceof InvalidMutation)) throw error;
-      outcome = { _tag: "Refused", message: error.message };
-    }
-    sql.exec("INSERT INTO meta (key, value) VALUES (?, ?)", seededKey, at);
-    return outcome;
-  });
+  try {
+    return sql.transaction((): SeedOutcome => {
+      // A deleted store stays empty. Both are read inside the transaction, though the store seeds
+      // before it serves anything, so no request can be waiting on it.
+      const seeded = sql.exec("SELECT 1 FROM meta WHERE key = ?", seededKey).length > 0;
+      if (seeded || readMeta(sql, "deleted", 0) === 1) return { _tag: "Skipped" };
+      const stored = new Set(
+        sql
+          .exec(
+            `SELECT id FROM "${HealthCard.name}" WHERE id IN (SELECT value FROM json_each(?))`,
+            JSON.stringify(welcomeSeed.map((card) => card.id)),
+          )
+          .map((row) => row["id"] as string),
+      );
+      const mutations = seedMutations(at, stored);
+      const cards = sql.exec(`SELECT count(*) AS count FROM "${HealthCard.name}"`)[0]?.[
+        "count"
+      ] as number;
+      let outcome: SeedOutcome;
+      if (cards + mutations.length > storeMaxCards) {
+        outcome = { _tag: "Full", cards };
+      } else {
+        const { appended } = applyMutations(sql, entities, mutations, at);
+        outcome = { _tag: "Seeded", appended };
+      }
+      sql.exec("INSERT INTO meta (key, value) VALUES (?, ?)", seededKey, at);
+      return outcome;
+    });
+  } catch (error) {
+    return { _tag: "Failed", error };
+  }
 };

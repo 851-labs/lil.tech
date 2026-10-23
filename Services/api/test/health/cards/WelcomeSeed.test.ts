@@ -14,9 +14,10 @@ import type { StoreSql } from "../../../src/store/StoreSql.ts";
 import {
   makeUserStore,
   startUserStore,
+  storageHardLimitBytes,
   type UserStoreMethods,
 } from "../../../src/store/UserStore.ts";
-import { makeTestStoreSql } from "../../store/TestStoreSql.ts";
+import { makeTestStoreSql, type TestStoreSql } from "../../store/TestStoreSql.ts";
 import {
   makeTestSnapshotFiles,
   testNote,
@@ -37,7 +38,7 @@ const createTestNotes = (sql: StoreSql) => {
 };
 
 /** A store starting as the Worker starts one (`startUserStore`), over `sql`. */
-const start = (sql: StoreSql, files?: SnapshotFiles) =>
+const start = (sql: TestStoreSql, files?: SnapshotFiles) =>
   startUserStore(sql, registry, files).pipe(
     Effect.tap(() => Effect.sync(() => createTestNotes(sql))),
   );
@@ -277,6 +278,54 @@ describe("the welcome seed", () => {
       assert.sameMembers(
         records.map((record) => record["id"]),
         seedIds.filter((id) => id !== "card_seed_heart_rate"),
+      );
+    }),
+  );
+
+  it.effect("marks a store with nearly 200 cards seeded, with none", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      const before = startUnseeded(sql);
+      yield* before.pushMutations(
+        "m1",
+        Array.from({ length: 195 }, (_, n) => userCard(`card_01JZ${String(n).padStart(22, "0")}`)),
+      );
+      // 195 and six make 201, past the store's 200.
+      yield* start(sql);
+      assert.lengthOf(storedCards(sql), 195);
+      assert.lengthOf(sql.exec("SELECT 1 FROM meta WHERE key = ?", seededKey), 1);
+    }),
+  );
+
+  it.effect("tries again next start when seeding fails, and the store still starts", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      startUnseeded(sql);
+      // A write that fails (here, its table is missing) writes nothing, the flag included.
+      sql.exec("ALTER TABLE health_card RENAME TO moved");
+      const store = yield* start(sql);
+      assert.strictEqual((yield* store.readChanges(0, 1000)).head, 0);
+      assert.lengthOf(sql.exec("SELECT 1 FROM meta WHERE key = ?", seededKey), 0);
+      sql.exec("ALTER TABLE moved RENAME TO health_card");
+      yield* start(sql);
+      assert.deepStrictEqual(
+        storedCards(sql).map(([id]) => id),
+        seedIds,
+      );
+    }),
+  );
+
+  it.effect("waits until a store past its hard limit is back under it", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      sql.setDatabaseSize(storageHardLimitBytes);
+      yield* start(sql);
+      assert.deepStrictEqual(storedCards(sql), []);
+      sql.setDatabaseSize(null);
+      yield* start(sql);
+      assert.deepStrictEqual(
+        storedCards(sql).map(([id]) => id),
+        seedIds,
       );
     }),
   );
