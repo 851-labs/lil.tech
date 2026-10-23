@@ -64,7 +64,7 @@ struct PagePeriodTests {
   }
 
   /// W → M shows the month with most of the shown week, and M → W the month's last week
-  /// (851-3188).
+  /// mostly in it, so going back and forth comes back to the same period (851-3188).
   @Test
   func choosingARangeKeepsTheTimeShown() {
     // Sep 21 – 27.
@@ -72,12 +72,22 @@ struct PagePeriodTests {
     period(box).select(2)
     #expect(box.range == .month)
     #expect(box.offset == -1)
-    // September's last week: Sep 28 – Oct 4.
+    // September's last week mostly in it: Sep 21 – 27, not Sep 28 – Oct 4.
     period(box).select(1)
-    #expect(box.offset == -2)
+    #expect(box.offset == -3)
     // Aug 31 – Sep 6, mostly September's.
     box.offset = -6
     period(box).select(2)
+    #expect(box.offset == -1)
+    // 2024, then its last six months, May – Oct, not Nov 2024 – Apr 2025, and back.
+    box.range = .year
+    box.offset = -1
+    period(box).select(3)
+    #expect(box.offset == -2)
+    #expect(
+      ChartRange.sixMonths.interval(offset: -2, now: now, calendar: calendar).start
+        == date(5, 1, year: 2024))
+    period(box).select(4)
     #expect(box.offset == -1)
     // The last day of Nov 2024 – Apr 2025: April.
     box.range = .sixMonths

@@ -913,12 +913,13 @@ struct SleepQueriesTests {
   }
 
   /// Sleep's page opens on the latest night with sleep (851-3188), named as `sleepNights`
-  /// names it: in bed and awake aren't a night, nor is sleep that hasn't started.
+  /// names it, from sleep that has started.
   @Test
   func theLatestNightIsTheDayOfTheLatestSleep() throws {
     let latest = {
       try self.database.read { db in
-        try HealthDatabase.latestSleepNight(by: utc(12, day: 14), calendar: self.utcCalendar, db)
+        try HealthDatabase.latestPeriodDate(
+          of: self.sleep, by: utc(12, day: 14), calendar: self.utcCalendar, db)
       }
     }
     #expect(try latest() == nil)
@@ -926,17 +927,23 @@ struct SleepQueriesTests {
       try HealthSample.insert {
         // From 23:00 on the 9th: the 10th's night.
         stage(3, from: utc(23, day: 9), hours: 2)
-        stage(0, from: utc(22, day: 12), hours: 8)
-        stage(2, from: utc(1, day: 13), hours: 0.5)
+        stage(0, from: utc(22, day: 9), hours: 8)
+        // Not started yet.
         stage(4, from: utc(1, day: 15), hours: 1)
       }.execute(db)
     }
     #expect(try latest() == utc(0, day: 10))
-    let page = try database.read { db in
-      try HealthDatabase.latestPeriodDate(
-        of: sleep, by: utc(12, day: 14), calendar: utcCalendar, db)
+    // Awake after it, later than the time asleep, is the same night's.
+    try database.write { db in
+      try HealthSample.insert { stage(2, from: utc(6, day: 10), hours: 0.25) }.execute(db)
     }
-    #expect(page == utc(0, day: 10))
+    #expect(try latest() == utc(0, day: 10))
+    // In bed alone, days later (a phone's Bedtime, without a Watch): its own night, rather than
+    // reading back through every record for one asleep.
+    try database.write { db in
+      try HealthSample.insert { stage(0, from: utc(22, day: 12), hours: 8) }.execute(db)
+    }
+    #expect(try latest() == utc(0, day: 13))
   }
 
   /// Sleep's page tells a period without sleep from an account without any (851-3102).

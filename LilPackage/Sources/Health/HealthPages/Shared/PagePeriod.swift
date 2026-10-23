@@ -27,22 +27,34 @@ extension PeriodRange {
   }
 
   /// This range's period with most of what `range`'s period `offset` shows: what choosing it
-  /// shows (851-3188). A longer range's has its middle day (W → M: the month with most of the
-  /// week), a shorter range's its last (M → W: the month's last week); today at the latest, so
-  /// the current period stays the current one. Ranges are listed shortest first.
+  /// shows (851-3188). From the current period, the current one. A longer range's is the one
+  /// with its middle day (W → M: the month with most of the week); a shorter range's the last
+  /// one mostly inside it (M → W: the month's last week, unless that's mostly the next month's),
+  /// so going back and forth comes back to the same period. Ranges are listed shortest first.
   func offset(showing range: Self, offset: Int, now: Date, calendar: Calendar) -> Int {
-    let all = Array(Self.allCases)
+    guard offset < 0 else { return 0 }
+    let first = range.firstDay(offset: offset, now: now, calendar: calendar)
     let last = range.lastDay(offset: offset, now: now, calendar: calendar)
-    var day = last
-    if let longer = all.firstIndex(of: self), let shorter = all.firstIndex(of: range),
-      longer > shorter
-    {
-      let first = range.firstDay(offset: offset, now: now, calendar: calendar)
-      let days = calendar.dateComponents([.day], from: first, to: last).day ?? 0
-      day = calendar.date(byAdding: .day, value: days / 2, to: first) ?? last
+    let all = Array(Self.allCases)
+    guard let index = all.firstIndex(of: self), let shown = all.firstIndex(of: range),
+      index < shown
+    else {
+      return min(
+        self.offset(containing: middleDay(first, last, calendar), now: now, calendar: calendar), 0)
     }
-    return min(self.offset(containing: min(day, now), now: now, calendar: calendar), 0)
+    var target = min(self.offset(containing: last, now: now, calendar: calendar), 0)
+    let middle = middleDay(
+      firstDay(offset: target, now: now, calendar: calendar),
+      lastDay(offset: target, now: now, calendar: calendar), calendar)
+    if middle > last { target -= 1 }
+    return target
   }
+}
+
+/// The day halfway from `first` to `last`, the earlier of two.
+private func middleDay(_ first: Date, _ last: Date, _ calendar: Calendar) -> Date {
+  let days = calendar.dateComponents([.day], from: first, to: last).day ?? 0
+  return calendar.date(byAdding: .day, value: days / 2, to: first) ?? first
 }
 
 extension PeriodRange {
@@ -99,6 +111,9 @@ public struct PagePeriod: Equatable {
   public let selected: Int
   /// 0 is the current period, -1 the one before, when this was made.
   public let offset: Int
+  /// The day its periods are counted from, so a period kept over midnight (the View menu's) is
+  /// replaced by one counting from the new day.
+  private let day: Date
   /// The page's range, as an index in `ranges`. Setting it keeps the time shown, moving to the
   /// range's period with most of the shown one (W → M shows the week's month, 851-3188), in the
   /// same change, so it loads once.
@@ -113,6 +128,7 @@ public struct PagePeriod: Equatable {
     ranges = all.map { Range(label: $0.rawValue, name: $0.periodName) }
     selected = all.firstIndex(of: range.wrappedValue) ?? 0
     self.offset = offset.wrappedValue
+    day = calendar.startOfDay(for: now)
     rangeSelection = Binding(
       get: { all.firstIndex(of: range.wrappedValue) ?? 0 },
       set: { index in
@@ -149,6 +165,7 @@ public struct PagePeriod: Equatable {
 
   public static func == (lhs: Self, rhs: Self) -> Bool {
     lhs.ranges == rhs.ranges && lhs.selected == rhs.selected && lhs.offset == rhs.offset
+      && lhs.day == rhs.day
   }
 }
 

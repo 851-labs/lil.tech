@@ -29,24 +29,45 @@ extension HealthDatabase {
       if HealthCatalog.type(id: typeID)?.aggregation?.isCumulative == true {
         return try latestCumulativeStart(of: typeID, now: now, db)
       }
-      return try latestSample(of: typeID, startedBy: now, db)?.start
+      let upper = now.unixMilliseconds
+      return
+        try HealthSample
+        .where { $0.type.eq(typeID) && $0.startDate <= upper }
+        .order { $0.startDate.desc() }
+        .select(\.startDate)
+        .limit(1)
+        .fetchOne(db)
+        .map(Date.init(unixMilliseconds:))
     }
   }
 
   /// The day of the latest night with sleep, as `sleepNights` names nights: from sleep that
-  /// started by `now`, in bed and awake aside, since a night needs time asleep.
+  /// started by `now`. In bed and awake aren't a night, so it's the latest time asleep within
+  /// two days of the latest sleep record (which usually ends the same night), a range of the
+  /// index rather than every record back to one; the latest record's night without any.
   static func latestSleepNight(by now: Date, calendar: Calendar, _ db: Database) throws -> Date? {
     let upper = now.unixMilliseconds
-    let asleep = SleepStage.allCases.filter(\.isAsleep).map { Optional($0.rawValue) }
-    let start =
+    let latest =
       try HealthSample
-      .where { $0.type.eq(sleepType) && $0.startDate <= upper && $0.categoryValue.in(asleep) }
+      .where { $0.type.eq(sleepType) && $0.startDate <= upper }
       .order { $0.startDate.desc() }
       .select(\.startDate)
       .limit(1)
       .fetchOne(db)
-    return start.map {
-      calendar.startOfDay(for: Date(unixMilliseconds: $0).addingTimeInterval(nightStartOffset))
-    }
+    guard let latest else { return nil }
+    let lower = latest - 2 * 86_400_000
+    let asleep = SleepStage.allCases.filter(\.isAsleep).map { Optional($0.rawValue) }
+    let start =
+      try HealthSample
+      .where {
+        $0.type.eq(sleepType) && $0.startDate <= latest && $0.startDate >= lower
+          && $0.categoryValue.in(asleep)
+      }
+      .order { $0.startDate.desc() }
+      .select(\.startDate)
+      .limit(1)
+      .fetchOne(db) ?? latest
+    return calendar.startOfDay(
+      for: Date(unixMilliseconds: start).addingTimeInterval(nightStartOffset))
   }
 }
