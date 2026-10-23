@@ -400,37 +400,9 @@ struct SleepDetailContent: View {
       ?? day.addingTimeInterval(hours * 3600)
   }
 
-  /// Stages over time, a row each.
+  /// Stages over time, a row each (`SleepStagesChart`).
   private func stagesChart(_ segments: [SleepSegment], rows: [SleepStage]) -> some View {
-    Chart(Array(segments.enumerated()), id: \.offset) { _, segment in
-      BarMark(
-        xStart: .value("Start", segment.start), xEnd: .value("End", segment.end),
-        y: .value("Stage", SleepFormat.name(segment.stage)), height: .ratio(0.7)
-      )
-      .foregroundStyle(SleepFormat.color(segment.stage))
-      .clipShape(RoundedRectangle(cornerRadius: 3))
-    }
-    .chartYScale(domain: rows.map(SleepFormat.name))
-    // The stages' names, which Charts drew white in light mode (851-2869), as did the
-    // secondary styles (`.secondary`, `Color.secondary`) set on them. The primary color, faded,
-    // follows the appearance.
-    .chartYAxis {
-      AxisMarks { value in
-        AxisGridLine()
-        AxisValueLabel {
-          if let name = value.as(String.self) {
-            Text(name)
-              .foregroundStyle(Color.primary.opacity(0.6))
-          }
-        }
-      }
-    }
-    .chartXAxis {
-      AxisMarks(values: .stride(by: .hour, count: 2)) { _ in
-        AxisGridLine()
-        AxisValueLabel(format: .dateTime.hour())
-      }
-    }
+    SleepStagesChart(segments: segments, rows: rows)
   }
 
   // MARK: Stages
