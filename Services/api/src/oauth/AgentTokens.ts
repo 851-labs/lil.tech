@@ -10,6 +10,7 @@ import {
 } from "../core/AgentGrants.ts";
 import { type AgentGrantId, newAgentGrantId } from "../core/Ids.ts";
 import { RateLimits, type TooManyRequests } from "../RateLimits.ts";
+import { AgentApps, appsOfGrant } from "./Hosts.ts";
 
 // Agents' tokens (`docs/decisions/accounts.md`, Agents): the token endpoint's two grants (an
 // authorization code with PKCE, and a rotating refresh token), revocation, and the check each MCP
@@ -313,9 +314,19 @@ export class AgentTokens extends Context.Service<
             });
           }
           if (Option.isSome(request.scope)) {
+            // A scope of the grant's apps that it doesn't hold, such as one added after it was made
+            // (`health:cards`, 851-3214), is left out rather than refused, so a client that asks
+            // for what the metadata now lists keeps its connection, with the grant's scopes. Any
+            // other is refused.
+            const registry = yield* AgentApps;
+            const later = appsOfGrant(registry, grant).flatMap(
+              (key): ReadonlyArray<string> => registry[key]?.scopes ?? [],
+            );
             const extra = request.scope.value
               .split(" ")
-              .filter((scope) => scope !== "" && !grant.scopes.includes(scope));
+              .filter(
+                (scope) => scope !== "" && !grant.scopes.includes(scope) && !later.includes(scope),
+              );
             if (extra.length > 0) {
               return yield* new TokenRequestError({
                 error: "invalid_scope",

@@ -2,7 +2,7 @@ import { Cache, Clock, Effect, Schema } from "effect";
 import { McpSchema, McpServer } from "effect/ai";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import type { AgentAppRegistry } from "../oauth/Hosts.ts";
-import { agentScopesHeader } from "./AgentHeaders.ts";
+import { scopesOfRequest } from "./AgentScopes.ts";
 import {
   serveStoreMcp,
   type StoreMcpApp,
@@ -114,7 +114,7 @@ export const makeCombinedMcpServer = (options: {
     });
     return Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
-      const scopes = (request.headers[agentScopesHeader] ?? "").split(" ");
+      const scopes = scopesOfRequest(request);
       // An app's tools are in by its read scope; those that change something check theirs.
       const included = keys.filter((key) => scopes.includes(registry[key]!.readScope));
       // The Worker refuses a grant without any app's scope first.

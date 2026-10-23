@@ -371,6 +371,18 @@ describe("The combined server's resource", () => {
     ]);
   });
 
+  it("says what every scope but an app's read scope lets an agent change", () => {
+    // A scope the consent page can't describe would be granted by default without a word.
+    for (const app of Object.values(registryWithMail)) {
+      assert.include(app.scopes, app.readScope, app.name);
+      assert.sameMembers(
+        Object.keys(app.writeScopes ?? {}),
+        app.scopes.filter((scope) => scope !== app.readScope),
+        app.name,
+      );
+    }
+  });
+
   it("is on the MCP host, as exact paths", () => {
     for (const path of ["/", "/.well-known/oauth-protected-resource"]) {
       assert.isTrue(isMcpPath(path), path);
