@@ -17,15 +17,8 @@ public enum MetricFormat {
   public static func unit(_ unit: String?, typeID: String) -> DisplayUnit {
     let name = typeID.components(separatedBy: "Identifier").last ?? typeID
     switch unit {
-    case "count":
-      let labels = [
-        "StepCount": "steps", "FlightsClimbed": "floors", "PushCount": "pushes",
-        "SwimmingStrokeCount": "strokes", "NumberOfTimesFallen": "times",
-      ]
-      return DisplayUnit(labels[name] ?? "")
-    case "count/min":
-      let labels = ["RespiratoryRate": "breaths/min", "CyclingCadence": "RPM"]
-      return DisplayUnit(labels[name] ?? "BPM")
+    case "count": return DisplayUnit(countLabels[name] ?? "")
+    case "count/min": return DisplayUnit(rateLabels[name] ?? "BPM")
     // Stored as a fraction.
     case "%": return DisplayUnit("%", scale: 100)
     // Distances covered in km, except swimming, which Health keeps in metres. Lengths (height,
@@ -46,6 +39,12 @@ public enum MetricFormat {
     }
   }
 
+  private static let countLabels = [
+    "StepCount": "steps", "FlightsClimbed": "floors", "PushCount": "pushes",
+    "SwimmingStrokeCount": "strokes", "NumberOfTimesFallen": "times",
+  ]
+  private static let rateLabels = ["RespiratoryRate": "breaths/min", "CyclingCadence": "RPM"]
+
   /// What a type's values are shown in (`MetricFormat.unit(_:typeID:)`): the label after the
   /// number, and the scale from the stored unit. Charts plot `convert`ed values, so their axes
   /// read in the same unit as the header, with round ticks in it (851-3105).
@@ -64,15 +63,20 @@ public enum MetricFormat {
     public func convert(_ stored: Double) -> Double { stored * scale }
 
     /// A value already in this unit, as Health writes it: whole numbers for counts and the like
-    /// (not breaths a minute), otherwise fewer decimals the larger it is.
+    /// (not breaths a minute), otherwise fewer decimals the larger it is. A distance under 1 km
+    /// gets a third, to the metre, so a 4 m sample isn't "0 km".
     public func format(_ shown: Double) -> String {
-      let whole: Set = [
-        "steps", "floors", "pushes", "strokes", "times", "BPM", "RPM", "kcal", "%", "ms", "mmHg",
-        "mg/dL", "dB", "W",
-      ]
-      let digits = whole.contains(label) || abs(shown) >= 100 ? 0 : abs(shown) >= 10 ? 1 : 2
+      let size = abs(shown)
+      let digits =
+        Self.whole.contains(label) || size >= 100
+        ? 0 : size >= 10 ? 1 : size < 1 && label == "km" ? 3 : 2
       return shown.formatted(.number.precision(.fractionLength(0...digits)))
     }
+
+    private static let whole: Set = [
+      "steps", "floors", "pushes", "strokes", "times", "BPM", "RPM", "kcal", "%", "ms", "mmHg",
+      "mg/dL", "dB", "W",
+    ]
   }
 
   /// A length of time as Health writes a session's: ("24", "sec"), or ("2", "min") from a

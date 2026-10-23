@@ -33,6 +33,8 @@ struct MetricFormatTests {
     let distance = "HKQuantityTypeIdentifierDistanceWalkingRunning"
     #expect(MetricFormat.value(5_300, unit: "m", typeID: distance) == (5.3.formatted(), "km"))
     #expect(MetricFormat.value(420, unit: "m", typeID: distance) == (0.42.formatted(), "km"))
+    // To the metre under 1 km, so a short sample isn't 0.
+    #expect(MetricFormat.value(4, unit: "m", typeID: distance).number == 0.004.formatted())
     let sixMinuteWalk = "HKQuantityTypeIdentifierSixMinuteWalkTestDistance"
     #expect(MetricFormat.value(1_020, unit: "m", typeID: sixMinuteWalk).unit == "m")
     #expect(

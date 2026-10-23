@@ -363,11 +363,13 @@ struct MetricDetailContent: View {
         case nil: nil
         }
       }
+    // In the unit the chart plots, so the two always agree.
+    let shown = displayUnit
     let formatted = values?.map { value in
       if point == nil, case .averageDuration = chart?.summary {
         return MetricFormat.duration(value)
       }
-      return MetricFormat.value(value, unit: unit, typeID: type.id)
+      return (number: shown.format(shown.convert(value)), unit: shown.label)
     }
     return HStack(alignment: .firstTextBaseline, spacing: 3) {
       Text(formatted?.map(\.number).joined(separator: "–") ?? (chart == nil ? "–" : "No Data"))
@@ -439,7 +441,8 @@ struct MetricDetailContent: View {
       .chartXScale(domain: domain(chart))
       // Fitted in the unit plotted.
       .chartYDomain(
-        style.isAverage ? fittedDomain(chart.points.map { shown.convert($0.value) }) : nil)
+        style.isAverage ? fittedDomain(chart.points.map { shown.convert($0.value) }) : nil
+      )
       .chartPlotStyle { $0.clipped() }
       .chartXSelection(value: $hovered)
       .chartYAxis {
