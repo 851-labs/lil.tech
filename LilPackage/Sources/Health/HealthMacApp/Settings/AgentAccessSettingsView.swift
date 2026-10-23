@@ -264,17 +264,15 @@ struct AgentAccessEntryRow: View {
 
 /// How to connect an agent to a local MCP server agents start themselves (851-2865): Claude
 /// Code's command, and for other agents a local (stdio) server's command and arguments, with
-/// `lil`'s full path, since apps don't get the shell's `PATH`. `lil mcp` comes first, one server for
-/// every lil app (851-2898), then `lil health mcp` for agents that should only see lil health. lil
-/// health has no help book, so it's said here.
+/// `lil`'s full path, since apps don't get the shell's `PATH`: `lil mcp`, one server for every lil app
+/// (851-2898). `lil health mcp`, for agents that should only see lil health, is left to lil.tech/agents
+/// (851-3104), as too rare to need a section here.
 struct AgentSetupSection: View {
   /// Where `lil` is installed, if it is.
   let commandLineTool: URL?
 
   /// `lil mcp`'s arguments: every lil app's tools.
   static let arguments = "mcp"
-  /// `lil health mcp`'s: lil health's only.
-  static let healthArguments = "health mcp"
 
   /// Claude Code's command adding `lil` with these arguments as the server `name`, with `lil`'s
   /// full path once it's known: an agent started from an IDE or the Dock may not have
@@ -311,18 +309,6 @@ struct AgentSetupSection: View {
           : "Add lil to your agent as a local (stdio) MCP server."
       )
       .foregroundStyle(.secondary)
-    }
-
-    Section {
-      CopyableRow(
-        title: "Claude Code",
-        value: Self.claudeCode(
-          name: "lil-health", lil: path ?? "lil", arguments: Self.healthArguments))
-      if path != nil {
-        CopyableRow(title: "Other agents: arguments", value: Self.healthArguments)
-      }
-    } header: {
-      Text("Connect an Agent to lil health Only")
     }
   }
 }
