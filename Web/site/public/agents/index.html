@@ -146,7 +146,8 @@
       </ul>
       <p>
         lil health logs every time an agent reads your data: what it asked for and when, never the
-        answers. You can see the log in lil health on your Mac and iPhone. It's kept for 90 days.
+        answers. You can see the log in lil health: on your Mac, Remote Access Log in Settings ›
+        Agents; on your iPhone, Recent Access in Settings › Connected Agents. It's kept for 90 days.
         The <a href="/privacy#agents">privacy policy</a> has the details.
       </p>
 
@@ -175,25 +176,45 @@
 
       <h2 id="on-your-mac">Agents on your Mac only</h2>
       <p>
-        lil health for Mac also has a command, <code>lil health</code>, with a local MCP server that
-        reads the copy of your data on your Mac instead (install it with lil health › Install
-        Command Line Tool…). It's off until you turn on “Allow command-line and agent access” in
-        Settings › Agents, which also shows how to connect an agent to it.
+        lil health for Mac can also let agents read the copy of your Health data on your Mac,
+        through a local MCP server that the agent starts itself. It works offline, and nothing
+        leaves your Mac except what the agent sends to its provider.
       </p>
-      <p>
-        Connect an agent to <code>lil mcp</code>: one local server for every lil app, with lil
-        health's tools among them. In Claude Code:
-      </p>
+      <ol>
+        <li>
+          Install the <code>lil</code> command with lil health › Install Command Line Tool… (until
+          it's installed, Settings › Agents has the same button, under Connect an Agent).
+        </li>
+        <li>
+          Signed in to lil health for Mac, open Settings › Agents and turn on “Allow command-line
+          and agent access”. It's off until you do. It also lets the <code>lil</code> command,
+          Shortcuts, Siri and Spotlight read your Health data and export it. The Access Log under it
+          shows what read your data, and when.
+        </li>
+        <li>
+          Connect your agent to <code>lil mcp</code>: one local server for every lil app, with lil
+          health's tools among them. Under Connect an Agent, Settings › Agents copies the commands
+          with <code>lil</code>'s full path, which works even when the agent is started from an app
+          rather than a terminal.
+        </li>
+      </ol>
+      <p>In Claude Code:</p>
       <pre><code>claude mcp add --scope user lil -- lil mcp</code></pre>
       <p>
-        For an agent that should only see lil health, use <code>lil health mcp</code> instead:
-        <code>claude mcp add --scope user lil-health -- lil health mcp</code>.
+        Other agents take a local (stdio) server, with the argument <code>mcp</code>. Its command is
+        <code>lil</code>'s full path: <code>/usr/local/bin/lil</code>, or
+        <code>.local/bin/lil</code> in your home folder, depending on where you installed it. Use
+        the full path in Claude Code too if it can't find <code>lil</code>.
       </p>
       <p>
-        Other agents take a local (stdio) server: the command is <code>lil</code>'s full path, with
-        the arguments <code>mcp</code>, or <code>health mcp</code> for lil health only. Use the full
-        path in Claude Code too if it can't find <code>lil</code>, as when it's started from an app
-        rather than a terminal. Settings › Agents shows the commands with it, ready to copy.
+        <strong>For lil health only,</strong> connect an agent to <code>lil health mcp</code>
+        instead. Settings › Agents doesn't show this one. In Claude Code:
+      </p>
+      <pre><code>claude mcp add --scope user lil-health -- lil health mcp</code></pre>
+      <p>
+        Other agents take the same command, with the arguments <code>health mcp</code>. Its tools
+        have just their own names, such as <code>summary</code>, as through lil health's URL (see
+        <a href="#tools">Tools</a>).
       </p>
 
       <h2>If something doesn't work</h2>
