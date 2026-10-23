@@ -73,14 +73,6 @@ struct SidebarView: View {
 /// The sidebar's rows: Summary and the Health categories, or what the search found.
 struct SidebarList: View {
   @Bindable var store: StoreOf<AppFeature>
-  /// Whether Health Categories is expanded. It collapses as a sidebar's sections do, with the
-  /// chevron its header shows on hover (851-3220), and stays as it was left: in the app's own
-  /// defaults, with its window state, so a Debug build's is its own (851-3027), and every server's
-  /// the same.
-  @AppStorage(SidebarList.categoriesExpandedKey) private var isCategoriesExpanded = true
-
-  static let categoriesExpandedKey = "sidebarHealthCategoriesExpanded"
-
   var body: some View {
     List(selection: $store.selection) {
       let results = store.searchResults
@@ -101,7 +93,8 @@ struct SidebarList: View {
       } else {
         TintedLabel("Summary", systemImage: "heart.text.square.fill", color: .accentColor)
           .tag(SidebarItem.summary)
-        Section("Health Categories", isExpanded: $isCategoriesExpanded) {
+        // Collapses with the chevron its header shows on hover (851-3220).
+        Section("Health Categories", isExpanded: Binding(store.$isCategoriesExpanded)) {
           ForEach(HealthCategory.allCases) { category in
             HealthCategoryLabel(category)
               .tag(SidebarItem.category(category))

@@ -102,6 +102,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.sidebar-a-category-opened-while-health-categories-was-collapsed-dark.png",
+      "id" : "window.sidebar-a-category-opened-while-health-categories-was-collapsed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.sidebar-a-category-opened-while-health-categories-was-collapsed-light.png",
+      "name" : "Sidebar, a category opened while Health Categories was collapsed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/WindowCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.search-results-dark.png",
       "id" : "window.search-results",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/WindowCatalog/window.search-results-light.png",

@@ -20,6 +20,10 @@ public struct AppFeature {
     /// category's. Emptied when the selection changes, so one's metric doesn't show under another,
     /// and when a page is opened (851-3030).
     public var metricPath: [String] = []
+    /// Whether the sidebar's Health Categories is expanded. It collapses as a sidebar's sections
+    /// do (851-3220), and expands again when something other than a click in the sidebar selects
+    /// a category, so its row shows selected (`revealSelectedCategory`, 851-3225).
+    @Shared(.sidebarCategoriesExpanded) public var isCategoriesExpanded
     public var searchText = ""
     /// Shown in the sidebar's footer, while `syncFooter` shows it.
     public var syncStatus: SyncStatus
@@ -54,6 +58,16 @@ public struct AppFeature {
     public var searchResults: [HealthDataType] {
       guard !query.isEmpty else { return [] }
       return HealthPage.browsableTypes.filter { $0.name.localizedStandardContains(query) }
+    }
+
+    /// Expands Health Categories if a category is selected while it's collapsed, as an outline
+    /// view reveals the row it selects (851-3225): for a selection made anywhere but the
+    /// sidebar's rows (an intent or `lil-health open`, clearing the search), which can't reach a
+    /// hidden row themselves. Collapsing it by hand leaves the selection, and the section, as
+    /// they are (851-3220).
+    func revealSelectedCategory() {
+      guard case .category = selection, !isCategoriesExpanded else { return }
+      $isCategoriesExpanded.withLock { $0 = true }
     }
   }
 
@@ -121,6 +135,7 @@ public struct AppFeature {
         if state.query.isEmpty, case .dataType(let id) = state.selection {
           state.selection =
             HealthCatalog.type(id: id)?.category.map(SidebarItem.category) ?? .summary
+          state.revealSelectedCategory()
         }
         return .none
       }
@@ -276,6 +291,8 @@ public struct AppFeature {
           state.selection = .category(category)
           state.metricPath = [type.id]
         }
+        // Also when the category was selected already, with its row hidden.
+        state.revealSelectedCategory()
         return .none
 
       case .signIn:
@@ -439,6 +456,31 @@ public enum SyncFooterVisibility: Equatable, Sendable {
     case .idle, .syncing, .bootstrapping, .offline, .failed: self = .shown
     }
   }
+}
+
+extension SharedKey where Self == AppStorageKey<Bool>.Default {
+  /// Whether the sidebar's Health Categories is expanded, kept with the window's state in the
+  /// app's own defaults (`windowDefaults`), so it's the same for every server and a Debug build's
+  /// is its own (851-3027).
+  static var sidebarCategoriesExpanded: Self {
+    @Dependency(\.windowDefaults) var defaults
+    return Self[.appStorage("sidebarHealthCategoriesExpanded", store: defaults), default: true]
+  }
+}
+
+extension DependencyValues {
+  /// The app's own defaults, `UserDefaults.standard`, where AppKit and SwiftUI keep its window
+  /// state: unlike `defaultAppStorage`, which a dev build keeps per server
+  /// (`keepSettingsPerServer`). Tests get a suite of their own.
+  var windowDefaults: UserDefaults {
+    get { self[WindowDefaultsKey.self].value }
+    set { self[WindowDefaultsKey.self] = UncheckedSendable(newValue) }
+  }
+}
+
+private enum WindowDefaultsKey: DependencyKey {
+  static var liveValue: UncheckedSendable<UserDefaults> { UncheckedSendable(.standard) }
+  static var testValue: UncheckedSendable<UserDefaults> { UncheckedSendable(.inMemory) }
 }
 
 /// What the sidebar can select: Summary, a category to browse, or a data type found by search.

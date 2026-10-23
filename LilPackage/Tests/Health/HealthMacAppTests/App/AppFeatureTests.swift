@@ -453,4 +453,101 @@ struct AppFeatureTests {
       $0.selection = .category(.bodyMeasurements)
     }
   }
+
+  // MARK: - Health Categories, collapsed (851-3225)
+
+  /// Signed in, with Health Categories left collapsed.
+  private func collapsed(
+    selection: SidebarItem = .summary, searchText: String = ""
+  ) -> AppFeature.State {
+    @Dependency(\.windowDefaults) var windowDefaults
+    windowDefaults.set(false, forKey: "sidebarHealthCategoriesExpanded")
+    return AppFeature.State(isSignedIn: true, selection: selection, searchText: searchText)
+  }
+
+  @Test
+  func healthCategoriesStartsExpanded() {
+    #expect(AppFeature.State().isCategoriesExpanded)
+  }
+
+  /// An intent or `lil-health open` opening a category, or a type in one, while it's collapsed.
+  @Test
+  func openingACategoryExpandsHealthCategories() async {
+    let store = TestStore(initialState: collapsed()) {
+      AppFeature()
+    }
+    // Summary isn't in it.
+    await store.send(.pageOpened(.summary))
+    await store.send(.pageOpened(.category(.heart))) {
+      $0.selection = .category(.heart)
+      $0.$isCategoriesExpanded.withLock { $0 = true }
+    }
+  }
+
+  @Test
+  func openingATypeExpandsHealthCategories() async {
+    let steps = HealthPage.dataType(HealthCatalog.type(id: "HKQuantityTypeIdentifierStepCount")!)!
+    let store = TestStore(initialState: collapsed()) {
+      AppFeature()
+    }
+    await store.send(.pageOpened(steps)) {
+      $0.selection = .category(.activity)
+      $0.metricPath = ["HKQuantityTypeIdentifierStepCount"]
+      $0.$isCategoriesExpanded.withLock { $0 = true }
+    }
+  }
+
+  /// Collapsed by hand while the category was selected (851-3220), then opened again.
+  @Test
+  func openingTheSelectedCategoryExpandsHealthCategories() async {
+    let store = TestStore(initialState: collapsed(selection: .category(.heart))) {
+      AppFeature()
+    }
+    await store.send(.pageOpened(.category(.heart))) {
+      $0.$isCategoriesExpanded.withLock { $0 = true }
+    }
+  }
+
+  @Test
+  func clearingTheSearchExpandsHealthCategories() async {
+    let store = TestStore(
+      initialState: collapsed(
+        selection: .dataType("HKQuantityTypeIdentifierHeartRate"), searchText: "heart")
+    ) {
+      AppFeature()
+    }
+    await store.send(\.binding.searchText, "") {
+      $0.searchText = ""
+      $0.selection = .category(.heart)
+      $0.$isCategoriesExpanded.withLock { $0 = true }
+    }
+  }
+
+  /// A click in the sidebar, or a search's result, leaves it collapsed.
+  @Test
+  func selectingInTheSidebarLeavesHealthCategoriesCollapsed() async {
+    let store = TestStore(initialState: collapsed(selection: .category(.heart))) {
+      AppFeature()
+    }
+    await store.send(\.binding.selection, .summary) {
+      $0.selection = .summary
+    }
+    await store.send(\.binding.searchText, "heart") {
+      $0.searchText = "heart"
+    }
+    await store.send(\.binding.selection, .dataType("HKQuantityTypeIdentifierHeartRate")) {
+      $0.selection = .dataType("HKQuantityTypeIdentifierHeartRate")
+    }
+  }
+
+  /// Kept in the app's own defaults, with the window's state, not the server's suite.
+  @Test
+  func healthCategoriesIsKeptInTheWindowsDefaults() {
+    @Dependency(\.windowDefaults) var windowDefaults
+    @Dependency(\.defaultAppStorage) var defaultAppStorage
+    let state = AppFeature.State()
+    state.$isCategoriesExpanded.withLock { $0 = false }
+    #expect(windowDefaults.object(forKey: "sidebarHealthCategoriesExpanded") as? Bool == false)
+    #expect(defaultAppStorage.object(forKey: "sidebarHealthCategoriesExpanded") == nil)
+  }
 }
