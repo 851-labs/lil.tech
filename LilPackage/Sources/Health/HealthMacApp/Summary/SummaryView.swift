@@ -89,16 +89,6 @@ struct SummaryContent: View {
     Form {
       Section {
         switch state {
-        // The everyday metrics' rows, without values yet: a row with data's height each, so
-        // nothing moves when they load (851-3092).
-        case .loading:
-          ForEach(HealthDatabase.summaryTypes, id: \.self) { id in
-            if let type = HealthCatalog.type(id: id) {
-              NavigationLink(value: id) {
-                MetricRowPlaceholder(type: type)
-              }
-            }
-          }
         case .failed(let reason):
           ContentUnavailableView(
             "Couldn't Load Summary", systemImage: "exclamationmark.triangle",
@@ -106,20 +96,13 @@ struct SummaryContent: View {
           )
           // A form's row would otherwise give it only its ideal width, off center.
           .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .loaded(let summaries):
-          ForEach(summaries) { summary in
-            if let type = HealthCatalog.type(id: summary.id) {
-              NavigationLink(value: summary.id) {
-                if summary.hasData {
-                  MetricRow(type: type, summary: summary, now: now, calendar: calendar)
-                } else {
-                  LabeledContent {
-                    Text("No Data")
-                  } label: {
-                    HealthTypeLabel(type: type)
-                      .font(.headline)
-                  }
-                }
+        // The everyday metrics, a row each, as tall with data, without it, or while they load
+        // (851-3092), so nothing moves when they do.
+        case .loading, .loaded:
+          ForEach(HealthDatabase.summaryTypes, id: \.self) { id in
+            if let type = HealthCatalog.type(id: id) {
+              NavigationLink(value: id) {
+                MetricRow(type: type, summary: summary(id), now: now, calendar: calendar)
               }
             }
           }
@@ -135,6 +118,12 @@ struct SummaryContent: View {
     }
     .formStyle(.grouped)
     .navigationTitle("Summary")
+  }
+
+  /// A metric's summary, once they've loaded: one without data if the query left it out.
+  private func summary(_ id: String) -> MetricSummary? {
+    guard case .loaded(let summaries) = state else { return nil }
+    return summaries.first { $0.id == id } ?? MetricSummary(id: id)
   }
 
   @ViewBuilder private var highlightsSection: some View {

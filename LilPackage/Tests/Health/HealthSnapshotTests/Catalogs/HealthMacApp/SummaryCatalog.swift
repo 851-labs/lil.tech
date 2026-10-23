@@ -51,8 +51,8 @@
         }
       },
     ],
-    // The highlights start in the same place, loading or not (851-3092).
-    sameLayout: [["Loaded", "Loading"]])
+    // The highlights start in the same place, loading or not, with data or without (851-3092).
+    sameLayout: [["Loaded", "Loading", "No data"]])
 
   /// Summary in a navigation stack, for its title.
   @MainActor

@@ -5,11 +5,15 @@ import HealthPages
 import HealthUI
 import SwiftUI
 
-/// One metric with data, in a form row, on Summary and the category pages: its name, when it's
-/// from, its latest value and a week's chart.
+/// One metric in a form row, on Summary and the category pages: its name, when it's from, its
+/// latest value and a week's chart. Its height is the same with a value, without data ("No
+/// Data"), or while it loads (no summary yet, "–"), so nothing moves as Summary loads or a
+/// metric's data arrives (851-3092). A row with data but no latest value to show (a medication's)
+/// is its name and date.
 struct MetricRow: View {
   let type: HealthDataType
-  let summary: MetricSummary
+  /// Nil while it loads.
+  let summary: MetricSummary?
   /// The label's and the chart's.
   let color: Color
   let now: Date
@@ -18,7 +22,7 @@ struct MetricRow: View {
   /// In `color`, or the type's own (`HealthDataType.color`) without one. A category
   /// page passes its own, so a type listed under two categories takes the page's.
   init(
-    type: HealthDataType, summary: MetricSummary, color: Color? = nil, now: Date,
+    type: HealthDataType, summary: MetricSummary?, color: Color? = nil, now: Date,
     calendar: Calendar
   ) {
     self.type = type
@@ -34,14 +38,14 @@ struct MetricRow: View {
         HealthTypeLabel(type: type, color: color)
           .font(.headline)
         Spacer()
-        if let date = summary.latestDate {
+        if let summary, let date = summary.latestDate {
           Text(
             MetricFormat.date(date, isDay: summary.isDailyTotal, now: now, calendar: calendar)
           )
           .foregroundStyle(.secondary)
         }
       }
-      if let value = summary.latestValue {
+      if let summary, let value = summary.latestValue {
         HStack(alignment: .bottom) {
           let (number, unit) = MetricFormat.value(value, unit: summary.unit, typeID: type.id)
           HStack(alignment: .firstTextBaseline, spacing: 3) {
@@ -55,30 +59,22 @@ struct MetricRow: View {
           Sparkline(days: summary.days, isTotals: summary.isDailyTotal, color: color)
             .frame(width: 120, height: 36)
         }
-      }
-    }
-    .padding(.vertical, 6)
-  }
-}
-
-/// A metric's row while its value loads: its name, and "–" where its value and chart go, as tall
-/// as a row with data (`MetricRow`), so nothing moves when it loads (851-3092).
-struct MetricRowPlaceholder: View {
-  let type: HealthDataType
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      HealthTypeLabel(type: type)
-        .font(.headline)
-      HStack(alignment: .bottom) {
-        Text("–")
-          .font(.system(.title, design: .rounded).bold())
-          .foregroundStyle(.secondary)
-          .accessibilityHidden(true)
-        Spacer()
-        // The chart's place.
-        Color.clear
-          .frame(width: 120, height: 36)
+      } else if summary == nil || summary?.hasData == false {
+        // Loading, or no data: the value's line all the same, the chart's place kept.
+        HStack(alignment: .bottom) {
+          if summary == nil {
+            Text("–")
+              .font(.system(.title, design: .rounded).bold())
+              .foregroundStyle(.secondary)
+              .accessibilityLabel("Loading")
+          } else {
+            Text("No Data")
+              .foregroundStyle(.secondary)
+          }
+          Spacer()
+          Color.clear
+            .frame(width: 120, height: 36)
+        }
       }
     }
     .padding(.vertical, 6)

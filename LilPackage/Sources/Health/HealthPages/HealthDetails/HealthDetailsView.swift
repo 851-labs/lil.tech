@@ -74,7 +74,7 @@ struct HealthDetailsContent: View {
           if details == nil {
             LabeledContent(row.name) {
               Text("–")
-                .accessibilityHidden(true)
+                .accessibilityLabel("Loading")
             }
           } else {
             LabeledContent(row.name, value: row.value)
