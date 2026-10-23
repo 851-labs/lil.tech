@@ -52,6 +52,36 @@ struct SidebarView: View {
   @FocusState private var isSearchFocused: Bool
 
   var body: some View {
+    SidebarList(store: store)
+      .searchable(text: $store.searchText, placement: .sidebar, prompt: "Search")
+      // So ⌘← and ⌘→ move the search field's cursor rather than a metric's period.
+      .searchFocused($isSearchFocused)
+      .focusedSceneValue(\.isSearchFocused, isSearchFocused)
+      // A bar, not a plain inset, so the rows scrolling under it fade out behind it (the scroll
+      // edge effect) rather than showing through its text (851-2867). Empty, and no height, while
+      // sync is up to date (851-2991). Not animated: it would slide every row with the list's
+      // inset, and the footer's delay already keeps it from flickering.
+      .safeAreaBar(edge: .bottom, spacing: 0) {
+        if store.syncFooter == .shown {
+          SyncFooterView(status: store.syncStatus, retry: { store.send(.retrySyncButtonTapped) })
+        }
+      }
+      .navigationSplitViewColumnWidth(min: 200, ideal: 240)
+  }
+}
+
+/// The sidebar's rows: Summary and the Health categories, or what the search found.
+struct SidebarList: View {
+  @Bindable var store: StoreOf<AppFeature>
+  /// Whether Health Categories is expanded. It collapses as a sidebar's sections do, with the
+  /// chevron its header shows on hover (851-3220), and stays as it was left: in the app's own
+  /// defaults, with its window state, so a Debug build's is its own (851-3027), and every server's
+  /// the same.
+  @AppStorage(SidebarList.categoriesExpandedKey) private var isCategoriesExpanded = true
+
+  static let categoriesExpandedKey = "sidebarHealthCategoriesExpanded"
+
+  var body: some View {
     List(selection: $store.selection) {
       let results = store.searchResults
       if !store.query.isEmpty {
@@ -71,7 +101,7 @@ struct SidebarView: View {
       } else {
         TintedLabel("Summary", systemImage: "heart.text.square.fill", color: .accentColor)
           .tag(SidebarItem.summary)
-        Section("Health Categories") {
+        Section("Health Categories", isExpanded: $isCategoriesExpanded) {
           ForEach(HealthCategory.allCases) { category in
             HealthCategoryLabel(category)
               .tag(SidebarItem.category(category))
@@ -79,20 +109,6 @@ struct SidebarView: View {
         }
       }
     }
-    .searchable(text: $store.searchText, placement: .sidebar, prompt: "Search")
-    // So ⌘← and ⌘→ move the search field's cursor rather than a metric's period.
-    .searchFocused($isSearchFocused)
-    .focusedSceneValue(\.isSearchFocused, isSearchFocused)
-    // A bar, not a plain inset, so the rows scrolling under it fade out behind it (the scroll
-    // edge effect) rather than showing through its text (851-2867). Empty, and no height, while
-    // sync is up to date (851-2991). Not animated: it would slide every row with the list's
-    // inset, and the footer's delay already keeps it from flickering.
-    .safeAreaBar(edge: .bottom, spacing: 0) {
-      if store.syncFooter == .shown {
-        SyncFooterView(status: store.syncStatus, retry: { store.send(.retrySyncButtonTapped) })
-      }
-    }
-    .navigationSplitViewColumnWidth(min: 200, ideal: 240)
   }
 }
 

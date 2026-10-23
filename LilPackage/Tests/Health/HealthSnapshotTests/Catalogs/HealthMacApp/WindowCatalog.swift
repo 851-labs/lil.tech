@@ -87,6 +87,15 @@
           AppFeature.State(
             isSignedIn: true, syncStatus: .bootstrapping(.downloading(300_000, of: 2_000_000))))
       },
+      // Health Categories collapses, as a sidebar's sections do (851-3220). The sidebar's rows
+      // alone, since in the window they float in glass, which doesn't draw. Its chevron only shows
+      // while the pointer is over its header, which a snapshot doesn't draw either.
+      CatalogState("Sidebar, Health Categories expanded", width: 240, minHeight: 640) {
+        sidebar(categoriesExpanded: true)
+      },
+      CatalogState("Sidebar, Health Categories collapsed", width: 240, minHeight: 640) {
+        sidebar(categoriesExpanded: false)
+      },
       CatalogState("Search results") {
         window(AppFeature.State(isSignedIn: true, searchText: "heart"))
       },
@@ -116,5 +125,24 @@
   @MainActor
   private func window(_ state: AppFeature.State) -> some View {
     AppView(store: Store(initialState: state) { EmptyReducer() })
+      .defaultAppStorage(sidebarDefaults(categoriesExpanded: true))
+  }
+
+  /// The sidebar's rows on their own, in the list's own style: the sidebar's draws the selection
+  /// black off screen, and the search the sidebar adds would go in a toolbar outside a split
+  /// view, whose glass button draws differently from run to run.
+  @MainActor
+  private func sidebar(categoriesExpanded: Bool) -> some View {
+    SidebarList(store: Store(initialState: AppFeature.State(isSignedIn: true)) { EmptyReducer() })
+      .defaultAppStorage(sidebarDefaults(categoriesExpanded: categoriesExpanded))
+  }
+
+  /// Defaults of its own, so the sidebar never reads whether Health Categories is expanded from
+  /// the test process's.
+  private func sidebarDefaults(categoriesExpanded: Bool) -> UserDefaults {
+    let defaults = UserDefaults(
+      suiteName: "\(NSTemporaryDirectory())WindowCatalog.\(UUID().uuidString)")!
+    defaults.set(categoriesExpanded, forKey: SidebarList.categoriesExpandedKey)
+    return defaults
   }
 #endif
