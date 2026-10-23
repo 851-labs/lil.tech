@@ -2,6 +2,7 @@
   import AppKit
   import DependenciesTestSupport
   import Foundation
+  import LilUI
   import MessagesDatabase
   import SQLiteData
   import Testing
@@ -26,6 +27,8 @@
       $0.calendar = previewCalendar
       $0.timeZone = previewCalendar.timeZone
       $0.locale = previewCalendar.locale!
+      // Loading states show their spinners in the image drawn at once (851-3086).
+      $0.delayedProgressTiming = .immediate
     })
   struct MacSnapshotTests {
     init() {

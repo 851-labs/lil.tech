@@ -24,6 +24,7 @@ let package = Package(
     .library(name: "LilCLI", targets: ["LilCLI"]),
     .library(name: "LilCLIInstaller", targets: ["LilCLIInstaller"]),
     .library(name: "LilSync", targets: ["LilSync"]),
+    .library(name: "LilUI", targets: ["LilUI"]),
     .library(name: "LilUpdates", targets: ["LilUpdates"]),
     .library(name: "MessagesContacts", targets: ["MessagesContacts"]),
     .library(name: "MessagesConversationList", targets: ["MessagesConversationList"]),
@@ -195,6 +196,7 @@ let package = Package(
         "LilAPI",
         "LilAuth",
         "LilSync",
+        "LilUI",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "SQLiteData", package: "sqlite-data"),
       ],
@@ -224,6 +226,7 @@ let package = Package(
         "HealthDatabase",
         "HealthUI",
         "LilSync",
+        "LilUI",
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "SQLiteData", package: "sqlite-data"),
       ],
@@ -241,6 +244,7 @@ let package = Package(
         "HealthPages",
         "LilAuth",
         "LilSync",
+        "LilUI",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
@@ -271,6 +275,7 @@ let package = Package(
         "HealthUI",
         "HealthUpload",
         "LilAuth",
+        "LilUI",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
       ],
       path: "Sources/Health/HealthPhoneApp"
@@ -368,6 +373,7 @@ let package = Package(
       name: "LilAuth",
       dependencies: [
         "LilAPI",
+        "LilUI",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
@@ -480,6 +486,24 @@ let package = Package(
       ],
       path: "Tests/Lil/LilSyncTests"
     ),
+    // SwiftUI views every app shares: the loading spinner that waits before showing
+    // (`DelayedProgressView`, 851-3086).
+    .target(
+      name: "LilUI",
+      dependencies: [
+        .product(name: "Dependencies", package: "swift-dependencies")
+      ],
+      path: "Sources/Lil/LilUI"
+    ),
+    .testTarget(
+      name: "LilUITests",
+      dependencies: [
+        "LilTestSupport",
+        "LilUI",
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+      ],
+      path: "Tests/Lil/LilUITests"
+    ),
     .target(
       name: "LilUpdates",
       dependencies: [
@@ -545,6 +569,7 @@ let package = Package(
         "MessagesDatabase",
         "MessagesOnboarding",
         "MessagesThread",
+        "LilUI",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "SQLiteData", package: "sqlite-data"),
@@ -598,6 +623,7 @@ let package = Package(
         "MessagesMacApp",
         "MessagesOnboarding",
         "MessagesThread",
+        "LilUI",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
         .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),

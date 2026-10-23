@@ -1,4 +1,5 @@
 public import ComposableArchitecture
+import LilUI
 import MessagesConversationList
 import MessagesDatabase
 import MessagesOnboarding
@@ -33,11 +34,19 @@ public struct AppView: View {
         }
         .frame(minWidth: 720, minHeight: 480)
       } else {
-        ProgressView()
+        // Checking for Full Disk Access: its space, under the spinner `delayedProgress` shows
+        // (851-3086).
+        Color.clear
           .frame(minWidth: 480, minHeight: 320)
       }
     }
+    .delayedProgress(isLoading: isChecking)
     .task { await store.send(.task).finish() }
+  }
+
+  /// Whether Full Disk Access isn't known yet, the branch above that shows only a spinner.
+  private var isChecking: Bool {
+    store.fullDiskAccess == nil && store.hasFullDiskAccess != true
   }
 }
 

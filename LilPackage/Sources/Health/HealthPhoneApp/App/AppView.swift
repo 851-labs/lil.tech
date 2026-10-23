@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 import LilAuth
+import LilUI
 public import SwiftUI
 
 public struct AppView: View {
@@ -16,7 +17,8 @@ public struct AppView: View {
     Group {
       switch store.isSignedIn {
       case nil:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
       case false:
         SignInView(
           store: store.scope(\.signIn, action: \.signIn), appName: "lil health",
@@ -31,6 +33,7 @@ public struct AppView: View {
         }
       }
     }
+    .delayedProgress(isLoading: store.isSignedIn == nil)
     .alert($store.scope(\.alert, action: \.alert))
     .task { await store.send(.task).finish() }
     .onChange(of: scenePhase) { _, phase in

@@ -2,6 +2,7 @@
   import Dependencies
   import DependenciesTestSupport
   import Foundation
+  import LilUI
   import Testing
 
   // State catalogs of lil health for iPhone (851-2953), rendered in the simulator by an app test
@@ -19,6 +20,8 @@
     .serialized,
     .dependencies {
       $0.date.now = previewNow
+      // Loading states show their spinners in the image drawn at once (851-3086).
+      $0.delayedProgressTiming = .immediate
     })
   struct PhoneSnapshotTests {}
 #endif

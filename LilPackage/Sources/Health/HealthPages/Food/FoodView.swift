@@ -1,6 +1,7 @@
 import Dependencies
 import HealthDatabase
 import HealthUI
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -61,6 +62,10 @@ struct FoodContent: View {
     case loading
     case loaded([Food], hasMore: Bool)
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let state: State
@@ -74,7 +79,8 @@ struct FoodContent: View {
     Group {
       switch state {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
@@ -92,6 +98,7 @@ struct FoodContent: View {
         list(foods, hasMore: hasMore)
       }
     }
+    .delayedProgress(isLoading: state.isLoading)
     .navigationTitle("Food")
   }
 
@@ -205,7 +212,7 @@ struct FoodDetailContent: View {
       Section("Nutrients") {
         switch state {
         case .loading:
-          ProgressView()
+          DelayedProgressView()
             .frame(maxWidth: .infinity)
         case .failed(let reason):
           Label("Couldn't load its nutrients: \(reason)", systemImage: "exclamationmark.triangle")

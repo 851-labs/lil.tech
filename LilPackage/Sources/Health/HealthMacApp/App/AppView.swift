@@ -3,6 +3,7 @@ import HealthCatalog
 import HealthPages
 import HealthUI
 import LilAuth
+import LilUI
 public import SwiftUI
 
 /// The main window. The app starts the store's `task`, rather than this view, so the session is
@@ -18,7 +19,8 @@ public struct AppView: View {
     Group {
       switch store.isSignedIn {
       case nil:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case false:
         SignInView(
@@ -35,6 +37,7 @@ public struct AppView: View {
         }
       }
     }
+    .delayedProgress(isLoading: store.isSignedIn == nil)
     // Wide enough for a metric's toolbar beside the sidebar: its title, range and periods
     // (851-2821).
     .frame(minWidth: 800, minHeight: 480)

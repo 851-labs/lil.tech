@@ -3,6 +3,7 @@ import Dependencies
 public import HealthCatalog
 import HealthDatabase
 import HealthUI
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -112,6 +113,10 @@ struct SleepDetailContent: View {
     /// on screen, with a spinner, rather than the page blanking and shifting.
     case loaded(SleepPeriod, isUpdating: Bool = false)
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let type: HealthDataType
@@ -143,6 +148,7 @@ struct SleepDetailContent: View {
         VStack(alignment: .leading, spacing: 12) {
           header
           chartArea
+            .delayedProgress(isLoading: state.isLoading)
             .frame(height: 240)
         }
         .padding(.vertical, 6)
@@ -241,7 +247,8 @@ struct SleepDetailContent: View {
   @ViewBuilder private var chartArea: some View {
     switch state {
     case .loading:
-      ProgressView()
+      // Its space, under the spinner `delayedProgress` shows (851-3086).
+      Color.clear
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .failed(let reason):
       ContentUnavailableView(

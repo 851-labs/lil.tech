@@ -1,5 +1,6 @@
 import AuthenticationServices
 public import ComposableArchitecture
+import LilUI
 public import SwiftUI
 
 /// Account settings' sign-in methods, for a `Form` or `List`: each linked account with an Unlink
@@ -15,7 +16,7 @@ public struct SignInMethodsSection: View {
     Section {
       switch store.methods {
       case .loading:
-        ProgressView()
+        DelayedProgressView()
           .controlSize(.small)
           .frame(maxWidth: .infinity)
       case .failed(let message):

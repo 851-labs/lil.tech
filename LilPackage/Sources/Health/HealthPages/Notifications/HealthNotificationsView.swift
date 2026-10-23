@@ -3,6 +3,7 @@ import Dependencies
 import HealthCatalog
 public import HealthDatabase
 import HealthUI
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -45,6 +46,10 @@ struct HealthNotificationsContent: View {
     /// Newest first by the date each is listed under (`HealthNotificationKind.listedDate`).
     case loaded([HealthNotification])
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let kind: HealthNotificationKind
@@ -58,7 +63,8 @@ struct HealthNotificationsContent: View {
     Group {
       switch state {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
@@ -71,6 +77,7 @@ struct HealthNotificationsContent: View {
         list(notifications)
       }
     }
+    .delayedProgress(isLoading: state.isLoading)
     .navigationTitle(kind.name)
   }
 
@@ -187,6 +194,10 @@ struct NotificationDetailContent: View {
     case loading
     case loaded([HealthSample])
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let kind: HealthNotificationKind
@@ -241,6 +252,7 @@ struct NotificationDetailContent: View {
       if kind.chartsHeartRate {
         Section {
           heartRateChart(summary)
+            .delayedProgress(isLoading: heartRates.isLoading)
         } header: {
           Text("Heart Rate")
         } footer: {
@@ -331,7 +343,8 @@ struct NotificationDetailContent: View {
   @ViewBuilder private func heartRateChart(_ summary: HealthNotificationSummary?) -> some View {
     switch heartRates {
     case .loading:
-      ProgressView()
+      // Its space, under the spinner `delayedProgress` shows (851-3086).
+      Color.clear
         .frame(maxWidth: .infinity)
         .frame(height: 160)
     case .failed(let reason):

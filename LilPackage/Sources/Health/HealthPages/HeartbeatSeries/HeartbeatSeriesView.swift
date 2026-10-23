@@ -2,6 +2,7 @@ import Charts
 import Dependencies
 import HealthDatabase
 import HealthUI
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -36,6 +37,10 @@ struct HeartbeatSeriesContent: View {
     case loading
     case loaded([HealthHeartbeatSeries])
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let state: State
@@ -48,7 +53,8 @@ struct HeartbeatSeriesContent: View {
     Group {
       switch state {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
@@ -64,6 +70,7 @@ struct HeartbeatSeriesContent: View {
         list(series)
       }
     }
+    .delayedProgress(isLoading: state.isLoading)
     .navigationTitle("Beat-to-Beat Measurements")
   }
 

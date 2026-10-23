@@ -2,6 +2,7 @@ import HealthCatalog
 import HealthDatabase
 import HealthPages
 import HealthUI
+import LilUI
 import SQLiteData
 import SwiftUI
 
@@ -61,7 +62,7 @@ struct MetricsView: View {
       switch state {
       case .loading:
         Section {
-          ProgressView()
+          DelayedProgressView()
             .frame(maxWidth: .infinity, minHeight: 200)
         }
       case .failed(let reason):

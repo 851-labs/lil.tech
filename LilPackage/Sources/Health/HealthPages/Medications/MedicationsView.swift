@@ -3,6 +3,7 @@ import Foundation
 import HealthCatalog
 import HealthDatabase
 import HealthUI
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -35,6 +36,10 @@ struct MedicationsContent: View {
     case loading
     case loaded([HealthMedication])
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let state: State
@@ -43,7 +48,8 @@ struct MedicationsContent: View {
     Group {
       switch state {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
@@ -59,6 +65,7 @@ struct MedicationsContent: View {
         list(medications)
       }
     }
+    .delayedProgress(isLoading: state.isLoading)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .navigationTitle("Medications")
   }
@@ -218,7 +225,7 @@ struct MedicationDetailContent: View {
       case .loading(let medication):
         page(medication) {
           Section {
-            ProgressView()
+            DelayedProgressView()
               .frame(maxWidth: .infinity, minHeight: 200)
           }
         }

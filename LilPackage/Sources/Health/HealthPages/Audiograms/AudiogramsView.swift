@@ -1,6 +1,7 @@
 import Charts
 import Dependencies
 import HealthDatabase
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -35,6 +36,10 @@ struct AudiogramsContent: View {
     case loading
     case loaded([HealthAudiogram])
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let state: State
@@ -47,7 +52,8 @@ struct AudiogramsContent: View {
     Group {
       switch state {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
@@ -62,6 +68,7 @@ struct AudiogramsContent: View {
         list(audiograms)
       }
     }
+    .delayedProgress(isLoading: state.isLoading)
     .navigationTitle("Audiograms")
   }
 

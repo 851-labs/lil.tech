@@ -1,3 +1,4 @@
+import LilUI
 import SwiftUI
 
 // iOS's grouped list (`List` with `.listStyle(.insetGrouped)`) for the Mac, which has none, for
@@ -78,8 +79,9 @@ struct LazyGroupedList<Content: View>: View {
             if paging.moreFailed {
               Button("Couldn't load more. Try Again", action: paging.loadMore)
             } else if paging.hasMore {
-              // Loads the next page when the end of the list comes into view.
-              ProgressView()
+              // Loads the next page when the end of the list comes into view, and shows only if
+              // it takes a while (851-3086).
+              DelayedProgressView()
                 .onAppear(perform: paging.loadMore)
             }
           }

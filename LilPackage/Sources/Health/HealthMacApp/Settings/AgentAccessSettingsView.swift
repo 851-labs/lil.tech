@@ -4,6 +4,7 @@ import HealthAgentAccess
 import HealthCatalog
 import LilAPI
 import LilAuth
+import LilUI
 import SwiftUI
 
 /// The Agents pane: command-line and agent access, while signed in. Signed out, the Mac has no
@@ -12,22 +13,26 @@ struct AgentAccessSettingsView: View {
   let store: StoreOf<AppFeature>
 
   var body: some View {
-    switch store.isSignedIn {
-    case nil:
-      // The stored session isn't checked yet.
-      ProgressView()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    case false:
-      ContentUnavailableView {
-        Label("Not Signed In", systemImage: "terminal")
-      } description: {
-        Text("Sign in to lil health to let command-line tools and agents read your Health data.")
+    Group {
+      switch store.isSignedIn {
+      case nil:
+        // The stored session isn't checked yet: its space, under the spinner `delayedProgress`
+        // shows (851-3086).
+        Color.clear
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      case false:
+        ContentUnavailableView {
+          Label("Not Signed In", systemImage: "terminal")
+        } description: {
+          Text("Sign in to lil health to let command-line tools and agents read your Health data.")
+        }
+      case true:
+        AgentAccessForm(
+          store: store.scope(\.agentAccess, action: \.agentAccess),
+          connected: store.scope(\.connectedAgents, action: \.connectedAgents))
       }
-    case true:
-      AgentAccessForm(
-        store: store.scope(\.agentAccess, action: \.agentAccess),
-        connected: store.scope(\.connectedAgents, action: \.connectedAgents))
     }
+    .delayedProgress(isLoading: store.isSignedIn == nil)
   }
 }
 
@@ -215,7 +220,7 @@ struct AgentAccessLogSheet: View {
         "What read your Health data on this Mac, the latest \(AgentAccessFeature.entryLimit): the command or tool with its arguments, and what ran it, never what it answered."
     ) {
       if store.entries.isEmpty, store.isLoadingLog {
-        ProgressView()
+        DelayedProgressView()
           .controlSize(.small)
           .frame(maxWidth: .infinity)
       } else if store.entries.isEmpty, let logFailure = store.logFailure {
@@ -374,7 +379,7 @@ struct ConnectedAgentsSections: View {
     Section {
       switch store.agents {
       case .loading:
-        ProgressView()
+        DelayedProgressView()
           .controlSize(.small)
           .frame(maxWidth: .infinity)
       case .failed(let message):
@@ -466,7 +471,7 @@ struct RemoteAccessLogSheet: View {
         "What agents connected to your account read from lil health's servers: the tool each used and what it asked for, never the values."
     ) {
       if store.log.isEmpty, store.isLoadingLog {
-        ProgressView()
+        DelayedProgressView()
           .controlSize(.small)
           .frame(maxWidth: .infinity)
       } else if store.log.isEmpty, let failure = store.logFailure {
@@ -484,6 +489,7 @@ struct RemoteAccessLogSheet: View {
           RemoteAccessRow(entry: entry)
         }
         if store.isLoadingLog {
+          // The next page, after Show More: at once, in the button's place (851-3086).
           ProgressView()
             .controlSize(.small)
             .frame(maxWidth: .infinity)

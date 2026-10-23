@@ -3,6 +3,7 @@ import Dependencies
 import Foundation
 import HealthDatabase
 import LilSync
+import LilUI
 import SQLiteData
 import SwiftUI
 
@@ -173,7 +174,7 @@ struct HealthDocumentDetailContent: View {
     switch state {
     case .loading:
       Section {
-        ProgressView()
+        DelayedProgressView()
           .frame(maxWidth: .infinity, minHeight: 200)
       }
     case .failed(let reason):

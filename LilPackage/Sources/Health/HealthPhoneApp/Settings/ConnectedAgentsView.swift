@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import LilAPI
 import LilAuth
+import LilUI
 import SwiftUI
 
 #if os(iOS)
@@ -34,7 +35,7 @@ struct ConnectedAgentsView: View {
       Section {
         switch store.agents {
         case .loading:
-          ProgressView()
+          DelayedProgressView()
             .frame(maxWidth: .infinity)
         case .failed(let message):
           VStack(alignment: .leading, spacing: 8) {

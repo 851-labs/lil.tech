@@ -1,5 +1,6 @@
 import HealthDatabase
 import LilSync
+import LilUI
 import SwiftUI
 
 /// A route's locations, as a page gets them: downloaded when it's shown.
@@ -9,6 +10,10 @@ enum RouteState {
   case none
   case loaded(LoadedRoute)
   case failed(String)
+
+  var isLoading: Bool {
+    if case .loading = self { true } else { false }
+  }
 
   /// The locations in the route blob `sha256`, from the cache or downloaded.
   static func load(_ sha256: String?, from blobCache: BlobCache) async -> Self {
@@ -58,7 +63,8 @@ struct RouteMapRow: View {
       // The map's own space whatever's in it, so nothing moves when it arrives (851-3091).
       switch route {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity)
           .frame(height: height)
           .padding(.vertical, 6)
@@ -86,6 +92,7 @@ struct RouteMapRow: View {
         }
       }
     }
+    .delayedProgress(isLoading: route.isLoading)
     .layoutAnchor("Route")
   }
 }

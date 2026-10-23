@@ -3,6 +3,7 @@ import HealthCatalog
 import HealthDatabase
 import HealthPages
 import HealthUI
+import LilUI
 import SQLiteData
 import SwiftUI
 
@@ -129,7 +130,7 @@ struct SummaryContent: View {
   @ViewBuilder private var highlightsSection: some View {
     switch highlights {
     case .loading:
-      ProgressView()
+      DelayedProgressView()
         .frame(maxWidth: .infinity, minHeight: 120)
     case .failed(let reason):
       ContentUnavailableView(

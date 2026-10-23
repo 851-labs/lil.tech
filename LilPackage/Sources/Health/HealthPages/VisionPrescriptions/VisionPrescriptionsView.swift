@@ -2,6 +2,7 @@ import Dependencies
 import Foundation
 import HealthDatabase
 import HealthUI
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -38,6 +39,10 @@ struct VisionPrescriptionsContent: View {
     case loading
     case loaded([HealthVisionPrescription])
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let state: State
@@ -51,7 +56,8 @@ struct VisionPrescriptionsContent: View {
     Group {
       switch state {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
@@ -67,6 +73,7 @@ struct VisionPrescriptionsContent: View {
         list(prescriptions)
       }
     }
+    .delayedProgress(isLoading: state.isLoading)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .navigationTitle("Vision Prescriptions")
   }
