@@ -20,14 +20,17 @@ export const quoted = (text: string) => JSON.stringify(text);
 
 /**
  * A value as compact JSON, for messages that show what was given (`(it's 12)`). Object keys are
- * sorted by UTF-16 code units, as Swift has them after parsing.
+ * sorted by UTF-16 code units, as Swift has them after parsing: written out here, since an object
+ * rebuilt in that order would still put keys like `"10"` first.
  */
-export const jsonText = (value: Json): string =>
-  JSON.stringify(value, (_, nested: unknown) =>
-    nested !== null && typeof nested === "object" && !Array.isArray(nested)
-      ? Object.fromEntries(Object.entries(nested).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
-      : nested,
-  );
+export const jsonText = (value: Json): string => {
+  if (Array.isArray(value)) return `[${value.map(jsonText).join(",")}]`;
+  if (isJsonObject(value)) {
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((key) => `${quoted(key)}:${jsonText(value[key]!)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+};
 
 /** The size of a value's compact JSON in bytes of UTF-8, as a spec's size is measured. */
 export const jsonBytes = (value: Json) => new TextEncoder().encode(JSON.stringify(value)).length;
@@ -63,3 +66,8 @@ export const codePoints = (text: string): Array<string> => Array.from(text);
 
 /** How many Unicode code points a string has. */
 export const codePointCount = (text: string) => codePoints(text).length;
+
+const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
+
+/** How many characters (grapheme clusters) a string has, as Swift's `String.count` counts. */
+export const characterCount = (text: string) => [...graphemes.segment(text)].length;

@@ -110,7 +110,6 @@ const HealthCatalogFile = Schema.Struct({
 
 const catalog = Schema.decodeUnknownSync(HealthCatalogFile)(catalogJson);
 const typesById = new Map(catalog.types.map((type) => [type.id, type]));
-const categoryNames = new Map(catalog.categories.map(({ id, name }) => [id, name]));
 const categoriesById = new Map(catalog.categories.map((category) => [category.id, category]));
 const activityNames = new Map(
   catalog.workoutActivities.map(({ activityType, name }) => [activityType, name]),
@@ -129,7 +128,7 @@ export const healthCategories: ReadonlyArray<HealthCategory> = catalog.categorie
 
 /** The name Health shows for a category, e.g. "Body Measurements". */
 export const healthCategoryName = (category: HealthCategory): string =>
-  categoryNames.get(category) ?? category;
+  categoriesById.get(category)?.name ?? category;
 
 /**
  * The SF Symbol and palette color the apps show for a category, which a card of its types has by

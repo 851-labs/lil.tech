@@ -9,6 +9,7 @@ import {
 } from "../HealthCatalog.ts";
 import { shortTypeId } from "../tools/ToolTypes.ts";
 import {
+  characterCount,
   codePointCount,
   codePoints,
   isJsonObject,
@@ -166,6 +167,11 @@ const canonicalize = (input: Json, sizeLimit: number): CardSpecResult => {
     }
   }
   if (validator.errors.length > 0) spec = undefined;
+  // Never a spec without an error: a default that couldn't be filled in (which no chartable type
+  // allows) fails closed rather than letting a spec through unchecked.
+  if (spec === undefined && validator.errors.length === 0) {
+    validator.fail("", "invalidType", "The spec couldn't be canonicalized.");
+  }
   return spec === undefined ? { errors: validator.errors.slice(0, maxCardSpecErrors) } : { spec };
 };
 
@@ -324,13 +330,13 @@ const typeClose = (name: string): HealthCatalogType | undefined => {
     .toLowerCase()
     .split(/\p{White_Space}+/u)
     .filter((word) => word !== "");
-  if (codePointCount(words.join("")) < 3) return undefined;
+  if (characterCount(words.join("")) < 3) return undefined;
   let best: HealthCatalogType | undefined;
   for (const type of chartableTypes) {
     const category = type.category === null ? "" : healthCategoryName(type.category);
     const text = `${type.name} ${category} ${shortTypeId(type.id)}`.toLowerCase();
     if (!words.every((word) => text.includes(word))) continue;
-    if (best === undefined || codePointCount(type.name) < codePointCount(best.name)) best = type;
+    if (best === undefined || characterCount(type.name) < characterCount(best.name)) best = type;
   }
   return best;
 };

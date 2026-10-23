@@ -176,7 +176,7 @@ export const applyMutations = (
     const recordCount = (entity: Entity) => {
       let count = recordCounts.get(entity);
       if (count === undefined) {
-        count = Number(sql.exec(`SELECT count(*) AS count FROM "${entity.name}"`)[0]?.["count"]);
+        count = sql.exec(`SELECT count(*) AS count FROM "${entity.name}"`)[0]?.["count"] as number;
         recordCounts.set(entity, count);
       }
       return count;
@@ -326,6 +326,17 @@ export const applyMutations = (
         if (missing !== undefined) {
           throw new InvalidMutation({ index, message: `Missing ${missing.field}` });
         }
+        // A row as it's stored passed its checks when it was written: a retry isn't checked
+        // again (a card's spec costs a validation), or refused by a check made stricter since.
+        if (
+          before !== undefined &&
+          sameValues(
+            values,
+            entity.fields.map(({ column }) => before[column] ?? null),
+          )
+        ) {
+          continue;
+        }
         if (entity.checkRow !== undefined) {
           const invalid = entity.checkRow(id, toRow(entity, id, values));
           if (invalid !== undefined) throw new InvalidMutation({ index, message: invalid });
@@ -339,15 +350,6 @@ export const applyMutations = (
             });
           }
           recordCounts.set(entity, count);
-        }
-        if (
-          before !== undefined &&
-          sameValues(
-            values,
-            entity.fields.map(({ column }) => before[column] ?? null),
-          )
-        ) {
-          continue;
         }
         const upsert = JSON.stringify([id, ...values]);
         const copy = copyRows ? JSON.stringify(toRow(entity, id, values)) : "";

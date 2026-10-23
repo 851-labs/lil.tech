@@ -76,6 +76,28 @@ describe("card spec validation", () => {
   });
 });
 
+describe("card spec messages", () => {
+  it("show an object given with its keys sorted as Swift sorts them, digits or not", () => {
+    const result = canonicalCardSpec({
+      version: 1,
+      display: { name: "Card" },
+      series: [
+        {
+          type: "HKQuantityTypeIdentifierBodyMass",
+          window: { kind: "timeOfDay", from: { b: 1, "10": 2, "9": 3 }, to: "12:00" },
+        },
+      ],
+    });
+    assert.deepStrictEqual(
+      result.errors?.map((error) => error.message),
+      [
+        'series[0].window.from must be a time on the 24-hour clock, "HH:MM" from "00:00" to ' +
+          '"23:59" (it\'s {"10":2,"9":3,"b":1}).',
+      ],
+    );
+  });
+});
+
 describe("the card spec's schema", () => {
   it("is the JSON Schema the Swift generates", () => {
     const document = Schema.toJsonSchemaDocument(CardSpec, { onExcessProperty: "error" });
