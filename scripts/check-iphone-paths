@@ -1,9 +1,10 @@
 #!/bin/sh
 # Checks that the paths which run the iPhone's snapshot tests on a pull request (`IPHONE` in
-# `.github/actions/changes/action.yml`, 851-3070) cover every module those tests are built from:
-# the package products `PhoneSnapshots.xcodeproj` links, and the package targets they depend on,
-# from `swift package dump-package`. A module they miss would change the iPhone's images without
-# their tests running before the merge. `scripts/check --swift` runs it.
+# `.github/actions/changes/action.yml`, 851-3070) cover everything those tests are built from: the
+# package products `PhoneSnapshots.xcodeproj` links, with the package targets they depend on (from
+# `swift package dump-package`), and the files and folders it builds by reference from outside its
+# own folder. One they miss would change the iPhone's images without their tests running before the
+# merge. `scripts/check --swift` runs it.
 set -eu
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -43,10 +44,16 @@ for name in sorted(modules):
     path = targets[name].get("path") or f"Sources/{name}"
     if not iphone.search(f"LilPackage/{path}/Example.swift"):
         missing.append(f"LilPackage/{path}/")
+# Paths are from the project's folder, `LilPackage/Tests/Health/PhoneSnapshots`.
+for reference in sorted(set(re.findall(r"path = \.\./([^;\"]+);", project))):
+    path = f"LilPackage/Tests/Health/{reference}"
+    probe = path if reference.endswith(".swift") else f"{path}/Example.swift"
+    if not iphone.search(probe):
+        missing.append(path)
 if missing:
     print("error: the iPhone's snapshot tests are built from these, which IPHONE in "
           ".github/actions/changes/action.yml doesn't cover, so a pull request changing them "
           "wouldn't run those tests:", *missing, sep="\n  ", file=sys.stderr)
     sys.exit(1)
-print(f"The iPhone's snapshot paths cover its {len(modules)} modules.")
+print(f"The iPhone's snapshot paths cover its {len(modules)} modules and the files it shares.")
 EOF

@@ -25,7 +25,7 @@
     let output = SnapshotOutput(file: file, testName: screen, name: "\(name)-\(suffix)")
     // References come from CI (851-3070): off it, a new state is only shown.
     if isNewOffCI(file: file, testName: screen, name: "\(name)-\(suffix)") {
-      output?.renderNew(window.contentView!.superview!, as: .layerImage)
+      renderNew(window.contentView!.superview!, as: .layerImage, to: output)
       window.close()
       return
     }

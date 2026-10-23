@@ -16,11 +16,19 @@ cd "$root"
 
 run=${1:-}
 run=${run##*/runs/}
-run=${run%%/*}
+run=${run%%[/?#]*}
 head=$(git rev-parse HEAD)
 if [ -z "$run" ]; then
-  run=$(gh run list --commit "$head" --workflow pr.yml --limit 1 --json databaseId \
-    --jq '.[0].databaseId // empty')
+  # The newest of the commit's PR runs whose Swift check ran: not one for closing the PR.
+  run=""
+  for candidate in $(gh run list --commit "$head" --workflow pr.yml --limit 10 --json databaseId \
+    --jq '.[].databaseId'); do
+    if [ -n "$(gh run view "$candidate" --json jobs \
+      --jq '.jobs[] | select(.name == "check / check" and .conclusion != "skipped") | .name')" ]; then
+      run=$candidate
+      break
+    fi
+  done
   if [ -z "$run" ]; then
     echo "error: no PR run for $(git rev-parse --short HEAD). Push the branch, open its PR, and" >&2
     echo "wait for its Swift check, or pass a run's ID." >&2
@@ -42,17 +50,25 @@ done
 
 download=$(mktemp -d)
 trap 'rm -rf "$download"' EXIT
-found=false
-for artifact in snapshot-references iphone-snapshot-references; do
-  if gh run download "$run" --name "$artifact" --dir "$download/$artifact" 2>/dev/null; then
-    found=true
-  fi
-done
-if ! $found; then
+# Each one's newest upload: a job run again uploads its own.
+artifacts=$(gh api "repos/{owner}/{repo}/actions/runs/$run/artifacts" --jq '
+  [.artifacts[] | select(.name == "snapshot-references" or .name == "iphone-snapshot-references")]
+  | group_by(.name)[] | max_by(.id) | "\(.id) \(.name) \(.expired)"')
+if [ -z "$artifacts" ]; then
   conclusion=$(gh run view "$run" --json conclusion --jq .conclusion)
   echo "Run $run ($conclusion) has no new references: its snapshots matched, or didn't run."
   exit 0
 fi
+while read -r id artifact expired; do
+  if [ "$expired" = true ]; then
+    echo "error: run $run's $artifact has expired (14 days). Push again for a new run." >&2
+    exit 1
+  fi
+  gh api "repos/{owner}/{repo}/actions/artifacts/$id/zip" >"$download/$artifact.zip"
+  mkdir "$download/$artifact"
+  unzip -q "$download/$artifact.zip" -d "$download/$artifact"
+  rm "$download/$artifact.zip"
+done <<<"$artifacts"
 
 # Only references and manifests, at the paths the tests keep them.
 fetched="$root/LilPackage/.build/snapshots-ci"

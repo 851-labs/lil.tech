@@ -80,7 +80,10 @@ jobs:
           LIL_SNAPSHOT_OUTPUT: ${{ runner.temp }}/snapshots
         run: |
           rm -rf "$LIL_SNAPSHOT_OUTPUT"
-          scripts/check --swift --pixelbook
+          status=0
+          scripts/check --swift --pixelbook || status=$?
+          scripts/collect-snapshots --check || status=1
+          exit "$status"
 
       # The images that differ from their references, and the references and manifests the tests
       # wrote (new states, stale manifests), for `scripts/fetch-snapshots`, with a summary saying so.
@@ -119,8 +122,9 @@ jobs:
     # runs), so it stops and reports before GitHub does, and the cleanup steps still run.
     timeout-minutes: 75
     env:
-      # Kept between runs outside the checkout, like `check`'s builds, but apart from them.
-      LIL_SNAPSHOT_DERIVED_DATA: ${{ github.workspace }}/../lil.tech-iphone-snapshots
+      # Kept between runs outside the checkout, like `check`'s builds, but apart from them, and
+      # main's apart from pull requests'.
+      LIL_SNAPSHOT_DERIVED_DATA: ${{ github.workspace }}/../lil.tech-iphone-snapshots-${{ github.event_name == 'pull_request' && 'pr' || 'main' }}
       LIL_SNAPSHOT_SIMULATOR: lil-snapshots-ci
       # As `check`'s.
       LIL_SNAPSHOT_CI: "1"
@@ -140,8 +144,14 @@ jobs:
             rm -rf "$LIL_SNAPSHOT_DERIVED_DATA"
           fi
 
+      # A run that times out is tried again, which would pass against references the first try
+      # recorded into the checkout: `--check` fails on any.
       - name: Snapshot the iPhone's state catalogs
-        run: scripts/snapshot --iphone
+        run: |
+          status=0
+          scripts/snapshot --iphone || status=$?
+          scripts/collect-snapshots --check || status=1
+          exit "$status"
 
       # As `check`'s, under names of their own.
       - name: Collect the changed snapshots

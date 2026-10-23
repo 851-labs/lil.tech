@@ -47,7 +47,7 @@
         exact: .image(precision: 1, perceptualPrecision: 1, scale: 3)))
     // References come from CI (851-3070): off it, a new state is only shown.
     if isNewOffCI(file: file, testName: screen, name: "\(name)-\(suffix)") {
-      output?.renderNew(image, as: strategy)
+      renderNew(image, as: strategy, to: output)
       return
     }
     let failure = withSnapshotTesting(diffTool: output?.diffTool) {

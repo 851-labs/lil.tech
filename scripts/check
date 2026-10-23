@@ -104,9 +104,9 @@ if $services; then
 fi
 
 if $pixelbook; then
-  # Before a commit, a new state's missing references are only a warning: CI renders them, after
-  # the push (`scripts/fetch-snapshots`, 851-3070).
-  if $hook; then
+  # Off CI, a new state's missing references are only a warning: CI renders them, after the push
+  # (`scripts/fetch-snapshots`, 851-3070).
+  if [ "${LIL_SNAPSHOT_CI:-}" != 1 ]; then
     step node Web/pixelbook/scripts/graphs.ts --allow-missing-references
   else
     step node Web/pixelbook/scripts/graphs.ts

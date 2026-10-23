@@ -39,6 +39,19 @@ func isNewOffCI(file: StaticString, testName: String, name: String) -> Bool {
     atPath: referenceURL(file: file, testName: testName, name: name).path)
 }
 
+/// Draws a new state's image (`isNewOffCI`) without comparing it, so a view that crashes or
+/// reports an issue still does, and writes it to `output` as `new` when `scripts/snapshot` asked.
+@MainActor
+func renderNew<Value, Format>(
+  _ value: Value, as strategy: Snapshotting<Value, Format>, to output: SnapshotOutput?
+) {
+  if let output {
+    output.renderNew(value, as: strategy)
+  } else {
+    strategy.snapshot(value).run { _ in }
+  }
+}
+
 /// Where `scripts/snapshot` wants every image this process takes, `LIL_SNAPSHOT_OUTPUT` (851-2962):
 /// `<output>/<test file>/<test>.<name>.png`, encoded as SnapshotTesting encodes references. A
 /// changed image also gets `<test>.<name>.diff.png`, its changed pixels in red over a faded copy
@@ -125,9 +138,10 @@ struct SnapshotOutput {
     report(result: result)
   }
 
-  /// Writes `value`'s image, taken with `strategy`, without comparing it, for a state with no
-  /// reference yet (`isNewOffCI`), and reports it as `new`.
-  func renderNew<Value, Format>(_ value: Value, as strategy: Snapshotting<Value, Format>) {
+  /// Writes `value`'s image, taken with `strategy`, without comparing it, and reports it as `new`.
+  fileprivate func renderNew<Value, Format>(
+    _ value: Value, as strategy: Snapshotting<Value, Format>
+  ) {
     writing(strategy).snapshot(value).run { _ in }
     report(result: "new")
   }
