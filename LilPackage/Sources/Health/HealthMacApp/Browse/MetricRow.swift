@@ -96,7 +96,10 @@ struct SoundExposureStatus: View {
   let exposure: SoundExposure
 
   private var status: String { exposure.isOverLimit ? "Loud" : "OK" }
-  private var share: String { exposure.dose.formatted(.percent.precision(.fractionLength(0))) }
+  /// Rounded down, so a week just under the limit never reads as 100% and OK.
+  private var share: String {
+    exposure.dose.formatted(.percent.precision(.fractionLength(0)).rounded(rule: .down))
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 1) {
@@ -127,14 +130,17 @@ struct Sparkline: View {
 
   var body: some View {
     Chart(days, id: \.day) { day in
-      if isRanges, let minimum = day.minimum, let maximum = day.maximum {
-        // A capsule, and a dot for a day whose values were all the same.
-        RuleMark(
-          x: .value("Day", day.day, unit: .day), yStart: .value("Lowest", minimum),
-          yEnd: .value("Highest", maximum)
-        )
-        .lineStyle(StrokeStyle(lineWidth: 5, lineCap: .round))
-        .foregroundStyle(color)
+      if isRanges {
+        // A capsule, and a dot for a day whose values were all the same. Days without a range
+        // are left out rather than drawn another way.
+        if let minimum = day.minimum, let maximum = day.maximum {
+          RuleMark(
+            x: .value("Day", day.day, unit: .day), yStart: .value("Lowest", minimum),
+            yEnd: .value("Highest", maximum)
+          )
+          .lineStyle(StrokeStyle(lineWidth: 5, lineCap: .round))
+          .foregroundStyle(color)
+        }
       } else if isTotals {
         BarMark(x: .value("Day", day.day, unit: .day), y: .value("Value", day.value))
           .foregroundStyle(color.opacity(0.8))
