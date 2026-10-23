@@ -62,8 +62,8 @@ A spec is a JSON object. Every field below appears in the canonical form, the fo
 | `version` | integer | `1` | required |
 | `display.name` | string | 1–40 characters after trimming, no control characters or line breaks | required |
 | `display.symbol` | string | a name from the curated symbols (Display, below) | the first series' type's symbol (its category's) |
-| `display.color` | string | a palette name (Display) | the first series' type's color (its category's) |
-| `display.unit` | string or null | a display unit of the first series' dimension (Display) | `null`: the locale's unit (`MetricFormat`) |
+| `display.color` | string | a palette name (Display) | the first series' type's color (its category's, `HealthCategory.colorName`) |
+| `display.unit` | string or null | a display unit of the lead's dimension (Display) | `null`: the locale's unit (`MetricFormat`) |
 | `series` | array | 1–4 series | required |
 | `series[].id` | string | `^[a-z][a-z0-9]{0,15}$`, unique among series and formulas | `a`, `b`, `c`, `d` by position |
 | `series[].type` | string | a readable quantity type's HealthKit identifier | required |
@@ -76,15 +76,19 @@ A spec is a JSON object. Every field below appears in the canonical form, the fo
 | `bucket` | string | `auto`, `hour`, `day`, `night`, `week`, `month` | `auto` |
 | `range` | string | `D`, `W`, `M`, `6M`, `Y`, among the bucket's ranges | `W`, or the bucket's first range when it doesn't have `W` (`week`: `M`; `month`: `6M`) |
 | `chart.style` | string | `bars`, `ranges`, `dots`, `line` | the first series' type's `chartStyle` |
-| `chart.goal` | object or null | `{ "value": <number> }`, in the first visible series' catalog unit | `null` |
+| `chart.goal` | object or null | `{ "value": <number> }`, in the lead's value unit | `null` |
 
 Types are HealthKit identifiers in the canonical form. Inputs also accept what `lil-health` and the tools accept, the name lil health shows (`Heart Rate`) or the identifier without its prefix (`HeartRate`), in any case (`HealthCatalog.type(named:)`), and canonicalize them to the identifier.
+
+- **Lengths** (names, labels, filter strings) count Unicode code points: Swift's `unicodeScalars.count`, JavaScript's `[...s].length`. Not grapheme clusters or UTF-16 units, which the Swift validator and the server's port would count differently, and a refused push makes a device bootstrap again.
+- **A series' value unit** is its type's catalog unit, except for `count`, whose values are numbers of readings, in `count`, whatever the type.
+- **The lead** is the card's first visible series, or, with every series hidden, its first visible formula. The header's summary, the Summary row's headline, the goal's unit and the display unit's dimension are the lead's.
 
 ### Versioning and the canonical form
 
 - **`version`** is the spec's format. v1 is this document. A change that a v1 reader would misread (a new field, a new allowed value, a changed meaning) is a new version, documented here, with its own validation rules. Fixes that don't change what a valid spec means aren't.
-- **Every engine and validator knows the versions it reads**: v1 for now. An app that meets a card of a later version shows it as a placeholder row, "Update lil health to show this card", and never writes it. It can still be deleted and reordered, since those don't touch the spec. The server refuses a version it doesn't know, so servers update before apps write a new version: the usual order, since the server deploys on merge.
-- **Canonical form:** a spec is stored with every default filled in (symbol, color, chart style, series IDs, nulls), and keys in the order of the table. So a card never changes meaning when a default changes, such as a type's chart style in the catalog, and two engines never resolve a default differently. Apps and tools canonicalize before writing. The store rejects a spec that isn't canonical, since nothing should write one.
+- **Every engine and validator knows the versions it reads**: v1 for now. An app that meets a card of a later version shows it as a placeholder row, "Update lil health to show this card", and never changes its spec. It can still be deleted and reordered: apps keep each card's spec as the JSON they pulled, decode it only to show it, and write it back unchanged when they write the row for anything else (a move), so a spec they can't read survives them. They validate a spec only when they change it. The server refuses a version it doesn't know, so servers update before apps write a new version: the usual order, since the server deploys on merge.
+- **Canonical form:** a spec is stored with every default filled in (symbol, color, chart style, series IDs, nulls). So a card never changes meaning when a default changes, such as a type's chart style in the catalog, and two engines never resolve a default differently. Apps and tools canonicalize before writing, with keys in the table's order for readable diffs. The store rejects a spec that isn't canonical, comparing **values, not text**: `canonicalize(parse(spec))` must deep-equal `parse(spec)`, numbers as doubles, key order and whitespace ignored, so Swift's and JavaScript's JSON writers (`1e-07` against `1e-7`) can never disagree into a refused push.
 - **The Swift model is the source of truth** (851-3194), as `HealthCatalog` is: `HealthCards` holds the Codable model, the canonicalizer and the validator. `scripts/format` generates `Services/api/card-spec.schema.json` (JSON Schema 2020-12, its enums included: symbols, colors, units, aggregations), and `scripts/format --lint` fails when it's stale. The server's Effect Schema for the spec must produce the same JSON Schema (a test), and the server ports the semantic rules (the ones JSON Schema can't express). Both sides run one set of cases, `Services/api/test/health/cards/validation-cases.json`: a spec and the errors expected, word for word.
 
 ### Display
@@ -97,8 +101,8 @@ Types are HealthKit identifiers in the canonical form. Inputs also accept what `
   - Sleep and time: `moon.fill`, `moon.zzz.fill`, `zzz`, `sun.max.fill`, `sunrise.fill`, `sunset.fill`, `clock.fill`, `alarm.fill`.
   - Food: `fork.knife`, `cup.and.saucer.fill`, `waterbottle.fill`, `leaf.fill`.
   - General: `chart.line.uptrend.xyaxis`, `chart.bar.fill`, `gauge.with.dots.needle.50percent`, `star.fill`, `target`, `flag.fill`.
-- **Color:** a palette name, so a card looks the same on every platform: `red`, `orange`, `yellow`, `green`, `mint`, `teal`, `cyan`, `blue`, `indigo`, `purple`, `pink`, `brown`, `gray`. Each is SwiftUI's system color of that name, which adapts to light and dark mode and is the same on the Mac and the iPhone. The default is the first series' type's category color (`HealthCategory.color`, already one of these). Every chart line draws in it: a formula over its series in the same color, a second series at 60% opacity, a third and fourth at 40% and 25% opacity with dots of different shapes (circle, square, triangle, diamond), so the palette stays one color per card.
-- **Unit:** `null` shows the locale's unit for the first series' type, as Metric Detail does (`MetricFormat.unit(_:typeID:locale:)`, 851-3116). An override pins one, for people who weigh in kilograms but read temperatures in °F. Only these, and only where the first series' catalog unit has that dimension: mass `kg`, `lb`, `st`; length `cm`, `m`, `km`, `in`, `ft`, `yd`, `mi`; temperature `degC`, `degF`; speed `km/hr`, `mi/hr`, `m/s`; volume `mL`, `L`, `fl_oz_us`; energy `kcal`, `kJ` (HealthKit's unit strings). Values are stored and computed in catalog units on every engine, and only the apps convert to the display unit. The tools never convert (`health.md`, Agents' data keeps its units).
+- **Color:** a palette name, so a card looks the same on every platform: `red`, `orange`, `yellow`, `green`, `mint`, `teal`, `cyan`, `blue`, `indigo`, `purple`, `pink`, `brown`, `gray`. Each is SwiftUI's system color of that name, which adapts to light and dark mode and is the same on the Mac and the iPhone. The default is the first series' type's category color. `HealthCatalog` gets `HealthCategory.colorName`, the palette name, beside `symbolName`, and `HealthUI`'s `HealthCategory.color` reads it, so there's one mapping and `HealthCards` needs no SwiftUI. Every chart line draws in it: a formula over its series in the same color, a second series at 60% opacity, a third and fourth at 40% and 25% opacity with dots of different shapes (circle, square, triangle, diamond), so the palette stays one color per card.
+- **Unit:** `null` shows the locale's unit for the first series' type, as Metric Detail does (`MetricFormat.unit(_:typeID:locale:)`, 851-3116). An override pins one, for people who weigh in kilograms but read temperatures in °F. Only these, and only where the lead's value unit has that dimension (never for `count`): mass `kg`, `lb`, `st`; length `cm`, `m`, `km`, `in`, `ft`, `yd`, `mi`; temperature `degC`, `degF`; speed `km/hr`, `mi/hr`, `m/s`; volume `mL`, `L`, `fl_oz_us`; energy `kcal`, `kJ` (HealthKit's unit strings). Values are stored and computed in catalog units on every engine, and only the apps convert to the display unit. The tools never convert (`health.md`, Agents' data keeps its units).
 
 ### Series
 
@@ -108,7 +112,7 @@ Types are HealthKit identifiers in the canonical form. Inputs also accept what `
   - `avg`: the average of the bucket's readings, weighted by the type's aggregation style, as Metric Detail weighs them (arithmetic, time-weighted, or equivalent continuous level for sound; Engines, below).
   - `min` and `max`: the lowest and highest reading.
   - `latest`: the reading that started last. Ties go to the later end, then the greater sample ID (lowercase UUID).
-  - `count`: how many readings.
+  - `count`: how many readings. Its value unit is `count` (above): it's its own dimension for the one-axis rule, a display unit never converts it, a goal over it is a count, and it can't be drawn as `ranges`.
 - **Filter:** `sources` is a list of 1–10 source bundle IDs (exact match on `sourceBundleID`; a Watch's look like `com.apple.health.<UUID>`, as `samples` returns them), and `deviceModels` a list of 1–10 `HKDevice` models (exact match on the device's `model`, such as `Watch` or `iPhone`). A reading matches when it matches every list given. Each list has strings of 1–200 characters, and the object needs at least one list.
 
 ### Event windows
@@ -164,12 +168,12 @@ Workouts are `health_workout` records from every source, by their overall `activ
 
 - **Style** is one of `HealthCatalog`'s four (851-3097), drawn as Metric Detail draws them:
   - `bars`: a bar from 0 to each point's value.
-  - `ranges`: a capsule from each point's lowest to its highest reading, on an axis from 0. Not for `sum` series, whose points have no readings.
+  - `ranges`: a capsule from each point's lowest to its highest reading, on an axis from 0. Not for `sum` or `count` series, whose values aren't readings.
   - `dots`: a dot at each value, on an axis fitted to them (`fittedDomain`).
   - `line`: dots joined by a line that carries on over buckets without a value, fitted.
   Every visible series uses the card's style. A moving average is always a line, over its series.
-- **One axis:** every visible series and formula must have the same catalog unit, so heart rate and HRV can't share a card. Two axes are a later version.
-- **Goal:** a horizontal rule at `value`, in the first visible series' catalog unit (10,000 for steps' `count`, 70 for weight's `kg`), converted to the display unit like the values, and labeled "Goal". Finite, and not negative.
+- **One axis:** every visible series and formula must have the same value unit, so heart rate and HRV can't share a card, nor weight and how many times it was measured. Two axes are a later version.
+- **Goal:** a horizontal rule at `value`, in the lead's value unit (10,000 for steps' `count`, 70 for weight's `kg`), converted to the display unit like the values, and labeled "Goal". Finite, and not negative.
 
 ### Formulas
 
@@ -181,7 +185,7 @@ Formulas derive a line from series, and are kept small in v1:
 ```
 
 - **`movingAverage`:** for each point, the average of the series' values over that bucket and the `points − 1` buckets before it (2–30), among those that have a value, empty buckets included in the count of buckets. Engines compute the buckets before the period for it, so the first points have their full window. With `auto` it's points of the range's grain: 7 at W is 7 days, at Y 7 months.
-- **`difference`:** `of[0]` minus `of[1]`, for each bucket where both have a value. Both must be series (not formulas) with the same catalog unit.
+- **`difference`:** `of[0]` minus `of[1]`, for each bucket where both have a value. Both must be series (not formulas) with the same value unit.
 - A formula's `of` names series only. A formula has no lowest or highest, so a `ranges` card draws it as a line, like a moving average.
 - Hide a series (`"hidden": true`) to show only a formula: Sleeping HR minus Resting HR as one line.
 
@@ -193,7 +197,7 @@ Formulas derive a line from series, and are kept small in v1:
 | Formulas per card | 2 | Keeps v1 small |
 | Visible lines (series and formulas) | 1–4 | |
 | Points per series and period | at most 366 (`day` or `night` at Y; `hour` at W is 168) | Bounded by the bucket's ranges |
-| Spec size | 8 KB as canonical JSON | Plenty for 4 series; bounds the store and tool calls |
+| Spec size | 8 KB as the writer's JSON (UTF-8) in apps and tools; the store refuses past 16 KB | Plenty for 4 series. The store's limit is a backstop, so two JSON writers' few bytes of difference never get a push refused |
 | Cards per account | 100 in the apps and tools; the store refuses past 200 | The store's limit is a backstop: devices racing past 100 never reach it, so their pushes aren't refused (below) |
 | Name, labels | 40 characters | Fits a Summary row |
 
@@ -242,27 +246,28 @@ An engine runs a canonical spec over one period: `run(spec, range, date, calenda
 
 ### Summary and headline
 
-**`summary`** is what the full page's header shows for the period, from the first visible **series** (not a formula):
+**`summary`** is what the full page's header shows for the period, from the lead:
 
-| First series | `kind` | Value |
+| Lead | `kind` | Value |
 |---|---|---|
 | `sum`, `auto`, D | `total` | the day's total |
 | `sum`, `auto`, W or M | `average` | the period's total over its days with a total above 0 (Metric Detail's AVERAGE) |
 | `sum`, `auto`, 6M or Y | `dailyAverage` | the same, captioned DAILY AVERAGE (851-3099) |
 | `sum`, fixed bucket | `total` with one bucket in the period, else `average` | the average of buckets with a total above 0 |
-| `avg`, style `ranges` | `range` | `minimum` and `maximum` of every reading |
+| `avg`, style `ranges` | `range`, or `average` when they're equal (as Metric Detail) | `minimum` and `maximum` of every reading |
 | `avg`, other styles | `average` | the weighted average of every reading in the period (not of its points) |
 | `min` | `lowest` | the lowest reading |
 | `max` | `highest` | the highest reading |
 | `latest` | `latest` | the period's latest reading |
 | `count` | `count` | how many readings |
+| a formula (every series hidden) | `average` | the average of its points' values in the period, each point once |
 
 A period without readings has `summary: null`, which the header shows as No Data (851-3102).
 
-**The headline** is what a Summary row shows: the latest value and a sparkline (851-3101) of the 7 buckets ending on it, in the card's style, for the first visible series. The headline's bucket is the card's, with `auto` as `day`.
+**The headline** is what a Summary row shows: the lead's latest value and a sparkline (851-3101) of the 7 buckets ending on it, in the card's style, as today's rows show the week ending on the latest day with data. Its buckets are the card's, with `auto` as `day`.
 
-- A card that is one discrete series, `avg` or `latest`, `auto`, with no window, filter or formula, shows its latest reading and when it was, as Summary shows heart rate and weight today. Every other card shows its latest bucket with a value, dated by the bucket ("Oct 20", "Night of Oct 20", "Week of Oct 13"). So the seed cards' rows read exactly as today's.
-- **Finding the latest bucket:** run the headline's buckets ending with the current one. If none has a value, look back 4 times by 7 buckets more. If none still does, run 7 buckets ending on the type's latest reading (`latestPeriodDate`, 851-3188), and if that's empty, No Data.
+- **Its value:** a card whose lead is a discrete series, `avg` or `latest`, `auto`, with no window, filter or formula, shows its latest reading and when it was, as Summary shows heart rate and weight today. Every other card shows its latest bucket with a value, dated by the bucket ("Oct 20", "Night of Oct 20", "Week of Oct 13"), as Summary shows a day's steps.
+- **Finding the latest bucket:** without a window or filter, the bucket holding the lead type's latest data started by now, found as Summary finds it today (`latestCumulativeStart` for cumulative types, `latestSample` for the others), so the seed cards' rows read exactly as today's, early-morning rows showing yesterday included. With a window or filter, or a formula as the lead: run the 7 buckets ending with the current one, then look back 7 at a time, at most 8 times (8 weeks of nights). Nothing found is No Data.
 
 ### The Mac (SQLite, 851-3195 and 851-3196)
 
@@ -301,7 +306,7 @@ A period without readings has `summary: null`, which the header shows as No Data
 
 ## Validation and errors
 
-The validator runs before every write (apps, tools, store) and before every preview, and returns **every** error (up to 20), each with a JSON path, a code and a message written for agents: what's wrong, what's allowed, how to fix it. Tools return them all in their error (MCP Tools, below), and the editor shows each one under its field.
+The validator runs before every write that changes a spec (apps, tools, store) and before every preview, and returns **every** error (up to 20), each with a JSON path, a code and a message written for agents: what's wrong, what's allowed, how to fix it. Tools return them all in their error (MCP Tools, below), and the editor shows each one under its field.
 
 | Code | Path | Message (example) |
 |---|---|---|
@@ -326,12 +331,13 @@ The validator runs before every write (apps, tools, store) and before every prev
 | `nightNeedsSleepWindow` | `bucket` | `bucket "night" needs a series with a sleep window: {"kind": "asleep"}, "beforeSleep" or "afterWaking".` |
 | `sleepWindowBucket` | `bucket` | `Sleep windows need bucket "night", "week" or "month": an hour or a calendar day would cut nights in two.` |
 | `rangeNotForBucket` | `range` | `range "Y" doesn't fit bucket "hour" (8,760 points). Ranges for "hour": D, W.` |
-| `rangesStyleOnSum` | `chart.style` | `"ranges" draws each bucket's lowest and highest reading, and Steps is a total. Use bars, dots or line.` |
+| `rangesStyle` | `chart.style` | `"ranges" draws each bucket's lowest and highest reading, and Steps is a total (a count is a number of readings). Use bars, dots or line.` |
 | `goalValue` | `chart.goal.value` | `goal.value must be a number of at least 0, in count/min (Heart Rate's unit).` |
+| `positionLength` | (the row) | (store only) `position must be 1 to 200 characters.` |
 | `nothingVisible` | `series` | `Every series and formula is hidden: leave at least one visible.` |
 | `visibleCount` | `formulas` | `A card shows at most 4 lines (series and formulas); this one has 5.` |
-| `tooLarge` | (the spec) | `The spec is 9.1 KB; the limit is 8 KB.` |
-| `notCanonical` | (the spec) | (store only) `The spec isn't in canonical form: apps and tools write it canonicalized.` |
+| `tooLarge` | (the spec) | `The spec is 9.1 KB; the limit is 8 KB.` (the store's backstop: 16 KB) |
+| `notCanonical` | (the spec) | (store only) `The spec isn't in canonical form (a default is missing): apps and tools write it canonicalized.` |
 
 - Messages name types as lil health does ("Heart Rate"), with the identifier where it helps an agent.
 - "Did you mean" uses the same matching as `search`. "Close ones" for symbols are the curated names sharing the most dot-separated words.
@@ -347,19 +353,19 @@ export const HealthCard = defineEntity("health_card", {
   id: /^card_(?:[0-9A-HJKMNP-TV-Z]{26}|seed_[a-z_]{1,40})$/,
   fields: {
     spec: Column.json,             // the canonical spec
-    position: Column.real,         // Summary's order, lowest first
+    position: Column.text,         // Summary's order: a fractional index, ascending
     createdAt: Column.integer,     // Unix ms
     updatedAt: Column.integer,     // Unix ms
     seed: Column.nullable(Column.text), // the seed card it started as ("steps"), else null
   },
-  checkRow: /* validate spec, canonical, ≤ 8 KB; position finite; createdAt ≤ updatedAt; seed only on seed IDs */,
+  checkRow: /* spec valid and canonical, ≤ 16 KB; position a fractional index of 1–200 characters; createdAt ≤ updatedAt; seed only on seed IDs */,
 });
 ```
 
 - **IDs:** `card_` and a ULID (26 characters, Crockford base32, uppercase) made by whoever creates the card (an app, or the server for an agent), so cards created on two devices offline never collide. The protocol's "prefixed, sortable ID". Seed cards have fixed IDs (below).
-- **Last writer wins per card.** Apps and the server always write **whole rows** (every field), so a card is never a mix of two edits. An edit on one device and a reorder on another are both whole rows, and the later one wins, which at worst moves a card back or undoes a rename, which is acceptable for settings like these. Writing only the changed fields would merge them, but an edit to a card another device deleted would then fail the row check, and a refused push makes the device bootstrap again (`protocol.md`). With whole rows, that edit brings the card back, which is what last writer wins means.
+- **Last writer wins per card.** Apps and the server always write **whole rows** (every field), so a card is never a mix of two edits. An edit on one device and a move of the same card on another are both whole rows, and the later one wins, which at worst moves a card back or undoes a rename: acceptable for settings like these, and limited to that card, since every write is of one card (except an agent's `reorder_cards`, which the server writes from its current rows). Writing only the changed fields would merge them, but an edit to a card another device deleted would then fail the row check, and a refused push makes the device bootstrap again (`protocol.md`). With whole rows, that edit brings the card back, which is what last writer wins means.
 - **`updatedAt`** is set by the writer at every write, reorders included. `createdAt` never changes. Neither decides conflicts: the server's order of arrival does (`protocol.md`).
-- **Order:** fractional positions. A card moved between two others gets the midpoint of their positions; to the top, the first one's minus 1; to the end, the last one's plus 1. One write per move. Ties are broken by ID. When two neighbors' positions are within 1e-9 of each other (about 30 moves into one gap), the app renumbers every card 1, 2, 3… in one push (at most 100 rows, under the 500 per push). New cards go to the end. `reorder_cards` renumbers 1… n and writes the cards whose position changed.
+- **Order:** fractional indexing (David Greenspan's "Implementing Fractional Indexing", the `fractional-indexing` package's algorithm): a position is a string of base-62 digits, ordered by its bytes (ascending, ties by ID), and there's always a key between two others. A card moved between two others gets a key between theirs; to the top, one before the first; to the end, one after the last. One write per move, of the moved card alone, and never a renumbering, which would push every card's whole row and undo others' edits that this device hadn't pulled yet. Keys grow about a character every 6 moves into one gap, so the 200-character limit is out of reach in practice. Swift and TypeScript implement the algorithm alike, checked by shared cases in `validation-cases.json`. New cards go to the end. `reorder_cards` gives each card whose place changed a key between its new neighbors, so cards already in order aren't written. The seed's are `a0` to `a5`.
 - **Deletion** is the protocol's delete: the row goes, and the change log tells every device. The entity has no key fields, so there's no tombstone (`protocol.md`). A deleted seed card stays deleted because seeding happens once (below), not because of a tombstone.
 - **Limits:** apps and tools refuse a 101st card ("You have 100 cards, the most lil health keeps. Delete one first."). The store refuses an upsert that would make a 201st, as a backstop, with `MutationRejected`. That can only come from a bug, since two devices racing past 100 make 101 or 102. The spec's 8 KB, and the push's 500 mutations, bound the rest.
 - **API compatibility:** the entity's row schema is an OpenAPI component (`HealthCard`) like the others, with `spec` as free JSON. Fields are only ever added. The spec's own changes go through `version`.
@@ -374,12 +380,12 @@ Every account starts with Summary's six metrics as cards, so Summary looks as it
 
 | ID | `seed` | Position | Name | Symbol | Color | Series | Style |
 |---|---|---|---|---|---|---|---|
-| `card_seed_steps` | `steps` | 1 | Steps | `flame.fill` | `orange` | StepCount, `sum` | `bars` |
-| `card_seed_heart_rate` | `heart_rate` | 2 | Heart Rate | `heart.fill` | `red` | HeartRate, `avg` | `ranges` |
-| `card_seed_active_energy` | `active_energy` | 3 | Active Energy | `flame.fill` | `orange` | ActiveEnergyBurned, `sum` | `bars` |
-| `card_seed_walking_running_distance` | `walking_running_distance` | 4 | Walking + Running Distance | `flame.fill` | `orange` | DistanceWalkingRunning, `sum` | `bars` |
-| `card_seed_resting_heart_rate` | `resting_heart_rate` | 5 | Resting Heart Rate | `heart.fill` | `red` | RestingHeartRate, `avg` | `line` |
-| `card_seed_weight` | `weight` | 6 | Weight | `figure` | `purple` | BodyMass, `avg` | `line` |
+| `card_seed_steps` | `steps` | `a0` | Steps | `flame.fill` | `orange` | StepCount, `sum` | `bars` |
+| `card_seed_heart_rate` | `heart_rate` | `a1` | Heart Rate | `heart.fill` | `red` | HeartRate, `avg` | `ranges` |
+| `card_seed_active_energy` | `active_energy` | `a2` | Active Energy | `flame.fill` | `orange` | ActiveEnergyBurned, `sum` | `bars` |
+| `card_seed_walking_running_distance` | `walking_running_distance` | `a3` | Walking + Running Distance | `flame.fill` | `orange` | DistanceWalkingRunning, `sum` | `bars` |
+| `card_seed_resting_heart_rate` | `resting_heart_rate` | `a4` | Resting Heart Rate | `heart.fill` | `red` | RestingHeartRate, `avg` | `line` |
+| `card_seed_weight` | `weight` | `a5` | Weight | `figure` | `purple` | BodyMass, `avg` | `line` |
 
 Each is canonical: `version` 1, the one series `a` with no window, filter or label, no formulas, bucket `auto`, range `W`, no goal, `unit` null. In full, the first:
 
@@ -433,7 +439,8 @@ Seven tools, defined once in `Services/api/src/health/cards/CardsToolkit.ts` wit
 
 ## The consent scope (851-3214)
 
-- **Name:** `health:cards`, under lil health's prefix like `health:read`, in `agentResources.health.scopes` (`["health:read", "health:cards"]`), so the combined server, Turn Off and the metadata pick it up from the registry.
+- **Name:** `health:cards`, under lil health's prefix like `health:read`, in `agentResources.health.scopes` (`["health:read", "health:cards"]`), so Turn Off, the metadata and the consent page pick it up from the registry.
+- **Reading stays the key to the server:** today lil health's own server lets a grant in only if it holds every scope of the app (`appServer.usable` in `McpRoutes.ts`), which would shut out every existing grant. So `AgentApp` gets a `readScope` (`health:read`): the app's server, and the combined server's choice of apps, admit a grant by it alone, and forward all of the grant's scopes in `x-lil-agent-scopes`, as they do now. The write tools check for `health:cards` there, per call.
 - **What it allows:** creating, updating, deleting and reordering the account's cards (their specs and order), through the four write tools. Nothing else. It never writes, changes or deletes Health data, and no tool that writes Health data exists. Reading cards and previews needs `health:read`, which every grant has.
 - **How it's asked for:** agents ask in `scope`, as for `health:read`. `health:cards` always comes with `health:read`: asking for it alone grants both, since a writer that can't list cards is no use. Asking for no scope, as most agents do, means all of the app's scopes, as it does today (`accounts.md`, Agents), so both. `scopes_supported` in the metadata, and the 401 challenge's `scope`, list both. The consent page stays all or nothing (`accounts.md`): it lists what the agent asked for, and the agent gets all of it or nothing.
 - **Grants from before** keep `health:read` only, since a refresh never changes a grant's scopes. Their card writes fail with a tool error: `This agent can read lil health but not change cards. To let it, connect it again and allow it to manage cards.` Their reads work as before. MCP's step-up authorization (a 403 `insufficient_scope` on the call) is a later improvement, since the store answers per tool and the challenge is the Worker's.
