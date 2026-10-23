@@ -8,7 +8,7 @@ import LilCLIInstaller
 import LilUI
 import SwiftUI
 
-/// The Agents pane: command-line and agent access, while signed in. Signed out, the Mac has no
+/// The Agents pane: access on this Mac, while signed in. Signed out, the Mac has no
 /// Health data to read.
 struct AgentAccessSettingsView: View {
   let store: StoreOf<AppFeature>
@@ -48,10 +48,8 @@ struct AgentAccessForm: View {
   var body: some View {
     Form {
       Section {
-        Toggle(
-          "Allow command-line and agent access", isOn: $store.isEnabled.sending(\.accessToggled)
-        )
-        .disabled(store.isLoading)
+        Toggle("Allow access on this Mac", isOn: $store.isEnabled.sending(\.accessToggled))
+          .disabled(store.isLoading)
         AgentLogRow(title: "Access Log", summary: localLogSummary) {
           store.send(.logShown(true))
         }

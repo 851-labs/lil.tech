@@ -196,8 +196,8 @@ public enum AgentAccessError: LocalizedError, Equatable {
     switch self {
     case .off:
       """
-      lil health's command-line and agent access is off. To turn it on, open lil health, choose \
-      lil health › Settings…, then Agents, and turn on Allow command-line and agent access.
+      lil health doesn't allow access on this Mac. To allow it, open lil health, choose \
+      lil health › Settings…, then Agents, and turn on Allow access on this Mac.
       """
     }
   }

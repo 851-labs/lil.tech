@@ -90,7 +90,7 @@ let package = Package(
       path: "Sources/Health/HealthUI"
     ),
     // `lil-health`, lil health for Mac's command-line tool: the Health toolkit's queries on the
-    // Mac's database, read-only, while command-line and agent access is on (851-2843), as
+    // Mac's database, read-only, while access on this Mac is on (851-2843), as
     // commands and as a local MCP server (`lil-health mcp`, 851-2844).
     .target(
       name: "HealthCLI",

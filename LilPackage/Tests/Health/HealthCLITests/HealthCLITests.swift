@@ -73,7 +73,7 @@ struct HealthCLITests {
     try folder.addSteps()
     let outcome = folder.run("summary")
     #expect(outcome.status == 77 && outcome.output.isEmpty)
-    #expect(outcome.error.contains("Allow command-line and agent access"))
+    #expect(outcome.error.contains("Allow access on this Mac"))
     // Off until the app turns it on: no file is made, and nothing is logged.
     #expect(
       !FileManager.default.fileExists(

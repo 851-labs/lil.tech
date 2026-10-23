@@ -11,7 +11,7 @@ import MCP
 ///
 /// It lists the tools exactly as `Services/api/mcp-tools.json` has them, so names, descriptions
 /// and schemas match the remote server's, and answers each call with `HealthTools`, as the
-/// commands' `--json` does. Like the commands, every call checks command-line and agent access
+/// commands' `--json` does. Like the commands, every call checks access on this Mac
 /// and logs itself first (851-2840): with access off, a call answers with the error that says
 /// where to turn it on. It also serves the catalog of categories and types as a resource.
 enum HealthMCPServer {
@@ -50,8 +50,8 @@ enum HealthMCPServer {
   static let instructions = """
     Reads the person's Apple Health data that lil health has synced to this Mac, read-only and \
     offline. Start with summary; find types with list_types or search. Every call is logged in \
-    lil health › Settings… › Agents, and fails while the person has command-line and agent \
-    access turned off there.
+    lil health › Settings… › Agents, and fails while Allow access on this Mac is off \
+    there.
     """
 
   /// Serves on standard input and output until the client closes them, then exits.

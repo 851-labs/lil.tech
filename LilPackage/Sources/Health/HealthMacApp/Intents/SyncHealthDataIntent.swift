@@ -4,11 +4,11 @@ import Foundation
 /// Syncs lil health for Mac from Shortcuts, Siri or Spotlight (851-2893): pulls the account's
 /// changes from the server now, and answers once caught up, with the sync's error, or that it's
 /// still syncing after a minute. The Mac never uploads Health data: the iPhone does. Only while
-/// command-line and agent access is on, like every app action.
+/// access on this Mac is on, like every app action.
 public struct SyncHealthDataIntent: AppIntent {
   public static let title: LocalizedStringResource = "Sync lil health"
   public static let description = IntentDescription(
-    "Gets the latest Health data your iPhone uploaded to lil health. It can't make your iPhone upload: lil health on the iPhone does that by itself. Needs Allow command-line and agent access, in lil health's Settings › Agents."
+    "Gets the latest Health data your iPhone uploaded to lil health. It can't make your iPhone upload: lil health on the iPhone does that by itself. Needs Allow access on this Mac, in lil health's Settings › Agents."
   )
   /// Never brings a running app's window forward. One that wasn't running is launched to ask,
   /// with its window, as for every intent of a SwiftUI `Window` app.
