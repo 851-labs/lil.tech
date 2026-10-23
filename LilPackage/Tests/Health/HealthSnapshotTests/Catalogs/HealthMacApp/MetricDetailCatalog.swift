@@ -49,14 +49,11 @@
             type: HealthCatalog.type(id: "HKCharacteristicTypeIdentifierBloodType")!)
         }
       },
-      CatalogState("No data") {
-        detail(
-          "HKQuantityTypeIdentifierBodyMass", .week,
-          chart: MetricChart(
-            interval: ChartRange.week.interval(
-              offset: 0, now: previewNow, calendar: previewCalendar),
-            points: [], summary: nil))
-      },
+      // No Data in the header only: the chart keeps its gridlines and axes, on a scale of the
+      // type's (851-3102). A line's, a percentage's and a total's.
+      CatalogState("No data") { noData("HKQuantityTypeIdentifierBodyMass") },
+      CatalogState("Body fat percentage, no data") { noData(bodyFat) },
+      CatalogState("Steps, no data") { noData(steps) },
       CatalogState("Loading") { detail(steps, .week, state: .loading) },
       // ‹ pressed: this week stays, with a spinner, until the week before loads (851-3084).
       CatalogState("Steps, loading the week before") {
@@ -155,7 +152,8 @@
     sameLayout: [
       [
         "Steps, week", "Loading", "Steps, loading the week before", "Steps, loading the month",
-        "Steps, the week before", "Steps, day", "Steps, 6 months", "No data", "Failed",
+        "Steps, the week before", "Steps, day", "Steps, 6 months", "No data",
+        "Body fat percentage, no data", "Steps, no data", "Failed",
         "Environmental sound levels, week", "Stand hours, day", "Mindful minutes, week",
         "Handwashing, month", "Toothbrushing, year", "Blood oxygen, month", "Weight, day",
         "Weight, last week", "Weight, month", "Weight, month with a gap", "Weight, 6 months",
@@ -188,6 +186,16 @@
         type: type, range: .constant(range), offset: .constant(offset),
         state: state ?? .loaded(loaded))
     }
+  }
+
+  /// A type's detail for this week, without data.
+  @MainActor
+  private func noData(_ id: String) -> some View {
+    detail(
+      id, .week,
+      chart: MetricChart(
+        interval: ChartRange.week.interval(offset: 0, now: previewNow, calendar: previewCalendar),
+        points: [], summary: nil))
   }
 
   private func storedChart(

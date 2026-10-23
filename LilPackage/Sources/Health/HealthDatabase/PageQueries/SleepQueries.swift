@@ -61,6 +61,16 @@ public struct SleepNight: Equatable, Identifiable, Sendable {
 extension HealthDatabase {
   public static let sleepType = "HKCategoryTypeIdentifierSleepAnalysis"
 
+  /// Whether any sleep was ever recorded, which Sleep's page asks of a period without nights, to
+  /// tell a period without sleep from an account without any (851-3102).
+  public static func hasSleep(_ db: Database) throws -> Bool {
+    try HealthSample
+      .where { $0.type.eq(sleepType) }
+      .select { $0.id }
+      .limit(1)
+      .fetchOne(db) != nil
+  }
+
   /// How far before midnight a night can start: sleep from 6 PM counts toward the next day, as
   /// in Health, so a night that starts at 23:00 is the next day's and an afternoon nap is its
   /// own day's.

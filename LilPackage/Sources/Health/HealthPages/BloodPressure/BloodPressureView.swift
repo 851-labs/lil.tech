@@ -237,7 +237,7 @@ struct BloodPressureContent: View {
         }
       }
       .chartXScale(domain: domain(chart))
-      .chartYScale(domain: .automatic(includesZero: false))
+      .bloodPressureYScale(isEmpty: chart.points.isEmpty)
       .chartXAxis {
         AxisMarks(values: .automatic(desiredCount: range == .day ? 6 : 7)) { _ in
           AxisGridLine()
@@ -259,13 +259,10 @@ struct BloodPressureContent: View {
             }
         }
       }
-      .overlay {
-        if chart.points.isEmpty {
-          Text("No Data")
-            .font(.title3.weight(.medium))
-            .foregroundStyle(.secondary)
-        }
-      }
+      .emptyChartAccessibility(
+        chart.points.isEmpty,
+        label: ChartFormat.noData(
+          ChartFormat.span(chart.interval, range: range, calendar: calendar)))
     }
   }
 
@@ -413,5 +410,17 @@ enum BloodPressureFormat {
 
   private static func number(_ value: Double?) -> String {
     value.map { $0.formatted(.number.precision(.fractionLength(0))) } ?? "–"
+  }
+}
+
+extension View {
+  /// The readings' scale, fitted to them, or for an empty period one around usual readings,
+  /// 50–150 mmHg, so the chart keeps its gridlines rather than an axis with no marks (851-3102).
+  @ViewBuilder fileprivate func bloodPressureYScale(isEmpty: Bool) -> some View {
+    if isEmpty {
+      chartYScale(domain: 50...150)
+    } else {
+      chartYScale(domain: .automatic(includesZero: false))
+    }
   }
 }

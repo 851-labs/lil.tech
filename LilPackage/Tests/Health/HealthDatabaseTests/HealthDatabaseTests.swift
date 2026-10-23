@@ -855,6 +855,16 @@ struct SleepQueriesTests {
     }
   }
 
+  /// Sleep's page tells a period without sleep from an account without any (851-3102).
+  @Test
+  func hasSleepOnceAnyIsRecorded() throws {
+    #expect(try database.read(HealthDatabase.hasSleep) == false)
+    try database.write { db in
+      try HealthSample.insert { stage(3, from: utc(23, day: 13), hours: 2) }.execute(db)
+    }
+    #expect(try database.read(HealthDatabase.hasSleep))
+  }
+
   @Test
   func aNightBelongsToTheDayItEndsOn() throws {
     try database.write { db in

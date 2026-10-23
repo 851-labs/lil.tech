@@ -56,7 +56,8 @@
               range: .day, firstDay: day, lastDay: day,
               nights: [SleepNight(day: day, segments: segments, inBed: 8 * 3600)])))
       },
-      // The night the Watch was charging.
+      // The night the Watch was charging: No Data in the header, and the stages' rows empty over
+      // a night's usual hours (851-3102).
       CatalogState("No sleep") { detail(.day, offset: -3, .loaded(nights(.day, offset: -3))) },
       // At clock time, from bedtime to waking: a night that started after midnight, one with a
       // gap, and one missing.
@@ -71,6 +72,13 @@
       // Before the catalog's nights start.
       CatalogState("Month without sleep") {
         detail(.month, offset: -8, .loaded(nights(.month, offset: -8)))
+      },
+      CatalogState("6 Months without sleep") {
+        detail(.sixMonths, offset: -2, .loaded(nights(.sixMonths, offset: -2)))
+      },
+      // No sleep ever recorded: where it comes from, rather than an empty chart (851-3102).
+      CatalogState("Never recorded") {
+        detail(.week, .loaded(nights(.week, in: try! HealthDatabase.make())))
       },
       // A bar a week, across the start of daylight saving time (March 10), which doesn't move the
       // nights after it.
@@ -119,15 +127,18 @@
       ],
       [
         "Week", "Week, loading the week before", "Month", "Month, loading the month before",
-        "Month without sleep", "6 Months", "6 Months, loading the 6 months before",
+        "Month without sleep", "6 Months without sleep", "Never recorded", "6 Months",
+        "6 Months, loading the 6 months before",
         "Loading a month", "Failed",
       ],
     ])
 
   private let sleepType = HealthCatalog.type(id: HealthDatabase.sleepType)!
 
-  private func nights(_ range: SleepRange, offset: Int = 0) -> SleepPeriod {
-    try! sleepCatalogDatabase.read { db in
+  private func nights(
+    _ range: SleepRange, offset: Int = 0, in database: any DatabaseReader = sleepCatalogDatabase
+  ) -> SleepPeriod {
+    try! database.read { db in
       try SleepRequest(range: range, offset: offset, day: previewNow, calendar: previewCalendar)
         .fetch(db)!
     }

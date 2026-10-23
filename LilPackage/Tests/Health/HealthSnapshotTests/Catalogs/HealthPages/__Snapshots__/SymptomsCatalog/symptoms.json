@@ -67,6 +67,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/SymptomsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SymptomsCatalog/symptoms.headache-not-present-dark.png",
+      "id" : "symptoms.headache-not-present",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SymptomsCatalog/symptoms.headache-not-present-light.png",
+      "name" : "Headache, not present",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/SymptomsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SymptomsCatalog/symptoms.headache-loading-dark.png",
       "id" : "symptoms.headache-loading",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SymptomsCatalog/symptoms.headache-loading-light.png",

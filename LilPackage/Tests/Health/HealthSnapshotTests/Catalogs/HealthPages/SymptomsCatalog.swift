@@ -90,6 +90,10 @@
         symptom(headache, .month, logged)
       },
       CatalogState("No headache") { symptom(headache, .week, []) },
+      // Logged as not present: listed, not charted, with Not Present in the header (851-3102).
+      CatalogState("Headache, not present") {
+        symptom(headache, .week, [Logged(hours: 30, value: 1)])
+      },
       CatalogState("Headache loading") { symptom(headache, .week, .loading) },
       // M pressed: the week stays, with a spinner, until the month loads (851-3089).
       CatalogState("Headache, loading the month") {
@@ -105,7 +109,9 @@
       [
         "Headache, week", "Headache loading", "Headache, loading the month", "Headache, day",
         "Headache, month", "Headache, 6 months", "Headache, year", "Mood changes",
-        "Appetite changes", "Headache, more than 100 entries", "No headache", "Headache failed",
+        "Appetite changes", "Headache, more than 100 entries", "No headache",
+        "Headache, not present",
+        "Headache failed",
       ]
     ])
 
