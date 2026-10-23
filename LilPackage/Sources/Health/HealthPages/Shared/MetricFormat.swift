@@ -20,6 +20,13 @@ public enum MetricFormat {
   /// settings can change. Pass `@Dependency(\.locale)`, so snapshot catalogs fix it. Values are
   /// stored in SI (the catalog's units) whatever the locale.
   public static func unit(_ unit: String?, typeID: String, locale: Locale) -> DisplayUnit {
+    var shown = displayUnit(unit, typeID: typeID, locale: locale)
+    // Numbers are written in it too.
+    shown.locale = locale
+    return shown
+  }
+
+  private static func displayUnit(_ unit: String?, typeID: String, locale: Locale) -> DisplayUnit {
     let name = typeID.components(separatedBy: "Identifier").last ?? typeID
     let system = UnitSystem(locale)
     switch unit {
@@ -36,7 +43,8 @@ public enum MetricFormat {
       return system == .metric
         ? DisplayUnit("km/h", scale: 3.6) : DisplayUnit("mph", scale: 3_600 / mile)
     // Running's vertical oscillation.
-    case "cm": return system == .metric ? DisplayUnit("cm") : DisplayUnit("in", scale: 1 / 2.54)
+    case "cm":
+      return system == .metric ? DisplayUnit("cm") : DisplayUnit("in", scale: 0.01 / inch)
     case "kg":
       switch system {
       case .metric: return DisplayUnit("kg")
@@ -107,11 +115,13 @@ public enum MetricFormat {
 
   /// Whether `locale` shows temperatures in °F: the region's, or the one chosen in the Mac's
   /// Language & Region settings. Foundation has no property for it, so this asks the formatter
-  /// Apple's apps use for a temperature in the locale's preferred unit (a weather's).
+  /// Apple's apps use for a temperature in the locale's preferred unit (a weather's) to write
+  /// 100 °C, and reads its number, in whichever digits, rather than its symbol, which some
+  /// languages write in their own script (Arabic's °ف). About 5 µs.
   static func prefersFahrenheit(_ locale: Locale) -> Bool {
-    let formatted = Measurement(value: 0, unit: UnitTemperature.celsius)
+    let formatted = Measurement(value: 100, unit: UnitTemperature.celsius)
       .formatted(.measurement(width: .abbreviated, usage: .weather).locale(locale))
-    return formatted.contains("F") || formatted.contains("℉")
+    return formatted.compactMap(\.wholeNumberValue) == [2, 1, 2]
   }
 
   private static let countLabels = [
@@ -133,6 +143,8 @@ public enum MetricFormat {
     public let offset: Double
     /// A value written in two units, plotted in the smaller one.
     public let compound: Compound?
+    /// Whose numbers it writes: the one it was picked for.
+    public fileprivate(set) var locale = Locale.autoupdatingCurrent
 
     /// Two units a value is written in: 5′ 11″, 11 st 4 lb.
     public enum Compound: Equatable, Sendable {
@@ -157,17 +169,22 @@ public enum MetricFormat {
     /// or 1 mi gets a third, so a 4 m sample isn't "0 km". Pounds and °F keep one from 100, so a
     /// weight's change and a fever show.
     public func format(_ shown: Double) -> String {
+      // A compound's whole units can't be counted.
+      guard shown.isFinite else { return shown.formatted(.number.locale(locale)) }
       switch compound {
       case .feetAndInches:
         let inches = Int(shown.rounded())
         let (feet, rest) = inches.quotientAndRemainder(dividingBy: 12)
-        return rest == 0 ? "\(feet)′" : "\(feet)′ \(rest)″"
+        let number = { (value: Int) in value.formatted(.number.locale(locale)) }
+        return rest == 0 ? "\(number(feet))′" : "\(number(feet))′ \(number(rest))″"
       case .stonesAndPounds:
         // In tenths of a pound, so 4.96 lb isn't 5 lb short of the next stone.
         let tenths = Int((shown * 10).rounded())
         let (stones, rest) = tenths.quotientAndRemainder(dividingBy: 140)
-        let pounds = (Double(rest) / 10).formatted(.number.precision(.fractionLength(0...1)))
-        return rest == 0 ? "\(stones) st" : "\(stones) st \(pounds) lb"
+        let pounds = (Double(rest) / 10).formatted(
+          .number.precision(.fractionLength(0...1)).locale(locale))
+        let whole = stones.formatted(.number.locale(locale))
+        return rest == 0 ? "\(whole) st" : "\(whole) st \(pounds) lb"
       case nil:
         break
       }
@@ -175,7 +192,7 @@ public enum MetricFormat {
       let digits =
         Self.whole.contains(label) || size >= 100 && !Self.tenthsFrom100.contains(label)
         ? 0 : size >= 10 ? 1 : size < 1 && (label == "km" || label == "mi") ? 3 : 2
-      return shown.formatted(.number.precision(.fractionLength(0...digits)))
+      return shown.formatted(.number.precision(.fractionLength(0...digits)).locale(locale))
     }
 
     private static let whole: Set = [
@@ -183,6 +200,21 @@ public enum MetricFormat {
       "mg/dL", "dB", "W",
     ]
     private static let tenthsFrom100: Set = ["lb", "°F"]
+
+    /// The distance between an axis's ticks over `span` (in this unit) for a compound unit, so
+    /// each falls on a value its label writes exactly, and no two read the same: whole inches,
+    /// feet or yards, whole pounds or stones. Nil for other units, whose ticks Charts picks.
+    public func compoundTickStride(over span: Double) -> Double? {
+      let strides: [Double] =
+        switch compound {
+        case .feetAndInches: [1, 2, 3, 6, 12, 24, 36, 60, 120]
+        case .stonesAndPounds: [1, 2, 7, 14, 28, 70, 140, 280]
+        case nil: []
+        }
+      guard let largest = strides.last else { return nil }
+      // At most 5 ticks, as Charts' own axes have.
+      return strides.first { span / $0 <= 5 } ?? largest
+    }
   }
 
   /// A length of time as Health writes a session's: ("24", "sec"), or ("2", "min") from a

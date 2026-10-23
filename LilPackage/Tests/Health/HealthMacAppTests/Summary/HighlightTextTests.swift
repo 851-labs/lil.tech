@@ -40,8 +40,8 @@ struct HighlightTextTests {
     let highlight = Highlight(
       typeID: distance.id, kind: .week, current: 5_200, previous: 950, recentStart: .now)
     let sentence = HighlightText.sentence(highlight, type: distance, locale: metric)
-    #expect(sentence.contains("\(5.2.formatted()) km a day"))
-    #expect(sentence.contains("\(0.95.formatted()) km the week before"))
+    #expect(sentence.contains("5.2 km a day"))
+    #expect(sentence.contains("0.95 km the week before"))
   }
 
   /// In the locale's units (851-3116).
@@ -52,8 +52,8 @@ struct HighlightTextTests {
       typeID: distance.id, kind: .week, current: 8_046.72, previous: 3_218.688, recentStart: .now)
     let sentence = HighlightText.sentence(
       highlight, type: distance, locale: Locale(identifier: "en_US"))
-    #expect(sentence.contains("\(5.formatted()) mi a day"))
-    #expect(sentence.contains("\(2.formatted()) mi the week before"))
+    #expect(sentence.contains("5 mi a day"))
+    #expect(sentence.contains("2 mi the week before"))
   }
 
   @Test

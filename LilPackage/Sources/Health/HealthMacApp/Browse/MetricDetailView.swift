@@ -424,6 +424,13 @@ struct MetricDetailContent: View {
     case .loaded(let loaded, _):
       let chart = loaded.chart
       let shown = displayUnit
+      // Fitted in the unit plotted. An empty period keeps a scale of the type's, in it too
+      // (851-3102).
+      let yDomain =
+        chart.points.isEmpty
+        ? emptyDomain(for: type, unit: unit, hourly: isCumulative && range == .day)
+          .converted(by: shown)
+        : style.isAverage ? fittedDomain(chart.points.map { shown.convert($0.value) }) : nil
       Chart {
         ForEach(chart.points, id: \.start) { point in
           if style.isAverage {
@@ -462,14 +469,7 @@ struct MetricDetailContent: View {
         }
       }
       .chartXScale(domain: domain(chart))
-      // Fitted in the unit plotted. An empty period keeps a scale of the type's, in it too
-      // (851-3102).
-      .chartYDomain(
-        chart.points.isEmpty
-          ? emptyDomain(for: type, unit: unit, hourly: isCumulative && range == .day)
-            .converted(by: shown)
-          : style.isAverage ? fittedDomain(chart.points.map { shown.convert($0.value) }) : nil
-      )
+      .chartYDomain(yDomain)
       .chartPlotStyle { $0.clipped() }
       .chartXSelection(value: $hovered)
       .chartYAxis {
@@ -477,9 +477,12 @@ struct MetricDetailContent: View {
           // Plotted as percentages, 22 for 22%, as the header shows them.
           AxisMarks(
             format: FloatingPointFormatStyle<Double>.Percent().scale(1), position: .trailing)
-        } else if shown.compound != nil {
-          // Plotted in inches or pounds, and labeled as the header writes them: 5′ 10″.
-          AxisMarks(position: .trailing) { value in
+        } else if let yDomain,
+          let stride = shown.compoundTickStride(over: yDomain.upperBound - yDomain.lowerBound)
+        {
+          // Plotted in inches or pounds, and labeled as the header writes them, at whole ones,
+          // so no two ticks read the same: 5′ 9″, 5′ 10″.
+          AxisMarks(position: .trailing, values: .stride(by: stride)) { value in
             AxisGridLine()
             AxisTick()
             AxisValueLabel {

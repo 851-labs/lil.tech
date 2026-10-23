@@ -33,15 +33,15 @@ struct HighlightRow: View {
 
   /// The two weeks' averages as bars, this week in the category's color.
   private var comparison: some View {
-    let shown = displayUnit
-    // Rolling weeks ending yesterday, as the sentence says, not calendar weeks.
-    return ComparisonBars(
+    // Rolling weeks ending yesterday, as the sentence says, not calendar weeks. Sized by their
+    // stored values, whose ratio no unit changes.
+    ComparisonBars(
       earlier: .init(
-        "7 Days Before", value: shown.convert(highlight.previous),
+        "7 Days Before", value: highlight.previous,
         text: HighlightText.text(highlight.previous, type, locale: locale),
         color: Self.earlierColor),
       recent: .init(
-        "Last 7 Days", value: shown.convert(highlight.current),
+        "Last 7 Days", value: highlight.current,
         text: HighlightText.text(highlight.current, type, locale: locale), color: color))
   }
 
@@ -85,7 +85,11 @@ struct HighlightRow: View {
     // A slot for every week, with data or not.
     .chartXScale(domain: (0...(highlight.points.last.map { index($0.day) } ?? 15)).map(String.init))
     .chartYAxis {
-      AxisMarks(position: .trailing) { value in
+      // A compound unit's ticks at whole inches or pounds, so no two read the same.
+      AxisMarks(
+        position: .trailing,
+        values: shown.compoundTickStride(over: top - floor).map { .stride(by: $0) } ?? .automatic
+      ) { value in
         AxisGridLine()
         AxisValueLabel {
           if let number = value.as(Double.self) {
