@@ -68,7 +68,8 @@ public struct MetricChart: Equatable, Sendable {
     case dailyAverage(Double)
     /// A discrete type's lowest and highest values.
     case range(minimum: Double, maximum: Double)
-    /// A discrete type whose values were all the same.
+    /// A discrete type charted as a line or dots: its average over the period (851-3097). Or a
+    /// ranged one whose values were all the same.
     case average(Double)
     /// Sessions' average length in seconds (handwashing, toothbrushing).
     case averageDuration(TimeInterval)
@@ -94,7 +95,8 @@ public struct ChartPoint: Equatable, Sendable {
 extension HealthDatabase {
   /// A quantity type over the period `offset` periods back. Cumulative types chart totals by
   /// hour or day, and for six months or a year the average day of each week or month; discrete
-  /// types chart each bucket's average and range.
+  /// types chart each bucket's average and range, summed up as the period's range, or its
+  /// average for those drawn as a line or dots (`HealthDataType.ChartStyle`).
   public static func metricChart(
     of type: HealthDataType, range: ChartRange, offset: Int, now: Date, calendar: Calendar,
     _ db: Database
@@ -108,7 +110,13 @@ extension HealthDatabase {
         ChartPoint(start: $0.start, value: $0.average, minimum: $0.minimum, maximum: $0.maximum)
       }
       var summary: MetricChart.Summary?
-      if let low = statistics.map(\.minimum).min(), let high = statistics.map(\.maximum).max() {
+      if type.chartStyle?.isAverage == true {
+        // A line's or dots' period is its average, as Health's weight is, rather than its range
+        // (851-3097): weighted over all of its readings, not the days' averages.
+        summary = try discreteStatistic(of: type.id, in: span, db).map { .average($0.average) }
+      } else if let low = statistics.map(\.minimum).min(),
+        let high = statistics.map(\.maximum).max()
+      {
         if low == high {
           summary = .average(low)
         } else {

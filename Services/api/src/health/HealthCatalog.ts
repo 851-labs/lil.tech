@@ -74,6 +74,12 @@ export const HealthCatalogType = Schema.Struct({
   unit: Schema.NullOr(Schema.String),
   /** A quantity type's aggregation style. Null for other kinds. */
   aggregation: Schema.NullOr(HealthAggregation),
+  /**
+   * How the apps chart a quantity type (`HealthDataType.ChartStyle`, 851-3097): `bars` of totals,
+   * `ranges` from each period's lowest to highest reading, `dots` of each period's average, or a
+   * `line` through them. Null for other kinds.
+   */
+  chartStyle: Schema.NullOr(Schema.Literals(["bars", "ranges", "dots", "line"])),
   /** The iOS version that introduced the type, e.g. "17.0". */
   introduced: Schema.String.check(Schema.isPattern(/^\d+\.\d+$/)),
   readAuthorization: Schema.Literals(["standard", "perObject", "throughComponents", "unavailable"]),

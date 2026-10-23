@@ -133,7 +133,23 @@
         "Mindful minutes, week",
         "Handwashing, month",
         "Toothbrushing, year",
-        "Heart rate variability, week"
+        "Heart rate variability, week",
+        "Blood oxygen, month"
+      ]
+    },
+    {
+      "id": "weight",
+      "screen": "HealthMacApp/MetricDetailCatalog.swift",
+      "title": "Weight",
+      "states": [
+        "Weight, day",
+        "Weight, last week",
+        "Weight, month",
+        "Weight, month with a gap",
+        "Weight, 6 months",
+        "Weight, year",
+        "Body fat percentage, month",
+        "Cardio fitness, 6 months"
       ]
     },
     {
@@ -492,6 +508,11 @@
       "label": "Choose Environmental Sound Levels"
     },
     {
+      "from": "category",
+      "to": "weight",
+      "label": "Choose Weight"
+    },
+    {
       "from": "metric",
       "to": "sleep",
       "label": "For Sleep"
@@ -598,6 +619,16 @@
     },
     {
       "from": "sound-levels",
+      "to": "sources",
+      "label": "Data Sources"
+    },
+    {
+      "from": "weight",
+      "to": "all-data",
+      "label": "Show All Data"
+    },
+    {
+      "from": "weight",
       "to": "sources",
       "label": "Data Sources"
     },

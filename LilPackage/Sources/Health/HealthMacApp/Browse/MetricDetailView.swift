@@ -200,6 +200,11 @@ struct MetricDetailContent: View {
   private var isCumulative: Bool {
     type.aggregation?.isCumulative == true || HealthDatabase.categoryChartTypes.contains(type.id)
   }
+  /// How the chart draws each period: the type's own style (851-3097), bars for a category type
+  /// charted like a total.
+  private var style: HealthDataType.ChartStyle {
+    isCumulative ? .bars : type.chartStyle ?? .ranges
+  }
   /// What the values are in: the type's unit, or a category chart's (hours, minutes, times).
   private var unit: String? { type.unit ?? HealthDatabase.categoryChartUnit(type.id) }
 
@@ -313,6 +318,8 @@ struct MetricDetailContent: View {
 
   private func label(_ chart: MetricChart?, point: ChartPoint?) -> String {
     let cumulative = isCumulative
+    // A line's or dots' points and period are averages, as Health's weight is (851-3097).
+    if style.isAverage { return "AVERAGE" }
     if let point {
       if cumulative { return range == .sixMonths || range == .year ? "DAILY AVERAGE" : "TOTAL" }
       return point.minimum == point.maximum ? "AVERAGE" : "RANGE"
@@ -330,7 +337,8 @@ struct MetricDetailContent: View {
   private func valueText(_ chart: MetricChart?, point: ChartPoint?) -> some View {
     let values: [Double]? =
       if let point {
-        point.minimum == point.maximum ? [point.value] : [point.minimum, point.maximum]
+        style.isAverage || point.minimum == point.maximum
+          ? [point.value] : [point.minimum, point.maximum]
       } else {
         switch chart?.summary {
         case .total(let value), .dailyAverage(let value), .average(let value): [value]
@@ -376,7 +384,11 @@ struct MetricDetailContent: View {
       let chart = loaded.chart
       Chart {
         ForEach(chart.points, id: \.start) { point in
-          bar(point, in: chart)
+          if style.isAverage {
+            average(point, in: chart)
+          } else {
+            bar(point, in: chart)
+          }
         }
         ForEach(shownOverlays, id: \.name) { overlay in
           ForEach(overlay.points, id: \.start) { point in
@@ -408,10 +420,16 @@ struct MetricDetailContent: View {
         }
       }
       .chartXScale(domain: domain(chart))
+      .chartYDomain(style.isAverage ? averageDomain(chart) : nil)
       .chartPlotStyle { $0.clipped() }
       .chartXSelection(value: $hovered)
       .chartYAxis {
-        AxisMarks(position: .trailing)
+        if unit == "%" {
+          // Stored as fractions: 22%, not 0.22, as the header shows it.
+          AxisMarks(format: FloatingPointFormatStyle<Double>.Percent(), position: .trailing)
+        } else {
+          AxisMarks(position: .trailing)
+        }
       }
       .overlay {
         if chart.points.isEmpty {
@@ -444,6 +462,39 @@ struct MetricDetailContent: View {
     }
   }
 
+  /// A period's dot, its average (851-3097), on a line through them all for a line type, which
+  /// goes on over periods without readings, as Health's does.
+  @ChartContentBuilder
+  private func average(_ point: ChartPoint, in chart: MetricChart) -> some ChartContent {
+    if style == .line {
+      LineMark(
+        x: .value("Date", point.start, unit: range.barUnit),
+        y: .value("Value", point.value)
+      )
+      .foregroundStyle(color.opacity(0.8))
+      .lineStyle(StrokeStyle(lineWidth: 2))
+    }
+    PointMark(
+      x: .value("Date", point.start, unit: range.barUnit),
+      y: .value("Value", point.value)
+    )
+    .foregroundStyle(color)
+    .symbolSize(isHovered(point, in: chart) ? 100 : 36)
+  }
+
+  /// Averages' values, with room above and below, rather than from zero: a weight's change of a
+  /// kilogram would be a flat line at the top of a chart from 0 (851-3097). A single value, or
+  /// several the same, gets a few percent of itself each side, and values that are all 0 a unit.
+  /// Never below 0 for values that aren't (a UV index, blood alcohol).
+  private func averageDomain(_ chart: MetricChart) -> ClosedRange<Double>? {
+    let values = chart.points.map(\.value)
+    guard let low = values.min(), let high = values.max() else { return nil }
+    var padding = Swift.max((high - low) * 0.2, Swift.abs(high) * 0.02, Swift.abs(low) * 0.02)
+    if padding == 0 { padding = 1 }
+    let lower = low >= 0 ? Swift.max(low - padding, 0) : low - padding
+    return lower...(high + padding)
+  }
+
   private func isHovered(_ point: ChartPoint, in chart: MetricChart) -> Bool {
     hoveredPoint(in: chart) == point
   }
@@ -461,5 +512,16 @@ struct MetricDetailContent: View {
     let end = calendar.dateInterval(
       of: range.barUnit, for: chart.interval.end.addingTimeInterval(-1))?.end
     return (start ?? chart.interval.start)...(end ?? chart.interval.end)
+  }
+}
+
+extension View {
+  /// The chart's y-axis over `domain`, or Swift Charts' own (from zero) without one.
+  @ViewBuilder fileprivate func chartYDomain(_ domain: ClosedRange<Double>?) -> some View {
+    if let domain {
+      chartYScale(domain: domain)
+    } else {
+      self
+    }
   }
 }

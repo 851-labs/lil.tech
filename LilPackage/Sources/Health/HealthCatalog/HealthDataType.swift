@@ -17,6 +17,9 @@ public struct HealthDataType: Hashable, Identifiable, Sendable {
   public let unit: String?
   /// How HealthKit combines samples of a quantity type. Only for quantity types.
   public let aggregation: Aggregation?
+  /// How a quantity type's chart draws each period, as Health does (851-3097). Only for quantity
+  /// types.
+  public let chartStyle: ChartStyle?
   /// The iOS version that introduced the type.
   public let introduced: IOSVersion
   public let readAuthorization: ReadAuthorization
@@ -38,6 +41,27 @@ public struct HealthDataType: Hashable, Identifiable, Sendable {
     case medicationDoseEvent
     case visionPrescription
     case document
+  }
+
+  /// How a quantity type's charts draw it, as iPad Health's do (851-3097,
+  /// docs/decisions/health.md has every type's). Fixed per type, rather than picked from the data
+  /// each time, which would flip a chart between styles from one period to the next.
+  public enum ChartStyle: String, Hashable, Sendable {
+    /// A bar per period, its total: every cumulative type (steps, energy, nutrition).
+    case bars
+    /// A capsule per period, from its lowest to its highest reading: types measured many times a
+    /// day, whose spread means something (heart rate, sound levels).
+    case ranges
+    /// A dot per period, its average: types measured a few times a day or less, whose readings
+    /// scatter (heart rate variability, blood oxygen, walking speed).
+    case dots
+    /// A line through a dot per period, its average: measurements taken about once a day or less,
+    /// whose change over time is the point (weight, body fat, resting heart rate, cardio fitness).
+    case line
+
+    /// Whether each period, and the period itself, is summed up by its average (dots and lines),
+    /// rather than its total or range.
+    public var isAverage: Bool { self == .dots || self == .line }
   }
 
   /// How an app gets permission to read the type.
