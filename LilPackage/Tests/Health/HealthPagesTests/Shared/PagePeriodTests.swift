@@ -31,7 +31,7 @@ struct PagePeriodTests {
     #expect(metric.name == "Week")
 
     let sleep = period(Box(SleepRange.day))
-    #expect(sleep.ranges.map(\.label) == ["D", "W"])
+    #expect(sleep.ranges.map(\.label) == ["D", "W", "M", "6M"])
     #expect(sleep.name == "Night")
   }
 
