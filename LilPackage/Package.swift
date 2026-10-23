@@ -162,6 +162,8 @@ let package = Package(
     .target(
       name: "HealthDatabase",
       dependencies: [
+        // Cards' engine core, which Metric Detail's weights and periods come from too (851-3195).
+        "HealthCards",
         "HealthCatalog",
         "LilAPI",
         "LilSync",
@@ -174,6 +176,7 @@ let package = Package(
     .testTarget(
       name: "HealthDatabaseTests",
       dependencies: [
+        "HealthCards",
         "HealthDatabase",
         "LilAPI",
         // Snapshot parts for `TestSnapshot`.
@@ -239,6 +242,7 @@ let package = Package(
     .target(
       name: "HealthPages",
       dependencies: [
+        "HealthCards",
         "HealthCatalog",
         "HealthDatabase",
         "HealthUI",
@@ -278,6 +282,7 @@ let package = Package(
     .testTarget(
       name: "HealthPagesTests",
       dependencies: [
+        "HealthCards",
         "HealthCatalog",
         "HealthDatabase",
         "HealthPages",

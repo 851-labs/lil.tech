@@ -1,4 +1,5 @@
 import Foundation
+import HealthCards
 import HealthPages
 import Testing
 
@@ -250,5 +251,32 @@ struct MetricFormatTests {
     // Rounded before choosing the unit.
     #expect(MetricFormat.duration(59.7) == ("1", "min"))
     #expect(MetricFormat.duration(150) == ("2.5", "min"))
+  }
+
+  /// A card shows its lead's type in the locale's unit, unless it pins one (851-3195).
+  @Test
+  func cardsShowTheLocalesUnitOrTheOnePinned() throws {
+    let weight = HealthCards.welcomeSeed[5].spec
+    #expect(MetricFormat.unit(of: weight, locale: us).label == "lb")
+    #expect(MetricFormat.unit(of: weight, locale: metric).label == "kg")
+    var pinned = weight
+    pinned.display.unit = "lb"
+    let pound = MetricFormat.unit(of: pinned, locale: metric)
+    #expect(pound.label == "lb")
+    #expect(pound.format(pound.convert(70)) == "154.3")
+    let temperature = try CardSpec(
+      inputJSON: Data(
+        #"{"version": 1, "display": {"name": "T", "unit": "degF"}, "series": [{"type": "Body Temperature"}]}"#
+          .utf8))
+    let fahrenheit = MetricFormat.unit(of: temperature, locale: metric)
+    #expect(fahrenheit.label == "°F")
+    #expect(fahrenheit.format(fahrenheit.convert(37)) == "98.6")
+    // A count of readings is a number in any locale.
+    let count = try CardSpec(
+      inputJSON: Data(
+        #"{"version": 1, "display": {"name": "C"}, "series": [{"type": "Weight", "aggregation": "count"}]}"#
+          .utf8))
+    #expect(MetricFormat.unit(of: count, locale: us).label == "readings")
+    #expect(MetricFormat.unit(of: count, locale: us).convert(3) == 3)
   }
 }

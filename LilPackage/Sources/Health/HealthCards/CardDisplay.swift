@@ -91,3 +91,30 @@ public enum CardDisplayUnit {
     dimensions.first { $0.catalogUnits.contains(unit) }
   }
 }
+
+extension CardDisplayUnit {
+  /// How a value in `catalogUnit` converts to `unit`, one of `all`: `value * scale + offset`.
+  /// `nil` when they aren't of one dimension.
+  public static func conversion(
+    from catalogUnit: String, to unit: String
+  ) -> (scale: Double, offset: Double)? {
+    guard let dimension = dimension(ofCatalogUnit: catalogUnit), dimension.units.contains(unit)
+    else { return nil }
+    if dimension.name == "temperature" {
+      return unit == "degF" ? (1.8, 32) : (1, 0)
+    }
+    guard let from = inBaseUnits[catalogUnit], let to = inBaseUnits[unit] else { return nil }
+    return (from / to, 0)
+  }
+
+  /// Each unit in its dimension's base unit (kilograms, metres, litres, kilocalories, metres a
+  /// second), by definition.
+  private static let inBaseUnits: [String: Double] = [
+    "kg": 1, "g": 0.001, "mg": 0.000_001, "mcg": 0.000_000_001, "lb": 0.453_592_37,
+    "st": 6.350_293_18,
+    "m": 1, "cm": 0.01, "km": 1000, "in": 0.0254, "ft": 0.3048, "yd": 0.9144, "mi": 1_609.344,
+    "km/hr": 1 / 3.6, "mi/hr": 0.447_04, "m/s": 1,
+    "mL": 0.001, "L": 1, "fl_oz_us": 0.029_573_529_562_5,
+    "kcal": 1, "kJ": 1 / 4.184,
+  ]
+}
