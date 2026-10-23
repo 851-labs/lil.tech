@@ -37,11 +37,14 @@ struct LilHealthApp: App {
     Task { await Self.store.send(.task).finish() }
     // Replaces an installed `lil` older than the bundled one, after an update.
     CommandLineToolRefresh.start()
+    #if DEBUG
+      ScriptedSignOut.start()
+    #endif
   }
 
   var body: some Scene {
     // One window: the app has one store, and one session to follow.
-    Window("lil health", id: "main") {
+    Window("lil health", id: AppView.windowID) {
       AppView(store: Self.store)
         // Offers to update an installed `lil` only an administrator can replace.
         .refreshesCommandLineTool()
@@ -52,13 +55,10 @@ struct LilHealthApp: App {
       #endif
       // Installs the `lil` command, bundled in Contents/MacOS.
       InstallCommandLineToolCommands()
-      CommandGroup(after: .appSettings) {
-        SignOutCommand(store: Self.store)
-      }
       // A metric's or Sleep's range and period, in the View menu.
       PeriodCommands()
     }
-    // lil health › Settings… (⌘,).
+    // lil health › Settings… (⌘,), with Sign Out in its Account pane (851-3096).
     Settings {
       SettingsView(store: Self.store)
     }
@@ -96,12 +96,29 @@ struct LilHealthAppShortcuts: AppShortcutsProvider {
   }
 }
 
-/// Sign Out in the app menu. A view, so it follows the store's session as it changes.
-private struct SignOutCommand: View {
-  let store: StoreOf<AppFeature>
-
-  var body: some View {
-    Button("Sign Out") { store.send(.signOutButtonTapped) }
-      .disabled(store.isSignedIn != true)
+#if DEBUG
+  /// Signs a Debug build out when a script asks (851-3096), so a scripted run's session doesn't
+  /// outlive it, without Accessibility access or clicking through Settings: a distributed
+  /// notification whose object is the app's pid, so it reaches that one process.
+  ///
+  /// ```sh
+  /// osascript -l JavaScript -e 'ObjC.import("Foundation"); $.NSDistributedNotificationCenter.defaultCenter.postNotificationNameObjectUserInfoDeliverImmediately("tech.lil.health.debug.signOut", "'$pid'", $(), true)'
+  /// ```
+  ///
+  /// Signing out this way doesn't ask first, as Settings' Sign Out… does. Release builds don't
+  /// listen.
+  private enum ScriptedSignOut {
+    static func start() {
+      DistributedNotificationCenter.default().addObserver(
+        forName: Notification.Name("tech.lil.health.debug.signOut"),
+        object: String(ProcessInfo.processInfo.processIdentifier), queue: nil
+      ) { _ in
+        // Nonisolated: the session's updates bring the store to signed out.
+        Task {
+          @Dependency(\.auth) var auth
+          await auth.signOut()
+        }
+      }
+    }
   }
-}
+#endif

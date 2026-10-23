@@ -70,7 +70,6 @@ public struct AppFeature {
     case account(AccountFeature.Action)
     case agentAccess(AgentAccessFeature.Action)
     case connectedAgents(ConnectedAgentsFeature.Action)
-    case signOutButtonTapped
     /// A new pull for the Sync app action, as Try Again starts one. Sent once the action is
     /// watching the status, so it can't miss how the pull ends.
     case syncRestarted
@@ -111,6 +110,7 @@ public struct AppFeature {
   @Dependency(\.continuousClock) var clock
   @Dependency(\.defaultAppStorage) var defaultAppStorage
   @Dependency(\.healthAppActions) var healthAppActions
+  @Dependency(\.launchSignIn) var launchSignIn
   @Dependency(\.sync) var sync
 
   public init() {}
@@ -174,6 +174,9 @@ public struct AppFeature {
         state.isSignedIn = isSignedIn
         if isSignedIn {
           guard wasSignedIn != true else { return .none }
+          // Opened signed in: a scripted run's sign-in to the test account (`LaunchSignIn`) is
+          // for an app that opens signed out, so signing out later stays signed out (851-3096).
+          if wasSignedIn == nil { _ = launchSignIn.claim() }
           // Until the first pull has run for a while, or needs attention.
           state.syncFooter = .hidden
           return startSync()
@@ -221,10 +224,6 @@ public struct AppFeature {
             await send(.signIn(.readyToSignIn))
           }
         )
-
-      case .signOutButtonTapped:
-        // The session's updates say when it's done.
-        return .run { [auth] _ in await auth.signOut() }
 
       case .account:
         return .none

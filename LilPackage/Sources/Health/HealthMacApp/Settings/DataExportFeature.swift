@@ -324,13 +324,16 @@ extension DependencyValues {
   }
 }
 
-/// Account settings on the Mac: the sign-in methods, and exporting the account's data.
+/// Account settings on the Mac: the sign-in methods, exporting the account's data, and signing
+/// out (851-3096), which was in the app menu.
 @Reducer
 public struct AccountFeature {
   @ObservableState
   public struct State: Equatable {
     public var signInMethods = SignInMethodsFeature.State()
     public var dataExport = DataExportFeature.State()
+    /// Sign Out's confirmation.
+    @Presents public var alert: AlertState<Action.Alert>?
 
     public init() {}
   }
@@ -339,7 +342,15 @@ public struct AccountFeature {
     case signInMethods(SignInMethodsFeature.Action)
     case dataExport(DataExportFeature.Action)
     case appeared
+    case signOutButtonTapped
+    case alert(PresentationAction<Alert>)
+
+    public enum Alert: Equatable {
+      case confirmSignOut
+    }
   }
+
+  @Dependency(\.auth) var auth
 
   public init() {}
 
@@ -364,9 +375,33 @@ public struct AccountFeature {
         if !state.dataExport.isBusy { state.dataExport.status = .idle }
         state.signInMethods.failure = nil
         return .none
-      case .signInMethods, .dataExport:
+      case .signOutButtonTapped:
+        state.alert = .confirmSignOut
+        return .none
+      case .alert(.presented(.confirmSignOut)):
+        // The session's updates say when it's done: the app then resets this state, stops what
+        // the pane started and removes the account's data (`AppFeature.signedInChanged`).
+        return .run { [auth] _ in await auth.signOut() }
+      case .signInMethods, .dataExport, .alert:
         return .none
       }
+    }
+    .ifLet(\.$alert, action: \.alert)
+  }
+}
+
+extension AlertState where Action == AccountFeature.Action.Alert {
+  /// Sign Out's confirmation: what leaves this Mac, and what stays.
+  static var confirmSignOut: Self {
+    Self {
+      TextState("Sign Out of lil health?")
+    } actions: {
+      ButtonState(action: .confirmSignOut) { TextState("Sign Out") }
+      ButtonState(role: .cancel) { TextState("Cancel") }
+    } message: {
+      TextState(
+        "Your Health data will be removed from this Mac. Your account, and the data your iPhone syncs to it, stay."
+      )
     }
   }
 }
