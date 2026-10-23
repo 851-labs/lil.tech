@@ -1,4 +1,5 @@
 public import Foundation
+import HealthCards
 import HealthCatalog
 public import SQLiteData
 
@@ -50,7 +51,7 @@ extension HealthDatabase {
   public static let statisticsSourceStaleness: TimeInterval = 14 * 86_400
 
   /// The longest a sample counts for in a time-weighted average.
-  static let maxSampleWeight: TimeInterval = 3600
+  static let maxSampleWeight = CardWeights.maxSampleWeight
 
   /// The iPhone whose statistics the Mac uses (`docs/DECISIONS.md`): of those that reported in
   /// the last 14 days, the one paired with an Apple Watch, then the most recent. If none
@@ -114,7 +115,7 @@ extension HealthDatabase {
       .order(by: \.bucketStart)
       .select { ($0.bucketStart, $0.sum) }
       .fetchAll(db)
-    var periods = Periods(period, calendar)
+    var periods = CardBucketer(period.component, calendar: calendar)
     var totals: [CumulativeStatistic] = []
     for (bucketStart, sum) in buckets {
       let start = periods.start(of: Date(unixMilliseconds: bucketStart))
@@ -138,7 +139,8 @@ extension HealthDatabase {
     of type: String, in range: Range<Date>, by period: StatisticsPeriod, calendar: Calendar,
     _ db: Database
   ) throws -> [DiscreteStatistic] {
-    try discreteStatistics(of: type, in: range, periods: Periods(period, calendar), db)
+    try discreteStatistics(
+      of: type, in: range, periods: CardBucketer(period.component, calendar: calendar), db)
   }
 
   /// A discrete type's average, minimum and maximum over all of `range`, weighted as
@@ -146,11 +148,11 @@ extension HealthDatabase {
   public static func discreteStatistic(
     of type: String, in range: Range<Date>, _ db: Database
   ) throws -> DiscreteStatistic? {
-    try discreteStatistics(of: type, in: range, periods: Periods(whole: range), db).first
+    try discreteStatistics(of: type, in: range, periods: CardBucketer(whole: range), db).first
   }
 
   private static func discreteStatistics(
-    of type: String, in range: Range<Date>, periods: Periods, _ db: Database
+    of type: String, in range: Range<Date>, periods: CardBucketer, _ db: Database
   ) throws -> [DiscreteStatistic] {
     var periods = periods
     let aggregation = HealthCatalog.type(id: type)?.aggregation ?? .discreteArithmetic
@@ -166,13 +168,14 @@ extension HealthDatabase {
       .select { ($0.startDate, $0.endDate, $0.value, $0.sourceBundleID) }
       .fetchAll(db)
       .compactMap { start, end, value, source in
-        value.map { Reading(start: start, end: end, value: $0, source: source) }
+        value.map { CardReading(start: start, end: end, value: $0, source: source) }
       }
-    let weights = Self.weights(of: rows, aggregation)
+    // Cards' weights (851-3195), so a card and its type's page agree.
+    let weights = CardWeights.weights(of: rows, aggregation)
 
     var groups: [(start: Date, values: [Double], weights: [Double])] = []
     for (reading, weight) in zip(rows, weights) where reading.start < upper {
-      let start = periods.start(of: Date(unixMilliseconds: reading.start))
+      let start = periods.start(ofMilliseconds: reading.start)
       if groups.last?.start == start {
         groups[groups.count - 1].values.append(reading.value)
         groups[groups.count - 1].weights.append(weight)
@@ -183,77 +186,10 @@ extension HealthDatabase {
     return groups.map { group in
       DiscreteStatistic(
         start: group.start,
-        average: average(group.values, weights: group.weights, aggregation),
+        average: CardWeights.average(group.values, weights: group.weights, aggregation),
         minimum: group.values.min() ?? 0,
         maximum: group.values.max() ?? 0,
         count: group.values.count)
     }
-  }
-
-  private struct Reading {
-    let start: Int
-    let end: Int
-    let value: Double
-    let source: String
-  }
-
-  /// Each reading's weight in an average, in seconds.
-  private static func weights(
-    of readings: [Reading], _ aggregation: HealthDataType.Aggregation
-  ) -> [Double] {
-    switch aggregation {
-    case .discreteTemporallyWeighted:
-      // Each source is its own series, so a second device's samples don't cut a sample short.
-      var weights = [Double](repeating: 1, count: readings.count)
-      var nextStart: [String: Int] = [:]
-      for index in readings.indices.reversed() {
-        let reading = readings[index]
-        let until = nextStart[reading.source] ?? reading.end
-        weights[index] = min(max(Double(until - reading.start) / 1000, 1), maxSampleWeight)
-        nextStart[reading.source] = reading.start
-      }
-      return weights
-    case .discreteEquivalentContinuousLevel:
-      return readings.map { max(Double($0.end - $0.start) / 1000, 1) }
-    case .cumulative, .discreteArithmetic:
-      return readings.map { _ in 1 }
-    }
-  }
-
-  private static func average(
-    _ values: [Double], weights: [Double], _ aggregation: HealthDataType.Aggregation
-  ) -> Double {
-    let total = weights.reduce(0, +)
-    guard total > 0 else { return 0 }
-    if aggregation == .discreteEquivalentContinuousLevel {
-      let energy = zip(values, weights).reduce(0) { $0 + $1.1 * pow(10, $1.0 / 10) }
-      return 10 * log10(energy / total)
-    }
-    return zip(values, weights).reduce(0) { $0 + $1.0 * $1.1 } / total
-  }
-}
-
-/// Finds the period a date falls in, asking the calendar only when a date leaves the last one.
-private struct Periods {
-  let component: Calendar.Component
-  let calendar: Calendar
-  var current: DateInterval?
-
-  init(_ period: StatisticsPeriod, _ calendar: Calendar) {
-    self.component = period.component
-    self.calendar = calendar
-  }
-
-  /// One period: all of `range`.
-  init(whole range: Range<Date>) {
-    self.component = .era
-    self.calendar = Calendar(identifier: .gregorian)
-    current = DateInterval(start: range.lowerBound, end: range.upperBound)
-  }
-
-  mutating func start(of date: Date) -> Date {
-    if let current, current.start <= date, date < current.end { return current.start }
-    current = calendar.dateInterval(of: component, for: date)
-    return current?.start ?? date
   }
 }

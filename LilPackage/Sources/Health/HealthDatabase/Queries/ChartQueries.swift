@@ -1,4 +1,5 @@
 public import Foundation
+public import HealthCards
 public import HealthCatalog
 public import SQLiteData
 
@@ -28,56 +29,24 @@ public enum ChartRange: String, CaseIterable, Hashable, Sendable {
   /// The period `offset` periods from the one containing `now` (0 is the current one, -1 the
   /// one before).
   public func interval(offset: Int, now: Date, calendar: Calendar) -> DateInterval {
-    func shifted(_ component: Calendar.Component, _ value: Int) -> DateInterval {
-      let base =
-        calendar.dateInterval(of: component, for: now) ?? DateInterval(start: now, duration: 0)
-      let start = calendar.date(byAdding: component, value: value, to: base.start) ?? base.start
-      return calendar.dateInterval(of: component, for: start) ?? base
-    }
+    card.interval(offset: offset, now: now, calendar: calendar)
+  }
+
+  /// The card range of the same name, whose periods these are (851-3195).
+  public var card: CardRange {
     switch self {
-    case .day: return shifted(.day, offset)
-    case .week: return shifted(.weekOfYear, offset)
-    case .month: return shifted(.month, offset)
-    case .year: return shifted(.year, offset)
-    case .sixMonths:
-      // The six months ending with the current month, then the six before them.
-      let month = shifted(.month, offset * 6)
-      let start = calendar.date(byAdding: .month, value: -5, to: month.start) ?? month.start
-      return DateInterval(start: start, end: month.end)
+    case .day: .day
+    case .week: .week
+    case .month: .month
+    case .sixMonths: .sixMonths
+    case .year: .year
     }
   }
 
   /// How many periods from the one containing `now` the one containing `date` is: 0 for the
   /// current one, -1 for the one before, positive for one after.
   public func offset(containing date: Date, now: Date, calendar: Calendar) -> Int {
-    /// Whole `component`s from the one containing `now` to the one containing `date`.
-    func distance(_ component: Calendar.Component) -> Int {
-      guard let from = calendar.dateInterval(of: component, for: now)?.start,
-        let to = calendar.dateInterval(of: component, for: date)?.start
-      else { return 0 }
-      return calendar.dateComponents([component], from: from, to: to).value(for: component) ?? 0
-    }
-    var offset =
-      switch self {
-      case .day: distance(.day)
-      case .week: distance(.weekOfYear)
-      case .month: distance(.month)
-      case .year: distance(.year)
-      // Six months ending with the current month's: months -5 to 0 are 0, -11 to -6 are -1.
-      case .sixMonths: Int((Double(distance(.month)) / 6).rounded(.up))
-      }
-    // Settled against the intervals themselves, which are what the page shows.
-    for _ in 0..<4 {
-      let interval = interval(offset: offset, now: now, calendar: calendar)
-      if date < interval.start {
-        offset -= 1
-      } else if date >= interval.end {
-        offset += 1
-      } else {
-        break
-      }
-    }
-    return offset
+    card.offset(containing: date, now: now, calendar: calendar)
   }
 }
 
@@ -175,22 +144,15 @@ extension HealthDatabase {
   }
 
   /// The average day of each of `range`'s buckets (a week for six months, a month for a year),
-  /// among `days` (in order) that have a value.
+  /// among `days` (in order) that have a value: cards' (851-3195).
   static func averageDays(
     _ days: [(start: Date, value: Double)], by range: ChartRange, calendar: Calendar
   ) -> [ChartPoint] {
-    var groups: [(start: Date, sum: Double, days: Int)] = []
-    for day in days {
-      let start =
-        calendar.dateInterval(of: range.bucket.component, for: day.start)?.start ?? day.start
-      if groups.last?.start == start {
-        groups[groups.count - 1].sum += day.value
-        groups[groups.count - 1].days += 1
-      } else {
-        groups.append((start, day.value, 1))
-      }
-    }
-    return groups.map { ChartPoint(start: $0.start, value: $0.sum / Double($0.days)) }
+    CardTotals.averageDays(
+      days.map { CardTotal(start: $0.start, sum: $0.value) }, by: range.card.grain,
+      calendar: calendar
+    )
+    .map { ChartPoint(start: $0.start, value: $0.value) }
   }
 
   /// A cumulative type's totals per period, from the statistics source's 30-minute buckets and,

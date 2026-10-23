@@ -1,4 +1,5 @@
 public import Foundation
+public import HealthCards
 
 /// How the Mac's pages and browse write a metric's value and when it's from, the way Health does.
 public enum MetricFormat {
@@ -253,4 +254,39 @@ public enum MetricFormat {
         : date.formatted(style.month(.abbreviated).day().year())
     }
   }
+}
+
+extension MetricFormat {
+  /// The unit a card's values are shown in (docs/decisions/cards.md, Display): its `display.unit`
+  /// if it pins one, else the locale's for its lead's type, as Metric Detail shows the type
+  /// (`unit(_:typeID:locale:)`). A count of readings is a plain number in any locale.
+  public static func unit(of spec: CardSpec, locale: Locale) -> DisplayUnit {
+    var shown: DisplayUnit
+    switch spec.valueUnit {
+    case .readings?:
+      shown = DisplayUnit("readings")
+    case .catalog(let catalogUnit)?:
+      if let pinned = spec.display.unit,
+        let conversion = CardDisplayUnit.conversion(from: catalogUnit, to: pinned)
+      {
+        shown =
+          pinned == "st"
+          // Stones and pounds, as the UK weighs people, plotted in pounds, as its locale's are.
+          ? DisplayUnit("", scale: conversion.scale * 14, compound: .stonesAndPounds)
+          : DisplayUnit(
+            cardUnitLabels[pinned] ?? pinned, scale: conversion.scale, offset: conversion.offset)
+      } else {
+        return unit(catalogUnit, typeID: spec.leadType ?? "", locale: locale)
+      }
+    case nil:
+      shown = DisplayUnit("")
+    }
+    shown.locale = locale
+    return shown
+  }
+
+  /// How Health writes the units a card may pin, after the number.
+  private static let cardUnitLabels = [
+    "degC": "°C", "degF": "°F", "km/hr": "km/h", "mi/hr": "mph", "fl_oz_us": "fl oz",
+  ]
 }

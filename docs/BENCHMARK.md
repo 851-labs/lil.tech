@@ -113,7 +113,28 @@ Rounds missing from Workers Logs are left out. Every answer was the same before 
 - **Time-zone math per row:** a year of steps cost 2.3–2.7 s, of which reading its 81,632 samples took 0.1 s and the rest was `startOfDay` for every sample (30–35 µs each, through Effect's `DateTime` in the call's time zone). Active and basal energy, with more samples, cost more in proportion; prod's 5.8 s calls and the benchmark's 7 s steps were this. `sleep` did the same per record. Now `dayStarts` works out each day's start and end once, and rows, which come in time order, are placed by comparison: under 400 time-zone calculations for a year. A year of steps went to 0.11–0.13 s.
 - **Reading rows:** most of what's left. A year of heart rate (105,000 samples) took 0.14 s of its 0.17 s locally. Statistics now read rows as arrays of values (`StoreSql.rows`, workerd's `raw()`), not an object per row, and cumulative types read only the start and value. On the stage that took a year of heart rate from about 0.5 s to 0.3–0.5 s, and active energy's year from about 0.75 s to 0.45–0.65 s.
 - **Bucketing and weighting:** not buckets × readings before either (each bucket found its readings by binary search), but each bucket copied its readings and weighed them again. Now one pass over the readings adds each to its bucket and to the period, with each source's next reading found once. A time-weighted reading's weight still depends on whether its source's next reading starts within an hour of its bucket's end, as the Mac weighs each bucket on its own, and sums are added in the same order, so answers are identical: all 37 conformance cases, and the old and new code compared on the 1,000,000 records for heart rate, steps and basal energy, every range, six time zones (Lord Howe's half-hour change included) and days around changes of offset.
-- **The Mac** (`HealthDatabase`) already walks a period at a time (`Periods`), reads each bucket with its own query, and uses Foundation's calendar, so it had no such loop and is unchanged.
+- **The Mac** (`HealthDatabase`) already walks a period at a time (`Periods`, `CardBucketer` since 851-3195), reads each bucket with its own query, and uses Foundation's calendar, so it had no such loop and is unchanged.
+
+## Cards on the Mac
+
+What a card costs the Mac's engine over a year by the day (851-3195, `docs/decisions/cards.md`): `CardQueriesBenchmark` (`LilPackage/Tests/Health/HealthDatabaseTests`) writes a year of heart rate a minute (525,600 samples, several times what a Watch records) and as many of another type into a new database, then runs cards with a 7-day moving average over the year, five times each, and prints the median's CPU time (the thread's, so other processes don't count):
+
+```sh
+cd LilPackage
+LIL_BENCHMARKS=1 swift test -c release --filter CardQueriesBenchmark
+```
+
+**2026-10-23**, Apple M1 Pro, shared with other agents' builds (load 40–120). CPU ms:
+
+| Card | Total | Fetching |
+| --- | ---: | ---: |
+| SQLite alone reading the year's rows (the floor) | 106 | |
+| Heart rate, `avg` | 190 | 156 |
+| Heart rate, `max`, `deviceModels: ["Watch"]` (each row's device through `json_extract`) | 278 | 215 |
+| Heart rate, `first`, `00:00` to `12:00` (sample IDs read) | 231 | 185 |
+
+- **Reading by column** from the statement, with one string per run of a source's rows, took fetching from 73 ms over SQLite's floor (a GRDB `Row` each, and a string each) to 42 ms. Computing the points from the readings takes the rest, 35–60 ms: the weights number each reading's source rather than hashing its bundle ID, and only `first` and `latest` keep readings in their buckets.
+- **A covering index** of `(type, startDate, endDate, value, sourceBundleID)` took SQLite's part from 97 ms to 57 ms, but would store every sample's type and bundle ID a second time, hundreds of MB on a real Mac's millions of samples, so there's none.
 
 ## Snapshot tests: from an edit to an image
 
