@@ -5252,6 +5252,121 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthCard`.
+        public struct HealthCard: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthCard/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthCard/spec`.
+            public var spec: OpenAPIRuntime.OpenAPIValueContainer
+            /// - Remark: Generated from `#/components/schemas/HealthCard/position`.
+            public var position: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthCard/createdAt`.
+            public var createdAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthCard/updatedAt`.
+            public var updatedAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthCard/seed`.
+            public var seed: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCard`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - spec:
+            ///   - position:
+            ///   - createdAt:
+            ///   - updatedAt:
+            ///   - seed:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                spec: OpenAPIRuntime.OpenAPIValueContainer,
+                position: Swift.String,
+                createdAt: Swift.Int,
+                updatedAt: Swift.Int,
+                seed: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.spec = spec
+                self.position = position
+                self.createdAt = createdAt
+                self.updatedAt = updatedAt
+                self.seed = seed
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case spec
+                case position
+                case createdAt
+                case updatedAt
+                case seed
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.spec = try container.decode(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .spec
+                )
+                self.position = try container.decode(
+                    Swift.String.self,
+                    forKey: .position
+                )
+                self.createdAt = try container.decode(
+                    Swift.Int.self,
+                    forKey: .createdAt
+                )
+                self.updatedAt = try container.decode(
+                    Swift.Int.self,
+                    forKey: .updatedAt
+                )
+                self.seed = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .seed
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "spec",
+                    "position",
+                    "createdAt",
+                    "updatedAt",
+                    "seed"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.spec,
+                    forKey: .spec
+                )
+                try container.encode(
+                    self.position,
+                    forKey: .position
+                )
+                try container.encode(
+                    self.createdAt,
+                    forKey: .createdAt
+                )
+                try container.encode(
+                    self.updatedAt,
+                    forKey: .updatedAt
+                )
+                try container.encodeIfPresent(
+                    self.seed,
+                    forKey: .seed
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthSummaryMetric`.
         public struct HealthSummaryMetric: Codable, Hashable, Sendable {
             /// A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.

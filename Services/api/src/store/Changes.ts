@@ -9,7 +9,10 @@ export const Mutation = Schema.Union([
     entity: Schema.String,
     op: Schema.Literal("upsert"),
     id: Schema.NonEmptyString,
-    /** The fields to set. Missing fields keep their stored values, and `null` clears one. */
+    /**
+     * The fields to set. Missing fields keep their stored values, and `null` clears one. Some
+     * entities take whole rows only (`health_card`), refusing an upsert that leaves one out.
+     */
     row: Schema.Record(Schema.String, Schema.Json),
   }),
   Schema.Struct({

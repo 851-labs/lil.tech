@@ -57,6 +57,16 @@ export interface Entity {
   readonly name: string;
   /** Whether apps may write it with `POST /v1/sync/mutations`. */
   readonly clientWritable: boolean;
+  /**
+   * Whether every upsert must carry every field (`null` for none), rather than merging with the
+   * stored row, so a record is never a mix of two writers' (`health_card`, 851-3202).
+   */
+  readonly wholeRows: boolean;
+  /**
+   * The most records the store keeps, as a backstop: an upsert that would make one more fails
+   * (`applyMutations`). Only for entities keyed by `id` alone.
+   */
+  readonly maxRecords?: number;
   /** The fields besides `id`, in table order, with their columns' names. */
   readonly fields: ReadonlyArray<{
     readonly field: string;
@@ -90,7 +100,7 @@ export interface Entity {
    * on every upsert, with the merged row.
    */
   readonly checkRow?: CheckRow;
-  /** Decodes the fields an upsert sets. Any may be missing, since upserts merge. */
+  /** Decodes the fields an upsert sets. Any may be missing, unless `wholeRows`. */
   readonly decodeFields: (
     row: unknown,
   ) => Result.Result<Readonly<Record<string, Schema.Json>>, Schema.SchemaError>;
@@ -131,6 +141,13 @@ export const defineEntity = (
   name: string,
   options: {
     readonly clientWritable: boolean;
+    /**
+     * Every upsert carries every field (`Entity.wholeRows`). A field added later would break
+     * writers from before it, so it needs this rule relaxed for it.
+     */
+    readonly wholeRows?: boolean;
+    /** The most records the store keeps (`Entity.maxRecords`). */
+    readonly maxRecords?: number;
     readonly fields: Record<string, Column>;
     /** The form record IDs must have. Any non-empty string by default. */
     readonly id?: RegExp;
@@ -151,6 +168,10 @@ export const defineEntity = (
     if (type === undefined || type.nullable || (type.type !== "text" && type.type !== "integer")) {
       throw new Error(`${name}.${field} must be a non-nullable text or integer field to be a key`);
     }
+  }
+  if (key.length > 0 && options.maxRecords !== undefined) {
+    // Deletes of such records leave their rows until a sweep, so counting rows would be wrong.
+    throw new Error(`Entity ${name} can't have both key fields and maxRecords`);
   }
   if (key.length > 0 && options.deviceScoped !== undefined) {
     throw new Error(`Device-scoped entity ${name} can't have key fields`);
@@ -192,6 +213,8 @@ export const defineEntity = (
   return {
     name,
     clientWritable: options.clientWritable,
+    wholeRows: options.wholeRows ?? false,
+    ...(options.maxRecords === undefined ? {} : { maxRecords: options.maxRecords }),
     fields,
     key,
     keyColumns,

@@ -4132,6 +4132,42 @@
         ],
         "additionalProperties": true
       },
+      "HealthCard": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "spec": {},
+          "position": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "updatedAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "seed": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "spec",
+          "position",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": true
+      },
       "HealthSummaryMetric": {
         "type": "object",
         "properties": {

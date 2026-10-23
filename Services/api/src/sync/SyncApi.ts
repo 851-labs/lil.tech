@@ -144,8 +144,9 @@ export class SyncApi extends HttpApiGroup.make("sync")
     }),
   )
   .add(
-    // Writes from apps, to entities they may write (`docs/sync/protocol.md`): only `health_pin`
-    // today, which Macs from before pins were retired (851-2990) still write.
+    // Writes from apps, to entities they may write (`docs/sync/protocol.md`): `health_card`, in
+    // whole rows (851-3202), and `health_pin`, which Macs from before pins were retired (851-2990)
+    // still write.
     HttpApiEndpoint.post("pushMutations", "/v1/sync/mutations", {
       payload: PushMutations,
       success: PushedMutations,

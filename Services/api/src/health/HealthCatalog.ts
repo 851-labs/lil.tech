@@ -87,7 +87,16 @@ export const HealthCatalogType = Schema.Struct({
 export type HealthCatalogType = typeof HealthCatalogType.Type;
 
 const HealthCatalogFile = Schema.Struct({
-  categories: Schema.Array(Schema.Struct({ id: HealthCategory, name: Schema.String })),
+  categories: Schema.Array(
+    Schema.Struct({
+      id: HealthCategory,
+      name: Schema.String,
+      /** The SF Symbol the apps show for it (`HealthCategory.symbolName`), e.g. `flame.fill`. */
+      symbol: Schema.String,
+      /** Its color, a card palette name (`HealthCategory.colorName`), e.g. `orange`. */
+      color: Schema.String,
+    }),
+  ),
   types: Schema.Array(HealthCatalogType),
   workoutActivities: Schema.Array(
     Schema.Struct({
@@ -101,7 +110,7 @@ const HealthCatalogFile = Schema.Struct({
 
 const catalog = Schema.decodeUnknownSync(HealthCatalogFile)(catalogJson);
 const typesById = new Map(catalog.types.map((type) => [type.id, type]));
-const categoryNames = new Map(catalog.categories.map(({ id, name }) => [id, name]));
+const categoriesById = new Map(catalog.categories.map((category) => [category.id, category]));
 const activityNames = new Map(
   catalog.workoutActivities.map(({ activityType, name }) => [activityType, name]),
 );
@@ -119,7 +128,21 @@ export const healthCategories: ReadonlyArray<HealthCategory> = catalog.categorie
 
 /** The name Health shows for a category, e.g. "Body Measurements". */
 export const healthCategoryName = (category: HealthCategory): string =>
-  categoryNames.get(category) ?? category;
+  categoriesById.get(category)?.name ?? category;
+
+/**
+ * The SF Symbol and palette color the apps show for a category, which a card of its types has by
+ * default (`docs/decisions/cards.md`, Display).
+ */
+export const healthCategoryLook = (
+  category: HealthCategory,
+): { readonly symbol: string; readonly color: string } | undefined => categoriesById.get(category);
+
+/** Every workout activity the catalog names, by `HKWorkoutActivityType`'s raw value, ascending. */
+export const workoutActivities: ReadonlyArray<{
+  readonly activityType: number;
+  readonly name: string;
+}> = catalog.workoutActivities;
 
 /** How Health names a workout's activity (`HKWorkoutActivityType`'s raw value), e.g. "Running". */
 export const workoutActivityName = (activityType: number): string =>

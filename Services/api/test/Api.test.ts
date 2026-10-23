@@ -1439,6 +1439,89 @@ describe("POST /v1/sync/mutations", () => {
     ),
   );
 
+  // Cards (851-3202): an app writes each card's whole row, and a phone pulls cards alone.
+  it.live(
+    "takes cards' whole rows, refusing invalid ones, and serves them to a cards-only pull",
+    () =>
+      withApi((handler) =>
+        Effect.gen(function* () {
+          const { tokens } = yield* signIn;
+          const card = "card_01JZ0000000000000000000001";
+          const spec = {
+            version: 1,
+            display: { name: "Steps", symbol: "flame.fill", color: "orange", unit: null },
+            series: [
+              {
+                id: "a",
+                type: "HKQuantityTypeIdentifierStepCount",
+                aggregation: "sum",
+                window: null,
+                filter: null,
+                label: null,
+                hidden: false,
+              },
+            ],
+            formulas: [],
+            bucket: "auto",
+            range: "W",
+            chart: { style: "bars", goal: null },
+          };
+          const row = { spec, position: "a0", createdAt: 1, updatedAt: 1, seed: null };
+          const written = yield* push(handler, tokens.accessToken, {
+            mutationId: mutationId(20),
+            mutations: [pin(steps, 1), { entity: "health_card", op: "upsert", id: card, row }],
+          });
+          assert.deepStrictEqual(written, { status: 200, body: { seq: 2 } });
+
+          const refused = yield* push(handler, tokens.accessToken, {
+            mutationId: mutationId(21),
+            mutations: [
+              {
+                entity: "health_card",
+                op: "upsert",
+                id: card,
+                row: { ...row, spec: { ...spec, chart: { style: "ranges", goal: null } } },
+              },
+            ],
+          });
+          assert.strictEqual(refused.status, 400);
+          assert.deepInclude(refused.body, {
+            _tag: "MutationRejected",
+            index: 0,
+            message:
+              `The card ${card} has 1 error:\n- spec.chart.style: "ranges" draws each bucket's ` +
+              "lowest and highest reading, and Steps is a total. Use bars, dots or line.",
+          });
+
+          const pulled = yield* send(
+            handler,
+            new Request("https://api.lil.tech/v1/sync/changes?entities=health_card", {
+              headers: bearer(tokens.accessToken),
+            }),
+          );
+          assert.deepStrictEqual(pulled, {
+            status: 200,
+            body: {
+              epoch: 1,
+              changes: [
+                {
+                  seq: 2,
+                  entity: "health_card",
+                  id: card,
+                  op: "upsert",
+                  row: { id: card, ...row },
+                  at: (pulled.body as { changes: Array<{ at: number }> }).changes[0]?.at,
+                },
+              ],
+              next: 2,
+              head: 2,
+              hasMore: false,
+            },
+          });
+        }),
+      ),
+  );
+
   it.live("refuses entities apps can't write, and invalid rows, applying nothing", () =>
     withApi((handler) =>
       Effect.gen(function* () {

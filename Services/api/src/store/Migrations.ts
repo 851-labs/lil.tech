@@ -328,6 +328,19 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
     // order, without reading the others' (e.g. a phone pulling cards past millions of samples).
     sql: "CREATE INDEX changes_entity_seq ON changes (entity, seq);",
   },
+  {
+    version: 27,
+    name: "health_card",
+    // `HealthCard` (`src/health/cards/HealthCards.ts`): Summary's cards (851-3202).
+    sql: `CREATE TABLE "health_card" (
+      id TEXT PRIMARY KEY,
+      "spec" TEXT NOT NULL,
+      "position" TEXT NOT NULL,
+      "created_at" INTEGER NOT NULL,
+      "updated_at" INTEGER NOT NULL,
+      "seed" TEXT
+    ) STRICT;`,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */
