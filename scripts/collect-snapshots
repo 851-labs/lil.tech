@@ -105,7 +105,8 @@ new=$(count new)
 manifests=$(count manifest)
 what="$changed changed, $new new, $manifests manifests"
 if [ -n "${GITHUB_ACTIONS:-}" ]; then
-  echo "::error title=Snapshots changed ($what)::If the changes are right, run scripts/fetch-snapshots in the branch, look at the images it prints, then commit and push them. The changed images and their diffs are in this run's snapshot-changes artifacts."
+  # Commas separate an annotation's properties, so none in its title.
+  echo "::error title=Snapshots changed::$what. If the changes are right, run scripts/fetch-snapshots in the branch, look at the images it prints, then commit and push them. The changed images and their diffs are in this run's snapshot-changes artifacts."
 fi
 summary=${GITHUB_STEP_SUMMARY:-/dev/stdout}
 {
