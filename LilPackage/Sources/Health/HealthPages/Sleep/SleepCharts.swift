@@ -7,21 +7,8 @@ import SwiftUI
 // clock times it ran, bedtime at the top, stacked by stage; 6M a bar a week from its average
 // bedtime to its average wake. The y-axis is clock time, on the trailing side.
 
-/// Where sleep goes on a chart's clock-time axis.
+/// Where sleep goes on a chart's clock-time axis, at the times `HealthDatabase.clockHours` gives.
 enum SleepClock {
-  /// Where `date` goes in the night that started at `start`, in hours from the start of `day`,
-  /// the night's, on the local clock as it read when the night started: 11 PM the evening before
-  /// is -1, 7:30 AM is 7.5. Each night is placed at the clock time it started, so a daylight
-  /// saving change doesn't move the nights after it, and runs its true length from there, so a
-  /// night across the change stays one unbroken column, though it ends an hour off the clock (at
-  /// 6 AM for 7 AM in spring, 8 AM in the fall): the clock's repeated hour, or skipped one, can't
-  /// draw a night over itself or leave a hole in it.
-  static func hours(_ date: Date, from day: Date, start: Date, calendar: Calendar) -> Double {
-    let zone = calendar.timeZone
-    let shift = zone.secondsFromGMT(for: start) - zone.secondsFromGMT(for: day)
-    return (date.timeIntervalSince(day) + Double(shift)) / 3600
-  }
-
   /// The middle `ratio` of `day`'s slot on the x-axis, by the page's calendar rather than the
   /// one Charts would bin with.
   static func slot(_ day: Date, ratio: Double, unit: Calendar.Component, calendar: Calendar)
@@ -87,8 +74,8 @@ struct SleepWeek: Equatable, Identifiable, Sendable {
         let week = calendar.dateInterval(of: .weekOfYear, for: night.day)?.start
       else { return nil }
       return (
-        week, SleepClock.hours(start, from: night.day, start: first, calendar: calendar),
-        SleepClock.hours(end, from: night.day, start: first, calendar: calendar)
+        week, HealthDatabase.clockHours(start, from: night.day, start: first, calendar: calendar),
+        HealthDatabase.clockHours(end, from: night.day, start: first, calendar: calendar)
       )
     }
     return Dictionary(grouping: spans, by: \.week)
@@ -146,9 +133,10 @@ struct SleepNightsChart: View {
         blocks.append(
           SleepBlock(
             id: blocks.count, slot: slot, stage: segment.stage,
-            start: SleepClock.hours(
+            start: HealthDatabase.clockHours(
               segment.start, from: night.day, start: first, calendar: calendar),
-            end: SleepClock.hours(segment.end, from: night.day, start: first, calendar: calendar)
+            end: HealthDatabase.clockHours(
+              segment.end, from: night.day, start: first, calendar: calendar)
           ))
       }
     }

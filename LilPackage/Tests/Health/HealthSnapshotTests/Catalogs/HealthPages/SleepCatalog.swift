@@ -8,7 +8,9 @@
   import Testing
 
   // Sleep (`SleepDetailContent`): half a year of synthetic nights (`sleepCatalogDatabase`), read as
-  // the page reads them, at each range, and a made-up night without stages. Synthetic data only.
+  // the page reads them, at each range, and a made-up night without stages. Highlights (851-3103)
+  // are today's whatever the period, so most states leave them out, as without enough data; a few
+  // show them on the page, and made-up ones show them alone. Synthetic data only.
 
   extension MacSnapshotTests {
     @Test(arguments: sleepCatalog.selectedStates)
@@ -79,13 +81,34 @@
       CatalogState("Loading") { detail(.day, .loading) },
       CatalogState("Loading a month") { detail(.month, .loading) },
       CatalogState("Failed") { detail(.week, .failed("The database couldn't be read.")) },
+      // Below Show All Data and Data Sources, which don't move as they load or come and go. Taller
+      // than the page, so its window doesn't grow to fit, to a half point, which moved everything
+      // in it by 0.5 pt (`LayoutShiftTests`).
+      CatalogState("Night with highlights", minHeight: 1200) {
+        detail(.day, .loaded(nights(.day)), highlights: .loaded(highlights))
+      },
+      CatalogState("Highlights loading") {
+        detail(.day, .loaded(nights(.day)), highlights: .loading)
+      },
+      CatalogState("Highlights failed") {
+        detail(
+          .day, .loaded(nights(.day)), highlights: .failed("The database couldn't be read."))
+      },
+      // Bed after midnight, past an hour later than usual.
+      CatalogState("Bedtime later than usual", minHeight: 300) {
+        highlightsOnly(SleepHighlights(bedtime: bedtime(lastNight: 0.4)))
+      },
+      // Within 5 minutes of the average.
+      CatalogState("Bedtime as usual", minHeight: 300) {
+        highlightsOnly(SleepHighlights(bedtime: bedtime(lastNight: -1.05)))
+      },
     ],
     // What's below the content stays put while it loads, and from one range to another but D,
     // which lists the night's stages (851-3084).
     sameLayout: [
       [
         "Loading", "Night", "The night before", "Night, loading the night before",
-        "Night with a gap",
+        "Night with a gap", "Night with highlights", "Highlights loading", "Highlights failed",
       ],
       [
         "Week", "Week, loading the week before", "Month", "Month, loading the month before",
@@ -103,15 +126,46 @@
     }
   }
 
+  /// Today's highlights, read as the page reads them.
+  private var highlights: SleepHighlights {
+    try! sleepCatalogDatabase.read { db in
+      try SleepHighlightsRequest(day: previewNow, calendar: previewCalendar).fetch(db)!
+    }
+  }
+
+  /// Two weeks of made-up bedtimes around 11 PM, a night missing, then last night's at
+  /// `lastNight` hours from midnight.
+  private func bedtime(lastNight: Double) -> BedtimeConsistency {
+    let today = previewCalendar.startOfDay(for: previewNow)
+    let day = { previewCalendar.date(byAdding: .day, value: $0, to: today)! }
+    let earlier = [-1.2, -0.9, -1.0, -1.3, -0.8, -1.1, -1.0, -1.25, -0.95, nil, -1.05, -1.2, -0.85]
+    let nights = earlier.enumerated().compactMap { index, bedtime in
+      bedtime.map { BedtimeConsistency.Night(day: day(index - 13), bedtime: $0) }
+    }
+    return BedtimeConsistency(
+      firstDay: day(-13), nights: nights + [.init(day: today, bedtime: lastNight)])
+  }
+
+  /// Without enough data for highlights, unless it's given them.
   @MainActor
   private func detail(
-    _ range: SleepRange, offset: Int = 0, _ state: SleepDetailContent.State
+    _ range: SleepRange, offset: Int = 0, _ state: SleepDetailContent.State,
+    highlights: SleepHighlightsSection.State = .loaded(SleepHighlights())
   ) -> some View {
     NavigationStack {
       SleepDetailContent(
         type: sleepType, range: .constant(range), offset: .constant(offset), state: state,
-        now: previewNow)
+        highlights: highlights, now: previewNow)
     }
+  }
+
+  /// The highlights' section alone, in a form as the page has it.
+  @MainActor
+  private func highlightsOnly(_ highlights: SleepHighlights) -> some View {
+    Form {
+      SleepHighlightsSection(state: .loaded(highlights))
+    }
+    .formStyle(.grouped)
   }
 
   /// 200 synthetic nights, a Watch's, ending with `previewNow`'s: in bed from about 10:30 to 11:45

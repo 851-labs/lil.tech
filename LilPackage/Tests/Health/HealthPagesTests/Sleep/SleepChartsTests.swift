@@ -22,12 +22,14 @@ struct SleepChartsTests {
   func nightsCrossingMidnightAreAtTheirClockTimes() {
     let day = date(8, 13, 0)
     let start = date(8, 12, 23)
-    #expect(SleepClock.hours(start, from: day, start: start, calendar: calendar) == -1)
+    #expect(HealthDatabase.clockHours(start, from: day, start: start, calendar: calendar) == -1)
     #expect(
-      SleepClock.hours(date(8, 13, 0, 40), from: day, start: start, calendar: calendar) == 40.0 / 60
+      HealthDatabase.clockHours(date(8, 13, 0, 40), from: day, start: start, calendar: calendar)
+        == 40.0 / 60
     )
     #expect(
-      SleepClock.hours(date(8, 13, 7, 30), from: day, start: start, calendar: calendar) == 7.5)
+      HealthDatabase.clockHours(date(8, 13, 7, 30), from: day, start: start, calendar: calendar)
+        == 7.5)
   }
 
   @Test
@@ -36,25 +38,33 @@ struct SleepChartsTests {
     let spring = date(3, 10, 0)
     let springStart = date(3, 9, 23)
     #expect(
-      SleepClock.hours(springStart, from: spring, start: springStart, calendar: calendar) == -1)
+      HealthDatabase.clockHours(springStart, from: spring, start: springStart, calendar: calendar)
+        == -1)
     #expect(
-      SleepClock.hours(date(3, 10, 7), from: spring, start: springStart, calendar: calendar) == 6)
+      HealthDatabase.clockHours(
+        date(3, 10, 7), from: spring, start: springStart, calendar: calendar) == 6)
     // In the fall, 9 hours, to 8, and the repeated hour's times keep going down the column.
     let fall = date(11, 3, 0)
     let fallStart = date(11, 2, 23)
     let firstOne = date(11, 3, 1, 30)
     let secondOne = firstOne.addingTimeInterval(3600)
-    #expect(SleepClock.hours(date(11, 3, 7), from: fall, start: fallStart, calendar: calendar) == 8)
     #expect(
-      SleepClock.hours(secondOne, from: fall, start: fallStart, calendar: calendar)
-        == SleepClock.hours(firstOne, from: fall, start: fallStart, calendar: calendar) + 1)
+      HealthDatabase.clockHours(date(11, 3, 7), from: fall, start: fallStart, calendar: calendar)
+        == 8)
+    #expect(
+      HealthDatabase.clockHours(secondOne, from: fall, start: fallStart, calendar: calendar)
+        == HealthDatabase.clockHours(firstOne, from: fall, start: fallStart, calendar: calendar) + 1
+    )
     // A night that starts after the change is at its clock times, as are the nights after.
     let late = date(3, 10, 3, 30)
-    #expect(SleepClock.hours(late, from: spring, start: late, calendar: calendar) == 3.5)
+    #expect(HealthDatabase.clockHours(late, from: spring, start: late, calendar: calendar) == 3.5)
     let next = date(3, 11, 0)
     let nextStart = date(3, 10, 23)
-    #expect(SleepClock.hours(nextStart, from: next, start: nextStart, calendar: calendar) == -1)
-    #expect(SleepClock.hours(date(3, 11, 7), from: next, start: nextStart, calendar: calendar) == 7)
+    #expect(
+      HealthDatabase.clockHours(nextStart, from: next, start: nextStart, calendar: calendar) == -1)
+    #expect(
+      HealthDatabase.clockHours(date(3, 11, 7), from: next, start: nextStart, calendar: calendar)
+        == 7)
   }
 
   @Test
