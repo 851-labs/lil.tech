@@ -11,6 +11,14 @@ Every architecture and product decision made so far. This file holds the decisio
 - [lil health](decisions/health.md): Apple Health on the Mac: data, statistics, privacy and the apps.
 - [lil messages](decisions/messages.md): The iMessage client (paused).
 - [Pixelbook](decisions/pixelbook.md): Snapshots of every state catalog, published and browsable.
+- [Cards](decisions/cards.md): lil health's cards: the card spec, its engines, sync, the welcome seed, agents' card tools and their consent scope.
+
+## Principles
+
+Decided by Alexandru on 2026-10-23, with cards (851-3192), for every product:
+
+- **Every feature works on iOS, macOS and the server.** A feature is designed so each platform can run it, with no platform-only escape hatches, such as a Mac-only SQL mode for something the iPhone can't do. Where a platform computes differently (HealthKit on the iPhone, SQLite on the Mac and the server), one definition drives every implementation, and shared conformance cases keep them matching, as the Health toolkit's do (`decisions/health.md`). Where a platform can't match exactly, the design says where and why.
+- **Apps are local-first.** Each device works from its own data and keeps working offline: the Mac computes from its synced SQLite, and the iPhone from HealthKit, on the phone. People's changes are written locally first and synced (`decisions/sync.md`). The server stores and syncs, and computes only for what has no device, such as remote agents. It never computes what an app shows.
 
 ## Repo
 

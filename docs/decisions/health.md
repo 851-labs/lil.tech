@@ -7,6 +7,7 @@
   - The macOS app syncs it and renders it like iPad Health.
 - **Why a server:** App Store guideline 5.1.3 forbids storing personal health data in iCloud, so the iPhone can't hand data to the Mac through CloudKit.
 - **iOS app:** a minimal bridge: sign in, consent, grant Health access, sync status.
+- **Cards** (851-3192, being built; designed in [`cards.md`](cards.md), 851-3193): Summary's metrics become cards people and agents create, a chart each from a versioned card spec, synced across devices. The Mac computes them from its SQLite and the iPhone from HealthKit, which makes the iPhone more than a bridge. Statements here that cards change are listed in `cards.md` (What changes elsewhere), and each ticket updates its own.
 - **Data:** v1 syncs every readable HealthKit type, including workouts and routes, ECG, heartbeat series, audiograms, medications and State of Mind.
   - Clinical records (Health Records) are out of scope, because they need an entitlement that depends on App Review approval. Health Documents (CDA) are a different type, which the standard HealthKit entitlement reads, so they sync (below).
   - Workouts are `health_workout` records: the overall activity type, times and duration, plus their activities (multisport legs), events (pauses, laps, segments) and per-type statistics as JSON, in the catalog's units. The iPhone reads them through the same anchored backfill as samples. Routes come separately (851-2566).
