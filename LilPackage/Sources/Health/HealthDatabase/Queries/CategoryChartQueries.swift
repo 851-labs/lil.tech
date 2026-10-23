@@ -89,7 +89,7 @@ extension HealthDatabase {
           start = end
         }
       }
-    default:
+    case let id where sessionChartTypes.contains(id):
       // The same session from two sources is one.
       let sessions = mergedIntervals(samples.map { $0.start..<max($0.start, $0.end) })
         .filter { window.contains($0.lowerBound) }
@@ -98,6 +98,8 @@ extension HealthDatabase {
         let seconds = sessions.reduce(0) { $0 + $1.upperBound.timeIntervalSince($1.lowerBound) }
         summary = .averageDuration(seconds / Double(sessions.count))
       }
+    default:
+      break
     }
     let buckets = totals.sorted { $0.key < $1.key }.map { (start: $0.key, value: $0.value) }
     let points =

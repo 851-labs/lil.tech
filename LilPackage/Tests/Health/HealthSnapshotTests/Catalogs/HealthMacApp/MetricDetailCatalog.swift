@@ -185,13 +185,16 @@
     state: MetricDetailContent.State? = nil, overlays: [MetricOverlay] = []
   ) -> some View {
     let type = HealthCatalog.type(id: id)!
-    let loaded = PeriodChart(
-      range: range, offset: offset, chart: chart ?? storedChart(id, range, offset: offset),
-      overlays: overlays)
+    // Read only when no state is given.
+    let shown =
+      state
+      ?? .loaded(
+        PeriodChart(
+          range: range, offset: offset, chart: chart ?? storedChart(id, range, offset: offset),
+          overlays: overlays))
     return NavigationStack {
       MetricDetailContent(
-        type: type, range: .constant(range), offset: .constant(offset),
-        state: state ?? .loaded(loaded))
+        type: type, range: .constant(range), offset: .constant(offset), state: shown)
     }
   }
 

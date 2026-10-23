@@ -346,17 +346,23 @@ struct MetricDetailContent: View {
       return periodCaption(range, bar: point != nil)
     }
     if let point { return point.minimum == point.maximum ? "AVERAGE" : "RANGE" }
-    if case .average = summary { return "AVERAGE" }
-    return "RANGE"
+    switch summary {
+    case .average: return "AVERAGE"
+    case .range, nil: return "RANGE"
+    // Only types that add up have these.
+    case .total, .dailyAverage: return periodCaption(range, bar: false)
+    case .averageDuration: return "AVERAGE DURATION"
+    }
   }
 
   /// A cumulative type's caption, as Health's (851-3099). For the period: the day's total, then
   /// the average day, which Health calls the week's and month's "AVERAGE", of their daily bars,
   /// and 6 months' and a year's "DAILY AVERAGE", under weekly and monthly bars. For a hovered
-  /// `bar`: an hour's or a day's "TOTAL", or a week's or month's average day, "DAILY AVERAGE".
-  /// Either way the value is a total per day with data (`MetricChart.Summary.dailyAverage`), or
-  /// a day's or hour's total.
-  static func periodCaption(_ range: ChartRange, bar: Bool = false) -> String {
+  /// `bar`: "TOTAL" for D's hours and W's and M's days, and "DAILY AVERAGE" for 6 months' weekly
+  /// bars and a year's monthly ones, each the average day of its week or month. Either way the
+  /// value is a total per day with data (`MetricChart.Summary.dailyAverage`), or a day's or an
+  /// hour's total.
+  static func periodCaption(_ range: ChartRange, bar: Bool) -> String {
     switch range {
     case .day: "TOTAL"
     case .week, .month: bar ? "TOTAL" : "AVERAGE"

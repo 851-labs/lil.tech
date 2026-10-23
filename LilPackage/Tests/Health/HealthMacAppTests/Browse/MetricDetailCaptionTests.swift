@@ -13,6 +13,7 @@ struct MetricDetailCaptionTests {
   private let heartRate = HealthCatalog.type(id: HealthDatabase.heartRateType)!
   private let handwashing = HealthCatalog.type(id: HealthDatabase.handwashingType)!
   private let toothbrushing = HealthCatalog.type(id: HealthDatabase.toothbrushingType)!
+  private let mindful = HealthCatalog.type(id: HealthDatabase.mindfulSessionType)!
   private let bar = ChartPoint(start: .now, value: 3)
 
   private func caption(
@@ -22,37 +23,37 @@ struct MetricDetailCaptionTests {
     MetricDetailContent.caption(for: type, range: range, summary: summary, point: point)
   }
 
+  /// A cumulative type's captions for each range: the period's, and a hovered bar's.
+  private let totals: [(ChartRange, period: String, barCaption: String)] = [
+    (.day, "TOTAL", "TOTAL"),
+    (.week, "AVERAGE", "TOTAL"),
+    (.month, "AVERAGE", "TOTAL"),
+    (.sixMonths, "DAILY AVERAGE", "DAILY AVERAGE"),
+    (.year, "DAILY AVERAGE", "DAILY AVERAGE"),
+  ]
+
   @Test
   func aTotalsPeriodAndItsBarsShareOneRule() {
-    let expected: [(ChartRange, period: String, bar: String)] = [
-      (.day, "TOTAL", "TOTAL"),
-      (.week, "AVERAGE", "TOTAL"),
-      (.month, "AVERAGE", "TOTAL"),
-      (.sixMonths, "DAILY AVERAGE", "DAILY AVERAGE"),
-      (.year, "DAILY AVERAGE", "DAILY AVERAGE"),
-    ]
-    for (range, period, bar) in expected {
+    for (range, period, barCaption) in totals {
       // Loading, empty and loaded alike.
       #expect(caption(steps, range) == period)
       #expect(caption(steps, range, .dailyAverage(8_000)) == period)
-      #expect(caption(steps, range, point: self.bar) == bar)
+      #expect(caption(steps, range, point: bar) == barCaption)
       // A category type charted as totals.
-      let mindful = HealthCatalog.type(id: HealthDatabase.mindfulSessionType)!
       #expect(caption(mindful, range) == period)
-      #expect(caption(mindful, range, point: self.bar) == bar)
+      #expect(caption(mindful, range, point: bar) == barCaption)
     }
   }
 
   @Test
   func sessionsKeepTheirAverageDurationWhateverHasLoaded() {
     for type in [handwashing, toothbrushing] {
-      for range in ChartRange.allCases {
+      for (range, _, barCaption) in totals {
         // Loading or without sessions, then loaded: one caption, so nothing changes on load.
         #expect(caption(type, range) == "AVERAGE DURATION")
         #expect(caption(type, range, .averageDuration(20)) == "AVERAGE DURATION")
         // A bar is its number of sessions, captioned as any total's.
-        #expect(
-          caption(type, range, point: bar) == MetricDetailContent.periodCaption(range, bar: true))
+        #expect(caption(type, range, point: bar) == barCaption)
       }
     }
   }
