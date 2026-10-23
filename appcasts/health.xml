@@ -3,6 +3,21 @@
   <channel>
     <title>lil health</title>
     <item>
+      <title>0.4.1</title>
+      <pubDate>Fri, 23 Oct 2026 02:54:52 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.4.1</link>
+      <sparkle:version>397</sparkle:version>
+      <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<ul><li>Settings › Agents: each access log opens in its own sheet, from a row that shows its latest entry</li><li>No more jumping: pages keep showing the current day, week or month while the next one loads, and loading pages keep their layout</li></ul>]]></description>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/health%2Fv0.4.1/lil-health-0.4.1.dmg"
+        length="33369901"
+        type="application/octet-stream"
+        sparkle:edSignature="VUqQ4zr7bXTK/XbLMxSMjwNRuU6PvS3ksEElIZGH4F4IFa35TigUWgCJFaeEImEVgnQVyW6uOy3N7nz8RhWdAQ=="
+      />
+    </item>
+    <item>
       <title>0.4.0</title>
       <pubDate>Thu, 22 Oct 2026 21:36:36 +0000</pubDate>
       <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.4.0</link>
