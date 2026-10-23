@@ -14,10 +14,9 @@ struct MetricDetailView: View {
   @State private var range = ChartRange.week
   @State private var offset = 0
   /// Loaded by the view's task, for quantity types and the category types charted like them, with
-  /// the period it's for. While another period loads, the page keeps showing it (851-3084).
+  /// the period it's for and the lines over it. While another period loads, the page keeps showing
+  /// it (851-3084).
   @Fetch private var chart: PeriodChart? = nil
-  /// Lines drawn over the chart, for the same period: heart rate's resting and walking averages.
-  @Fetch private var overlays: [MetricOverlay] = []
 
   init(type: HealthDataType) {
     self.type = type
@@ -69,7 +68,7 @@ struct MetricDetailView: View {
         HealthNotificationsView(kind: kind)
       } else if type.kind == .quantity || HealthDatabase.categoryChartTypes.contains(type.id) {
         MetricDetailContent(
-          type: type, range: $range, offset: $offset, state: chartState, overlays: overlays)
+          type: type, range: $range, offset: $offset, state: chartState)
       } else {
         // Other kinds without a chart of their own yet. No catalog type gets here since
         // characteristics open Health Details (851-3026): it's for types added later.
@@ -81,11 +80,9 @@ struct MetricDetailView: View {
     .task(id: [range.rawValue, String(offset)]) {
       guard type.kind == .quantity || HealthDatabase.categoryChartTypes.contains(type.id)
       else { return }
-      async let overlaid: Void = loadOverlays()
       _ = try? await $chart.load(
         MetricChartRequest(typeID: type.id, range: range, offset: offset),
         scheduler: MainQueueScheduler())
-      await overlaid
     }
   }
 
@@ -96,27 +93,17 @@ struct MetricDetailView: View {
     return .loaded(
       chart, isUpdating: $chart.isLoading || chart.range != range || chart.offset != offset)
   }
-
-  private func loadOverlays() async {
-    guard type.id == HealthDatabase.heartRateType else { return }
-    _ = try? await $overlays.load(
-      MetricOverlaysRequest(
-        lines: [
-          .init(typeID: HealthDatabase.restingHeartRateType, name: "Resting", color: .blue),
-          .init(
-            typeID: HealthDatabase.walkingHeartRateType, name: "Walking Average", color: .orange),
-        ],
-        range: range, offset: offset),
-      scheduler: MainQueueScheduler())
-  }
 }
 
-/// A chart, with the range and period it's for.
+/// A chart, with the range and period it's for, and the lines drawn over it for that period.
+/// Loaded together, so a page showing one period while the next loads never shows another
+/// period's lines, or loses its own (851-3084).
 struct PeriodChart: Equatable, Sendable {
   let range: ChartRange
   /// 0 is the current period, -1 the one before.
   let offset: Int
   let chart: MetricChart
+  var overlays: [MetricOverlay] = []
 }
 
 struct MetricChartRequest: FetchKeyRequest {
@@ -139,43 +126,37 @@ struct MetricChartRequest: FetchKeyRequest {
         try HealthDatabase.metricChart(
           of: type, range: range, offset: offset, now: now, calendar: calendar, db)
       }
-    return PeriodChart(range: range, offset: offset, chart: chart)
+    let overlays = try MetricOverlay.lines(for: typeID).compactMap { line -> MetricOverlay? in
+      guard let type = HealthCatalog.type(id: line.typeID) else { return nil }
+      let lineChart = try HealthDatabase.metricChart(
+        of: type, range: range, offset: offset, now: now, calendar: calendar, db)
+      return MetricOverlay(name: line.name, color: line.color, points: lineChart.points)
+    }
+    return PeriodChart(range: range, offset: offset, chart: chart, overlays: overlays)
   }
 }
 
-/// Other types' values for the same period, as lines over a chart.
-struct MetricOverlaysRequest: FetchKeyRequest {
-  struct Line: Hashable {
+/// A line over a chart: another type's value for each of the chart's periods.
+struct MetricOverlay: Equatable, Sendable {
+  /// What a type's chart draws over it: another type, by name and color.
+  struct Line {
     let typeID: String
     let name: String
     let color: Color
   }
 
-  let lines: [Line]
-  let range: ChartRange
-  let offset: Int
-
-  func fetch(_ db: Database) throws -> [MetricOverlay] {
-    @Dependency(\.date.now) var now
-    @Dependency(\.calendar) var calendar
-    return try lines.compactMap { line in
-      guard let type = HealthCatalog.type(id: line.typeID) else { return nil }
-      let chart = try HealthDatabase.metricChart(
-        of: type, range: range, offset: offset, now: now, calendar: calendar, db)
-      return MetricOverlay(
-        name: line.name, color: line.color, points: chart.points, range: range, offset: offset)
-    }
-  }
-}
-
-/// A line over a chart: another type's value for each of its periods, for the range and period
-/// it was loaded for.
-struct MetricOverlay: Equatable, Sendable {
   let name: String
   let color: Color
   let points: [ChartPoint]
-  let range: ChartRange
-  let offset: Int
+
+  /// The lines over a type's chart: heart rate's resting and walking averages.
+  static func lines(for typeID: String) -> [Line] {
+    guard typeID == HealthDatabase.heartRateType else { return [] }
+    return [
+      Line(typeID: HealthDatabase.restingHeartRateType, name: "Resting", color: .blue),
+      Line(typeID: HealthDatabase.walkingHeartRateType, name: "Walking Average", color: .orange),
+    ]
+  }
 }
 
 /// What the detail shows, however it got it.
@@ -190,15 +171,24 @@ struct MetricDetailContent: View {
   }
 
   let type: HealthDataType
-  @Binding var range: ChartRange
-  @Binding var offset: Int
+  /// The period chosen in the toolbar, which can be ahead of the one shown (`range`, `offset`).
+  @Binding private var selectedRange: ChartRange
+  @Binding private var selectedOffset: Int
   let state: State
-  var overlays: [MetricOverlay] = []
   /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`): the header
   /// shows the period around now before a chart loads.
   @Dependency(\.calendar) private var calendar
   @Dependency(\.date.now) private var now
   @SwiftUI.State private var hovered: Date?
+
+  init(
+    type: HealthDataType, range: Binding<ChartRange>, offset: Binding<Int>, state: State
+  ) {
+    self.type = type
+    _selectedRange = range
+    _selectedOffset = offset
+    self.state = state
+  }
 
   private var color: Color { type.color }
   /// Totals per bucket: a cumulative type's, or a category type charted like one.
@@ -209,27 +199,29 @@ struct MetricDetailContent: View {
   private var unit: String? { type.unit ?? HealthDatabase.categoryChartUnit(type.id) }
 
   /// The period shown: the loaded chart's, which stays while another loads, or the one chosen
-  /// before any has loaded.
-  private var shownRange: ChartRange {
-    if case .loaded(let loaded, _) = state { loaded.range } else { range }
+  /// before any has loaded. Everything drawn uses it, never the selection.
+  private var range: ChartRange {
+    if case .loaded(let loaded, _) = state { loaded.range } else { selectedRange }
+  }
+
+  private var offset: Int {
+    if case .loaded(let loaded, _) = state { loaded.offset } else { selectedOffset }
   }
 
   private var isUpdating: Bool {
     if case .loaded(_, let isUpdating) = state { isUpdating } else { false }
   }
 
-  /// The lines to draw: those loaded for the period shown, with values, over a chart with data.
+  /// The lines to draw: those loaded with the chart, with values, over a chart with data.
   private var shownOverlays: [MetricOverlay] {
     guard case .loaded(let loaded, _) = state, !loaded.chart.points.isEmpty else { return [] }
-    return overlays.filter {
-      $0.range == loaded.range && $0.offset == loaded.offset && !$0.points.isEmpty
-    }
+    return loaded.overlays.filter { !$0.points.isEmpty }
   }
 
-  /// Whether lines can be drawn over the chart: heart rate's resting and walking averages
-  /// (`MetricDetailView`). Their legend's row is kept for them while they load or have no
-  /// values, so they never move the rows below (851-3084).
-  private var hasOverlays: Bool { type.id == HealthDatabase.heartRateType }
+  /// Whether the type draws lines over its chart (`MetricOverlay.lines(for:)`). Their legend's row
+  /// is kept for them while they load or have no values, so they never move the rows below
+  /// (851-3084).
+  private var hasOverlays: Bool { !MetricOverlay.lines(for: type.id).isEmpty }
 
   var body: some View {
     // A grouped form on its own background, as Data Sources is (851-2989): one section for the
@@ -265,7 +257,7 @@ struct MetricDetailContent: View {
     .formStyle(.grouped)
     .navigationTitle(type.name)
     // The range and ‹ Today › in the toolbar, and the View menu's commands (`PeriodCommands`).
-    .periodControls(PagePeriod(range: $range, offset: $offset))
+    .periodControls(PagePeriod(range: $selectedRange, offset: $selectedOffset))
   }
 
   /// What the lines over the chart are. Its row's height whether or not any are drawn.
@@ -292,7 +284,6 @@ struct MetricDetailContent: View {
 
   @ViewBuilder private var header: some View {
     let chart: MetricChart? = if case .loaded(let loaded, _) = state { loaded.chart } else { nil }
-    let range = shownRange
     let point = chart.flatMap { hoveredPoint(in: $0) }
     HStack(alignment: .bottom) {
       VStack(alignment: .leading, spacing: 2) {
@@ -310,19 +301,12 @@ struct MetricDetailContent: View {
       }
       Spacer()
     }
-    // While another period loads, over the one shown. Over the header, so it takes no space.
-    .overlay(alignment: .topTrailing) {
-      if isUpdating {
-        ProgressView()
-          .controlSize(.small)
-          .frame(width: 16, height: 16)
-      }
-    }
+    // While another period loads, over the one shown.
+    .updatingIndicator(isUpdating)
   }
 
   private func label(_ chart: MetricChart?, point: ChartPoint?) -> String {
     let cumulative = isCumulative
-    let range = shownRange
     if let point {
       if cumulative { return range == .sixMonths || range == .year ? "DAILY AVERAGE" : "TOTAL" }
       return point.minimum == point.maximum ? "AVERAGE" : "RANGE"
@@ -383,7 +367,6 @@ struct MetricDetailContent: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .loaded(let loaded, _):
       let chart = loaded.chart
-      let range = loaded.range
       Chart {
         ForEach(chart.points, id: \.start) { point in
           bar(point, in: chart)
@@ -436,7 +419,6 @@ struct MetricDetailContent: View {
   /// A period's bar: its total for a cumulative type, otherwise its range.
   @ChartContentBuilder
   private func bar(_ point: ChartPoint, in chart: MetricChart) -> some ChartContent {
-    let range = shownRange
     if isCumulative {
       BarMark(
         x: .value("Date", point.start, unit: range.barUnit),
@@ -461,14 +443,13 @@ struct MetricDetailContent: View {
 
   /// The point of the bar under the pointer, if that bar has data.
   private func hoveredPoint(in chart: MetricChart) -> ChartPoint? {
-    guard let hovered, let bar = calendar.dateInterval(of: shownRange.barUnit, for: hovered)
+    guard let hovered, let bar = calendar.dateInterval(of: range.barUnit, for: hovered)
     else { return nil }
     return chart.points.first { $0.start == bar.start }
   }
 
   /// The chart's span, widened to whole bars: six months' first and last weeks run past them.
   private func domain(_ chart: MetricChart) -> ClosedRange<Date> {
-    let range = shownRange
     let start = calendar.dateInterval(of: range.barUnit, for: chart.interval.start)?.start
     let end = calendar.dateInterval(
       of: range.barUnit, for: chart.interval.end.addingTimeInterval(-1))?.end

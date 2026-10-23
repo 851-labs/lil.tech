@@ -109,10 +109,10 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
     },
     {
-      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-lines-loading-dark.png",
-      "id" : "metric-detail.heart-rate-lines-loading",
-      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-lines-loading-light.png",
-      "name" : "Heart rate, lines loading",
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-without-lines-dark.png",
+      "id" : "metric-detail.heart-rate-without-lines",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-without-lines-light.png",
+      "name" : "Heart rate without lines",
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
     },
     {

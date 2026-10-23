@@ -12,7 +12,8 @@
   // checks every marked view is at the same frame in each. Layout only, no pixels: it can't be
   // flaky the way a comparison of images can, and passes on any Mac.
 
-  /// The catalogs whose layouts are checked. Add a catalog here when it names `sameLayout` groups.
+  /// The catalogs whose layouts are checked. Add a catalog here when it names `sameLayout` groups:
+  /// `everyCatalogWithSameLayoutIsChecked` fails until you do.
   private let layoutCheckedCatalogs = [sleepCatalog, metricDetailCatalog]
 
   extension MacSnapshotTests {
@@ -43,6 +44,29 @@
             sourceLocation: state.sourceLocation)
         }
       }
+    }
+  }
+
+  extension MacSnapshotTests {
+    /// A catalog file that names `sameLayout` groups is in `layoutCheckedCatalogs`, so its groups
+    /// can't go unchecked. Catalogs are plain values, which nothing lists, so this reads their
+    /// files.
+    @Test func everyCatalogWithSameLayoutIsChecked() throws {
+      let folder = URL(filePath: #filePath).deletingLastPathComponent().appending(path: "Catalogs")
+      let files = try #require(
+        FileManager.default.enumerator(at: folder, includingPropertiesForKeys: nil))
+      let declaring = try Set(
+        files.compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }
+          .filter { try String(contentsOf: $0, encoding: .utf8).contains("sameLayout: [") }
+          .map(\.lastPathComponent))
+      let checked = Set(
+        layoutCheckedCatalogs.compactMap { catalog in
+          catalog.states.first.map { URL(filePath: "\($0.filePath)").lastPathComponent }
+        })
+      #expect(
+        declaring == checked,
+        "Catalogs naming sameLayout groups that LayoutShiftTests doesn't check: \(declaring.subtracting(checked).sorted())."
+      )
     }
   }
 

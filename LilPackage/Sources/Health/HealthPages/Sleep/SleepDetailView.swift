@@ -30,7 +30,11 @@ public struct SleepDetailView: View {
 
   public var body: some View {
     SleepDetailContent(type: type, range: $range, offset: $offset, state: state, now: today)
-      .task(id: [range.rawValue, String(offset), today.formatted(.iso8601.year().month().day())]) {
+      // Today's start in the page's calendar, so a new local day is a new load (an ISO date is
+      // UTC's, which stayed the same at local midnight west of it).
+      .task(id: [
+        range.rawValue, String(offset), "\(calendar.startOfDay(for: today).timeIntervalSince1970)",
+      ]) {
         _ = try? await $period.load(
           SleepRequest(range: range, offset: offset, day: today, calendar: calendar),
           scheduler: MainQueueScheduler())
@@ -111,13 +115,25 @@ struct SleepDetailContent: View {
   }
 
   let type: HealthDataType
-  @Binding var range: SleepRange
-  @Binding var offset: Int
+  /// The period chosen in the toolbar, which can be ahead of the one shown (`range`, `lastDay`).
+  @Binding private var selectedRange: SleepRange
+  @Binding private var selectedOffset: Int
   let state: State
   /// Today, as the page loads it, for the nights shown.
   let now: Date
   /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
   @Dependency(\.calendar) private var calendar
+
+  init(
+    type: HealthDataType, range: Binding<SleepRange>, offset: Binding<Int>, state: State,
+    now: Date
+  ) {
+    self.type = type
+    _selectedRange = range
+    _selectedOffset = offset
+    self.state = state
+    self.now = now
+  }
 
   var body: some View {
     // A grouped form on its own background, as Metric Detail is (851-2989, 851-3000): the summary
@@ -131,12 +147,12 @@ struct SleepDetailContent: View {
         }
         .padding(.vertical, 6)
       }
-      // A night's stages. Placeholders until there's a night, so the rows below don't move when
-      // it loads (851-3084).
-      if shownRange == .day {
+      // A night's stages. Placeholders while it loads, so the rows below don't move when it
+      // arrives (851-3084).
+      if range == .day {
         if let night = nights.last {
           stages(night)
-        } else {
+        } else if case .loading = state {
           stagesPlaceholder
         }
       }
@@ -153,21 +169,21 @@ struct SleepDetailContent: View {
     .formStyle(.grouped)
     .navigationTitle(type.name)
     // The range and ‹ Today › in the toolbar, as on other metrics (851-2866).
-    .periodControls(PagePeriod(range: $range, offset: $offset))
+    .periodControls(PagePeriod(range: $selectedRange, offset: $selectedOffset))
   }
 
   // MARK: Period shown
 
   /// The period whose nights are shown: the loaded one, which stays while another loads, or the
-  /// one chosen before any has loaded.
-  private var shownRange: SleepRange {
-    if case .loaded(let period, _) = state { period.range } else { range }
+  /// one chosen before any has loaded. Everything drawn uses it, never the selection.
+  private var range: SleepRange {
+    if case .loaded(let period, _) = state { period.range } else { selectedRange }
   }
 
   /// The last night shown.
-  private var shownLastDay: Date {
+  private var lastDay: Date {
     if case .loaded(let period, _) = state { return period.lastDay }
-    return range.lastDay(offset: offset, now: now, calendar: calendar)
+    return selectedRange.lastDay(offset: selectedOffset, now: now, calendar: calendar)
   }
 
   private var nights: [SleepNight] {
@@ -192,7 +208,7 @@ struct SleepDetailContent: View {
     let inBed = nights.reduce(0) { $0 + $1.inBed } / count
     return HStack(alignment: .bottom) {
       VStack(alignment: .leading, spacing: 2) {
-        Text(shownRange == .day ? "TIME ASLEEP" : "AVERAGE TIME ASLEEP")
+        Text(range == .day ? "TIME ASLEEP" : "AVERAGE TIME ASLEEP")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.secondary)
         Text(nights.isEmpty ? (isLoaded ? "No Data" : "–") : SleepFormat.duration(asleep))
@@ -205,20 +221,13 @@ struct SleepDetailContent: View {
       }
       Spacer()
     }
-    // While another period loads, over the one shown. Over the header, so it takes no space.
-    .overlay(alignment: .topTrailing) {
-      if isUpdating {
-        ProgressView()
-          .controlSize(.small)
-          .frame(width: 16, height: 16)
-      }
-    }
+    // While another period loads, over the one shown.
+    .updatingIndicator(isUpdating)
   }
 
   /// The night or nights shown: "Oct 15, 2026", or "Oct 9 – 15, 2026".
   private var span: String {
-    let last = shownLastDay
-    let range = shownRange
+    let last = lastDay
     let style = Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone)
     guard range == .week,
       let first = calendar.date(byAdding: .day, value: 1 - range.nights, to: last)
@@ -316,8 +325,10 @@ struct SleepDetailContent: View {
 
   // MARK: Stages
 
-  /// Health's stages without times, where a night's go while there's none: loading, failed or
-  /// without sleep. The rows a Watch's night has, so loading one moves nothing (851-3084).
+  /// Health's stages without times, where a night's go while it loads: the rows a Watch's night
+  /// has, so loading one moves nothing (851-3084). A night without stages has two rows (Awake and
+  /// Asleep), and one with unspecified sleep too five, so those still move what's below by a row
+  /// or two when they arrive: which a night has can't be known before it loads.
   private var stagesPlaceholder: some View {
     Section("Stages") {
       ForEach([SleepStage.awake, .rem, .core, .deep], id: \.self) { stage in

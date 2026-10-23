@@ -80,7 +80,8 @@
       CatalogState("Heart rate with resting and walking", minHeight: 720) {
         heartRateWithOverlays()
       },
-      CatalogState("Heart rate, lines loading", minHeight: 720) {
+      // A period without resting or walking averages: the legend's row stays.
+      CatalogState("Heart rate without lines", minHeight: 720) {
         heartRateWithOverlays(overlays: false)
       },
       CatalogState("Environmental sound levels, week", minHeight: 720) { soundLevels() },
@@ -121,7 +122,7 @@
         "Handwashing, month", "Toothbrushing, year",
       ],
       [
-        "Heart rate with resting and walking", "Heart rate, loading", "Heart rate, lines loading",
+        "Heart rate with resting and walking", "Heart rate, loading", "Heart rate without lines",
         "Heart rate, month", "Heart rate, day", "Heart rate, year",
       ],
     ])
@@ -138,11 +139,12 @@
   ) -> some View {
     let type = HealthCatalog.type(id: id)!
     let loaded = PeriodChart(
-      range: range, offset: offset, chart: chart ?? storedChart(id, range, offset: offset))
+      range: range, offset: offset, chart: chart ?? storedChart(id, range, offset: offset),
+      overlays: overlays)
     return NavigationStack {
       MetricDetailContent(
         type: type, range: .constant(range), offset: .constant(offset),
-        state: state ?? .loaded(loaded), overlays: overlays)
+        state: state ?? .loaded(loaded))
     }
   }
 
@@ -163,12 +165,12 @@
       name: "Resting", color: .blue,
       points: chart.points.enumerated().map { index, point in
         ChartPoint(start: point.start, value: 56 + Double(index % 3))
-      }, range: .week, offset: -1)
+      })
     let walking = MetricOverlay(
       name: "Walking Average", color: .orange,
       points: chart.points.enumerated().map { index, point in
         ChartPoint(start: point.start, value: 96 + Double((index * 5) % 9))
-      }, range: .week, offset: -1)
+      })
     return detail(
       heartRate, .week, offset: -1, chart: chart, overlays: overlays ? [resting, walking] : [])
   }

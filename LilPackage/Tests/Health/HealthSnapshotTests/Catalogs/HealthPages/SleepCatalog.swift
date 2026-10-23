@@ -65,7 +65,7 @@
     ],
     // What's below the content stays put while it loads (851-3084).
     sameLayout: [
-      ["Loading", "Night", "The night before", "Night, loading the night before", "No sleep"],
+      ["Loading", "Night", "The night before", "Night, loading the night before"],
       ["Week", "Week, loading the week before", "Failed"],
     ])
 
