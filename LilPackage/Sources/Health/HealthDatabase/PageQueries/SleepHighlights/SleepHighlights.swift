@@ -10,18 +10,23 @@ public struct SleepHighlights: Equatable, Sendable {
   public var months: SleepMonthComparison?
   /// Heart rate while asleep last night.
   public var heartRate: SleepHeartRate?
+  /// The last 7 nights' average time asleep.
+  public var week: SleepWeekAverage?
 
   public init(
     bedtime: BedtimeConsistency? = nil, months: SleepMonthComparison? = nil,
-    heartRate: SleepHeartRate? = nil
+    heartRate: SleepHeartRate? = nil, week: SleepWeekAverage? = nil
   ) {
     self.bedtime = bedtime
     self.months = months
     self.heartRate = heartRate
+    self.week = week
   }
 
   /// Whether there's nothing to show.
-  public var isEmpty: Bool { bedtime == nil && months == nil && heartRate == nil }
+  public var isEmpty: Bool {
+    bedtime == nil && months == nil && heartRate == nil && week == nil
+  }
 }
 
 extension HealthDatabase {
@@ -43,7 +48,8 @@ extension HealthDatabase {
     return SleepHighlights(
       bedtime: BedtimeConsistency(nights: nights, today: today, calendar: calendar),
       months: SleepMonthComparison(nights: nights, today: today, calendar: calendar),
-      heartRate: try lastNight.flatMap { try sleepHeartRate(during: $0, db) })
+      heartRate: try lastNight.flatMap { try sleepHeartRate(during: $0, db) },
+      week: SleepWeekAverage(nights: nights, today: today, calendar: calendar))
   }
 
   /// Where `date` goes in the night that started at `start`, in hours from the start of `day`,
