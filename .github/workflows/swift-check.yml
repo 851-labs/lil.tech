@@ -97,7 +97,7 @@ jobs:
         run: |
           rm -rf "$RUNNER_TEMP/snapshot-references" "$RUNNER_TEMP/snapshot-changes"
           scripts/collect-snapshots "$RUNNER_TEMP/snapshot-references" \
-            "$RUNNER_TEMP/snapshot-changes" "$RUNNER_TEMP/snapshots" >>"$GITHUB_STEP_SUMMARY"
+            "$RUNNER_TEMP/snapshot-changes" "$RUNNER_TEMP/snapshots"
 
       - name: Upload the new references
         if: failure()
@@ -157,7 +157,7 @@ jobs:
         run: |
           rm -rf "$RUNNER_TEMP/snapshot-references" "$RUNNER_TEMP/snapshot-changes"
           scripts/collect-snapshots "$RUNNER_TEMP/snapshot-references" \
-            "$RUNNER_TEMP/snapshot-changes" LilPackage/.build/snapshots-iphone >>"$GITHUB_STEP_SUMMARY"
+            "$RUNNER_TEMP/snapshot-changes" LilPackage/.build/snapshots-iphone
 
       - name: Upload the new references
         if: failure()

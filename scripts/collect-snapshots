@@ -9,8 +9,9 @@
 #                 tests wrote into the checkout (a new state's, a stale manifest). CI uploads it as
 #                 an artifact, which `scripts/fetch-snapshots` copies into the branch.
 #   <changes>     The same images to look at, by catalog, each with its `.diff.png` when it differs.
-# Prints a Markdown summary for the job's (`GITHUB_STEP_SUMMARY`), and on GitHub an error
-# annotation saying how to update the references. Prints nothing when nothing changed.
+# Adds a Markdown summary of them to the job's (`GITHUB_STEP_SUMMARY`; printed elsewhere), and on
+# GitHub prints an error annotation saying how to update the references. Nothing when nothing
+# changed.
 set -euo pipefail
 
 if [ $# -lt 3 ]; then
@@ -82,7 +83,9 @@ what="$changed changed, $new new, $manifests manifests"
 if [ -n "${GITHUB_ACTIONS:-}" ]; then
   echo "::error title=Snapshots changed ($what)::If the changes are right, run scripts/fetch-snapshots in the branch, look at the images it prints, then commit and push them. The changed images and their diffs are in this run's snapshot-changes artifacts."
 fi
-cat <<EOF
+summary=${GITHUB_STEP_SUMMARY:-/dev/stdout}
+{
+  cat <<EOF
 ### Snapshots changed: $what
 
 The references are rendered on the Mac minis (851-3070). If these changes are right, bring this run's
@@ -98,4 +101,5 @@ The images, with a \`.diff.png\` beside each one that changed, are in this run's
 | | Path |
 | --- | --- |
 EOF
-sort -u "$list" | awk -F '\t' '{ printf "| %s | `%s` |\n", $1, $2 }'
+  sort -u "$list" | awk -F '\t' '{ printf "| %s | `%s` |\n", $1, $2 }'
+} >>"$summary"
