@@ -38,6 +38,27 @@
         metrics(
           .mobility, .loaded(HealthCatalog.types(in: .mobility).map { MetricSummary(id: $0.id) }))
       },
+      // Sound levels show their week's exposure in place of a value (851-3100): within the
+      // limit in the catalog database, its twice-daily minute under 80 dB.
+      CatalogState("Hearing") { metrics(.hearing) },
+      // Headphones over it, the environment within it.
+      CatalogState("Hearing, over the limit") {
+        metrics(
+          .hearing,
+          .loaded(
+            summaries(.hearing).map {
+              var summary = $0
+              if summary.id == "HKQuantityTypeIdentifierHeadphoneAudioExposure" {
+                summary.soundExposure = SoundExposure(dose: 1.6)
+              }
+              return summary
+            }))
+      },
+      CatalogState("Hearing, no data") {
+        metrics(
+          .hearing, .loaded(HealthCatalog.types(in: .hearing).map { MetricSummary(id: $0.id) }))
+      },
+      CatalogState("Hearing, loading") { metrics(.hearing, .loading) },
       CatalogState("Loading") { metrics(.heart, .loading) },
       CatalogState("Failed") { metrics(.heart, .failed("The database couldn't be read.")) },
     ])

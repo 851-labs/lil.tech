@@ -46,6 +46,34 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.hearing-dark.png",
+      "id" : "category.hearing",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.hearing-light.png",
+      "name" : "Hearing",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.hearing-over-the-limit-dark.png",
+      "id" : "category.hearing-over-the-limit",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.hearing-over-the-limit-light.png",
+      "name" : "Hearing, over the limit",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.hearing-no-data-dark.png",
+      "id" : "category.hearing-no-data",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.hearing-no-data-light.png",
+      "name" : "Hearing, no data",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.hearing-loading-dark.png",
+      "id" : "category.hearing-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.hearing-loading-light.png",
+      "name" : "Hearing, loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.loading-dark.png",
       "id" : "category.loading",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.loading-light.png",
