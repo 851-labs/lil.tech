@@ -9,13 +9,14 @@
   // names groups of its states that must agree (`StateCatalog.sameLayout`), e.g. loading, loaded
   // and loading the next period, and the page marks the views below its content with
   // `layoutAnchor` (Show All Data). This renders each state of a group as its snapshot does, and
-  // checks every marked view is at the same frame in each. Layout only, no pixels: it can't be
-  // flaky the way a comparison of images can, and passes on any Mac.
+  // checks every marked view starts at the same height in each, and is as tall. Layout only, no
+  // pixels: it can't be flaky the way a comparison of images can, and passes on any Mac.
 
   /// The catalogs whose layouts are checked. Add a catalog here when it names `sameLayout` groups:
   /// `everyCatalogWithSameLayoutIsChecked` fails until you do.
   private let layoutCheckedCatalogs = [
     sleepCatalog, metricDetailCatalog, bloodPressureCatalog, symptomsCatalog,
+    activityRingsCatalog, cycleTrackingCatalog,
   ]
 
   extension MacSnapshotTests {
@@ -36,8 +37,9 @@
           sourceLocation: state.sourceLocation)
         for (name, frame) in frames.sorted(by: { $0.key < $1.key }) {
           guard let other = expected[name] else { continue }
+          // Vertically: a marked text's width can differ with what it says (a day's date).
           #expect(
-            frame == other,
+            frame.minY == other.minY && frame.height == other.height,
             """
             \(name) moved: at \(frame) in \(state.name), \(other) in \(first.name) \
             (\(frame.minY - other.minY) pt down). A page's loading state takes its loaded \

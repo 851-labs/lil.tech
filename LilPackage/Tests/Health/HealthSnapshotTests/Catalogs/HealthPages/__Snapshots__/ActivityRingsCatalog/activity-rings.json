@@ -53,6 +53,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-loading-the-month-before-dark.png",
+      "id" : "activity-rings.activity-rings-loading-the-month-before",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-loading-the-month-before-light.png",
+      "name" : "Activity Rings, loading the month before",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-failed-dark.png",
       "id" : "activity-rings.activity-rings-failed",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-failed-light.png",

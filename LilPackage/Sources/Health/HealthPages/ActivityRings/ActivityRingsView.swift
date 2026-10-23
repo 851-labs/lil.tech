@@ -16,6 +16,7 @@ public struct ActivityRingsView: View {
   @State private var isPositioned = false
   /// Moves at midnight, so the month does too.
   @State private var today = Date.now
+  /// The last month loaded. While another loads, the page keeps showing it (851-3090).
   @Fetch private var month: ActivityMonth? = nil
 
   public init() {}
@@ -25,11 +26,8 @@ public struct ActivityRingsView: View {
     ActivityRingsContent(
       month: interval, selected: $selected,
       state: $month.loadError.map { .failed($0.localizedDescription) }
-        ?? {
-          // The month being loaded, not the one before it.
-          guard let month, month.month == interval else { return .loading }
-          return .loaded(month.days)
-        }(),
+        ?? month.map { .loaded($0, isUpdating: $month.isLoading || $0.month != interval) }
+        ?? .loading,
       previous: { monthOffset -= 1 }, next: { monthOffset += 1 }, isLatest: monthOffset >= 0
     )
     .task(id: [String(monthOffset), today.formatted(.iso8601)]) {
@@ -87,12 +85,16 @@ struct ActivityMonthRequest: FetchKeyRequest {
 /// What Activity Rings shows, however it got it.
 struct ActivityRingsContent: View {
   enum State {
+    /// Nothing to show yet: the month's grid without rings, in its loaded place (851-3090).
     case loading
-    case loaded([String: ActivityDay])
+    /// A month's days. Updating while another month, or the same one again, loads: they stay on
+    /// screen, with a spinner by the month's name, rather than the page blanking.
+    case loaded(ActivityMonth, isUpdating: Bool = false)
     case failed(String)
   }
 
-  let month: DateInterval
+  /// The month chosen with the arrows, which can be ahead of the one shown (`month`).
+  let selectedMonth: DateInterval
   @Binding var selected: Date?
   let state: State
   var previous: () -> Void = {}
@@ -107,6 +109,24 @@ struct ActivityRingsContent: View {
   /// The calendar's day that can take focus (`calendarDay`).
   @State private var focusTarget: Date?
 
+  init(
+    month: DateInterval, selected: Binding<Date?>, state: State,
+    previous: @escaping () -> Void = {}, next: @escaping () -> Void = {}, isLatest: Bool = true
+  ) {
+    selectedMonth = month
+    _selected = selected
+    self.state = state
+    self.previous = previous
+    self.next = next
+    self.isLatest = isLatest
+  }
+
+  /// The month shown: the loaded one, which stays while another loads, or the one chosen before
+  /// any has loaded. Everything drawn uses it.
+  private var month: DateInterval {
+    if case .loaded(let month, _) = state { month.month } else { selectedMonth }
+  }
+
   var body: some View {
     // A grouped form on its own background, as Metric Detail is (851-2989, 851-3003): the month,
     // then the day chosen in it.
@@ -115,35 +135,44 @@ struct ActivityRingsContent: View {
         VStack(alignment: .leading, spacing: 12) {
           monthHeader
           switch state {
-          // As tall as the month's grid, so the page keeps its shape while a month loads or fails,
-          // and as wide as the row, rather than its ideal width, off center.
+          // The month's grid, its days without rings, so the page has its loaded shape.
           case .loading:
-            ProgressView()
-              .frame(maxWidth: .infinity, minHeight: gridHeight)
+            calendarGrid([:], isLoading: true)
+          // Over the grid, hidden, so it takes the grid's place exactly, and the arrows still
+          // reach other months.
           case .failed(let reason):
-            ContentUnavailableView(
-              "Couldn't Load Activity Rings", systemImage: "exclamationmark.triangle",
-              description: Text(reason)
-            )
-            .frame(maxWidth: .infinity, minHeight: gridHeight)
-          case .loaded(let days):
-            calendarGrid(days)
+            calendarGrid([:], isLoading: true)
+              .hidden()
+              .overlay {
+                ContentUnavailableView(
+                  "Couldn't Load Activity Rings", systemImage: "exclamationmark.triangle",
+                  description: Text(reason))
+              }
+          case .loaded(let month, _):
+            calendarGrid(month.days)
           }
         }
         .padding(.vertical, 6)
       }
-      if case .loaded(let days) = state {
-        dayDetail(days[key(shownDay)])
+      switch state {
+      case .loading:
+        dayPlaceholder
+      case .failed:
+        EmptyView()
+      case .loaded(let month, _):
+        dayDetail(month.days[key(shownDay)], isMonthEmpty: month.days.isEmpty)
       }
     }
     .formStyle(.grouped)
     .navigationTitle("Activity Rings")
   }
 
-  /// About the height of the month's grid: the weekdays, then a 54 pt line per week, 8 pt apart.
-  private var gridHeight: CGFloat {
-    let weeks = CGFloat((cells.count + 6) / 7)
-    return 24 + weeks * 54 + (weeks - 1) * 8
+  private var isUpdating: Bool {
+    switch state {
+    case .loading: true
+    case .loaded(_, let isUpdating): isUpdating
+    case .failed: false
+    }
   }
 
   // MARK: Calendar
@@ -153,6 +182,14 @@ struct ActivityRingsContent: View {
     HStack {
       Text(month.start.formatted(.dateTime.month(.wide).year()))
         .font(.title2.bold())
+      // While a month loads: in a slot of its own, so the title never moves.
+      ZStack {
+        if isUpdating {
+          ProgressView()
+            .controlSize(.small)
+        }
+      }
+      .frame(width: 16, height: 16)
       Spacer()
       Button(action: previous) { Image(systemName: "chevron.left") }
         .accessibilityLabel("Earlier")
@@ -163,7 +200,11 @@ struct ActivityRingsContent: View {
     .buttonStyle(.borderless)
   }
 
-  @ViewBuilder private func calendarGrid(_ days: [String: ActivityDay]) -> some View {
+  /// The month's grid, always six weeks, so every month, and a loading one, is as tall. While
+  /// loading, its days have no rings yet.
+  @ViewBuilder private func calendarGrid(
+    _ days: [String: ActivityDay], isLoading: Bool = false
+  ) -> some View {
     let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
     let shown = shownDay
     let today = calendar.startOfDay(for: now)
@@ -179,7 +220,7 @@ struct ActivityRingsContent: View {
           let isFuture = day > today
           ActivityDayCell(
             number: calendar.component(.day, from: day), day: days[key(day)],
-            isSelected: day == shown, isToday: isToday, isFuture: isFuture
+            isSelected: day == shown, isToday: isToday, isFuture: isFuture || isLoading
           )
           // Chosen with the keyboard and VoiceOver too (851-3015). Days to come have no rings to
           // show.
@@ -198,11 +239,6 @@ struct ActivityRingsContent: View {
         }
       }
     }
-    if days.isEmpty {
-      Text("No Activity rings this month.")
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity)
-    }
   }
 
   /// The weekday initials, starting on the calendar's first weekday.
@@ -212,17 +248,10 @@ struct ActivityRingsContent: View {
     return Array(symbols[first...] + symbols[..<first])
   }
 
-  /// The month's days, with blanks before the first to line it up with its weekday.
+  /// The month's days, with blanks before the first to line it up with its weekday, and after
+  /// the last to make six weeks.
   private var cells: [Date?] {
-    var days: [Date?] = []
-    let leading = (calendar.component(.weekday, from: month.start) - calendar.firstWeekday + 7) % 7
-    days.append(contentsOf: Array(repeating: nil, count: leading))
-    var day = month.start
-    while day < month.end {
-      days.append(day)
-      day = calendar.date(byAdding: .day, value: 1, to: day) ?? month.end
-    }
-    return days
+    MonthCalendar.cells(of: month, calendar: calendar)
   }
 
   /// A day's summary key: its Gregorian `yyyy-MM-dd`, whatever the Mac's calendar.
@@ -238,8 +267,9 @@ struct ActivityRingsContent: View {
   }
 
   /// The day's rings large, beside each ring's progress toward its goal, under the day's date.
-  private func dayDetail(_ day: ActivityDay?) -> some View {
-    Section(shownDay.formatted(date: .complete, time: .omitted)) {
+  /// Says so under them when the month has none.
+  private func dayDetail(_ day: ActivityDay?, isMonthEmpty: Bool) -> some View {
+    Section {
       if let day {
         HStack(alignment: .center, spacing: 24) {
           ActivityRings(day: day, lineWidth: 18)
@@ -266,8 +296,59 @@ struct ActivityRingsContent: View {
         Text("No Activity Rings")
           .foregroundStyle(.secondary)
       }
+    } header: {
+      dayHeader
+    } footer: {
+      // Below the day, not between it and the grid, so it moves nothing (851-3090).
+      if isMonthEmpty {
+        Text("No Activity rings this month.")
+      }
     }
   }
+
+  /// The day shown's date, which the layout check marks: where the day starts below the grid.
+  private var dayHeader: some View {
+    Text(shownDay.formatted(date: .complete, time: .omitted))
+      .layoutAnchor("Day")
+  }
+
+  /// The day while its month loads: its rings' empty tracks, and each ring's name without a value.
+  private var dayPlaceholder: some View {
+    Section {
+      HStack(alignment: .center, spacing: 24) {
+        ActivityRings(day: Self.emptyDay, lineWidth: 18)
+          .frame(width: 150, height: 150)
+          .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 10) {
+          ForEach(
+            [
+              ("Move", ActivityRings.move), ("Exercise", ActivityRings.exercise),
+              ("Stand", ActivityRings.stand),
+            ], id: \.0
+          ) { name, color in
+            VStack(alignment: .leading, spacing: 1) {
+              Text(name)
+                .font(.subheadline.weight(.semibold))
+              Text("–")
+                .font(.system(.title2, design: .rounded).weight(.semibold))
+                .foregroundStyle(color)
+                .accessibilityHidden(true)
+            }
+          }
+        }
+        Spacer(minLength: 0)
+      }
+      .padding(.vertical, 6)
+    } header: {
+      dayHeader
+    }
+  }
+
+  /// Rings with no progress: only their tracks draw.
+  private static let emptyDay = ActivityDay(
+    id: "", move: ActivityRing(value: 0, goal: 1), movesInMinutes: false,
+    exercise: ActivityRing(value: 0, goal: 1), stand: ActivityRing(value: 0, goal: 1),
+    isPaused: false)
 
   /// "Move 420/500 kcal", in the ring's color.
   private func ringRow(_ name: String, _ ring: ActivityRing, unit: String, color: Color)

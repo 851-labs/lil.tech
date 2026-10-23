@@ -17,16 +17,42 @@
   let activityRingsCatalog = StateCatalog(
     "Activity Rings", width: 760, minHeight: 900,
     states: [
-      CatalogState("Activity Rings") { activity(.loaded(days), selected: 3) },
-      CatalogState("Goal passed twice") { activity(.loaded(days), selected: 6) },
-      CatalogState("Paused") { activity(.loaded(days), selected: 4) },
-      CatalogState("Without a Watch") { activity(.loaded(days), selected: 7) },
-      CatalogState("Move in minutes") { activity(.loaded(days), selected: 12) },
-      CatalogState("No rings this month") { activity(.loaded([:]), selected: 3) },
+      CatalogState("Activity Rings") {
+        activity(.loaded(ActivityMonth(month: month, days: days)), selected: 3)
+      },
+      CatalogState("Goal passed twice") {
+        activity(.loaded(ActivityMonth(month: month, days: days)), selected: 6)
+      },
+      CatalogState("Paused") {
+        activity(.loaded(ActivityMonth(month: month, days: days)), selected: 4)
+      },
+      CatalogState("Without a Watch") {
+        activity(.loaded(ActivityMonth(month: month, days: days)), selected: 7)
+      },
+      CatalogState("Move in minutes") {
+        activity(.loaded(ActivityMonth(month: month, days: days)), selected: 12)
+      },
+      CatalogState("No rings this month") {
+        activity(.loaded(ActivityMonth(month: month, days: [:])), selected: 3)
+      },
       CatalogState("Activity Rings loading") { activity(.loading) },
+      // ‹ pressed: July stays, with a spinner, until June loads (851-3090).
+      CatalogState("Activity Rings, loading the month before") {
+        activity(
+          .loaded(ActivityMonth(month: month, days: days), isUpdating: true), selected: 3,
+          shown: previewCalendar.date(byAdding: .month, value: -1, to: month.start)!)
+      },
       CatalogState("Activity Rings failed") {
         activity(.failed("The database couldn't be read."))
       },
+    ],
+    // The day starts in the same place below the grid, loading or not, whatever the month
+    // (851-3090).
+    sameLayout: [
+      [
+        "Activity Rings", "Activity Rings loading", "Activity Rings, loading the month before",
+        "Goal passed twice", "Paused", "Without a Watch", "Move in minutes", "No rings this month",
+      ]
     ])
 
   /// July 2024.
@@ -77,11 +103,15 @@
           stand: Double(6 + $0 % 7))
       })
 
+  /// The page on July, or on `shown` chosen while July's still showing.
   @MainActor
-  private func activity(_ state: ActivityRingsContent.State, selected: Int? = nil) -> some View {
-    NavigationStack {
+  private func activity(
+    _ state: ActivityRingsContent.State, selected: Int? = nil, shown: Date? = nil
+  ) -> some View {
+    let chosen = shown.flatMap { previewCalendar.dateInterval(of: .month, for: $0) } ?? month
+    return NavigationStack {
       ActivityRingsContent(
-        month: month, selected: .constant(selected.map(day)), state: state, isLatest: false)
+        month: chosen, selected: .constant(selected.map(day)), state: state, isLatest: false)
     }
   }
 #endif
