@@ -1,0 +1,64 @@
+#!/bin/sh
+# Writes the server's card files from the Swift HealthCards module (LilPackage/Sources/Health/
+# HealthCards), their source of truth (851-3194): the card spec's JSON Schema
+# (Services/api/card-spec.schema.json), the welcome seed (Services/api/card-seed.json) and the
+# validation cases the server's port must pass (Services/api/test/health/cards/
+# validation-cases.json). It compiles HealthCatalog and HealthCards on their own with swiftc,
+# which takes seconds, rather than building the package.
+#
+# Usage: scripts/generate-health-cards [--check]
+#   (none)   Regenerate the files.
+#   --check  Exit non-zero if a committed file is out of date.
+set -eu
+
+cd "$(dirname "$0")/.."
+
+case "${1:-}" in
+  --check | "") ;;
+  *)
+    echo "usage: scripts/generate-health-cards [--check]" >&2
+    exit 2
+    ;;
+esac
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# HealthCatalog as a module of its own, which HealthCards imports.
+find LilPackage/Sources/Health/HealthCatalog -name '*.swift' -print0 |
+  xargs -0 xcrun swiftc -swift-version 6 -parse-as-library -module-name HealthCatalog \
+    -emit-module -emit-module-path "$tmp/HealthCatalog.swiftmodule" \
+    -emit-library -static -o "$tmp/libHealthCatalog.a"
+
+# HealthCards with the generator's main.swift, as one module, so it can call the module's
+# internals. It writes each file into the folder it's given.
+cat > "$tmp/main.swift" << 'EOF'
+import Foundation
+
+let root = URL(filePath: CommandLine.arguments[1])
+for (path, contents) in HealthCards.generatedFiles() {
+  let url = root.appending(path: path)
+  try FileManager.default.createDirectory(
+    at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+  try contents.write(to: url, atomically: true, encoding: .utf8)
+  print(path)
+}
+EOF
+find LilPackage/Sources/Health/HealthCards -name '*.swift' -print0 |
+  xargs -0 xcrun swiftc -swift-version 6 -module-name HealthCards -I "$tmp" -L "$tmp" \
+    -lHealthCatalog -o "$tmp/health-cards" "$tmp/main.swift"
+"$tmp/health-cards" "$tmp/out" > "$tmp/paths"
+
+status=0
+while IFS= read -r path; do
+  if [ "${1:-}" = --check ]; then
+    if ! cmp -s "$tmp/out/$path" "$path"; then
+      echo "error: $path is out of date. Run scripts/format to regenerate it." >&2
+      status=1
+    fi
+  else
+    mkdir -p "$(dirname "$path")"
+    cp "$tmp/out/$path" "$path"
+  fi
+done < "$tmp/paths"
+exit "$status"

@@ -75,7 +75,7 @@ A spec is a JSON object. Every field below appears in the canonical form, the fo
 | `formulas` | array | 0–2 formulas (below) | `[]` |
 | `bucket` | string | `auto`, `hour`, `day`, `night`, `week`, `month` | `auto` |
 | `range` | string | `D`, `W`, `M`, `6M`, `Y`, among the bucket's ranges | `W`, or the bucket's first range when it doesn't have `W` (`week`: `M`; `month`: `6M`) |
-| `chart.style` | string | `bars`, `ranges`, `dots`, `line` | the first series' type's `chartStyle` |
+| `chart.style` | string | `bars`, `ranges`, `dots`, `line` | the first series' type's `chartStyle`, but `dots` for a `count` of a `ranges` type |
 | `chart.goal` | object or null | `{ "value": <number> }`, in the lead's value unit | `null` |
 
 Types are HealthKit identifiers in the canonical form. Inputs also accept what `lil-health` and the tools accept, the name lil health shows (`Heart Rate`) or the identifier without its prefix (`HeartRate`), in any case (`HealthCatalog.type(named:)`), and canonicalize them to the identifier.
@@ -308,40 +308,77 @@ A period without readings has `summary: null`, which the header shows as No Data
 
 The validator runs before every write that changes a spec (apps, tools, store) and before every preview, and returns **every** error (up to 20), each with a JSON path, a code and a message written for agents: what's wrong, what's allowed, how to fix it. Tools return them all in their error (MCP Tools, below), and the editor shows each one under its field.
 
+`HealthCards` implements it (851-3194): `CardSpec(input:)` canonicalizes and validates what apps and tools write, and `CardSpec.storedErrors(_:)` is the store's check. Every code, with its message as the validator writes it (the examples' values vary):
+
 | Code | Path | Message (example) |
 |---|---|---|
-| `unsupportedVersion` | `version` | `version 2 isn't supported. This server reads card spec version 1.` |
-| `unknownField` | `display.colour` | `Unknown field "colour" in display. Allowed: name, symbol, color, unit.` |
-| `required` | `display.name` | `display.name is required: what the card is called on Summary.` |
+| `invalidJSON` | (the spec) | `The spec isn't valid JSON.` (text input only) |
+| `invalidType` | any field | `display.name must be a string.`, `series[0].hidden must be true or false.`, `A card spec is a JSON object.` |
+| `required` | `display.name` | `display.name is required: what the card is called on Summary.` (and `version`, `display`, `series`, a series' `type`, a window's `kind` and `minutes`, a formula's `kind` and `of`, a goal's `value`) |
+| `unknownField` | `display.colour` | `Unknown field "colour" in display. Allowed: name, symbol, color, unit.` (`in the spec` at the top) |
+| `unknownValue` | `series[0].aggregation` | `"median" isn't an aggregation. Use sum, avg, min, max, latest or count.` (and buckets, ranges, styles, window and formula kinds) |
+| `unsupportedVersion` | `version` | `version 2 isn't supported. This server reads card spec version 1.` (the one error: the other rules are v1's) |
 | `nameLength` | `display.name` | `display.name must be 1 to 40 characters (it's 52).` |
-| `unknownSymbol` | `display.symbol` | `"heart.circle.fil" isn't one of lil health's card symbols. Close ones: heart.fill, heart.text.square.fill. The input schema lists them all.` |
+| `invalidCharacters` | `display.name` | `display.name can't have line breaks or control characters.` (and labels) |
+| `unknownSymbol` | `display.symbol` | `"heart.circle.fil" isn't one of lil health's card symbols. Close ones: heart.fill, heart.text.square.fill, bolt.heart.fill. The input schema lists them all.` |
 | `unknownColor` | `display.color` | `"crimson" isn't a card color. Use one of: red, orange, yellow, green, mint, teal, cyan, blue, indigo, purple, pink, brown, gray.` |
-| `unitDimension` | `display.unit` | `"lb" isn't a unit for Body Temperature (degC). Use degC or degF, or null for the locale's.` |
+| `unitDimension` | `display.unit` | `"lb" isn't a unit for Body Temperature (degC). Use degC or degF, or null for the locale's.` / `"lb" isn't a unit for Heart Rate (count/min), which has no others: use null.` |
 | `seriesCount` | `series` | `A card has 1 to 4 series (this one has 5).` |
+| `invalidID` | `series[0].id` | `series[0].id must be a lowercase letter, then up to 15 lowercase letters or digits, e.g. "a" or "trend" (it's "A1").` |
+| `duplicateID` | `formulas[0].id` | `"a" is already a series' id. Each series and formula needs its own.` |
 | `unknownType` | `series[0].type` | `"HeartRat" isn't a type lil health knows. Did you mean Heart Rate (HKQuantityTypeIdentifierHeartRate)? list_types lists them.` |
 | `notQuantity` | `series[0].type` | `Sleep isn't a quantity: cards chart quantities such as heart rate or steps. To chart around sleep, use a window on a quantity, e.g. {"kind": "asleep"}.` |
+| `unreadableType` | `series[0].type` | `NikeFuel can't be read from Health by apps, so cards can't chart it.` |
 | `aggregationNotAllowed` | `series[0].aggregation` | `Steps adds up, so it takes "sum" only (avg, min, max, latest and count are for types measured at points in time). For an average day over weeks or months, use bucket "auto" at 6M or Y.` / `Heart Rate doesn't add up: use avg, min, max, latest or count, not sum.` |
 | `windowOnCumulative` | `series[0].window` | `Windows work with types measured at points in time (heart rate, HRV), not ones that add up (Steps), in this version.` |
-| `windowMinutes` | `series[0].window.minutes` | `minutes must be a whole number from 1 to 240.` |
+| `windowMinutes` | `series[0].window.minutes` | `series[0].window.minutes must be a whole number from 1 to 240.` |
 | `unknownActivity` | `series[0].window.activities[1]` | `999 isn't a workout activity. Use HKWorkoutActivityType raw values or names, e.g. 37 or "Running".` |
-| `filterOnCumulative`, `emptyFilter` | `series[0].filter` | `Filters work with types measured at points in time, not Steps, which uses Health's de-duplicated totals.` / `A filter needs sources or deviceModels.` |
-| `duplicateID` | `formulas[0].id` | `"a" is already a series' id. Each series and formula needs its own.` |
-| `unknownReference` | `formulas[0].of` | `formulas[0] refers to "c", which isn't a series of this card.` |
-| `mixedUnits` | `series[1].type` | `Heart Rate Variability (ms) can't share a card with Heart Rate (count/min): a card has one axis. Make it a card of its own.` |
-| `nightNeedsSleepWindow` | `bucket` | `bucket "night" needs a series with a sleep window: {"kind": "asleep"}, "beforeSleep" or "afterWaking".` |
-| `sleepWindowBucket` | `bucket` | `Sleep windows need bucket "night", "week" or "month": an hour or a calendar day would cut nights in two.` |
-| `rangeNotForBucket` | `range` | `range "Y" doesn't fit bucket "hour" (8,760 points). Ranges for "hour": D, W.` |
-| `rangesStyle` | `chart.style` | `"ranges" draws each bucket's lowest and highest reading, and Steps is a total (a count is a number of readings). Use bars, dots or line.` |
-| `goalValue` | `chart.goal.value` | `goal.value must be a number of at least 0, in count/min (Heart Rate's unit).` |
-| `positionLength` | (the row) | (store only) `position must be 1 to 200 characters.` |
+| `activityCount` | `series[0].window.activities` | `series[0].window.activities must have 1 to 10 activities (it has 0), or be null for every workout.` |
+| `duplicateActivity` | `series[0].window.activities[1]` | `series[0].window.activities has Running twice.` |
+| `filterOnCumulative` | `series[0].filter` | `Filters work with types measured at points in time, not Steps, which uses Health's de-duplicated totals.` |
+| `emptyFilter` | `series[0].filter` | `A filter needs sources or deviceModels. For every source, set filter to null.` |
+| `filterList` | `series[0].filter.sources` | `series[0].filter.sources must have 1 to 10 entries (it has 11), or be null.` |
+| `filterValue` | `series[0].filter.sources[2]` | `series[0].filter.sources[2] must be a string of 1 to 200 characters.` |
+| `labelLength` | `series[0].label` | `series[0].label must be 1 to 40 characters (it's 0), or null.` |
+| `formulaCount` | `formulas` | `A card has at most 2 formulas (this one has 3).` |
+| `formulaPoints` | `formulas[0].points` | `formulas[0].points must be a whole number from 2 to 30.` |
+| `unknownReference` | `formulas[0].of` | `formulas[0] refers to "c", which isn't a series of this card.` (`Formulas take series only.` added when it names a formula) |
+| `mixedUnits` | `series[1].type` | `Heart Rate Variability (ms) can't share a card with Heart Rate (count/min): a card has one axis. Make it a card of its own.` / for a difference, at `formulas[0].of`: `formulas[0] subtracts Heart Rate Variability (ms) from Heart Rate (count/min): both need the same unit.` |
 | `nothingVisible` | `series` | `Every series and formula is hidden: leave at least one visible.` |
 | `visibleCount` | `formulas` | `A card shows at most 4 lines (series and formulas); this one has 5.` |
-| `tooLarge` | (the spec) | `The spec is 9.1 KB; the limit is 8 KB.` (the store's backstop: 16 KB) |
-| `notCanonical` | (the spec) | (store only) `The spec isn't in canonical form (a default is missing): apps and tools write it canonicalized.` |
+| `nightNeedsSleepWindow` | `bucket` | `bucket "night" needs a series with a sleep window: {"kind": "asleep"}, "beforeSleep" or "afterWaking".` |
+| `sleepWindowBucket` | `bucket` | `Sleep windows need bucket "night", "week" or "month": an hour or a calendar day would cut nights in two.` (`auto` included) |
+| `rangeNotForBucket` | `range` | `range "Y" doesn't fit bucket "hour" (up to 8,784 points). Ranges for "hour": D, W.` / `range "W" doesn't fit bucket "week" (1 point). Ranges for "week": M, 6M, Y.` |
+| `rangesStyle` | `chart.style` | `"ranges" draws each bucket's lowest and highest reading, and Steps is a total. Use bars, dots or line.` / `…, and a count of Heart Rate readings has none. …` |
+| `goalValue` | `chart.goal.value` | `chart.goal.value must be a number of at least 0, in count/min (Heart Rate's unit).` |
+| `tooLarge` | (the spec) | `The spec is 8.8 KB; the limit is 8 KB.` (the store's backstop: 16 KB) |
+| `notCanonical` | (the spec) | (store only) `The spec isn't in canonical form (a default left out, a type or activity by name, or a name or label not trimmed): apps and tools write it canonicalized.` |
+| `positionLength`, `invalidPosition` | `position` | (the row, `CardPosition.error`) `position must be 1 to 200 characters.` / `position "b1" isn't a fractional index: base-62 digits, starting with a letter that gives the length of its integer part.` |
 
-- Messages name types as lil health does ("Heart Rate"), with the identifier where it helps an agent.
-- "Did you mean" uses the same matching as `search`. "Close ones" for symbols are the curated names sharing the most dot-separated words.
+- Messages name types as lil health does ("Heart Rate"), with the identifier where it helps an agent. A count is "a count of Heart Rate readings", and a formula its path (`formulas[0] (ms)`).
+- **"Did you mean"** uses the same matching as `search` (each word of the input in a chartable type's name, category or short identifier), and suggests the match with the shortest name, ties in the catalog's order. None for inputs of fewer than 3 letters, which match too much.
+- **"Close ones"** for symbols are up to 3 curated names sharing the most dot-separated words: a word scores 2 when a symbol has it, else 1 when one of the symbol's words starts with it or it starts with one (`fil` and `fill`), ties in the list's order.
+- **The order** errors come in, which the server's port must keep (851-3194): first each field in the spec's order (`version`, `display`, `series`, `formulas`, `bucket`, `range`, `chart`), each object's fields in the table's order and then its unknown fields, sorted by UTF-16 code units; then the rules across fields: `duplicateID`, then per formula `unknownReference` and a difference's `mixedUnits`, then one axis (`mixedUnits`), `nothingVisible`, `visibleCount`, `nightNeedsSleepWindow`, `sleepWindowBucket`, `rangeNotForBucket`, `rangesStyle`, `unitDimension`, `goalValue`; then, with no others, `tooLarge`. Paths are the field's (`series[0].window.minutes`), and empty for the whole spec. A rule across fields is skipped where a field it needs had its own error.
 - **Never stricter for an old version:** a spec that validated when a released app wrote it must keep validating, since the store refusing a push makes that device drop it and bootstrap again (`docs/sync/protocol.md`, Pushing changes). Tighter rules come with a new version.
+
+### Details 851-3194 settled
+
+- **Inputs:** `null` in a field with a default takes the default, as leaving it out does. Defaults that depend on a type come from the first series' type, so they exist only once it's valid. A series without an `id` takes `a`, `b`, `c`, `d` by position, and a formula `f1` or `f2`. A moving average's `points` defaults to 7.
+- **Text:** names and labels are trimmed of the code points JavaScript's `String.prototype.trim()` removes (U+0009–U+000D, U+0020, U+00A0, U+1680, U+2000–U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, U+FEFF), and stored trimmed. They can't contain control characters (U+0000–U+001F, U+007F–U+009F) or U+2028 and U+2029. Filter values aren't trimmed, since they're matched exactly.
+- **The default chart style** is the first series' type's, except that a `count` of a type drawn as `ranges` is `dots`, since a count has no lowest and highest reading.
+- **A filter's canonical form** has both lists, `null` for one not given: `{"sources": null, "deviceModels": ["Watch"]}`. A workout window's has `activities`, `null` for every workout. Activities keep the order given.
+- **Display units by dimension:** a catalog unit's dimension is mass for `kg`, `g`, `mg` and `mcg`; length for `m` and `cm`; temperature for `degC`; speed for `m/s`; volume for `mL` and `L`; energy for `kcal`. Other catalog units (`count/min`, `ms`, `%`…) and counts have no display units.
+- **Sizes** are bytes of the compact canonical JSON (`JSON.stringify`'s form), with KB as 1,024 bytes, shown rounded up to a tenth.
+- **The curated symbols** are the list above, unchanged: every one exists on macOS and iOS (`symbolsExistOnTheMac` in `HealthCardsTests`, and `cardSymbolsExist` in `HealthPhoneSnapshotTests`, the one test bundle that runs on iOS, so it runs with the iPhone's catalogs: `scripts/snapshot --iphone`, and after every merge).
+- **`HealthCategory.colorName`** is in `health-catalog.json`'s categories with `symbolName` (`"symbol"` and `"color"`), so the server's canonicalizer gives the same defaults.
+
+### The generated files
+
+`scripts/generate-health-cards` writes them from `HealthCards` (it compiles `HealthCatalog` and `HealthCards` with `swiftc`, a few seconds), `scripts/format` runs it, and `scripts/format --lint` and `HealthCardsTests` fail when one is stale:
+
+- **`Services/api/card-spec.schema.json`:** the JSON Schema (2020-12) of the **canonical** form: every field required, `additionalProperties: false`, and every enum (chartable types, symbols, colors, display units, aggregations, buckets, ranges, styles, workout activities). It's in the shape Effect's `Schema.toJsonSchemaDocument` writes (`{"type": "string", "enum": […]}`, `anyOf` with `{"type": "null"}` last), so 851-3202's row schema can be compared with it. It can't express the semantic rules (a type's aggregations and units, one axis, buckets' ranges, trimming), which the server ports. The tools' input schema (851-3215) is the same with only the fields without defaults required, and types and activities widened to strings.
+- **`Services/api/card-seed.json`:** `{ "cards": [{ "id", "seed", "position", "spec" }] }`, `HealthCards.welcomeSeed`, in order.
+- **`Services/api/test/health/cards/validation-cases.json`:** `specs`, each a `name`, a `mode` and a `spec`: mode `input` with the `canonical` form or the `errors`, mode `stored` with the store's `errors` (empty when it's fine); and `positions`: `between` (a key between `a` and `b`, `null` where it throws), `betweenCount` (`count` keys) and `validity` (each position's `error` or `null`). The inputs are `CardValidationCases` in `HealthCards`, covering every code and the design's examples; the outputs are what the Swift gives, and the server's port must give the same, word for word and in order. The positions' outputs match the `fractional-indexing` package (3.4.0).
 
 ## The `health_card` sync entity (851-3202)
 

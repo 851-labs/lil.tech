@@ -2,9 +2,10 @@ import Foundation
 
 extension HealthCatalog {
   /// The catalog as the server reads it, `Services/api/health-catalog.json` (851-2857): the
-  /// categories in Browse's order, every type, and the workout activities' names. The Swift
-  /// catalog is the source of truth: `scripts/generate-health-catalog` writes the file from this,
-  /// and `HealthCatalogTests` checks the committed file matches.
+  /// categories in Browse's order, with their symbols and colors (a card's defaults, 851-3194),
+  /// every type, and the workout activities' names. The Swift catalog is the source of truth:
+  /// `scripts/generate-health-catalog` writes the file from this, and `HealthCatalogTests` checks
+  /// the committed file matches.
   ///
   /// One entry per line, with fields in a fixed order, so changes diff by entry. `lil-health mcp`
   /// serves it to agents as a resource (851-2844).
@@ -20,7 +21,10 @@ extension HealthCatalog {
     }
 
     let categories = try HealthCategory.allCases.map { category in
-      try object(["id": category.rawValue, "name": category.name])
+      try object([
+        "id": category.rawValue, "name": category.name, "symbol": category.symbolName,
+        "color": category.colorName,
+      ])
     }
     let types = try all.map { type in
       try object([
