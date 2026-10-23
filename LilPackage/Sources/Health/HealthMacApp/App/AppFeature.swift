@@ -28,7 +28,7 @@ public struct AppFeature {
     /// Account settings, in the Settings window. Kept here rather than presented, so the window
     /// works whether or not the main one is open, and an export keeps going when it closes.
     public var account = AccountFeature.State()
-    /// Command-line and agent access, in the Settings window's Agents pane.
+    /// Access on this Mac, in the Settings window's Agents pane.
     public var agentAccess = AgentAccessFeature.State()
     /// Remote agents connected to the account, in the Agents pane. Kept here, like `account`.
     public var connectedAgents = ConnectedAgentsFeature.State()

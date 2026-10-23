@@ -80,7 +80,7 @@ struct HealthMCPServerTests {
 
     let result = try await connection.call("summary")
     #expect(result.isError == true && result.structuredContent == nil)
-    #expect(result.text.contains("Allow command-line and agent access"))
+    #expect(result.text.contains("Allow access on this Mac"))
     try folder.access.setEnabled(true, at: Date(timeIntervalSince1970: 0))
     try folder.access.setEnabled(false, at: Date(timeIntervalSince1970: 1))
     #expect(try await connection.call("metric", ["type": "Steps", "range": "W"]).isError == true)

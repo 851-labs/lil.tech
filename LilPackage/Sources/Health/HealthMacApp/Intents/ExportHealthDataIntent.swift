@@ -6,12 +6,12 @@ import UniformTypeIdentifiers
 /// Exports the account's data to a folder from Shortcuts (851-2894): the archive Settings ›
 /// Account exports, saved in the folder without asking (Downloads unless it's given one), and
 /// returned, so a shortcut can pass it on. Settings shows the export as it goes. Only while
-/// command-line and agent access is on, like every app action. No Siri phrase: an export is
+/// access on this Mac is on, like every app action. No Siri phrase: an export is
 /// something a shortcut passes on, not something people ask for by voice.
 public struct ExportHealthDataIntent: AppIntent, ProgressReportingIntent {
   public static let title: LocalizedStringResource = "Export lil health Data"
   public static let description = IntentDescription(
-    "Saves an archive of everything in your lil health account (your account details, synced Health records and attachments) to a folder, and passes it on. The server prepares one export a day: asking again the same day saves that export again. Needs Allow command-line and agent access, in lil health's Settings › Agents."
+    "Saves an archive of everything in your lil health account (your account details, synced Health records and attachments) to a folder, and passes it on. The server prepares one export a day: asking again the same day saves that export again. Needs Allow access on this Mac, in lil health's Settings › Agents."
   )
   /// Never brings a running app's window forward.
   public static let supportedModes: IntentModes = .background

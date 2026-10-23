@@ -322,7 +322,7 @@ struct HealthCLIActionTests {
     let app = FakeApp(folder.store, behavior: .answer(.ok(.done)))
     for command in [["open", "Steps"], ["sync"], ["export"]] {
       let outcome = folder.run(command, app: app)
-      #expect(outcome.status == 77 && outcome.error.contains("Allow command-line and agent access"))
+      #expect(outcome.status == 77 && outcome.error.contains("Allow access on this Mac"))
     }
     #expect(app.calls.withLock { $0 }.isEmpty)
     #expect(try folder.store.entries().isEmpty)

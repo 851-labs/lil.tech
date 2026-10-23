@@ -281,7 +281,7 @@ struct HealthAppIntentsTests {
         try await HealthAppIntents.perform(.open(steps)) { broughtForward.setValue(true) }
       }
       #expect(error?.message == AgentAccessError.off.localizedDescription)
-      #expect(error?.message.contains("Allow command-line and agent access") == true)
+      #expect(error?.message.contains("Allow access on this Mac") == true)
     }
     #expect(asked.value.isEmpty)
     #expect(!broughtForward.value)

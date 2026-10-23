@@ -12,7 +12,7 @@ struct LilHealthCommand: ParsableCommand {
     abstract: "Reads lil health's data on this Mac, and asks lil health to open, sync or export.",
     discussion: """
       Each command answers from the data lil health has synced to this Mac, read-only, while \
-      you allow command-line and agent access in lil health › Settings… › Agents. lil health \
+      you allow access on this Mac in lil health › Settings… › Agents. lil health \
       logs each one there.
 
       Types are HealthKit identifiers (HKQuantityTypeIdentifierStepCount), or names as lil \
@@ -283,7 +283,7 @@ struct MCPCommand: ParsableCommand {
       full path (`which lil`: apps don't get your shell's PATH), with the arguments `mcp`, or \
       `health mcp` for lil health only.
 
-      Each tool call answers only while command-line and agent access is on, and is logged \
+      Each tool call answers only while lil health allows access on this Mac, and is logged \
       there, like a command.
       """)
 }

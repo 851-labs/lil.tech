@@ -4,11 +4,11 @@ public import Foundation
 
 /// Opens a page of lil health for Mac from Shortcuts, Siri or Spotlight (851-2892): brings the
 /// main window forward and shows Summary, Health Details, a category, or a data type in its
-/// category. Only while command-line and agent access is on, like every app action.
+/// category. Only while access on this Mac is on, like every app action.
 public struct OpenHealthPageIntent: OpenIntent {
   public static let title: LocalizedStringResource = "Open in lil health"
   public static let description = IntentDescription(
-    "Opens Summary, Health Details, a Health category or a data type in lil health. Needs Allow command-line and agent access, in lil health's Settings › Agents."
+    "Opens Summary, Health Details, a Health category or a data type in lil health. Needs Allow access on this Mac, in lil health's Settings › Agents."
   )
   /// In the background until access is checked, so the app only comes forward when it's on.
   public static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
@@ -41,7 +41,7 @@ enum HealthAppIntents {
   /// The access log's process for intents: App Intents doesn't say which one called.
   static let process = "Shortcuts, Siri or Spotlight"
 
-  /// Checks command-line and agent access and logs the action (`AgentAccessStore.authorize`),
+  /// Checks access on this Mac and logs the action (`AgentAccessStore.authorize`),
   /// then runs `beforeAction` (bringing the app forward, for Open) and asks the app, which
   /// reports how it's going to `progress` (Export). Every time, Siri's and Spotlight's included:
   /// an intent can't tell a person from an agent's shortcut. While access is off it does nothing

@@ -16,7 +16,7 @@ protocol ActionCommand: ParsableCommand {
 }
 
 private let waitingDiscussion = """
-  lil health does it, as its Shortcuts actions do, while you allow command-line and agent access \
+  lil health does it, as its Shortcuts actions do, while you allow access on this Mac \
   in lil health › Settings… › Agents, and logs it there. It's launched if it isn't running, and \
   has 15 seconds to answer.
   """

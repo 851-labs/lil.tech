@@ -9,7 +9,7 @@ import HealthTools
 /// on the Mac's synced database, as text or `--json`. It ships inside the app
 /// (`Contents/MacOS/lil-health`), and `lil health …` runs it.
 ///
-/// It reads only while the person allows command-line and agent access in the app's settings,
+/// It reads only while the person allows access on this Mac in the app's settings,
 /// and logs each query there (851-2840). `open`, `sync` and `export` ask the app to act, under the
 /// same setting (851-2896). It opens the database read-only and never migrates it.
 /// `lil-health mcp` serves the same queries to agents, as a local MCP server (851-2844).
@@ -91,7 +91,7 @@ public enum HealthCLI {
     static let unavailable: Int32 = 69
     /// The app's sync or export failed (`EX_TEMPFAIL`).
     static let tempFail: Int32 = 75
-    /// Command-line and agent access is off.
+    /// Access on this Mac is off.
     static let noPermission: Int32 = 77
     /// Ctrl-C stopped an action command's wait, as shells report SIGINT.
     static let interrupted: Int32 = 130

@@ -11,7 +11,7 @@ import MCP
 ///
 /// It lists the tools exactly as `Services/api/mcp-tools.json` has them, so names, descriptions
 /// and schemas match the remote server's, and answers each call with `HealthTools`, as the
-/// commands' `--json` does. Like the commands, every call checks command-line and agent access
+/// commands' `--json` does. Like the commands, every call checks access on this Mac
 /// and logs itself first (851-2840): with access off, a call answers with the error that says
 /// where to turn it on. It also serves the catalog of categories and types as a resource.
 enum HealthMCPServer {

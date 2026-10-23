@@ -4,7 +4,7 @@ import LilUI
 public import SwiftUI
 
 /// The app's Settings window (⌘, or lil health › Settings…), a tab per pane: the
-/// account's (851-2717) and command-line and agent access (851-2840). It reads the app's store,
+/// account's (851-2717) and access on this Mac (851-2840). It reads the app's store,
 /// so it works whether or not the main window is open, and an export keeps going when it closes.
 ///
 /// The window resizes (851-2992): each pane fills it, down to the same minimum, so switching tabs
