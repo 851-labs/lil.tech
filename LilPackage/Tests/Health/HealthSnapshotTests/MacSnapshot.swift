@@ -87,7 +87,8 @@
   /// What every snapshot shares, set once in the target's test process (SwiftPM runs each test
   /// target in its own): a time zone and locale, so times, dates and numbers read the same on
   /// every Mac (references are recorded in the team's, `fixTimeZoneAndLocale()`), and an app to own
-  /// windows, which a test process doesn't have, as an accessory, so it never takes focus.
+  /// windows, which a test process doesn't have, as an accessory, so it never takes focus. And no
+  /// wallpaper tinting (851-3172), which `fixTimeZoneAndLocale()` turns off with the locale.
   @MainActor
   func prepareSnapshotEnvironment() {
     _ = snapshotEnvironment

@@ -10,6 +10,12 @@
   /// environment's, so it would otherwise follow the Mac's. Call it before anything reads
   /// `Locale.current`, which reads the settings once: a catalog suite's dependencies trait calls it
   /// first, since the trait runs before the suite's `init`.
+  ///
+  /// It also turns off the Mac's "Allow wallpaper tinting in windows" (`AppleReduceDesktopTinting`),
+  /// so no image depends on that setting or the desktop picture (851-3172). Offscreen, windows
+  /// never take the tint, but views Swift Charts draws do: a sparkline's hollow latest dot, filled
+  /// with `.background.secondary`, came out 16 levels lighter in dark mode (gray 58, not 42) with
+  /// the setting on. AppKit reads it once, so it's set here, before anything draws.
   func fixTimeZoneAndLocale() {
     _ = timeZoneAndLocale
   }
@@ -45,6 +51,8 @@
       "AppleMeasurementUnits": isUS ? "Inches" : "Centimeters",
       "AppleMetricUnits": !isUS,
       "AppleTemperatureUnit": isUS ? "Fahrenheit" : "Celsius",
+      // Not the locale's: no wallpaper tinting, above.
+      "AppleReduceDesktopTinting": true,
     ]
     let defaults = UserDefaults.standard
     defaults.setVolatileDomain(
