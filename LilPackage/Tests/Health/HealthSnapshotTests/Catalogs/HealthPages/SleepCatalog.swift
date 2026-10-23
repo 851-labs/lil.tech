@@ -106,6 +106,9 @@
       CatalogState("Less sleep this month", minHeight: 250) {
         highlightsOnly(SleepHighlights(months: months(this: 6.9 * 3600, last: 7.65 * 3600)))
       },
+      CatalogState("More sleep this month", minHeight: 250) {
+        highlightsOnly(SleepHighlights(months: months(this: 8.2 * 3600, last: 7.65 * 3600)))
+      },
     ],
     // What's below the content stays put while it loads, and from one range to another but D,
     // which lists the night's stages (851-3084).

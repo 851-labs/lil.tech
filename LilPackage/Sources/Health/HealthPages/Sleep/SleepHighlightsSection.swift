@@ -96,7 +96,7 @@ enum SleepHighlightStyle {
   /// The average, in Health's teal (#00C7BE, the system's mint).
   static let average = Color.mint
   /// Earlier nights or months, as Summary's highlights draw the earlier week.
-  static let earlier = Color.gray.opacity(0.35)
+  static let earlier = ComparisonBars.earlierColor
   /// Heights of the highlights' charts.
   static let chartHeight: CGFloat = 120
 

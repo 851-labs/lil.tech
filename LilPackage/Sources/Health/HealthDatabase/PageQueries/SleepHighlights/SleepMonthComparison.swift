@@ -1,7 +1,7 @@
 public import Foundation
 
-/// This month's average time asleep against last month's (851-3103), over the nights with sleep
-/// in each: calendar months, this one so far.
+/// This month's average time asleep against last month's (851-3109), over the nights with sleep
+/// in each, a day's sleep left out (`SleepNight.latestBedtime`): calendar months, this one so far.
 public struct SleepMonthComparison: Equatable, Sendable {
   /// The start of this month and of last month.
   public var thisMonth: Date
@@ -29,7 +29,8 @@ public struct SleepMonthComparison: Equatable, Sendable {
     guard let thisMonth = calendar.dateInterval(of: .month, for: today)?.start,
       let lastMonth = calendar.date(byAdding: .month, value: -1, to: thisMonth)
     else { return nil }
-    let this = nights.filter { $0.day >= thisMonth && $0.day <= today }.map(\.asleep)
+    let nights = nights.filter { $0.nightBedtime(calendar: calendar) != nil }
+    let this = nights.filter { $0.day >= thisMonth }.map(\.asleep)
     let last = nights.filter { $0.day >= lastMonth && $0.day < thisMonth }.map(\.asleep)
     guard this.count >= Self.minimumThisMonth, last.count >= Self.minimumLastMonth else {
       return nil
@@ -42,10 +43,7 @@ public struct SleepMonthComparison: Equatable, Sendable {
 
   /// More, less or about the same: a change under 5% is about the same, as Summary's weeks are.
   public var direction: Highlight.Direction {
-    guard lastMonthAverage > 0 else { return thisMonthAverage > 0 ? .up : .same }
-    let change = (thisMonthAverage - lastMonthAverage) / lastMonthAverage
-    if change >= HealthDatabase.weekChange { return .up }
-    if change <= -HealthDatabase.weekChange { return .down }
-    return .same
+    Highlight.Direction(
+      from: lastMonthAverage, to: thisMonthAverage, threshold: HealthDatabase.weekChange)
   }
 }

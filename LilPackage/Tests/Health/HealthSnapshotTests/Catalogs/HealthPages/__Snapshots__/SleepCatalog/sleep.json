@@ -156,6 +156,13 @@
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.less-sleep-this-month-light.png",
       "name" : "Less sleep this month",
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.more-sleep-this-month-dark.png",
+      "id" : "sleep.more-sleep-this-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.more-sleep-this-month-light.png",
+      "name" : "More sleep this month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
     }
   ]
 }

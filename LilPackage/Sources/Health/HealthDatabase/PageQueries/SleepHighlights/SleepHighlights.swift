@@ -20,18 +20,17 @@ public struct SleepHighlights: Equatable, Sendable {
 
 extension HealthDatabase {
   /// Sleep's highlights as of `today`, from `sleepNights`' nights since the start of last month
-  /// or the last two weeks, whichever starts first, so they read as the page's nights do. "Last
-  /// night" is the night ending today; without one, the highlights about it aren't shown.
+  /// (which covers the last two weeks), so they read as the page's nights do. "Last night" is the
+  /// night ending today; without one, the highlights about it aren't shown.
   public static func sleepHighlights(
     today: Date, calendar: Calendar, _ db: Database
   ) throws -> SleepHighlights {
     let today = calendar.startOfDay(for: today)
-    guard
-      let lastMonth = calendar.dateInterval(of: .month, for: today)
-        .flatMap({ calendar.date(byAdding: .month, value: -1, to: $0.start) }),
-      let twoWeeks = calendar.date(byAdding: .day, value: 1 - BedtimeConsistency.days, to: today)
-    else { return SleepHighlights() }
-    let first = min(lastMonth, twoWeeks)
+    let lastMonth = calendar.dateInterval(of: .month, for: today)
+      .flatMap { calendar.date(byAdding: .month, value: -1, to: $0.start) }
+    let first =
+      lastMonth ?? calendar.date(byAdding: .day, value: 1 - BedtimeConsistency.days, to: today)
+      ?? today
     let count = (calendar.dateComponents([.day], from: first, to: today).day ?? 0) + 1
     let nights = try sleepNights(endingOn: today, count: count, calendar: calendar, db)
     return SleepHighlights(
@@ -59,4 +58,18 @@ extension HealthDatabase {
 extension SleepNight {
   /// When sleep started: its first stretch asleep (not in bed, or awake before it).
   public var bedtime: Date? { segments.first { $0.stage.isAsleep }?.start }
+
+  /// The latest a night's sleep can start, in hours from its day's midnight, to be a night's:
+  /// noon. Later is a day's sleep, a nap on a day whose night wasn't recorded, which highlights
+  /// leave out: its "bedtime" (2 PM) says nothing about when bedtime is, and its hour asleep
+  /// would pull an average of nights down.
+  public static let latestBedtime: Double = 12
+
+  /// Its bedtime by the clock, placed as Sleep's W and M charts place it (from its first segment,
+  /// 851-3098), if it's a night's sleep rather than a day's (`latestBedtime`).
+  func nightBedtime(calendar: Calendar) -> Double? {
+    guard let bedtime, let start = segments.map(\.start).min() else { return nil }
+    let hours = HealthDatabase.clockHours(bedtime, from: day, start: start, calendar: calendar)
+    return hours < Self.latestBedtime ? hours : nil
+  }
 }

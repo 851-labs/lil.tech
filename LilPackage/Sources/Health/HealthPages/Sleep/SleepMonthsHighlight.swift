@@ -1,8 +1,8 @@
 import HealthDatabase
 import SwiftUI
 
-/// This month against last month (851-3103): their average time asleep, as two bars on one
-/// scale, this month in Sleep's indigo, as Summary's weeks are compared.
+/// This month against last month (851-3109): their average time asleep, as two bars on one
+/// scale, this month in Sleep's indigo, as Summary compares weeks (`ComparisonBars`).
 struct SleepMonthsHighlight: View {
   let months: SleepMonthComparison
 
@@ -11,11 +11,14 @@ struct SleepMonthsHighlight: View {
       title: "Sleep", systemImage: "bed.double.fill", color: SleepHighlightStyle.sleep,
       sentence: Self.sentence(months)
     ) {
-      let longest = max(months.thisMonthAverage, months.lastMonthAverage)
-      VStack(alignment: .leading, spacing: 8) {
-        row("Last Month", months.lastMonthAverage, longest: longest, SleepHighlightStyle.earlier)
-        row("This Month", months.thisMonthAverage, longest: longest, SleepHighlightStyle.sleep)
-      }
+      ComparisonBars(
+        earlier: .init(
+          "Last Month", value: months.lastMonthAverage,
+          text: SleepFormat.duration(months.lastMonthAverage),
+          color: SleepHighlightStyle.earlier),
+        recent: .init(
+          "This Month", value: months.thisMonthAverage,
+          text: SleepFormat.duration(months.thisMonthAverage), color: SleepHighlightStyle.sleep))
     }
   }
 
@@ -27,34 +30,4 @@ struct SleepMonthsHighlight: View {
       "You're averaging about the same amount of sleep this month compared to last month."
     }
   }
-
-  /// A month's name and average over its bar, so neither runs into the other bar (851-2824).
-  private func row(
-    _ label: String, _ average: TimeInterval, longest: TimeInterval, _ color: Color
-  ) -> some View {
-    let share = longest > 0 ? min(average / longest, 1) : 0
-    return VStack(alignment: .leading, spacing: 4) {
-      HStack(alignment: .firstTextBaseline) {
-        Text(label)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-        Spacer()
-        Text(SleepFormat.duration(average))
-          .fontWeight(.semibold)
-          .foregroundStyle(.secondary)
-          .monospacedDigit()
-          .fixedSize()
-          .layoutPriority(1)
-      }
-      .font(.caption)
-      GeometryReader { proxy in
-        Capsule()
-          .fill(color)
-          .frame(width: max(proxy.size.width * share, Self.barHeight))
-      }
-      .frame(height: Self.barHeight)
-    }
-  }
-
-  private static let barHeight: CGFloat = 18
 }
