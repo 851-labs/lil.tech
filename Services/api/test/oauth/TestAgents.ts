@@ -32,6 +32,7 @@ export const registryWithMail: AgentAppRegistry = {
     path: "/mail",
     name: "lil mail",
     scopes: ["mail:read"],
+    readScope: "mail:read",
     consent: "agents:mail" as ConsentType,
     consentPolicyVersion: "2026-11-01",
   },

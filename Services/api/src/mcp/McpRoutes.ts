@@ -124,15 +124,18 @@ interface McpServerRoute {
   readonly insufficient: string;
 }
 
-/** One app's own server. Tokens for it always carry its scopes. */
+/**
+ * One app's own server. A grant gets in by the app's read scope alone, so grants made before a
+ * later scope existed (`health:cards`, 851-3214) keep reading, and the store gets all of its
+ * scopes, which tools that change something check on each call.
+ */
 const appServer = (app: AgentApp): McpServerRoute => ({
   path: app.path,
   metadataPath: appMetadataPath(app),
   resource: (hosts) => appUrl(hosts, app),
   scopes: app.scopes,
-  usable: (grant) =>
-    Effect.succeed(app.scopes.every((needed) => grant.scopes.includes(needed)) ? grant.scopes : []),
-  insufficient: `This server needs ${app.scopes.join(" ")}`,
+  usable: (grant) => Effect.succeed(grant.scopes.includes(app.readScope) ? grant.scopes : []),
+  insufficient: `This server needs ${app.readScope}`,
 });
 
 /**
@@ -153,8 +156,9 @@ const combinedServer = (
   usable: (grant) =>
     Effect.gen(function* () {
       const scopesOfApp = (key: string): ReadonlyArray<string> => registry[key]?.scopes ?? [];
+      // An app is in by its read scope, as at its own server.
       const apps = Object.keys(registry).filter((key) =>
-        scopesOfApp(key).some((scope) => grant.scopes.includes(scope)),
+        grant.scopes.includes(registry[key]!.readScope),
       );
       // Given when it was allowed, so by the time the grant was made.
       const given = yield* consents.inForce(

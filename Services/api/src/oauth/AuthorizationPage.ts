@@ -46,6 +46,7 @@ import {
   grantFor,
   siteUrl,
   targetFor,
+  writesOf,
 } from "./Hosts.ts";
 import { isLoopbackUri, matchesRedirectUri } from "./RedirectUris.ts";
 import { queryOf, readForm, readParams, requestOrigin } from "./Requests.ts";
@@ -412,11 +413,18 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
         onSome: (target) =>
           Effect.succeed({ target, apps: appsOfScopes(registry, target, pending.scopes) }),
       });
-    /** What the page says the agent connects to: one app, or lil and the apps it reads. */
-    const targetView = (target: AgentTarget, apps: ReadonlyArray<string>): TargetView => {
+    /**
+     * What the page says the agent connects to: one app, or lil and the apps it reads, with what
+     * `scopes` let it change in each.
+     */
+    const targetView = (
+      target: AgentTarget,
+      apps: ReadonlyArray<string>,
+      scopes: ReadonlyArray<string>,
+    ): TargetView => {
       const views = apps.flatMap((key) => {
         const app = registry[key];
-        return app === undefined ? [] : [{ key, name: app.name }];
+        return app === undefined ? [] : [{ key, name: app.name, writes: writesOf(app, scopes) }];
       });
       return {
         name: target.combined ? "lil" : (views[0]?.name ?? "lil"),
@@ -474,7 +482,7 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
       Effect.gen(function* () {
         if (pending.decided) return yield* alreadyAnswered;
         const { target, apps } = yield* appsOf(hosts, pending);
-        const app = targetView(target, apps);
+        const app = targetView(target, apps, pending.scopes);
         const client = pendingClientView(pending);
         if (pending.userId === null) {
           return pageResponse(signInPage({ client, app, binding, methods, notice }), {
@@ -647,7 +655,7 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
             { name: checked.client.name, kind: checked.client.kind, id: checked.client.clientId },
             checked.redirectUri,
           ),
-          app: targetView(checked.target, checked.apps),
+          app: targetView(checked.target, checked.apps, checked.scopes),
           binding: { request: id, csrf: yield* csrfToken(cookie, id) },
           methods,
         });

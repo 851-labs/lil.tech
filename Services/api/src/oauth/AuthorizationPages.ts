@@ -1,4 +1,5 @@
 import { HttpServerResponse } from "effect/http";
+import type { AgentWriteScope } from "./Hosts.ts";
 import { appleLogoPath, googleLogoPng, googleSansMediumWoff2 } from "./SignInButtons.ts";
 
 // The agents' authorization page (`/oauth/authorize`, 851-2849): server-rendered HTML with no
@@ -40,6 +41,8 @@ export interface AppView {
   /** The app's key in the registry (`health`), which picks its icon. */
   readonly key: string;
   readonly name: string;
+  /** What the agent asked to change in it, beyond reading (`health:cards`'s cards, 851-3214). */
+  readonly writes: ReadonlyArray<AgentWriteScope>;
 }
 
 /** What an agent asks to connect to, as the page names it: one app's server, or the combined one. */
@@ -107,7 +110,7 @@ const targetIcon = (target: TargetView) => {
 };
 
 /** lil health's icon, for pages that don't know what the agent asked for (errors). */
-const defaultIcon = appIcon({ key: "health", name: "lil health" }, "icon");
+const defaultIcon = appIcon({ key: "health", name: "lil health", writes: [] }, "icon");
 
 const styles = `
 :root { color-scheme: light dark; --bg: #f5f5f7; --card: #fff; --text: #1d1d1f;
@@ -331,15 +334,46 @@ ${signIn}
   );
 };
 
-/** What an agent connecting to one app's server can read. */
-const appScope = (agent: string, target: TargetView) => `<section>
-<h2>What it can read</h2>
-<p>${agent} will be able to read <strong>all of your ${escape(target.name)} data</strong>. It can't
-change or delete anything.</p>
+/** "create, change and delete your <strong>cards</strong>" for each write, joined into a list. */
+const writesText = (writes: ReadonlyArray<AgentWriteScope>, strong: boolean, inApp?: string) =>
+  list(
+    writes.map(
+      (write) =>
+        `create, change and delete your ${strong ? `<strong>${escape(write.what)}</strong>` : escape(write.what)}` +
+        (inApp === undefined ? "" : ` in ${escape(inApp)}`),
+    ),
+  );
+
+/** "a", "a and b", "a, b and c". */
+const list = (items: ReadonlyArray<string>) =>
+  items.length <= 1
+    ? (items[0] ?? "")
+    : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+/** What it still can't change, once it can change something: "your Health data". */
+const unchangedText = (writes: ReadonlyArray<AgentWriteScope>) =>
+  list([...new Set(writes.map((write) => `your ${escape(write.unchanged)}`))]);
+
+/**
+ * What an agent connecting to one app's server can read, and change if it asked to (lil health's
+ * cards, 851-3214), all or nothing.
+ */
+const appScope = (agent: string, target: TargetView) => {
+  const writes = target.apps.flatMap((app) => app.writes);
+  const can =
+    writes.length === 0
+      ? `<p>${agent} will be able to read <strong>all of your ${escape(target.name)} data</strong>. It can't
+change or delete anything.</p>`
+      : `<p>${agent} will be able to read <strong>all of your ${escape(target.name)} data</strong>, and
+${writesText(writes, true)}. It can't change ${unchangedText(writes)}.</p>`;
+  return `<section>
+<h2>${writes.length === 0 ? "What it can read" : "What it can do"}</h2>
+${can}
 <p>Agents may send what they read to their AI provider, which handles it under its own terms.</p>
 <p class="muted">Only ${escape(target.name)}: your other lil apps' data isn't included. See the
 <a href="${escape(target.privacyUrl)}" target="_blank" rel="noreferrer">privacy policy</a>.</p>
 </section>`;
+};
 
 /**
  * What an agent connecting to the combined server can read: every app its scopes chose, all or
@@ -347,16 +381,25 @@ change or delete anything.</p>
  */
 const combinedScope = (agent: string, target: TargetView) => {
   const names = target.apps.map((app) => escape(app.name)).join(", ");
-  const list = target.apps
+  const apps = target.apps
     .map((app) => `<li>${appIcon(app, "app-icon")}<span>${escape(app.name)}</span></li>`)
     .join("\n");
+  const writes = target.apps.flatMap((app) => app.writes);
+  const changes = target.apps
+    .filter((app) => app.writes.length > 0)
+    .map((app) => writesText(app.writes, false, app.name));
+  const can =
+    writes.length === 0
+      ? `<p>${agent} will be able to read <strong>all of your data in these lil apps: ${names}</strong>.
+It can't change or delete anything.</p>`
+      : `<p>${agent} will be able to read <strong>all of your data in these lil apps: ${names}</strong>,
+and ${list(changes)}. It can't change ${unchangedText(writes)}, or anything else.</p>`;
   return `<section>
-<h2>What it can read</h2>
+<h2>${writes.length === 0 ? "What it can read" : "What it can do"}</h2>
 <ul class="apps">
-${list}
+${apps}
 </ul>
-<p>${agent} will be able to read <strong>all of your data in these lil apps: ${names}</strong>.
-It can't change or delete anything.</p>
+${can}
 <p>Agents may send what they read to their AI provider, which handles it under its own terms.</p>
 <p class="muted">Allowing gives it every app listed. To let an agent read only one of them, connect
 it to that app's own server instead. See the
@@ -374,7 +417,10 @@ export const consentPage = (options: {
 }) => {
   const { client, app, binding } = options;
   const agent = escape(agentName(client));
-  const title = `Allow ${agentName(client)} to read your ${app.name} data?`;
+  const writes = [...new Set(app.apps.flatMap((view) => view.writes.map((write) => write.what)))];
+  const title =
+    `Allow ${agentName(client)} to read your ${app.name} data` +
+    (writes.length === 0 ? "?" : ` and change your ${list(writes)}?`);
   return layout(
     title,
     `<h1>${escape(title)}</h1>

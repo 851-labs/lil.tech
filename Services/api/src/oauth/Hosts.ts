@@ -40,10 +40,29 @@ export interface AgentApp {
   readonly name: string;
   /** The scopes its tokens can carry, each with the app's prefix so later apps' can't collide. */
   readonly scopes: ReadonlyArray<`${string}:${string}`>;
+  /**
+   * The scope that lets an agent in: reading the app's data, one of `scopes`. Its servers admit a
+   * grant by it alone, so grants made before a later scope existed keep working, and it comes with
+   * every other scope of the app (851-3214).
+   */
+  readonly readScope: `${string}:${string}`;
+  /**
+   * What each of its other scopes lets an agent change, as the consent page says it: "create,
+   * change and delete your <what>", and that it still can't change the app's `unchanged`.
+   */
+  readonly writeScopes?: Readonly<Record<string, AgentWriteScope>>;
   /** The consent connecting an agent records (`Consents.ts`). */
   readonly consent: ConsentType;
   /** The privacy policy version that consent is recorded against. */
   readonly consentPolicyVersion: string;
+}
+
+/** A scope that lets an agent change something in an app, for the consent page. */
+export interface AgentWriteScope {
+  /** What it creates, changes and deletes, plural: "cards". */
+  readonly what: string;
+  /** What it still can't change: "Health data". */
+  readonly unchanged: string;
 }
 
 /** Every app agents can read, by key (`health`). */
@@ -54,7 +73,12 @@ export const agentResources = {
   health: {
     path: "/health",
     name: "lil health",
-    scopes: ["health:read"],
+    // `health:cards` lets agents create, change, delete and reorder the account's cards, never
+    // Health data (851-3214, `docs/decisions/cards.md`, The consent scope). The card tools check
+    // for it on each call.
+    scopes: ["health:read", "health:cards"],
+    readScope: "health:read",
+    writeScopes: { "health:cards": { what: "cards", unchanged: "Health data" } },
     consent: "agents:health",
     consentPolicyVersion: agentsConsentPolicyVersions["agents:health"],
   },
@@ -187,27 +211,43 @@ export const targetFor = (
 /**
  * What an authorization for `target` grants, from the scopes asked for (`scope`, space-separated):
  * those the target's apps have (others, and unknown ones, are dropped), or every one of theirs if
- * none are left. The apps are those the scopes cover, so for the combined server the scopes choose
- * the apps.
+ * none are left. An app's read scope comes with any of its others, since an agent that can change
+ * something but not read it is no use (`health:cards` alone is `health:read health:cards`). The
+ * apps are those the scopes cover, so for the combined server the scopes choose the apps.
  */
 export const grantFor = (registry: AgentAppRegistry, target: AgentTarget, scope: string) => {
   const known = target.apps.flatMap((key): ReadonlyArray<string> => registry[key]?.scopes ?? []);
   const asked = [...new Set(scope.split(" ").filter((name) => known.includes(name)))];
-  const scopes = asked.length === 0 ? known : asked;
+  const reads = target.apps.flatMap((key): ReadonlyArray<string> => {
+    const app = registry[key];
+    if (app === undefined || asked.includes(app.readScope)) return [];
+    return app.scopes.some((name: string) => asked.includes(name)) ? [app.readScope] : [];
+  });
+  const scopes = asked.length === 0 ? known : [...reads, ...asked];
   return {
     scopes,
     apps: appsOfScopes(registry, target, scopes),
   };
 };
 
-/** The apps of `target` that `scopes` cover: those with at least one of them. */
+/** The apps of `target` that `scopes` cover: those whose read scope they hold. */
 export const appsOfScopes = (
   registry: AgentAppRegistry,
   target: AgentTarget,
   scopes: ReadonlyArray<string>,
 ): ReadonlyArray<string> =>
-  target.apps.filter((key) =>
-    (registry[key]?.scopes ?? []).some((name: string) => scopes.includes(name)),
+  target.apps.filter((key) => {
+    const app = registry[key];
+    return app !== undefined && scopes.includes(app.readScope);
+  });
+
+/** The write scopes of `app` that `scopes` hold, as the consent page lists them. */
+export const writesOf = (
+  app: AgentApp,
+  scopes: ReadonlyArray<string>,
+): ReadonlyArray<AgentWriteScope> =>
+  Object.entries(app.writeScopes ?? {}).flatMap(([name, write]) =>
+    scopes.includes(name) ? [write] : [],
   );
 
 /**

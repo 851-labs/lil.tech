@@ -69,7 +69,7 @@ describe("OAuth metadata", () => {
             revocation_endpoint_auth_methods_supported: ["none"],
             client_id_metadata_document_supported: true,
             authorization_response_iss_parameter_supported: true,
-            scopes_supported: ["health:read"],
+            scopes_supported: ["health:read", "health:cards"],
           });
           const resource = yield* get(
             handler,
@@ -79,7 +79,7 @@ describe("OAuth metadata", () => {
           assert.deepStrictEqual(yield* json(resource), {
             resource: `${previewOrigin}/health`,
             authorization_servers: [previewOrigin],
-            scopes_supported: ["health:read"],
+            scopes_supported: ["health:read", "health:cards"],
             bearer_methods_supported: ["header"],
             resource_name: "lil health",
             resource_documentation: "https://lil.tech/agents",
@@ -93,7 +93,7 @@ describe("OAuth metadata", () => {
           assert.deepStrictEqual(yield* json(combined), {
             resource: previewOrigin,
             authorization_servers: [previewOrigin],
-            scopes_supported: ["health:read"],
+            scopes_supported: ["health:read", "health:cards"],
             bearer_methods_supported: ["header"],
             resource_name: "lil",
             resource_documentation: "https://lil.tech/agents",
@@ -180,7 +180,7 @@ describe("OAuth metadata", () => {
           assert.deepInclude(yield* json(combined), {
             resource: "https://mcp.staging.lil.tech",
             authorization_servers: ["https://api.staging.lil.tech"],
-            scopes_supported: ["health:read"],
+            scopes_supported: ["health:read", "health:cards"],
             resource_name: "lil",
             resource_documentation: "https://staging.lil.tech/agents",
           });
@@ -251,7 +251,7 @@ describe("OAuth metadata", () => {
           assert.deepInclude(yield* json(combined), {
             resource: "https://mcp.lil.tech",
             authorization_servers: ["https://api.lil.tech"],
-            scopes_supported: ["health:read"],
+            scopes_supported: ["health:read", "health:cards"],
             resource_name: "lil",
             resource_documentation: "https://lil.tech/agents",
           });
@@ -329,7 +329,7 @@ describe("The combined server's resource", () => {
       targetFor(registryWithMail, hosts, "https://mcp.lil.tech", true),
     );
     assert.deepStrictEqual(grantFor(registryWithMail, combined, ""), {
-      scopes: ["health:read", "mail:read"],
+      scopes: ["health:read", "health:cards", "mail:read"],
       apps: ["health", "mail"],
     });
     assert.deepStrictEqual(grantFor(registryWithMail, combined, "mail:read calendar:read"), {
@@ -337,17 +337,50 @@ describe("The combined server's resource", () => {
       apps: ["mail"],
     });
     assert.deepStrictEqual(grantFor(registryWithMail, combined, "openid"), {
-      scopes: ["health:read", "mail:read"],
+      scopes: ["health:read", "health:cards", "mail:read"],
+      apps: ["health", "mail"],
+    });
+    // An app's read scope comes with its others.
+    assert.deepStrictEqual(grantFor(registryWithMail, combined, "health:cards mail:read"), {
+      scopes: ["health:read", "health:cards", "mail:read"],
       apps: ["health", "mail"],
     });
     const health = Option.getOrThrow(
       targetFor(registryWithMail, hosts, "https://mcp.lil.tech/health", true),
     );
     assert.deepStrictEqual(grantFor(registryWithMail, health, "mail:read"), {
+      scopes: ["health:read", "health:cards"],
+      apps: ["health"],
+    });
+    assert.deepStrictEqual(grantFor(registryWithMail, health, "health:read"), {
       scopes: ["health:read"],
       apps: ["health"],
     });
-    assert.deepStrictEqual(scopesOf(registryWithMail), ["health:read", "mail:read"]);
+    assert.deepStrictEqual(grantFor(registryWithMail, health, "health:cards"), {
+      scopes: ["health:read", "health:cards"],
+      apps: ["health"],
+    });
+    assert.deepStrictEqual(grantFor(registryWithMail, health, "health:cards health:read"), {
+      scopes: ["health:cards", "health:read"],
+      apps: ["health"],
+    });
+    assert.deepStrictEqual(scopesOf(registryWithMail), [
+      "health:read",
+      "health:cards",
+      "mail:read",
+    ]);
+  });
+
+  it("says what every scope but an app's read scope lets an agent change", () => {
+    // A scope the consent page can't describe would be granted by default without a word.
+    for (const app of Object.values(registryWithMail)) {
+      assert.include(app.scopes, app.readScope, app.name);
+      assert.sameMembers(
+        Object.keys(app.writeScopes ?? {}),
+        app.scopes.filter((scope) => scope !== app.readScope),
+        app.name,
+      );
+    }
   });
 
   it("is on the MCP host, as exact paths", () => {
@@ -373,7 +406,7 @@ describe("The combined server's resource", () => {
           ]) {
             const response = yield* get(handler, `${previewOrigin}${path}`);
             assert.deepInclude(yield* json(response), {
-              scopes_supported: ["health:read", "mail:read"],
+              scopes_supported: ["health:read", "health:cards", "mail:read"],
             });
           }
         }),

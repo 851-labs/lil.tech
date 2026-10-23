@@ -392,8 +392,70 @@ describe("The authorization page", () => {
               })
               .from(agentAuthorizations)
               .where(eq(agentAuthorizations.id, started.request as never));
-            assert.deepStrictEqual(row, { resource: `${origin}/health`, scopes: ["health:read"] });
+            assert.deepStrictEqual(row, {
+              resource: `${origin}/health`,
+              scopes: ["health:read", "health:cards"],
+            });
           }
+        }).pipe(Effect.orDie),
+      preview,
+    ),
+  );
+
+  it.live("asks for health:cards with health:read, and says it can't change Health data", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const clientId = yield* registerClient(handler);
+          const db = yield* CoreDb;
+          const scopesOf = (request: string) =>
+            db
+              .select({ scopes: agentAuthorizations.scopes })
+              .from(agentAuthorizations)
+              .where(eq(agentAuthorizations.id, request as never))
+              .pipe(Effect.map(([row]) => row?.scopes));
+          // No scope, as most agents ask, means both; health:cards alone brings health:read.
+          for (const scope of [undefined, "health:cards", "health:read health:cards"]) {
+            const started = yield* signedIn(handler, query(clientId, { scope }).search);
+            assert.deepStrictEqual(
+              [...((yield* scopesOf(started.request)) ?? [])].sort(),
+              ["health:cards", "health:read"],
+              String(scope),
+            );
+            const html = started.consent.html;
+            assert.include(
+              html,
+              "Allow MCP Inspector to read your lil health data and change your cards?",
+            );
+            assert.include(html, "<h2>What it can do</h2>");
+            assert.include(
+              html,
+              "will be able to read <strong>all of your lil health data</strong>, and\n" +
+                "create, change and delete your <strong>cards</strong>. It can't change your " +
+                "Health data.",
+            );
+            assert.notInclude(html, "It can't\nchange or delete anything.");
+            assert.include(html, "Agents may send what they read to their AI provider");
+            assert.include(html, "https://lil.tech/privacy#agents");
+          }
+          // Reading alone reads as before.
+          const reader = yield* signedIn(handler, query(clientId, { scope: "health:read" }).search);
+          assert.deepStrictEqual(yield* scopesOf(reader.request), ["health:read"]);
+          assert.include(reader.consent.html, "Allow MCP Inspector to read your lil health data?");
+          assert.include(reader.consent.html, "<h2>What it can read</h2>");
+          assert.include(reader.consent.html, "It can't\nchange or delete anything.");
+          assert.notInclude(reader.consent.html, "cards");
+          // Allowing grants both, against the agents consent's policy version.
+          const writer = yield* signedIn(handler, query(clientId).search);
+          assert.strictEqual((yield* decide(handler, writer, "allow")).status, 303);
+          const user = Option.getOrThrow(yield* Users.use((users) => users.findSynthetic("e2e")));
+          const consent = yield* Consents.use((consents) =>
+            consents.current(user.id, "agents:health"),
+          );
+          assert.strictEqual(
+            Option.getOrThrow(consent).policyVersion,
+            agentsConsentPolicyVersions["agents:health"],
+          );
         }).pipe(Effect.orDie),
       preview,
     ),
@@ -1322,12 +1384,17 @@ describe("Authorizing the combined server", () => {
           const started = yield* signedIn(handler, search);
           assert.deepStrictEqual(yield* storedRequest(started.request), {
             resource: origin,
-            scopes: ["health:read"],
+            scopes: ["health:read", "health:cards"],
           });
           assert.include(started.html, "Sign in to connect MCP Inspector to lil");
           const html = started.consent.html;
-          assert.include(html, "Allow MCP Inspector to read your lil data?");
+          assert.include(html, "Allow MCP Inspector to read your lil data and change your cards?");
           assert.include(html, "all of your data in these lil apps: lil health");
+          assert.include(
+            html,
+            "and create, change and delete your cards in lil health. It can't change your Health " +
+              "data, or anything else.",
+          );
           assert.include(html, "Agents may send what they read to their AI provider");
           assert.include(html, "https://lil.tech/privacy#agents");
           assert.include(html, '<ul class="apps">');
@@ -1340,13 +1407,15 @@ describe("Authorizing the combined server", () => {
           // Some clients send the combined server's URL with a trailing slash.
           const tokens = yield* exchangeCode(handler, clientId, code, verifier, `${origin}/`);
           assert.strictEqual(tokens.status, 200);
-          assert.strictEqual(tokens.body["scope"], "health:read");
+          assert.strictEqual(tokens.body["scope"], "health:read health:cards");
           const grants = yield* CoreDb.use((db) =>
             db
               .select({ resource: agentGrants.resource, scopes: agentGrants.scopes })
               .from(agentGrants),
           ).pipe(Effect.orDie);
-          assert.deepStrictEqual(grants, [{ resource: origin, scopes: ["health:read"] }]);
+          assert.deepStrictEqual(grants, [
+            { resource: origin, scopes: ["health:read", "health:cards"] },
+          ]);
           assert.deepStrictEqual(yield* consentsOf(["agents:health"]), {
             "agents:health": agentsConsentPolicyVersions["agents:health"],
           });
@@ -1364,7 +1433,7 @@ describe("Authorizing the combined server", () => {
           assert.strictEqual(started.response.status, 200);
           assert.deepStrictEqual(yield* storedRequest(started.request), {
             resource: origin,
-            scopes: ["health:read"],
+            scopes: ["health:read", "health:cards"],
           });
           // Only one slash: anything else isn't the combined server.
           for (const resource of [`${origin}//`, `${origin}/?`, `${origin}/x`]) {
@@ -1391,9 +1460,13 @@ describe("Authorizing the combined server", () => {
           const cases: ReadonlyArray<
             readonly [string | undefined, ReadonlyArray<string>, ReadonlyArray<string>]
           > = [
-            [undefined, ["health:read", "mail:read"], ["lil health", "lil mail"]],
+            [undefined, ["health:read", "health:cards", "mail:read"], ["lil health", "lil mail"]],
             // Unknown scopes are dropped, so none left means every app's.
-            ["openid profile", ["health:read", "mail:read"], ["lil health", "lil mail"]],
+            [
+              "openid profile",
+              ["health:read", "health:cards", "mail:read"],
+              ["lil health", "lil mail"],
+            ],
             ["mail:read", ["mail:read"], ["lil mail"]],
             // The page lists them in the registry's order.
             [
@@ -1489,7 +1562,7 @@ describe("Authorizing the combined server", () => {
       app: {
         name: "lil",
         combined: true,
-        apps: [{ key: "mail", name: "lil mail" }],
+        apps: [{ key: "mail", name: "lil mail", writes: [] }],
         privacyUrl: "https://lil.tech/privacy",
       },
       binding: { request: "aau_x", csrf: "c" },
@@ -1563,7 +1636,7 @@ describe("The authorization page's helpers", () => {
       app: {
         name: "lil health",
         combined: false,
-        apps: [{ key: "health", name: "lil health" }],
+        apps: [{ key: "health", name: "lil health", writes: [] }],
         privacyUrl: "https://lil.tech/privacy",
       },
       binding: { request: "aau_x", csrf: "c" },

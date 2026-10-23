@@ -126,9 +126,13 @@
       <h2>What an agent can read</h2>
       <ul>
         <li>
-          <strong>All of your lil health data,</strong> read-only. There's no way to share only some
-          kinds of data, and an agent can't change or delete anything. Through
+          <strong>All of your lil health data.</strong> There's no way to share only some kinds of
+          data, and an agent can't change or delete your Health data. Through
           <code>https://mcp.lil.tech</code>, the same goes for every app its page listed.
+        </li>
+        <li>
+          <strong>Your cards,</strong> which it can also change if you allowed it to (see
+          <a href="#cards">Cards</a>).
         </li>
         <li>
           <strong>Summaries first:</strong> today's numbers, totals and averages over a day, week,
@@ -145,10 +149,26 @@
         </li>
       </ul>
       <p>
-        lil health logs every time an agent reads your data: what it asked for and when, never the
-        answers. You can see the log in lil health: on your Mac, Remote Access Log in Settings ›
-        Agents; on your iPhone, Recent Access in Settings › Connected Agents. It's kept for 90 days.
-        The <a href="/privacy#agents">privacy policy</a> has the details.
+        lil health logs every time an agent reads your data or changes a card: what it asked for or
+        which card it changed, and when, never the answers. You can see the log in lil health: on
+        your Mac, Remote Access Log in Settings › Agents; on your iPhone, Recent Access in Settings
+        › Connected Agents. It's kept for 90 days. The
+        <a href="/privacy#agents">privacy policy</a> has the details.
+      </p>
+
+      <h2 id="cards">Cards</h2>
+      <p>
+        Cards are the charts on lil health's Summary. An agent can create cards for you, change what
+        they show, their names, icons and colors, reorder them, and delete them, so you can ask it
+        for a chart in your own words, such as “add a card with my heart rate while I sleep”. It
+        can't change your Health data. Its changes sync to your Mac and iPhone, and you can edit or
+        delete its cards yourself.
+      </p>
+      <p>
+        When an agent connects, its page tells you whether it will be able to manage your cards as
+        well as read your data. Agents usually ask for both, and you allow all of it or nothing. An
+        agent you connected before, whose page didn't mention cards, can read them but not change
+        them: to let it, remove it and connect it again.
       </p>
 
       <h2>Stop an agent</h2>

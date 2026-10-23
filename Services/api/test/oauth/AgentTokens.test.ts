@@ -254,6 +254,11 @@ describe("AgentTokens: refresh tokens", () => {
       // The next one, asked for the same scope.
       const third = yield* refresh(approval, second, { scope: "health:read" });
       yield* verify(third);
+      // A scope lil health gained since (851-3214) is left out, not refused: the grant keeps its
+      // own.
+      const fourth = yield* refresh(approval, third, { scope: "health:read health:cards" });
+      assert.strictEqual(fourth.scope, "health:read");
+      assert.deepStrictEqual((yield* verify(fourth)).scopes, ["health:read"]);
     }).pipe(Effect.provide(TestAgents)),
   );
 

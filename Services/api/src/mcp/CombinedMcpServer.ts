@@ -2,7 +2,7 @@ import { Cache, Clock, Effect, Schema } from "effect";
 import { McpSchema, McpServer } from "effect/ai";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import type { AgentAppRegistry } from "../oauth/Hosts.ts";
-import { agentScopesHeader } from "./AgentHeaders.ts";
+import { scopesOfRequest } from "./AgentScopes.ts";
 import {
   serveStoreMcp,
   type StoreMcpApp,
@@ -71,7 +71,7 @@ const instructionsFor = (
 
 /**
  * The combined server for one store, as an HTTP handler at `combinedMcpPath`. A request reaches
- * the tools of the apps whose scopes it carries (`x-lil-agent-scopes`, which only the Worker sets),
+ * the tools of the apps whose read scopes it carries (`x-lil-agent-scopes`, which only the Worker sets),
  * so they're all an agent lists, and calling another app's tool is an unknown tool. Each set of
  * apps is a server of its own, built on its first request: Effect's server lists every tool it
  * has, whoever asks. A legacy session belongs to its set's server, so one whose grant loses an app
@@ -114,10 +114,9 @@ export const makeCombinedMcpServer = (options: {
     });
     return Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
-      const scopes = (request.headers[agentScopesHeader] ?? "").split(" ");
-      const included = keys.filter((key) =>
-        registry[key]!.scopes.some((scope: string) => scopes.includes(scope)),
-      );
+      const scopes = scopesOfRequest(request);
+      // An app's tools are in by its read scope; those that change something check theirs.
+      const included = keys.filter((key) => scopes.includes(registry[key]!.readScope));
       // The Worker refuses a grant without any app's scope first.
       if (included.length === 0) return HttpServerResponse.empty({ status: 403 });
       return yield* yield* Cache.get(servers, included.join(" "));
