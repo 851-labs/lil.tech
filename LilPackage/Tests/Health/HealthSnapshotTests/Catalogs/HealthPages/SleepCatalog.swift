@@ -59,6 +59,24 @@
       // The night the Watch was charging: No Data in the header, and the stages' rows empty over
       // a night's usual hours (851-3102).
       CatalogState("No sleep") { detail(.day, offset: -3, .loaded(nights(.day, offset: -3))) },
+      // The Watch not worn since July 25: the page opens on that night, not today's empty one
+      // (851-3188), its first frame already showing its date, before the nights load.
+      CatalogState("Last night weeks ago, opening") {
+        withDependencies {
+          $0.defaultDatabase = staleSleepDatabase
+        } operation: {
+          NavigationStack { SleepDetailView(type: sleepType) }
+        }
+      },
+      CatalogState("Last night weeks ago") {
+        let offset = withDependencies {
+          $0.defaultDatabase = staleSleepDatabase
+        } operation: {
+          SleepRange.day.openingOffset(of: HealthDatabase.sleepType)
+        }
+        return detail(
+          .day, offset: offset, .loaded(nights(.day, offset: offset, in: staleSleepDatabase)))
+      },
       // At clock time, from bedtime to waking: a night that started after midnight, one with a
       // gap, and one missing.
       CatalogState("Week") { detail(.week, .loaded(nights(.week))) },
@@ -136,6 +154,7 @@
       [
         "Loading", "Night", "The night before", "Night, loading the night before",
         "Night with a gap", "Night with highlights", "Highlights loading", "Highlights failed",
+        "Last night weeks ago, opening", "Last night weeks ago",
       ],
       [
         "Week", "Week, loading the week before", "Month", "Month, loading the month before",
@@ -223,6 +242,20 @@
     }
     return SleepNight(day: today, segments: segments, inBed: 8 * 3600)
   }
+
+  /// `sleepCatalogDatabase`'s nights up to July 25's, 19 days before `previewNow`'s: what's
+  /// recorded before 6 PM that day, when the next night can start.
+  private let staleSleepDatabase: any DatabaseWriter = {
+    let day = previewCalendar.date(byAdding: .day, value: -19, to: previewNow)!
+    let cutoff = previewCalendar.startOfDay(for: day).addingTimeInterval(18 * 3600)
+      .unixMilliseconds
+    let samples = try! sleepCatalogDatabase.read { db in
+      try HealthSample.where { $0.startDate < cutoff }.fetchAll(db)
+    }
+    let database = try! HealthDatabase.make()
+    try! database.write { db in try HealthSample.insert { samples }.execute(db) }
+    return database
+  }()
 
   /// Without enough data for highlights, unless it's given them.
   @MainActor

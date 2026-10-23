@@ -14,7 +14,8 @@ public import SwiftUI
 public struct SymptomView: View {
   let type: HealthDataType
   @State private var range = ChartRange.week
-  @State private var offset = 0
+  /// This week, or the latest period with data before it (851-3188).
+  @State private var offset: Int
   /// Moves at midnight, so the periods do. From the `date` dependency, as the calendar is.
   @State private var today: Date
   /// The last period loaded. While another loads, the page keeps showing it (851-3089).
@@ -27,6 +28,7 @@ public struct SymptomView: View {
     self.type = type
     @Dependency(\.date.now) var now
     _today = State(initialValue: now)
+    _offset = State(initialValue: ChartRange.week.openingOffset(of: type.id))
   }
 
   public var body: some View {
@@ -154,7 +156,8 @@ struct SymptomContent: View {
     }
     .formStyle(.grouped)
     .navigationTitle(type.name)
-    .periodControls(PagePeriod(range: $selectedRange, offset: $selectedOffset))
+    .periodControls(
+      PagePeriod(range: $selectedRange, offset: $selectedOffset, now: now, calendar: calendar))
   }
 
   // MARK: Header

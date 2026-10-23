@@ -140,7 +140,10 @@
         "Handwashing, loading",
         "Toothbrushing, no data",
         "Heart rate variability, week",
-        "Blood oxygen, month"
+        "Blood oxygen, month",
+        "Dietary energy, last logged weeks ago, opening",
+        "Dietary energy, last logged weeks ago",
+        "Never recorded, opening"
       ]
     },
     {

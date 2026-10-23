@@ -101,25 +101,10 @@ extension HealthDatabase {
   private static func cumulativeSummary(
     of type: HealthDataType, now: Date, calendar: Calendar, _ db: Database
   ) throws -> MetricSummary {
-    let source = try statisticsSource(db, now: now)
-    // The iPhone sends empty buckets up to a day ahead (to overwrite sums that are gone), so the
-    // latest day is the latest with anything in it that has started.
-    let started = now.unixMilliseconds
-    let latestBucket = try source.flatMap { source in
-      try HealthStatistic
-        .where {
-          $0.device.eq(source) && $0.type.eq(type.id) && $0.sum > 0 && $0.bucketStart <= started
-        }
-        .order { $0.bucketStart.desc() }
-        .select(\.bucketStart)
-        .limit(1)
-        .fetchOne(db)
+    guard let latest = try latestCumulativeStart(of: type.id, now: now, db) else {
+      return MetricSummary(id: type.id)
     }
-    // Not a sample logged ahead, e.g. tomorrow's planned meal.
-    let latestSample = try latestSample(of: type.id, startedBy: now, db)
-    let latest = [latestBucket, latestSample?.startDate].compactMap { $0 }.max()
-    guard let latest else { return MetricSummary(id: type.id) }
-    let latestDay = calendar.startOfDay(for: Date(unixMilliseconds: latest))
+    let latestDay = calendar.startOfDay(for: latest)
     let week = weekEnding(on: latestDay, calendar: calendar)
     var days = try cumulativeStatistics(
       of: type.id, in: week, by: .day, calendar: calendar, now: now, db
@@ -143,6 +128,29 @@ extension HealthDatabase {
     return MetricSummary(
       id: type.id, latestDate: latestDay, latestValue: days.last { $0.day == latestDay }?.value,
       unit: type.unit, isDailyTotal: true, days: days)
+  }
+
+  /// When a cumulative type's latest data started: its latest bucket with anything in it, from
+  /// the statistics source, or its latest sample, whichever is later, of those started by `now`.
+  static func latestCumulativeStart(of typeID: String, now: Date, _ db: Database) throws -> Date? {
+    let source = try statisticsSource(db, now: now)
+    // The iPhone sends empty buckets up to a day ahead (to overwrite sums that are gone), so the
+    // latest day is the latest with anything in it that has started.
+    let started = now.unixMilliseconds
+    let latestBucket = try source.flatMap { source in
+      try HealthStatistic
+        .where {
+          $0.device.eq(source) && $0.type.eq(typeID) && $0.sum > 0 && $0.bucketStart <= started
+        }
+        .order { $0.bucketStart.desc() }
+        .select(\.bucketStart)
+        .limit(1)
+        .fetchOne(db)
+    }
+    // Not a sample logged ahead, e.g. tomorrow's planned meal.
+    let latestSample = try latestSample(of: typeID, startedBy: now, db)
+    return [latestBucket, latestSample?.startDate].compactMap { $0 }.max()
+      .map(Date.init(unixMilliseconds:))
   }
 
   /// The latest sample, and daily averages and ranges for the week ending on its day. Sound

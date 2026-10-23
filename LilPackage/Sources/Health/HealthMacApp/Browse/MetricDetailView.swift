@@ -13,7 +13,8 @@ import SwiftUI
 struct MetricDetailView: View {
   let type: HealthDataType
   @State private var range = ChartRange.week
-  @State private var offset = 0
+  /// This week, or the latest period with data before it (851-3188).
+  @State private var offset: Int
   /// Loaded by the view's task, for quantity types and the category types charted like them, with
   /// the period it's for and the lines over it. While another period loads, the page keeps showing
   /// it (851-3084).
@@ -21,6 +22,15 @@ struct MetricDetailView: View {
 
   init(type: HealthDataType) {
     self.type = type
+    // Only for the chart below: the pages it shows for other types open on their own.
+    _offset = State(
+      initialValue: Self.hasChart(type) ? ChartRange.week.openingOffset(of: type.id) : 0)
+  }
+
+  /// Whether it charts the type itself, as quantity types are, and the category types charted
+  /// like them.
+  private static func hasChart(_ type: HealthDataType) -> Bool {
+    type.kind == .quantity || HealthDatabase.categoryChartTypes.contains(type.id)
   }
 
   var body: some View {
@@ -67,7 +77,7 @@ struct MetricDetailView: View {
       } else if let kind = HealthNotificationKind(rawValue: type.id) {
         // High heart rate, noise, walking steadiness… notifications (851-2829).
         HealthNotificationsView(kind: kind)
-      } else if type.kind == .quantity || HealthDatabase.categoryChartTypes.contains(type.id) {
+      } else if Self.hasChart(type) {
         MetricDetailContent(
           type: type, range: $range, offset: $offset, state: chartState)
       } else {
@@ -79,8 +89,7 @@ struct MetricDetailView: View {
       }
     }
     .task(id: [range.rawValue, String(offset)]) {
-      guard type.kind == .quantity || HealthDatabase.categoryChartTypes.contains(type.id)
-      else { return }
+      guard Self.hasChart(type) else { return }
       _ = try? await $chart.load(
         MetricChartRequest(typeID: type.id, range: range, offset: offset),
         scheduler: MainQueueScheduler())
@@ -280,7 +289,8 @@ struct MetricDetailContent: View {
     .formStyle(.grouped)
     .navigationTitle(type.name)
     // The range and ‹ Today › in the toolbar, and the View menu's commands (`PeriodCommands`).
-    .periodControls(PagePeriod(range: $selectedRange, offset: $selectedOffset))
+    .periodControls(
+      PagePeriod(range: $selectedRange, offset: $selectedOffset, now: now, calendar: calendar))
   }
 
   /// What the lines over the chart are. Its row's height whether or not any are drawn.

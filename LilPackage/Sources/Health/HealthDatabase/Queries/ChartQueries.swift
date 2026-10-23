@@ -46,6 +46,39 @@ public enum ChartRange: String, CaseIterable, Hashable, Sendable {
       return DateInterval(start: start, end: month.end)
     }
   }
+
+  /// How many periods from the one containing `now` the one containing `date` is: 0 for the
+  /// current one, -1 for the one before, positive for one after.
+  public func offset(containing date: Date, now: Date, calendar: Calendar) -> Int {
+    /// Whole `component`s from the one containing `now` to the one containing `date`.
+    func distance(_ component: Calendar.Component) -> Int {
+      guard let from = calendar.dateInterval(of: component, for: now)?.start,
+        let to = calendar.dateInterval(of: component, for: date)?.start
+      else { return 0 }
+      return calendar.dateComponents([component], from: from, to: to).value(for: component) ?? 0
+    }
+    var offset =
+      switch self {
+      case .day: distance(.day)
+      case .week: distance(.weekOfYear)
+      case .month: distance(.month)
+      case .year: distance(.year)
+      // Six months ending with the current month's: months -5 to 0 are 0, -11 to -6 are -1.
+      case .sixMonths: Int((Double(distance(.month)) / 6).rounded(.up))
+      }
+    // Settled against the intervals themselves, which are what the page shows.
+    for _ in 0..<4 {
+      let interval = interval(offset: offset, now: now, calendar: calendar)
+      if date < interval.start {
+        offset -= 1
+      } else if date >= interval.end {
+        offset += 1
+      } else {
+        break
+      }
+    }
+    return offset
+  }
 }
 
 /// A metric over one period: one point per bucket, and the period's summary.

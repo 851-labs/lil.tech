@@ -519,6 +519,63 @@ struct ChartQueriesTests {
     #expect(utcCalendar.component(.month, from: interval(.year, 0).start) == 1)
   }
 
+  /// The period a date falls in, as pages open on their latest data's (851-3188): every
+  /// period's first and last moments map back to it, across daylight saving changes.
+  @Test
+  func eachDateIsInThePeriodItsOffsetNames() {
+    let noon = now.addingTimeInterval(12 * 3600)
+    for zone in [utcCalendar, calendar("America/New_York"), calendar("Australia/Lord_Howe")] {
+      for range in ChartRange.allCases {
+        for offset in -30...1 {
+          let interval = range.interval(offset: offset, now: noon, calendar: zone)
+          for date in [
+            interval.start, interval.start.addingTimeInterval(interval.duration / 2),
+            interval.end.addingTimeInterval(-1),
+          ] {
+            #expect(
+              range.offset(containing: date, now: noon, calendar: zone) == offset,
+              "\(range) \(offset) \(date) \(zone.timeZone.identifier)")
+          }
+        }
+      }
+    }
+  }
+
+  /// What a period page opens on (851-3188): its latest data that has started, from the
+  /// statistics or the samples for a type that adds up.
+  @Test
+  func aPagesLatestDataHasStarted() throws {
+    let noon = now.addingTimeInterval(12 * 3600)
+    try database.write { db in
+      try HealthStatistic.insert {
+        statistic(steps.id, at: utc(9, day: 1), sum: 100)
+        // Empty, and sent ahead: neither counts.
+        statistic(steps.id, at: utc(9, day: 3), sum: 0)
+        statistic(steps.id, at: utc(9, day: 16), sum: 10)
+      }.execute(db)
+      try HealthSample.insert {
+        sample(heartRate.id, at: utc(8, day: 2), value: 60)
+        // Dated ahead.
+        sample(heartRate.id, at: utc(8, day: 16), value: 61)
+        sample(steps.id, at: utc(7, day: 20), value: 5)
+      }.execute(db)
+    }
+    let latest = { (id: String) in
+      try self.database.read { db in
+        try HealthDatabase.latestPeriodDate(of: id, by: noon, calendar: self.utcCalendar, db)
+      }
+    }
+    #expect(try latest(steps.id) == utc(9, day: 1))
+    #expect(try latest(heartRate.id) == utc(8, day: 2))
+    #expect(try latest("HKQuantityTypeIdentifierBodyMass") == nil)
+
+    // A later sample than the buckets: its own.
+    try database.write { db in
+      try HealthSample.insert { sample(steps.id, at: utc(7, day: 4), value: 5) }.execute(db)
+    }
+    #expect(try latest(steps.id) == utc(7, day: 4))
+  }
+
   @Test
   func aCumulativeDayIsHourlyTotalsAndItsTotal() throws {
     try database.write { db in
@@ -853,6 +910,33 @@ struct SleepQueriesTests {
       try HealthDatabase.sleepNights(
         endingOn: utc(0, day: day), count: count, calendar: utcCalendar, db)
     }
+  }
+
+  /// Sleep's page opens on the latest night with sleep (851-3188), named as `sleepNights`
+  /// names it: in bed and awake aren't a night, nor is sleep that hasn't started.
+  @Test
+  func theLatestNightIsTheDayOfTheLatestSleep() throws {
+    let latest = {
+      try self.database.read { db in
+        try HealthDatabase.latestSleepNight(by: utc(12, day: 14), calendar: self.utcCalendar, db)
+      }
+    }
+    #expect(try latest() == nil)
+    try database.write { db in
+      try HealthSample.insert {
+        // From 23:00 on the 9th: the 10th's night.
+        stage(3, from: utc(23, day: 9), hours: 2)
+        stage(0, from: utc(22, day: 12), hours: 8)
+        stage(2, from: utc(1, day: 13), hours: 0.5)
+        stage(4, from: utc(1, day: 15), hours: 1)
+      }.execute(db)
+    }
+    #expect(try latest() == utc(0, day: 10))
+    let page = try database.read { db in
+      try HealthDatabase.latestPeriodDate(
+        of: sleep, by: utc(12, day: 14), calendar: utcCalendar, db)
+    }
+    #expect(page == utc(0, day: 10))
   }
 
   /// Sleep's page tells a period without sleep from an account without any (851-3102).
@@ -2902,6 +2986,20 @@ struct BloodPressureQueriesTests {
       try HealthSample.insert { readings.flatMap(\.1) }.execute(db)
     }
     return database
+  }
+
+  /// Blood Pressure opens on its latest reading's period (851-3188).
+  @Test
+  func latestReadingHasStarted() throws {
+    let database = try database([
+      reading("a", at: time(3, 8), systolic: 121, diastolic: 79),
+      reading("b", at: time(20, 8), systolic: 133, diastolic: 80),
+    ])
+    let latest = try database.read { db in
+      try HealthDatabase.latestPeriodDate(
+        of: HealthDatabase.bloodPressureType, by: time(15, 0), calendar: calendar, db)
+    }
+    #expect(latest == time(3, 8))
   }
 
   @Test

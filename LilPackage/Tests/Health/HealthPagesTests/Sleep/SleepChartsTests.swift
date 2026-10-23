@@ -109,6 +109,25 @@ struct SleepChartsTests {
     #expect(days(.sixMonths, -1) == [august2023, date(2, 17, 0)])
   }
 
+  /// The period a night falls in, as the page opens on the latest night and keeps the time shown
+  /// when the range changes (851-3188): every period's first and last nights map back to it,
+  /// across both daylight saving changes.
+  @Test
+  func eachNightIsInThePeriodItsOffsetNames() {
+    let now = date(8, 13, 15)
+    for range in SleepRange.allCases {
+      for offset in -60...0 {
+        let first = range.firstDay(offset: offset, now: now, calendar: calendar)
+        let last = range.lastDay(offset: offset, now: now, calendar: calendar)
+        for night in [first, last, last.addingTimeInterval(12 * 3600)] {
+          #expect(
+            range.offset(containing: night, now: now, calendar: calendar) == offset,
+            "\(range) \(offset) \(night)")
+        }
+      }
+    }
+  }
+
   @Test
   func sixMonthsBarsAverageEachWeeksTimeAsleep() {
     func night(_ day: Int, asleep: (Date, Date), awakeAfter: Bool = false) -> SleepNight {

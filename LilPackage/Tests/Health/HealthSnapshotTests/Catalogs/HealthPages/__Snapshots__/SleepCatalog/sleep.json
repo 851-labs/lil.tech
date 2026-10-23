@@ -46,6 +46,20 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.last-night-weeks-ago-opening-dark.png",
+      "id" : "sleep.last-night-weeks-ago-opening",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.last-night-weeks-ago-opening-light.png",
+      "name" : "Last night weeks ago, opening",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.last-night-weeks-ago-dark.png",
+      "id" : "sleep.last-night-weeks-ago",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.last-night-weeks-ago-light.png",
+      "name" : "Last night weeks ago",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/SleepCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.week-dark.png",
       "id" : "sleep.week",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/SleepCatalog/sleep.week-light.png",
