@@ -21,19 +21,47 @@ struct SleepChartsTests {
   @Test
   func nightsCrossingMidnightAreAtTheirClockTimes() {
     let day = date(8, 13, 0)
-    #expect(SleepClock.hours(date(8, 12, 23), from: day, calendar: calendar) == -1)
-    #expect(SleepClock.hours(date(8, 13, 0, 40), from: day, calendar: calendar) == 40.0 / 60)
-    #expect(SleepClock.hours(date(8, 13, 7, 30), from: day, calendar: calendar) == 7.5)
+    let start = date(8, 12, 23)
+    #expect(SleepClock.hours(start, from: day, start: start, calendar: calendar) == -1)
+    #expect(
+      SleepClock.hours(date(8, 13, 0, 40), from: day, start: start, calendar: calendar) == 40.0 / 60
+    )
+    #expect(
+      SleepClock.hours(date(8, 13, 7, 30), from: day, start: start, calendar: calendar) == 7.5)
   }
 
   @Test
-  func daylightSavingChangesDontMoveTheClock() {
-    // 11 PM to 7 AM across each change: 7 and 9 hours elapsed, at the same clock times.
-    for (month, day) in [(3, 10), (11, 3)] {
-      let night = date(month, day, 0)
-      #expect(SleepClock.hours(date(month, day - 1, 23), from: night, calendar: calendar) == -1)
-      #expect(SleepClock.hours(date(month, day, 7), from: night, calendar: calendar) == 7)
-    }
+  func daylightSavingChangesDontMoveTheNights() {
+    // In spring, 11 PM to 7 AM is 7 hours: from 11 PM, it ends at 6 on the chart.
+    let spring = date(3, 10, 0)
+    let springStart = date(3, 9, 23)
+    #expect(
+      SleepClock.hours(springStart, from: spring, start: springStart, calendar: calendar) == -1)
+    #expect(
+      SleepClock.hours(date(3, 10, 7), from: spring, start: springStart, calendar: calendar) == 6)
+    // In the fall, 9 hours, to 8, and the repeated hour's times keep going down the column.
+    let fall = date(11, 3, 0)
+    let fallStart = date(11, 2, 23)
+    let firstOne = date(11, 3, 1, 30)
+    let secondOne = firstOne.addingTimeInterval(3600)
+    #expect(SleepClock.hours(date(11, 3, 7), from: fall, start: fallStart, calendar: calendar) == 8)
+    #expect(
+      SleepClock.hours(secondOne, from: fall, start: fallStart, calendar: calendar)
+        == SleepClock.hours(firstOne, from: fall, start: fallStart, calendar: calendar) + 1)
+    // A night that starts after the change is at its clock times, as are the nights after.
+    let late = date(3, 10, 3, 30)
+    #expect(SleepClock.hours(late, from: spring, start: late, calendar: calendar) == 3.5)
+    let next = date(3, 11, 0)
+    let nextStart = date(3, 10, 23)
+    #expect(SleepClock.hours(nextStart, from: next, start: nextStart, calendar: calendar) == -1)
+    #expect(SleepClock.hours(date(3, 11, 7), from: next, start: nextStart, calendar: calendar) == 7)
+  }
+
+  @Test
+  func slotsAreThePagesDays() {
+    let slot = SleepClock.slot(date(8, 13, 0), ratio: 0.5, unit: .day, calendar: calendar)
+    #expect(slot.start == date(8, 13, 6))
+    #expect(slot.end == date(8, 13, 18))
   }
 
   @Test
@@ -41,10 +69,11 @@ struct SleepChartsTests {
     let axis = SleepClock.axis([-1.25, 7.4, 0.5])
     #expect(axis.domain == -2...8)
     #expect(axis.marks == [-2, 0, 2, 4, 6, 8])
-    // With a narrow no-break space, as the format style writes it.
-    #expect(SleepClock.label(-2, calendar: calendar) == "10\u{202F}PM")
-    #expect(SleepClock.label(0, calendar: calendar) == "12\u{202F}AM")
-    #expect(SleepClock.label(8, calendar: calendar) == "8\u{202F}AM")
+    // Whichever space the format style puts before AM and PM.
+    let label = { SleepClock.label($0, calendar: calendar).replacing("\u{202F}", with: " ") }
+    #expect(label(-2) == "10 PM")
+    #expect(label(0) == "12 AM")
+    #expect(label(8) == "8 AM")
     // A day's naps and a night: every 4 hours.
     #expect(SleepClock.axis([-3, 15]).marks == [-4, 0, 4, 8, 12, 16])
   }

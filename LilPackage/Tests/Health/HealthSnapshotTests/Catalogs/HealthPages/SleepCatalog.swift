@@ -1,7 +1,7 @@
 #if os(macOS)
   import Foundation
   import HealthCatalog
-  import HealthDatabase
+  @testable import HealthDatabase
   @testable import HealthPages
   import SQLiteData
   import SwiftUI
@@ -122,7 +122,7 @@
   let sleepCatalogDatabase: any DatabaseWriter = {
     let calendar = previewCalendar
     let today = calendar.startOfDay(for: previewNow)
-    var random = CatalogRandom(seed: 3098)
+    var random = SplitMix64(seed: "sleepCatalogDatabase")
     var samples: [HealthSample] = []
     func record(_ stage: SleepStage, _ start: Date, _ end: Date) {
       samples.append(
@@ -191,22 +191,4 @@
     }
   }()
 
-  /// SplitMix64: the same numbers every run.
-  private struct CatalogRandom: RandomNumberGenerator {
-    var state: UInt64
-
-    init(seed: UInt64) { state = seed }
-
-    mutating func next() -> UInt64 {
-      state &+= 0x9e37_79b9_7f4a_7c15
-      var z = state
-      z = (z ^ (z >> 30)) &* 0xbf58_476d_1ce4_e5b9
-      z = (z ^ (z >> 27)) &* 0x94d0_49bb_1331_11eb
-      return z ^ (z >> 31)
-    }
-
-    mutating func next(in range: ClosedRange<Double>) -> Double {
-      Double.random(in: range, using: &self)
-    }
-  }
 #endif

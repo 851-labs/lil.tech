@@ -116,6 +116,8 @@ struct SleepPeriod: Equatable, Sendable {
   /// The start of the last night's day.
   let lastDay: Date
   let nights: [SleepNight]
+  /// 6M's bars, averaged as it loads rather than each time the chart draws.
+  var weeks: [SleepWeek] = []
 }
 
 struct SleepRequest: FetchKeyRequest {
@@ -136,10 +138,11 @@ struct SleepRequest: FetchKeyRequest {
     let firstDay = range.firstDay(offset: offset, now: day, calendar: calendar)
     let lastDay = range.lastDay(offset: offset, now: day, calendar: calendar)
     let count = (calendar.dateComponents([.day], from: firstDay, to: lastDay).day ?? 0) + 1
+    let nights = try HealthDatabase.sleepNights(
+      endingOn: lastDay, count: count, calendar: calendar, db)
     return SleepPeriod(
-      range: range, firstDay: firstDay, lastDay: lastDay,
-      nights: try HealthDatabase.sleepNights(
-        endingOn: lastDay, count: count, calendar: calendar, db))
+      range: range, firstDay: firstDay, lastDay: lastDay, nights: nights,
+      weeks: range == .sixMonths ? SleepWeek.weeks(nights, calendar: calendar) : [])
   }
 }
 

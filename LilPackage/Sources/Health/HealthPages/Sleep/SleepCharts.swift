@@ -9,16 +9,28 @@ import SwiftUI
 
 /// Where sleep goes on a chart's clock-time axis.
 enum SleepClock {
-  /// `date`'s time on the local clock, in hours from the start of `day`, the night's: 11 PM the
-  /// evening before is -1, 7:30 AM is 7.5. By the clock, not the time elapsed since midnight, so a
-  /// night across a daylight saving change still shows where its clock said (bed at 11 PM, up at
-  /// 7 AM), and so does every night after it.
-  static func hours(_ date: Date, from day: Date, calendar: Calendar) -> Double {
-    let time = calendar.dateComponents([.hour, .minute, .second], from: date)
-    let days =
-      calendar.dateComponents([.day], from: day, to: calendar.startOfDay(for: date)).day ?? 0
-    return Double(days * 24 + (time.hour ?? 0)) + Double(time.minute ?? 0) / 60
-      + Double(time.second ?? 0) / 3600
+  /// Where `date` goes in the night that started at `start`, in hours from the start of `day`,
+  /// the night's, on the local clock as it read when the night started: 11 PM the evening before
+  /// is -1, 7:30 AM is 7.5. Each night is placed at the clock time it started, so a daylight
+  /// saving change doesn't move the nights after it, and runs its true length from there, so a
+  /// night across the change stays one unbroken column, though it ends an hour off the clock (at
+  /// 6 AM for 7 AM in spring, 8 AM in the fall): the clock's repeated hour, or skipped one, can't
+  /// draw a night over itself or leave a hole in it.
+  static func hours(_ date: Date, from day: Date, start: Date, calendar: Calendar) -> Double {
+    let zone = calendar.timeZone
+    let shift = zone.secondsFromGMT(for: start) - zone.secondsFromGMT(for: day)
+    return (date.timeIntervalSince(day) + Double(shift)) / 3600
+  }
+
+  /// The middle `ratio` of `day`'s slot on the x-axis, by the page's calendar rather than the
+  /// one Charts would bin with.
+  static func slot(_ day: Date, ratio: Double, unit: Calendar.Component, calendar: Calendar)
+    -> (start: Date, end: Date)
+  {
+    let interval =
+      calendar.dateInterval(of: unit, for: day) ?? DateInterval(start: day, duration: 86_400)
+    let inset = interval.duration * (1 - ratio) / 2
+    return (interval.start.addingTimeInterval(inset), interval.end.addingTimeInterval(-inset))
   }
 
   /// The axis's span, in `hours`, from whole marks before the earliest time to after the latest,
@@ -46,10 +58,10 @@ enum SleepClock {
   }
 }
 
-/// A night's stretch of one stage, at clock time.
+/// A night's stretch of one stage, at clock time, in its night's slot.
 private struct SleepBlock: Identifiable {
   let id: Int
-  let day: Date
+  let slot: (start: Date, end: Date)
   let stage: SleepStage
   /// Hours from the start of `day` (`SleepClock`).
   let start: Double
@@ -57,7 +69,7 @@ private struct SleepBlock: Identifiable {
 }
 
 /// A week's average sleep, at clock time, for 6M.
-struct SleepWeek: Equatable, Identifiable {
+struct SleepWeek: Equatable, Identifiable, Sendable {
   var id: Date { start }
   /// The start of the week.
   let start: Date
@@ -71,11 +83,12 @@ struct SleepWeek: Equatable, Identifiable {
     let spans = nights.compactMap { night -> (week: Date, start: Double, end: Double)? in
       let asleep = night.segments.filter(\.stage.isAsleep)
       guard let start = asleep.map(\.start).min(), let end = asleep.map(\.end).max(),
+        let first = night.segments.map(\.start).min(),
         let week = calendar.dateInterval(of: .weekOfYear, for: night.day)?.start
       else { return nil }
       return (
-        week, SleepClock.hours(start, from: night.day, calendar: calendar),
-        SleepClock.hours(end, from: night.day, calendar: calendar)
+        week, SleepClock.hours(start, from: night.day, start: first, calendar: calendar),
+        SleepClock.hours(end, from: night.day, start: first, calendar: calendar)
       )
     }
     return Dictionary(grouping: spans, by: \.week)
@@ -100,17 +113,17 @@ struct SleepNightsChart: View {
     let axis = SleepClock.axis(blocks.flatMap { [$0.start, $0.end] })
     Chart(blocks) { block in
       // Negative, so later is lower: bedtime at the top, as in Health.
-      BarMark(
-        x: .value("Night", block.day, unit: .day),
-        yStart: .value("Start", -block.start), yEnd: .value("End", -block.end),
-        width: .ratio(period.range == .week ? 0.3 : 0.6)
+      // A rectangle rather than a bar: bars take one of x and y as a single value, binned by
+      // Charts' own calendar.
+      RectangleMark(
+        xStart: .value("Night", block.slot.start), xEnd: .value("Night", block.slot.end),
+        yStart: .value("Start", -block.start), yEnd: .value("End", -block.end)
       )
       .foregroundStyle(SleepFormat.color(block.stage))
       // Square, so a night's stretches join into one column.
       .cornerRadius(0)
     }
-    .chartXScale(domain: period.firstDay...end)
-    .chartYScale(domain: -axis.domain.upperBound ... -axis.domain.lowerBound)
+    .sleepChartScales(period, axis: axis, calendar: calendar)
     .chartXAxis {
       AxisMarks(values: xMarks) { value in
         AxisGridLine()
@@ -122,21 +135,21 @@ struct SleepNightsChart: View {
     .chartYAxis { sleepClockAxis(marks: axis.marks, calendar: calendar) }
   }
 
-  /// The day after the last night, the end of its slot.
-  private var end: Date {
-    calendar.date(byAdding: .day, value: 1, to: period.lastDay) ?? period.lastDay
-  }
-
   /// Every stretch of every night, Awake included, at clock time.
   private var blocks: [SleepBlock] {
     var blocks: [SleepBlock] = []
+    let ratio = period.range == .week ? 0.3 : 0.6
     for night in period.nights {
+      guard let first = night.segments.map(\.start).min() else { continue }
+      let slot = SleepClock.slot(night.day, ratio: ratio, unit: .day, calendar: calendar)
       for segment in night.segments {
         blocks.append(
           SleepBlock(
-            id: blocks.count, day: night.day, stage: segment.stage,
-            start: SleepClock.hours(segment.start, from: night.day, calendar: calendar),
-            end: SleepClock.hours(segment.end, from: night.day, calendar: calendar)))
+            id: blocks.count, slot: slot, stage: segment.stage,
+            start: SleepClock.hours(
+              segment.start, from: night.day, start: first, calendar: calendar),
+            end: SleepClock.hours(segment.end, from: night.day, start: first, calendar: calendar)
+          ))
       }
     }
     return blocks
@@ -168,18 +181,19 @@ struct SleepWeeksChart: View {
   let calendar: Calendar
 
   var body: some View {
-    let weeks = SleepWeek.weeks(period.nights, calendar: calendar)
+    // Averaged once, as the period loads (`SleepRequest`).
+    let weeks = period.weeks
     let axis = SleepClock.axis(weeks.flatMap { [$0.bedtime, $0.wake] })
     Chart(weeks) { week in
-      BarMark(
-        x: .value("Week", week.start, unit: .weekOfYear),
-        yStart: .value("Bedtime", -week.bedtime), yEnd: .value("Wake", -week.wake),
-        width: .ratio(0.6)
+      let slot = SleepClock.slot(week.start, ratio: 0.6, unit: .weekOfYear, calendar: calendar)
+      RectangleMark(
+        xStart: .value("Week", slot.start), xEnd: .value("Week", slot.end),
+        yStart: .value("Bedtime", -week.bedtime), yEnd: .value("Wake", -week.wake)
       )
       .foregroundStyle(Color.indigo)
+      .cornerRadius(3)
     }
-    .chartXScale(domain: period.firstDay...end)
-    .chartYScale(domain: -axis.domain.upperBound ... -axis.domain.lowerBound)
+    .sleepChartScales(period, axis: axis, calendar: calendar)
     .chartXAxis {
       AxisMarks(values: months) { value in
         AxisGridLine()
@@ -196,11 +210,6 @@ struct SleepWeeksChart: View {
     .chartYAxis { sleepClockAxis(marks: axis.marks, calendar: calendar) }
   }
 
-  /// The day after the last night, the end of its week.
-  private var end: Date {
-    calendar.date(byAdding: .day, value: 1, to: period.lastDay) ?? period.lastDay
-  }
-
   /// The start of every month that starts in the period.
   private var months: [Date] {
     guard
@@ -213,6 +222,21 @@ struct SleepWeeksChart: View {
       month = next
     }
     return months
+  }
+}
+
+extension View {
+  /// A sleep chart's scales: the period's nights across, through the end of its last day, and
+  /// `axis`'s clock times down, negated so later is lower: bedtime at the top, as in Health.
+  fileprivate func sleepChartScales(
+    _ period: SleepPeriod, axis: (domain: ClosedRange<Double>, marks: [Double]),
+    calendar: Calendar
+  ) -> some View {
+    let end = calendar.date(byAdding: .day, value: 1, to: period.lastDay) ?? period.lastDay
+    return
+      self
+      .chartXScale(domain: period.firstDay...end)
+      .chartYScale(domain: -axis.domain.upperBound ... -axis.domain.lowerBound)
   }
 }
 
