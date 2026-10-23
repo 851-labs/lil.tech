@@ -207,6 +207,11 @@ struct MetricDetailContent: View {
   }
   /// What the values are in: the type's unit, or a category chart's (hours, minutes, times).
   private var unit: String? { type.unit ?? HealthDatabase.categoryChartUnit(type.id) }
+  /// What the header writes values in, and so what the chart plots: km/h rather than the m/s
+  /// they're stored in, so the axis reads as the header does, with round ticks (851-3105).
+  private var displayUnit: MetricFormat.DisplayUnit {
+    MetricFormat.unit(unit, typeID: type.id)
+  }
 
   /// The period shown: the loaded chart's, which stays while another loads, or the one chosen
   /// before any has loaded. Everything drawn uses it, never the selection.
@@ -393,26 +398,27 @@ struct MetricDetailContent: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .loaded(let loaded, _):
       let chart = loaded.chart
+      let shown = displayUnit
       Chart {
         ForEach(chart.points, id: \.start) { point in
           if style.isAverage {
-            average(point, in: chart)
+            average(point, in: chart, unit: shown)
           } else {
-            bar(point, in: chart)
+            bar(point, in: chart, unit: shown)
           }
         }
         ForEach(shownOverlays, id: \.name) { overlay in
           ForEach(overlay.points, id: \.start) { point in
             LineMark(
               x: .value("Date", point.start, unit: range.barUnit),
-              y: .value(overlay.name, point.value),
+              y: .value(overlay.name, shown.convert(point.value)),
               series: .value("Line", overlay.name)
             )
             .foregroundStyle(overlay.color)
             .lineStyle(StrokeStyle(lineWidth: 2))
             PointMark(
               x: .value("Date", point.start, unit: range.barUnit),
-              y: .value(overlay.name, point.value)
+              y: .value(overlay.name, shown.convert(point.value))
             )
             .foregroundStyle(overlay.color)
             .symbolSize(24)
@@ -420,7 +426,7 @@ struct MetricDetailContent: View {
         }
         // Sound above this over time can affect hearing.
         if HealthDatabase.soundLevelTypes.contains(type.id), !chart.points.isEmpty {
-          RuleMark(y: .value("Loud", HealthDatabase.loudSoundLevel))
+          RuleMark(y: .value("Loud", shown.convert(HealthDatabase.loudSoundLevel)))
             .foregroundStyle(.orange)
             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
             .annotation(position: .top, alignment: .leading) {
@@ -431,13 +437,16 @@ struct MetricDetailContent: View {
         }
       }
       .chartXScale(domain: domain(chart))
-      .chartYDomain(style.isAverage ? fittedDomain(chart.points.map(\.value)) : nil)
+      // Fitted in the unit plotted.
+      .chartYDomain(
+        style.isAverage ? fittedDomain(chart.points.map { shown.convert($0.value) }) : nil)
       .chartPlotStyle { $0.clipped() }
       .chartXSelection(value: $hovered)
       .chartYAxis {
-        if unit == "%" {
-          // Stored as fractions: 22%, not 0.22, as the header shows it.
-          AxisMarks(format: FloatingPointFormatStyle<Double>.Percent(), position: .trailing)
+        if shown.label == "%" {
+          // Plotted as percentages, 22 for 22%, as the header shows them.
+          AxisMarks(
+            format: FloatingPointFormatStyle<Double>.Percent().scale(1), position: .trailing)
         } else {
           AxisMarks(position: .trailing)
         }
@@ -454,18 +463,20 @@ struct MetricDetailContent: View {
 
   /// A period's bar: its total for a cumulative type, otherwise its range.
   @ChartContentBuilder
-  private func bar(_ point: ChartPoint, in chart: MetricChart) -> some ChartContent {
+  private func bar(
+    _ point: ChartPoint, in chart: MetricChart, unit: MetricFormat.DisplayUnit
+  ) -> some ChartContent {
     if isCumulative {
       BarMark(
         x: .value("Date", point.start, unit: range.barUnit),
-        y: .value("Value", point.value)
+        y: .value("Value", unit.convert(point.value))
       )
       .foregroundStyle(color.opacity(isHovered(point, in: chart) ? 1 : 0.8))
     } else {
       BarMark(
         x: .value("Date", point.start, unit: range.barUnit),
-        yStart: .value("Minimum", point.minimum),
-        yEnd: .value("Maximum", point.maximum),
+        yStart: .value("Minimum", unit.convert(point.minimum)),
+        yEnd: .value("Maximum", unit.convert(point.maximum)),
         width: .ratio(0.35)
       )
       .clipShape(Capsule())
@@ -476,18 +487,20 @@ struct MetricDetailContent: View {
   /// A period's dot, its average (851-3097), on a line through them all for a line type, which
   /// goes on over periods without readings, as Health's does.
   @ChartContentBuilder
-  private func average(_ point: ChartPoint, in chart: MetricChart) -> some ChartContent {
+  private func average(
+    _ point: ChartPoint, in chart: MetricChart, unit: MetricFormat.DisplayUnit
+  ) -> some ChartContent {
     if style == .line {
       LineMark(
         x: .value("Date", point.start, unit: range.barUnit),
-        y: .value("Value", point.value)
+        y: .value("Value", unit.convert(point.value))
       )
       .foregroundStyle(color.opacity(0.8))
       .lineStyle(StrokeStyle(lineWidth: 2))
     }
     PointMark(
       x: .value("Date", point.start, unit: range.barUnit),
-      y: .value("Value", point.value)
+      y: .value("Value", unit.convert(point.value))
     )
     .foregroundStyle(color)
     .symbolSize(isHovered(point, in: chart) ? 100 : 36)

@@ -151,7 +151,11 @@
         "Weight, 6 months",
         "Weight, year",
         "Body fat percentage, month",
-        "Cardio fitness, 6 months"
+        "Cardio fitness, 6 months",
+        "Walking speed, week",
+        "Running speed, week",
+        "Walking + running distance, week",
+        "Walking + running distance, day"
       ]
     },
     {

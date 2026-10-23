@@ -29,14 +29,15 @@ struct HighlightTextTests {
     #expect(HighlightText.sentence(fromZero, type: exercise).contains("up from 0 min"))
   }
 
+  /// Both weeks in the type's unit, as Health shows it, even under 1 km (851-3105).
   @Test
-  func eachValueKeepsItsOwnUnit() {
+  func bothValuesInTheTypesUnit() {
     let distance = HealthCatalog.type(id: "HKQuantityTypeIdentifierDistanceWalkingRunning")!
     let highlight = Highlight(
       typeID: distance.id, kind: .week, current: 5_200, previous: 950, recentStart: .now)
     let sentence = HighlightText.sentence(highlight, type: distance)
-    #expect(sentence.contains("km a day"))
-    #expect(sentence.contains("950 m"))
+    #expect(sentence.contains("\(5.2.formatted()) km a day"))
+    #expect(sentence.contains("\(0.95.formatted()) km the week before"))
   }
 
   @Test

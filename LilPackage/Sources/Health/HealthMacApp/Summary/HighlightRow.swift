@@ -87,7 +87,6 @@ struct HighlightRow: View {
 /// How highlights read.
 enum HighlightText {
   static func sentence(_ highlight: Highlight, type: HealthDataType) -> String {
-    // Each with its own unit: one can be in km and the other in m.
     let value = text(highlight.current, type)
     let before = text(highlight.previous, type)
     let perDay = type.aggregation?.isCumulative == true ? " a day" : ""

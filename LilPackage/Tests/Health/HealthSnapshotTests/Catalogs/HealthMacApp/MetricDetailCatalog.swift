@@ -110,7 +110,23 @@
       CatalogState("Weight, year") { measurement(weight, .year) },
       // Other lines: body fat on even days' weigh-ins, on a percent axis, and every fourth day.
       CatalogState("Body fat percentage, month") { measurement(bodyFat, .month) },
+      // In VO₂ max, as Health labels it (851-3105).
       CatalogState("Cardio fitness, 6 months") { measurement(cardioFitness, .sixMonths) },
+      // The axis in the header's units (851-3105): km/h, not the m/s speeds are stored in, and km
+      // rather than metres for a distance, with round ticks in them.
+      CatalogState("Walking speed, week") {
+        detail("HKQuantityTypeIdentifierWalkingSpeed", .week)
+      },
+      CatalogState("Running speed, week") {
+        detail("HKQuantityTypeIdentifierRunningSpeed", .week)
+      },
+      CatalogState("Walking + running distance, week") {
+        detail("HKQuantityTypeIdentifierDistanceWalkingRunning", .week)
+      },
+      // An hour's bars under 1 km, still in km, as the day's total is.
+      CatalogState("Walking + running distance, day") {
+        detail("HKQuantityTypeIdentifierDistanceWalkingRunning", .day)
+      },
       // Category types charted like metrics (851-2831).
       CatalogState("Stand hours, day") {
         // Stood most hours from 7 AM to 7 PM.
@@ -144,6 +160,8 @@
         "Handwashing, month", "Toothbrushing, year", "Blood oxygen, month", "Weight, day",
         "Weight, last week", "Weight, month", "Weight, month with a gap", "Weight, 6 months",
         "Weight, year", "Body fat percentage, month", "Cardio fitness, 6 months",
+        "Walking speed, week", "Running speed, week", "Walking + running distance, week",
+        "Walking + running distance, day",
       ],
       [
         "Heart rate with resting and walking", "Heart rate, loading", "Heart rate without lines",
