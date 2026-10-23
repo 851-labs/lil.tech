@@ -43,7 +43,9 @@ extension HealthDatabase {
       lastMonth ?? calendar.date(byAdding: .day, value: 1 - BedtimeConsistency.days, to: today)
       ?? today
     let count = (calendar.dateComponents([.day], from: first, to: today).day ?? 0) + 1
+    // Nights' sleep only: a day's isn't a night in any highlight (`latestBedtime`).
     let nights = try sleepNights(endingOn: today, count: count, calendar: calendar, db)
+      .filter { $0.nightBedtime(calendar: calendar) != nil }
     let lastNight = SleepNight.lastNight(in: nights, today: today, calendar: calendar)
     return SleepHighlights(
       bedtime: BedtimeConsistency(nights: nights, today: today, calendar: calendar),

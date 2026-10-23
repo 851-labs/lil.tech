@@ -22,9 +22,19 @@ struct SleepWeekHighlight: View {
     "You slept an average of \(SleepFormat.duration(week.average)) over the last 7 days."
   }
 
+  /// Whole hours from 0 past the longest night, every 2 (or 1 for short nights, 4 for long).
+  private var hourMarks: [Double] {
+    let longest = (week.nights.map(\.asleep).max() ?? 0) / 3600
+    let step: Double = longest <= 4 ? 1 : longest <= 10 ? 2 : 4
+    // Half an hour of room over the longest, so its bar never meets the top.
+    let top = max(((longest + 0.5) / step).rounded(.up), 1) * step
+    return Array(stride(from: 0, through: top, by: step))
+  }
+
   /// A slot a day, by weekday, so every night has its place, with sleep or not.
   private var chart: some View {
-    let style = Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone)
+    let style = Date.FormatStyle(
+      locale: calendar.locale ?? .current, calendar: calendar, timeZone: calendar.timeZone)
     let name = { (day: Date) in day.formatted(style.weekday(.abbreviated)) }
     let days = (0..<SleepWeekAverage.days).compactMap {
       calendar.date(byAdding: .day, value: $0, to: week.firstDay)
@@ -46,7 +56,7 @@ struct SleepWeekHighlight: View {
     // Weekdays without grid lines between them.
     .chartXAxis { AxisMarks { AxisValueLabel() } }
     .chartYAxis {
-      AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
+      AxisMarks(position: .trailing, values: hourMarks) { value in
         AxisGridLine()
         AxisValueLabel { if let hours = value.as(Double.self) { Text("\(Int(hours)) hr") } }
       }

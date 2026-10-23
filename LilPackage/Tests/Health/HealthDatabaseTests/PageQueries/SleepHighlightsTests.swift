@@ -302,4 +302,14 @@ struct SleepHighlightsTests {
     #expect(week.nights.count == 4)
     #expect(week.average == 7 * 3600)
   }
+
+  @Test
+  func weeksFirstNightCountsTowardTheFour() throws {
+    // Four nights, the first of them 6 days back: shown. Without it: not.
+    try insert(night(-6) + night(-4) + night(-2) + night(0))
+    #expect(try highlights().week?.nights.count == 4)
+    try database.write { db in try HealthSample.delete().execute(db) }
+    try insert(night(-4) + night(-2) + night(0))
+    #expect(try highlights().week == nil)
+  }
 }
