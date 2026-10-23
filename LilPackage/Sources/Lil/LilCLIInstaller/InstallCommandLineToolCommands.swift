@@ -9,9 +9,19 @@
 
     public var body: some Commands {
       CommandGroup(after: .appInfo) {
-        Button("Install Command Line Tool…") {
-          Task { await installCommandLineTool() }
-        }
+        InstallCommandLineToolButton()
+      }
+    }
+  }
+
+  /// "Install Command Line Tool…": the menu item, and a settings pane's button where `lil` isn't
+  /// installed yet.
+  public struct InstallCommandLineToolButton: View {
+    public init() {}
+
+    public var body: some View {
+      Button("Install Command Line Tool…") {
+        Task { await installCommandLineTool() }
       }
     }
   }

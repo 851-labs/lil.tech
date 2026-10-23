@@ -196,8 +196,7 @@ struct SyncStatusFeatureTests {
         ButtonState(role: .cancel) { TextState("Cancel") }
       } message: {
         TextState(
-          "This deletes your lil health account and everything uploaded to it, on every device. The data in Health on this iPhone stays."
-        )
+          "Everything in your account is deleted, on every device. Your data in Health stays.")
       }
     }
     await store.send(.alert(.presented(.confirmDeletion))) {

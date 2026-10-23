@@ -45,9 +45,8 @@ public enum DataExportError: Error, Equatable, Sendable {
     switch self {
     case .unavailable: "Exporting isn't possible right now. Please try again later."
     case .signedOut: "Your session ended. Sign in again."
-    case .expired: "The export's link expired. Please try again."
-    case .tooLarge:
-      "Your account holds too much to export in one archive. Please contact hello@851.sh."
+    case .expired: "The download link expired. Please try again."
+    case .tooLarge: "Your account is too big to export. Email hello@851.sh for help."
     case .failed(let reason): "Exporting didn't work: \(reason)"
     }
   }
