@@ -76,6 +76,8 @@ struct FoodContent: View {
   /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
   @Dependency(\.date.now) private var now
   @Dependency(\.calendar) private var calendar
+  /// Whose units values are in (851-3116).
+  @Dependency(\.locale) private var locale
 
   var body: some View {
     Group {
@@ -119,7 +121,8 @@ struct FoodContent: View {
         // waits for them, even once loading more failed.
         Section(
           FoodFormat.dayHeader(
-            day, isComplete: !(hasMore && day.day == days.last?.day), now: now, calendar: calendar)
+            day, isComplete: !(hasMore && day.day == days.last?.day), now: now, calendar: calendar,
+            locale: locale)
         ) {
           ForEach(day.foods) { food in
             NavigationLink {
@@ -138,6 +141,8 @@ struct FoodContent: View {
 struct FoodRow: View {
   let food: Food
   let calendar: Calendar
+  /// Whose units values are in (851-3116).
+  @Dependency(\.locale) private var locale
 
   var body: some View {
     HStack(spacing: 10) {
@@ -146,7 +151,7 @@ struct FoodRow: View {
           .font(.body.weight(.semibold))
           .foregroundStyle(food.name == nil ? .secondary : .primary)
           .lineLimit(2)
-        if let macronutrients = FoodFormat.macronutrients(food) {
+        if let macronutrients = FoodFormat.macronutrients(food, locale: locale) {
           Text(macronutrients)
             .font(.callout)
             .foregroundStyle(.secondary)
@@ -158,7 +163,7 @@ struct FoodRow: View {
       Spacer()
       VStack(alignment: .trailing, spacing: 2) {
         if let energy = food.energy {
-          let (number, unit) = FoodFormat.energy(energy)
+          let (number, unit) = FoodFormat.energy(energy, locale: locale)
           HStack(alignment: .firstTextBaseline, spacing: 3) {
             Text(number)
               .font(.body.weight(.semibold))
@@ -206,6 +211,8 @@ struct FoodDetailContent: View {
 
   let food: Food
   let state: State
+  /// Whose units values are in (851-3116).
+  @Dependency(\.locale) private var locale
 
   var body: some View {
     Form {
@@ -226,7 +233,7 @@ struct FoodDetailContent: View {
             .foregroundStyle(.secondary)
         case .loaded(let nutrients):
           ForEach(nutrients) { nutrient in
-            LabeledContent(nutrient.name, value: FoodFormat.nutrient(nutrient))
+            LabeledContent(nutrient.name, value: FoodFormat.nutrient(nutrient, locale: locale))
           }
         }
       }
@@ -239,13 +246,14 @@ struct FoodDetailContent: View {
 /// How Food writes its values and times.
 enum FoodFormat {
   /// ("1,840", "kcal").
-  static func energy(_ kilocalories: Double) -> (number: String, unit: String) {
-    MetricFormat.value(kilocalories, unit: "kcal", typeID: HealthDatabase.dietaryEnergyType)
+  static func energy(_ kilocalories: Double, locale: Locale) -> (number: String, unit: String) {
+    MetricFormat.value(
+      kilocalories, unit: "kcal", typeID: HealthDatabase.dietaryEnergyType, locale: locale)
   }
 
   /// "Carbs 62 g · Protein 18 g · Fat 21 g", leaving out what the food doesn't have: nil if it
   /// has none.
-  static func macronutrients(_ food: Food) -> String? {
+  static func macronutrients(_ food: Food, locale: Locale) -> String? {
     let parts: [(String, Double?, String)] = [
       ("Carbs", food.carbohydrates, HealthDatabase.dietaryCarbohydratesType),
       ("Protein", food.protein, HealthDatabase.dietaryProteinType),
@@ -253,7 +261,8 @@ enum FoodFormat {
     ]
     let written = parts.compactMap { name, grams, typeID in
       grams.map { grams in
-        let (number, unit) = MetricFormat.value(grams, unit: "g", typeID: typeID)
+        let (number, unit) = MetricFormat.value(
+          grams, unit: "g", typeID: typeID, locale: locale)
         return "\(name) \(number) \(unit)"
       }
     }
@@ -263,11 +272,11 @@ enum FoodFormat {
   /// A day's name and its foods' energy: "Today · 1,840 kcal", or the name alone for a day with
   /// no energy, or one whose foods aren't all loaded yet.
   static func dayHeader(
-    _ day: FoodDay, isComplete: Bool, now: Date, calendar: Calendar
+    _ day: FoodDay, isComplete: Bool, now: Date, calendar: Calendar, locale: Locale
   ) -> String {
     let name = MetricFormat.date(day.day, isDay: true, now: now, calendar: calendar)
     guard isComplete, let energy = day.energy else { return name }
-    let (number, unit) = Self.energy(energy)
+    let (number, unit) = Self.energy(energy, locale: locale)
     return "\(name) · \(number) \(unit)"
   }
 
@@ -278,9 +287,9 @@ enum FoodFormat {
   }
 
   /// "62 g".
-  static func nutrient(_ nutrient: FoodNutrient) -> String {
+  static func nutrient(_ nutrient: FoodNutrient, locale: Locale) -> String {
     let (number, unit) = MetricFormat.value(
-      nutrient.value, unit: nutrient.unit, typeID: nutrient.typeID)
+      nutrient.value, unit: nutrient.unit, typeID: nutrient.typeID, locale: locale)
     return unit.isEmpty ? number : "\(number) \(unit)"
   }
 }

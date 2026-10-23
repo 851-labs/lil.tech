@@ -138,6 +138,8 @@ struct SampleRow: View {
   let type: HealthDataType
   let sample: HealthSample
   let calendar: Calendar
+  /// Whose units values are in (851-3116).
+  @Dependency(\.locale) private var locale
 
   var body: some View {
     HStack {
@@ -156,7 +158,8 @@ struct SampleRow: View {
   private var valueText: some View {
     let formatted: (number: String, unit: String)? =
       if let value = sample.value {
-        MetricFormat.value(value, unit: sample.unit ?? type.unit, typeID: type.id)
+        MetricFormat.value(
+          value, unit: sample.unit ?? type.unit, typeID: type.id, locale: locale)
       } else if let name = HealthDatabase.categoryValueName(sample.categoryValue, typeID: type.id) {
         // A category sample's value as Health names it: Stood, Moderate, Egg White (851-2828).
         (name, "")

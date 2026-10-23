@@ -10,6 +10,8 @@ struct SampleDetailView: View {
   let sample: HealthSample
   /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
   @Dependency(\.calendar) private var calendar
+  /// Whose units values are in (851-3116).
+  @Dependency(\.locale) private var locale
 
   var body: some View {
     // `.dateTime`'s style, in the calendar's time zone.
@@ -19,7 +21,7 @@ struct SampleDetailView: View {
       Section {
         if let value = sample.value {
           let (number, unit) = MetricFormat.value(
-            value, unit: sample.unit ?? type.unit, typeID: type.id)
+            value, unit: sample.unit ?? type.unit, typeID: type.id, locale: locale)
           LabeledContent("Value", value: unit.isEmpty ? number : "\(number) \(unit)")
         }
         LabeledContent(

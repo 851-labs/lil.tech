@@ -28,6 +28,12 @@
       // ranges, dots and lines, Body Measurements' lines and Mobility's dots.
       CatalogState("Body Measurements") { metrics(.bodyMeasurements) },
       CatalogState("Mobility") { metrics(.mobility) },
+      // In the US's units (851-3116): pounds, feet and inches, inches and °F; mph, inches and
+      // yards.
+      CatalogState("Body Measurements, US", locale: Locale(identifier: "en_US")) {
+        metrics(.bodyMeasurements)
+      },
+      CatalogState("Mobility, US", locale: Locale(identifier: "en_US")) { metrics(.mobility) },
       // A week with few readings: one heart rate a day, so each range is a dot, and a single
       // resting heart rate, a line's one point.
       CatalogState("Heart, a few readings") { metrics(.heart, .loaded(fewReadings())) },

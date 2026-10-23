@@ -124,6 +124,26 @@
       CatalogState("Walking + running distance, day") {
         detail("HKQuantityTypeIdentifierDistanceWalkingRunning", .day)
       },
+      // In the locale's units (851-3116), plotted in them so the ticks are round: the US's
+      // pounds, miles, mph, °F, and feet and inches (plotted in inches), and the UK's stones and
+      // pounds (plotted in pounds). An empty chart's scale is converted too: 0–230 lb.
+      CatalogState("Weight, month, US", locale: us) { measurement(weight, .month) },
+      CatalogState("Weight, month, UK", locale: Locale(identifier: "en_GB")) {
+        measurement(weight, .month)
+      },
+      CatalogState("Weight, no data, US", locale: us) { noData(weight) },
+      CatalogState("Walking + running distance, week, US", locale: us) {
+        detail("HKQuantityTypeIdentifierDistanceWalkingRunning", .week)
+      },
+      CatalogState("Walking speed, week, US", locale: us) {
+        detail("HKQuantityTypeIdentifierWalkingSpeed", .week)
+      },
+      CatalogState("Body temperature, week, US", locale: us) {
+        detail("HKQuantityTypeIdentifierBodyTemperature", .week)
+      },
+      CatalogState("Height, week, US", locale: us) {
+        detail("HKQuantityTypeIdentifierHeight", .week)
+      },
       // Category types charted like metrics (851-2831).
       CatalogState("Stand hours, day") {
         // Stood most hours from 7 AM to 7 PM.
@@ -166,7 +186,9 @@
         "Weight, last week", "Weight, month", "Weight, month with a gap", "Weight, 6 months",
         "Weight, year", "Body fat percentage, month", "Cardio fitness, 6 months",
         "Walking speed, week", "Running speed, week", "Walking + running distance, week",
-        "Walking + running distance, day",
+        "Walking + running distance, day", "Weight, month, US", "Weight, month, UK",
+        "Weight, no data, US", "Walking + running distance, week, US", "Walking speed, week, US",
+        "Body temperature, week, US", "Height, week, US",
       ],
       [
         "Heart rate with resting and walking", "Heart rate, loading", "Heart rate without lines",
@@ -175,6 +197,8 @@
     ])
 
   private let steps = "HKQuantityTypeIdentifierStepCount"
+  /// The US's units: miles, pounds, °F (851-3116).
+  private let us = Locale(identifier: "en_US")
   private let heartRate = HealthDatabase.heartRateType
 
   /// The detail of a type, in a navigation stack for its title and toolbar: its chart for the

@@ -159,7 +159,14 @@
         "Walking speed, week",
         "Running speed, week",
         "Walking + running distance, week",
-        "Walking + running distance, day"
+        "Walking + running distance, day",
+        "Weight, month, US",
+        "Weight, month, UK",
+        "Weight, no data, US",
+        "Walking + running distance, week, US",
+        "Walking speed, week, US",
+        "Body temperature, week, US",
+        "Height, week, US"
       ]
     },
     {

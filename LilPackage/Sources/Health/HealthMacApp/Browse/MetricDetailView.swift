@@ -184,6 +184,8 @@ struct MetricDetailContent: View {
   /// shows the period around now before a chart loads.
   @Dependency(\.calendar) private var calendar
   @Dependency(\.date.now) private var now
+  /// Whose units values are shown in (851-3116).
+  @Dependency(\.locale) private var locale
   @SwiftUI.State private var hovered: Date?
 
   init(
@@ -212,9 +214,10 @@ struct MetricDetailContent: View {
   /// What the values are in: the type's unit, or a category chart's (hours, minutes, times).
   private var unit: String? { type.unit ?? HealthDatabase.categoryChartUnit(type.id) }
   /// What the header writes values in, and so what the chart plots: km/h rather than the m/s
-  /// they're stored in, so the axis reads as the header does, with round ticks (851-3105).
+  /// they're stored in, so the axis reads as the header does, with round ticks (851-3105), in the
+  /// locale's units (851-3116).
   private var displayUnit: MetricFormat.DisplayUnit {
-    MetricFormat.unit(unit, typeID: type.id)
+    MetricFormat.unit(unit, typeID: type.id, locale: locale)
   }
 
   /// The period shown: the loaded chart's, which stays while another loads, or the one chosen
@@ -421,6 +424,13 @@ struct MetricDetailContent: View {
     case .loaded(let loaded, _):
       let chart = loaded.chart
       let shown = displayUnit
+      // Fitted in the unit plotted. An empty period keeps a scale of the type's, in it too
+      // (851-3102).
+      let yDomain =
+        chart.points.isEmpty
+        ? emptyDomain(for: type, unit: unit, hourly: isCumulative && range == .day)
+          .converted(by: shown)
+        : style.isAverage ? fittedDomain(chart.points.map { shown.convert($0.value) }) : nil
       Chart {
         ForEach(chart.points, id: \.start) { point in
           if style.isAverage {
@@ -459,14 +469,7 @@ struct MetricDetailContent: View {
         }
       }
       .chartXScale(domain: domain(chart))
-      // Fitted in the unit plotted. An empty period keeps a scale of the type's, in it too
-      // (851-3102).
-      .chartYDomain(
-        chart.points.isEmpty
-          ? emptyDomain(for: type, unit: unit, hourly: isCumulative && range == .day)
-            .converted(by: shown)
-          : style.isAverage ? fittedDomain(chart.points.map { shown.convert($0.value) }) : nil
-      )
+      .chartYDomain(yDomain)
       .chartPlotStyle { $0.clipped() }
       .chartXSelection(value: $hovered)
       .chartYAxis {
@@ -474,6 +477,18 @@ struct MetricDetailContent: View {
           // Plotted as percentages, 22 for 22%, as the header shows them.
           AxisMarks(
             format: FloatingPointFormatStyle<Double>.Percent().scale(1), position: .trailing)
+        } else if let yDomain,
+          let stride = shown.compoundTickStride(over: yDomain.upperBound - yDomain.lowerBound)
+        {
+          // Plotted in inches or pounds, and labeled as the header writes them, at whole ones,
+          // so no two ticks read the same: 5′ 9″, 5′ 10″.
+          AxisMarks(position: .trailing, values: .stride(by: stride)) { value in
+            AxisGridLine()
+            AxisTick()
+            AxisValueLabel {
+              if let number = value.as(Double.self) { Text(shown.format(number)) }
+            }
+          }
         } else {
           AxisMarks(position: .trailing)
         }

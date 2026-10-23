@@ -39,6 +39,20 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.body-measurements-us-dark.png",
+      "id" : "category.body-measurements-us",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.body-measurements-us-light.png",
+      "name" : "Body Measurements, US",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.mobility-us-dark.png",
+      "id" : "category.mobility-us",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.mobility-us-light.png",
+      "name" : "Mobility, US",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CategoryCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.heart-a-few-readings-dark.png",
       "id" : "category.heart-a-few-readings",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CategoryCatalog/category.heart-a-few-readings-light.png",
