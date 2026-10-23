@@ -61,6 +61,30 @@ struct MetricRow: View {
   }
 }
 
+/// A metric's row while its value loads: its name, and "–" where its value and chart go, as tall
+/// as a row with data (`MetricRow`), so nothing moves when it loads (851-3092).
+struct MetricRowPlaceholder: View {
+  let type: HealthDataType
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HealthTypeLabel(type: type)
+        .font(.headline)
+      HStack(alignment: .bottom) {
+        Text("–")
+          .font(.system(.title, design: .rounded).bold())
+          .foregroundStyle(.secondary)
+          .accessibilityHidden(true)
+        Spacer()
+        // The chart's place.
+        Color.clear
+          .frame(width: 120, height: 36)
+      }
+    }
+    .padding(.vertical, 6)
+  }
+}
+
 /// A week at a glance: bars for daily totals, a line for daily averages.
 struct Sparkline: View {
   let days: [DailyValue]

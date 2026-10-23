@@ -89,9 +89,16 @@ struct SummaryContent: View {
     Form {
       Section {
         switch state {
+        // The everyday metrics' rows, without values yet: a row with data's height each, so
+        // nothing moves when they load (851-3092).
         case .loading:
-          ProgressView()
-            .frame(maxWidth: .infinity, minHeight: 200)
+          ForEach(HealthDatabase.summaryTypes, id: \.self) { id in
+            if let type = HealthCatalog.type(id: id) {
+              NavigationLink(value: id) {
+                MetricRowPlaceholder(type: type)
+              }
+            }
+          }
         case .failed(let reason):
           ContentUnavailableView(
             "Couldn't Load Summary", systemImage: "exclamationmark.triangle",
@@ -118,8 +125,12 @@ struct SummaryContent: View {
           }
         }
       }
-      Section("Highlights") {
+      Section {
         highlightsSection
+      } header: {
+        Text("Highlights")
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .layoutAnchor("Highlights")
       }
     }
     .formStyle(.grouped)

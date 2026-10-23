@@ -39,7 +39,9 @@
       CatalogState("Health Details failed") {
         details(.failed("The database couldn't be read."))
       },
-    ])
+    ],
+    // Vision starts in the same place, loading or not, whatever's set (851-3092).
+    sameLayout: [["Health Details", "Health Details loading", "Health Details, partly set"]])
 
   @MainActor
   private func details(_ state: HealthDetailsContent.State) -> some View {

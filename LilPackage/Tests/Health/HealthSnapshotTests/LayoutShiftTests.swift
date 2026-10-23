@@ -17,7 +17,8 @@
   private let layoutCheckedCatalogs = [
     sleepCatalog, metricDetailCatalog, bloodPressureCatalog, symptomsCatalog,
     activityRingsCatalog, cycleTrackingCatalog, workoutsCatalog, workoutRoutesCatalog,
-    electrocardiogramsCatalog, notificationsCatalog, healthDocumentsCatalog,
+    electrocardiogramsCatalog, notificationsCatalog, healthDocumentsCatalog, summaryCatalog,
+    healthDetailsCatalog,
   ]
 
   extension MacSnapshotTests {

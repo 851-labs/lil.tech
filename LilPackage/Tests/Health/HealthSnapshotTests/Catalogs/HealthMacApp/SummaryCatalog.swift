@@ -50,7 +50,9 @@
           .formStyle(.grouped)
         }
       },
-    ])
+    ],
+    // The highlights start in the same place, loading or not (851-3092).
+    sameLayout: [["Loaded", "Loading"]])
 
   /// Summary in a navigation stack, for its title.
   @MainActor
