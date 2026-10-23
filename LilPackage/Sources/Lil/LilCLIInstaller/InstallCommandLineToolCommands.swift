@@ -38,21 +38,17 @@
     guard let bundled = Bundle.main.url(forAuxiliaryExecutable: "lil") else {
       showAlert(
         "The command line tool is missing",
-        "This copy of \(appName) doesn't include lil. Reinstall \(appName), then try again."
+        "Reinstall \(appName), then try again."
       )
       return
     }
-    let shared = CommandLineToolInstaller.Destination.shared.directory.path
-    let user = "~/.local/bin"
+    // For all users is /usr/local/bin, for me only ~/.local/bin: the alert after says where it went.
     let question = NSAlert()
     question.messageText = "Install the lil command line tool?"
-    question.informativeText = """
-      lil runs \(appName) from Terminal: try “lil help”. Install it in \(shared) for every \
-      account on this Mac, which may ask for an administrator’s password, or in \(user) for \
-      yours alone.
-      """
-    question.addButton(withTitle: "Install in \(shared)")
-    question.addButton(withTitle: "Install in \(user)")
+    question.informativeText =
+      "Use \(appName) from Terminal. Installing for all users may ask for an administrator’s password."
+    question.addButton(withTitle: "Install for All Users")
+    question.addButton(withTitle: "Install for Me Only")
     question.addButton(withTitle: "Cancel")
     let destination: CommandLineToolInstaller.Destination
     switch question.runModal() {
@@ -76,23 +72,21 @@
     do {
       switch try await CommandLineToolInstaller.install(bundled, into: directory) {
       case .installed(let url, let replacedVersion):
-        let replaced = replacedVersion.map { " It replaced an older lil (version \($0))." } ?? ""
         let path =
           directory == CommandLineToolInstaller.Destination.user.directory
           ? " If your shell can’t find it, add ~/.local/bin to your PATH." : ""
-        showAlert("lil is installed", "lil is at \(url.path).\(replaced)\(path)")
-      case .upToDate(let url, let version):
+        showAlert(
+          replacedVersion == nil ? "lil is installed" : "lil is updated",
+          "It’s at \(url.path). Try “lil help” in Terminal.\(path)")
+      case .upToDate(let url, _):
         showAlert(
           "lil is already installed",
-          "The lil at \(url.path) (version \(version)) is this version or newer, so it was kept."
+          "The lil at \(url.path) is up to date."
         )
       case .otherCommand(let url):
         showAlert(
           "Another lil is installed",
-          """
-          \(url.path) is another command named lil, so it was left alone. Remove it to install \
-          this one.
-          """
+          "\(url.path) is a different command named lil. Remove it to install this one."
         )
       case .cancelled:
         break

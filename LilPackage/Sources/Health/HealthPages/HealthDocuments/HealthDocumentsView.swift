@@ -60,10 +60,8 @@ struct HealthDocumentsContent: View {
         ContentUnavailableView(
           "No Health Documents", systemImage: "doc.text",
           description: Text(
-            """
-            Clinical documents, such as visit summaries, appear here when your health providers \
-            or apps share them through Health on your iPhone, and you let lil health read them.
-            """))
+            "Visit summaries and other documents you share with lil health on your iPhone will appear here."
+          ))
       case .loaded(let documents):
         list(documents)
       }

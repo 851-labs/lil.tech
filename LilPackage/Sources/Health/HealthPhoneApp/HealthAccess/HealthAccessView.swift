@@ -81,16 +81,13 @@ public struct HealthAccessView: View {
     if asksAboutHistory {
       Text(
         """
-        lil health copies everything in Apple Health to your lil health account, so you can see \
-        it on your Mac. Health asks about each type next: allow all of them, then choose All \
-        Recorded Data and Future Data to see your whole history.
+        lil health uploads your Health data so you can see it on your Mac. Next, allow \
+        everything, then choose All Recorded Data and Future Data to see your whole history.
         """)
     } else {
       Text(
-        """
-        lil health copies everything in Apple Health to your lil health account, so you can see \
-        it on your Mac. Health asks about each type next: allow all of them to see everything.
-        """)
+        "lil health uploads your Health data so you can see it on your Mac. Next, allow everything."
+      )
     }
   }
 
@@ -99,13 +96,9 @@ public struct HealthAccessView: View {
       Text("Medications and Prescriptions")
         .font(.title.bold())
         .multilineTextAlignment(.center)
-      Text(
-        """
-        Health asks about these separately: you pick which medications and prescriptions to share.
-        """
-      )
-      .multilineTextAlignment(.center)
-      .foregroundStyle(.secondary)
+      Text("Choose which ones lil health can read.")
+        .multilineTextAlignment(.center)
+        .foregroundStyle(.secondary)
       VStack(spacing: 12) {
         ForEach(PerObjectHealthType.allCases, id: \.self) { type in
           Button(type.chooseTitle) { store.send(.perObjectButtonTapped(type)) }
@@ -115,10 +108,7 @@ public struct HealthAccessView: View {
       .controlSize(.large)
       .disabled(store.isChoosing)
       Text(
-        """
-        Health doesn't tell apps what you turned off. If something stays empty, or only recent \
-        history shows, check Settings › Health › Data Access & Devices › lil health.
-        """
+        "If something's missing, or only recent history shows, check Settings › Privacy & Security › Health › lil health."
       )
       .font(.footnote)
       .multilineTextAlignment(.center)

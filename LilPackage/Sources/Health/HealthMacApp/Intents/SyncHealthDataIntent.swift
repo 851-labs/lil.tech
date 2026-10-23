@@ -8,7 +8,7 @@ import Foundation
 public struct SyncHealthDataIntent: AppIntent {
   public static let title: LocalizedStringResource = "Sync lil health"
   public static let description = IntentDescription(
-    "Gets the latest Health data your iPhone uploaded to lil health. It can't make your iPhone upload: lil health on the iPhone does that by itself. Needs Allow access on this Mac, in lil health's Settings › Agents."
+    "Gets the latest Health data from your iPhone. Needs Allow access on this Mac, in lil health's Settings › Agents."
   )
   /// Never brings a running app's window forward. One that wasn't running is launched to ask,
   /// with its window, as for every intent of a SwiftUI `Window` app.

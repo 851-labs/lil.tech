@@ -59,7 +59,7 @@ struct MedicationsContent: View {
         ContentUnavailableView(
           "No Medications", systemImage: "pills",
           description: Text(
-            "Medications you share with lil health on your iPhone will appear here, with the doses you log in Health."
+            "Medications you share with lil health on your iPhone will appear here."
           ))
       case .loaded(let medications):
         list(medications)

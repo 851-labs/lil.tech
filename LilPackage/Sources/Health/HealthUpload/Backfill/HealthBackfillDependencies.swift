@@ -418,7 +418,9 @@ public struct HealthBatchUploader: Sendable {
   public struct Rejected: LocalizedError, Equatable {
     public let statusCode: Int
 
-    public var errorDescription: String? { "The server answered HTTP \(statusCode)" }
+    public var errorDescription: String? {
+      "lil health's server couldn't take this upload (HTTP \(statusCode))."
+    }
 
     /// The server failing for a moment (e.g. the user's store busy or restarting), so the upload
     /// is worth trying again shortly. Not a 500: that's usually the server failing on this very

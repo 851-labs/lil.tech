@@ -11,13 +11,13 @@ import UniformTypeIdentifiers
 public struct ExportHealthDataIntent: AppIntent, ProgressReportingIntent {
   public static let title: LocalizedStringResource = "Export lil health Data"
   public static let description = IntentDescription(
-    "Saves an archive of everything in your lil health account (your account details, synced Health records and attachments) to a folder, and passes it on. The server prepares one export a day: asking again the same day saves that export again. Needs Allow access on this Mac, in lil health's Settings › Agents."
+    "Saves a copy of everything in your lil health account to a folder. Needs Allow access on this Mac, in lil health's Settings › Agents."
   )
   /// Never brings a running app's window forward.
   public static let supportedModes: IntentModes = .background
 
   @Parameter(
-    title: "Folder", description: "Where to save the archive. Downloads, unless you choose one.",
+    title: "Folder", description: "Where to save it. Downloads if you don't choose one.",
     supportedContentTypes: [.folder])
   public var folder: IntentFile?
 
