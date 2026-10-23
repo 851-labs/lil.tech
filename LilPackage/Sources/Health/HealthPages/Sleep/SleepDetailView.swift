@@ -7,9 +7,9 @@ import LilUI
 import SQLiteData
 public import SwiftUI
 
-/// Sleep, as in Health: a night's stages (D) or a week of nights (W), with time asleep and in
-/// bed, the range and earlier nights in the toolbar. Follows the local database as sync changes
-/// it.
+/// Sleep, as in Health: a night's stages (D), the nights of a week or a month at the clock times
+/// they ran (W, M), or a bar a week (6M), with time in bed and asleep, the range and earlier
+/// periods in the toolbar. Follows the local database as sync changes it.
 public struct SleepDetailView: View {
   let type: HealthDataType
   @State private var range = SleepRange.day
@@ -56,29 +56,68 @@ public struct SleepDetailView: View {
   }
 }
 
-/// D: one night. W: seven.
+/// Health's ranges for Sleep (851-3098), each ending with today's night: D one night, W seven, M
+/// the nights since the same day last month, 6M 26 weeks, ending with this one.
 enum SleepRange: String, CaseIterable, Hashable, Sendable, PeriodRange {
   case day = "D"
   case week = "W"
+  case month = "M"
+  case sixMonths = "6M"
 
   /// D is a night, which runs over two days.
-  var periodName: String { self == .day ? "Night" : "Week" }
-
-  var nights: Int { self == .day ? 1 : 7 }
+  var periodName: String {
+    switch self {
+    case .day: "Night"
+    case .week: "Week"
+    case .month: "Month"
+    case .sixMonths: "6 Months"
+    }
+  }
 
   /// The last night shown, `offset` periods back from today's.
   func lastDay(offset: Int, now: Date, calendar: Calendar) -> Date {
     let today = calendar.startOfDay(for: now)
-    return calendar.date(byAdding: .day, value: offset * nights, to: today) ?? today
+    let day: Date? =
+      switch self {
+      case .day: calendar.date(byAdding: .day, value: offset, to: today)
+      case .week: calendar.date(byAdding: .day, value: offset * 7, to: today)
+      case .month: calendar.date(byAdding: .month, value: offset, to: today)
+      case .sixMonths:
+        // The last day of this week, whose bar is the last, though its nights are still to come.
+        calendar.dateInterval(of: .weekOfYear, for: today)
+          .flatMap { calendar.date(byAdding: .day, value: -1, to: $0.end) }
+          .flatMap { calendar.date(byAdding: .weekOfYear, value: offset * 26, to: $0) }
+      }
+    return day.map(calendar.startOfDay) ?? today
+  }
+
+  /// The first night shown. A month starts the day after the month before ends, so months
+  /// follow each other without a night shown twice, however long they are.
+  func firstDay(offset: Int, now: Date, calendar: Calendar) -> Date {
+    let last = lastDay(offset: offset, now: now, calendar: calendar)
+    let day: Date? =
+      switch self {
+      case .day: last
+      case .week: calendar.date(byAdding: .day, value: -6, to: last)
+      case .month:
+        calendar.date(
+          byAdding: .day, value: 1, to: lastDay(offset: offset - 1, now: now, calendar: calendar))
+      case .sixMonths: calendar.date(byAdding: .day, value: 1 - 26 * 7, to: last)
+      }
+    return day.map(calendar.startOfDay) ?? last
   }
 }
 
-/// A period's nights: the range, its last night, and the nights with sleep in it.
+/// A period's nights: the range, its first and last nights, and the nights with sleep in it.
 struct SleepPeriod: Equatable, Sendable {
   let range: SleepRange
+  /// The start of the first night's day.
+  let firstDay: Date
   /// The start of the last night's day.
   let lastDay: Date
   let nights: [SleepNight]
+  /// 6M's bars, averaged as it loads rather than each time the chart draws.
+  var weeks: [SleepWeek] = []
 }
 
 struct SleepRequest: FetchKeyRequest {
@@ -96,11 +135,14 @@ struct SleepRequest: FetchKeyRequest {
   }
 
   func fetch(_ db: Database) throws -> SleepPeriod? {
+    let firstDay = range.firstDay(offset: offset, now: day, calendar: calendar)
     let lastDay = range.lastDay(offset: offset, now: day, calendar: calendar)
+    let count = (calendar.dateComponents([.day], from: firstDay, to: lastDay).day ?? 0) + 1
+    let nights = try HealthDatabase.sleepNights(
+      endingOn: lastDay, count: count, calendar: calendar, db)
     return SleepPeriod(
-      range: range, lastDay: lastDay,
-      nights: try HealthDatabase.sleepNights(
-        endingOn: lastDay, count: range.nights, calendar: calendar, db))
+      range: range, firstDay: firstDay, lastDay: lastDay, nights: nights,
+      weeks: range == .sixMonths ? SleepWeek.weeks(nights, calendar: calendar) : [])
   }
 }
 
@@ -120,7 +162,7 @@ struct SleepDetailContent: View {
   }
 
   let type: HealthDataType
-  /// The period chosen in the toolbar, which can be ahead of the one shown (`range`, `lastDay`).
+  /// The period chosen in the toolbar, which can be ahead of the one shown (`range`, `days`).
   @Binding private var selectedRange: SleepRange
   @Binding private var selectedOffset: Int
   let state: State
@@ -186,10 +228,13 @@ struct SleepDetailContent: View {
     if case .loaded(let period, _) = state { period.range } else { selectedRange }
   }
 
-  /// The last night shown.
-  private var lastDay: Date {
-    if case .loaded(let period, _) = state { return period.lastDay }
-    return selectedRange.lastDay(offset: selectedOffset, now: now, calendar: calendar)
+  /// The first and last nights shown.
+  private var days: (first: Date, last: Date) {
+    if case .loaded(let period, _) = state { return (period.firstDay, period.lastDay) }
+    return (
+      selectedRange.firstDay(offset: selectedOffset, now: now, calendar: calendar),
+      selectedRange.lastDay(offset: selectedOffset, now: now, calendar: calendar)
+    )
   }
 
   private var nights: [SleepNight] {
@@ -206,38 +251,47 @@ struct SleepDetailContent: View {
 
   // MARK: Header
 
-  /// The same lines whatever the state, so loading never changes its height (851-3084).
+  /// Time in bed and time asleep side by side, as in Health, averages over the nights with sleep
+  /// for W, M and 6M, then the dates. The same lines whatever the state, so loading never changes
+  /// its height (851-3084).
   private var header: some View {
     let nights = nights
     let count = Double(max(nights.count, 1))
-    let asleep = nights.reduce(0) { $0 + $1.asleep } / count
-    let inBed = nights.reduce(0) { $0 + $1.inBed } / count
-    return HStack(alignment: .bottom) {
-      VStack(alignment: .leading, spacing: 2) {
-        Text(range == .day ? "TIME ASLEEP" : "AVERAGE TIME ASLEEP")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
-        Text(nights.isEmpty ? (isLoaded ? "No Data" : "–") : SleepFormat.duration(asleep))
-          .font(.system(.largeTitle, design: .rounded).bold())
-          .foregroundStyle(nights.isEmpty ? .secondary : .primary)
-        Text(nights.isEmpty ? "In bed –" : "In bed \(SleepFormat.duration(inBed))")
-          .foregroundStyle(.secondary)
-        Text(span)
-          .foregroundStyle(.secondary)
+    let average = range == .day ? "" : "AVG. "
+    return VStack(alignment: .leading, spacing: 2) {
+      HStack(alignment: .top, spacing: 16) {
+        headerValue(average + "TIME IN BED", nights.reduce(0) { $0 + $1.inBed } / count)
+        headerValue(average + "TIME ASLEEP", nights.reduce(0) { $0 + $1.asleep } / count)
       }
-      Spacer()
+      Text(span)
+        .foregroundStyle(.secondary)
     }
     // While another period loads, over the one shown.
     .updatingIndicator(isUpdating)
   }
 
+  /// One of the header's columns: its label, and the time, "–" while loading or "No Data".
+  private func headerValue(_ label: String, _ interval: TimeInterval) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(label)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      if nights.isEmpty {
+        Text(isLoaded ? "No Data" : "–")
+          .font(.system(.largeTitle, design: .rounded).bold())
+          .foregroundStyle(.secondary)
+      } else {
+        SleepDurationText(interval)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
   /// The night or nights shown: "Oct 15, 2026", or "Oct 9 – 15, 2026".
   private var span: String {
-    let last = lastDay
+    let (first, last) = days
     let style = Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone)
-    guard range == .week,
-      let first = calendar.date(byAdding: .day, value: 1 - range.nights, to: last)
-    else { return last.formatted(style.month(.abbreviated).day().year()) }
+    guard first < last else { return last.formatted(style.month(.abbreviated).day().year()) }
     return (first..<last).formatted(
       Date.IntervalFormatStyle(date: .abbreviated, time: .omitted, timeZone: calendar.timeZone))
   }
@@ -264,10 +318,13 @@ struct SleepDetailContent: View {
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .loaded(let period, _):
-      if period.range == .day, let night = period.nights.last {
-        stagesChart(night)
-      } else {
-        weekChart(period)
+      switch period.range {
+      case .day:
+        if let night = period.nights.last { stagesChart(night) }
+      case .week, .month:
+        SleepNightsChart(period: period, calendar: calendar)
+      case .sixMonths:
+        SleepWeeksChart(period: period, calendar: calendar)
       }
     }
   }
@@ -302,30 +359,6 @@ struct SleepDetailContent: View {
       AxisMarks(values: .stride(by: .hour, count: 2)) { _ in
         AxisGridLine()
         AxisValueLabel(format: .dateTime.hour())
-      }
-    }
-  }
-
-  /// Each night's time asleep, by stage, with a slot for every night of the week.
-  private func weekChart(_ period: SleepPeriod) -> some View {
-    let last = period.lastDay
-    let first = calendar.date(byAdding: .day, value: 1 - period.range.nights, to: last) ?? last
-    let end = calendar.date(byAdding: .day, value: 1, to: last) ?? last
-    let bars = period.nights.flatMap { night in
-      SleepStage.allCases.filter(\.isAsleep).compactMap { stage -> (Date, SleepStage, Double)? in
-        guard let duration = night.durations[stage], duration > 0 else { return nil }
-        return (night.day, stage, duration / 3600)
-      }
-    }
-    return Chart(Array(bars.enumerated()), id: \.offset) { _, bar in
-      BarMark(x: .value("Night", bar.0, unit: .day), y: .value("Hours", bar.2))
-        .foregroundStyle(SleepFormat.color(bar.1))
-    }
-    .chartXScale(domain: first...end)
-    .chartYAxis {
-      AxisMarks(position: .trailing) { value in
-        AxisGridLine()
-        AxisValueLabel { if let hours = value.as(Double.self) { Text("\(Int(hours)) hr") } }
       }
     }
   }
@@ -419,9 +452,38 @@ enum SleepFormat {
 
   /// "7 hr 32 min", "45 min".
   static func duration(_ interval: TimeInterval) -> String {
+    durationParts(interval).map { "\($0.number) \($0.unit)" }.joined(separator: " ")
+  }
+
+  /// A duration's numbers and units: 7 and "hr", 32 and "min".
+  static func durationParts(_ interval: TimeInterval) -> [(number: Int, unit: String)] {
     let minutes = Int((interval / 60).rounded())
     let (hours, rest) = (minutes / 60, minutes % 60)
-    if hours == 0 { return "\(rest) min" }
-    return rest == 0 ? "\(hours) hr" : "\(hours) hr \(rest) min"
+    if hours == 0 { return [(rest, "min")] }
+    return rest == 0 ? [(hours, "hr")] : [(hours, "hr"), (rest, "min")]
+  }
+}
+
+/// A duration as Health's Sleep header writes it: big numbers, smaller units ("7 hr 46 min").
+struct SleepDurationText: View {
+  let interval: TimeInterval
+
+  init(_ interval: TimeInterval) {
+    self.interval = interval
+  }
+
+  var body: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 3) {
+      ForEach(Array(SleepFormat.durationParts(interval).enumerated()), id: \.offset) { _, part in
+        Text("\(part.number)")
+          .font(.system(.largeTitle, design: .rounded).bold())
+        Text(part.unit)
+          .font(.system(.title3, design: .rounded).weight(.medium))
+          .foregroundStyle(.secondary)
+          .padding(.trailing, 3)
+      }
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(SleepFormat.duration(interval))
   }
 }

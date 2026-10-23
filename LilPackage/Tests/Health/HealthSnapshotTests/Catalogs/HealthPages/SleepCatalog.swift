@@ -1,13 +1,14 @@
 #if os(macOS)
+  import Foundation
   import HealthCatalog
-  import HealthDatabase
+  @testable import HealthDatabase
   @testable import HealthPages
   import SQLiteData
   import SwiftUI
   import Testing
 
-  // Sleep (`SleepDetailContent`): the catalog database's nights, read as the page reads them, and
-  // a made-up night without stages. Synthetic data only.
+  // Sleep (`SleepDetailContent`): half a year of synthetic nights (`sleepCatalogDatabase`), read as
+  // the page reads them, at each range, and a made-up night without stages. Synthetic data only.
 
   extension MacSnapshotTests {
     @Test(arguments: sleepCatalog.selectedStates)
@@ -28,9 +29,9 @@
       CatalogState("Night, loading the night before") {
         detail(.day, offset: -1, .loaded(nights(.day), isUpdating: true))
       },
-      CatalogState("Week") { detail(.week, .loaded(nights(.week))) },
-      CatalogState("Week, loading the week before") {
-        detail(.week, offset: -1, .loaded(nights(.week), isUpdating: true))
+      // Up for an hour in the night, with nothing recorded: one night, with a gap.
+      CatalogState("Night with a gap") {
+        detail(.day, offset: -2, .loaded(nights(.day, offset: -2)))
       },
       // E.g. an iPhone's estimate, without a Watch: asleep and awake only.
       CatalogState("Night without stages") {
@@ -50,29 +51,53 @@
           .day,
           .loaded(
             SleepPeriod(
-              range: .day, lastDay: day,
+              range: .day, firstDay: day, lastDay: day,
               nights: [SleepNight(day: day, segments: segments, inBed: 8 * 3600)])))
       },
-      CatalogState("No sleep") {
-        detail(
-          .day,
-          .loaded(
-            SleepPeriod(
-              range: .day, lastDay: previewCalendar.startOfDay(for: previewNow), nights: [])))
+      // The night the Watch was charging.
+      CatalogState("No sleep") { detail(.day, offset: -3, .loaded(nights(.day, offset: -3))) },
+      // At clock time, from bedtime to waking: a night that started after midnight, one with a
+      // gap, and one missing.
+      CatalogState("Week") { detail(.week, .loaded(nights(.week))) },
+      CatalogState("Week, loading the week before") {
+        detail(.week, offset: -1, .loaded(nights(.week), isUpdating: true))
+      },
+      CatalogState("Month") { detail(.month, .loaded(nights(.month))) },
+      CatalogState("Month, loading the month before") {
+        detail(.month, offset: -1, .loaded(nights(.month), isUpdating: true))
+      },
+      // Before the catalog's nights start.
+      CatalogState("Month without sleep") {
+        detail(.month, offset: -8, .loaded(nights(.month, offset: -8)))
+      },
+      // A bar a week, across the start of daylight saving time (March 10), which doesn't move the
+      // nights after it.
+      CatalogState("6 Months") { detail(.sixMonths, .loaded(nights(.sixMonths))) },
+      CatalogState("6 Months, loading the 6 months before") {
+        detail(.sixMonths, offset: -1, .loaded(nights(.sixMonths), isUpdating: true))
       },
       CatalogState("Loading") { detail(.day, .loading) },
+      CatalogState("Loading a month") { detail(.month, .loading) },
       CatalogState("Failed") { detail(.week, .failed("The database couldn't be read.")) },
     ],
-    // What's below the content stays put while it loads (851-3084).
+    // What's below the content stays put while it loads, and from one range to another but D,
+    // which lists the night's stages (851-3084).
     sameLayout: [
-      ["Loading", "Night", "The night before", "Night, loading the night before"],
-      ["Week", "Week, loading the week before", "Failed"],
+      [
+        "Loading", "Night", "The night before", "Night, loading the night before",
+        "Night with a gap",
+      ],
+      [
+        "Week", "Week, loading the week before", "Month", "Month, loading the month before",
+        "Month without sleep", "6 Months", "6 Months, loading the 6 months before",
+        "Loading a month", "Failed",
+      ],
     ])
 
   private let sleepType = HealthCatalog.type(id: HealthDatabase.sleepType)!
 
   private func nights(_ range: SleepRange, offset: Int = 0) -> SleepPeriod {
-    try! catalogDatabase.read { db in
+    try! sleepCatalogDatabase.read { db in
       try SleepRequest(range: range, offset: offset, day: previewNow, calendar: previewCalendar)
         .fetch(db)!
     }
@@ -88,4 +113,82 @@
         now: previewNow)
     }
   }
+
+  /// 200 synthetic nights, a Watch's, ending with `previewNow`'s: in bed from about 10:30 to 11:45
+  /// PM for 6.5 to 8 hours, in 90-minute cycles of Core, Deep, Core and REM, sometimes awake a few
+  /// minutes between them. The same every run. The week before `previewNow` has what the page has
+  /// to handle: a night that starts after midnight (Aug 9), none (Aug 10), and one with an hour
+  /// awake and unrecorded, then a nap that isn't part of it (Aug 11).
+  let sleepCatalogDatabase: any DatabaseWriter = {
+    let calendar = previewCalendar
+    let today = calendar.startOfDay(for: previewNow)
+    var random = SplitMix64(seed: "sleepCatalogDatabase")
+    var samples: [HealthSample] = []
+    func record(_ stage: SleepStage, _ start: Date, _ end: Date) {
+      samples.append(
+        HealthSample(
+          id: "sleep-\(samples.count)", type: HealthDatabase.sleepType,
+          startDate: start.unixMilliseconds, endDate: end.unixMilliseconds,
+          categoryValue: stage.rawValue, sourceName: "Apple Watch",
+          sourceBundleID: "com.apple.health.watch"))
+    }
+    /// Cycles of stages from `start` to `end`, cut off at `end`.
+    func stages(from start: Date, to end: Date) {
+      var time = start
+      while time < end {
+        for (stage, minutes) in [
+          (SleepStage.core, 20...40.0), (.deep, 15...35), (.core, 10...25), (.rem, 15...30),
+        ] {
+          let next = min(time.addingTimeInterval(random.next(in: minutes) * 60), end)
+          if next > time { record(stage, time, next) }
+          time = next
+        }
+        if time < end, random.next(in: 0...1) < 0.4 {
+          let next = min(time.addingTimeInterval(random.next(in: 3...9) * 60), end)
+          record(.awake, time, next)
+          time = next
+        }
+      }
+    }
+    for back in (0..<200).reversed() {
+      guard let day = calendar.date(byAdding: .day, value: -back, to: today) else { continue }
+      // Bedtime and waking by the clock, in hours from the day's start.
+      var bedtime = random.next(in: -1.5 ... -0.25)
+      let length = random.next(in: 6.5...8)
+      switch back {
+      case 3: continue
+      case 4: bedtime = 0.65
+      default: break
+      }
+      let clock = { (hours: Double) -> Date in
+        // The clock's time, not the time elapsed, so nights across DST keep their hours.
+        let minutes = Int((hours * 60).rounded())
+        let hour = Int((Double(minutes) / 60).rounded(.down))
+        let minute = minutes - hour * 60
+        let base = calendar.date(byAdding: .day, value: hour < 0 ? -1 : 0, to: day)!
+        return calendar.date(
+          bySettingHour: (hour + 24) % 24, minute: minute, second: 0, of: base)!
+      }
+      let start = clock(bedtime)
+      let end = clock(bedtime + length)
+      if back == 2 {
+        let gap = clock(2)
+        let resume = clock(2.9)
+        stages(from: start, to: gap)
+        stages(from: resume, to: end)
+        record(.asleep, clock(15), clock(15.6))
+      } else {
+        stages(from: start, to: end)
+      }
+      record(.inBed, start.addingTimeInterval(-12 * 60), end.addingTimeInterval(8 * 60))
+    }
+    do {
+      let database = try HealthDatabase.make()
+      try database.write { db in try HealthSample.insert { samples }.execute(db) }
+      return database
+    } catch {
+      fatalError("Couldn't make the sleep catalog's database: \(error)")
+    }
+  }()
+
 #endif
