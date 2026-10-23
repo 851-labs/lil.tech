@@ -83,8 +83,7 @@ extension HealthCatalog {
     ),
     quantity(
       "CyclingFunctionalThresholdPower", "Cycling Functional Threshold Power", .activity, "W",
-      .discreteArithmetic, .ios(17)
-    ),
+      .discreteArithmetic, .ios(17), chart: .line),
     quantity(
       "CyclingPower", "Cycling Power", .activity, "W", .discreteTemporallyWeighted, .ios(17)
     ),
@@ -103,16 +102,16 @@ extension HealthCatalog {
     ),
     quantity(
       "CrossCountrySkiingSpeed", "Cross-Country Skiing Speed", .activity, "m/s",
-      .discreteArithmetic, .ios(18)
-    ),
+      .discreteArithmetic, .ios(18), chart: .dots),
     quantity(
       "DistancePaddleSports", "Paddle Sports Distance", .activity, "m", .cumulative, .ios(18)
     ),
     quantity(
-      "PaddleSportsSpeed", "Paddle Sports Speed", .activity, "m/s", .discreteArithmetic, .ios(18)
-    ),
+      "PaddleSportsSpeed", "Paddle Sports Speed", .activity, "m/s", .discreteArithmetic, .ios(18),
+      chart: .dots),
     quantity("DistanceRowing", "Rowing Distance", .activity, "m", .cumulative, .ios(18)),
-    quantity("RowingSpeed", "Rowing Speed", .activity, "m/s", .discreteArithmetic, .ios(18)),
+    quantity(
+      "RowingSpeed", "Rowing Speed", .activity, "m/s", .discreteArithmetic, .ios(18), chart: .dots),
     quantity(
       "DistanceSkatingSports", "Skating Sports Distance", .activity, "m", .cumulative, .ios(18)
     ),
@@ -123,12 +122,10 @@ extension HealthCatalog {
     ),
     quantity(
       "WorkoutEffortScore", "Workout Effort", .activity, "appleEffortScore", .discreteArithmetic,
-      .ios(18)
-    ),
+      .ios(18), chart: .dots),
     quantity(
       "EstimatedWorkoutEffortScore", "Estimated Workout Effort", .activity, "appleEffortScore",
-      .discreteArithmetic, .ios(18)
-    ),
+      .discreteArithmetic, .ios(18), chart: .dots),
     // HealthKit refuses third-party reads of NikeFuel. Not confirmed on a device: 851-2607's check
     // couldn't find it in Health's list of what lil health reads, which has no search.
     quantity(
@@ -143,37 +140,35 @@ extension HealthCatalog {
   ]
 
   static let bodyMeasurements: [HealthDataType] = [
-    quantity("BodyMass", "Weight", .bodyMeasurements, "kg", .discreteArithmetic, .ios(8)),
-    quantity("Height", "Height", .bodyMeasurements, "m", .discreteArithmetic, .ios(8)),
     quantity(
-      "BodyMassIndex", "Body Mass Index", .bodyMeasurements, "count", .discreteArithmetic, .ios(8)
-    ),
+      "BodyMass", "Weight", .bodyMeasurements, "kg", .discreteArithmetic, .ios(8), chart: .line),
+    quantity(
+      "Height", "Height", .bodyMeasurements, "m", .discreteArithmetic, .ios(8), chart: .line),
+    quantity(
+      "BodyMassIndex", "Body Mass Index", .bodyMeasurements, "count", .discreteArithmetic, .ios(8),
+      chart: .line),
     quantity(
       "BodyFatPercentage", "Body Fat Percentage", .bodyMeasurements, "%", .discreteArithmetic,
-      .ios(8)
-    ),
+      .ios(8), chart: .line),
     quantity(
-      "LeanBodyMass", "Lean Body Mass", .bodyMeasurements, "kg", .discreteArithmetic, .ios(8)),
+      "LeanBodyMass", "Lean Body Mass", .bodyMeasurements, "kg", .discreteArithmetic, .ios(8),
+      chart: .line),
     quantity(
       "WaistCircumference", "Waist Circumference", .bodyMeasurements, "m", .discreteArithmetic,
-      .ios(11)
-    ),
+      .ios(11), chart: .line),
     quantity(
       "AppleSleepingWristTemperature", "Wrist Temperature", .bodyMeasurements, "degC",
-      .discreteArithmetic, .ios(16), alsoListedIn: [.vitals]
-    ),
+      .discreteArithmetic, .ios(16), alsoListedIn: [.vitals], chart: .line),
     quantity(
       "ElectrodermalActivity", "Electrodermal Activity", .bodyMeasurements, "mcS",
-      .discreteArithmetic, .ios(8)
-    ),
+      .discreteArithmetic, .ios(8), chart: .dots),
   ]
 
   static let cycleTracking: [HealthDataType] = [
     category("MenstrualFlow", "Period", .cycleTracking, .ios(9)),
     quantity(
       "BasalBodyTemperature", "Basal Body Temperature", .cycleTracking, "degC",
-      .discreteArithmetic, .ios(9)
-    ),
+      .discreteArithmetic, .ios(9), chart: .line),
     category("CervicalMucusQuality", "Cervical Mucus Quality", .cycleTracking, .ios(9)),
     category("OvulationTestResult", "Ovulation Test Result", .cycleTracking, .ios(9)),
     category("PregnancyTestResult", "Pregnancy Test Result", .cycleTracking, .ios(15)),
@@ -226,28 +221,25 @@ extension HealthCatalog {
     ),
     quantity(
       "RestingHeartRate", "Resting Heart Rate", .heart, "count/min", .discreteTemporallyWeighted,
-      .ios(11)
-    ),
+      .ios(11), chart: .line),
     quantity(
       "WalkingHeartRateAverage", "Walking Heart Rate Average", .heart, "count/min",
-      .discreteTemporallyWeighted, .ios(11)
-    ),
+      .discreteTemporallyWeighted, .ios(11), chart: .line),
     quantity(
       "HeartRateVariabilitySDNN", "Heart Rate Variability", .heart, "ms", .discreteArithmetic,
-      .ios(11)
-    ),
+      .ios(11), chart: .dots),
     quantity(
       "HeartRateVariabilityRMSSD", "Heart Rate Variability (RMSSD)", .heart, "ms",
-      .discreteArithmetic, .ios(27)
-    ),
+      .discreteArithmetic, .ios(27), chart: .dots),
     quantity(
       "HeartRateRecoveryOneMinute", "Cardio Recovery", .heart, "count/min", .discreteArithmetic,
-      .ios(16)
-    ),
-    quantity("VO2Max", "Cardio Fitness", .heart, "ml/(kg*min)", .discreteArithmetic, .ios(11)),
+      .ios(16), chart: .line),
     quantity(
-      "AtrialFibrillationBurden", "AFib History", .heart, "%", .discreteTemporallyWeighted, .ios(16)
+      "VO2Max", "Cardio Fitness", .heart, "ml/(kg*min)", .discreteArithmetic, .ios(11), chart: .line
     ),
+    quantity(
+      "AtrialFibrillationBurden", "AFib History", .heart, "%", .discreteTemporallyWeighted,
+      .ios(16), chart: .line),
     correlation("BloodPressure", "Blood Pressure", .heart, .ios(8), alsoListedIn: [.vitals]),
     quantity(
       "BloodPressureSystolic", "Systolic Blood Pressure", .heart, "mmHg", .discreteArithmetic,
@@ -301,42 +293,42 @@ extension HealthCatalog {
   ]
 
   static let mobility: [HealthDataType] = [
-    quantity("WalkingSpeed", "Walking Speed", .mobility, "m/s", .discreteArithmetic, .ios(14)),
     quantity(
-      "WalkingStepLength", "Walking Step Length", .mobility, "m", .discreteArithmetic, .ios(14)),
+      "WalkingSpeed", "Walking Speed", .mobility, "m/s", .discreteArithmetic, .ios(14), chart: .dots
+    ),
+    quantity(
+      "WalkingStepLength", "Walking Step Length", .mobility, "m", .discreteArithmetic, .ios(14),
+      chart: .dots),
     quantity(
       "WalkingAsymmetryPercentage", "Walking Asymmetry", .mobility, "%", .discreteArithmetic,
-      .ios(14)
-    ),
+      .ios(14), chart: .dots),
     quantity(
       "WalkingDoubleSupportPercentage", "Double Support Time", .mobility, "%", .discreteArithmetic,
-      .ios(14)
-    ),
+      .ios(14), chart: .dots),
     quantity(
-      "AppleWalkingSteadiness", "Walking Steadiness", .mobility, "%", .discreteArithmetic, .ios(15)
-    ),
+      "AppleWalkingSteadiness", "Walking Steadiness", .mobility, "%", .discreteArithmetic, .ios(15),
+      chart: .dots),
     category(
       "AppleWalkingSteadinessEvent", "Walking Steadiness Notifications", .mobility, .ios(15)
     ),
     quantity(
-      "SixMinuteWalkTestDistance", "Six-Minute Walk", .mobility, "m", .discreteArithmetic, .ios(14)
-    ),
+      "SixMinuteWalkTestDistance", "Six-Minute Walk", .mobility, "m", .discreteArithmetic, .ios(14),
+      chart: .dots),
     quantity(
-      "StairAscentSpeed", "Stair Speed: Up", .mobility, "m/s", .discreteArithmetic, .ios(14)),
+      "StairAscentSpeed", "Stair Speed: Up", .mobility, "m/s", .discreteArithmetic, .ios(14),
+      chart: .dots),
     quantity(
-      "StairDescentSpeed", "Stair Speed: Down", .mobility, "m/s", .discreteArithmetic, .ios(14)
-    ),
+      "StairDescentSpeed", "Stair Speed: Down", .mobility, "m/s", .discreteArithmetic, .ios(14),
+      chart: .dots),
     quantity(
-      "RunningStrideLength", "Running Stride Length", .mobility, "m", .discreteArithmetic, .ios(16)
-    ),
+      "RunningStrideLength", "Running Stride Length", .mobility, "m", .discreteArithmetic, .ios(16),
+      chart: .dots),
     quantity(
       "RunningGroundContactTime", "Ground Contact Time", .mobility, "ms", .discreteArithmetic,
-      .ios(16)
-    ),
+      .ios(16), chart: .dots),
     quantity(
       "RunningVerticalOscillation", "Vertical Oscillation", .mobility, "cm", .discreteArithmetic,
-      .ios(16)
-    ),
+      .ios(16), chart: .dots),
   ]
 
   static let nutrition: [HealthDataType] = [
@@ -393,25 +385,20 @@ extension HealthCatalog {
     ),
     quantity(
       "OxygenSaturation", "Blood Oxygen", .respiratory, "%", .discreteArithmetic, .ios(8),
-      alsoListedIn: [.vitals]
-    ),
+      alsoListedIn: [.vitals], chart: .dots),
     quantity(
       "AppleSleepingBreathingDisturbances", "Breathing Disturbances", .respiratory, "count",
-      .discreteArithmetic, .ios(18)
-    ),
+      .discreteArithmetic, .ios(18), chart: .line),
     category("SleepApneaEvent", "Sleep Apnea Notifications", .respiratory, .ios(18)),
     quantity(
       "ForcedVitalCapacity", "Forced Vital Capacity", .respiratory, "L", .discreteArithmetic,
-      .ios(8)
-    ),
+      .ios(8), chart: .line),
     quantity(
       "ForcedExpiratoryVolume1", "Forced Expiratory Volume, 1 sec", .respiratory, "L",
-      .discreteArithmetic, .ios(8)
-    ),
+      .discreteArithmetic, .ios(8), chart: .line),
     quantity(
       "PeakExpiratoryFlowRate", "Peak Expiratory Flow Rate", .respiratory, "L/min",
-      .discreteArithmetic, .ios(8)
-    ),
+      .discreteArithmetic, .ios(8), chart: .line),
     quantity("InhalerUsage", "Inhaler Usage", .respiratory, "count", .cumulative, .ios(8)),
   ]
 
@@ -465,14 +452,16 @@ extension HealthCatalog {
   ]
 
   static let vitals: [HealthDataType] = [
-    quantity("BodyTemperature", "Body Temperature", .vitals, "degC", .discreteArithmetic, .ios(8)),
+    quantity(
+      "BodyTemperature", "Body Temperature", .vitals, "degC", .discreteArithmetic, .ios(8),
+      chart: .line),
     quantity("BloodGlucose", "Blood Glucose", .vitals, "mg/dL", .discreteArithmetic, .ios(8)),
   ]
 
   static let otherData: [HealthDataType] = [
     quantity(
-      "BloodAlcoholContent", "Blood Alcohol Content", .otherData, "%", .discreteArithmetic, .ios(8)
-    ),
+      "BloodAlcoholContent", "Blood Alcohol Content", .otherData, "%", .discreteArithmetic, .ios(8),
+      chart: .dots),
     quantity(
       "NumberOfAlcoholicBeverages", "Alcoholic Beverages", .otherData, "count", .cumulative,
       .ios(15)
@@ -483,13 +472,13 @@ extension HealthCatalog {
     ),
     quantity(
       "PeripheralPerfusionIndex", "Peripheral Perfusion Index", .otherData, "%",
-      .discreteArithmetic, .ios(8)
-    ),
-    quantity("UVExposure", "UV Index", .otherData, "count", .discreteArithmetic, .ios(9)),
+      .discreteArithmetic, .ios(8), chart: .dots),
+    quantity(
+      "UVExposure", "UV Index", .otherData, "count", .discreteArithmetic, .ios(9), chart: .dots),
     quantity("UnderwaterDepth", "Underwater Depth", .otherData, "m", .discreteArithmetic, .ios(16)),
     quantity(
-      "WaterTemperature", "Water Temperature", .otherData, "degC", .discreteArithmetic, .ios(16)
-    ),
+      "WaterTemperature", "Water Temperature", .otherData, "degC", .discreteArithmetic, .ios(16),
+      chart: .dots),
     category("HandwashingEvent", "Handwashing", .otherData, .ios(14)),
     category("ToothbrushingEvent", "Toothbrushing", .otherData, .ios(13)),
     special(
@@ -522,7 +511,8 @@ extension HealthCatalog {
     _ aggregation: HealthDataType.Aggregation,
     _ introduced: IOSVersion,
     alsoListedIn: Set<HealthCategory> = [],
-    readAuthorization: HealthDataType.ReadAuthorization = .standard
+    readAuthorization: HealthDataType.ReadAuthorization = .standard,
+    chart: HealthDataType.ChartStyle? = nil
   ) -> HealthDataType {
     HealthDataType(
       id: "HKQuantityTypeIdentifier\(name)",
@@ -532,6 +522,8 @@ extension HealthCatalog {
       alsoListedIn: alsoListedIn,
       unit: unit,
       aggregation: aggregation,
+      // Bars for totals, ranges for the other types unless they're drawn as a line.
+      chartStyle: chart ?? (aggregation.isCumulative ? .bars : .ranges),
       introduced: introduced,
       readAuthorization: readAuthorization
     )
@@ -586,6 +578,7 @@ extension HealthCatalog {
       alsoListedIn: alsoListedIn,
       unit: nil,
       aggregation: nil,
+      chartStyle: nil,
       introduced: introduced,
       readAuthorization: readAuthorization
     )

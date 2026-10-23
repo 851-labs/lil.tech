@@ -31,6 +31,7 @@ extension HealthCatalog {
         "alsoListedIn": HealthCategory.allCases.filter(type.alsoListedIn.contains).map(\.rawValue),
         "unit": type.unit,
         "aggregation": type.aggregation?.rawValue,
+        "chartStyle": type.chartStyle?.rawValue,
         "introduced": type.introduced.description,
         "readAuthorization": type.readAuthorization.rawValue,
       ])

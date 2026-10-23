@@ -38,14 +38,17 @@ describe("HealthCatalog", () => {
       healthCatalogType("HKQuantityTypeIdentifierEnvironmentalAudioExposure")?.aggregation,
       "discreteEquivalentContinuousLevel",
     );
+    assert.strictEqual(healthCatalogType("HKQuantityTypeIdentifierBodyMass")?.chartStyle, "line");
+    assert.strictEqual(heartRate?.chartStyle, "ranges");
     assert.isUndefined(healthCatalogType("HKQuantityTypeIdentifierNotAType"));
   });
 
-  it("gives only quantities units and aggregation styles, and only characteristics no category", () => {
+  it("gives only quantities units, aggregation and chart styles, and only characteristics no category", () => {
     for (const type of healthCatalogTypes) {
       const quantity = type.kind === "quantity";
       assert.strictEqual(type.unit !== null, quantity, type.id);
       assert.strictEqual(type.aggregation !== null, quantity, type.id);
+      assert.strictEqual(type.chartStyle !== null, quantity, type.id);
       assert.strictEqual(type.category === null, type.kind === "characteristic", type.id);
     }
   });

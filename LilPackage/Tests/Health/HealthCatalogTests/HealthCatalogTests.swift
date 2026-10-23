@@ -43,6 +43,29 @@ struct HealthCatalogTests {
     }
   }
 
+  /// Totals are bars, and discrete types ranges, dots or a line, fixed per type (851-3097).
+  @Test
+  func chartStyles() {
+    for type in HealthCatalog.all {
+      #expect((type.chartStyle != nil) == (type.kind == .quantity), "\(type.id)")
+      if let aggregation = type.aggregation {
+        #expect((type.chartStyle == .bars) == aggregation.isCumulative, "\(type.id)")
+      }
+    }
+    func style(_ name: String) -> HealthDataType.ChartStyle? {
+      HealthCatalog.type(id: "HKQuantityTypeIdentifier\(name)")?.chartStyle
+    }
+    #expect(style("StepCount") == .bars)
+    #expect(style("BodyMass") == .line)
+    #expect(style("VO2Max") == .line)
+    #expect(style("RestingHeartRate") == .line)
+    #expect(style("HeartRateVariabilitySDNN") == .dots)
+    #expect(style("OxygenSaturation") == .dots)
+    #expect(style("WalkingSpeed") == .dots)
+    #expect(style("HeartRate") == .ranges)
+    #expect(style("EnvironmentalAudioExposure") == .ranges)
+  }
+
   @Test
   func readAuthorization() {
     for type in HealthCatalog.all where type.kind == .correlation {
