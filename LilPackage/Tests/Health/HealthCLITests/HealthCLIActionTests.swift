@@ -1,7 +1,6 @@
 import Foundation
 import HealthAgentAccess
 import HealthCatalog
-import HealthDatabase
 import Synchronization
 import Testing
 
@@ -152,11 +151,14 @@ struct HealthCLIActionTests {
     let folder = try ActionFolder()
     defer { folder.remove() }
     let app = FakeApp(folder.store, running: false, behavior: .answer(.ok(.done)))
-    let outcome = folder.run(["open", "Health Details", "--json"], app: app)
+    let outcome = folder.run(["open", "Body Measurements", "--json"], app: app)
     #expect(outcome.status == 0, "\(outcome.error)")
     #expect(
       json(outcome.output)
-        == ["outcome": "ok", "result": ["page": "health-details", "name": "Health Details"]])
+        == [
+          "outcome": "ok",
+          "result": ["page": "category:bodyMeasurements", "name": "Body Measurements"],
+        ])
     #expect(app.calls.withLock { $0 } == ["activate"])
   }
 
@@ -182,7 +184,8 @@ struct HealthCLIActionTests {
     let folder = try ActionFolder()
     defer { folder.remove() }
     let app = FakeApp(folder.store, behavior: .answer(.ok(.done)))
-    for page in ["Nope", "Activity Move Mode"] {
+    // Health Details and its characteristics are no pages (851-3187).
+    for page in ["Nope", "Health Details", "Blood Type", "Activity Move Mode"] {
       let outcome = folder.run(["open", page], app: app)
       #expect(outcome.status == 65 && outcome.error.contains("has no page named \(page)."))
     }
@@ -193,7 +196,7 @@ struct HealthCLIActionTests {
   @Test
   func namesPagesAsTheSidebarDoes() {
     #expect(OpenCommand.pageID(named: "summary") == "summary")
-    #expect(OpenCommand.pageID(named: " Health details ") == "health-details")
+    #expect(OpenCommand.pageID(named: " Heart ") == "category:heart")
     // The category before the type of the same name.
     #expect(OpenCommand.pageID(named: "Sleep") == "category:sleep")
     #expect(OpenCommand.pageID(named: "body measurements") == "category:bodyMeasurements")
@@ -202,9 +205,9 @@ struct HealthCLIActionTests {
     #expect(
       OpenCommand.pageID(named: "HKQuantityTypeIdentifierHeartRate")
         == "type:HKQuantityTypeIdentifierHeartRate")
-    // A characteristic Health Details shows opens it (851-3026); Activity Move Mode isn't there.
-    #expect(
-      OpenCommand.pageID(named: "Blood Type") == "type:HKCharacteristicTypeIdentifierBloodType")
+    // Characteristics have no page, nor has Health Details, which showed them (851-3187).
+    #expect(OpenCommand.pageID(named: "Health Details") == nil)
+    #expect(OpenCommand.pageID(named: "Blood Type") == nil)
     #expect(OpenCommand.pageID(named: "Activity Move Mode") == nil)
     // Every category and type with a page, as the app's `HealthPage.id` has them.
     for category in HealthCategory.allCases {
@@ -213,7 +216,7 @@ struct HealthCLIActionTests {
     for type in HealthCatalog.all {
       #expect(
         OpenCommand.pageID(named: type.id)
-          == (HealthDetails.hasPage(type) ? "type:\(type.id)" : nil))
+          == (type.category != nil ? "type:\(type.id)" : nil))
     }
   }
 

@@ -162,6 +162,11 @@ extension HealthCatalog {
     quantity(
       "ElectrodermalActivity", "Electrodermal Activity", .bodyMeasurements, "mcS",
       .discreteArithmetic, .ios(8), chart: .dots),
+    // Health lists it in Body Measurements (851-3187).
+    special(
+      "HKVisionPrescriptionTypeIdentifier", .visionPrescription, "Vision Prescriptions",
+      .bodyMeasurements, .ios(16), readAuthorization: .perObject
+    ),
   ]
 
   static let cycleTracking: [HealthDataType] = [
@@ -482,14 +487,11 @@ extension HealthCatalog {
     category("HandwashingEvent", "Handwashing", .otherData, .ios(14)),
     category("ToothbrushingEvent", "Toothbrushing", .otherData, .ios(13)),
     special(
-      "HKVisionPrescriptionTypeIdentifier", .visionPrescription, "Vision Prescriptions",
-      .otherData, .ios(16), readAuthorization: .perObject
-    ),
-    special(
       "HKDocumentTypeIdentifierCDA", .document, "Health Documents (CDA)", .otherData, .ios(10)),
   ]
 
-  /// Health Details (profile) values. Health shows them in Health Details, not Browse.
+  /// Health Details (profile) values. Health shows them in Health Details, not Browse. lil health
+  /// for Mac shows them nowhere (851-3187), though they sync and its tools read them.
   static let characteristics: [HealthDataType] = [
     characteristic("DateOfBirth", "Date of Birth", .ios(8)),
     characteristic("BiologicalSex", "Sex", .ios(8)),

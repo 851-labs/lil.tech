@@ -1,47 +1,43 @@
 public import AppIntents
 import AppKit
 public import HealthCatalog
-import HealthDatabase
 import HealthUI
 import SwiftUI
 import Synchronization
 
-/// A page of lil health for Mac that its intents open (851-2892): Summary, Health Details, a
-/// category, or a data type, as the sidebar offers them. A characteristic Health Details shows
-/// (Blood Type…) is a page too, which opens Health Details (851-3026).
+/// A page of lil health for Mac that its intents open (851-2892): Summary, a category, or a data
+/// type, as the sidebar offers them. Characteristics, which have no category, aren't pages
+/// (851-3187).
 public struct HealthPage: AppEntity, Hashable, Sendable {
   public enum Kind: Hashable, Sendable {
     case summary
-    case healthDetails
     case category(HealthCategory)
-    /// A type with a category, opened in it, or a characteristic, which opens Health Details.
+    /// A type with a category, opened in it.
     case dataType(HealthDataType)
   }
 
   public let kind: Kind
 
   public static let summary = Self(kind: .summary)
-  public static let healthDetails = Self(kind: .healthDetails)
 
   public static func category(_ category: HealthCategory) -> Self {
     Self(kind: .category(category))
   }
 
-  /// A data type's page. `nil` for a characteristic Health Details doesn't show (Activity Move
-  /// Mode), which is nowhere in the app.
+  /// A data type's page. `nil` for a type without a category (a characteristic).
   public static func dataType(_ type: HealthDataType) -> Self? {
-    HealthDetails.hasPage(type) ? Self(kind: .dataType(type)) : nil
+    type.category == nil ? nil : Self(kind: .dataType(type))
   }
 
   private init(kind: Kind) {
     self.kind = kind
   }
 
-  /// `summary`, `health-details`, `category:<raw value>` or `type:<HealthKit identifier>`.
+  /// `summary`, `category:<raw value>` or `type:<HealthKit identifier>`. `health-details`, Health
+  /// Details' before 851-3187, is no page.
   public var id: String {
     switch kind {
     case .summary: "summary"
-    case .healthDetails: "health-details"
     case .category(let category): "category:\(category.rawValue)"
     case .dataType(let type): "type:\(type.id)"
     }
@@ -51,8 +47,6 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
     switch id {
     case "summary":
       self = .summary
-    case "health-details":
-      self = .healthDetails
     case let id where id.hasPrefix("category:"):
       guard let category = HealthCategory(rawValue: String(id.dropFirst("category:".count)))
       else { return nil }
@@ -71,19 +65,17 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
   public var name: String {
     switch kind {
     case .summary: "Summary"
-    case .healthDetails: "Health Details"
     case .category(let category): category.name
     case .dataType(let type): type.name
     }
   }
 
-  /// A type's subtitle in Shortcuts and Spotlight: the page it opens in, as the sidebar names it.
-  /// Its category, or Health Details for a characteristic, so Blood Type doesn't look like Health
-  /// Details itself.
+  /// A type's subtitle in Shortcuts and Spotlight: the category it opens in, as the sidebar
+  /// names it.
   var subtitle: String? {
     switch kind {
-    case .dataType(let type): type.category?.name ?? Self.healthDetails.name
-    case .summary, .healthDetails, .category: nil
+    case .dataType(let type): type.category?.name
+    case .summary, .category: nil
     }
   }
 
@@ -91,7 +83,6 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
   var symbolName: String {
     switch kind {
     case .summary: "heart.text.square.fill"
-    case .healthDetails: HealthDetailsStyle.symbolName
     case .category(let category): category.symbolName
     case .dataType(let type): type.symbolName
     }
@@ -101,7 +92,6 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
   var color: Color {
     switch kind {
     case .summary: .accentColor
-    case .healthDetails: HealthDetailsStyle.color
     case .category(let category): category.color
     case .dataType(let type): type.color
     }
@@ -109,23 +99,20 @@ public struct HealthPage: AppEntity, Hashable, Sendable {
 
   // MARK: - Every page
 
-  /// Summary, Health Details, then the categories: what's suggested before anything is typed.
-  public static let suggested: [Self] =
-    [.summary, .healthDetails] + HealthCategory.allCases.map(Self.category)
+  /// Summary, then the categories: what's suggested before anything is typed.
+  public static let suggested: [Self] = [.summary] + HealthCategory.allCases.map(Self.category)
 
   /// Every page, types last, in the sidebar's order.
   public static let all: [Self] = suggested + browsableTypes.compactMap(Self.dataType)
 
-  /// The types the sidebar's search finds, in the sidebar's order: the characteristics Health
-  /// Details shows, in its order (the catalog's), then each category's types by name. Every type
-  /// in the catalog, whatever iOS version added it: the Mac shows what's synced.
-  static let browsableTypes: [HealthDataType] =
-    HealthCatalog.all.filter { $0.category == nil && HealthDetails.hasPage($0) }
-    + HealthCategory.allCases.flatMap { category in
-      HealthCatalog.all
-        .filter { $0.category == category }
-        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-    }
+  /// The types the sidebar's search finds, by category order then name. Every type in the
+  /// catalog, whatever iOS version added it: the Mac shows what's synced. Characteristics, which
+  /// have no category, aren't data to browse (851-3187).
+  static let browsableTypes: [HealthDataType] = HealthCategory.allCases.flatMap { category in
+    HealthCatalog.all
+      .filter { $0.category == category }
+      .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+  }
 
   /// The pages a search finds: names as the sidebar's search matches them
   /// (`localizedStandardContains`), with types also found by the names `lil-health` accepts (the

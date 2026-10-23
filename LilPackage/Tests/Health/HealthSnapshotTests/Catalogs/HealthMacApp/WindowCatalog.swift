@@ -47,23 +47,20 @@
           AppFeature.State(
             isSignedIn: true, syncStatus: .bootstrapping(.downloading(300_000, of: 2_000_000))))
       },
-      CatalogState("Health Details") {
-        window(AppFeature.State(isSignedIn: true, selection: .healthDetails))
-      },
-      // Pushed on Health Details' stack, which is the store's, so opening Health Details pops it
-      // (851-3030).
-      CatalogState("Vision Prescriptions in Health Details") {
-        window(
-          AppFeature.State(
-            isSignedIn: true, selection: .healthDetails,
-            metricPath: [HealthDatabase.visionPrescriptionType]))
-      },
       CatalogState("A category") {
         window(AppFeature.State(isSignedIn: true, selection: .category(.heart)))
       },
       // Its icon is two-tone, and goes wholly white on the key window's selection (851-2823).
       CatalogState("A two-tone category") {
         window(AppFeature.State(isSignedIn: true, selection: .category(.medications)))
+      },
+      // Body Measurements lists it, as Health does (851-3187), and its row pushes it on the
+      // category's stack, which is the store's (851-3030).
+      CatalogState("Vision Prescriptions in Body Measurements") {
+        window(
+          AppFeature.State(
+            isSignedIn: true, selection: .category(.bodyMeasurements),
+            metricPath: [HealthDatabase.visionPrescriptionType]))
       },
       // A metric's range and periods are in the toolbar (851-2821).
       CatalogState("A metric") {
@@ -98,14 +95,6 @@
           AppFeature.State(
             isSignedIn: true, selection: .dataType("HKQuantityTypeIdentifierHeartRate"),
             searchText: "heart"))
-      },
-      // Health Details' characteristics first, as in the sidebar, and one opens Health Details
-      // (851-3026).
-      CatalogState("A characteristic found by search") {
-        window(
-          AppFeature.State(
-            isSignedIn: true, selection: .dataType("HKCharacteristicTypeIdentifierBloodType"),
-            searchText: "blood"))
       },
       CatalogState("Search without results") {
         window(AppFeature.State(isSignedIn: true, searchText: "xylophone"))

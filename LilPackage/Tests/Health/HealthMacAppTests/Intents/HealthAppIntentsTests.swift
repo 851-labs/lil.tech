@@ -13,9 +13,9 @@ import Testing
 
 private let steps = HealthPage.dataType(
   HealthCatalog.type(id: "HKQuantityTypeIdentifierStepCount")!)!
-private let bloodType = HealthPage.dataType(
-  HealthCatalog.type(id: "HKCharacteristicTypeIdentifierBloodType")!)!
 private let visionPrescriptions = HealthDatabase.visionPrescriptionType
+private let visionPrescriptionsPage = HealthPage.dataType(
+  HealthCatalog.type(id: visionPrescriptions)!)!
 
 // App actions (851-2892). Synthetic data only, and temporary directories for the access setting.
 @Suite(.dependencies)
@@ -46,17 +46,10 @@ struct HealthAppIntentsTests {
       $0.selection = .category(.heart)
       $0.metricPath = []
     }
-    await store.send(.pageOpened(.healthDetails)) {
-      $0.selection = .healthDetails
-    }
-    await store.send(.pageOpened(steps)) {
-      $0.selection = .category(.activity)
-      $0.metricPath = ["HKQuantityTypeIdentifierStepCount"]
-    }
-    // A characteristic opens Health Details, which shows it with the others (851-3026).
-    await store.send(.pageOpened(bloodType)) {
-      $0.selection = .healthDetails
-      $0.metricPath = []
+    // In Body Measurements, as in Health (851-3187).
+    await store.send(.pageOpened(visionPrescriptionsPage)) {
+      $0.selection = .category(.bodyMeasurements)
+      $0.metricPath = [visionPrescriptions]
     }
     await store.send(\.binding.searchText, "sleep") {
       $0.searchText = "sleep"
@@ -64,41 +57,40 @@ struct HealthAppIntentsTests {
     await store.send(.pageOpened(.summary)) {
       $0.searchText = ""
       $0.selection = .summary
+      $0.metricPath = []
     }
   }
 
-  /// Health Details' stack is the store's too: opening it, or a characteristic, shows Health
-  /// Details itself, as opening a category does (851-3030).
+  /// A category's stack is the store's: opening the category shows it with nothing pushed
+  /// (851-3030).
   @Test
-  func openingHealthDetailsPopsWhatsPushedOnIt() async {
+  func openingACategoryPopsWhatsPushedOnIt() async {
     let store = TestStore(
       initialState: AppFeature.State(
-        isSignedIn: true, selection: .healthDetails, metricPath: [visionPrescriptions])
+        isSignedIn: true, selection: .category(.bodyMeasurements),
+        metricPath: [visionPrescriptions])
     ) {
       AppFeature()
     }
-    await store.send(.pageOpened(.healthDetails)) {
+    await store.send(.pageOpened(.category(.bodyMeasurements))) {
       $0.metricPath = []
     }
     // With nothing pushed, it stays as it is.
-    await store.send(.pageOpened(.healthDetails))
-    // Its Vision link, then a characteristic.
-    await store.send(.metricPathChanged([visionPrescriptions], selection: .healthDetails)) {
+    await store.send(.pageOpened(.category(.bodyMeasurements)))
+    // A type opens on its category's stack.
+    await store.send(.pageOpened(visionPrescriptionsPage)) {
       $0.metricPath = [visionPrescriptions]
     }
-    await store.send(.pageOpened(bloodType)) {
-      $0.metricPath = []
-    }
-    await store.send(.pageOpened(bloodType))
   }
 
   /// Through the intents' channel, as Shortcuts and Spotlight open a page (851-3030).
   @Test(.timeLimit(.minutes(1)))
-  func anIntentOpeningHealthDetailsPopsWhatsPushedOnIt() async throws {
+  func anIntentOpeningACategoryPopsWhatsPushedOnIt() async throws {
     let actions = HealthAppActions(channel: HealthAppActionChannel(signInWait: .zero))
     let (updates, session) = AsyncStream<Bool>.makeStream()
     let store = TestStore(
-      initialState: AppFeature.State(selection: .healthDetails, metricPath: [visionPrescriptions])
+      initialState: AppFeature.State(
+        selection: .category(.bodyMeasurements), metricPath: [visionPrescriptions])
     ) {
       AppFeature()
     } withDependencies: {
@@ -115,24 +107,15 @@ struct HealthAppIntentsTests {
     session.yield(true)
     await store.receive(\.signedInChanged)
 
-    let healthDetails = Task { try await actions.perform(.open(.healthDetails), { _ in }) }
+    let category = Task {
+      try await actions.perform(.open(.category(.bodyMeasurements)), { _ in })
+    }
     await store.receive(\.appActionRequested)
     await store.receive(\.pageOpened) {
-      $0.selection = .healthDetails
+      $0.selection = .category(.bodyMeasurements)
       $0.metricPath = []
     }
-    #expect(try await healthDetails.value == .done)
-
-    await store.send(.metricPathChanged([visionPrescriptions], selection: .healthDetails)) {
-      $0.metricPath = [visionPrescriptions]
-    }
-    let characteristic = Task { try await actions.perform(.open(bloodType), { _ in }) }
-    await store.receive(\.appActionRequested)
-    await store.receive(\.pageOpened) {
-      $0.selection = .healthDetails
-      $0.metricPath = []
-    }
-    #expect(try await characteristic.value == .done)
+    #expect(try await category.value == .done)
 
     session.yield(false)
     await store.receive(\.signedInChanged)
@@ -345,42 +328,41 @@ struct HealthAppIntentsTests {
     // Exact names first: the category, then the type of the same name.
     let sleep = try await query.entities(matching: "Sleep")
     #expect(sleep.first == .category(.sleep))
-    // A characteristic Health Details shows, with its subtitle (851-3026).
-    #expect(try await query.entities(matching: "blood type") == [bloodType])
-    #expect(try await query.entities(matching: "BloodType") == [bloodType])
-    // Activity Move Mode isn't in Health Details, so it's nowhere in the app.
+    // Health Details and its characteristics are no pages (851-3187).
+    #expect(try await query.entities(matching: "Health Details").isEmpty)
+    #expect(try await query.entities(matching: "blood type").isEmpty)
+    #expect(try await query.entities(matching: "BloodType").isEmpty)
     #expect(try await query.entities(matching: "Activity Move Mode").isEmpty)
     #expect(try await query.entities(matching: "xylophone").isEmpty)
   }
 
   @Test
-  func suggestsSummaryHealthDetailsAndTheCategories() async throws {
+  func suggestsSummaryAndTheCategories() async throws {
     let suggested = try await HealthPageQuery().suggestedEntities()
-    #expect(
-      suggested == [.summary, .healthDetails] + HealthCategory.allCases.map(HealthPage.category))
+    #expect(suggested == [.summary] + HealthCategory.allCases.map(HealthPage.category))
   }
 
   @Test
   func pagesRoundTripThroughTheirIDs() async throws {
     #expect(HealthPage.summary.id == "summary")
-    #expect(HealthPage.healthDetails.id == "health-details")
     #expect(HealthPage.category(.mentalWellbeing).id == "category:mentalWellbeing")
     #expect(steps.id == "type:HKQuantityTypeIdentifierStepCount")
     let all = HealthPage.all
     #expect(try await HealthPageQuery().entities(for: all.map(\.id)) == all)
-    #expect(HealthPage(id: "type:HKCharacteristicTypeIdentifierBloodType") == bloodType)
+    // Health Details' ID, from a Shortcut made before it went (851-3187), and its
+    // characteristics'.
+    #expect(HealthPage(id: "health-details") == nil)
+    #expect(HealthPage(id: "type:HKCharacteristicTypeIdentifierBloodType") == nil)
     #expect(HealthPage(id: "type:HKCharacteristicTypeIdentifierActivityMoveMode") == nil)
     #expect(HealthPage(id: "category:nope") == nil)
     #expect(HealthPage(id: "Steps") == nil)
   }
 
-  /// A type's subtitle is where it opens, so Shortcuts' picker tells a characteristic from Health
-  /// Details (851-3026).
+  /// A type's subtitle is the category it opens in.
   @Test
   func typesAreSubtitledWithWhereTheyOpen() {
     #expect(steps.subtitle == "Activity")
-    #expect(bloodType.subtitle == "Health Details")
-    #expect(HealthPage.healthDetails.subtitle == nil)
+    #expect(visionPrescriptionsPage.subtitle == "Body Measurements")
     #expect(HealthPage.category(.heart).subtitle == nil)
     for page in HealthPage.all {
       guard case .dataType = page.kind else { continue }
@@ -391,6 +373,6 @@ struct HealthAppIntentsTests {
   @Test
   func theLogNamesThePage() {
     #expect(HealthAppAction.open(steps).command == "open Steps")
-    #expect(HealthAppAction.open(.healthDetails).command == "open Health Details")
+    #expect(HealthAppAction.open(.category(.heart)).command == "open Heart")
   }
 }

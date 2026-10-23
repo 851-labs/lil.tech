@@ -2,7 +2,7 @@ public import Foundation
 public import SQLiteData
 
 extension HealthDatabase {
-  /// Vision Prescriptions' type: Other Data shows it, and Health Details links to it.
+  /// Vision Prescriptions' type, which Body Measurements lists (851-3187).
   public static let visionPrescriptionType = "HKVisionPrescriptionTypeIdentifier"
 
   /// Vision prescriptions, newest issued first, at most `limit`.

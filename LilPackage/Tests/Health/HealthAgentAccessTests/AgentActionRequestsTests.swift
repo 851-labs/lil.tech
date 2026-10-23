@@ -41,6 +41,7 @@
         .appending(path: "Downloads").path(percentEncoded: false)
       try store.requestAction(.open(page: Self.steps), process: "zsh", at: date(1))
       try store.requestAction(.open(page: "summary"), process: "zsh", at: date(2))
+      // Health Details', in the log from before it went (851-3187).
       try store.requestAction(.open(page: "health-details"), process: "zsh", at: date(3))
       try store.requestAction(.open(page: "category:heart"), process: "zsh", at: date(4))
       try store.requestAction(.sync, process: "claude", at: date(5))

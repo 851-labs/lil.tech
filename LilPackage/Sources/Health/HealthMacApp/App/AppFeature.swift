@@ -17,8 +17,8 @@ public struct AppFeature {
     public var signIn = SignInFeature.State()
     public var selection: SidebarItem? = .summary
     /// The pages pushed on the selection's stack, as type IDs: metrics in Summary's or a
-    /// category's, Vision Prescriptions in Health Details'. Emptied when the selection changes, so
-    /// one's metric doesn't show under another, and when a page is opened (851-3030).
+    /// category's. Emptied when the selection changes, so one's metric doesn't show under another,
+    /// and when a page is opened (851-3030).
     public var metricPath: [String] = []
     public var searchText = ""
     /// Shown in the sidebar's footer, while `syncFooter` shows it.
@@ -49,8 +49,8 @@ public struct AppFeature {
     /// The search, without surrounding spaces.
     public var query: String { searchText.trimmingCharacters(in: .whitespaces) }
 
-    /// The data types whose names match the search, in the sidebar's order: Health Details'
-    /// characteristics, then each category's types by name (`HealthPage.browsableTypes`).
+    /// The data types whose names match the search, in the sidebar's order: each category's
+    /// types by name (`HealthPage.browsableTypes`).
     public var searchResults: [HealthDataType] {
       guard !query.isEmpty else { return [] }
       return HealthPage.browsableTypes.filter { $0.name.localizedStandardContains(query) }
@@ -117,10 +117,10 @@ public struct AppFeature {
   public var body: some ReducerOf<Self> {
     BindingReducer()
       .onChange(of: \.query) { _, state in
-        // A type found by search goes when the search does: its category (or Health Details)
-        // takes its place.
+        // A type found by search goes when the search does: its category takes its place.
         if state.query.isEmpty, case .dataType(let id) = state.selection {
-          state.selection = HealthCatalog.type(id: id).map(SidebarItem.home) ?? .summary
+          state.selection =
+            HealthCatalog.type(id: id)?.category.map(SidebarItem.category) ?? .summary
         }
         return .none
       }
@@ -267,15 +267,14 @@ public struct AppFeature {
         switch page.kind {
         case .summary:
           state.selection = .summary
-        case .healthDetails:
-          state.selection = .healthDetails
         case .category(let category):
           state.selection = .category(category)
         case .dataType(let type):
-          // As if its row were clicked in its category, with its metric pushed. A characteristic
-          // selects Health Details, which shows it with the others, so nothing's pushed there.
-          state.selection = .home(of: type)
-          if type.category != nil { state.metricPath = [type.id] }
+          // As if its row were clicked in its category, with its metric pushed. Only types with a
+          // category are pages (`HealthPage.dataType`), so there's always one.
+          guard let category = type.category else { return .none }
+          state.selection = .category(category)
+          state.metricPath = [type.id]
         }
         return .none
 
@@ -442,17 +441,9 @@ public enum SyncFooterVisibility: Equatable, Sendable {
   }
 }
 
-/// What the sidebar can select: Summary, Health Details, a category to browse, or a data type
-/// found by search.
+/// What the sidebar can select: Summary, a category to browse, or a data type found by search.
 public enum SidebarItem: Hashable, Sendable {
   case summary
-  case healthDetails
   case category(HealthCategory)
   case dataType(String)
-
-  /// Where the sidebar lists a type: its category, or Health Details for a characteristic, which
-  /// has none (851-3026).
-  static func home(of type: HealthDataType) -> Self {
-    type.category.map(Self.category) ?? .healthDetails
-  }
 }

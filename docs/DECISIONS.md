@@ -42,7 +42,7 @@ Every architecture and product decision made so far. This file holds the decisio
 
   | Before | After |
   |---|---|
-  | `HealthMacApp`'s data pages (Audiograms, Electrocardiograms, Heartbeat Series, Cycle Tracking, Sleep, Workouts, Mental Wellbeing, Health Details, Vision Prescriptions, Medications), with All Data, a sample and Data Sources | `HealthPages`, on `HealthDatabase` and `HealthUI` (done in 851-2792) |
+  | `HealthMacApp`'s data pages (Audiograms, Electrocardiograms, Heartbeat Series, Cycle Tracking, Sleep, Workouts, Mental Wellbeing, Vision Prescriptions, Medications), with All Data, a sample and Data Sources | `HealthPages`, on `HealthDatabase` and `HealthUI` (done in 851-2792) |
   | `HealthMacApp`'s preview support: `PreviewFrame` | `HealthPages`, with what else the Mac's pages and shell share (851-2792); deleted with the last previews (851-2970) |
   | `HealthMacApp`'s `PreviewDatabase` | `HealthDatabase`, next to the preview data it prepares (851-2792) |
   | `AppUpdates` | `LilUpdates` |

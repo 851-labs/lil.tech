@@ -437,6 +437,16 @@
             "last": "2026-10-20T16:30:00+00:00"
           },
           {
+            "type": "HKVisionPrescriptionTypeIdentifier",
+            "name": "Vision Prescriptions",
+            "category": "Body Measurements",
+            "kind": "visionPrescription",
+            "unit": null,
+            "cumulative": false,
+            "first": "2025-03-10T12:00:00+00:00",
+            "last": "2026-06-01T10:00:00+00:00"
+          },
+          {
             "type": "HKQuantityTypeIdentifierBodyMass",
             "name": "Weight",
             "category": "Body Measurements",
@@ -495,16 +505,6 @@
             "cumulative": false,
             "first": "2026-10-17T23:00:00+00:00",
             "last": "2026-10-20T00:00:00+00:00"
-          },
-          {
-            "type": "HKVisionPrescriptionTypeIdentifier",
-            "name": "Vision Prescriptions",
-            "category": "Other Data",
-            "kind": "visionPrescription",
-            "unit": null,
-            "cumulative": false,
-            "first": "2025-03-10T12:00:00+00:00",
-            "last": "2026-06-01T10:00:00+00:00"
           }
         ]
       }
@@ -558,6 +558,16 @@
             "cumulative": false,
             "first": "2026-10-02T10:00:00-07:00",
             "last": "2026-10-20T09:30:00-07:00"
+          },
+          {
+            "type": "HKVisionPrescriptionTypeIdentifier",
+            "name": "Vision Prescriptions",
+            "category": "Body Measurements",
+            "kind": "visionPrescription",
+            "unit": null,
+            "cumulative": false,
+            "first": "2025-03-10T05:00:00-07:00",
+            "last": "2026-06-01T03:00:00-07:00"
           },
           {
             "type": "HKQuantityTypeIdentifierBodyMass",
@@ -618,16 +628,6 @@
             "cumulative": false,
             "first": "2026-10-17T16:00:00-07:00",
             "last": "2026-10-19T17:00:00-07:00"
-          },
-          {
-            "type": "HKVisionPrescriptionTypeIdentifier",
-            "name": "Vision Prescriptions",
-            "category": "Other Data",
-            "kind": "visionPrescription",
-            "unit": null,
-            "cumulative": false,
-            "first": "2025-03-10T05:00:00-07:00",
-            "last": "2026-06-01T03:00:00-07:00"
           }
         ]
       }

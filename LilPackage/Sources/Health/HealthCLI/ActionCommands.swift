@@ -2,7 +2,6 @@ import ArgumentParser
 import Foundation
 import HealthAgentAccess
 import HealthCatalog
-import HealthDatabase
 import HealthTools
 
 // `lil-health open`, `sync` and `export` (851-2896): rather than reading the database, they ask
@@ -24,17 +23,16 @@ private let waitingDiscussion = """
 struct OpenCommand: ActionCommand {
   static let configuration = CommandConfiguration(
     commandName: "open",
-    abstract: "Opens a page in lil health: Summary, Health Details, a category or a data type.",
+    abstract: "Opens a page in lil health: Summary, a category or a data type.",
     discussion: """
-      Pages are named as lil health's sidebar names them: Summary, Health Details, a category \
-      (Activity, Heart…), or a data type, also by its HealthKit identifier (Steps, \
-      "Heart Rate", HKQuantityTypeIdentifierStepCount). A type opens in its category, and a \
-      characteristic (Blood Type, Date of Birth…) in Health Details.
+      Pages are named as lil health's sidebar names them: Summary, a category (Activity, \
+      Heart…), or a data type, also by its HealthKit identifier (Steps, "Heart Rate", \
+      HKQuantityTypeIdentifierStepCount). A type opens in its category.
 
       \(waitingDiscussion)
       """)
 
-  @Argument(help: "The page, in any case, e.g. Steps or Health Details.") var page: [String]
+  @Argument(help: "The page, in any case, e.g. Steps or Heart.") var page: [String]
   @OptionGroup var output: OutputOptions
 
   func validate() throws {
@@ -46,27 +44,25 @@ struct OpenCommand: ActionCommand {
     guard let id = Self.pageID(named: name) else {
       throw HealthCLI.ActionError(
         """
-        lil health has no page named \(name). Name Summary, Health Details, a category (Activity, \
-        Heart…) or a data type (Steps, "Heart Rate"), as lil health's sidebar does.
+        lil health has no page named \(name). Name Summary, a category (Activity, Heart…) or a \
+        data type (Steps, "Heart Rate"), as lil health's sidebar does.
         """, status: HealthCLI.Status.dataError)
     }
     return .open(page: id)
   }
 
-  /// A page's ID (`HealthPage.id` in the app), from the name lil health shows: Summary, Health
-  /// Details, a category, or a data type by the names the queries take
-  /// (`HealthCatalog.type(named:)`), as the Open intent finds them. Categories come before types,
-  /// so Sleep is the category. A characteristic Health Details shows is a page too, which opens
-  /// Health Details (`HealthDetails.hasPage`, 851-3026).
+  /// A page's ID (`HealthPage.id` in the app), from the name lil health shows: Summary, a
+  /// category, or a data type by the names the queries take (`HealthCatalog.type(named:)`), as the
+  /// Open intent finds them. Categories come before types, so Sleep is the category.
+  /// Characteristics, which have no category, have no page (851-3187).
   static func pageID(named name: String) -> String? {
     let name = name.trimmingCharacters(in: .whitespaces)
     func matches(_ other: String) -> Bool { other.caseInsensitiveCompare(name) == .orderedSame }
     if matches("Summary") { return "summary" }
-    if matches("Health Details") { return "health-details" }
     if let category = HealthCategory.allCases.first(where: { matches($0.name) }) {
       return "category:\(category.rawValue)"
     }
-    if let type = HealthCatalog.type(named: name), HealthDetails.hasPage(type) {
+    if let type = HealthCatalog.type(named: name), type.category != nil {
       return "type:\(type.id)"
     }
     return nil

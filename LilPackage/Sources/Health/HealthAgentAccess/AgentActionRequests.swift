@@ -15,8 +15,8 @@ import HealthCatalog
 
 /// An action the command line asks the app for.
 public enum AgentAction: Equatable, Sendable {
-  /// Brings the main window forward and shows a page, by its ID: `summary`, `health-details`,
-  /// `category:<raw value>` or `type:<HealthKit identifier>` (the app's `HealthPage.id`).
+  /// Brings the main window forward and shows a page, by its ID: `summary`, `category:<raw
+  /// value>` or `type:<HealthKit identifier>` (the app's `HealthPage.id`).
   case open(page: String)
   /// Pulls the account's changes now, and waits for the pull to end.
   case sync
@@ -36,6 +36,7 @@ public enum AgentAction: Equatable, Sendable {
   /// The name the sidebar shows for a page ID, or the ID itself if it isn't one.
   static func pageName(_ id: String) -> String {
     if id == "summary" { return "Summary" }
+    // Health Details' ID, in the log from before it went (851-3187).
     if id == "health-details" { return "Health Details" }
     if id.hasPrefix("category:"),
       let category = HealthCategory(rawValue: String(id.dropFirst("category:".count)))

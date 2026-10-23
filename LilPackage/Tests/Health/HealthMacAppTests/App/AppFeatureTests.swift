@@ -411,20 +411,14 @@ struct AppFeatureTests {
     #expect(!state.searchResults.isEmpty)
   }
 
-  /// The characteristics Health Details shows come first, as Health Details does in the sidebar
-  /// (851-3026). Activity Move Mode, which it doesn't show, isn't found.
+  /// Characteristics have no page since Health Details went (851-3187): search finds none.
   @Test
-  func searchFindsCharacteristicsFirst() {
+  func searchFindsNoCharacteristics() {
     let blood = AppFeature.State(isSignedIn: true, searchText: "blood").searchResults
-    #expect(blood.first?.id == "HKCharacteristicTypeIdentifierBloodType")
-    #expect(blood.dropFirst().allSatisfy { $0.category != nil })
-    #expect(AppFeature.State(isSignedIn: true, searchText: "move mode").searchResults.isEmpty)
-    // In Health Details' order.
-    #expect(
-      HealthPage.browsableTypes.prefix(5).map(\.name) == [
-        "Date of Birth", "Sex", "Blood Type", "Fitzpatrick Skin Type", "Wheelchair",
-      ])
-    #expect(HealthPage.browsableTypes.dropFirst(5).allSatisfy { $0.category != nil })
+    #expect(!blood.isEmpty)
+    #expect(!blood.contains { $0.id == "HKCharacteristicTypeIdentifierBloodType" })
+    #expect(AppFeature.State(isSignedIn: true, searchText: "birth").searchResults.isEmpty)
+    #expect(HealthPage.browsableTypes.allSatisfy { $0.category != nil })
   }
 
   @Test
@@ -442,84 +436,21 @@ struct AppFeatureTests {
     }
   }
 
-  /// Health Details' stack is the store's (851-3030): what it pushes is emptied as the sidebar
-  /// selects another page, and Health Details opens with nothing pushed.
+  /// Vision Prescriptions is in Body Measurements, as in Health (851-3187), and only there.
   @Test
-  func healthDetailsOpensFromTheSidebarWithNothingPushed() async {
+  func visionPrescriptionsIsInBodyMeasurements() async {
     let vision = HealthDatabase.visionPrescriptionType
-    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
-      AppFeature()
-    }
-    await store.send(\.binding.selection, .healthDetails) {
-      $0.selection = .healthDetails
-    }
-    // Its Vision link.
-    await store.send(.metricPathChanged([vision], selection: .healthDetails)) {
-      $0.metricPath = [vision]
-    }
-    await store.send(\.binding.selection, .summary) {
-      $0.selection = .summary
-      $0.metricPath = []
-    }
-    // Health Details' stack, on its way out.
-    await store.send(.metricPathChanged([], selection: .healthDetails))
-    await store.send(\.binding.selection, .healthDetails) {
-      $0.selection = .healthDetails
-    }
-  }
-
-  /// Health Details' Vision link pushes this ID, which its stack shows with `MetricDetail`: it must
-  /// be the catalog's Vision Prescriptions, or the link opens "Unknown Data Type" (851-3030).
-  @Test
-  func healthDetailsVisionLinkIsTheCatalogsVisionPrescriptions() {
-    let type = HealthCatalog.type(id: HealthDatabase.visionPrescriptionType)
-    #expect(type?.kind == .visionPrescription)
-    #expect(type?.name == "Vision Prescriptions")
-  }
-
-  /// A characteristic found by search shows Health Details, whose Vision link pushes on the
-  /// result's stack. Choosing a result, or clearing the search, shows a page with nothing pushed
-  /// (851-3030).
-  @Test
-  func searchOpensHealthDetailsWithNothingPushed() async {
-    let vision = HealthDatabase.visionPrescriptionType
-    let bloodType = SidebarItem.dataType("HKCharacteristicTypeIdentifierBloodType")
+    #expect(HealthCatalog.types(in: .bodyMeasurements).contains { $0.id == vision })
+    #expect(!HealthCatalog.types(in: .otherData).contains { $0.id == vision })
     let store = TestStore(
       initialState: AppFeature.State(
-        isSignedIn: true, selection: .healthDetails, metricPath: [vision])
-    ) {
-      AppFeature()
-    }
-    await store.send(\.binding.searchText, "blood") {
-      $0.searchText = "blood"
-    }
-    await store.send(\.binding.selection, bloodType) {
-      $0.selection = bloodType
-      $0.metricPath = []
-    }
-    await store.send(.metricPathChanged([vision], selection: bloodType)) {
-      $0.metricPath = [vision]
-    }
-    await store.send(\.binding.searchText, "") {
-      $0.searchText = ""
-      $0.selection = .healthDetails
-      $0.metricPath = []
-    }
-  }
-
-  /// A characteristic has no category: Health Details takes its place, not Summary (851-3026).
-  @Test
-  func clearingTheSearchSelectsHealthDetailsForACharacteristic() async {
-    let store = TestStore(
-      initialState: AppFeature.State(
-        isSignedIn: true, selection: .dataType("HKCharacteristicTypeIdentifierDateOfBirth"),
-        searchText: "birth")
+        isSignedIn: true, selection: .dataType(vision), searchText: "vision")
     ) {
       AppFeature()
     }
     await store.send(\.binding.searchText, "") {
       $0.searchText = ""
-      $0.selection = .healthDetails
+      $0.selection = .category(.bodyMeasurements)
     }
   }
 }

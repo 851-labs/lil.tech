@@ -14,9 +14,8 @@
   extension MacSnapshotTests {
     @Test(arguments: metricDetailCatalog.selectedStates)
     func metricDetail(_ state: CatalogState) {
-      // So a page the detail opens, which fetches when it appears (Health Details, for a
-      // characteristic), shows its first value, as in `WindowCatalog`. Charts load in a `.task`,
-      // and states give them theirs.
+      // So a page the detail opens, which fetches when it appears, shows its first value, as in
+      // `WindowCatalog`. Charts load in a `.task`, and states give them theirs.
       withDependencies {
         $0.fetchesFirstValueAtOnce = true
       } operation: {
@@ -41,15 +40,6 @@
       // Two weeks of data: the last bars.
       CatalogState("Steps, 6 months") { detail(steps, .sixMonths) },
       CatalogState("Heart rate, year") { detail(heartRate, .year) },
-      // A characteristic, a single value with no chart: Health Details, which shows it with the
-      // others (851-3026).
-      // In a stack, as the app shows it, so Vision Prescriptions' link is enabled.
-      CatalogState("A characteristic", minHeight: 400) {
-        NavigationStack {
-          MetricDetailView(
-            type: HealthCatalog.type(id: "HKCharacteristicTypeIdentifierBloodType")!)
-        }
-      },
       // No Data in the header only: the chart keeps its gridlines and axes, on a scale of the
       // type's (851-3102). A line's, a percentage's and a total's.
       CatalogState("No data") { noData("HKQuantityTypeIdentifierBodyMass") },

@@ -3,8 +3,8 @@ import Dependencies
 public import Foundation
 
 /// Opens a page of lil health for Mac from Shortcuts, Siri or Spotlight (851-2892): brings the
-/// main window forward and shows Summary, Health Details, a category, or a data type in its
-/// category. Only while access on this Mac is on, like every app action.
+/// main window forward and shows Summary, a category, or a data type in its category. Only while
+/// access on this Mac is on, like every app action.
 public struct OpenHealthPageIntent: OpenIntent {
   public static let title: LocalizedStringResource = "Open in lil health"
   public static let description = IntentDescription(
