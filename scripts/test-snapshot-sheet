@@ -148,7 +148,11 @@ fi
 # Only new states changed, so there are no befores to write (851-3180): a sheet, and no errors.
 grep -F "/screen.new-" "$output/report.tsv" >"$temporary/report.tsv"
 mv "$temporary/report.tsv" "$output/report.tsv"
-new=$(printf '%b' "$cells" | sed -n '/^ScreenCatalog\/screen.new:/,/^dark, after/p')
+new=$(printf '%b' "ScreenCatalog/screen.new: new
+light, before (none, new)\t
+light, after\t$after/screen.new-light.png
+dark, before (none, new)\t
+dark, after\t$after/screen.new-dark.png")
 if ! LIL_SNAPSHOT_STATE=new "$scripts/snapshot-sheet" "$output" >"$temporary/log" \
   2>"$temporary/errors" || [ -s "$temporary/errors" ]; then
   fail "with only new states, scripts/snapshot-sheet failed or printed errors:"
