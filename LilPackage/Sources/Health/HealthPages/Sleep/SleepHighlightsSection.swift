@@ -48,6 +48,7 @@ struct SleepHighlightsSection: View {
         if let months = highlights.months { SleepMonthsHighlight(months: months) }
         if let heartRate = highlights.heartRate { SleepHeartRateHighlight(heartRate: heartRate) }
         if let week = highlights.week { SleepWeekHighlight(week: week) }
+        if let night = highlights.stages { SleepStagesHighlight(night: night) }
       }
     }
   }
@@ -105,6 +106,10 @@ enum SleepHighlightStyle {
   static let heart = HealthCategory.heart.color
   /// Heights of the highlights' charts.
   static let chartHeight: CGFloat = 120
+  /// A stage's lane in last night's stages: its name over its bars.
+  static let stageLaneHeight: CGFloat = 36
+  /// Room for a chart's hours under it.
+  static let hourAxisHeight: CGFloat = 20
 
   /// A clock time in hours from a day's midnight (`HealthDatabase.clockHours`), "10:54 PM", in
   /// the calendar's locale.

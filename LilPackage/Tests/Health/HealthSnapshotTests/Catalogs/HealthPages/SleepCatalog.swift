@@ -122,6 +122,10 @@
       CatalogState("Last 7 days, nights missing", minHeight: 300) {
         highlightsOnly(SleepHighlights(week: weekWithGaps))
       },
+      // Stages and unspecified sleep in one night: a fifth lane, Asleep.
+      CatalogState("Stages with unspecified sleep", minHeight: 350) {
+        highlightsOnly(SleepHighlights(stages: nightWithUnspecifiedSleep))
+      },
       CatalogState("More sleep this month", minHeight: 250) {
         highlightsOnly(SleepHighlights(months: months(this: 8.2 * 3600, last: 7.65 * 3600)))
       },
@@ -202,6 +206,22 @@
       nights: [(-6, 7.4), (-3, 6.1), (-1, 8.0), (0, 7.2)].map {
         .init(day: day($0.0), asleep: $0.1 * 3600)
       })
+  }
+
+  /// Last night from 10:45 PM, in stages until 3 AM, then asleep without them until 6:30.
+  private var nightWithUnspecifiedSleep: SleepNight {
+    let today = previewCalendar.startOfDay(for: previewNow)
+    var time = today.addingTimeInterval(-75 * 60)
+    var segments: [SleepSegment] = []
+    for (stage, minutes) in [
+      (SleepStage.core, 30.0), (.deep, 40), (.core, 25), (.rem, 20), (.awake, 5), (.core, 35),
+      (.deep, 25), (.rem, 35), (.core, 40), (.asleep, 210),
+    ] {
+      let end = time.addingTimeInterval(minutes * 60)
+      segments.append(SleepSegment(stage: stage, start: time, end: end))
+      time = end
+    }
+    return SleepNight(day: today, segments: segments, inBed: 8 * 3600)
   }
 
   /// Without enough data for highlights, unless it's given them.

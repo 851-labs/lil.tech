@@ -312,4 +312,30 @@ struct SleepHighlightsTests {
     try insert(night(-4) + night(-2) + night(0))
     #expect(try highlights().week == nil)
   }
+
+  // MARK: Stages
+
+  @Test
+  func stagesAreLastNightsIfItHasThem() throws {
+    try insert(night(0, stage: .core) + night(-1, stage: .deep))
+    #expect(try highlights().stages?.day == today)
+    // An iPhone's estimate: asleep, without stages.
+    try database.write { db in try HealthSample.delete().execute(db) }
+    try insert(night(0, stage: .asleep))
+    #expect(try highlights().stages == nil)
+  }
+
+  @Test
+  func stagesNeedANightNotADaysSleep() throws {
+    // No night, but a nap with stages at 2 PM.
+    try insert(night(0, bedtime: 14, hours: 1, stage: .core))
+    #expect(try highlights().stages == nil)
+  }
+
+  @Test
+  func stagesArentTheNightBefores() throws {
+    // No night last night: the night before's stages aren't shown as last night's.
+    try insert(night(-1, stage: .deep))
+    #expect(try highlights().stages == nil)
+  }
 }

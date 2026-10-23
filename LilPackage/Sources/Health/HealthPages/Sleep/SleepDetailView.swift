@@ -376,7 +376,8 @@ struct SleepDetailContent: View {
 
   /// The night's stages over time, a row each, as in Health.
   private func stagesChart(_ night: SleepNight) -> some View {
-    stagesChart(night.segments, rows: SleepFormat.rows(for: night))
+    SleepStagesChart(
+      segments: night.segments, rows: SleepFormat.rows(for: night), calendar: calendar)
   }
 
   /// A day without a night (851-3102): the rows of the stages a Watch records, empty, over the
@@ -386,7 +387,7 @@ struct SleepDetailContent: View {
     let hours = SleepClock.axis([]).domain
     let start = clockTime(hours.lowerBound, from: day)
     let end = clockTime(hours.upperBound, from: day)
-    return stagesChart([], rows: [.awake, .rem, .core, .deep])
+    return SleepStagesChart(segments: [], rows: [.awake, .rem, .core, .deep], calendar: calendar)
       .chartXScale(domain: start...end)
   }
 
@@ -398,39 +399,6 @@ struct SleepDetailContent: View {
     return calendar.date(byAdding: .day, value: days, to: day)
       .flatMap { calendar.date(bySettingHour: hour, minute: 0, second: 0, of: $0) }
       ?? day.addingTimeInterval(hours * 3600)
-  }
-
-  /// Stages over time, a row each.
-  private func stagesChart(_ segments: [SleepSegment], rows: [SleepStage]) -> some View {
-    Chart(Array(segments.enumerated()), id: \.offset) { _, segment in
-      BarMark(
-        xStart: .value("Start", segment.start), xEnd: .value("End", segment.end),
-        y: .value("Stage", SleepFormat.name(segment.stage)), height: .ratio(0.7)
-      )
-      .foregroundStyle(SleepFormat.color(segment.stage))
-      .clipShape(RoundedRectangle(cornerRadius: 3))
-    }
-    .chartYScale(domain: rows.map(SleepFormat.name))
-    // The stages' names, which Charts drew white in light mode (851-2869), as did the
-    // secondary styles (`.secondary`, `Color.secondary`) set on them. The primary color, faded,
-    // follows the appearance.
-    .chartYAxis {
-      AxisMarks { value in
-        AxisGridLine()
-        AxisValueLabel {
-          if let name = value.as(String.self) {
-            Text(name)
-              .foregroundStyle(Color.primary.opacity(0.6))
-          }
-        }
-      }
-    }
-    .chartXAxis {
-      AxisMarks(values: .stride(by: .hour, count: 2)) { _ in
-        AxisGridLine()
-        AxisValueLabel(format: .dateTime.hour())
-      }
-    }
   }
 
   // MARK: Stages

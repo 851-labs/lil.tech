@@ -12,20 +12,23 @@ public struct SleepHighlights: Equatable, Sendable {
   public var heartRate: SleepHeartRate?
   /// The last 7 nights' average time asleep.
   public var week: SleepWeekAverage?
+  /// Last night, if its source recorded stages.
+  public var stages: SleepNight?
 
   public init(
     bedtime: BedtimeConsistency? = nil, months: SleepMonthComparison? = nil,
-    heartRate: SleepHeartRate? = nil, week: SleepWeekAverage? = nil
+    heartRate: SleepHeartRate? = nil, week: SleepWeekAverage? = nil, stages: SleepNight? = nil
   ) {
     self.bedtime = bedtime
     self.months = months
     self.heartRate = heartRate
     self.week = week
+    self.stages = stages
   }
 
   /// Whether there's nothing to show.
   public var isEmpty: Bool {
-    bedtime == nil && months == nil && heartRate == nil && week == nil
+    bedtime == nil && months == nil && heartRate == nil && week == nil && stages == nil
   }
 }
 
@@ -51,7 +54,9 @@ extension HealthDatabase {
       bedtime: BedtimeConsistency(nights: nights, today: today, calendar: calendar),
       months: SleepMonthComparison(nights: nights, today: today, calendar: calendar),
       heartRate: try lastNight.flatMap { try sleepHeartRate(during: $0, db) },
-      week: SleepWeekAverage(nights: nights, today: today, calendar: calendar))
+      week: SleepWeekAverage(nights: nights, today: today, calendar: calendar),
+      // A Watch's stages (Core, Deep, REM), not an iPhone's estimate.
+      stages: lastNight.flatMap { $0.hasStages ? $0 : nil })
   }
 
   /// Where `date` goes in the night that started at `start`, in hours from the start of `day`,
