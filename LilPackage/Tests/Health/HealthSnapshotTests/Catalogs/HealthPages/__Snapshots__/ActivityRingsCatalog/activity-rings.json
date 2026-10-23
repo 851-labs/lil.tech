@@ -39,6 +39,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.a-six-week-month-dark.png",
+      "id" : "activity-rings.a-six-week-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.a-six-week-month-light.png",
+      "name" : "A six-week month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.no-rings-this-month-dark.png",
       "id" : "activity-rings.no-rings-this-month",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.no-rings-this-month-light.png",
@@ -50,6 +57,13 @@
       "id" : "activity-rings.activity-rings-loading",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-loading-light.png",
       "name" : "Activity Rings loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-loading-the-month-before-dark.png",
+      "id" : "activity-rings.activity-rings-loading-the-month-before",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ActivityRingsCatalog/activity-rings.activity-rings-loading-the-month-before-light.png",
+      "name" : "Activity Rings, loading the month before",
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ActivityRingsCatalog.swift"
     },
     {

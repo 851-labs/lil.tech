@@ -24,6 +24,7 @@ public struct CycleTrackingView: View {
   /// When factors, the menopause stage and deviations are worked out for: moved on at midnight,
   /// and when one starts (or a factor or stage ends).
   @State private var historyNow = Date.now
+  /// The last month loaded. While another loads, the page keeps showing it (851-3090).
   @Fetch private var days: CycleMonth? = nil
   /// Not tied to the month shown.
   @Fetch private var history: CycleHistory? = nil
@@ -39,17 +40,20 @@ public struct CycleTrackingView: View {
     CycleTrackingContent(
       month: month, selected: $selected,
       state: ($days.loadError ?? $history.loadError).map { .failed($0.localizedDescription) }
-        // The month being loaded, not the one before it.
         ?? {
-          guard let days, days.month == month, let history else { return .loading }
+          guard let days, let history else { return .loading }
+          // The month loaded last, until the one chosen replaces it.
           return .loaded(
             CycleSnapshot(
-              month: month, days: days.days, periods: history.periods,
+              month: days.month, days: days.days, periods: history.periods,
               factors: history.factors, pastFactors: history.pastFactors,
               morePastFactors: history.morePastFactors, menopause: history.menopause,
-              deviations: history.deviations, moreDeviations: history.moreDeviations))
+              deviations: history.deviations, moreDeviations: history.moreDeviations),
+            isUpdating: $days.isLoading || $history.isLoading || days.month != month)
         }(),
-      previous: { monthOffset -= 1 }, next: { monthOffset += 1 },
+      // Not before the month to open on is known, which would move it from under the arrows.
+      previous: { if isPositioned { monthOffset -= 1 } },
+      next: { if isPositioned { monthOffset += 1 } },
       isLatest: monthOffset >= 0, now: today
     )
     .task(id: [String(monthOffset), today.formatted(.iso8601)]) {
@@ -182,12 +186,16 @@ struct CycleHistoryRequest: FetchKeyRequest {
 /// What Cycle Tracking shows, however it got it.
 struct CycleTrackingContent: View {
   enum State {
+    /// Nothing to show yet: the month's calendar without marks, in its loaded place (851-3090).
     case loading
-    case loaded(CycleSnapshot)
+    /// A month and what's around it. Updating while another month, or the same one again, loads:
+    /// it stays on screen, with a spinner by the month's name, rather than the page blanking.
+    case loaded(CycleSnapshot, isUpdating: Bool = false)
     case failed(String)
   }
 
-  let month: DateInterval
+  /// The month chosen with the arrows, which can be ahead of the one shown (`month`).
+  let selectedMonth: DateInterval
   @Binding var selected: Date?
   let state: State
   var previous: () -> Void = {}
@@ -202,62 +210,97 @@ struct CycleTrackingContent: View {
   /// The calendar's day that can take focus (`calendarDay`).
   @State private var focusTarget: Date?
 
+  init(
+    month: DateInterval, selected: Binding<Date?>, state: State,
+    previous: @escaping () -> Void = {}, next: @escaping () -> Void = {}, isLatest: Bool = true,
+    now: Date
+  ) {
+    selectedMonth = month
+    _selected = selected
+    self.state = state
+    self.previous = previous
+    self.next = next
+    self.isLatest = isLatest
+    self.now = now
+  }
+
+  /// The month shown: the loaded one, which stays while another loads, or the one chosen before
+  /// any has loaded. Everything drawn uses it.
+  private var month: DateInterval {
+    if case .loaded(let snapshot, _) = state { snapshot.month } else { selectedMonth }
+  }
+
+  /// The loaded month, or the chosen one without marks while there's none.
+  private var shownSnapshot: CycleSnapshot {
+    if case .loaded(let snapshot, _) = state { return snapshot }
+    return CycleSnapshot(month: month, days: [:], periods: [], factors: [])
+  }
+
+  private var isUpdating: Bool {
+    switch state {
+    case .loading: true
+    case .loaded(_, let isUpdating): isUpdating
+    case .failed: false
+    }
+  }
+
   var body: some View {
-    Group {
+    // A grouped form on its own background, as Metric Detail is (851-2989, 851-3002): the
+    // month's calendar, the day shown, then factors, deviations and past cycles, a section each.
+    // The calendar's always there, loading, loaded or not, so other months can be reached, and
+    // it keeps its place (851-3090).
+    Form {
+      Section {
+        monthCalendar(shownSnapshot)
+          .padding(.vertical, 6)
+      }
       switch state {
       case .loading:
-        ProgressView()
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyView()
       case .failed(let reason):
-        ContentUnavailableView(
-          "Couldn't Load Cycle Tracking", systemImage: "exclamationmark.triangle",
-          description: Text(reason))
-      case .loaded(let snapshot):
-        // A grouped form on its own background, as Metric Detail is (851-2989, 851-3002): the
-        // month's calendar, the day shown, then factors, deviations and past cycles, a section
-        // each.
-        Form {
-          // The calendar stays, so other months can be reached.
-          Section {
-            monthCalendar(snapshot)
-              .padding(.vertical, 6)
-          }
-          if snapshot.isEmpty {
-            Section {
-              ContentUnavailableView(
-                "No Cycle Data", systemImage: "drop",
-                description: Text(
-                  "Periods and symptoms you log in Cycle Tracking will appear here.")
-              )
-              // A form's row would otherwise give it only its ideal width, off center.
-              .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-          } else {
-            dayDetail(snapshot)
-            if !snapshot.factors.isEmpty {
-              factors("Factors", snapshot.factors)
-            }
-            if let stage = snapshot.menopause {
-              menopause(stage)
-            }
-            if !snapshot.deviations.isEmpty {
-              deviations(
-                snapshot.deviations,
-                more: snapshot.moreDeviations
-                  ? moreNote(CycleHistoryRequest.deviationLimit, "cycle deviations") : nil)
-            }
-            if !snapshot.pastFactors.isEmpty {
-              factors(
-                "Past Factors", snapshot.pastFactors,
-                more: snapshot.morePastFactors
-                  ? moreNote(CycleHistoryRequest.pastFactorLimit, "past factors") : nil)
-            }
-            history(snapshot.periods)
-          }
+        Section {
+          ContentUnavailableView(
+            "Couldn't Load Cycle Tracking", systemImage: "exclamationmark.triangle",
+            description: Text(reason)
+          )
+          .frame(maxWidth: .infinity)
         }
-        .formStyle(.grouped)
+      case .loaded(let snapshot, _):
+        if snapshot.isEmpty {
+          Section {
+            ContentUnavailableView(
+              "No Cycle Data", systemImage: "drop",
+              description: Text(
+                "Periods and symptoms you log in Cycle Tracking will appear here.")
+            )
+            // A form's row would otherwise give it only its ideal width, off center.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+          }
+        } else {
+          dayDetail(snapshot)
+          if !snapshot.factors.isEmpty {
+            factors("Factors", snapshot.factors)
+          }
+          if let stage = snapshot.menopause {
+            menopause(stage)
+          }
+          if !snapshot.deviations.isEmpty {
+            deviations(
+              snapshot.deviations,
+              more: snapshot.moreDeviations
+                ? moreNote(CycleHistoryRequest.deviationLimit, "cycle deviations") : nil)
+          }
+          if !snapshot.pastFactors.isEmpty {
+            factors(
+              "Past Factors", snapshot.pastFactors,
+              more: snapshot.morePastFactors
+                ? moreNote(CycleHistoryRequest.pastFactorLimit, "past factors") : nil)
+          }
+          history(snapshot.periods)
+        }
       }
     }
+    .formStyle(.grouped)
     .navigationTitle("Cycle Tracking")
   }
 
@@ -269,6 +312,8 @@ struct CycleTrackingContent: View {
       HStack {
         Text(month.start.formatted(.dateTime.month(.wide).year()))
           .font(.title2.bold())
+        // While a month loads.
+        UpdatingSlot(isUpdating)
         Spacer()
         Button(action: previous) { Image(systemName: "chevron.left") }
           .accessibilityLabel("Earlier")
@@ -303,11 +348,17 @@ struct CycleTrackingContent: View {
               calendar: calendar
             ) { selected = day }
           } else {
-            Color.clear.frame(height: 44)
+            // A day's cell, hidden, so a week of blanks is as tall as a week of days (851-3090).
+            CycleDayCell(
+              day: month.start, entry: nil, isSelected: false, isToday: false, calendar: calendar
+            )
+            .hidden()
           }
         }
       }
       legend
+        // The calendar's end: what's below starts here, loading or not.
+        .layoutAnchor("Legend")
     }
   }
 
@@ -318,17 +369,10 @@ struct CycleTrackingContent: View {
     return Array(symbols[first...] + symbols[..<first])
   }
 
-  /// The month's days, with blanks before the first to line it up with its weekday.
+  /// The month's days, with blanks before the first to line it up with its weekday, and after
+  /// the last to make six weeks.
   private var cells: [Date?] {
-    var days: [Date?] = []
-    let leading = (calendar.component(.weekday, from: month.start) - calendar.firstWeekday + 7) % 7
-    days.append(contentsOf: Array(repeating: nil, count: leading))
-    var day = month.start
-    while day < month.end {
-      days.append(day)
-      day = calendar.date(byAdding: .day, value: 1, to: day) ?? month.end
-    }
-    return days
+    MonthCalendar.cells(of: month, calendar: calendar)
   }
 
   private var legend: some View {

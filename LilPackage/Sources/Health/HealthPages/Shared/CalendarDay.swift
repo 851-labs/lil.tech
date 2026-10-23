@@ -89,6 +89,22 @@ private struct CalendarDayModifier: ViewModifier {
 
 /// How a month's calendar moves between days, and reads them.
 enum MonthCalendar {
+  /// A month grid's cells: blanks before the month's first day to line it up with its weekday,
+  /// the days, then blanks to make six weeks, so every month's grid is as tall and moving between
+  /// months moves nothing below it (851-3090).
+  static func cells(of month: DateInterval, calendar: Calendar) -> [Date?] {
+    var days: [Date?] = []
+    let leading = (calendar.component(.weekday, from: month.start) - calendar.firstWeekday + 7) % 7
+    days.append(contentsOf: Array(repeating: nil, count: leading))
+    var day = month.start
+    while day < month.end {
+      days.append(day)
+      day = calendar.date(byAdding: .day, value: 1, to: day) ?? month.end
+    }
+    days.append(contentsOf: Array(repeating: nil, count: max(42 - days.count, 0)))
+    return days
+  }
+
   /// The day an arrow key moves to from `day`: the day before or after (mirrored right to left,
   /// as the calendar is), or the same weekday a week before or after. Nil outside `month`.
   static func day(

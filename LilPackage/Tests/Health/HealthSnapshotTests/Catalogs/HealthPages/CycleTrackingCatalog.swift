@@ -142,11 +142,34 @@
       CatalogState("A month without logs") {
         cycle(.loaded(CycleSnapshot(month: month, days: [:], periods: periods, factors: [])))
       },
+      // June 2024 starts on a Saturday: six weeks of days, as tall as July's five and a blank.
+      CatalogState("A six-week month") {
+        let june = ChartRange.month.interval(offset: -2, now: previewNow, calendar: calendar)
+        cycle(
+          .loaded(CycleSnapshot(month: june, days: [:], periods: periods, factors: [])),
+          chosen: june)
+      },
       CatalogState("No cycle data") {
         cycle(.loaded(CycleSnapshot(month: month, days: [:], periods: [], factors: [])))
       },
       CatalogState("Cycle Tracking loading") { cycle(.loading) },
+      // › pressed: this month stays, with a spinner, until the next loads (851-3090).
+      CatalogState("Cycle Tracking, loading the month after") {
+        cycle(
+          .loaded(
+            CycleSnapshot(month: month, days: days, periods: periods, factors: []),
+            isUpdating: true),
+          chosen: ChartRange.month.interval(offset: 0, now: previewNow, calendar: calendar))
+      },
       CatalogState("Cycle Tracking failed") { cycle(.failed("The database couldn't be read.")) },
+    ],
+    // The calendar keeps its place and height, loading or not, whatever the month (851-3090).
+    sameLayout: [
+      [
+        "Cycle Tracking", "Cycle Tracking loading", "Cycle Tracking, loading the month after",
+        "Cycle Tracking failed", "With factors", "A day with tests", "A month without logs",
+        "No cycle data", "A six-week month",
+      ]
     ])
 
   private let calendar = previewCalendar
@@ -195,10 +218,12 @@
   ]
 
   @MainActor
-  private func cycle(_ state: CycleTrackingContent.State, selected: Date? = nil) -> some View {
+  private func cycle(
+    _ state: CycleTrackingContent.State, selected: Date? = nil, chosen: DateInterval? = nil
+  ) -> some View {
     NavigationStack {
       CycleTrackingContent(
-        month: month, selected: .constant(selected), state: state, isLatest: false,
+        month: chosen ?? month, selected: .constant(selected), state: state, isLatest: false,
         now: previewNow)
     }
   }
