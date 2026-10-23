@@ -9,7 +9,8 @@
   import Testing
 
   // The Settings window's panes, at its smallest size unless a state says otherwise: Account
-  // (`AccountSettingsView`) and Agents (`AgentAccessSettingsView`), each signed in, signed out and
+  // (`AccountSettingsView`, ending with Sign Out…, 851-3096, whose confirmation is a sheet these
+  // don't show: `AccountFeatureTests` checks its text) and Agents (`AgentAccessSettingsView`), each signed in, signed out and
   // checking the session; then how to connect a local agent (`AgentSetupSection`) and the remote
   // agents (`ConnectedAgentsSections`) on their own, and the Agents pane's two logs, each a sheet
   // over the window (851-3082), at the size it opens at. The window resizes (851-2992), so each

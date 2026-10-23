@@ -3,8 +3,8 @@ import LilSync
 import SwiftUI
 
 /// The sidebar's footer: how sync is doing, while it's syncing or needs attention. Up to date,
-/// it's hidden (`SyncFooterVisibility`, 851-2991). The account is in Settings (⌘,) and Sign Out
-/// in the app menu (851-2822).
+/// it's hidden (`SyncFooterVisibility`, 851-2991). The account, and Sign Out, are in Settings (⌘,)
+/// (851-2822, 851-3096).
 struct SyncFooterView: View {
   let status: SyncStatus
   let retry: () -> Void

@@ -381,19 +381,6 @@ struct AppFeatureTests {
   }
 
   @Test
-  func signOutEndsTheSession() async {
-    let signedOut = LockIsolated(false)
-    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
-      AppFeature()
-    } withDependencies: {
-      $0.auth.signOut = { signedOut.setValue(true) }
-    }
-    await store.send(.signOutButtonTapped)
-    await store.finish()
-    #expect(signedOut.value)
-  }
-
-  @Test
   func searchFindsDataTypesByName() {
     var state = AppFeature.State(isSignedIn: true)
     #expect(state.searchResults.isEmpty)

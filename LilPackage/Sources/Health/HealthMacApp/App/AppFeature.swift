@@ -70,7 +70,6 @@ public struct AppFeature {
     case account(AccountFeature.Action)
     case agentAccess(AgentAccessFeature.Action)
     case connectedAgents(ConnectedAgentsFeature.Action)
-    case signOutButtonTapped
     /// A new pull for the Sync app action, as Try Again starts one. Sent once the action is
     /// watching the status, so it can't miss how the pull ends.
     case syncRestarted
@@ -221,10 +220,6 @@ public struct AppFeature {
             await send(.signIn(.readyToSignIn))
           }
         )
-
-      case .signOutButtonTapped:
-        // The session's updates say when it's done.
-        return .run { [auth] _ in await auth.signOut() }
 
       case .account:
         return .none

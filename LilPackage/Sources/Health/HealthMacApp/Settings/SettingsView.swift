@@ -9,8 +9,15 @@ public import SwiftUI
 ///
 /// The window resizes (851-2992): each pane fills it, down to the same minimum, so switching tabs
 /// never changes its size, and it opens at the size it last had (`ResizableWindow`).
+///
+/// Signing out closes it and brings up the main window, where lil health asks to sign in again:
+/// every pane is the account's, so signed out it has nothing to show (851-3096).
 public struct SettingsView: View {
   let store: StoreOf<AppFeature>
+  @Environment(\.openWindow) private var openWindow
+  @Environment(\.dismissWindow) private var dismissWindow
+  /// Whether the window is open: SwiftUI may keep this view after it closes.
+  @State private var isOpen = false
 
   public init(store: StoreOf<AppFeature>) {
     self.store = store
@@ -33,6 +40,15 @@ public struct SettingsView: View {
         .tabItem { Label("Agents", systemImage: "terminal") }
     }
     .background(ResizableWindow())
+    .onAppear { isOpen = true }
+    .onDisappear { isOpen = false }
+    .onChange(of: store.isSignedIn) { wasSignedIn, isSignedIn in
+      // From Sign Out here, or the session ending elsewhere (e.g. the account deleted on the
+      // iPhone). Not while the session is first checked, nor once the window has closed.
+      guard isOpen, wasSignedIn == true, isSignedIn == false else { return }
+      openWindow(id: AppView.windowID)
+      dismissWindow()
+    }
   }
 }
 
@@ -115,8 +131,8 @@ private struct ResizableWindow: NSViewRepresentable {
   }
 }
 
-/// The account's pane: its sign-in methods and exporting its data, or, signed out, how to get
-/// them.
+/// The account's pane: its sign-in methods, exporting its data and signing out, or, signed out,
+/// how to get them.
 struct AccountSettingsView: View {
   let store: StoreOf<AppFeature>
 
@@ -139,12 +155,30 @@ struct AccountSettingsView: View {
         Form {
           SignInMethodsSection(store: account.scope(\.signInMethods, action: \.signInMethods))
           DataExportSection(store: account.scope(\.dataExport, action: \.dataExport))
+          SignOutSection(store: account)
         }
         .formStyle(.grouped)
       }
     }
     .delayedProgress(isLoading: store.isSignedIn == nil)
     .onAppear { store.send(.account(.appeared)) }
+  }
+}
+
+/// Signing out of lil health on this Mac (851-3096), last, as System Settings' Apple Account
+/// pane ends with its Sign Out…: what it removes, and what stays. It asks first.
+struct SignOutSection: View {
+  @Bindable var store: StoreOf<AccountFeature>
+
+  var body: some View {
+    Section {
+      Button("Sign Out…") { store.send(.signOutButtonTapped) }
+        .alert($store.scope(\.alert, action: \.alert))
+    } footer: {
+      Text(
+        "Signing out removes your Health data from this Mac and turns off its command-line and agent access. Your account and the data your iPhone syncs to it stay, for when you sign in again."
+      )
+    }
   }
 }
 

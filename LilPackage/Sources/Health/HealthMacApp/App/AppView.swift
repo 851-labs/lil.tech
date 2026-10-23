@@ -15,6 +15,9 @@ public struct AppView: View {
     self.store = store
   }
 
+  /// The window's scene ID, which the Settings window opens it by after signing out.
+  public static let windowID = "main"
+
   public var body: some View {
     Group {
       switch store.isSignedIn {
