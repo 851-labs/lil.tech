@@ -1,5 +1,6 @@
 public import HealthCatalog
 import HealthDatabase
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -38,6 +39,10 @@ struct DataSourcesContent: View {
     case loading
     case loaded(SampleSources)
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let type: HealthDataType
@@ -47,7 +52,8 @@ struct DataSourcesContent: View {
     Group {
       switch state {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
@@ -85,6 +91,7 @@ struct DataSourcesContent: View {
         .formStyle(.grouped)
       }
     }
+    .delayedProgress(isLoading: state.isLoading)
     .navigationTitle("Data Sources")
   }
 

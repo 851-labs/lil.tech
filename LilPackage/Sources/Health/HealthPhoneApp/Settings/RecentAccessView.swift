@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import HealthCatalog
 import LilAuth
+import LilUI
 import SwiftUI
 
 /// Settings › Connected Agents › Recent Access (851-2854): the remote access log, newest first,
@@ -13,7 +14,7 @@ struct RecentAccessView: View {
     List {
       Section {
         if store.log.isEmpty, store.isLoadingLog {
-          ProgressView()
+          DelayedProgressView()
             .frame(maxWidth: .infinity)
         } else if store.log.isEmpty, let failure = store.logFailure {
           VStack(alignment: .leading, spacing: 8) {
@@ -29,6 +30,8 @@ struct RecentAccessView: View {
             RecentAccessRow(entry: entry)
           }
           if store.isLoadingLog {
+            // The next page, in Show More's place: at once, as the feedback of a tap on it, or
+            // of its end coming into view (851-3086).
             ProgressView()
               .frame(maxWidth: .infinity)
           } else if let failure = store.logFailure {

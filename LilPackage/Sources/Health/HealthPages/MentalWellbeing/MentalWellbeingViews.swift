@@ -2,6 +2,7 @@ import Charts
 import Dependencies
 public import HealthDatabase
 import HealthUI
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -45,6 +46,10 @@ struct StateOfMindContent: View {
     case loading
     case loaded([HealthStateOfMind])
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let state: State
@@ -58,7 +63,8 @@ struct StateOfMindContent: View {
     Group {
       switch state {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
@@ -74,6 +80,7 @@ struct StateOfMindContent: View {
         list(logs)
       }
     }
+    .delayedProgress(isLoading: state.isLoading)
     .navigationTitle("State of Mind")
   }
 
@@ -249,6 +256,10 @@ struct ScoredAssessmentsContent: View {
     case loading
     case loaded([HealthScoredAssessment])
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let kind: AssessmentKind
@@ -261,7 +272,8 @@ struct ScoredAssessmentsContent: View {
     Group {
       switch state {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
@@ -275,6 +287,7 @@ struct ScoredAssessmentsContent: View {
         list(assessments)
       }
     }
+    .delayedProgress(isLoading: state.isLoading)
     .navigationTitle(name)
   }
 

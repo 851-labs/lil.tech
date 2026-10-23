@@ -1,4 +1,5 @@
 public import ComposableArchitecture
+import LilUI
 import MessagesConversationList
 import MessagesDatabase
 import MessagesOnboarding
@@ -14,9 +15,13 @@ public struct AppView: View {
 
   public var body: some View {
     Group {
-      if let fullDiskAccessStore = store.scope(\.fullDiskAccess, action: \.fullDiskAccess) {
+      if isChecking {
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
+          .frame(minWidth: 480, minHeight: 320)
+      } else if let fullDiskAccessStore = store.scope(\.fullDiskAccess, action: \.fullDiskAccess) {
         FullDiskAccessView(store: fullDiskAccessStore)
-      } else if store.hasFullDiskAccess == true {
+      } else {
         NavigationSplitView {
           ConversationListView(store: store.scope(\.conversationList, action: \.conversationList))
             .navigationSplitViewColumnWidth(min: 240, ideal: 300)
@@ -32,12 +37,15 @@ public struct AppView: View {
           }
         }
         .frame(minWidth: 720, minHeight: 480)
-      } else {
-        ProgressView()
-          .frame(minWidth: 480, minHeight: 320)
       }
     }
+    .delayedProgress(isLoading: isChecking)
     .task { await store.send(.task).finish() }
+  }
+
+  /// Whether Full Disk Access isn't known yet: no onboarding to show, and access not granted.
+  private var isChecking: Bool {
+    store.fullDiskAccess == nil && store.hasFullDiskAccess != true
   }
 }
 

@@ -3,6 +3,7 @@ import HealthCatalog
 import HealthDatabase
 import HealthPages
 import HealthUI
+import LilUI
 import SQLiteData
 import SwiftUI
 
@@ -168,6 +169,10 @@ struct MetricDetailContent: View {
     /// on screen, with a spinner, rather than the page blanking.
     case loaded(PeriodChart, isUpdating: Bool = false)
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let type: HealthDataType
@@ -231,6 +236,7 @@ struct MetricDetailContent: View {
         VStack(alignment: .leading, spacing: 12) {
           header
           chartArea
+            .delayedProgress(isLoading: state.isLoading)
             .frame(height: 280)
           if hasOverlays {
             legend
@@ -356,7 +362,8 @@ struct MetricDetailContent: View {
   @ViewBuilder private var chartArea: some View {
     switch state {
     case .loading:
-      ProgressView()
+      // Its space, under the spinner `delayedProgress` shows (851-3086).
+      Color.clear
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .failed(let reason):
       ContentUnavailableView(

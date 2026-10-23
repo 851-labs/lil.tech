@@ -1,6 +1,7 @@
 import Dependencies
 import HealthDatabase
 import HealthUI
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -19,7 +20,7 @@ public struct FoodView: View {
   public init() {}
 
   public var body: some View {
-    FoodContent(state: state, moreFailed: moreFailed) {
+    FoodContent(state: state, isLoadingMore: isLoadingMore, moreFailed: moreFailed) {
       Task { await loadMore() }
     }
     .task {
@@ -61,9 +62,15 @@ struct FoodContent: View {
     case loading
     case loaded([Food], hasMore: Bool)
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let state: State
+  /// Whether the next page is loading.
+  var isLoadingMore = false
   var moreFailed = false
   let loadMore: () -> Void
   /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
@@ -74,7 +81,8 @@ struct FoodContent: View {
     Group {
       switch state {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
@@ -92,6 +100,7 @@ struct FoodContent: View {
         list(foods, hasMore: hasMore)
       }
     }
+    .delayedProgress(isLoading: state.isLoading)
     .navigationTitle("Food")
   }
 
@@ -102,7 +111,9 @@ struct FoodContent: View {
     let now = now
     let calendar = calendar
     let days = HealthDatabase.foodDays(foods, calendar: calendar)
-    return LazyGroupedList(hasMore: hasMore, moreFailed: moreFailed, loadMore: loadMore) {
+    return LazyGroupedList(
+      hasMore: hasMore, isLoadingMore: isLoadingMore, moreFailed: moreFailed, loadMore: loadMore
+    ) {
       ForEach(days, id: \.day) { day in
         // The last day may go on in the next page. Its total, which would leave those foods out,
         // waits for them, even once loading more failed.
@@ -205,7 +216,7 @@ struct FoodDetailContent: View {
       Section("Nutrients") {
         switch state {
         case .loading:
-          ProgressView()
+          DelayedProgressView()
             .frame(maxWidth: .infinity)
         case .failed(let reason):
           Label("Couldn't load its nutrients: \(reason)", systemImage: "exclamationmark.triangle")

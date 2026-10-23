@@ -2,6 +2,7 @@ import Charts
 import Dependencies
 import HealthDatabase
 import HealthUI
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -82,6 +83,10 @@ struct BloodPressureContent: View {
     /// on screen, with a spinner, rather than the page blanking.
     case loaded(BloodPressurePeriod, isUpdating: Bool = false)
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   /// The period chosen in the toolbar, which can be ahead of the one shown (`range`).
@@ -127,6 +132,7 @@ struct BloodPressureContent: View {
         VStack(alignment: .leading, spacing: 12) {
           header
           chartArea
+            .delayedProgress(isLoading: state.isLoading)
             .frame(height: 280)
           HStack(spacing: 16) {
             legend("Systolic", Self.systolicColor)
@@ -208,7 +214,8 @@ struct BloodPressureContent: View {
   @ViewBuilder private var chartArea: some View {
     switch state {
     case .loading:
-      ProgressView()
+      // Its space, under the spinner `delayedProgress` shows (851-3086).
+      Color.clear
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .failed(let reason):
       ContentUnavailableView(

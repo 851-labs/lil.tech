@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 import LilAuth
+import LilUI
 public import SwiftUI
 
 /// The app's Settings window (⌘, or lil health › Settings…), a tab per pane: the
@@ -123,8 +124,9 @@ struct AccountSettingsView: View {
     Group {
       switch store.isSignedIn {
       case nil:
-        // The stored session isn't checked yet.
-        ProgressView()
+        // The stored session isn't checked yet: its space, under the spinner `delayedProgress`
+        // shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case false:
         ContentUnavailableView {
@@ -141,6 +143,7 @@ struct AccountSettingsView: View {
         .formStyle(.grouped)
       }
     }
+    .delayedProgress(isLoading: store.isSignedIn == nil)
     .onAppear { store.send(.account(.appeared)) }
   }
 }

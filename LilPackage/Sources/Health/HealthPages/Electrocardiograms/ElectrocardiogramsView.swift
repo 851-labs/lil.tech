@@ -1,6 +1,7 @@
 import Dependencies
 import HealthDatabase
 import LilSync
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -36,6 +37,10 @@ struct ElectrocardiogramsContent: View {
     case loading
     case loaded([HealthElectrocardiogram])
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let state: State
@@ -48,7 +53,8 @@ struct ElectrocardiogramsContent: View {
     Group {
       switch state {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
@@ -62,6 +68,7 @@ struct ElectrocardiogramsContent: View {
         list(recordings)
       }
     }
+    .delayedProgress(isLoading: state.isLoading)
     .navigationTitle("ECG")
   }
 
@@ -207,7 +214,7 @@ struct ElectrocardiogramDetailContent: View {
     switch trace {
     case .loading:
       paper
-        .overlay { ProgressView() }
+        .overlay { DelayedProgressView() }
     case .none:
       ContentUnavailableView(
         "No Recording", systemImage: "waveform.path.ecg",

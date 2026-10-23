@@ -1,3 +1,4 @@
+import LilUI
 import SwiftUI
 
 // iOS's grouped list (`List` with `.listStyle(.insetGrouped)`) for the Mac, which has none, for
@@ -45,17 +46,20 @@ struct LazyGroupedList<Content: View>: View {
 
   /// A list that loads a page at a time: while `hasMore`, it calls `loadMore` when its end comes
   /// into view, and its last section stays open, since the next page may continue it (851-3040).
-  /// Once loading more failed (`moreFailed`), it ends in a button to try again.
+  /// Its end shows a spinner while a page loads (`isLoadingMore`) and it takes a while
+  /// (851-3086). Once loading more failed (`moreFailed`), it ends in a button to try again.
   init(
-    hasMore: Bool, moreFailed: Bool, loadMore: @escaping () -> Void,
+    hasMore: Bool, isLoadingMore: Bool, moreFailed: Bool, loadMore: @escaping () -> Void,
     @ViewBuilder content: () -> Content
   ) {
-    self.paging = Paging(hasMore: hasMore, moreFailed: moreFailed, loadMore: loadMore)
+    self.paging = Paging(
+      hasMore: hasMore, isLoadingMore: isLoadingMore, moreFailed: moreFailed, loadMore: loadMore)
     self.content = content()
   }
 
   struct Paging {
     let hasMore: Bool
+    let isLoadingMore: Bool
     let moreFailed: Bool
     let loadMore: () -> Void
 
@@ -78,8 +82,9 @@ struct LazyGroupedList<Content: View>: View {
             if paging.moreFailed {
               Button("Couldn't load more. Try Again", action: paging.loadMore)
             } else if paging.hasMore {
-              // Loads the next page when the end of the list comes into view.
-              ProgressView()
+              // Loads the next page when the end of the list comes into view, with a spinner
+              // if it takes a while (851-3086).
+              DelayedProgressView(isLoading: paging.isLoadingMore)
                 .onAppear(perform: paging.loadMore)
             }
           }

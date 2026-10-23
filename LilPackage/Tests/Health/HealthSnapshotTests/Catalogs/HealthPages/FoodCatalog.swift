@@ -25,7 +25,7 @@
       // The next page is loading: the last day's section stays open, and its total waits for its
       // other foods.
       CatalogState("Food, loading more") {
-        foodPage(.loaded(Array(foods.prefix(5)), hasMore: true))
+        foodPage(.loaded(Array(foods.prefix(5)), hasMore: true), isLoadingMore: true)
       },
       // The next page failed: the last day's section closes, with a button to try again, and its
       // total still waits.
@@ -113,9 +113,12 @@
   }
 
   @MainActor
-  private func foodPage(_ state: FoodContent.State, moreFailed: Bool = false) -> some View {
+  private func foodPage(
+    _ state: FoodContent.State, isLoadingMore: Bool = false, moreFailed: Bool = false
+  ) -> some View {
     NavigationStack {
-      FoodContent(state: state, moreFailed: moreFailed, loadMore: {})
+      FoodContent(
+        state: state, isLoadingMore: isLoadingMore, moreFailed: moreFailed, loadMore: {})
     }
   }
 

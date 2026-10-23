@@ -2,6 +2,7 @@ import Dependencies
 public import HealthCatalog
 import HealthDatabase
 import HealthUI
+import LilUI
 import SQLiteData
 public import SwiftUI
 
@@ -22,7 +23,7 @@ public struct AllDataView: View {
   }
 
   public var body: some View {
-    AllDataContent(type: type, state: state, moreFailed: moreFailed) {
+    AllDataContent(type: type, state: state, isLoadingMore: isLoadingMore, moreFailed: moreFailed) {
       Task { await loadMore() }
     }
     .task {
@@ -64,10 +65,16 @@ struct AllDataContent: View {
     case loading
     case loaded([HealthSample], hasMore: Bool)
     case failed(String)
+
+    var isLoading: Bool {
+      if case .loading = self { true } else { false }
+    }
   }
 
   let type: HealthDataType
   let state: State
+  /// Whether the next page is loading.
+  var isLoadingMore = false
   var moreFailed = false
   let loadMore: () -> Void
   /// From dependencies, so snapshot catalogs fix them (`previewCalendar`, `previewNow`).
@@ -78,7 +85,8 @@ struct AllDataContent: View {
     Group {
       switch state {
       case .loading:
-        ProgressView()
+        // Its space, under the spinner `delayedProgress` shows (851-3086).
+        Color.clear
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .failed(let reason):
         ContentUnavailableView(
@@ -96,6 +104,7 @@ struct AllDataContent: View {
         list(samples, hasMore: hasMore)
       }
     }
+    .delayedProgress(isLoading: state.isLoading)
     .navigationTitle("All \(type.name) Data")
   }
 
@@ -106,7 +115,9 @@ struct AllDataContent: View {
     let days = sections(samples, by: .day, calendar: calendar, startDate: \.startDate)
     // Once, so every day's header is named against the same "now".
     let now = self.now
-    return LazyGroupedList(hasMore: hasMore, moreFailed: moreFailed, loadMore: loadMore) {
+    return LazyGroupedList(
+      hasMore: hasMore, isLoadingMore: isLoadingMore, moreFailed: moreFailed, loadMore: loadMore
+    ) {
       ForEach(days, id: \.start) { day in
         Section(MetricFormat.date(day.start, isDay: true, now: now, calendar: calendar)) {
           ForEach(day.records) { sample in
