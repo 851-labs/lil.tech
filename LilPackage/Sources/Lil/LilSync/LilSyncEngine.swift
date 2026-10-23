@@ -415,15 +415,11 @@ public actor LilSyncEngine {
       let state = try await database.read { try SyncState.fetch($0) }
       // A new device starts from a snapshot rather than replaying the whole log.
       if state.epoch == nil, state.cursor == 0 { throw SyncError.needsBootstrap }
-      // Synced before this release stored some entity or field: start over to get it.
+      // Synced before this release stored some field: start over to get it. (An entity it didn't
+      // store is caught up first, by `catchUpNewEntities()`.)
       if state.epoch != nil, (state.syncSchema ?? 1) < syncSchema { throw SyncError.needsBootstrap }
-      if state.epoch != nil, let stored = state.entities,
-        !Set(entities.keys).isSubset(of: stored.split(separator: ",").map(String.init))
-      {
-        throw SyncError.needsBootstrap
-      }
       // An older release (after a downgrade) records only what it stores and its own schema, so
-      // the newer one bootstraps again when it's back.
+      // the newer one catches up or bootstraps again when it's back.
       let syncSchema = min(state.syncSchema ?? 1, syncSchema)
       let stored = state.entities.map { recorded in
         Self.recorded(
@@ -502,59 +498,97 @@ public actor LilSyncEngine {
   ///    their tables, cleared first. The other entities and the cursor stay as they are.
   /// 2. Pulls the changes after `S`, up to the cursor, and applies only theirs, recording how
   ///    far it got with each page, so an interrupted catch-up resumes there.
-  /// 3. Records them as held, with the last page, so pulling carries on from the cursor for
-  ///    every entity.
+  /// 3. Records them as held, so pulling carries on from the cursor for every entity.
   ///
   /// A store without a snapshot has its whole log, so the changes are pulled from the start. A
-  /// new epoch, or changes compacted meanwhile, still bootstrap (``SyncError/needsBootstrap``).
-  /// A schema bump bootstraps rather than catching up: ``pullPages()`` throws for it.
+  /// snapshot replaced while its parts download, or changes compacted after the snapshot a
+  /// resumed catch-up loaded, start it over from the latest snapshot, once. A new epoch, or
+  /// changes compacted otherwise, still bootstrap (``SyncError/needsBootstrap``). A schema bump
+  /// bootstraps rather than catching up: ``pullPages()`` throws for it.
   private func catchUpNewEntities() async throws {
     let state = try await database.read { try SyncState.fetch($0) }
     guard let epoch = state.epoch, (state.syncSchema ?? 1) >= syncSchema,
       let recorded = state.entities
     else { return }
-    let held = Set(recorded.split(separator: ",").map(String.init))
-    let missing = Set(entities.keys).subtracting(held)
+    let missing = Set(entities.keys).subtracting(recorded.split(separator: ",").map(String.init))
     guard !missing.isEmpty else { return }
-    let names = Self.recorded(missing)
-    var after: Int
-    if state.catchUpEntities == names, state.catchUpUntil == state.cursor,
-      let saved = state.catchUpAfter
-    {
-      after = saved
-    } else {
-      after = try await loadSnapshot(of: missing, epoch: epoch, until: state.cursor)
+    let resumable =
+      state.catchUpEntities == Self.recorded(missing) && state.catchUpUntil == state.cursor
+    var after = resumable ? state.catchUpAfter : nil
+    // A snapshot replaced while its parts download, or changes compacted while a catch-up was
+    // interrupted, start the catch-up over from the latest snapshot, once.
+    var restarts = 0
+    while true {
+      do {
+        try await catchUp(missing, epoch: epoch, until: state.cursor, after: after)
+        break
+      } catch let error as CatchUpRestart where restarts == 0 {
+        if case .changesCompacted = error, after == nil { throw SyncError.needsBootstrap }
+        restarts += 1
+        after = nil
+      } catch is CatchUpRestart {
+        throw SyncError.needsBootstrap
+      }
     }
-    let until = state.cursor
+    // Every entity is held now. (An older release, after a downgrade, records only what it
+    // stores, as pulling does.)
+    try await database.write { [entities, syncSchema] db in
+      try SyncState(
+        id: SyncState.singletonID, cursor: state.cursor, epoch: epoch, syncSchema: syncSchema,
+        entities: Self.recorded(entities.keys)
+      )
+      .save(db)
+    }
+  }
+
+  /// The snapshot asked for by ID was replaced and deleted (410).
+  private struct SnapshotGone: Error {}
+
+  /// Why a catch-up starts over.
+  private enum CatchUpRestart: Error {
+    /// The snapshot being loaded was replaced and deleted.
+    case snapshotGone
+    /// The changes after the snapshot were compacted (410).
+    case changesCompacted
+  }
+
+  /// Loads `missing`'s records from the latest snapshot, unless `after` says where a catch-up
+  /// that loaded them got to, then pulls their changes up to `until`.
+  private func catchUp(_ missing: Set<String>, epoch: Int, until: Int, after: Int?) async throws {
+    var after = after
+    if after == nil {
+      do {
+        after = try await loadSnapshot(of: missing, epoch: epoch, until: until)
+      } catch is SnapshotGone {
+        throw CatchUpRestart.snapshotGone
+      }
+    }
+    guard var after else { return }
     let catchingUp = entities.filter { missing.contains($0.key) }
     while after < until {
       setStatus(.syncing(cursor: after, head: until))
       // Never past the cursor, where the pull after the catch-up carries on for every entity.
-      let page = try await fetchPage(after: after, limit: min(Self.pageSize, until - after))
+      let page: Components.Schemas.ChangesPage
+      do {
+        page = try await fetchPage(after: after, limit: min(Self.pageSize, until - after))
+      } catch SyncError.needsBootstrap {
+        // Only for a 410.
+        throw CatchUpRestart.changesCompacted
+      }
       if page.epoch != epoch || page.head < until { throw SyncError.needsBootstrap }
       try Self.check(page, after: after)
       if page.next < until, !page.hasMore { throw SyncError.unexpectedPage }
       try Task.checkCancellation()
-      let changes = page.changes.filter { $0.seq <= until }
+      let changes = page.changes.filter { $0.seq <= until && catchingUp[$0.entity] != nil }
       after = min(page.next, until)
       try await database.write { [entities, after] db in
         try Self.apply(changes, entities: catchingUp, db)
         var progress = try SyncState.fetch(db)
         progress.catchUpAfter = after
         try progress.save(db)
-        try PendingMutation.reapply(after: until, entities: entities, db)
+        // Unsent writes stay over what the page changed.
+        if !changes.isEmpty { try PendingMutation.reapply(after: until, entities: entities, db) }
       }
-    }
-    // An older release (after a downgrade) records only what it stores and its own schema, as
-    // pulling does.
-    let stored = Self.recorded(held.intersection(entities.keys).union(missing))
-    let syncSchema = min(state.syncSchema ?? 1, syncSchema)
-    try await database.write { db in
-      try SyncState(
-        id: SyncState.singletonID, cursor: until, epoch: epoch, syncSchema: syncSchema,
-        entities: stored
-      )
-      .save(db)
     }
   }
 
@@ -640,22 +674,27 @@ public actor LilSyncEngine {
       return
     }
 
-    try await load(
-      manifest, of: Set(entities.keys),
-      prepare: { [entities] db in
-        // Until the load finishes, this client is a new device, which bootstraps again.
-        try SyncState.find(SyncState.singletonID).delete().execute(db)
-        for entity in entities.values { try entity.clear(db) }
-      },
-      finish: { [entities] manifest, db in
-        try SyncState(
-          id: SyncState.singletonID, cursor: manifest.seq, epoch: manifest.epoch,
-          syncSchema: syncSchema, entities: recordedEntities
-        )
-        .save(db)
-        try PendingMutation.reapply(after: manifest.seq, entities: entities, db)
-      }
-    )
+    do {
+      try await load(
+        manifest, of: Set(entities.keys),
+        prepare: { [entities] db in
+          // Until the load finishes, this client is a new device, which bootstraps again.
+          try SyncState.find(SyncState.singletonID).delete().execute(db)
+          for entity in entities.values { try entity.clear(db) }
+        },
+        finish: { [entities] manifest, db in
+          try SyncState(
+            id: SyncState.singletonID, cursor: manifest.seq, epoch: manifest.epoch,
+            syncSchema: syncSchema, entities: recordedEntities
+          )
+          .save(db)
+          try PendingMutation.reapply(after: manifest.seq, entities: entities, db)
+        }
+      )
+    } catch is SnapshotGone {
+      // Replaced and deleted meanwhile: start over with the latest.
+      throw SyncError.needsBootstrap
+    }
   }
 
   /// Loads the records of `names` from a snapshot:
@@ -909,7 +948,7 @@ public actor LilSyncEngine {
       return try ok.body.json
     case .gone:
       // Replaced and deleted meanwhile: start over with the latest.
-      throw SyncError.needsBootstrap
+      throw SnapshotGone()
     case .unauthorized:
       throw SyncError.unauthorized
     case .serviceUnavailable:

@@ -49,12 +49,13 @@ extension LilSyncEngine {
       try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "syncSchema" INTEGER"#).execute(db)
       try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "entities" TEXT"#).execute(db)
     }
+    registerPendingMutations(in: &migrator)
+    // After every migration before it, in the order they shipped.
     migrator.registerMigration("Add catch-up to lilSyncState") { db in
       try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "catchUpEntities" TEXT"#).execute(db)
       try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "catchUpAfter" INTEGER"#).execute(db)
       try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "catchUpUntil" INTEGER"#).execute(db)
     }
-    registerPendingMutations(in: &migrator)
   }
 }
 

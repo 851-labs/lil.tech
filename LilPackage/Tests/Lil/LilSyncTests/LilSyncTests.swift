@@ -172,6 +172,8 @@ private final class FakeServer: Sendable {
     var refusingPushes = false
     /// Pushes fail as unavailable.
     var failingPushes = false
+    /// A snapshot that replaces the latest, with its parts' bytes, once the latest was asked for.
+    var replacingSnapshot: (Components.Schemas.SnapshotManifest, [String: Data])?
   }
   let state = LockIsolated(State())
 
@@ -284,6 +286,13 @@ private final class FakeServer: Sendable {
         return try state.withValue { state in
           state.snapshotRequests += 1
           if path == "/v1/sync/snapshot" {
+            defer {
+              if let (snapshot, bytes) = state.replacingSnapshot {
+                state.snapshot = snapshot
+                state.partBytes.merge(bytes) { _, new in new }
+                state.replacingSnapshot = nil
+              }
+            }
             return try json(
               .ok, Components.Schemas.LatestSnapshot(epoch: state.epoch, snapshot: state.snapshot))
           }
@@ -1831,6 +1840,58 @@ struct LilSyncCatchUpTests {
     #expect(try storedTags() == [Tag(id: "t1", title: "Tag 1"), Tag(id: "t2", title: "Tag 2")])
     #expect(try storedNotes() == [Note(id: "n1", title: "Note 1")])
     #expect(server.state.requests == [0, 2, 3])
+  }
+
+  @Test
+  func aSnapshotReplacedWhileItDownloadsStartsTheCatchUpOverFromTheLatest() async throws {
+    try await olderReleaseSyncedTo8()
+    // snp_2, at 6, replaces snp_1 (and snp_1 is deleted) once snp_1 was handed out, whose
+    // tags' URLs have expired by the time they're downloaded.
+    try server.publishSnapshot(
+      id: "snp_2", seq: 6, notes: notesAt8,
+      tags: [Tag(id: "t1", title: "Tag 1, renamed"), Tag(id: "t2", title: "Tag 2")])
+    let replacing = server.state.withValue { ($0.snapshot!, $0.partBytes) }
+    try server.publishSnapshot(
+      seq: 4, notes: notesAt8,
+      tags: [Tag(id: "t1", title: "Tag 1"), Tag(id: "t2", title: "Tag 2")])
+    let expired = Set(tagParts)
+    server.state.withValue {
+      $0.replacingSnapshot = replacing
+      $0.expiredURLs = expired
+    }
+
+    try await engine().pull()
+
+    #expect(try storedTags() == tagsAt8)
+    // snp_1, its refresh (gone), then snp_2, whose changes after 6 were pulled.
+    #expect(server.state.snapshotRequests == 3)
+    #expect(server.state.requests == [6, 8])
+    #expect(try state()?.entities == "note,tag")
+  }
+
+  @Test
+  func changesCompactedWhileACatchUpWasInterruptedStartItOver() async throws {
+    try await olderReleaseSyncedTo8()
+    server.state.withValue { $0.failing = [2] }
+    let engine = engine()
+    await #expect(throws: (any Error).self) { try await engine.pull() }
+    #expect(try state()?.catchUpAfter == 6)
+
+    // Meanwhile a snapshot at 7 is published, and the changes it covers are compacted.
+    try server.publishSnapshot(
+      id: "snp_2", seq: 7, notes: notesAt8, tags: [Tag(id: "t1", title: "Tag 1, renamed")])
+    server.state.withValue {
+      $0.failing = []
+      $0.horizon = 7
+      $0.requests = []
+    }
+    try await engine.pull()
+
+    #expect(try storedTags() == tagsAt8)
+    #expect(try storedNotes() == notesAt8)
+    // After 6 was gone, so it started over from snp_2.
+    #expect(server.state.requests == [6, 7, 8])
+    #expect(try state()?.entities == "note,tag")
   }
 
   @Test
