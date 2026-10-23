@@ -25,6 +25,20 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-month-dark.png",
+      "id" : "metric-detail.steps-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-month-light.png",
+      "name" : "Steps, month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-year-dark.png",
+      "id" : "metric-detail.steps-year",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.steps-year-light.png",
+      "name" : "Steps, year",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-month-dark.png",
       "id" : "metric-detail.heart-rate-month",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.heart-rate-month-light.png",

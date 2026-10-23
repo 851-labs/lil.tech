@@ -31,6 +31,10 @@
       // Today and the next week are available (851-2821).
       CatalogState("Steps, the week before") { detail(steps, .week, offset: -1) },
       CatalogState("Steps, day") { detail(steps, .day) },
+      // A cumulative type's caption per period: Day's TOTAL, Week's and Month's AVERAGE, 6 Months'
+      // and Year's DAILY AVERAGE, as Health's (851-3099).
+      CatalogState("Steps, month") { detail(steps, .month) },
+      CatalogState("Steps, year") { detail(steps, .year) },
       CatalogState("Heart rate, month") { detail(heartRate, .month) },
       CatalogState("Heart rate, day") { detail(heartRate, .day) },
       // Two weeks of data: the last bars.

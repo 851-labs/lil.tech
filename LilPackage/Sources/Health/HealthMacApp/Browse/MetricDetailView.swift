@@ -325,12 +325,23 @@ struct MetricDetailContent: View {
       return point.minimum == point.maximum ? "AVERAGE" : "RANGE"
     }
     switch chart?.summary {
-    case .total: return "TOTAL"
-    case .dailyAverage: return "DAILY AVERAGE"
+    case .total, .dailyAverage: return periodCaption
     case .range: return "RANGE"
     case .average: return "AVERAGE"
     case .averageDuration: return "AVERAGE DURATION"
-    case nil: return cumulative && range == .day ? "TOTAL" : cumulative ? "DAILY AVERAGE" : "RANGE"
+    case nil: return cumulative ? periodCaption : "RANGE"
+    }
+  }
+
+  /// A cumulative type's caption for the period, as Health's (851-3099): the day's total, then
+  /// the average day, which Health calls the week's and month's "AVERAGE", of their daily bars,
+  /// and 6 months' and a year's "DAILY AVERAGE", under weekly and monthly bars. Either way the
+  /// value is the period's total per day with data (`MetricChart.Summary.dailyAverage`).
+  private var periodCaption: String {
+    switch range {
+    case .day: "TOTAL"
+    case .week, .month: "AVERAGE"
+    case .sixMonths, .year: "DAILY AVERAGE"
     }
   }
 
