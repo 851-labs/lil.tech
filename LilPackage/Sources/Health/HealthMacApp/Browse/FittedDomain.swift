@@ -27,7 +27,8 @@ func emptyDomain(for type: HealthDataType, unit: String?, hourly: Bool = false)
 
 /// About the most a type's readings, or a day's total, reach.
 private func typicalTop(_ type: HealthDataType, unit: String?) -> Double {
-  switch type.id.replacingOccurrences(of: "HKQuantityTypeIdentifier", with: "") {
+  let prefix = "HKQuantityTypeIdentifier"
+  switch type.id.hasPrefix(prefix) ? String(type.id.dropFirst(prefix.count)) : type.id {
   case "StepCount", "NikeFuel": return 10_000
   case "PushCount": return 5_000
   case "SwimmingStrokeCount": return 2_000
