@@ -28,7 +28,7 @@ export const healthConsentPolicyVersion = "2026-10-15";
  * 851-3214). Consents given before stay in force for their grants, whatever their version.
  */
 export const agentsConsentPolicyVersions = {
-  "agents:health": "2026-10-24",
+  "agents:health": "2026-10-23",
 } as const satisfies Record<Extract<ConsentType, `agents:${string}`>, string>;
 
 /** A consent in force. */
