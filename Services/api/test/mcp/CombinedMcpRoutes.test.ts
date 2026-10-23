@@ -227,8 +227,8 @@ describe("the combined MCP server", () => {
   it.live("answers 401 naming the root metadata and every app's scope", () =>
     Effect.gen(function* () {
       for (const [overrides, scope] of [
-        [undefined, "health:read"],
-        [WithMail, "health:read mail:read"],
+        [undefined, "health:read health:cards"],
+        [WithMail, "health:read health:cards mail:read"],
       ] as const) {
         yield* withPreview(
           (handler) =>
@@ -311,7 +311,10 @@ describe("the combined MCP server", () => {
         });
         assert.strictEqual(withdrawn.status, 403);
         assert.include(withdrawn.headers.get("www-authenticate"), 'error="insufficient_scope"');
-        assert.include(withdrawn.headers.get("www-authenticate"), `scope="health:read"`);
+        assert.include(
+          withdrawn.headers.get("www-authenticate"),
+          `scope="health:read health:cards"`,
+        );
         // Connecting an agent again gives consent again, but not to this grant, made before.
         yield* Effect.sleep("5 millis");
         yield* (yield* Consents)
@@ -466,7 +469,7 @@ describe("the combined MCP server", () => {
             assert.strictEqual(missing.status, 401);
             assert.strictEqual(
               missing.headers.get("www-authenticate"),
-              'Bearer resource_metadata="https://mcp.lil.tech/.well-known/oauth-protected-resource", scope="health:read"',
+              'Bearer resource_metadata="https://mcp.lil.tech/.well-known/oauth-protected-resource", scope="health:read health:cards"',
             );
             const onApi = yield* call(
               handler,

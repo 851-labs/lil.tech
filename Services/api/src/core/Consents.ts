@@ -23,11 +23,12 @@ export const healthConsentPolicyVersion = "2026-10-15";
 /**
  * The privacy policy version that consent to an app's agents is recorded against, separate from
  * Health consent's, so asking for it never asks anyone to consent to Health again: the policy
- * that describes agents connected to the account (851-2855), and connected to every lil app at
- * once through the combined server (851-2903).
+ * that describes agents connected to the account (851-2855), connected to every lil app at once
+ * through the combined server (851-2903), and changing lil health's cards (`health:cards`,
+ * 851-3214). Consents given before stay in force for their grants, whatever their version.
  */
 export const agentsConsentPolicyVersions = {
-  "agents:health": "2026-10-21",
+  "agents:health": "2026-10-24",
 } as const satisfies Record<Extract<ConsentType, `agents:${string}`>, string>;
 
 /** A consent in force. */

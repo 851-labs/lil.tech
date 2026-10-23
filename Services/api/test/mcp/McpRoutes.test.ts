@@ -289,7 +289,7 @@ describe("the Health MCP server", () => {
           assert.strictEqual(missing.status, 401);
           assert.strictEqual(
             missing.headers.get("www-authenticate"),
-            `Bearer resource_metadata="${metadataUrl}", scope="health:read"`,
+            `Bearer resource_metadata="${metadataUrl}", scope="health:read health:cards"`,
           );
           for (const authorization of ["Bearer lma_unknown", "Basic dXNlcjpwYXNz", "Bearer"]) {
             const refused = yield* call(handler, undefined, "tools/list", {}, { authorization });
@@ -298,7 +298,7 @@ describe("the Health MCP server", () => {
           const invalid = yield* call(handler, "lma_unknown", "tools/list");
           assert.strictEqual(
             invalid.headers.get("www-authenticate"),
-            `Bearer resource_metadata="${metadataUrl}", scope="health:read", ` +
+            `Bearer resource_metadata="${metadataUrl}", scope="health:read health:cards", ` +
               `error="invalid_token", error_description="The access token is invalid or revoked"`,
           );
           assert.deepStrictEqual(invalid.message, {
@@ -367,6 +367,35 @@ describe("the Health MCP server", () => {
         }),
       preview,
     ),
+  );
+
+  it.live(
+    "lets a grant in by health:read alone, so grants from before health:cards still read",
+    () =>
+      withApi(
+        (handler) =>
+          Effect.gen(function* () {
+            for (const scopes of [["health:read"], ["health:read", "health:cards"]]) {
+              const agent = yield* connect(handler, {
+                approval: yield* approve({ resource: previewResource, scopes }),
+              });
+              const listed = yield* call(handler, agent.accessToken, "tools/list");
+              assert.strictEqual(listed.status, 200, scopes.join(" "));
+            }
+            // A grant can't hold health:cards without health:read, but if it did it couldn't read.
+            const writer = yield* connect(handler, {
+              approval: yield* approve({ resource: previewResource, scopes: ["health:cards"] }),
+            });
+            const refused = yield* call(handler, writer.accessToken, "tools/list");
+            assert.strictEqual(refused.status, 403);
+            assert.include(refused.headers.get("www-authenticate"), 'error="insufficient_scope"');
+            assert.include(
+              refused.headers.get("www-authenticate"),
+              'error_description="This server needs health:read"',
+            );
+          }),
+        preview,
+      ),
   );
 
   it.live("refuses requests from browsers, and anything but POST and DELETE", () =>
@@ -499,7 +528,7 @@ describe("the Health MCP server", () => {
             assert.strictEqual(missing.status, 401);
             assert.strictEqual(
               missing.headers.get("www-authenticate"),
-              'Bearer resource_metadata="https://mcp.lil.tech/.well-known/oauth-protected-resource/health", scope="health:read"',
+              'Bearer resource_metadata="https://mcp.lil.tech/.well-known/oauth-protected-resource/health", scope="health:read health:cards"',
             );
             const onApi = yield* call(
               handler,
