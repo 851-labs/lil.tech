@@ -79,6 +79,8 @@ struct WorkoutDetailContent: View {
   private let locale: Locale
   /// A kilometer or a mile.
   private let splitUnit: MetricFormat.DisplayUnit
+  /// How far it went, and in what (`WorkoutFormat.distance`).
+  private let distance: (meters: Double, unit: MetricFormat.DisplayUnit)?
 
   init(workout: HealthWorkout, heartRates: [HealthSample], route: RouteState) {
     self.workout = workout
@@ -88,6 +90,7 @@ struct WorkoutDetailContent: View {
     self.locale = locale
     statistics = workout.decodedStatistics
     splitUnit = WorkoutFormat.splitUnit(locale: locale)
+    distance = WorkoutFormat.distance(of: workout, statistics, locale: locale)
     if case .loaded(let loaded) = route {
       splits = WorkoutFormat.splits(loaded.locations, pauses: workout.pauses, in: splitUnit)
     } else {
@@ -164,9 +167,7 @@ struct WorkoutDetailContent: View {
       ("Workout Time", WorkoutFormat.duration(workout.duration), .yellow),
       ("Elapsed Time", WorkoutFormat.duration(workout.elapsed), .yellow),
     ]
-    if let (meters, unit) = WorkoutFormat.distance(of: workout, statistics, locale: locale),
-      meters > 0
-    {
+    if let (meters, unit) = distance, meters > 0 {
       figures.append(("Distance", WorkoutFormat.distance(meters, in: unit), .cyan))
       if WorkoutActivity.hasPace(workout.activityType), workout.duration > 0 {
         figures.append(

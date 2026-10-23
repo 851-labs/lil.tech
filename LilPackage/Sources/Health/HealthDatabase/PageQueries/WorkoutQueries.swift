@@ -99,7 +99,28 @@ extension HealthWorkout {
 
   /// The workout's distance in meters, whichever kind it recorded.
   public static func distance(in statistics: [String: WorkoutStatistic]) -> Double? {
-    distanceTypes.lazy.compactMap { statistics[$0]?.sum }.first
+    distanceStatistic(in: statistics)?.meters
+  }
+
+  /// Which kind of distance the workout recorded (the first of `distanceTypes` with a sum), and
+  /// how far, in meters.
+  public static func distanceStatistic(in statistics: [String: WorkoutStatistic]) -> (
+    type: String, meters: Double
+  )? {
+    for type in distanceTypes {
+      if let meters = statistics[type]?.sum { return (type, meters) }
+    }
+    return nil
+  }
+
+  /// The unit a swim's pool is measured in, from its lap length (`HKLapLength`, written as the
+  /// quantity's description: "25 yd", "50 m"), or nil without one.
+  public var lapLengthUnit: String? {
+    guard let metadata,
+      let object = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any],
+      let (_, unit) = HealthDatabase.quantity(object["HKLapLength"]), !unit.isEmpty
+    else { return nil }
+    return unit
   }
 }
 
@@ -169,9 +190,6 @@ public struct RouteSplit: Equatable, Sendable {
     self.distance = distance
     self.duration = duration
   }
-
-  /// Seconds per kilometer.
-  public var pace: TimeInterval { distance > 0 ? duration / distance * 1000 : 0 }
 }
 
 extension HealthDatabase {

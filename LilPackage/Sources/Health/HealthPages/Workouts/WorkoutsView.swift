@@ -197,31 +197,22 @@ enum WorkoutFormat {
   static func distance(
     of workout: HealthWorkout, _ statistics: [String: WorkoutStatistic], locale: Locale
   ) -> (meters: Double, unit: MetricFormat.DisplayUnit)? {
-    for type in HealthWorkout.distanceTypes {
-      guard let meters = statistics[type]?.sum else { continue }
-      let unit =
-        type == swimmingDistance
-        ? swimmingUnit(workout, locale: locale)
-        : MetricFormat.unit("m", typeID: type, locale: locale)
-      return (meters, unit)
-    }
-    return nil
+    guard let (type, meters) = HealthWorkout.distanceStatistic(in: statistics) else { return nil }
+    let unit =
+      type == swimmingDistance
+      ? swimmingUnit(workout, locale: locale)
+      : MetricFormat.unit("m", typeID: type, locale: locale)
+    return (meters, unit)
   }
 
   /// A swim's distance unit, as Health shows it: the pool's (its lap length's, metres or yards,
   /// whatever the locale), or the locale's when it has none (open water, or an app that doesn't
   /// say): yards in the US, metres elsewhere.
   static func swimmingUnit(_ workout: HealthWorkout, locale: Locale) -> MetricFormat.DisplayUnit {
-    // A quantity's description, "25 yd" or "50 m" (`HealthEncoder.json`).
-    let metadata =
-      workout.metadata.flatMap {
-        try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]
-      } ?? [:]
-    let lapUnit = (metadata["HKLapLength"] as? String)?.split(separator: " ").last
-    switch lapUnit {
-    case "yd": return MetricFormat.swimmingUnit(yards: true, locale: locale)
-    case "m": return MetricFormat.swimmingUnit(yards: false, locale: locale)
-    default: return MetricFormat.unit("m", typeID: swimmingDistance, locale: locale)
+    switch workout.lapLengthUnit {
+    case "yd": MetricFormat.swimmingUnit(yards: true, locale: locale)
+    case "m": MetricFormat.swimmingUnit(yards: false, locale: locale)
+    default: MetricFormat.unit("m", typeID: swimmingDistance, locale: locale)
     }
   }
 
@@ -284,7 +275,8 @@ enum WorkoutFormat {
     -> String
   {
     let per = seconds / unit.convert(meters)
-    guard per.isFinite, per >= 0 else { return "–" }
+    // Nor a pace no one keeps (a day per unit), which a stray few millimetres would give.
+    guard per.isFinite, per >= 0, per < 86_400 else { return "–" }
     let total = Int(per.rounded())
     return String(format: "%d'%02d\"/%@", total / 60, total % 60, unit.label)
   }
