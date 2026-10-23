@@ -1847,7 +1847,7 @@ struct PreviewHealthDatabaseTests {
   func everyQuantityTypeHasValuesOfItsAggregation() {
     for type in HealthCatalog.all where type.kind == .quantity {
       switch PreviewValues.of(type) {
-      case .daily:
+      case .daily, .counts:
         #expect(type.aggregation?.isCumulative == true, "\(type.id) has daily totals")
       case .readings:
         #expect(type.aggregation?.isCumulative == false, "\(type.id) has readings")

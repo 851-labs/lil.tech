@@ -39,11 +39,12 @@ private struct PreviewData {
     }
     .execute(db)
 
-    for type in HealthCatalog.all {
+    let workouts = makeWorkouts()
+    for type in HealthCatalog.all where type.id != HealthDatabase.heartRateType {
       var random = SplitMix64(seed: type.id)
       switch type.kind {
       case .quantity where type.aggregation?.isCumulative == true:
-        try insertStatistics(of: type, &random, db)
+        try insertStatistics(of: type, workouts: workouts, &random, db)
       case .quantity:
         try insertSamples(of: type, &random, db)
       case .category:
@@ -52,8 +53,10 @@ private struct PreviewData {
         break
       }
     }
+    // After the nights' sleep stages, which it follows.
+    try insertHeartRate(workouts: workouts, db)
     try insertBloodPressure(db)
-    try insertWorkouts(db)
+    if !workouts.isEmpty { try HealthWorkout.insert { workouts.map(\.workout) }.execute(db) }
     try insertCharacteristics(db)
     try insertVisionPrescriptions(db)
     try insertMedications(db)
@@ -62,35 +65,50 @@ private struct PreviewData {
 
   /// 30-minute sums from 7:00 to 23:00: each day's total, from the type's `PreviewValues`,
   /// spread over every half-hour, or a few (meals, workouts), plus a raw sample now and then.
+  /// Walking + running distance, steps, active energy and exercise minutes add each day's workout
+  /// to its half-hours.
   private func insertStatistics(
-    of type: HealthDataType, _ random: inout SplitMix64, _ db: Database
+    of type: HealthDataType, workouts: [PreviewWorkout], _ random: inout SplitMix64,
+    _ db: Database
   ) throws {
     let unit = type.unit ?? "count"
-    guard case .daily(let daily, let sessions) = PreviewValues.of(type) else { return }
-    // Counts too small to split, like flights or drinks, come whole.
-    let whole = unit == "count" && daily.upperBound <= 50
+    let values = PreviewValues.of(type)
     let halfHours = Array(14..<46)
     var statistics: [HealthStatistic] = []
     var samples: [HealthSample] = []
     for day in dayStarts {
-      let total = whole ? random.next(in: daily).rounded() : random.next(in: daily)
       var sums = [Int: Double]()
-      if whole {
-        for _ in 0..<Int(total) { sums[halfHours.randomElement(using: &random)!, default: 0] += 1 }
-      } else {
+      switch values {
+      case .counts(let daily):
+        for _ in 0..<Int(random.next(in: daily).rounded()) {
+          sums[halfHours.randomElement(using: &random)!, default: 0] += 1
+        }
+      case .daily(let daily, let sessions):
+        let total = random.next(in: daily)
         let chosen =
           sessions.map { Array(halfHours.shuffled(using: &random).prefix($0)) } ?? halfHours
         let weights = chosen.map { _ in random.next(in: 0.5...1) }
         let weightSum = weights.reduce(0, +)
         for (halfHour, weight) in zip(chosen, weights) {
-          let sum = total * weight / weightSum
-          // Whole steps and minutes, and minutes no more than the half-hour's.
-          sums[halfHour] =
-            unit == "min" ? min(sum.rounded(), 30) : unit == "count" ? sum.rounded() : sum
+          sums[halfHour] = total * weight / weightSum
+        }
+      case .readings:
+        return
+      }
+      for workout in workouts where calendar.isDate(workout.start, inSameDayAs: day) {
+        guard let amount = workout.amount(of: type.id) else { continue }
+        let first = Int(workout.start.timeIntervalSince(day) / 1800)
+        let count = Int((workout.workout.duration / 1800).rounded(.up))
+        for halfHour in first..<first + count {
+          sums[halfHour, default: 0] += amount / Double(count)
         }
       }
       for halfHour in halfHours {
-        guard let sum = sums[halfHour], sum > 0 else { continue }
+        guard var sum = sums[halfHour] else { continue }
+        // Whole steps and minutes, and minutes no more than the half-hour's.
+        if unit == "count" || unit == "min" { sum = sum.rounded() }
+        if unit == "min" { sum = min(sum, 30) }
+        guard sum > 0 else { continue }
         // On UTC half-hours, like the server's buckets, even in :45 time zones.
         let local = day.addingTimeInterval(Double(halfHour) * 1800).timeIntervalSince1970
         let start = Date(timeIntervalSince1970: (local / 1800).rounded(.down) * 1800)
@@ -99,12 +117,14 @@ private struct PreviewData {
           HealthStatistic(
             id: "\(previewDevice)/\(type.id)@\(start.unixMilliseconds)", device: previewDevice,
             type: type.id, bucketStart: start.unixMilliseconds, sum: sum, unit: unit))
-        // A session's own sample (a meal, a swim), or a few of an all-day total's.
-        if sessions != nil || whole {
-          samples.append(sample(type, start: start, minutes: 10, value: sum, unit: unit, &random))
-        } else if halfHour.isMultiple(of: 12) {
-          let part = unit == "count" ? (sum / 3).rounded() : sum / 3
+        // A session's or a count's own sample (a meal, a swim, a flight), or a few of an all-day
+        // total's.
+        if case .daily(_, nil) = values {
+          guard halfHour.isMultiple(of: 12) else { continue }
+          let part = unit == "count" || unit == "min" ? (sum / 3).rounded() : sum / 3
           samples.append(sample(type, start: start, minutes: 10, value: part, unit: unit, &random))
+        } else {
+          samples.append(sample(type, start: start, minutes: 10, value: sum, unit: unit, &random))
         }
       }
     }
@@ -113,22 +133,18 @@ private struct PreviewData {
   }
 
   /// Readings in the type's band from `PreviewValues`, as often as its chart style suggests:
-  /// heart rate every 30 minutes (lower at night, and every 5 through workouts), other ranges
-  /// every 2 hours from 8:00, dots morning and evening, and lines (weight, resting heart rate)
-  /// each morning, drifting a little from day to day rather than jumping across the band.
+  /// ranges every 2 hours from 8:00, dots morning and evening, and lines (weight, resting heart
+  /// rate) each morning, drifting a little from day to day rather than jumping across the band.
   private func insertSamples(
     of type: HealthDataType, _ random: inout SplitMix64, _ db: Database
   ) throws {
     // Blood pressure comes in readings of both (`insertBloodPressure`), as HealthKit's does.
-    guard type.id != "HKQuantityTypeIdentifierBloodPressureSystolic",
-      type.id != "HKQuantityTypeIdentifierBloodPressureDiastolic",
+    guard !Self.bloodPressureTypes.contains(type.id),
       case .readings(let band) = PreviewValues.of(type)
     else { return }
     let unit = type.unit ?? "count"
     let hours: [Double] =
       switch type.chartStyle {
-      case _ where type.id == "HKQuantityTypeIdentifierHeartRate":
-        stride(from: 0, to: 24, by: 0.5).map(\.self)
       case .ranges: stride(from: 8, through: 22, by: 2).map(\.self)
       case .line: [8]
       default: [8, 20]
@@ -136,16 +152,11 @@ private struct PreviewData {
     let span = band.upperBound - band.lowerBound
     // Where a line starts: the middle half of its band.
     var level = band.lowerBound + span * random.next(in: 0.25...0.75)
-    var (samples, workoutTimes) =
-      type.id == "HKQuantityTypeIdentifierHeartRate"
-      ? workoutHeartRates(type, &random) : ([], [])
+    var samples: [HealthSample] = []
     for day in dayStarts {
       for hour in hours {
         let start = day.addingTimeInterval(hour * 3600)
         guard start < now else { break }
-        guard !workoutTimes.contains(where: { $0.contains(start.unixMilliseconds) }) else {
-          continue
-        }
         var value: Double
         if type.chartStyle == .line {
           // Pulled back toward the middle, and off an edge it would pass, so it never sticks there.
@@ -153,15 +164,57 @@ private struct PreviewData {
           if level > band.upperBound { level = 2 * band.upperBound - level }
           if level < band.lowerBound { level = 2 * band.lowerBound - level }
           value = level
-        } else if type.id == "HKQuantityTypeIdentifierHeartRate", hour < 7 || hour >= 23 {
-          // Asleep.
-          value = random.next(in: band.lowerBound - 6...band.lowerBound + 10)
         } else {
           value = random.next(in: band)
         }
         // Effort is rated 1 to 10.
         if unit == "appleEffortScore" { value = value.rounded() }
         samples.append(sample(type, start: start, minutes: 1, value: value, unit: unit, &random))
+      }
+    }
+    if !samples.isEmpty { try HealthSample.insert { samples }.execute(db) }
+  }
+
+  /// The Watch's heart rate every 30 minutes in its band, lower in bed (the nights' sleep
+  /// samples, so it's inserted after them), and every 5 minutes through each workout instead,
+  /// climbing to the workout's average, within its minimum and maximum.
+  private func insertHeartRate(workouts: [PreviewWorkout], _ db: Database) throws {
+    guard let type = HealthCatalog.type(id: HealthDatabase.heartRateType),
+      case .readings(let band) = PreviewValues.of(type)
+    else { return }
+    var random = SplitMix64(seed: type.id)
+    // In bed, asleep or not.
+    let nights = try HealthSample.where { $0.type.eq(HealthDatabase.sleepType) }.fetchAll(db)
+      .map { $0.startDate..<$0.endDate }
+    var samples: [HealthSample] = []
+    for workout in workouts {
+      let average = workout.heartRate
+      for minute in stride(from: 0.0, to: workout.workout.duration / 60, by: 5) {
+        let start = workout.start.addingTimeInterval(minute * 60)
+        guard start < now else { break }
+        let warmingUp = 30 * max(0, 1 - minute / 10)
+        let value = min(
+          max(average - warmingUp + random.next(in: -6...8), average - 30), average + 22)
+        var reading = sample(
+          type, start: start, minutes: 0, value: value.rounded(), unit: "count/min", &random)
+        // Active, not sedentary.
+        reading.metadata = #"{"HKMetadataKeyHeartRateMotionContext":2}"#
+        samples.append(reading)
+      }
+    }
+    for day in dayStarts {
+      for hour in stride(from: 0.0, to: 24, by: 0.5) {
+        let start = day.addingTimeInterval(hour * 3600)
+        guard start < now else { break }
+        let at = start.unixMilliseconds
+        guard
+          !workouts.contains(where: { ($0.workout.startDate..<$0.workout.endDate).contains(at) })
+        else { continue }
+        let value =
+          nights.contains { $0.contains(at) }
+          ? random.next(in: band.lowerBound - 6...band.lowerBound + 10) : random.next(in: band)
+        samples.append(
+          sample(type, start: start, minutes: 1, value: value, unit: "count/min", &random))
       }
     }
     if !samples.isEmpty { try HealthSample.insert { samples }.execute(db) }
@@ -214,15 +267,9 @@ private struct PreviewData {
 
   /// A run, a walk or a strength workout most days, with their statistics, and segments for
   /// the runs. Routes are left out: their locations are blobs, which catalogs pass directly.
-  private func insertWorkouts(_ db: Database) throws {
-    let workouts = workouts.map(\.workout)
-    if !workouts.isEmpty { try HealthWorkout.insert { workouts }.execute(db) }
-  }
-
-  /// The workouts, with their average heart rate.
-  private var workouts: [(workout: HealthWorkout, heartRate: Double)] {
+  private func makeWorkouts() -> [PreviewWorkout] {
     var random = SplitMix64(seed: "HKWorkoutTypeIdentifier")
-    var workouts: [(workout: HealthWorkout, heartRate: Double)] = []
+    var workouts: [PreviewWorkout] = []
     for (index, day) in dayStarts.enumerated() {
       let kind = index % 3
       let start = day.addingTimeInterval((kind == 2 ? 18 : 7) * 3600)
@@ -252,31 +299,12 @@ private struct PreviewData {
         duration: minutes * 60, activities: "[]", events: "[\(segments)]",
         statistics: "{\(statistics)}", sourceName: "Apple Watch",
         sourceBundleID: "com.apple.health.watch", device: Self.watch)
-      workouts.append((workout, heartRate))
+      workouts.append(
+        PreviewWorkout(
+          workout: workout, start: start, heartRate: heartRate, distance: distance,
+          energy: energy, steps: distance.map { $0 / (kind == 0 ? 1.1 : 0.75) }))
     }
     return workouts
-  }
-
-  /// The Watch's heart rate every 5 minutes through each workout, climbing to its average in the
-  /// first few minutes, rather than a resting reading every 30.
-  private func workoutHeartRates(
-    _ type: HealthDataType, _ random: inout SplitMix64
-  ) -> (samples: [HealthSample], during: [Range<Int>]) {
-    var samples: [HealthSample] = []
-    var during: [Range<Int>] = []
-    for (workout, heartRate) in workouts {
-      during.append(workout.startDate..<workout.endDate)
-      let start = Date(timeIntervalSince1970: Double(workout.startDate) / 1000)
-      for minute in stride(from: 0.0, to: workout.duration / 60, by: 5) {
-        let warmingUp = 30 * max(0, 1 - minute / 10)
-        let value = (heartRate - warmingUp + random.next(in: -8...12)).rounded()
-        samples.append(
-          sample(
-            type, start: start.addingTimeInterval(minute * 60), minutes: 0, value: value,
-            unit: "count/min", &random))
-      }
-    }
-    return (samples, during)
   }
 
   /// A blood pressure reading every other morning.
@@ -293,8 +321,9 @@ private struct PreviewData {
           sourceName: "Blood Pressure Monitor", sourceBundleID: "com.example.bloodpressure")
       }
       .execute(db)
-      for (id, range) in [("Systolic", 112.0...128.0), ("Diastolic", 70.0...84.0)] {
-        guard let type = HealthCatalog.type(id: "HKQuantityTypeIdentifierBloodPressure\(id)")
+      for id in Self.bloodPressureTypes {
+        guard let type = HealthCatalog.type(id: id),
+          case .readings(let range) = PreviewValues.of(type)
         else { continue }
         var reading = sample(
           type, start: start, minutes: 0, value: random.next(in: range).rounded(), unit: "mmHg",
@@ -427,6 +456,11 @@ private struct PreviewData {
         ? #"{"HKMetadataKeyHeartRateMotionContext":1}"# : nil)
   }
 
+  static let bloodPressureTypes = [
+    "HKQuantityTypeIdentifierBloodPressureSystolic",
+    "HKQuantityTypeIdentifierBloodPressureDiastolic",
+  ]
+
   // Made-up devices, in the shape the iPhone uploads (`HealthEncoder.provenance`).
   static let watch =
     #"{"hardwareVersion":"Watch7,1","manufacturer":"Apple Inc.","model":"Watch","name":"Apple Watch","softwareVersion":"26.0"}"#
@@ -436,6 +470,30 @@ private struct PreviewData {
     #"{"operatingSystemVersion":"26.0.0","productType":"Watch7,1","version":"26.0"}"#
   static let phoneRevision =
     #"{"operatingSystemVersion":"26.0.0","productType":"iPhone17,1","version":"26.0"}"#
+}
+
+/// A preview workout, with what it adds to its day's totals.
+private struct PreviewWorkout {
+  var workout: HealthWorkout
+  var start: Date
+  /// Its average heart rate, in count/min.
+  var heartRate: Double
+  /// In metres, for a run or a walk.
+  var distance: Double?
+  /// Active energy, in kcal.
+  var energy: Double
+  var steps: Double?
+
+  /// What it adds to a cumulative type's total.
+  func amount(of type: String) -> Double? {
+    switch type {
+    case "HKQuantityTypeIdentifierDistanceWalkingRunning": distance
+    case "HKQuantityTypeIdentifierActiveEnergyBurned": energy
+    case "HKQuantityTypeIdentifierStepCount": steps
+    case "HKQuantityTypeIdentifierAppleExerciseTime": workout.duration / 60
+    default: nil
+    }
+  }
 }
 
 /// A small seeded generator, so the data is the same every time.

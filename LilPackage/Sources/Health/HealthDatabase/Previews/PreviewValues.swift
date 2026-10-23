@@ -1,9 +1,9 @@
-import Foundation
 import HealthCatalog
 
-/// What a type's synthetic values look like in the preview database (851-3115), so catalogs' numbers,
-/// axes and units read as one person's would: a height of 175 cm, not 353 m. In the catalog's units
-/// (`HealthDataType.unit`): metres, kilograms, and percentages as fractions (0.22 is 22 %).
+/// What a type's synthetic values look like in the preview database (851-3115), so catalogs'
+/// numbers, axes and units read as one person's would: a height of 175 cm, not 353 m. In the
+/// catalog's units (`HealthDataType.unit`): metres, kilograms, and percentages as fractions (0.22
+/// is 22 %).
 enum PreviewValues: Equatable {
   /// Readings in a band, one person's: a line's (weight, resting heart rate) drift through it from
   /// day to day, dots and ranges scatter across it.
@@ -11,10 +11,12 @@ enum PreviewValues: Equatable {
   /// A cumulative type's total for a day from 7:00 to 23:00, spread over every half-hour, or over
   /// `sessions` of them (meals, workouts).
   case daily(ClosedRange<Double>, sessions: Int? = nil)
+  /// A cumulative type's whole events in a day (flights, drinks), as many as a number in the range
+  /// rounded, each in a random half-hour from 7:00 to 23:00.
+  case counts(ClosedRange<Double>)
 
   static func of(_ type: HealthDataType) -> PreviewValues {
-    let name = type.id.components(separatedBy: "Identifier").last ?? type.id
-    if let values = byType[name] { return values }
+    if let values = byType[HealthCatalog.shortID(type.id)] { return values }
     // A type added to the catalog since, until it gets its own.
     if type.aggregation?.isCumulative == true { return .daily(5...15, sessions: 3) }
     return switch type.unit {
@@ -28,17 +30,18 @@ enum PreviewValues: Equatable {
     }
   }
 
-  /// Each quantity type's, by the end of its identifier. Cumulative types' totals for a day.
+  /// Each quantity type's, by its short identifier. Cumulative types' totals for a day, before
+  /// the day's workout (`PreviewWorkout`) adds its distance, steps, energy and minutes.
   private static let byType: [String: PreviewValues] = [
     // Activity.
-    "StepCount": .daily(6_000...10_000),
-    "DistanceWalkingRunning": .daily(4_500...7_500),
-    "ActiveEnergyBurned": .daily(400...700),
+    "StepCount": .daily(5_000...8_500),
+    "DistanceWalkingRunning": .daily(3_500...6_000),
+    "ActiveEnergyBurned": .daily(250...450),
     "BasalEnergyBurned": .daily(1_500...1_650),
-    "AppleExerciseTime": .daily(25...60, sessions: 4),
+    "AppleExerciseTime": .daily(5...25, sessions: 3),
     "AppleMoveTime": .daily(30...60, sessions: 4),
     "AppleStandTime": .daily(150...240),
-    "FlightsClimbed": .daily(6...16),
+    "FlightsClimbed": .counts(6...16),
     "PushCount": .daily(800...1_500),
     "DistanceWheelchair": .daily(1_500...3_000),
     "DistanceCycling": .daily(8_000...15_000, sessions: 2),
@@ -149,16 +152,16 @@ enum PreviewValues: Equatable {
     "ForcedVitalCapacity": .readings(4...4.4),
     "ForcedExpiratoryVolume1": .readings(3.2...3.5),
     "PeakExpiratoryFlowRate": .readings(430...480),
-    "InhalerUsage": .daily(1...3),
+    "InhalerUsage": .counts(1...3),
     // Vitals.
     "BodyTemperature": .readings(36.4...37),
     "BloodGlucose": .readings(80...130),
     // Other data: blood alcohol as a fraction too, 0.02–0.06 %.
     "BloodAlcoholContent": .readings(0.0002...0.0006),
-    "NumberOfAlcoholicBeverages": .daily(0...2),
+    "NumberOfAlcoholicBeverages": .counts(0...2),
     "InsulinDelivery": .daily(30...45, sessions: 6),
     // A fall every week or so.
-    "NumberOfTimesFallen": .daily(0...0.6),
+    "NumberOfTimesFallen": .counts(0...0.6),
     "PeripheralPerfusionIndex": .readings(0.01...0.05),
     "UVExposure": .readings(1...7),
     "UnderwaterDepth": .readings(2...12),
