@@ -221,7 +221,8 @@ const discreteStatistics = (
  * and per bucket.
  * - Types that add up (steps): totals come from the statistics source's buckets, and the samples'
  *   own past them. `sum` is the total (the default); `average`, `minimum` and `maximum` are of the
- *   days' totals (days with data), as Health's Daily Average, or of a D range's hours' totals.
+ *   days' totals (days with data), as Metric Detail's header average (AVERAGE for W and M, DAILY
+ *   AVERAGE for 6M and Y), or of a D range's hours' totals.
  * - Other types (heart rate): from the samples, weighted by the type's aggregation style. They
  *   don't add up, so `sum` is an error.
  */

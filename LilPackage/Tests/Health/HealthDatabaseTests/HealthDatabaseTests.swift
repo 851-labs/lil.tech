@@ -2612,6 +2612,34 @@ struct CategoryChartTests {
   }
 
   @Test
+  func everyRangeAveragesDaysWornWithoutStanding() throws {
+    let stand = HealthDatabase.standHourType
+    // Three hours stood on Sunday and Wednesday. Tuesday's watch recorded only idle hours, a day
+    // of none stood, as Activity's Stand ring shows it. Monday has no samples, so no day.
+    let stood = [-3, 0].flatMap { day in
+      (9..<12).map { hour in
+        sample("\(day)-\(hour)", stand, from: time(hour, days: day), to: time(hour + 1, days: day))
+      }
+    }
+    let idle = (9..<11).map { hour in
+      sample(
+        "idle-\(hour)", stand, from: time(hour, days: -1), to: time(hour + 1, days: -1), value: 1)
+    }
+    let samples = stood + idle
+    let week = try chart(stand, .week, samples)
+    #expect(week.points.map(\.start) == [time(0, days: -3), time(0, days: -1), time(0)])
+    #expect(week.points.map(\.value) == [3, 0, 3])
+    #expect(week.summary == .dailyAverage(2))
+    #expect(try chart(stand, .month, samples).summary == .dailyAverage(2))
+    // Longer periods' bars are the average day too, Tuesday included.
+    for range in [ChartRange.sixMonths, .year] {
+      let longer = try chart(stand, range, samples)
+      #expect(longer.points.map(\.value) == [2])
+      #expect(longer.summary == .dailyAverage(2))
+    }
+  }
+
+  @Test
   func theSameToothbrushingSessionFromTwoSourcesCountsOnce() throws {
     let toothbrushing = HealthDatabase.toothbrushingType
     let samples = [

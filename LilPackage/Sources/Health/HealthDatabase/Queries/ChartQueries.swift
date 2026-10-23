@@ -64,7 +64,8 @@ public struct MetricChart: Equatable, Sendable {
   public enum Summary: Equatable, Sendable {
     /// A cumulative type's total, for a day.
     case total(Double)
-    /// A cumulative type's average per day with data, for longer periods.
+    /// A cumulative type's average per day with data, for a week or longer: the header's AVERAGE
+    /// for a week or a month, and DAILY AVERAGE for 6 months or a year (851-3099).
     case dailyAverage(Double)
     /// A discrete type's lowest and highest values.
     case range(minimum: Double, maximum: Double)

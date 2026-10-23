@@ -15,6 +15,10 @@ extension HealthDatabase {
     standHourType, mindfulSessionType, handwashingType, toothbrushingType,
   ]
 
+  /// The category types charted as sessions, whose header is their average length
+  /// (`MetricChart.Summary.averageDuration`) rather than a total.
+  public static let sessionChartTypes: Set = [handwashingType, toothbrushingType]
+
   /// The unit a category chart's values are in, as `MetricFormat` writes it.
   public static func categoryChartUnit(_ typeID: String) -> String? {
     switch typeID {
@@ -30,7 +34,9 @@ extension HealthDatabase {
   /// or month, with the day's total or the average day in the header. What's counted depends on
   /// the type:
   /// - **Stand Hours:** hours stood (`categoryValue` 0; 1 is idle), each hour once, however many
-  ///   watches recorded it. Days with only idle hours count as days, with none stood.
+  ///   watches recorded it. Days with only idle hours count as days, with none stood: the watch
+  ///   was worn, as Activity's Stand ring shows 0 hours for them, so they bring the average down.
+  ///   Days without any samples (the watch not worn) don't count.
   /// - **Mindful Minutes:** minutes in sessions, overlapping sessions (from different apps)
   ///   counted once.
   /// - **Handwashing, Toothbrushing:** sessions, overlapping ones (the same session from a
@@ -83,7 +89,7 @@ extension HealthDatabase {
           start = end
         }
       }
-    default:
+    case let id where sessionChartTypes.contains(id):
       // The same session from two sources is one.
       let sessions = mergedIntervals(samples.map { $0.start..<max($0.start, $0.end) })
         .filter { window.contains($0.lowerBound) }
@@ -92,6 +98,8 @@ extension HealthDatabase {
         let seconds = sessions.reduce(0) { $0 + $1.upperBound.timeIntervalSince($1.lowerBound) }
         summary = .averageDuration(seconds / Double(sessions.count))
       }
+    default:
+      break
     }
     let buckets = totals.sorted { $0.key < $1.key }.map { (start: $0.key, value: $0.value) }
     let points =

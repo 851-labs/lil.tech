@@ -197,13 +197,17 @@ struct MetricDetailContent: View {
 
   private var color: Color { type.color }
   /// Totals per bucket: a cumulative type's, or a category type charted like one.
-  private var isCumulative: Bool {
-    type.aggregation?.isCumulative == true || HealthDatabase.categoryChartTypes.contains(type.id)
-  }
+  private var isCumulative: Bool { Self.isCumulative(type) }
   /// How the chart draws each period: the type's own style (851-3097), bars for a category type
   /// charted like a total.
-  private var style: HealthDataType.ChartStyle {
-    isCumulative ? .bars : type.chartStyle ?? .ranges
+  private var style: HealthDataType.ChartStyle { Self.style(of: type) }
+
+  static func isCumulative(_ type: HealthDataType) -> Bool {
+    type.aggregation?.isCumulative == true || HealthDatabase.categoryChartTypes.contains(type.id)
+  }
+
+  static func style(of type: HealthDataType) -> HealthDataType.ChartStyle {
+    isCumulative(type) ? .bars : type.chartStyle ?? .ranges
   }
   /// What the values are in: the type's unit, or a category chart's (hours, minutes, times).
   private var unit: String? { type.unit ?? HealthDatabase.categoryChartUnit(type.id) }
@@ -322,30 +326,46 @@ struct MetricDetailContent: View {
   }
 
   private func label(_ chart: MetricChart?, point: ChartPoint?) -> String {
-    let cumulative = isCumulative
+    Self.caption(for: type, range: range, summary: chart?.summary, point: point)
+  }
+
+  /// The header's caption: what its value is, for the period or the hovered bar or point. A type
+  /// that adds up has one caption per period, whether its chart is loading, empty or loaded, so
+  /// it never changes as the chart arrives (851-3107).
+  static func caption(
+    for type: HealthDataType, range: ChartRange, summary: MetricChart.Summary?, point: ChartPoint?
+  ) -> String {
     // A line's or dots' points and period are averages, as Health's weight is (851-3097).
-    if style.isAverage { return "AVERAGE" }
-    if let point {
-      if cumulative { return range == .sixMonths || range == .year ? "DAILY AVERAGE" : "TOTAL" }
-      return point.minimum == point.maximum ? "AVERAGE" : "RANGE"
+    if style(of: type).isAverage { return "AVERAGE" }
+    if isCumulative(type) {
+      // Handwashing's and toothbrushing's period is their sessions' average length, a bar its
+      // number of sessions.
+      if point == nil, HealthDatabase.sessionChartTypes.contains(type.id) {
+        return "AVERAGE DURATION"
+      }
+      return periodCaption(range, bar: point != nil)
     }
-    switch chart?.summary {
-    case .total, .dailyAverage: return periodCaption
-    case .range: return "RANGE"
+    if let point { return point.minimum == point.maximum ? "AVERAGE" : "RANGE" }
+    switch summary {
     case .average: return "AVERAGE"
+    case .range, nil: return "RANGE"
+    // Only types that add up have these.
+    case .total, .dailyAverage: return periodCaption(range, bar: false)
     case .averageDuration: return "AVERAGE DURATION"
-    case nil: return cumulative ? periodCaption : "RANGE"
     }
   }
 
-  /// A cumulative type's caption for the period, as Health's (851-3099): the day's total, then
+  /// A cumulative type's caption, as Health's (851-3099). For the period: the day's total, then
   /// the average day, which Health calls the week's and month's "AVERAGE", of their daily bars,
-  /// and 6 months' and a year's "DAILY AVERAGE", under weekly and monthly bars. Either way the
-  /// value is the period's total per day with data (`MetricChart.Summary.dailyAverage`).
-  private var periodCaption: String {
+  /// and 6 months' and a year's "DAILY AVERAGE", under weekly and monthly bars. For a hovered
+  /// `bar`: "TOTAL" for D's hours and W's and M's days, and "DAILY AVERAGE" for 6 months' weekly
+  /// bars and a year's monthly ones, each the average day of its week or month. Either way the
+  /// value is a total per day with data (`MetricChart.Summary.dailyAverage`), or a day's or an
+  /// hour's total.
+  static func periodCaption(_ range: ChartRange, bar: Bool) -> String {
     switch range {
     case .day: "TOTAL"
-    case .week, .month: "AVERAGE"
+    case .week, .month: bar ? "TOTAL" : "AVERAGE"
     case .sixMonths, .year: "DAILY AVERAGE"
     }
   }
