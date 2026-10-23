@@ -84,14 +84,16 @@ public struct CardSpec: Hashable, Sendable {
     case avg
     case min
     case max
-    /// The reading that started last.
+    /// The reading that started first. Ties go to the earlier end, then the smaller sample ID.
+    case first
+    /// The reading that started last. Ties go to the later end, then the greater sample ID.
     case latest
     /// How many readings: its unit is `count`, whatever the type.
     case count
 
     /// What a type takes: `sum` for cumulative types, the others for the rest.
     public static func allowed(for aggregation: HealthDataType.Aggregation) -> [Self] {
-      aggregation.isCumulative ? [.sum] : [.avg, .min, .max, .latest, .count]
+      aggregation.isCumulative ? [.sum] : [.avg, .min, .max, .first, .latest, .count]
     }
 
     /// The default for a type: `sum` for cumulative types, else `avg`.
@@ -111,9 +113,14 @@ public struct CardSpec: Hashable, Sendable {
     /// Each workout, of the activities given (`HKWorkoutActivityType` raw values), or of every
     /// activity when `nil`.
     case workout(activities: [Int]?)
+    /// Readings whose start is within hours of the local clock, every day.
+    case timeOfDay(CardTimeOfDay)
 
     public enum Kind: String, CaseIterable, Hashable, Sendable {
-      case asleep, beforeSleep, afterWaking, workout
+      case asleep, beforeSleep, afterWaking, workout, timeOfDay
+
+      /// Whether it's made of nights' stretches.
+      public var isSleep: Bool { self == .asleep || self == .beforeSleep || self == .afterWaking }
     }
 
     public var kind: Kind {
@@ -122,11 +129,12 @@ public struct CardSpec: Hashable, Sendable {
       case .beforeSleep: .beforeSleep
       case .afterWaking: .afterWaking
       case .workout: .workout
+      case .timeOfDay: .timeOfDay
       }
     }
 
     /// Whether the window is made of nights' stretches, so its readings belong to nights.
-    public var isSleep: Bool { kind != .workout }
+    public var isSleep: Bool { kind.isSleep }
   }
 
   /// Which readings count: those that match every list given.
@@ -275,6 +283,59 @@ public enum CardValueUnit: Hashable, Sendable, CustomStringConvertible {
   }
 }
 
+/// A `timeOfDay` window: from `from` up to `to` on the local clock, every day, crossing midnight
+/// when `from` is later than `to` (`22:00` to `06:00`). A reading is in it by its start's clock
+/// time in the engine's calendar, so on the day clocks go forward a window over the skipped hour
+/// is an hour shorter, and on the day they go back the repeated hour counts twice.
+public struct CardTimeOfDay: Hashable, Sendable {
+  public var from: CardClockTime
+  public var to: CardClockTime
+
+  public init(from: CardClockTime, to: CardClockTime) {
+    self.from = from
+    self.to = to
+  }
+
+  /// Whether a clock time, in seconds since the local midnight (0 to 86,399, fractions included),
+  /// is in the window.
+  public func contains(secondsSinceMidnight seconds: Double) -> Bool {
+    let from = Double(self.from.secondsSinceMidnight)
+    let to = Double(self.to.secondsSinceMidnight)
+    return from < to ? (from <= seconds && seconds < to) : (seconds >= from || seconds < to)
+  }
+}
+
+/// A time on the 24-hour clock, to the minute: `"07:30"`.
+public struct CardClockTime: Hashable, Sendable, CustomStringConvertible {
+  public let hour: Int
+  public let minute: Int
+
+  public init?(hour: Int, minute: Int) {
+    guard (0...23).contains(hour), (0...59).contains(minute) else { return nil }
+    self.hour = hour
+    self.minute = minute
+  }
+
+  /// `HH:MM`, two digits each, from `00:00` to `23:59`.
+  public init?(_ text: String) {
+    let scalars = Array(text.unicodeScalars)
+    guard scalars.count == 5, scalars[2] == ":",
+      [0, 1, 3, 4].allSatisfy({ ("0"..."9").contains(scalars[$0]) })
+    else { return nil }
+    func number(_ index: Int) -> Int {
+      Int(scalars[index].value - 48) * 10 + Int(scalars[index + 1].value - 48)
+    }
+    self.init(hour: number(0), minute: number(3))
+  }
+
+  public var secondsSinceMidnight: Int { hour * 3600 + minute * 60 }
+
+  /// `HH:MM`.
+  public var description: String {
+    (hour < 10 ? "0" : "") + "\(hour):" + (minute < 10 ? "0" : "") + "\(minute)"
+  }
+}
+
 /// The period a card shows, as Metric Detail has them.
 public enum CardRange: String, CaseIterable, Hashable, Sendable {
   case day = "D"
@@ -337,6 +398,11 @@ extension CardSpec.Window {
         "kind": "workout",
         "activities": activities.map { .array($0.map { .number(Double($0)) }) } ?? .null,
       ]
+    case .timeOfDay(let window):
+      [
+        "kind": "timeOfDay", "from": .string(window.from.description),
+        "to": .string(window.to.description),
+      ]
     }
   }
 }
@@ -368,12 +434,14 @@ extension CardSpec.Formula {
 
 extension CardSpec: Codable {
   /// Decodes any valid spec, canonicalizing it, and throws a `DecodingError` with every error
-  /// otherwise, a later version's included (`unsupportedVersion`).
+  /// otherwise, a later version's included (`unsupportedVersion`). Up to the store's 16 KB, so a
+  /// spec another writer wrote just under it still reads.
   public init(from decoder: any Decoder) throws {
     let json = try CardJSON(from: decoder)
-    do {
-      self = try CardSpec(input: json)
-    } catch {
+    switch CardSpecValidator.canonicalize(json, sizeLimit: HealthCards.storeMaxSpecBytes) {
+    case .success(let spec):
+      self = spec
+    case .failure(let error):
       throw DecodingError.dataCorrupted(
         DecodingError.Context(codingPath: decoder.codingPath, debugDescription: error.description))
     }

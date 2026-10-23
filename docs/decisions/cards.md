@@ -11,7 +11,7 @@ Summary's hard-coded metrics become **cards** (851-3192): a card is a named char
 - A structured, versioned card spec (JSON), not SQL. One spec runs on every engine, validated, with clear errors for agents.
 - Summary's six metrics are the **welcome seed**: steps, heart rate, active energy, walking + running distance, resting heart rate and weight, as ordinary cards that can be edited, reordered and deleted. Their IDs are fixed per account, existing accounts are seeded once, and deletions stick.
 - Agents can create, update and delete cards in v1, through a new consent scope that can never write Health data. The consent copy and the privacy policy change with it, without asking Alexandru first.
-- The four example cards are the acceptance test (below): body temperature, sleeping heart rate, HRV, and heart rate in the 5 minutes before falling asleep.
+- The example cards are the acceptance test (below): body temperature, sleeping heart rate, HRV, and heart rate in the 5 minutes before falling asleep; and, added the same day (851-3194), morning weight: the first weigh-in before noon each day, with a 7-day rolling average.
 
 ## Terms
 
@@ -21,7 +21,7 @@ Summary's hard-coded metrics become **cards** (851-3192): a card is a named char
 - **Reading:** one sample of a series' type with a value. Engines aggregate readings. Cumulative types are the exception: they use Health's de-duplicated totals.
 - **Bucket:** what one point covers: an hour, a day, a night, a week or a month.
 - **Range:** the period the chart shows: D, W, M, 6M or Y, as Metric Detail has them.
-- **Event window:** stretches of time a series' readings must fall in: asleep, before falling asleep, after waking, or during workouts.
+- **Window:** stretches of time a series' readings must fall in: asleep, before falling asleep, after waking, during workouts (the **event windows**), or hours of the local clock (`timeOfDay`).
 - **Engine:** code that runs a spec over a period. There are three: the Mac's (SQLite), the server's (the store's SQLite) and the iPhone's (HealthKit).
 
 ## The card spec, v1
@@ -61,21 +61,21 @@ A spec is a JSON object. Every field below appears in the canonical form, the fo
 |---|---|---|---|
 | `version` | integer | `1` | required |
 | `display.name` | string | 1–40 characters after trimming, no control characters or line breaks | required |
-| `display.symbol` | string | a name from the curated symbols (Display, below) | the first series' type's symbol (its category's) |
-| `display.color` | string | a palette name (Display) | the first series' type's color (its category's, `HealthCategory.colorName`) |
+| `display.symbol` | string | a name from the curated symbols (Display, below) | the first visible series' type's symbol (its category's), or the first series' with every series hidden |
+| `display.color` | string | a palette name (Display) | the same series' type's color (its category's, `HealthCategory.colorName`) |
 | `display.unit` | string or null | a display unit of the lead's dimension (Display) | `null`: the locale's unit (`MetricFormat`) |
 | `series` | array | 1–4 series | required |
 | `series[].id` | string | `^[a-z][a-z0-9]{0,15}$`, unique among series and formulas | `a`, `b`, `c`, `d` by position |
 | `series[].type` | string | a readable quantity type's HealthKit identifier | required |
-| `series[].aggregation` | string | `sum` for cumulative types; `avg`, `min`, `max`, `latest` or `count` for the others | `sum` for cumulative types, else `avg` |
-| `series[].window` | object or null | an event window (below), for types that aren't cumulative | `null`: all the time |
+| `series[].aggregation` | string | `sum` for cumulative types; `avg`, `min`, `max`, `first`, `latest` or `count` for the others | `sum` for cumulative types, else `avg` |
+| `series[].window` | object or null | one window (below): an event window or a time of day, for types that aren't cumulative | `null`: all the time |
 | `series[].filter` | object or null | `{ "sources": [...], "deviceModels": [...] }`, for types that aren't cumulative | `null`: every source |
 | `series[].label` | string or null | 1–40 characters | `null`: the type's name |
 | `series[].hidden` | boolean | at least one series or formula stays visible | `false` |
 | `formulas` | array | 0–2 formulas (below) | `[]` |
 | `bucket` | string | `auto`, `hour`, `day`, `night`, `week`, `month` | `auto` |
 | `range` | string | `D`, `W`, `M`, `6M`, `Y`, among the bucket's ranges | `W`, or the bucket's first range when it doesn't have `W` (`week`: `M`; `month`: `6M`) |
-| `chart.style` | string | `bars`, `ranges`, `dots`, `line` | the first series' type's `chartStyle`, but `dots` for a `count` of a `ranges` type |
+| `chart.style` | string | `bars`, `ranges`, `dots`, `line` | the same series' type's `chartStyle`, but `dots` for a `count` of a `ranges` type |
 | `chart.goal` | object or null | `{ "value": <number> }`, in the lead's value unit | `null` |
 
 Types are HealthKit identifiers in the canonical form. Inputs also accept what `lil-health` and the tools accept, the name lil health shows (`Heart Rate`) or the identifier without its prefix (`HeartRate`), in any case (`HealthCatalog.type(named:)`), and canonicalize them to the identifier.
@@ -111,19 +111,21 @@ Types are HealthKit identifiers in the canonical form. Inputs also accept what `
 - **Other quantity types** (heart rate, HRV, weight, temperature…) take:
   - `avg`: the average of the bucket's readings, weighted by the type's aggregation style, as Metric Detail weighs them (arithmetic, time-weighted, or equivalent continuous level for sound; Engines, below).
   - `min` and `max`: the lowest and highest reading.
+  - `first`: the reading that started first (851-3194, for morning weight). Ties go to the earlier end, then the smaller sample ID (lowercase UUID).
   - `latest`: the reading that started last. Ties go to the later end, then the greater sample ID (lowercase UUID).
   - `count`: how many readings. Its value unit is `count` (above): it's its own dimension for the one-axis rule, a display unit never converts it, a goal over it is a count, and it can't be drawn as `ranges`.
 - **Filter:** `sources` is a list of 1–10 source bundle IDs (exact match on `sourceBundleID`; a Watch's look like `com.apple.health.<UUID>`, as `samples` returns them), and `deviceModels` a list of 1–10 `HKDevice` models (exact match on the device's `model`, such as `Watch` or `iPhone`). A reading matches when it matches every list given. Each list has strings of 1–200 characters, and the object needs at least one list.
 
 ### Event windows
 
-A window keeps a series' readings to stretches of time. A reading is in a window when its **start** is in one of its stretches, half-open (`start ≤ t < end`), as Sleep's heart rate highlight counts readings (851-3110). Windows apply to types that aren't cumulative.
+A window keeps a series' readings to stretches of time. A reading is in a window when its **start** is in one of its stretches, half-open (`start ≤ t < end`), as Sleep's heart rate highlight counts readings (851-3110). Windows apply to types that aren't cumulative. A series has at most one window in v1: an event window (below) or a time of day (Times of day, after).
 
 ```json
 { "kind": "asleep" }
 { "kind": "beforeSleep", "minutes": 5 }
 { "kind": "afterWaking", "minutes": 30 }
 { "kind": "workout", "activities": [37, 13] }
+{ "kind": "timeOfDay", "from": "00:00", "to": "12:00" }
 ```
 
 | Kind | Stretches | Fields |
@@ -145,6 +147,17 @@ So `beforeSleep` with 5 minutes is the 5 minutes before the first stretch of sle
 
 Workouts are `health_workout` records from every source, by their overall `activityType` (a multisport workout's legs aren't matched separately in v1). Pauses aren't left out.
 
+### Times of day (851-3194)
+
+`{"kind": "timeOfDay", "from": "HH:MM", "to": "HH:MM"}` keeps the readings whose start is within those hours of the **local clock**, every day: morning weigh-ins, resting readings overnight.
+
+- **Times** are `HH:MM` on the 24-hour clock, two digits each, from `00:00` to `23:59`. `from` and `to` can't be equal (for every reading, the window is `null`). There's no `24:00`: `"to": "00:00"` ends at midnight.
+- **A reading is in the window** when its start's clock time `t` (hours, minutes and seconds, fractions included, in the engine's calendar's time zone) has `from ≤ t < to`. When `from` is later than `to`, the window **crosses midnight**: `t ≥ from` or `t < to`, so `22:00` to `06:00` is each night's 8 hours. A reading still counts in the bucket its start falls in: one at 23:30 is in that day's bucket, and one at 01:00 in the next day's. (`CardTimeOfDay.contains(secondsSinceMidnight:)` in `HealthCards` is the rule.)
+- **Daylight saving time:** it's the clock, not elapsed time. On the day clocks go forward, a window over the skipped hour is that much shorter (`02:00` to `03:00` is empty where 2 AM doesn't exist); on the day they go back, the repeated hour's readings all count (`01:00` to `02:00` holds two hours of them). A window never moves by an hour around a change, so a weigh-in at 7:30 is "before noon" all year.
+- **Combining:** one window per series in v1, so no time of day within sleep or workouts. It isn't a sleep window: it takes any bucket and range, and a series with one in a `night` card is bucketed by calendar day, like one without a window. With `hour` it simply leaves the other hours empty.
+- **Engines:** the Mac and the server read the type's readings over the period as without a window, and keep those whose local clock time is in the window. To keep time-zone math per day rather than per reading (851-2906), they turn each local day of the period into its stretch or two (`[from, to)` on that day's clock, or `[00:00, to)` and `[from, 24:00)` crossing midnight), placed with the calendar so a missing or repeated clock hour gives exactly the readings the rule above gives. The iPhone fetches the period's samples (`HKSampleQuery`, `.strictStartDate`) and keeps them by the same rule in Swift, as it does `first` and `latest`; per-day predicates would mean a query per day.
+- **Weights for `avg`** of time-weighted types treat each day's stretch as a window's stretch (Readings and weights, below): a reading counts until its source's next reading in the stretch, or the stretch's end, at least 1 s and at most an hour.
+
 ### Bucket and range
 
 `bucket` says what each point covers, and `range` the period the card opens on. The range control offers the bucket's ranges only:
@@ -161,7 +174,7 @@ Workouts are `health_workout` records from every source, by their overall `activ
 - **`auto` is Metric Detail.** For `sum` series, 6M's and Y's points are the average day of each week or month, among days with a total above 0 (`averageDays`, Health's DAILY AVERAGE), so a week's bar compares with a day's. Other aggregations are computed over all of the week's or month's readings, not averaged from days. The seed cards are `auto`, so they chart exactly as Metric Detail does.
 - **A fixed bucket** gives a point per bucket at every range: `day` at Y is 365 points, and `week` at M about 5.
 - **`night`** needs at least one series with a sleep window (`asleep`, `beforeSleep`, `afterWaking`). A series with a sleep window places its readings at their night's day whatever the bucket, so with `week` or `month` a night counts in the week or month of the day it ends on. A series without one, in a `night` card, is bucketed by calendar day, the night's day: Sleeping HR minus resting HR, a night against the resting heart rate of the day it ends on.
-- **Sleep windows** need `night`, `week` or `month`: an hour or a calendar day would cut nights in two.
+- **Sleep windows** need `night`, `week` or `month`: an hour or a calendar day would cut nights in two. Workout windows and times of day take any bucket.
 - **Periods** are Metric Detail's (`ChartRange.interval`): D is a calendar day, W a calendar week, M a calendar month, 6M the six calendar months ending with the date's, and Y a calendar year, in the engine's calendar (time zone and first weekday). A bucket is the calendar's, so it may start before the period (6M's first week), but only readings in the period count. A `night` card's period holds the nights whose day is in it, with their stretches, even the evening before its first day.
 
 ### Chart
@@ -258,6 +271,7 @@ An engine runs a canonical spec over one period: `run(spec, range, date, calenda
 | `avg`, other styles | `average` | the weighted average of every reading in the period (not of its points) |
 | `min` | `lowest` | the lowest reading |
 | `max` | `highest` | the highest reading |
+| `first` | `first` | the period's first reading |
 | `latest` | `latest` | the period's latest reading |
 | `count` | `count` | how many readings |
 | a formula (every series hidden) | `average` | the average of its points' values in the period, each point once |
@@ -287,7 +301,7 @@ A period without readings has `summary: null`, which the header shows as No Data
 - **Local-first and offline:** it reads HealthKit on the phone, never the server, and the cards' data never leaves it.
 - **The same core,** fed from HealthKit (in `HealthKitAccess`):
   - `sum`: `HKStatisticsCollectionQuery` with `.cumulativeSum`, by the auto grain or the bucket, anchored at local midnight in the phone's calendar (for weeks, on its first weekday), so HealthKit de-duplicates by source priority as Health does. 6M's and Y's average days come from day sums.
-  - Everything else: `HKSampleQuery` (or anchored queries for paging) of the type with `predicateForSamples(withStart:end:options: .strictStartDate)`, then the core in Swift, so weights, `latest` and `count` match the Mac exactly. `HKStatisticsQuery`'s own discrete average uses HealthKit's weighting, not ours, so it isn't used for `avg`. An engine may use `.discreteMin` and `.discreteMax` statistics as a speed-up for `min` and `max` without windows or filters (they don't depend on weights), if 851-3201 shows they match.
+  - Everything else: `HKSampleQuery` (or anchored queries for paging) of the type with `predicateForSamples(withStart:end:options: .strictStartDate)`, then the core in Swift, so weights, `first`, `latest`, `count` and times of day match the Mac exactly. `HKStatisticsQuery`'s own discrete average uses HealthKit's weighting, not ours, so it isn't used for `avg`. An engine may use `.discreteMin` and `.discreteMax` statistics as a speed-up for `min` and `max` without windows or filters (they don't depend on weights), if 851-3201 shows they match.
   - Filters: `HKQuery.predicateForObjects(from:)` with the sources' `HKSource`s (from an `HKSourceQuery`) and `predicateForObjects(withDeviceProperty: HKDevicePropertyKeyModel, allowedValues:)`.
   - Nights: sleep analysis samples from `[firstDay − 6 h, lastDay + 18 h)`, grouped by the core's nights. Workouts: `HKSampleQuery` of `HKWorkoutType` by start, matched by `workoutActivityType.rawValue`.
 - Sample IDs are `uuid.uuidString.lowercased()`, for `latest`'s ties.
@@ -301,7 +315,7 @@ A period without readings has `summary: null`, which the header shows as No Data
   - **The statistics' tail:** the Mac and server add samples past the source's last 30-minute bucket. HealthKit's statistics are always complete.
   - **Time zones on :45 offsets:** uploaded 30-minute buckets are up to 15 minutes off a local day (`health.md`, Statistics). HealthKit's are exact.
   - **Device models:** samples an app writes into HealthKit carry the device it gives them, and the simulator may not keep a model the way a Watch writes it. 851-3201 checks, and skips if so.
-  Everything else (discrete aggregations, windows, nights, formulas, summaries) must match.
+  Everything else (discrete aggregations, windows and times of day, nights, formulas, summaries) must match. The cases include a time of day crossing midnight and one over a daylight saving change (851-3198).
 - **In the apps,** a Mac and an iPhone showing one card can differ by those cases only, since each computes from its own data.
 
 ## Validation and errors
@@ -329,9 +343,10 @@ The validator runs before every write that changes a spec (apps, tools, store) a
 | `unknownType` | `series[0].type` | `"HeartRat" isn't a type lil health knows. Did you mean Heart Rate (HKQuantityTypeIdentifierHeartRate)? list_types lists them.` |
 | `notQuantity` | `series[0].type` | `Sleep isn't a quantity: cards chart quantities such as heart rate or steps. To chart around sleep, use a window on a quantity, e.g. {"kind": "asleep"}.` |
 | `unreadableType` | `series[0].type` | `NikeFuel can't be read from Health by apps, so cards can't chart it.` |
-| `aggregationNotAllowed` | `series[0].aggregation` | `Steps adds up, so it takes "sum" only (avg, min, max, latest and count are for types measured at points in time). For an average day over weeks or months, use bucket "auto" at 6M or Y.` / `Heart Rate doesn't add up: use avg, min, max, latest or count, not sum.` |
+| `aggregationNotAllowed` | `series[0].aggregation` | `Steps adds up, so it takes "sum" only (avg, min, max, first, latest and count are for types measured at points in time). For an average day over weeks or months, use bucket "auto" at 6M or Y.` / `Heart Rate doesn't add up: use avg, min, max, first, latest or count, not sum.` |
 | `windowOnCumulative` | `series[0].window` | `Windows work with types measured at points in time (heart rate, HRV), not ones that add up (Steps), in this version.` |
 | `windowMinutes` | `series[0].window.minutes` | `series[0].window.minutes must be a whole number from 1 to 240.` |
+| `windowTime` | `series[0].window.from` | `series[0].window.from must be a time on the 24-hour clock, "HH:MM" from "00:00" to "23:59" (it's "7:30").` / at `series[0].window`: `series[0].window starts and ends at 08:00: for every reading, set window to null. A window may cross midnight, e.g. from "22:00" to "06:00".` |
 | `unknownActivity` | `series[0].window.activities[1]` | `999 isn't a workout activity. Use HKWorkoutActivityType raw values or names, e.g. 37 or "Running".` |
 | `activityCount` | `series[0].window.activities` | `series[0].window.activities must have 1 to 10 activities (it has 0), or be null for every workout.` |
 | `duplicateActivity` | `series[0].window.activities[1]` | `series[0].window.activities has Running twice.` |
@@ -342,6 +357,7 @@ The validator runs before every write that changes a spec (apps, tools, store) a
 | `labelLength` | `series[0].label` | `series[0].label must be 1 to 40 characters (it's 0), or null.` |
 | `formulaCount` | `formulas` | `A card has at most 2 formulas (this one has 3).` |
 | `formulaPoints` | `formulas[0].points` | `formulas[0].points must be a whole number from 2 to 30.` |
+| `sameSeries` | `formulas[0].of` | `formulas[0] subtracts "a" from itself: name two different series.` |
 | `unknownReference` | `formulas[0].of` | `formulas[0] refers to "c", which isn't a series of this card.` (`Formulas take series only.` added when it names a formula) |
 | `mixedUnits` | `series[1].type` | `Heart Rate Variability (ms) can't share a card with Heart Rate (count/min): a card has one axis. Make it a card of its own.` / for a difference, at `formulas[0].of`: `formulas[0] subtracts Heart Rate Variability (ms) from Heart Rate (count/min): both need the same unit.` |
 | `nothingVisible` | `series` | `Every series and formula is hidden: leave at least one visible.` |
@@ -358,17 +374,17 @@ The validator runs before every write that changes a spec (apps, tools, store) a
 - Messages name types as lil health does ("Heart Rate"), with the identifier where it helps an agent. A count is "a count of Heart Rate readings", and a formula its path (`formulas[0] (ms)`).
 - **"Did you mean"** uses the same matching as `search` (each word of the input in a chartable type's name, category or short identifier), and suggests the match with the shortest name, ties in the catalog's order. None for inputs of fewer than 3 letters, which match too much.
 - **"Close ones"** for symbols are up to 3 curated names sharing the most dot-separated words: a word scores 2 when a symbol has it, else 1 when one of the symbol's words starts with it or it starts with one (`fil` and `fill`), ties in the list's order.
-- **The order** errors come in, which the server's port must keep (851-3194): first each field in the spec's order (`version`, `display`, `series`, `formulas`, `bucket`, `range`, `chart`), each object's fields in the table's order and then its unknown fields, sorted by UTF-16 code units; then the rules across fields: `duplicateID`, then per formula `unknownReference` and a difference's `mixedUnits`, then one axis (`mixedUnits`), `nothingVisible`, `visibleCount`, `nightNeedsSleepWindow`, `sleepWindowBucket`, `rangeNotForBucket`, `rangesStyle`, `unitDimension`, `goalValue`; then, with no others, `tooLarge`. Paths are the field's (`series[0].window.minutes`), and empty for the whole spec. A rule across fields is skipped where a field it needs had its own error.
+- **The order** errors come in, which the server's port must keep (851-3194): first each field in the spec's order (`version`, `display`, `series`, `formulas`, `bucket`, `range`, `chart`), each object's fields in the table's order and then its unknown fields, sorted by UTF-16 code units; then the rules across fields: `duplicateID`, then per formula `sameSeries` or `unknownReference` and a difference's `mixedUnits`, then one axis (`mixedUnits`), `nothingVisible`, `visibleCount`, `nightNeedsSleepWindow`, `sleepWindowBucket`, `rangeNotForBucket`, `rangesStyle`, `unitDimension`, `goalValue`; then, with no others, `tooLarge`. Paths are the field's (`series[0].window.minutes`), and empty for the whole spec. A rule across fields is skipped where a field it needs had its own error.
 - **Never stricter for an old version:** a spec that validated when a released app wrote it must keep validating, since the store refusing a push makes that device drop it and bootstrap again (`docs/sync/protocol.md`, Pushing changes). Tighter rules come with a new version.
 
 ### Details 851-3194 settled
 
 - **Inputs:** `null` in a field with a default takes the default, as leaving it out does. Defaults that depend on a type come from the first series' type, so they exist only once it's valid. A series without an `id` takes `a`, `b`, `c`, `d` by position, and a formula `f1` or `f2`. A moving average's `points` defaults to 7.
 - **Text:** names and labels are trimmed of the code points JavaScript's `String.prototype.trim()` removes (U+0009–U+000D, U+0020, U+00A0, U+1680, U+2000–U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, U+FEFF), and stored trimmed. They can't contain control characters (U+0000–U+001F, U+007F–U+009F) or U+2028 and U+2029. Filter values aren't trimmed, since they're matched exactly.
-- **The default chart style** is the first series' type's, except that a `count` of a type drawn as `ranges` is `dots`, since a count has no lowest and highest reading.
+- **Defaults from a type** (symbol, color, chart style) come from the first visible series, or the first series when every one is hidden: the line the card draws, so a default never trips a rule (a hidden heart rate before visible steps would otherwise default steps to `ranges`). The design said the first series. A `count` of a type drawn as `ranges` defaults to `dots`, since a count has no lowest and highest reading.
 - **A filter's canonical form** has both lists, `null` for one not given: `{"sources": null, "deviceModels": ["Watch"]}`. A workout window's has `activities`, `null` for every workout. Activities keep the order given.
 - **Display units by dimension:** a catalog unit's dimension is mass for `kg`, `g`, `mg` and `mcg`; length for `m` and `cm`; temperature for `degC`; speed for `m/s`; volume for `mL` and `L`; energy for `kcal`. Other catalog units (`count/min`, `ms`, `%`…) and counts have no display units.
-- **Sizes** are bytes of the compact canonical JSON (`JSON.stringify`'s form), with KB as 1,024 bytes, shown rounded up to a tenth.
+- **Sizes** are bytes of the compact canonical JSON, written as `JSON.stringify` writes it (numbers too: `0.00001`, `1e-7`, `1e+21`), with KB as 1,024 bytes, shown rounded up to a tenth. Decoding a stored spec (`Codable`) allows the store's 16 KB, so a spec another writer made just under it still reads.
 - **The curated symbols** are the list above, unchanged: every one exists on macOS and iOS (`symbolsExistOnTheMac` in `HealthCardsTests`, and `cardSymbolsExist` in `HealthPhoneSnapshotTests`, the one test bundle that runs on iOS, so it runs with the iPhone's catalogs: `scripts/snapshot --iphone`, and after every merge).
 - **`HealthCategory.colorName`** is in `health-catalog.json`'s categories with `symbolName` (`"symbol"` and `"color"`), so the server's canonicalizer gives the same defaults.
 
@@ -378,7 +394,7 @@ The validator runs before every write that changes a spec (apps, tools, store) a
 
 - **`Services/api/card-spec.schema.json`:** the JSON Schema (2020-12) of the **canonical** form: every field required, `additionalProperties: false`, and every enum (chartable types, symbols, colors, display units, aggregations, buckets, ranges, styles, workout activities). It's in the shape Effect's `Schema.toJsonSchemaDocument` writes (`{"type": "string", "enum": […]}`, `anyOf` with `{"type": "null"}` last), so 851-3202's row schema can be compared with it. It can't express the semantic rules (a type's aggregations and units, one axis, buckets' ranges, trimming), which the server ports. The tools' input schema (851-3215) is the same with only the fields without defaults required, and types and activities widened to strings.
 - **`Services/api/card-seed.json`:** `{ "cards": [{ "id", "seed", "position", "spec" }] }`, `HealthCards.welcomeSeed`, in order.
-- **`Services/api/test/health/cards/validation-cases.json`:** `specs`, each a `name`, a `mode` and a `spec`: mode `input` with the `canonical` form or the `errors`, mode `stored` with the store's `errors` (empty when it's fine); and `positions`: `between` (a key between `a` and `b`, `null` where it throws), `betweenCount` (`count` keys) and `validity` (each position's `error` or `null`). The inputs are `CardValidationCases` in `HealthCards`, covering every code and the design's examples; the outputs are what the Swift gives, and the server's port must give the same, word for word and in order. The positions' outputs match the `fractional-indexing` package (3.4.0).
+- **`Services/api/test/health/cards/validation-cases.json`:** `specs`, each a `name`, a `mode` and a `spec`: mode `input` with the `canonical` form or the `errors`, mode `stored` with the store's `errors` (empty when it's fine); and `positions`: `between` (a key between `a` and `b`, `null` where it throws), `betweenCount` (`count` keys) and `validity` (each position's `error` or `null`). The inputs are `CardValidationCases` in `HealthCards`, covering every code and the design's examples; the outputs are what the Swift gives, and the server's port must give the same, word for word and in order. The positions' outputs match the `fractional-indexing` package (3.4.0), with two fixes the server's port makes too: a position with a character that isn't a base-62 digit throws (the package computes with it as -1), and `count` positions between bounds given the wrong way round still ascend (the package's descend).
 
 ## The `health_card` sync entity (851-3202)
 
@@ -468,7 +484,7 @@ Seven tools, defined once in `Services/api/src/health/cards/CardsToolkit.ts` wit
 - **`Card`** is `{ id, spec, position, seed, createdAt, updatedAt }`, with times as the tools write them (local with offset, in `timeZone`).
 - **Errors** are a `HealthCardError` (`message`, plus `errors: [{ path, code, message }]` for validation), whose message lists every error a line each, so an agent can fix them all at once. Others: `No card with the id "card_…". list_cards lists them.`, the 100-card limit, `ids` that aren't every card once (`reorder_cards needs every card's id once: missing card_…, unknown card_…`), and a grant without `health:cards` (below).
 - **`preview_card` is how agents build a card:** describe it, preview it, fix the errors or look at the data, then create it. The description says so, and that previews save nothing.
-- **Descriptions** spell out the spec in brief (fields, aggregations, windows and nights, buckets and their ranges, styles, formulas) with the four example cards as examples, so an agent can write a valid spec from the description and the input schema alone, which carries every enum. The 256 KB ceiling holds: 4 series of 366 points is under 100 KB.
+- **Descriptions** spell out the spec in brief (fields, aggregations, windows and nights, buckets and their ranges, styles, formulas) with the five example cards as examples, so an agent can write a valid spec from the description and the input schema alone, which carries every enum. The 256 KB ceiling holds: 4 series of 366 points is under 100 KB.
 - **Remote writes** (851-3215) run in the user's store: validate, then `applyMutations` with a whole `health_card` row, the same path the apps' pushes take. So the change is in the log, a live notice goes out, and every device pulls it. `createdAt`, `updatedAt` and the ID are the server's.
 - **Local writes stay local-first** (851-3216): `lil-health mcp` validates and canonicalizes with `HealthCards`, then asks the app to write, through the action requests the command line already uses (`AgentAccess.sqlite`'s `actionRequests`, 851-2895), as new actions: `{"action": "createCard", "spec": …}`, `updateCard`, `deleteCard`, `reorderCards`. The app writes its local `healthCards` and queues the push (`LilSyncEngine.push`), then answers with the card. So the app's sync engine stays the only writer of its database, and the tool keeps opening it read-only (`health.md`, Read-only, never migrating). A write works offline and syncs when the Mac is online. The tool launches the app in the background if it isn't running, waits as `open` does (15 s to claim, 15 s to answer), and fails with the action's messages ("Sign in to lil health first.", "lil health didn't answer."). Reads and previews run in the tool, on the database it reads, with the Mac engine. Not App Intents in v1.
 - **The access log** records every card call. **Remote:** a row in `agent_access_log` (`server.md`), its `types` the spec's series types, `range` and `date` for `get_card` and `preview_card`, and `rows` the points or cards returned. Two nullable columns are added, `card_id` and `card_name` (an additive store migration, and optional `cardId` and `cardName` fields on `GET /v1/me/agents/access-log`'s entries, safe for installed apps), so Settings can say "Created “Sleeping Heart Rate”". A card's name is the user's own words, like a search, but it's what they need to see what an agent changed, so it's kept, never a spec or values. **Local:** `AgentAccessStore.authorize` with the tool and its arguments in short: `create_card {"name":"Sleeping Heart Rate"}`, `update_card {"id":"card_…","name":"…"}`, `delete_card {"id":"card_…"}`, `preview_card {"range":"W","types":["HKQuantityTypeIdentifierHeartRate"]}`, never the whole spec.
@@ -485,10 +501,10 @@ Seven tools, defined once in `Services/api/src/health/cards/CardsToolkit.ts` wit
 - **The consent page:** for lil health's server, "<Agent> will be able to read **all of your lil health data**, and create, change and delete your **cards**. It can't change your Health data." It keeps the existing lines on AI providers and the privacy policy link. Without `health:cards`, it reads as today. For the combined server, the app's line adds "and create, change and delete your cards in lil health".
 - **The privacy policy** (`Web/site/public/privacy`), section "AI agents connected to your account": "It can't change or delete anything" becomes "It can't change or delete your Health data. If you allow it, it can also create, change and delete your cards, the charts on lil health's Summary: their names, icons, colors and what they show. Changes sync to your devices." The log's bullet adds "which card it created, changed or deleted, and its name". The Mac section ("Command-line tools and AI agents on your Mac") adds that, while the setting is on, programs can also create, change and delete cards, which sync to your other devices. What I keep adds cards: their names and settings, stored with your account like your Health data, synced to your devices, in your export, and deleted with your account. A new effective date.
 - **Consent versioning:** the consent type stays `agents:health`. Its policy version (`agentsConsentPolicyVersions["agents:health"]`) moves to the new policy's effective date, so new connections record consent to the policy that describes cards. Consents given before stay in force for their grants (`Consents.inForce` doesn't compare versions), and those grants can't write cards anyway. Health consent's version doesn't change: cards are settings, not a new use of Health data, and bumping it would ask every iPhone to consent again.
-- **lil.tech/agents** explains the card tools and shows the four example cards as prompts (851-3218). Settings › Agents on both apps keeps its copy, except that log rows show card changes.
+- **lil.tech/agents** explains the card tools and shows the five example cards as prompts (851-3218). Settings › Agents on both apps keeps its copy, except that log rows show card changes.
 - **Ships without asking Alexandru** (his authority, 2026-10-23). The PR and ticket say what changed.
 
-## The four example cards
+## The five example cards
 
 The acceptance test (851-3218): an agent creates them over MCP, they sync, and they render on the Mac and the iPhone. In canonical form:
 
@@ -564,7 +580,29 @@ The acceptance test (851-3218): an agent creates them over MCP, they sync, and t
 
 An agent may write card 4 as just `{"version": 1, "display": {"name": "Heart Rate Before Sleep", "symbol": "bed.double.fill", "color": "mint"}, "series": [{"type": "Heart Rate", "window": {"kind": "beforeSleep", "minutes": 5}}], "bucket": "night", "range": "M", "chart": {"style": "dots"}}`. Canonicalizing gives the above.
 
-**Beyond the four**, as the spec allows: Sleeping HR minus Resting HR per night is series `a` (HeartRate `avg` `asleep`, hidden), `b` (RestingHeartRate `avg`, no window, by the night's day, hidden), and a `difference` of `["a", "b"]`, bucket `night`. Steps with a 10,000 goal is the seed card with `"goal": {"value": 10000}`. Heart rate during runs is HeartRate `avg` with `{"kind": "workout", "activities": [37]}`, bucket `day`, style `ranges`.
+**5. Morning weight:** dots, one a day, each the first weigh-in of the day before noon, with a 7-day rolling average as a line (asked for by Alexandru, 851-3194). The labels are the legend's.
+
+```json
+{
+  "version": 1,
+  "display": { "name": "Morning Weight", "symbol": "scalemass.fill", "color": "purple", "unit": null },
+  "series": [
+    { "id": "a", "type": "HKQuantityTypeIdentifierBodyMass", "aggregation": "first",
+      "window": { "kind": "timeOfDay", "from": "00:00", "to": "12:00" }, "filter": null,
+      "label": "First weigh-in before noon", "hidden": false }
+  ],
+  "formulas": [
+    { "id": "trend", "kind": "movingAverage", "of": "a", "points": 7, "label": "7-day rolling average", "hidden": false }
+  ],
+  "bucket": "day",
+  "range": "M",
+  "chart": { "style": "dots", "goal": null }
+}
+```
+
+Bucket `day` rather than `auto`, so each dot is a day and the average is 7 days at every range (with `auto`, 6M's points would be weeks).
+
+**Beyond the five**, as the spec allows: Sleeping HR minus Resting HR per night is series `a` (HeartRate `avg` `asleep`, hidden), `b` (RestingHeartRate `avg`, no window, by the night's day, hidden), and a `difference` of `["a", "b"]`, bucket `night`. Steps with a 10,000 goal is the seed card with `"goal": {"value": 10000}`. Heart rate during runs is HeartRate `avg` with `{"kind": "workout", "activities": [37]}`, bucket `day`, style `ranges`.
 
 ## UI
 
@@ -579,9 +617,10 @@ Every state in a catalog, Mac and iPhone (AGENTS.md › UI states). Layout-shift
   - **Empty:** "No Cards" with a New Card… button, in the section.
   - **Toolbar:** New Card… (⌘N in Summary).
   - **Context menu:** Edit…, Move Up, Move Down, Delete….
+- **The legend** (851-3194, for both apps): a card with more than one visible line (series and formulas) shows a legend on its Summary row and its full page, a line's mark (its opacity and dot shape, or a line for a formula) and its label each, in the spec's order: a series' `label` or else its type's name, a formula's `label` or else a description ("7-point moving average", "Heart Rate − Resting Heart Rate"). Morning weight's reads "First weigh-in before noon" and "7-day rolling average". A card with one visible line has none, as today's rows have none. On a row it's one line under the sparkline (truncating, never wrapping, so rows keep their height); on the page, under the chart. Catalog states show both, with and without a legend.
 - **The full-page card** (851-3207) is Metric Detail's page, for a card: a grouped form with the range control in the toolbar (only the bucket's ranges), the header from `summary` (caption, value, the period's dates), the chart at Metric Detail's fixed height in the card's style, with its goal rule and moving average, a hovered point's value and date, and Edit… in the toolbar. It follows every period rule: it opens on the card's range at the latest period with data (851-3188, from the first series' `latestPeriodDate`), keeps the last period with `updatingIndicator` while the next loads (851-3084), has placeholders before anything has loaded, says No Data once (851-3102), and is marked with `layoutAnchor` and listed in `LayoutShiftTests` (`sameLayout`: loading, loaded, loading another period, failed, no data). Below the chart: "About This Card", one sentence from the spec ("Average heart rate in the 5 minutes before falling asleep, per night."). Then, for a card of one series, Show All Data and Data Sources for its type, as Metric Detail has them. A metric pushed from Browse stays Metric Detail; a card is pushed from Summary on the same navigation path (`metricPath`), so ⌘[ and the sidebar work as they do.
 - **The editor** (851-3208) is a sheet (New Card…, Edit…), a grouped form with the live preview at the top: the card as its page draws it, at its range, updating as the spec changes (debounced 300 ms, with the delayed spinner). Below are Name; Symbol, a button opening a popover grid of the curated symbols; Color, a row of palette swatches; and the query builder's sections. Validation errors show inline, each under its field in the section footer, and Save is disabled while there are any. Cancel and Save are in the toolbar. Delete Card… is at the bottom of an existing card's form, with a short confirmation: "Delete “Steps”?", "It's deleted on all your devices.", Delete. Deleting from the context menu asks the same.
-- **The query builder** (851-3209) writes the spec through sections: **Data** (a series each: type, picked with the sidebar's search; aggregation, offering only the type's; window, None, Asleep, Before Falling Asleep or After Waking with a minutes stepper, or During Workouts with an activity picker; filter, under a disclosure; Add Series, up to 4), **Chart** (bucket, default range, style, goal), and **Formulas** (moving average, difference, up to 2). Choices the rules forbid aren't offered (no Sum for heart rate, no Night without a sleep window). Errors that remain are shown inline. It covers the four example cards, which its catalog shows filled in.
+- **The query builder** (851-3209) writes the spec through sections: **Data** (a series each: type, picked with the sidebar's search; aggregation, offering only the type's; window, None, Asleep, Before Falling Asleep or After Waking with a minutes stepper, During Workouts with an activity picker, or Time of Day with From and To time pickers; filter, under a disclosure; Add Series, up to 4), **Chart** (bucket, default range, style, goal), and **Formulas** (moving average, difference, up to 2). Choices the rules forbid aren't offered (no Sum for heart rate, no Night without a sleep window). Errors that remain are shown inline. It covers the five example cards, which its catalog shows filled in.
 - **Reordering** (851-3210): drag rows within Summary's section, where the grouped form takes `onMove` (as `List` does); otherwise the context menu's Move Up and Move Down, and an Edit Cards sheet with a reorderable list as the pins' editor had (851-2990). 851-3210 checks drag in a real window first. One write per move (fractional positions), synced. Another device's reorder shows when it's pulled.
 
 ### iPhone
@@ -589,6 +628,7 @@ Every state in a catalog, Mac and iPhone (AGENTS.md › UI states). Layout-shift
 The iPhone stops being only a bridge (`health.md`, iOS app): it gets a Summary of cards, its first screen for browsing data, computed from HealthKit on the phone.
 
 - **Summary** (851-3211): the root screen once set up (signed in, consent, Health access), a `NavigationStack` with an inset grouped `List` of preview rows, as the Mac's rows but in iOS's size classes. Sync status, today's main screen, becomes a row at the top while the upload is running, and a toolbar button otherwise, and opens today's status screen. Settings stays a toolbar button. Rows load from HealthKit, with the same loading, empty and failed states as the Mac's. No new permission prompt: setup already asks to read every type, and a type the person didn't allow reads as No Data, since HealthKit doesn't say which reads it refused.
+- **The legend** shows on the iPhone's rows and pages by the Mac's rule (UI › Mac, The legend).
 - **The full-page card** (851-3212): pushed from a row. The range as a segmented control under the title, as Health's pages have it, then the header, the chart and About This Card, with the same period and layout rules. Charts in `HealthUI` (shared by both apps): the chart, sparkline, `fittedDomain` and `MetricFormat` move there from `HealthMacApp` and `HealthPages` so the iPhone draws exactly what the Mac does.
 - **The editor and builder** (851-3213): a sheet, a `Form` with the same sections and live preview. **Reordering** via the list's Edit mode (drag handles), and swipe to delete with the same confirmation.
 - **iPhone catalogs** for each screen's states (`StateCatalog(phone:states:)`), with the catalog's synthetic data fed through a fake HealthKit source, not the simulator's HealthKit, so images never depend on it.
@@ -613,7 +653,7 @@ In order. Each is one PR, and keeps this file current.
 | 851-3193 | This design, and the principles in `DECISIONS.md` | all |
 | 851-3194 | `HealthCards`: the Codable spec, canonicalizer and validator (every rule and message); curated symbols, palette and units, with the symbol test; `welcomeSeed`; generating `card-spec.schema.json` and `card-seed.json`; `validation-cases.json` | The card spec; Validation |
 | 851-3195 | The engine core in `HealthCards` (periods, buckets, weights, aggregations, formulas, summary, headline), with `discreteStatistics`' weights moved in; the Mac's fetching for series without windows | What an engine computes; The Mac |
-| 851-3196 | Nights and windows in the core, with `sleepNights`' grouping moved in; the Mac's fetching for windows and filters; tests of the four example cards | Event windows; The Mac |
+| 851-3196 | Nights and windows in the core, with `sleepNights`' grouping moved in; the Mac's fetching for windows and filters; tests of the five example cards | Event windows; The Mac |
 | 851-3197 | The server's engine, a port of the core | The server |
 | 851-3198 | The engines' conformance cases and dataset, run by the Mac and the server | Conformance |
 | 851-3199 | The iPhone's HealthKit fetching for series without windows, into the core | The iPhone |
@@ -637,4 +677,4 @@ In order. Each is one PR, and keeps this file current.
 | 851-3215 | The remote card tools, the access log's card columns | MCP tools |
 | 851-3216 | The local card tools, and the app's card actions | MCP tools |
 | 851-3217 | The card tools' conformance across both servers | MCP tools |
-| 851-3218 | Acceptance: the four example cards by an agent, on the Mac and the iPhone; lil.tech/agents | The four example cards |
+| 851-3218 | Acceptance: the five example cards by an agent, on the Mac and the iPhone; lil.tech/agents | The five example cards |

@@ -63,7 +63,7 @@ struct CardSpecValidationTests {
     ),
     Example(
       "unknown value", card(#"{"type": "HeartRate", "aggregation": "median"}"#),
-      #"series[0].aggregation | unknownValue | "median" isn't an aggregation. Use sum, avg, min, max, latest or count."#
+      #"series[0].aggregation | unknownValue | "median" isn't an aggregation. Use sum, avg, min, max, first, latest or count."#
     ),
     Example(
       "wrong type", card(#"{"type": "HeartRate", "hidden": "yes"}"#),
@@ -133,11 +133,11 @@ struct CardSpecValidationTests {
     ),
     Example(
       "sum only", card(#"{"type": "Steps", "aggregation": "avg"}"#),
-      #"series[0].aggregation | aggregationNotAllowed | Steps adds up, so it takes "sum" only (avg, min, max, latest and count are for types measured at points in time). For an average day over weeks or months, use bucket "auto" at 6M or Y."#
+      #"series[0].aggregation | aggregationNotAllowed | Steps adds up, so it takes "sum" only (avg, min, max, first, latest and count are for types measured at points in time). For an average day over weeks or months, use bucket "auto" at 6M or Y."#
     ),
     Example(
       "no sum", card(#"{"type": "HeartRate", "aggregation": "sum"}"#),
-      "series[0].aggregation | aggregationNotAllowed | Heart Rate doesn't add up: use avg, min, max, latest or count, not sum."
+      "series[0].aggregation | aggregationNotAllowed | Heart Rate doesn't add up: use avg, min, max, first, latest or count, not sum."
     ),
     Example(
       "window on cumulative", card(#"{"type": "Steps", "window": {"kind": "workout"}}"#),
@@ -149,6 +149,20 @@ struct CardSpecValidationTests {
         #"{"type": "HeartRate", "window": {"kind": "beforeSleep", "minutes": 241}}"#,
         #""bucket": "night""#),
       "series[0].window.minutes | windowMinutes | series[0].window.minutes must be a whole number from 1 to 240."
+    ),
+    Example(
+      "window time",
+      card(#"{"type": "Weight", "window": {"kind": "timeOfDay", "from": "7:30", "to": "12:00"}}"#),
+      #"series[0].window.from | windowTime | series[0].window.from must be a time on the 24-hour clock, "HH:MM" from "00:00" to "23:59" (it's "7:30")."#
+    ),
+    Example(
+      "window times the same",
+      card(#"{"type": "Weight", "window": {"kind": "timeOfDay", "from": "12:00", "to": "12:00"}}"#),
+      #"series[0].window | windowTime | series[0].window starts and ends at 12:00: for every reading, set window to null. A window may cross midnight, e.g. from "22:00" to "06:00"."#
+    ),
+    Example(
+      "same series", card(hr, #""formulas": [{"kind": "difference", "of": ["a", "a"]}]"#),
+      #"formulas[0].of | sameSeries | formulas[0] subtracts "a" from itself: name two different series."#
     ),
     Example(
       "unknown activity",

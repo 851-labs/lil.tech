@@ -1153,6 +1153,244 @@
       }
     },
     {
+      "name": "Example 5: morning weight",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Morning Weight",
+          "symbol": "scalemass.fill",
+          "color": "purple"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "aggregation": "first",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "00:00",
+              "to": "12:00"
+            },
+            "label": "First weigh-in before noon"
+          }
+        ],
+        "formulas": [
+          {
+            "id": "trend",
+            "kind": "movingAverage",
+            "of": "a",
+            "points": 7,
+            "label": "7-day rolling average"
+          }
+        ],
+        "bucket": "day",
+        "range": "M",
+        "chart": {
+          "style": "dots"
+        }
+      },
+      "canonical": {
+        "version": 1,
+        "display": {
+          "name": "Morning Weight",
+          "symbol": "scalemass.fill",
+          "color": "purple",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "aggregation": "first",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "00:00",
+              "to": "12:00"
+            },
+            "filter": null,
+            "label": "First weigh-in before noon",
+            "hidden": false
+          }
+        ],
+        "formulas": [
+          {
+            "id": "trend",
+            "kind": "movingAverage",
+            "of": "a",
+            "points": 7,
+            "label": "7-day rolling average",
+            "hidden": false
+          }
+        ],
+        "bucket": "day",
+        "range": "M",
+        "chart": {
+          "style": "dots",
+          "goal": null
+        }
+      }
+    },
+    {
+      "name": "A time of day crossing midnight, by hour",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "first",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "22:00",
+              "to": "06:00"
+            }
+          }
+        ],
+        "bucket": "hour",
+        "range": "D"
+      },
+      "canonical": {
+        "version": 1,
+        "display": {
+          "name": "Card",
+          "symbol": "heart.fill",
+          "color": "red",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "first",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "22:00",
+              "to": "06:00"
+            },
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "hour",
+        "range": "D",
+        "chart": {
+          "style": "ranges",
+          "goal": null
+        }
+      }
+    },
+    {
+      "name": "A time of day to midnight",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "18:30",
+              "to": "00:00"
+            }
+          }
+        ]
+      },
+      "canonical": {
+        "version": 1,
+        "display": {
+          "name": "Card",
+          "symbol": "heart.fill",
+          "color": "red",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "18:30",
+              "to": "00:00"
+            },
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "auto",
+        "range": "W",
+        "chart": {
+          "style": "ranges",
+          "goal": null
+        }
+      }
+    },
+    {
+      "name": "Defaults come from the first visible series",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "hidden": true
+          },
+          {
+            "type": "HKQuantityTypeIdentifierStepCount"
+          }
+        ]
+      },
+      "canonical": {
+        "version": 1,
+        "display": {
+          "name": "Card",
+          "symbol": "flame.fill",
+          "color": "orange",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "window": null,
+            "filter": null,
+            "label": null,
+            "hidden": true
+          },
+          {
+            "id": "b",
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "aggregation": "sum",
+            "window": null,
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "auto",
+        "range": "W",
+        "chart": {
+          "style": "bars",
+          "goal": null
+        }
+      }
+    },
+    {
       "name": "Sleeping heart rate minus resting heart rate",
       "mode": "input",
       "spec": {
@@ -1783,7 +2021,7 @@
             "kind": "difference",
             "of": [
               "a",
-              "a"
+              "b"
             ],
             "points": 7
           }
@@ -1848,6 +2086,11 @@
           "path": "zebra",
           "code": "unknownField",
           "message": "Unknown field \"zebra\" in the spec. Allowed: version, display, series, formulas, bucket, range, chart."
+        },
+        {
+          "path": "formulas[0].of",
+          "code": "unknownReference",
+          "message": "formulas[0] refers to \"b\", which isn't a series of this card."
         }
       ]
     },
@@ -1887,12 +2130,12 @@
         {
           "path": "series[0].aggregation",
           "code": "unknownValue",
-          "message": "\"median\" isn't an aggregation. Use sum, avg, min, max, latest or count."
+          "message": "\"median\" isn't an aggregation. Use sum, avg, min, max, first, latest or count."
         },
         {
           "path": "series[1].window.kind",
           "code": "unknownValue",
-          "message": "\"nap\" isn't a window. Use asleep, beforeSleep, afterWaking or workout."
+          "message": "\"nap\" isn't a window. Use asleep, beforeSleep, afterWaking, workout or timeOfDay."
         },
         {
           "path": "formulas[0].kind",
@@ -2876,7 +3119,7 @@
         {
           "path": "series[0].aggregation",
           "code": "aggregationNotAllowed",
-          "message": "Steps adds up, so it takes \"sum\" only (avg, min, max, latest and count are for types measured at points in time). For an average day over weeks or months, use bucket \"auto\" at 6M or Y."
+          "message": "Steps adds up, so it takes \"sum\" only (avg, min, max, first, latest and count are for types measured at points in time). For an average day over weeks or months, use bucket \"auto\" at 6M or Y."
         }
       ]
     },
@@ -2899,7 +3142,7 @@
         {
           "path": "series[0].aggregation",
           "code": "aggregationNotAllowed",
-          "message": "Heart Rate doesn't add up: use avg, min, max, latest or count, not sum."
+          "message": "Heart Rate doesn't add up: use avg, min, max, first, latest or count, not sum."
         }
       ]
     },
@@ -3164,7 +3407,7 @@
         {
           "path": "series[0].window.kind",
           "code": "required",
-          "message": "series[0].window.kind is required: asleep, beforeSleep, afterWaking or workout."
+          "message": "series[0].window.kind is required: asleep, beforeSleep, afterWaking, workout or timeOfDay."
         }
       ]
     },
@@ -3317,6 +3560,238 @@
           "path": "series[0].window.activities[3]",
           "code": "duplicateActivity",
           "message": "series[0].window.activities has Cycling twice."
+        }
+      ]
+    },
+    {
+      "name": "Times of day that don't fit",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "7:30",
+              "to": "24:00"
+            }
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "12:60",
+              "to": 12
+            }
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "07:30 ",
+              "to": "noon"
+            }
+          }
+        ]
+      },
+      "errors": [
+        {
+          "path": "series[0].window.from",
+          "code": "windowTime",
+          "message": "series[0].window.from must be a time on the 24-hour clock, \"HH:MM\" from \"00:00\" to \"23:59\" (it's \"7:30\")."
+        },
+        {
+          "path": "series[0].window.to",
+          "code": "windowTime",
+          "message": "series[0].window.to must be a time on the 24-hour clock, \"HH:MM\" from \"00:00\" to \"23:59\" (it's \"24:00\")."
+        },
+        {
+          "path": "series[1].window.from",
+          "code": "windowTime",
+          "message": "series[1].window.from must be a time on the 24-hour clock, \"HH:MM\" from \"00:00\" to \"23:59\" (it's \"12:60\")."
+        },
+        {
+          "path": "series[1].window.to",
+          "code": "windowTime",
+          "message": "series[1].window.to must be a time on the 24-hour clock, \"HH:MM\" from \"00:00\" to \"23:59\" (it's 12)."
+        },
+        {
+          "path": "series[2].window.from",
+          "code": "windowTime",
+          "message": "series[2].window.from must be a time on the 24-hour clock, \"HH:MM\" from \"00:00\" to \"23:59\" (it's \"07:30 \")."
+        },
+        {
+          "path": "series[2].window.to",
+          "code": "windowTime",
+          "message": "series[2].window.to must be a time on the 24-hour clock, \"HH:MM\" from \"00:00\" to \"23:59\" (it's \"noon\")."
+        }
+      ]
+    },
+    {
+      "name": "A time of day without from or to",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "timeOfDay",
+              "to": null
+            }
+          }
+        ]
+      },
+      "errors": [
+        {
+          "path": "series[0].window.from",
+          "code": "required",
+          "message": "series[0].window.from is required: when the window starts, on the 24-hour clock, e.g. \"07:30\"."
+        },
+        {
+          "path": "series[0].window.to",
+          "code": "required",
+          "message": "series[0].window.to is required: when it ends, on the 24-hour clock, e.g. \"12:00\"."
+        }
+      ]
+    },
+    {
+      "name": "A time of day that starts and ends at once",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "08:00",
+              "to": "08:00"
+            }
+          }
+        ]
+      },
+      "errors": [
+        {
+          "path": "series[0].window",
+          "code": "windowTime",
+          "message": "series[0].window starts and ends at 08:00: for every reading, set window to null. A window may cross midnight, e.g. from \"22:00\" to \"06:00\"."
+        }
+      ]
+    },
+    {
+      "name": "A time of day with minutes",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "08:00",
+              "to": "09:00",
+              "minutes": 5
+            }
+          }
+        ]
+      },
+      "errors": [
+        {
+          "path": "series[0].window.minutes",
+          "code": "unknownField",
+          "message": "Unknown field \"minutes\" in series[0].window. Allowed: kind, from, to."
+        }
+      ]
+    },
+    {
+      "name": "A time of day on steps",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "08:00",
+              "to": "09:00"
+            }
+          }
+        ]
+      },
+      "errors": [
+        {
+          "path": "series[0].window",
+          "code": "windowOnCumulative",
+          "message": "Windows work with types measured at points in time (heart rate, HRV), not ones that add up (Steps), in this version."
+        }
+      ]
+    },
+    {
+      "name": "Night with only a time of day",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "00:00",
+              "to": "06:00"
+            }
+          }
+        ],
+        "bucket": "night"
+      },
+      "errors": [
+        {
+          "path": "bucket",
+          "code": "nightNeedsSleepWindow",
+          "message": "bucket \"night\" needs a series with a sleep window: {\"kind\": \"asleep\"}, \"beforeSleep\" or \"afterWaking\"."
+        }
+      ]
+    },
+    {
+      "name": "The first of steps",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "aggregation": "first"
+          }
+        ]
+      },
+      "errors": [
+        {
+          "path": "series[0].aggregation",
+          "code": "aggregationNotAllowed",
+          "message": "Steps adds up, so it takes \"sum\" only (avg, min, max, first, latest and count are for types measured at points in time). For an average day over weeks or months, use bucket \"auto\" at 6M or Y."
         }
       ]
     },
@@ -3866,6 +4341,37 @@
           "path": "formulas[0].of",
           "code": "invalidType",
           "message": "formulas[0].of must be a series' id, e.g. \"a\"."
+        }
+      ]
+    },
+    {
+      "name": "A difference of a series and itself",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN"
+          }
+        ],
+        "formulas": [
+          {
+            "kind": "difference",
+            "of": [
+              "a",
+              "a"
+            ]
+          }
+        ]
+      },
+      "errors": [
+        {
+          "path": "formulas[0].of",
+          "code": "sameSeries",
+          "message": "formulas[0] subtracts \"a\" from itself: name two different series."
         }
       ]
     },
@@ -4798,7 +5304,7 @@
         {
           "path": "series[1].aggregation",
           "code": "aggregationNotAllowed",
-          "message": "Steps adds up, so it takes \"sum\" only (avg, min, max, latest and count are for types measured at points in time). For an average day over weeks or months, use bucket \"auto\" at 6M or Y."
+          "message": "Steps adds up, so it takes \"sum\" only (avg, min, max, first, latest and count are for types measured at points in time). For an average day over weeks or months, use bucket \"auto\" at 6M or Y."
         },
         {
           "path": "series[1].window",
@@ -4925,7 +5431,7 @@
         {
           "path": "series[0].aggregation",
           "code": "unknownValue",
-          "message": "\"x\" isn't an aggregation. Use sum, avg, min, max, latest or count."
+          "message": "\"x\" isn't an aggregation. Use sum, avg, min, max, first, latest or count."
         },
         {
           "path": "series[0].label",
@@ -4955,7 +5461,7 @@
         {
           "path": "series[1].aggregation",
           "code": "unknownValue",
-          "message": "\"y\" isn't an aggregation. Use sum, avg, min, max, latest or count."
+          "message": "\"y\" isn't an aggregation. Use sum, avg, min, max, first, latest or count."
         },
         {
           "path": "series[1].label",
@@ -5307,7 +5813,7 @@
         {
           "path": "series[0].aggregation",
           "code": "aggregationNotAllowed",
-          "message": "Heart Rate doesn't add up: use avg, min, max, latest or count, not sum."
+          "message": "Heart Rate doesn't add up: use avg, min, max, first, latest or count, not sum."
         }
       ]
     },
@@ -5726,6 +6232,16 @@
         "a": "!0",
         "b": null,
         "position": null
+      },
+      {
+        "a": "a0-",
+        "b": null,
+        "position": null
+      },
+      {
+        "a": "a0",
+        "b": "a0~",
+        "position": null
       }
     ],
     "betweenCount": [
@@ -5793,13 +6309,29 @@
         "b": "a0",
         "count": 2,
         "positions": [
-          "a0l",
+          "a0G",
           "a0V"
         ]
       },
       {
         "a": "a0",
         "b": "a0",
+        "count": 2,
+        "positions": null
+      },
+      {
+        "a": "a1",
+        "b": "a0",
+        "count": 3,
+        "positions": [
+          "a0G",
+          "a0V",
+          "a0l"
+        ]
+      },
+      {
+        "a": "a0",
+        "b": "a0!",
         "count": 2,
         "positions": null
       }

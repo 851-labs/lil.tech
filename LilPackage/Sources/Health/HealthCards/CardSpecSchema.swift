@@ -56,6 +56,7 @@ extension HealthCards {
     let text = string(textLength)
     let label = nullable(text)
     let minutes = integer(windowMinutes)
+    let clockTime = string(5...5, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$")
     let activityTypes = HealthCatalog.workoutActivityNames.keys.sorted()
     let window = nullable([
       "anyOf": [
@@ -72,6 +73,7 @@ extension HealthCards {
                 windowActivities, unique: true))
           ),
         ]),
+        object([("kind", strings(["timeOfDay"])), ("from", clockTime), ("to", clockTime)]),
       ]
     ])
     let filterList = nullable(array(string(filterValueLength), filterListLength))

@@ -170,6 +170,36 @@ enum CardValidationCases {
         range: "M", chart: ["style": "dots"],
         display: ["name": "Heart Rate Before Sleep", "symbol": "bed.double.fill", "color": "mint"])),
     input(
+      "Example 5: morning weight",
+      spec(
+        [
+          "type": weight, "aggregation": "first",
+          "window": ["kind": "timeOfDay", "from": "00:00", "to": "12:00"],
+          "label": "First weigh-in before noon",
+        ],
+        formulas: [
+          [
+            "id": "trend", "kind": "movingAverage", "of": "a", "points": 7,
+            "label": "7-day rolling average",
+          ]
+        ],
+        bucket: "day", range: "M", chart: ["style": "dots"],
+        display: ["name": "Morning Weight", "symbol": "scalemass.fill", "color": "purple"])),
+    input(
+      "A time of day crossing midnight, by hour",
+      spec(
+        [
+          "type": heartRate, "aggregation": "first",
+          "window": ["kind": "timeOfDay", "from": "22:00", "to": "06:00"],
+        ],
+        bucket: "hour", range: "D")),
+    input(
+      "A time of day to midnight",
+      spec(["type": heartRate, "window": ["kind": "timeOfDay", "from": "18:30", "to": "00:00"]])),
+    input(
+      "Defaults come from the first visible series",
+      spec(["type": heartRate, "hidden": true], ["type": steps])),
+    input(
       "Sleeping heart rate minus resting heart rate",
       spec(
         ["type": heartRate, "window": ["kind": "asleep"], "hidden": true],
@@ -241,7 +271,7 @@ enum CardValidationCases {
             ]
           ]
         ),
-        ("formulas", [["kind": "difference", "of": ["a", "a"], "points": 7]]),
+        ("formulas", [["kind": "difference", "of": ["a", "b"], "points": 7]]),
         ("bucket", "night"),
         ("chart", ["style": "line", "goal": ["value": 1, "label": "Goal"], "axis": "left"]),
       ])),
@@ -397,6 +427,33 @@ enum CardValidationCases {
         "window": ["kind": "workout", "activities": [37, "running", "Cycling", 13]],
       ])),
     input(
+      "Times of day that don't fit",
+      spec(
+        ["type": heartRate, "window": ["kind": "timeOfDay", "from": "7:30", "to": "24:00"]],
+        ["type": heartRate, "window": ["kind": "timeOfDay", "from": "12:60", "to": 12]],
+        ["type": heartRate, "window": ["kind": "timeOfDay", "from": "07:30 ", "to": "noon"]])),
+    input(
+      "A time of day without from or to",
+      spec(["type": heartRate, "window": ["kind": "timeOfDay", "to": nil]])),
+    input(
+      "A time of day that starts and ends at once",
+      spec(["type": heartRate, "window": ["kind": "timeOfDay", "from": "08:00", "to": "08:00"]])),
+    input(
+      "A time of day with minutes",
+      spec([
+        "type": heartRate,
+        "window": ["kind": "timeOfDay", "from": "08:00", "to": "09:00", "minutes": 5],
+      ])),
+    input(
+      "A time of day on steps",
+      spec(["type": steps, "window": ["kind": "timeOfDay", "from": "08:00", "to": "09:00"]])),
+    input(
+      "Night with only a time of day",
+      spec(
+        ["type": heartRate, "window": ["kind": "timeOfDay", "from": "00:00", "to": "06:00"]],
+        bucket: "night")),
+    input("The first of steps", spec(["type": steps, "aggregation": "first"])),
+    input(
       "Activities that aren't a list",
       spec(["type": heartRate, "window": ["kind": "workout", "activities": "Running"]])),
     input(
@@ -476,6 +533,9 @@ enum CardValidationCases {
     input(
       "A moving average of a list",
       spec(["type": hrv], formulas: [["kind": "movingAverage", "of": ["a"]]])),
+    input(
+      "A difference of a series and itself",
+      spec(["type": hrv], formulas: [["kind": "difference", "of": ["a", "a"]]])),
     input(
       "A difference of two units",
       spec(
@@ -690,12 +750,12 @@ enum CardValidationCases {
     ("zzzzzzzzzzzzzzzzzzzzzzzzzzz", nil), ("zzzzzzzzzzzzzzzzzzzzzzzzzzzV", nil),
     // Invalid: null.
     ("a0", "a0"), ("a00", nil), ("", nil), ("b1", nil), ("A00000000000000000000000000", nil),
-    (nil, "a"), ("!0", nil),
+    (nil, "a"), ("!0", nil), ("a0-", nil), ("a0", "a0~"),
   ]
 
   static let betweenCount: [(String?, String?, Int)] = [
     (nil, nil, 0), (nil, nil, 1), (nil, nil, 6), ("a5", nil, 3), (nil, "a0", 3), ("a0", "a1", 5),
-    ("a1", "a0", 2), ("a0", "a0", 2),
+    ("a1", "a0", 2), ("a0", "a0", 2), ("a1", "a0", 3), ("a0", "a0!", 2),
   ]
 
   static let positions: [String] = [

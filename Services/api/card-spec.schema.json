@@ -280,6 +280,7 @@
               "avg",
               "min",
               "max",
+              "first",
               "latest",
               "count"
             ]
@@ -460,6 +461,35 @@
                     "required": [
                       "kind",
                       "activities"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "timeOfDay"
+                        ]
+                      },
+                      "from": {
+                        "type": "string",
+                        "minLength": 5,
+                        "maxLength": 5,
+                        "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                      },
+                      "to": {
+                        "type": "string",
+                        "minLength": 5,
+                        "maxLength": 5,
+                        "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "from",
+                      "to"
                     ],
                     "additionalProperties": false
                   }

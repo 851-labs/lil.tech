@@ -227,4 +227,55 @@ struct CardSpecTests {
     #expect(
       error.description == "The card spec has 2 errors:\n- display.color: Bad color.\n- Too large.")
   }
+
+  /// Example 5, as the design writes it.
+  @Test
+  func morningWeight() throws {
+    let spec = try spec(
+      #"{"version": 1, "display": {"name": "Morning Weight", "symbol": "scalemass.fill", "color": "purple"}, "series": [{"type": "Weight", "aggregation": "first", "window": {"kind": "timeOfDay", "from": "00:00", "to": "12:00"}, "label": "First weigh-in before noon"}], "formulas": [{"id": "trend", "kind": "movingAverage", "of": "a", "points": 7, "label": "7-day rolling average"}], "bucket": "day", "range": "M", "chart": {"style": "dots"}}"#
+    )
+    #expect(
+      spec.jsonText
+        == #"{"version":1,"display":{"name":"Morning Weight","symbol":"scalemass.fill","color":"purple","unit":null},"series":[{"id":"a","type":"HKQuantityTypeIdentifierBodyMass","aggregation":"first","window":{"kind":"timeOfDay","from":"00:00","to":"12:00"},"filter":null,"label":"First weigh-in before noon","hidden":false}],"formulas":[{"id":"trend","kind":"movingAverage","of":"a","points":7,"label":"7-day rolling average","hidden":false}],"bucket":"day","range":"M","chart":{"style":"dots","goal":null}}"#
+    )
+    #expect(spec.series[0].window?.isSleep == false)
+    #expect(spec.series[0].window?.kind == .timeOfDay)
+  }
+
+  @Test
+  func timeOfDay() throws {
+    let morning = CardTimeOfDay(
+      from: try #require(CardClockTime("00:00")), to: try #require(CardClockTime("12:00")))
+    #expect(morning.contains(secondsSinceMidnight: 0))
+    #expect(morning.contains(secondsSinceMidnight: 43_199.9))
+    #expect(!morning.contains(secondsSinceMidnight: 43_200))
+    let night = CardTimeOfDay(
+      from: try #require(CardClockTime("22:00")), to: try #require(CardClockTime("06:00")))
+    #expect(night.contains(secondsSinceMidnight: 79_200))
+    #expect(night.contains(secondsSinceMidnight: 3_600))
+    #expect(!night.contains(secondsSinceMidnight: 21_600))
+    #expect(!night.contains(secondsSinceMidnight: 50_000))
+    let evening = CardTimeOfDay(
+      from: try #require(CardClockTime("18:30")), to: try #require(CardClockTime("00:00")))
+    #expect(evening.contains(secondsSinceMidnight: 86_399))
+    #expect(!evening.contains(secondsSinceMidnight: 0))
+    for text in ["7:30", "24:00", "12:60", "07:30 ", "0730", "aa:bb", "", "٠٧:٣٠"] {
+      #expect(CardClockTime(text) == nil, "\(text)")
+    }
+    #expect(CardClockTime("23:59")?.secondsSinceMidnight == 86_340)
+    #expect(CardClockTime("07:05")?.description == "07:05")
+  }
+
+  /// Every chartable type gives a card its defaults: a symbol and color from its category, and a
+  /// chart style.
+  @Test
+  func everyChartableTypeHasDefaults() throws {
+    for type in HealthCards.chartableTypes {
+      let spec = try CardSpec(input: [
+        "version": 1, "display": ["name": "T"], "series": [["type": .string(type.id)]],
+      ])
+      #expect(spec.series[0].type == type.id)
+      #expect(spec.chart.style == type.chartStyle)
+    }
+  }
 }

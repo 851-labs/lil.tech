@@ -43,6 +43,7 @@ public struct CardSpecError: Hashable, Sendable, Codable, CustomStringConvertibl
     case aggregationNotAllowed
     case windowOnCumulative
     case windowMinutes
+    case windowTime
     case unknownActivity
     case activityCount
     case duplicateActivity
@@ -55,6 +56,7 @@ public struct CardSpecError: Hashable, Sendable, Codable, CustomStringConvertibl
     case formulaCount
     case formulaPoints
     case unknownReference
+    case sameSeries
     // Across fields
     case mixedUnits
     case nothingVisible

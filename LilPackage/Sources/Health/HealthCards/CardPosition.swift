@@ -24,8 +24,11 @@ public enum CardPosition {
   public static func between(_ a: String?, _ b: String?) throws(InvalidPosition) -> String {
     var a = a.map { Array($0.utf8) }
     var b = b.map { Array($0.utf8) }
-    if let key = a { try validate(key) }
-    if let key = b { try validate(key) }
+    for key in [a, b].compactMap(\.self) {
+      // The package doesn't check digits, and would compute with an unknown one as -1.
+      guard key.allSatisfy(digits.contains) else { throw fail("invalid order key: \(text(key))") }
+      try validate(key)
+    }
     if let lower = a, let upper = b, lower.lexicographicallyPrecedes(upper) == false,
       lower != upper
     {
@@ -34,10 +37,14 @@ public enum CardPosition {
     return String(decoding: try keyBetween(a, b), as: UTF8.self)
   }
 
-  /// `count` positions between `a` and `b`, in order, as `generateNKeysBetween` makes them.
+  /// `count` positions between `a` and `b`, ascending, as `generateNKeysBetween` makes them. `a`
+  /// and `b` are swapped if they're in the wrong order, so the positions always ascend.
   public static func between(
     _ a: String?, _ b: String?, count: Int
   ) throws(InvalidPosition) -> [String] {
+    if let lower = a, let upper = b, upper < lower {
+      return try between(upper, lower, count: count)
+    }
     if count <= 0 { return [] }
     if count == 1 { return [try between(a, b)] }
     if b == nil {

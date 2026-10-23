@@ -283,8 +283,9 @@ struct CardSpecValidator {
       input, path: "",
       allowed: ["version", "display", "series", "formulas", "bucket", "range", "chart"])
 
-    // Defaults from the first series' type.
-    let first = series.first
+    // Defaults from the first visible series' type, or the first series' when every one is
+    // hidden: the line the card draws, so a default never fails a rule.
+    let first = series.first { !$0.hidden } ?? series.first
     if style == nil, !styleIsExplicit, let type = first?.type, let typeStyle = type.chartStyle {
       // A count has no lowest and highest reading to draw.
       style = typeStyle == .ranges && first?.aggregation == .count ? .dots : typeStyle
@@ -369,10 +370,10 @@ struct CardSpecValidator {
         fail(
           "\(path).aggregation", .aggregationNotAllowed,
           typeAggregation.isCumulative
-            ? "\(type.name) adds up, so it takes \"sum\" only (avg, min, max, latest and count are "
+            ? "\(type.name) adds up, so it takes \"sum\" only (avg, min, max, first, latest and count are "
               + "for types measured at points in time). For an average day over weeks or months, "
               + "use bucket \"auto\" at 6M or Y."
-            : "\(type.name) doesn't add up: use avg, min, max, latest or count, not sum.")
+            : "\(type.name) doesn't add up: use avg, min, max, first, latest or count, not sum.")
       } else {
         series.aggregation = aggregation
       }
@@ -528,8 +529,44 @@ struct CardSpecValidator {
           "\(path).activities", .invalidType,
           "\(path).activities must be an array of workout activities, or null for every workout.")
       }
+    case .timeOfDay:
+      allowed = ["kind", "from", "to"]
+      func time(_ key: String, _ what: String) -> CardClockTime? {
+        let timePath = "\(path).\(key)"
+        switch json[key] {
+        case nil, .null?:
+          fail(
+            timePath, .required,
+            "\(timePath) is required: \(what), on the 24-hour clock, e.g. \"\(key == "from" ? "07:30" : "12:00")\"."
+          )
+        case .string(let text)?:
+          if let time = CardClockTime(text) { return time }
+          fail(
+            timePath, .windowTime,
+            "\(timePath) must be a time on the 24-hour clock, \"HH:MM\" from \"00:00\" to "
+              + "\"23:59\" (it's \(CardJSON.quoted(text))).")
+        case let other?:
+          fail(
+            timePath, .windowTime,
+            "\(timePath) must be a time on the 24-hour clock, \"HH:MM\" from \"00:00\" to "
+              + "\"23:59\" (it's \(other.text())).")
+        }
+        return nil
+      }
+      let from = time("from", "when the window starts")
+      let to = time("to", "when it ends")
+      if let from, let to {
+        if from == to {
+          fail(
+            path, .windowTime,
+            "\(path) starts and ends at \(from): for every reading, set window to null. A window "
+              + "may cross midnight, e.g. from \"22:00\" to \"06:00\".")
+        } else {
+          window = .timeOfDay(CardTimeOfDay(from: from, to: to))
+        }
+      }
     case nil:
-      allowed = ["kind", "minutes", "activities"]
+      allowed = ["kind", "minutes", "activities", "from", "to"]
     }
     unknownFields(json, path: path, allowed: allowed)
     return (window, kind)
@@ -822,7 +859,12 @@ struct CardSpecValidator {
           )
         }
       }
-      if formula.kind == .difference, resolved.count == 2,
+      if formula.kind == .difference, of.count == 2, of[0] == of[1] {
+        fail(
+          "\(formula.path).of", .sameSeries,
+          "\(formula.path) subtracts \(CardJSON.quoted(of[0])) from itself: name two different "
+            + "series.")
+      } else if formula.kind == .difference, resolved.count == 2,
         let a = resolved[0].unit, let b = resolved[1].unit, a != b
       {
         fail(
@@ -883,7 +925,7 @@ struct CardSpecValidator {
     }
 
     // Buckets
-    let sleepWindows = series.contains { $0.windowKind.map { $0 != .workout } ?? false }
+    let sleepWindows = series.contains { $0.windowKind?.isSleep ?? false }
     let unknownWindows = series.contains { $0.hasWindow && $0.windowKind == nil }
     if bucket == .night, !sleepWindows, !unknownWindows {
       fail(
@@ -975,7 +1017,7 @@ struct CardSpecValidator {
 
   // MARK: - Messages
 
-  static let styles = ["bars", "ranges", "dots", "line"]
+  static let styles = HealthDataType.ChartStyle.allCases.map(\.rawValue)
   static let windowKinds = CardSpec.Window.Kind.allCases.map(\.rawValue)
 
   static func seriesID(_ index: Int) -> String {

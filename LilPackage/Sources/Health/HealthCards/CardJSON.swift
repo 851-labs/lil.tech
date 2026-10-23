@@ -1,8 +1,10 @@
 public import Foundation
 
-/// A JSON value, as card specs arrive (from agents, the editor, a pull) and are written: objects
-/// keep their keys' order, so the canonical form's keys come in the design's order
-/// (`docs/decisions/cards.md`, Versioning and the canonical form).
+/// A JSON value, as card specs arrive (from agents, the editor, a pull) and are written. Objects
+/// made in code keep their keys' order, so the canonical form's keys come in the design's order
+/// (`docs/decisions/cards.md`, Versioning and the canonical form). Parsed ones come with their keys
+/// sorted, since a decoder's keys have no order: an app that writes back a spec it can't read
+/// keeps the text it pulled.
 ///
 /// Two values are equal when they mean the same JSON: objects compare by their members, ignoring
 /// key order, and numbers as doubles, as the store compares a spec with its canonical form.
@@ -81,13 +83,42 @@ public enum CardJSON: Sendable {
     output += close
   }
 
-  /// A number as JSON: whole numbers without a fraction (`10000`, as JavaScript writes them),
-  /// others in Swift's shortest form that reads back the same (`0.1`, `1e-07`).
+  /// A number as JavaScript writes it (`Number.prototype.toString`): the shortest digits that
+  /// read back the same, Swift's and JavaScript's alike, in decimal notation from 1e-6 up to 1e21
+  /// (`10000`, `0.00001`) and in exponent notation outside it (`1e-7`, `1e+21`).
   static func text(of value: Double) -> String {
-    if value == value.rounded(), abs(value) < 1e18 {
-      return String(Int64(value))
+    guard value != 0 else { return "0" }
+    guard value.isFinite else { return "null" }
+    // Swift's shortest digits, and where the decimal point goes: `n` digits before it.
+    let swift = abs(value).description
+    let parts = swift.split(separator: "e")
+    let mantissa = parts[0]
+    let exponent = parts.count > 1 ? Int(parts[1])! : 0
+    let point =
+      mantissa.firstIndex(of: ".").map { mantissa.distance(from: mantissa.startIndex, to: $0) }
+      ?? mantissa.count
+    var digits = Array(mantissa.filter { $0 != "." })
+    var n = point + exponent
+    while digits.first == "0" {
+      digits.removeFirst()
+      n -= 1
     }
-    return value.description
+    while digits.last == "0" { digits.removeLast() }
+    let k = digits.count
+    let text: String
+    if k <= n && n <= 21 {
+      text = String(digits) + String(repeating: "0", count: n - k)
+    } else if 0 < n && n <= 21 {
+      text = String(digits[..<n]) + "." + String(digits[n...])
+    } else if -6 < n && n <= 0 {
+      text = "0." + String(repeating: "0", count: -n) + String(digits)
+    } else {
+      let e = n - 1
+      let sign = e < 0 ? "-" : "+"
+      text =
+        (k == 1 ? String(digits) : "\(digits[0]).\(String(digits[1...]))") + "e\(sign)\(abs(e))"
+    }
+    return (value < 0 ? "-" : "") + text
   }
 
   /// A string as JSON, escaped as `JSON.stringify` escapes it.

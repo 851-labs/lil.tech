@@ -26,7 +26,9 @@ struct CardPositionTests {
 
   @Test
   func invalid() {
-    for (a, b) in [("a0", "a0"), ("a00", nil), ("", nil), ("b1", nil), (nil, "a")]
+    for (a, b) in [
+      ("a0", "a0"), ("a00", nil), ("", nil), ("b1", nil), (nil, "a"), ("a0-", nil), ("a0", "a0~"),
+    ]
       as [(String?, String?)]
     {
       #expect(throws: CardPosition.InvalidPosition.self, "\(a ?? "nil") \(b ?? "nil")") {
@@ -42,6 +44,9 @@ struct CardPositionTests {
     let keys = try CardPosition.between("a0", "a1", count: 5)
     #expect(keys == keys.sorted() && Set(keys).count == 5)
     #expect(keys.allSatisfy { $0 > "a0" && $0 < "a1" })
+    // Bounds the wrong way round still give ascending positions.
+    #expect(
+      try CardPosition.between("a1", "a0", count: 2) == CardPosition.between("a0", "a1", count: 2))
   }
 
   /// Moving cards around keeps every position between its neighbors', and short.
