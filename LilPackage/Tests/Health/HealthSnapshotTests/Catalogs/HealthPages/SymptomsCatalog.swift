@@ -20,20 +20,7 @@
   let symptomsCatalog = StateCatalog(
     "Symptoms", width: 760, minHeight: 900,
     states: [
-      CatalogState("Headache, week") {
-        symptom(
-          headache, .week,
-          [
-            Logged(hours: 8, value: 2),
-            Logged(hours: 24 + 9, duration: 2, value: 3),
-            // The day's highest is its bar.
-            Logged(hours: 24 + 15, duration: 3, value: 4, source: "Synthetic Watch"),
-            Logged(hours: 72 + 10, value: 0),
-            // Listed, not charted.
-            Logged(hours: 96 + 20, value: 1),
-            Logged(hours: 120 + 7.5, duration: 1, value: 2),
-          ])
-      },
+      CatalogState("Headache, week") { symptom(headache, .week, weekOfHeadaches) },
       CatalogState("Headache, day") {
         symptom(
           headache, .day,
@@ -104,10 +91,35 @@
       },
       CatalogState("No headache") { symptom(headache, .week, []) },
       CatalogState("Headache loading") { symptom(headache, .week, .loading) },
+      // M pressed: the week stays, with a spinner, until the month loads (851-3089).
+      CatalogState("Headache, loading the month") {
+        symptom(
+          headache, .month, .loaded(chart(headache, .week, weekOfHeadaches), isUpdating: true))
+      },
       CatalogState("Headache failed") {
         symptom(headache, .week, .failed("The database couldn't be read."))
       },
+    ],
+    // The links stay put, loading or not, whatever the period's entries (851-3089).
+    sameLayout: [
+      [
+        "Headache, week", "Headache loading", "Headache, loading the month", "Headache, day",
+        "Headache, month", "Headache, 6 months", "Headache, year", "Mood changes",
+        "Appetite changes", "Headache, more than 100 entries", "No headache", "Headache failed",
+      ]
     ])
+
+  /// A week of headaches.
+  private let weekOfHeadaches = [
+    Logged(hours: 8, value: 2),
+    Logged(hours: 24 + 9, duration: 2, value: 3),
+    // The day's highest is its bar.
+    Logged(hours: 24 + 15, duration: 3, value: 4, source: "Synthetic Watch"),
+    Logged(hours: 72 + 10, value: 0),
+    // Listed, not charted.
+    Logged(hours: 96 + 20, value: 1),
+    Logged(hours: 120 + 7.5, duration: 1, value: 2),
+  ]
 
   private let headache = HealthCatalog.type(id: "HKCategoryTypeIdentifierHeadache")!
   private let moodChanges = HealthCatalog.type(id: "HKCategoryTypeIdentifierMoodChanges")!

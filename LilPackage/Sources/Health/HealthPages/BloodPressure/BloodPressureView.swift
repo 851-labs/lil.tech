@@ -12,32 +12,50 @@ public import SwiftUI
 public struct BloodPressureView: View {
   @State private var range = ChartRange.week
   @State private var offset = 0
-  /// Moves at midnight, so the periods do.
-  @State private var today = Date.now
-  @Fetch private var chart: BloodPressureChart? = nil
+  /// Moves at midnight, so the periods do. From the `date` dependency, as the calendar is.
+  @State private var today: Date
+  /// The last period loaded. While another loads, the page keeps showing it (851-3089).
+  @Fetch private var period: BloodPressurePeriod? = nil
 
-  public init() {}
+  @Dependency(\.date) private var date
+  @Dependency(\.calendar) private var calendar
+
+  public init() {
+    @Dependency(\.date.now) var now
+    _today = State(initialValue: now)
+  }
 
   public var body: some View {
-    let interval = range.interval(offset: offset, now: today, calendar: .current)
-    BloodPressureContent(
-      range: $range, offset: $offset,
-      state: $chart.loadError.map { .failed($0.localizedDescription) }
-        ?? {
-          // The period being loaded, not the one before it, drawn as the new range.
-          guard let chart, chart.interval == interval else { return .loading }
-          return .loaded(chart)
-        }()
-    )
-    .task(id: [range.rawValue, String(offset), today.formatted(.iso8601)]) {
-      _ = try? await $chart.load(
-        BloodPressureRequest(range: range, offset: offset, now: today),
-        scheduler: MainQueueScheduler())
-    }
-    .onReceive(calendarDayChanges()) {
-      today = .now
-    }
+    BloodPressureContent(range: $range, offset: $offset, state: state)
+      // Today's start in the page's calendar, so a new day is a new load.
+      .task(id: [
+        range.rawValue, String(offset),
+        "\(calendar.startOfDay(for: today).timeIntervalSince1970)",
+      ]) {
+        _ = try? await $period.load(
+          BloodPressureRequest(range: range, offset: offset, now: today, calendar: calendar),
+          scheduler: MainQueueScheduler())
+      }
+      .onReceive(calendarDayChanges()) {
+        today = date.now
+      }
   }
+
+  /// The period loaded last, updating while it's another period or a load is running.
+  private var state: BloodPressureContent.State {
+    if let error = $period.loadError { return .failed(error.localizedDescription) }
+    guard let period else { return .loading }
+    let interval = range.interval(offset: offset, now: today, calendar: calendar)
+    return .loaded(
+      period,
+      isUpdating: $period.isLoading || period.range != range || period.chart.interval != interval)
+  }
+}
+
+/// A period's chart, with the range it's for.
+struct BloodPressurePeriod: Equatable, Sendable {
+  let range: ChartRange
+  let chart: BloodPressureChart
 }
 
 struct BloodPressureRequest: FetchKeyRequest {
@@ -45,23 +63,30 @@ struct BloodPressureRequest: FetchKeyRequest {
   let offset: Int
   /// The day it's for, so a new day is a new request.
   let now: Date
+  let calendar: Calendar
 
-  func fetch(_ db: Database) throws -> BloodPressureChart? {
-    try HealthDatabase.bloodPressureChart(
-      range: range, offset: offset, now: now, calendar: .current, db)
+  func fetch(_ db: Database) throws -> BloodPressurePeriod? {
+    BloodPressurePeriod(
+      range: range,
+      chart: try HealthDatabase.bloodPressureChart(
+        range: range, offset: offset, now: now, calendar: calendar, db))
   }
 }
 
 /// What Blood Pressure shows, however it got it.
 struct BloodPressureContent: View {
   enum State {
+    /// Nothing to show yet: placeholders take the loaded page's space (851-3089).
     case loading
-    case loaded(BloodPressureChart)
+    /// A period's chart. Updating while another period, or the same one again, loads: it stays
+    /// on screen, with a spinner, rather than the page blanking.
+    case loaded(BloodPressurePeriod, isUpdating: Bool = false)
     case failed(String)
   }
 
-  @Binding var range: ChartRange
-  @Binding var offset: Int
+  /// The period chosen in the toolbar, which can be ahead of the one shown (`range`).
+  @Binding private var selectedRange: ChartRange
+  @Binding private var selectedOffset: Int
   let state: State
   /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`): the header
   /// shows the period around now before a chart loads.
@@ -74,8 +99,24 @@ struct BloodPressureContent: View {
   /// How many of the period's readings the list shows.
   static let readingLimit = 100
 
+  init(range: Binding<ChartRange>, offset: Binding<Int>, state: State) {
+    _selectedRange = range
+    _selectedOffset = offset
+    self.state = state
+  }
+
   private var chart: BloodPressureChart? {
-    if case .loaded(let chart) = state { chart } else { nil }
+    if case .loaded(let period, _) = state { period.chart } else { nil }
+  }
+
+  /// The range shown: the loaded chart's, which stays while another loads, or the one chosen
+  /// before any has loaded. Everything drawn uses it, never the selection.
+  private var range: ChartRange {
+    if case .loaded(let period, _) = state { period.range } else { selectedRange }
+  }
+
+  private var isUpdating: Bool {
+    if case .loaded(_, let isUpdating) = state { isUpdating } else { false }
   }
 
   var body: some View {
@@ -91,6 +132,8 @@ struct BloodPressureContent: View {
             legend("Systolic", Self.systolicColor)
             legend("Diastolic", Self.diastolicColor)
           }
+          // The section's end: the readings below it start here, loading or not.
+          .layoutAnchor("Legend")
         }
         .padding(.vertical, 6)
       }
@@ -100,7 +143,7 @@ struct BloodPressureContent: View {
     }
     .formStyle(.grouped)
     .navigationTitle("Blood Pressure")
-    .periodControls(PagePeriod(range: $range, offset: $offset))
+    .periodControls(PagePeriod(range: $selectedRange, offset: $selectedOffset))
   }
 
   // MARK: Header
@@ -128,10 +171,9 @@ struct BloodPressureContent: View {
             .foregroundStyle(.secondary)
         }
       }
-      if let span = BloodPressureFormat.span(shown.span) {
-        Text("Range \(span)")
-          .foregroundStyle(.secondary)
-      }
+      // Always a line, so the header's height doesn't change as a period loads (851-3089).
+      Text("Range \(BloodPressureFormat.span(shown.span) ?? "–")")
+        .foregroundStyle(.secondary)
       Text(
         point.map { point in
           // A reading (a day or a week) by its time, a bucket by its period.
@@ -140,11 +182,15 @@ struct BloodPressureContent: View {
             : ChartFormat.bucket(point.start, range: range, calendar: calendar)
         }
           ?? ChartFormat.span(
-            chart?.interval ?? range.interval(offset: offset, now: now, calendar: calendar),
+            chart?.interval
+              ?? selectedRange.interval(offset: selectedOffset, now: now, calendar: calendar),
             range: range, calendar: calendar)
       )
       .foregroundStyle(.secondary)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    // While another period loads, over the one shown.
+    .updatingIndicator(isUpdating)
   }
 
   private func legend(_ name: String, _ color: Color) -> some View {
@@ -171,7 +217,8 @@ struct BloodPressureContent: View {
       )
       // A form's row would otherwise give it only its ideal width, off center.
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-    case .loaded(let chart):
+    case .loaded(let period, _):
+      let chart = period.chart
       let perReading = range == .day || range == .week
       Chart {
         ForEach(Array(chart.points.enumerated()), id: \.offset) { _, point in

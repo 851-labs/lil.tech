@@ -14,7 +14,9 @@
 
   /// The catalogs whose layouts are checked. Add a catalog here when it names `sameLayout` groups:
   /// `everyCatalogWithSameLayoutIsChecked` fails until you do.
-  private let layoutCheckedCatalogs = [sleepCatalog, metricDetailCatalog]
+  private let layoutCheckedCatalogs = [
+    sleepCatalog, metricDetailCatalog, bloodPressureCatalog, symptomsCatalog,
+  ]
 
   extension MacSnapshotTests {
     @Test(arguments: layoutCheckedCatalogs.flatMap { $0.sameLayout })
