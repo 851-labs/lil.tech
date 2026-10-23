@@ -47,9 +47,9 @@ struct HealthDetailsContent: View {
   var body: some View {
     Group {
       switch state {
+      // The page's rows, without values yet, so nothing moves when they load (851-3092).
       case .loading:
-        ProgressView()
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
+        form(nil)
       case .failed(let reason):
         ContentUnavailableView(
           "Couldn't Load Health Details", systemImage: "exclamationmark.triangle",
@@ -64,12 +64,21 @@ struct HealthDetailsContent: View {
   }
 
   /// A grouped form, as Data Sources is (851-3005): the profile under its picture, then Vision.
-  private func form(_ details: HealthDetails) -> some View {
-    let rows = HealthDetailsFormat.rows(details, now: now, calendar: calendar)
+  /// Without values while they load.
+  private func form(_ details: HealthDetails?) -> some View {
+    let rows = HealthDetailsFormat.rows(
+      details ?? HealthDetails(characteristics: []), now: now, calendar: calendar)
     return Form {
       Section {
         ForEach(rows, id: \.name) { row in
-          LabeledContent(row.name, value: row.value)
+          if details == nil {
+            LabeledContent(row.name) {
+              Text("–")
+                .accessibilityLabel("Loading")
+            }
+          } else {
+            LabeledContent(row.name, value: row.value)
+          }
         }
       } header: {
         Image(systemName: "person.crop.circle.fill")
@@ -80,7 +89,7 @@ struct HealthDetailsContent: View {
           .accessibilityHidden(true)
       } footer: {
         Text(
-          details.hasSynced
+          details?.hasSynced ?? true
             ? "Health Details come from Health on your iPhone. Change them there."
             : "Health Details appear here once lil health on your iPhone can read them from Health."
         )
@@ -96,6 +105,7 @@ struct HealthDetailsContent: View {
               .foregroundStyle(.blue)
           }
         }
+        .layoutAnchor("Vision")
       }
     }
     .formStyle(.grouped)
