@@ -126,6 +126,8 @@
         "A characteristic",
         "No data",
         "Loading",
+        "Steps, loading the week before",
+        "Steps, loading the month",
         "Failed",
         "Stand hours, day",
         "Mindful minutes, week",
@@ -138,7 +140,11 @@
       "id": "heart-rate",
       "screen": "HealthMacApp/MetricDetailCatalog.swift",
       "title": "Heart Rate",
-      "states": ["Heart rate with resting and walking"]
+      "states": [
+        "Heart rate with resting and walking",
+        "Heart rate, loading",
+        "Heart rate, lines loading"
+      ]
     },
     {
       "id": "beat-to-beat",

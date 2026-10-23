@@ -20,29 +20,7 @@
     fileID: StaticString = #fileID, file: StaticString = #filePath, testName: String = #function,
     line: UInt = #line, column: UInt = #column
   ) {
-    prepareSnapshotEnvironment()
-    // The app's too, as Pixelbook sets it: Swift Charts' axis labels take the app's appearance,
-    // so a dark snapshot taken after a light one could get light mode's labels.
-    NSApplication.shared.appearance = NSAppearance(named: appearance)
-    // Laid out at 2x from the start (851-2986). `NSWindow(contentViewController:)` has SwiftUI
-    // lay the view out before it's in the window, at its default display scale of 1x, then again
-    // at the window's 2x. Now and then a snapshot kept part of the 1x layout: Blood Pressure's
-    // legend dot half a point up, where 1x rounds it (851-2987). With the scale fixed, each pass
-    // rounds the same. (Putting the view into a window that's already 2x instead had AppKit lay
-    // the window's toolbar out at the screen's scale: 1x on the minis, which drew it apart.)
-    let controller = NSHostingController(
-      rootView: view.environment(\.locale, Locale(identifier: "en_US"))
-        .environment(\.displayScale, snapshotScale))
-    controller.sizingOptions = [.preferredContentSize]
-    let window = SnapshotWindow(contentViewController: controller)
-    window.isReleasedWhenClosed = false
-    window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-    window.title = name
-    window.appearance = NSAppearance(named: appearance)
-    window.setContentSize(controller.view.fittingSize)
-    // Let SwiftUI lay out and draw, and charts settle.
-    controller.view.layoutSubtreeIfNeeded()
-    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    let window = snapshotWindow(of: view, appearance: appearance, title: name)
     let suffix = appearance == .darkAqua ? "dark" : "light"
     let output = SnapshotOutput(file: file, testName: screen, name: "\(name)-\(suffix)")
     if snapshotsRenderOnly {
@@ -71,6 +49,39 @@
           fileID: "\(fileID)", filePath: "\(file)", line: Int(line), column: Int(column)))
     }
     window.close()
+  }
+
+  /// A window showing `view` as a snapshot draws it, laid out and settled: in a window with a
+  /// title bar (so its toolbar renders) of the given appearance, at its fitting size, at 2x. Close
+  /// it when done.
+  @MainActor
+  func snapshotWindow(
+    of view: some View, appearance: NSAppearance.Name, title: String
+  ) -> NSWindow {
+    prepareSnapshotEnvironment()
+    // The app's too, as Pixelbook sets it: Swift Charts' axis labels take the app's appearance,
+    // so a dark snapshot taken after a light one could get light mode's labels.
+    NSApplication.shared.appearance = NSAppearance(named: appearance)
+    // Laid out at 2x from the start (851-2986). `NSWindow(contentViewController:)` has SwiftUI
+    // lay the view out before it's in the window, at its default display scale of 1x, then again
+    // at the window's 2x. Now and then a snapshot kept part of the 1x layout: Blood Pressure's
+    // legend dot half a point up, where 1x rounds it (851-2987). With the scale fixed, each pass
+    // rounds the same. (Putting the view into a window that's already 2x instead had AppKit lay
+    // the window's toolbar out at the screen's scale: 1x on the minis, which drew it apart.)
+    let controller = NSHostingController(
+      rootView: view.environment(\.locale, Locale(identifier: "en_US"))
+        .environment(\.displayScale, snapshotScale))
+    controller.sizingOptions = [.preferredContentSize]
+    let window = SnapshotWindow(contentViewController: controller)
+    window.isReleasedWhenClosed = false
+    window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+    window.title = title
+    window.appearance = NSAppearance(named: appearance)
+    window.setContentSize(controller.view.fittingSize)
+    // Let SwiftUI lay out and draw, and charts settle.
+    controller.view.layoutSubtreeIfNeeded()
+    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    return window
   }
 
   /// What every snapshot shares, set once in the target's test process (SwiftPM runs each test

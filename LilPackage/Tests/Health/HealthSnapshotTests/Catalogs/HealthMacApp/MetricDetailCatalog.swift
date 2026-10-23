@@ -48,18 +48,40 @@
       CatalogState("No data") {
         detail(
           "HKQuantityTypeIdentifierBodyMass", .week,
-          state: .loaded(
-            MetricChart(
-              interval: ChartRange.week.interval(
-                offset: 0, now: previewNow, calendar: previewCalendar),
-              points: [], summary: nil)))
+          chart: MetricChart(
+            interval: ChartRange.week.interval(
+              offset: 0, now: previewNow, calendar: previewCalendar),
+            points: [], summary: nil))
       },
       CatalogState("Loading") { detail(steps, .week, state: .loading) },
+      // ‹ pressed: this week stays, with a spinner, until the week before loads (851-3084).
+      CatalogState("Steps, loading the week before") {
+        detail(
+          steps, .week, offset: -1,
+          state: .loaded(
+            PeriodChart(range: .week, offset: 0, chart: storedChart(steps, .week)), isUpdating: true
+          ))
+      },
+      // M pressed: the week stays until the month loads.
+      CatalogState("Steps, loading the month") {
+        detail(
+          steps, .month,
+          state: .loaded(
+            PeriodChart(range: .week, offset: 0, chart: storedChart(steps, .week)), isUpdating: true
+          ))
+      },
+      // Before its lines load, or in a period without them, the legend's row stays.
+      CatalogState("Heart rate, loading", minHeight: 720) {
+        detail(heartRate, .week, offset: -1, state: .loading)
+      },
       CatalogState("Failed") {
         detail(steps, .week, state: .failed("The database couldn't be read."))
       },
       CatalogState("Heart rate with resting and walking", minHeight: 720) {
         heartRateWithOverlays()
+      },
+      CatalogState("Heart rate, lines loading", minHeight: 720) {
+        heartRateWithOverlays(overlays: false)
       },
       CatalogState("Environmental sound levels, week", minHeight: 720) { soundLevels() },
       // Heart rate variability also links to the beat-to-beat measurements: three rows.
@@ -88,38 +110,55 @@
           HealthDatabase.toothbrushingType, .year,
           values: [1.8, 1.9, 2, 1.7, 2, 1.9, 2, 2, 1.6, 1.8], summary: .averageDuration(118))
       },
+    ],
+    // What's below the chart stays put while it loads, and whatever the period shows (851-3084).
+    // Heart rate keeps a row for its lines' legend.
+    sameLayout: [
+      [
+        "Steps, week", "Loading", "Steps, loading the week before", "Steps, loading the month",
+        "Steps, the week before", "Steps, day", "Steps, 6 months", "No data", "Failed",
+        "Environmental sound levels, week", "Stand hours, day", "Mindful minutes, week",
+        "Handwashing, month", "Toothbrushing, year",
+      ],
+      [
+        "Heart rate with resting and walking", "Heart rate, loading", "Heart rate, lines loading",
+        "Heart rate, month", "Heart rate, day", "Heart rate, year",
+      ],
     ])
 
   private let steps = "HKQuantityTypeIdentifierStepCount"
   private let heartRate = HealthDatabase.heartRateType
 
-  /// The detail of a type, in a navigation stack for its title and toolbar: its chart from the
-  /// catalog database, unless given a state.
+  /// The detail of a type, in a navigation stack for its title and toolbar: its chart for the
+  /// period, from the catalog database unless given one, or the state given.
   @MainActor
   private func detail(
-    _ id: String, _ range: ChartRange, offset: Int = 0, state: MetricDetailContent.State? = nil,
-    overlays: [MetricOverlay] = []
+    _ id: String, _ range: ChartRange, offset: Int = 0, chart: MetricChart? = nil,
+    state: MetricDetailContent.State? = nil, overlays: [MetricOverlay] = []
   ) -> some View {
     let type = HealthCatalog.type(id: id)!
+    let loaded = PeriodChart(
+      range: range, offset: offset, chart: chart ?? storedChart(id, range, offset: offset))
     return NavigationStack {
       MetricDetailContent(
         type: type, range: .constant(range), offset: .constant(offset),
-        state: state ?? .loaded(chart(type, range, offset: offset)), overlays: overlays)
+        state: state ?? .loaded(loaded), overlays: overlays)
     }
   }
 
-  private func chart(_ type: HealthDataType, _ range: ChartRange, offset: Int = 0) -> MetricChart {
-    try! catalogDatabase.read { db in
+  private func storedChart(_ id: String, _ range: ChartRange, offset: Int = 0) -> MetricChart {
+    let type = HealthCatalog.type(id: id)!
+    return try! catalogDatabase.read { db in
       try HealthDatabase.metricChart(
         of: type, range: range, offset: offset, now: previewNow, calendar: previewCalendar, db)
     }
   }
 
   /// Last week's heart rate (the data's two weeks end today), with made-up daily averages for
-  /// resting and walking.
+  /// resting and walking, unless they're still loading.
   @MainActor
-  private func heartRateWithOverlays() -> some View {
-    let chart = chart(HealthCatalog.type(id: heartRate)!, .week, offset: -1)
+  private func heartRateWithOverlays(overlays: Bool = true) -> some View {
+    let chart = storedChart(heartRate, .week, offset: -1)
     let resting = MetricOverlay(
       name: "Resting", color: .blue,
       points: chart.points.enumerated().map { index, point in
@@ -131,7 +170,7 @@
         ChartPoint(start: point.start, value: 96 + Double((index * 5) % 9))
       }, range: .week, offset: -1)
     return detail(
-      heartRate, .week, offset: -1, state: .loaded(chart), overlays: [resting, walking])
+      heartRate, .week, offset: -1, chart: chart, overlays: overlays ? [resting, walking] : [])
   }
 
   /// A week of daily ranges, two days loud.
@@ -151,7 +190,7 @@
         start: days[0], end: calendar.date(byAdding: .day, value: 1, to: today)!),
       points: points, summary: .range(minimum: 38, maximum: 91))
     return detail(
-      "HKQuantityTypeIdentifierEnvironmentalAudioExposure", .week, state: .loaded(chart))
+      "HKQuantityTypeIdentifierEnvironmentalAudioExposure", .week, chart: chart)
   }
 
   /// A category type's chart from made-up values, one per bar from the period's start.
@@ -167,6 +206,6 @@
       return ChartPoint(start: start, value: value)
     }
     return detail(
-      id, range, state: .loaded(MetricChart(interval: interval, points: points, summary: summary)))
+      id, range, chart: MetricChart(interval: interval, points: points, summary: summary))
   }
 #endif

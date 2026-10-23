@@ -24,7 +24,14 @@
       CatalogState("The night before") {
         detail(.day, offset: -1, .loaded(nights(.day, offset: -1)))
       },
+      // ‹ pressed: tonight stays, with a spinner, until the night before loads (851-3084).
+      CatalogState("Night, loading the night before") {
+        detail(.day, offset: -1, .loaded(nights(.day), isUpdating: true))
+      },
       CatalogState("Week") { detail(.week, .loaded(nights(.week))) },
+      CatalogState("Week, loading the week before") {
+        detail(.week, offset: -1, .loaded(nights(.week), isUpdating: true))
+      },
       // E.g. an iPhone's estimate, without a Watch: asleep and awake only.
       CatalogState("Night without stages") {
         let day = previewCalendar.startOfDay(for: previewNow)
@@ -39,19 +46,35 @@
             stage: .asleep, start: day.addingTimeInterval(3.3 * 3600),
             end: day.addingTimeInterval(6.5 * 3600)),
         ]
-        detail(.day, .loaded([SleepNight(day: day, segments: segments, inBed: 8 * 3600)]))
+        detail(
+          .day,
+          .loaded(
+            SleepPeriod(
+              range: .day, lastDay: day,
+              nights: [SleepNight(day: day, segments: segments, inBed: 8 * 3600)])))
       },
-      CatalogState("No sleep") { detail(.day, .loaded([])) },
+      CatalogState("No sleep") {
+        detail(
+          .day,
+          .loaded(
+            SleepPeriod(
+              range: .day, lastDay: previewCalendar.startOfDay(for: previewNow), nights: [])))
+      },
       CatalogState("Loading") { detail(.day, .loading) },
       CatalogState("Failed") { detail(.week, .failed("The database couldn't be read.")) },
+    ],
+    // What's below the content stays put while it loads (851-3084).
+    sameLayout: [
+      ["Loading", "Night", "The night before", "Night, loading the night before", "No sleep"],
+      ["Week", "Week, loading the week before", "Failed"],
     ])
 
   private let sleepType = HealthCatalog.type(id: HealthDatabase.sleepType)!
 
-  private func nights(_ range: SleepRange, offset: Int = 0) -> [SleepNight] {
+  private func nights(_ range: SleepRange, offset: Int = 0) -> SleepPeriod {
     try! catalogDatabase.read { db in
       try SleepRequest(range: range, offset: offset, day: previewNow, calendar: previewCalendar)
-        .fetch(db)
+        .fetch(db)!
     }
   }
 
