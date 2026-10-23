@@ -1,0 +1,52 @@
+#!/bin/sh
+# Checks that the paths which run the iPhone's snapshot tests on a pull request (`IPHONE` in
+# `.github/actions/changes/action.yml`, 851-3070) cover every module those tests are built from:
+# the package products `PhoneSnapshots.xcodeproj` links, and the package targets they depend on,
+# from `swift package dump-package`. A module they miss would change the iPhone's images without
+# their tests running before the merge. `scripts/check --swift` runs it.
+set -eu
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+package=$(mktemp)
+trap 'rm -f "$package"' EXIT
+(cd "$root/LilPackage" && swift package dump-package) >"$package"
+python3 -I - "$package" "$root/LilPackage/Tests/Health/PhoneSnapshots/PhoneSnapshots.xcodeproj/project.pbxproj" \
+  "$root/.github/actions/changes/action.yml" <<'EOF'
+import json, re, sys
+
+package_path, project_path, action_path = sys.argv[1:]
+targets = {target["name"]: target for target in json.load(open(package_path))["targets"]}
+project = open(project_path).read()
+action = open(action_path).read()
+
+pattern = re.search(r"^\s*IPHONE: '(.*)'$", action, re.MULTILINE)
+if not pattern:
+    sys.exit(f"error: no IPHONE paths in {action_path}")
+iphone = re.compile(pattern.group(1).replace("''", "'"))
+
+# The products the project links that are the package's own targets (not TCA's or SnapshotTesting's).
+roots = [name for name in re.findall(r"productName = (\w+);", project) if name in targets]
+modules = set()
+def visit(name):
+    if name in modules or name not in targets:
+        return
+    modules.add(name)
+    for dependency in targets[name]["dependencies"]:
+        for kind in ("byName", "target"):
+            if kind in dependency:
+                visit(dependency[kind][0])
+for name in roots:
+    visit(name)
+
+missing = []
+for name in sorted(modules):
+    path = targets[name].get("path") or f"Sources/{name}"
+    if not iphone.search(f"LilPackage/{path}/Example.swift"):
+        missing.append(f"LilPackage/{path}/")
+if missing:
+    print("error: the iPhone's snapshot tests are built from these, which IPHONE in "
+          ".github/actions/changes/action.yml doesn't cover, so a pull request changing them "
+          "wouldn't run those tests:", *missing, sep="\n  ", file=sys.stderr)
+    sys.exit(1)
+print(f"The iPhone's snapshot paths cover its {len(modules)} modules.")
+EOF
