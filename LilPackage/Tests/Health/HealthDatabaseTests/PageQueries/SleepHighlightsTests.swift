@@ -331,4 +331,11 @@ struct SleepHighlightsTests {
     try insert(night(0, bedtime: 14, hours: 1, stage: .core))
     #expect(try highlights().stages == nil)
   }
+
+  @Test
+  func stagesArentTheNightBefores() throws {
+    // No night last night: the night before's stages aren't shown as last night's.
+    try insert(night(-1, stage: .deep))
+    #expect(try highlights().stages == nil)
+  }
 }

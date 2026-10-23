@@ -376,7 +376,8 @@ struct SleepDetailContent: View {
 
   /// The night's stages over time, a row each, as in Health.
   private func stagesChart(_ night: SleepNight) -> some View {
-    stagesChart(night.segments, rows: SleepFormat.rows(for: night))
+    SleepStagesChart(
+      segments: night.segments, rows: SleepFormat.rows(for: night), calendar: calendar)
   }
 
   /// A day without a night (851-3102): the rows of the stages a Watch records, empty, over the
@@ -386,7 +387,7 @@ struct SleepDetailContent: View {
     let hours = SleepClock.axis([]).domain
     let start = clockTime(hours.lowerBound, from: day)
     let end = clockTime(hours.upperBound, from: day)
-    return stagesChart([], rows: [.awake, .rem, .core, .deep])
+    return SleepStagesChart(segments: [], rows: [.awake, .rem, .core, .deep], calendar: calendar)
       .chartXScale(domain: start...end)
   }
 
@@ -398,11 +399,6 @@ struct SleepDetailContent: View {
     return calendar.date(byAdding: .day, value: days, to: day)
       .flatMap { calendar.date(bySettingHour: hour, minute: 0, second: 0, of: $0) }
       ?? day.addingTimeInterval(hours * 3600)
-  }
-
-  /// Stages over time, a row each (`SleepStagesChart`).
-  private func stagesChart(_ segments: [SleepSegment], rows: [SleepStage]) -> some View {
-    SleepStagesChart(segments: segments, rows: rows)
   }
 
   // MARK: Stages

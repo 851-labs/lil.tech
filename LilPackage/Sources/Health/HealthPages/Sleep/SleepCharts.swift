@@ -245,6 +245,8 @@ private func sleepClockAxis(marks: [Double], calendar: Calendar) -> some AxisCon
 struct SleepStagesChart: View {
   let segments: [SleepSegment]
   let rows: [SleepStage]
+  /// The page's, whose hours the x-axis marks.
+  let calendar: Calendar
   /// Each bar's height: a share of its row, or fixed.
   var barHeight: MarkDimension = .ratio(0.7)
 
@@ -278,5 +280,8 @@ struct SleepStagesChart: View {
         AxisValueLabel(format: .dateTime.hour())
       }
     }
+    // Hours in the page's calendar and time zone, as the night's are.
+    .environment(\.calendar, calendar)
+    .environment(\.timeZone, calendar.timeZone)
   }
 }

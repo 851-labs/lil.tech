@@ -15,12 +15,13 @@ struct SleepStagesHighlight: View {
       sentence: "Here are the stages you were in while you slept last night."
     ) {
       let rows = SleepFormat.rows(for: night)
-      SleepStagesChart(segments: night.segments, rows: rows, barHeight: .fixed(10))
-        // A lane each, tall enough for its name over its bars.
-        .frame(height: CGFloat(rows.count) * 36 + 20)
-        // Hours in the page's calendar and time zone, as the night's are.
-        .environment(\.calendar, calendar)
-        .environment(\.timeZone, calendar.timeZone)
+      SleepStagesChart(
+        segments: night.segments, rows: rows, calendar: calendar, barHeight: .fixed(10)
+      )
+      // A lane each, tall enough for its name over its bars, and the hours under them.
+      .frame(
+        height: CGFloat(rows.count) * SleepHighlightStyle.stageLaneHeight
+          + SleepHighlightStyle.hourAxisHeight)
     }
   }
 }
