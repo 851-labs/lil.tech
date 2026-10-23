@@ -52,7 +52,7 @@
           .mobility, .loaded(HealthCatalog.types(in: .mobility).map { MetricSummary(id: $0.id) }))
       },
       // Sound levels show their week's exposure in place of a value (851-3100): within the
-      // limit in the catalog database, its twice-daily minute under 80 dB.
+      // limit in the catalog database, a minute every 2 hours, none over 85 dB.
       CatalogState("Hearing") { metrics(.hearing) },
       // Headphones over it, the environment within it.
       CatalogState("Hearing, over the limit") {

@@ -1841,6 +1841,42 @@ struct PreviewHealthDatabaseTests {
     #expect(catalog == again)
   }
 
+  /// Each quantity type's synthetic values (851-3115) are a day's total for a cumulative type, and
+  /// readings for the others.
+  @Test
+  func everyQuantityTypeHasValuesOfItsAggregation() {
+    for type in HealthCatalog.all where type.kind == .quantity {
+      switch PreviewValues.of(type) {
+      case .daily:
+        #expect(type.aggregation?.isCumulative == true, "\(type.id) has daily totals")
+      case .readings:
+        #expect(type.aggregation?.isCumulative == false, "\(type.id) has readings")
+      }
+    }
+  }
+
+  /// The catalog database's values are one person's (851-3115), not a height of 353 m or a body
+  /// fat of 95 %: every reading of these types, in their stored units, is in a plausible range.
+  @Test
+  func catalogValuesArePlausible() throws {
+    let plausible: [String: ClosedRange<Double>] = [
+      "Height": 1.6...1.9, "WaistCircumference": 0.7...1, "BodyFatPercentage": 0.12...0.3,
+      "BodyMassIndex": 19...28, "BodyMass": 55...90, "LeanBodyMass": 40...70, "VO2Max": 30...50,
+      "HeartRateVariabilitySDNN": 20...90, "OxygenSaturation": 0.94...1,
+      "EnvironmentalAudioExposure": 50...85, "RestingHeartRate": 45...75,
+      "RunningGroundContactTime": 180...320, "BloodPressureSystolic": 100...140,
+    ]
+    let readings = try catalogDatabase.read { db in
+      try HealthSample.all.fetchAll(db)
+    }
+    for (name, range) in plausible {
+      let values = readings.filter { $0.type == "HKQuantityTypeIdentifier\(name)" }
+        .compactMap(\.value)
+      #expect(!values.isEmpty, "No \(name)")
+      #expect(values.allSatisfy(range.contains), "\(name): \(values.min()!)–\(values.max()!)")
+    }
+  }
+
   /// Every table's rows, sorted.
   private func contents(of database: any DatabaseWriter) throws -> [String] {
     try database.read { db in
