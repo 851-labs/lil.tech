@@ -28,7 +28,9 @@ public struct ActivityRingsView: View {
       state: $month.loadError.map { .failed($0.localizedDescription) }
         ?? month.map { .loaded($0, isUpdating: $month.isLoading || $0.month != interval) }
         ?? .loading,
-      previous: { monthOffset -= 1 }, next: { monthOffset += 1 }, isLatest: monthOffset >= 0
+      // Not before the month to open on is known, which would move it from under the arrows.
+      previous: { if isPositioned { monthOffset -= 1 } },
+      next: { if isPositioned { monthOffset += 1 } }, isLatest: monthOffset >= 0
     )
     .task(id: [String(monthOffset), today.formatted(.iso8601)]) {
       if !isPositioned {
@@ -134,23 +136,27 @@ struct ActivityRingsContent: View {
       Section {
         VStack(alignment: .leading, spacing: 12) {
           monthHeader
-          switch state {
-          // The month's grid, its days without rings, so the page has its loaded shape.
-          case .loading:
-            calendarGrid([:], isLoading: true)
-          // Over the grid, hidden, so it takes the grid's place exactly, and the arrows still
-          // reach other months.
-          case .failed(let reason):
-            calendarGrid([:], isLoading: true)
-              .hidden()
-              .overlay {
-                ContentUnavailableView(
-                  "Couldn't Load Activity Rings", systemImage: "exclamationmark.triangle",
-                  description: Text(reason))
-              }
-          case .loaded(let month, _):
-            calendarGrid(month.days)
+          Group {
+            switch state {
+            // The month's grid, its days without rings, so the page has its loaded shape.
+            case .loading:
+              calendarGrid([:], isLoading: true)
+            // Over the grid, hidden, so it takes the grid's place exactly, and the arrows still
+            // reach other months.
+            case .failed(let reason):
+              calendarGrid([:], isLoading: true)
+                .hidden()
+                .overlay {
+                  ContentUnavailableView(
+                    "Couldn't Load Activity Rings", systemImage: "exclamationmark.triangle",
+                    description: Text(reason))
+                }
+            case .loaded(let month, _):
+              calendarGrid(month.days)
+            }
           }
+          // The grid's place, which the layout check compares across states.
+          .layoutAnchor("Grid")
         }
         .padding(.vertical, 6)
       }
@@ -182,14 +188,8 @@ struct ActivityRingsContent: View {
     HStack {
       Text(month.start.formatted(.dateTime.month(.wide).year()))
         .font(.title2.bold())
-      // While a month loads: in a slot of its own, so the title never moves.
-      ZStack {
-        if isUpdating {
-          ProgressView()
-            .controlSize(.small)
-        }
-      }
-      .frame(width: 16, height: 16)
+      // While a month loads.
+      UpdatingSlot(isUpdating)
       Spacer()
       Button(action: previous) { Image(systemName: "chevron.left") }
         .accessibilityLabel("Earlier")
@@ -201,7 +201,7 @@ struct ActivityRingsContent: View {
   }
 
   /// The month's grid, always six weeks, so every month, and a loading one, is as tall. While
-  /// loading, its days have no rings yet.
+  /// loading, its days have no rings yet, and can't be chosen or read as having none.
   @ViewBuilder private func calendarGrid(
     _ days: [String: ActivityDay], isLoading: Bool = false
   ) -> some View {
@@ -215,12 +215,16 @@ struct ActivityRingsContent: View {
           .foregroundStyle(.secondary)
       }
       ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
-        if let day {
+        if let day, isLoading {
+          ActivityDayCell(
+            number: calendar.component(.day, from: day), day: nil, isSelected: day == shown,
+            isToday: calendar.isDate(day, inSameDayAs: now), isFuture: true)
+        } else if let day {
           let isToday = calendar.isDate(day, inSameDayAs: now)
           let isFuture = day > today
           ActivityDayCell(
             number: calendar.component(.day, from: day), day: days[key(day)],
-            isSelected: day == shown, isToday: isToday, isFuture: isFuture || isLoading
+            isSelected: day == shown, isToday: isToday, isFuture: isFuture
           )
           // Chosen with the keyboard and VoiceOver too (851-3015). Days to come have no rings to
           // show.
@@ -238,7 +242,6 @@ struct ActivityRingsContent: View {
           // A day's cell, hidden, so a week of blanks is as tall as a week of days (851-3090).
           ActivityDayCell(number: 0, day: nil, isSelected: false, isToday: false, isFuture: true)
             .hidden()
-            .accessibilityHidden(true)
         }
       }
     }
@@ -309,10 +312,9 @@ struct ActivityRingsContent: View {
     }
   }
 
-  /// The day shown's date, which the layout check marks: where the day starts below the grid.
+  /// The day shown's date.
   private var dayHeader: some View {
     Text(shownDay.formatted(date: .complete, time: .omitted))
-      .layoutAnchor("Day")
   }
 
   /// The day while its month loads: its rings' empty tracks, and each ring's name without a value.

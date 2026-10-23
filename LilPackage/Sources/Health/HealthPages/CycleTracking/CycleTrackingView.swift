@@ -51,7 +51,9 @@ public struct CycleTrackingView: View {
               deviations: history.deviations, moreDeviations: history.moreDeviations),
             isUpdating: $days.isLoading || $history.isLoading || days.month != month)
         }(),
-      previous: { monthOffset -= 1 }, next: { monthOffset += 1 },
+      // Not before the month to open on is known, which would move it from under the arrows.
+      previous: { if isPositioned { monthOffset -= 1 } },
+      next: { if isPositioned { monthOffset += 1 } },
       isLatest: monthOffset >= 0, now: today
     )
     .task(id: [String(monthOffset), today.formatted(.iso8601)]) {
@@ -310,14 +312,8 @@ struct CycleTrackingContent: View {
       HStack {
         Text(month.start.formatted(.dateTime.month(.wide).year()))
           .font(.title2.bold())
-        // While a month loads: in a slot of its own, so the title never moves.
-        ZStack {
-          if isUpdating {
-            ProgressView()
-              .controlSize(.small)
-          }
-        }
-        .frame(width: 16, height: 16)
+        // While a month loads.
+        UpdatingSlot(isUpdating)
         Spacer()
         Button(action: previous) { Image(systemName: "chevron.left") }
           .accessibilityLabel("Earlier")
@@ -357,7 +353,6 @@ struct CycleTrackingContent: View {
               day: month.start, entry: nil, isSelected: false, isToday: false, calendar: calendar
             )
             .hidden()
-            .accessibilityHidden(true)
           }
         }
       }

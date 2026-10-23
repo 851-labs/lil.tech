@@ -52,13 +52,13 @@
         activity(.failed("The database couldn't be read."))
       },
     ],
-    // The day starts in the same place below the grid, loading or not, whatever the month
+    // The grid keeps its place and height, loading, loaded or failed, whatever the month
     // (851-3090).
     sameLayout: [
       [
         "Activity Rings", "Activity Rings loading", "Activity Rings, loading the month before",
         "Goal passed twice", "Paused", "Without a Watch", "Move in minutes", "No rings this month",
-        "A six-week month",
+        "A six-week month", "Activity Rings failed",
       ]
     ])
 
