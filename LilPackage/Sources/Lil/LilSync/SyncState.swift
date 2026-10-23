@@ -17,6 +17,16 @@ struct SyncState: Equatable {
   /// The entities the local data holds, sorted and joined with commas, or `nil` from before they
   /// were recorded (taken to be the app's current ones).
   var entities: String?
+  /// A catch-up of entities this release stores and the local data doesn't hold yet, in
+  /// progress (851-3222): their names, sorted and joined with commas, or `nil` when there's none.
+  /// Their records from a snapshot are loaded, and the changes after it, up to `catchUpUntil`,
+  /// are being pulled for them.
+  var catchUpEntities: String? = nil
+  /// The `seq` of the last change the catch-up has pulled.
+  var catchUpAfter: Int? = nil
+  /// The cursor when the catch-up started, where it ends. If the cursor isn't there any more
+  /// (an older release pulled meanwhile), the catch-up starts over.
+  var catchUpUntil: Int? = nil
 }
 
 extension LilSyncEngine {
@@ -38,6 +48,11 @@ extension LilSyncEngine {
     migrator.registerMigration("Add syncSchema to lilSyncState") { db in
       try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "syncSchema" INTEGER"#).execute(db)
       try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "entities" TEXT"#).execute(db)
+    }
+    migrator.registerMigration("Add catch-up to lilSyncState") { db in
+      try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "catchUpEntities" TEXT"#).execute(db)
+      try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "catchUpAfter" INTEGER"#).execute(db)
+      try #sql(#"ALTER TABLE "lilSyncState" ADD COLUMN "catchUpUntil" INTEGER"#).execute(db)
     }
     registerPendingMutations(in: &migrator)
   }

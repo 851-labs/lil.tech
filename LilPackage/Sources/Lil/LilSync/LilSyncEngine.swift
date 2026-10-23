@@ -14,7 +14,9 @@ public enum SyncStatus: Equatable, Sendable {
   /// are left.
   case syncing(cursor: Int, head: Int)
   /// Starting over from a snapshot (`docs/sync/protocol.md`), as a new device does, or one whose
-  /// local data is from another epoch or behind compacted changes.
+  /// local data is from another epoch or behind compacted changes. Also loading a newly stored
+  /// entity's records from one, as a catch-up does (851-3222), whose changes after it then show
+  /// as ``syncing(cursor:head:)``, up to the cursor.
   case bootstrapping(BootstrapProgress)
   /// Caught up with the server as of `at`, the end of the last pull.
   case upToDate(at: Date)
@@ -105,7 +107,9 @@ public actor LilSyncEngine {
   ///   - syncSchema: The app's sync schema number (`docs/sync/protocol.md`). Bump it in a release
   ///     that starts storing a new field of an entity it already had: local data synced with a
   ///     lower number is bootstrapped again, so what was skipped before arrives. New entities don't
-  ///     need a bump: the engine bootstraps again by itself when `entities` gains one.
+  ///     need a bump: when `entities` gains one, the engine catches it up by itself, alone, from
+  ///     the latest snapshot and the changes after it (851-3222), without bootstrapping the
+  ///     others.
   ///   - partsDirectory: Where to keep downloaded snapshot parts until they're loaded. Defaults
   ///     to a folder in the app's caches, the server's own (``cachesDirectory(for:allowsOverride:caches:bundleIdentifier:)``).
   public init(entities: [SyncEntity], syncSchema: Int, partsDirectory: URL? = nil) {
@@ -395,6 +399,7 @@ public actor LilSyncEngine {
       } catch  where !Task.isCancelled {
         pushFailure = error
       }
+      try await self.catchUpNewEntities()
       try await self.pullPages()
       if let pushFailure { throw pushFailure }
     }
@@ -445,26 +450,7 @@ public actor LilSyncEngine {
         next = Task { try await self.fetchPage(after: after) }
       }
       try await database.write { [entities] db in
-        for change in page.changes {
-          guard let entity = entities[change.entity] else { continue }
-          do {
-            switch change.op {
-            case "upsert":
-              guard let row = change.row else { throw SyncError.missingRow(seq: change.seq) }
-              try entity.upsert(change.id, row, db)
-            case "delete":
-              try entity.delete(change.id, db)
-            default:
-              continue
-            }
-          } catch let error as DecodingError {
-            // A row this app can't read would otherwise block every later change. It's skipped;
-            // an app version that understands it bootstraps again (`docs/sync/protocol.md`).
-            reportIssue("Skipped \(change.entity) change \(change.seq): \(error)")
-          } catch SyncError.missingRow(let seq) {
-            reportIssue("Skipped \(change.entity) change \(seq): an upsert without a row")
-          }
-        }
+        try Self.apply(page.changes, entities: entities, db)
         try SyncState(
           id: SyncState.singletonID, cursor: page.next, epoch: page.epoch,
           syncSchema: syncSchema, entities: stored
@@ -478,6 +464,142 @@ public actor LilSyncEngine {
       }
       setStatus(.syncing(cursor: page.next, head: page.head))
     }
+  }
+
+  /// Applies pulled changes to the local tables of the entities they're for, in order, skipping
+  /// those of other entities, and ops and rows this app can't read.
+  private static func apply(
+    _ changes: some Sequence<Components.Schemas.Change>, entities: [String: SyncEntity],
+    _ db: Database
+  ) throws {
+    for change in changes {
+      guard let entity = entities[change.entity] else { continue }
+      do {
+        switch change.op {
+        case "upsert":
+          guard let row = change.row else { throw SyncError.missingRow(seq: change.seq) }
+          try entity.upsert(change.id, row, db)
+        case "delete":
+          try entity.delete(change.id, db)
+        default:
+          continue
+        }
+      } catch let error as DecodingError {
+        // A row this app can't read would otherwise block every later change. It's skipped;
+        // an app version that understands it bootstraps again (`docs/sync/protocol.md`).
+        reportIssue("Skipped \(change.entity) change \(change.seq): \(error)")
+      } catch SyncError.missingRow(let seq) {
+        reportIssue("Skipped \(change.entity) change \(seq): an upsert without a row")
+      }
+    }
+  }
+
+  /// Catches up entities this release stores and the local data doesn't hold yet (851-3222),
+  /// e.g. the first launch of a release that stores a new entity, without bootstrapping
+  /// everything again (`docs/sync/protocol.md`, Schema changes):
+  ///
+  /// 1. Loads only their parts of the latest snapshot, taken at `S`, as a bootstrap does, over
+  ///    their tables, cleared first. The other entities and the cursor stay as they are.
+  /// 2. Pulls the changes after `S`, up to the cursor, and applies only theirs, recording how
+  ///    far it got with each page, so an interrupted catch-up resumes there.
+  /// 3. Records them as held, with the last page, so pulling carries on from the cursor for
+  ///    every entity.
+  ///
+  /// A store without a snapshot has its whole log, so the changes are pulled from the start. A
+  /// new epoch, or changes compacted meanwhile, still bootstrap (``SyncError/needsBootstrap``).
+  /// A schema bump bootstraps rather than catching up: ``pullPages()`` throws for it.
+  private func catchUpNewEntities() async throws {
+    let state = try await database.read { try SyncState.fetch($0) }
+    guard let epoch = state.epoch, (state.syncSchema ?? 1) >= syncSchema,
+      let recorded = state.entities
+    else { return }
+    let held = Set(recorded.split(separator: ",").map(String.init))
+    let missing = Set(entities.keys).subtracting(held)
+    guard !missing.isEmpty else { return }
+    let names = Self.recorded(missing)
+    var after: Int
+    if state.catchUpEntities == names, state.catchUpUntil == state.cursor,
+      let saved = state.catchUpAfter
+    {
+      after = saved
+    } else {
+      after = try await loadSnapshot(of: missing, epoch: epoch, until: state.cursor)
+    }
+    let until = state.cursor
+    let catchingUp = entities.filter { missing.contains($0.key) }
+    while after < until {
+      setStatus(.syncing(cursor: after, head: until))
+      // Never past the cursor, where the pull after the catch-up carries on for every entity.
+      let page = try await fetchPage(after: after, limit: min(Self.pageSize, until - after))
+      if page.epoch != epoch || page.head < until { throw SyncError.needsBootstrap }
+      try Self.check(page, after: after)
+      if page.next < until, !page.hasMore { throw SyncError.unexpectedPage }
+      try Task.checkCancellation()
+      let changes = page.changes.filter { $0.seq <= until }
+      after = min(page.next, until)
+      try await database.write { [entities, after] db in
+        try Self.apply(changes, entities: catchingUp, db)
+        var progress = try SyncState.fetch(db)
+        progress.catchUpAfter = after
+        try progress.save(db)
+        try PendingMutation.reapply(after: until, entities: entities, db)
+      }
+    }
+    // An older release (after a downgrade) records only what it stores and its own schema, as
+    // pulling does.
+    let stored = Self.recorded(held.intersection(entities.keys).union(missing))
+    let syncSchema = min(state.syncSchema ?? 1, syncSchema)
+    try await database.write { db in
+      try SyncState(
+        id: SyncState.singletonID, cursor: until, epoch: epoch, syncSchema: syncSchema,
+        entities: stored
+      )
+      .save(db)
+    }
+  }
+
+  /// Step 1 of ``catchUpNewEntities()``: replaces `missing`'s records with those of the latest
+  /// snapshot, and records the catch-up as started from it. Returns where the changes after it
+  /// start: the snapshot's `seq`, or 0 for a store without one.
+  private func loadSnapshot(of missing: Set<String>, epoch: Int, until: Int) async throws -> Int {
+    setProgress(.downloading(0, of: 0))
+    let latest = try await fetchLatestSnapshot()
+    if latest.epoch != epoch { throw SyncError.needsBootstrap }
+    let names = Self.recorded(missing)
+    let seq = latest.snapshot?.seq ?? 0
+    let started = { @Sendable (db: Database) throws in
+      var state = try SyncState.fetch(db)
+      state.catchUpEntities = names
+      state.catchUpAfter = seq
+      state.catchUpUntil = until
+      try state.save(db)
+    }
+    guard let manifest = latest.snapshot else {
+      try await database.write { [entities] db in
+        for name in missing { try entities[name]?.clear(db) }
+        try started(db)
+        try PendingMutation.reapply(after: until, entities: entities, db)
+      }
+      removeDownloadedParts(keeping: [])
+      return seq
+    }
+    try await load(
+      manifest, of: missing,
+      prepare: { [entities] db in
+        // Until it's loaded, the catch-up starts over.
+        var state = try SyncState.fetch(db)
+        state.catchUpEntities = nil
+        state.catchUpAfter = nil
+        state.catchUpUntil = nil
+        try state.save(db)
+        for name in missing { try entities[name]?.clear(db) }
+      },
+      finish: { [entities] _, db in
+        try started(db)
+        try PendingMutation.reapply(after: until, entities: entities, db)
+      }
+    )
+    return seq
   }
 
   /// Replaces the local data with the latest snapshot (`docs/sync/protocol.md`):
@@ -504,7 +626,7 @@ public actor LilSyncEngine {
     setProgress(.downloading(0, of: 0))
     let (syncSchema, recordedEntities) = (syncSchema, Self.recorded(entities.keys))
     let latest = try await fetchLatestSnapshot()
-    guard var manifest = latest.snapshot else {
+    guard let manifest = latest.snapshot else {
       try await database.write { [entities] db in
         for entity in entities.values { try entity.clear(db) }
         try SyncState(
@@ -518,7 +640,45 @@ public actor LilSyncEngine {
       return
     }
 
-    let wanted = manifest.entities.filter { entities[$0.entity] != nil }
+    try await load(
+      manifest, of: Set(entities.keys),
+      prepare: { [entities] db in
+        // Until the load finishes, this client is a new device, which bootstraps again.
+        try SyncState.find(SyncState.singletonID).delete().execute(db)
+        for entity in entities.values { try entity.clear(db) }
+      },
+      finish: { [entities] manifest, db in
+        try SyncState(
+          id: SyncState.singletonID, cursor: manifest.seq, epoch: manifest.epoch,
+          syncSchema: syncSchema, entities: recordedEntities
+        )
+        .save(db)
+        try PendingMutation.reapply(after: manifest.seq, entities: entities, db)
+      }
+    )
+  }
+
+  /// Loads the records of `names` from a snapshot:
+  ///
+  /// 1. Downloads every part of the entities and checks its SHA-256. Verified parts are kept on
+  ///    disk until loaded, so an interrupted load only downloads what's missing. Expired URLs are
+  ///    refreshed for the same snapshot.
+  /// 2. Runs `prepare`, which clears what the records replace, in a transaction with creating
+  ///    the staging tables.
+  /// 3. Loads the parts in batches, into staging tables for entities that have them, then, in
+  ///    one transaction, moves those into their tables (`SnapshotStaging`) and runs `finish`,
+  ///    with the manifest its URLs were refreshed in.
+  private func load(
+    _ manifest: Components.Schemas.SnapshotManifest, of names: Set<String>,
+    prepare: @escaping @Sendable (_ db: Database) throws -> Void,
+    finish:
+      @escaping @Sendable (_ manifest: Components.Schemas.SnapshotManifest, _ db: Database)
+      throws -> Void
+  ) async throws {
+    var manifest = manifest
+    let wanted = manifest.entities.filter {
+      names.contains($0.entity) && entities[$0.entity] != nil
+    }
     let hashes = Set(wanted.flatMap { $0.parts.map(\.sha256) })
     // Parts left by an older bootstrap aren't needed any more.
     removeDownloadedParts(keeping: hashes)
@@ -550,10 +710,8 @@ public actor LilSyncEngine {
 
     // Tables whose records go through a staging table (`SnapshotStaging`).
     let staged = Set(wanted.compactMap { entities[$0.entity]?.staging?.table }).sorted()
-    try await database.write { [entities] db in
-      // Until the load finishes, this client is a new device, which bootstraps again.
-      try SyncState.find(SyncState.singletonID).delete().execute(db)
-      for entity in entities.values { try entity.clear(db) }
+    try await database.write { db in
+      try prepare(db)
       for table in staged { try SnapshotStaging.create(for: table, db) }
     }
     do {
@@ -562,14 +720,9 @@ public actor LilSyncEngine {
         try await load(entity, from: file)
       }
       setProgress(.finishing(loadRecords))
-      try await database.write { [manifest, entities] db in
+      try await database.write { [manifest] db in
         for table in staged { try SnapshotStaging.finish(table, db) }
-        try SyncState(
-          id: SyncState.singletonID, cursor: manifest.seq, epoch: manifest.epoch,
-          syncSchema: syncSchema, entities: recordedEntities
-        )
-        .save(db)
-        try PendingMutation.reapply(after: manifest.seq, entities: entities, db)
+        try finish(manifest, db)
       }
     } catch {
       // The user's records mustn't linger in the staging tables, also when cancelled.
@@ -771,8 +924,10 @@ public actor LilSyncEngine {
     }
   }
 
-  private func fetchPage(after cursor: Int) async throws -> Components.Schemas.ChangesPage {
-    switch try await api.syncChanges(query: .init(after: cursor, limit: Self.pageSize)) {
+  private func fetchPage(
+    after cursor: Int, limit: Int = pageSize
+  ) async throws -> Components.Schemas.ChangesPage {
+    switch try await api.syncChanges(query: .init(after: cursor, limit: limit)) {
     case .ok(let ok):
       return try ok.body.json
     case .gone:

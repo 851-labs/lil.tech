@@ -18,6 +18,13 @@ struct Note: Equatable {
   var title: String
 }
 
+/// A second entity, which an older release doesn't store (851-3222).
+@Table("tag")
+struct Tag: Equatable {
+  let id: String
+  var title: String
+}
+
 private struct NoteRow: Decodable {
   let id: String
   let title: String
@@ -34,6 +41,21 @@ private let notes = SyncEntity.decoding(
   },
   clear: { db in
     try Note.delete().execute(db)
+  }
+)
+
+/// Tags, loaded through a staging table as apps' entities are.
+private let tags = SyncEntity.decoding(
+  "tag", as: NoteRow.self, table: "tag",
+  insert: { row, staging, db in try stage(row, in: staging, db) },
+  upsert: { row, db in
+    try Tag.upsert { Tag(id: row.id, title: row.title) }.execute(db)
+  },
+  delete: { id, db in
+    try Tag.find(id).delete().execute(db)
+  },
+  clear: { db in
+    try Tag.delete().execute(db)
   }
 )
 
@@ -99,6 +121,10 @@ private func makeDatabase(bootstrapped: Bool = true, at path: String? = nil) thr
     // An index besides the primary key's, which loading a snapshot drops and builds again.
     try #sql(#"CREATE INDEX "note_title" ON "note" ("title")"#).execute(db)
   }
+  migrator.registerMigration("Create tag") { db in
+    try #sql(#"CREATE TABLE "tag" ("id" TEXT PRIMARY KEY, "title" TEXT NOT NULL) STRICT"#)
+      .execute(db)
+  }
   try migrator.migrate(database)
   if bootstrapped {
     try database.write { db in
@@ -125,6 +151,11 @@ private final class FakeServer: Sendable {
     /// Answer with an empty page that claims there's more, like a broken server.
     var stuck = false
     var requests: [Int] = []
+    /// The `limit` of each request for changes.
+    var limits: [Int] = []
+    /// Changes written while a request for changes is answered, by request number (1-based):
+    /// they're given the next `seq`s after it.
+    var arriving: [Int: [Components.Schemas.Change]] = [:]
     /// The store's latest snapshot: its manifest and each part's bytes by URL.
     var snapshot: Components.Schemas.SnapshotManifest?
     var partBytes: [String: Data] = [:]
@@ -144,29 +175,39 @@ private final class FakeServer: Sendable {
   }
   let state = LockIsolated(State())
 
-  /// Publishes a snapshot of `notes` as of `seq`, `perPart` records per part.
-  func publishSnapshot(id: String = "snp_1", seq: Int, notes: [Note], perPart: Int = 2) throws {
-    var parts: [Components.Schemas.SnapshotPart] = []
+  /// Publishes a snapshot of `notes` and `tags` as of `seq`, `perPart` records per part.
+  func publishSnapshot(
+    id: String = "snp_1", seq: Int, notes: [Note], tags: [Tag] = [], perPart: Int = 2
+  ) throws {
     var bytes: [String: Data] = [:]
-    for (index, start) in stride(from: 0, to: notes.count, by: perPart).enumerated() {
-      let lines = notes[start..<min(start + perPart, notes.count)]
-        .map { #"{"id":"\#($0.id)","title":"\#($0.title)"}"# }
-        .joined(separator: "\n")
-      let gzip = try Gzip.compress(Data(lines.utf8))
-      let url = "https://api.test/v1/sync/parts?token=\(id)-\(index)"
-      bytes[url] = gzip
-      let sha = SHA256.hash(data: gzip).map { String(format: "%02x", $0) }.joined()
-      parts.append(
-        .init(url: url, records: lines.split(separator: "\n").count, bytes: gzip.count, sha256: sha)
-      )
+    func parts(_ records: [(id: String, title: String)], named name: String) throws
+      -> [Components.Schemas.SnapshotPart]
+    {
+      var parts: [Components.Schemas.SnapshotPart] = []
+      for (index, start) in stride(from: 0, to: records.count, by: perPart).enumerated() {
+        let lines = records[start..<min(start + perPart, records.count)]
+          .map { #"{"id":"\#($0.id)","title":"\#($0.title)"}"# }
+          .joined(separator: "\n")
+        let gzip = try Gzip.compress(Data(lines.utf8))
+        let url = "https://api.test/v1/sync/parts?token=\(id)-\(name)\(index)"
+        bytes[url] = gzip
+        let sha = SHA256.hash(data: gzip).map { String(format: "%02x", $0) }.joined()
+        parts.append(
+          .init(
+            url: url, records: lines.split(separator: "\n").count, bytes: gzip.count, sha256: sha)
+        )
+      }
+      return parts
     }
-    let (finalParts, finalBytes) = (parts, bytes)
+    let noteParts = try parts(notes.map { ($0.id, $0.title) }, named: "")
+    let tagParts = try parts(tags.map { ($0.id, $0.title) }, named: "tag")
+    let finalBytes = bytes
     state.withValue {
       $0.snapshot = .init(
         id: id, seq: seq, epoch: $0.epoch, createdAt: 0,
         entities: [
-          .init(entity: "note", parts: finalParts), .init(entity: "unknown_entity", parts: []),
-        ])
+          .init(entity: "note", parts: noteParts), .init(entity: "unknown_entity", parts: []),
+        ] + (tags.isEmpty ? [] : [.init(entity: "tag", parts: tagParts)]))
       $0.partBytes = finalBytes
     }
   }
@@ -270,12 +311,19 @@ private final class FakeServer: Sendable {
         state.withValue { $0.requests.append(-1) }
         try await Task.sleep(for: .seconds(3600))
       }
-      let after =
-        Int(
-          URLComponents(string: request.path ?? "")?.queryItems?
-            .first { $0.name == "after" }?.value ?? "0") ?? 0
+      let query = URLComponents(string: request.path ?? "")?.queryItems ?? []
+      let after = Int(query.first { $0.name == "after" }?.value ?? "0") ?? 0
+      let limit = Int(query.first { $0.name == "limit" }?.value ?? "1000") ?? 1000
       return try state.withValue { state in
         state.requests.append(after)
+        state.limits.append(limit)
+        defer {
+          for change in state.arriving.removeValue(forKey: state.requests.count) ?? [] {
+            var change = change
+            change.seq = state.changes.count + 1
+            state.changes.append(change)
+          }
+        }
         if state.offline.contains(state.requests.count) {
           throw URLError(.notConnectedToInternet)
         }
@@ -291,7 +339,8 @@ private final class FakeServer: Sendable {
           return try json(.gone, ["_tag": "ChangesCompacted", "reason": "compacted"])
         }
         let page =
-          state.stuck ? [] : Array(state.changes.filter { $0.seq > after }.prefix(pageSize))
+          state.stuck
+          ? [] : Array(state.changes.filter { $0.seq > after }.prefix(min(pageSize, limit)))
         let next = page.last?.seq ?? after
         let head = state.changes.last?.seq ?? 0
         if state.stuck {
@@ -318,10 +367,12 @@ private final class FakeServer: Sendable {
   }
 }
 
-private func upsert(_ id: String, _ title: String) -> (Int) -> Components.Schemas.Change {
+private func upsert(_ id: String, _ title: String, entity: String = "note") -> (Int) ->
+  Components.Schemas.Change
+{
   { seq in
     Components.Schemas.Change(
-      seq: seq, entity: "note", id: id, op: "upsert",
+      seq: seq, entity: entity, id: id, op: "upsert",
       row: try! OpenAPIObjectContainer(unvalidatedValue: ["id": id, "title": title]),
       at: 1_760_400_000_000)
   }
@@ -436,7 +487,7 @@ struct LilSyncEngineTests {
   }
 
   @Test
-  func aNewEntityBootstrapsAgainForWhatWasSkipped() async throws {
+  func aNewEntityIsCaughtUpForWhatWasSkipped() async throws {
     server.append(upsert("n1", "One"))
     // An older release that didn't store notes moves its cursor past them.
     let older = engine(entities: [])
@@ -444,16 +495,16 @@ struct LilSyncEngineTests {
     try await older.pull()
     #expect(try storedNotes().isEmpty)
 
-    // One that stores them starts over from the store by itself, so the skipped note arrives.
+    // One that stores them catches them up by itself (851-3222), so the skipped note arrives.
+    // The store has no snapshot, so they come from the log.
     let newer = engine()
-    await #expect(throws: SyncError.needsBootstrap) { try await newer.pull() }
-    try await newer.bootstrap()
     try await newer.pull()
     #expect(try storedNotes() == [Note(id: "n1", title: "One")])
-    // Recorded, so it doesn't bootstrap again.
+    // Recorded, so it doesn't catch up again.
     server.append(upsert("n2", "Two"))
     try await newer.pull()
     #expect(try storedNotes().count == 2)
+    #expect(server.state.snapshotRequests == 2)
   }
 
   @Test
@@ -1479,5 +1530,367 @@ struct LilSyncPushTests {
     try await engine.removeLocalData()
     #expect(try pending().isEmpty)
     #expect(try storedNotes().isEmpty)
+  }
+}
+
+/// A client upgrades to a release that stores a new entity, tags, and catches it up alone
+/// (851-3222): its records from the latest snapshot, then its changes after the snapshot up to
+/// the cursor, without bootstrapping the entities it already had.
+@Suite
+struct LilSyncCatchUpTests {
+  fileprivate let server = FakeServer()
+  let database: any DatabaseWriter
+  let partsDirectory = URL.temporaryDirectory.appending(path: "lilsync-\(UUID().uuidString)")
+
+  init() throws {
+    database = try makeDatabase(bootstrapped: false)
+  }
+
+  private func engine(
+    entities: [SyncEntity] = [stagedNotes, tags], syncSchema: Int = 1
+  ) -> LilSyncEngine {
+    withDependencies {
+      $0.defaultDatabase = database
+      $0.api = server.client
+      $0.snapshotDownloader = server.downloader
+      $0.continuousClock = RecordingClock()
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+      $0.date.now = syncedAt
+    } operation: {
+      LilSyncEngine(entities: entities, syncSchema: syncSchema, partsDirectory: partsDirectory)
+    }
+  }
+
+  /// The release before tags.
+  private var older: LilSyncEngine { engine(entities: [stagedNotes]) }
+
+  private func storedNotes() throws -> [Note] {
+    try database.read { try Note.order(by: \.id).fetchAll($0) }
+  }
+
+  private func storedTags() throws -> [Tag] {
+    try database.read { try Tag.order(by: \.id).fetchAll($0) }
+  }
+
+  private func state() throws -> SyncState? {
+    try database.read { try SyncState.find(SyncState.singletonID).fetchOne($0) }
+  }
+
+  private func tag(_ id: String, _ title: String) -> (Int) -> Components.Schemas.Change {
+    upsert(id, title, entity: "tag")
+  }
+
+  /// Changes 1 to 4, a snapshot of them at 4, then changes 5 to 8, which the older release
+  /// pulled: its cursor is at 8, holding only notes.
+  private func olderReleaseSyncedTo8() async throws {
+    server.append(upsert("n1", "Note 1"))
+    server.append(tag("t1", "Tag 1"))
+    server.append(upsert("n2", "Note 2"))
+    server.append(tag("t2", "Tag 2"))
+    try server.publishSnapshot(
+      seq: 4, notes: [Note(id: "n1", title: "Note 1"), Note(id: "n2", title: "Note 2")],
+      tags: [Tag(id: "t1", title: "Tag 1"), Tag(id: "t2", title: "Tag 2")])
+    server.append(tag("t1", "Tag 1, renamed"))
+    server.append(upsert("n3", "Note 3"))
+    server.append(delete("t2", entity: "tag"))
+    server.append(tag("t3", "Tag 3"))
+    let older = older
+    try await older.bootstrap()
+    try await older.pull()
+    #expect(try state()?.cursor == 8)
+    #expect(try state()?.entities == "note")
+    #expect(try storedTags().isEmpty)
+    server.state.withValue {
+      $0.requests = []
+      $0.limits = []
+      $0.downloads = []
+      $0.snapshotRequests = 0
+    }
+  }
+
+  private var notesAt8: [Note] {
+    [
+      Note(id: "n1", title: "Note 1"), Note(id: "n2", title: "Note 2"),
+      Note(id: "n3", title: "Note 3"),
+    ]
+  }
+
+  private var tagsAt8: [Tag] {
+    [Tag(id: "t1", title: "Tag 1, renamed"), Tag(id: "t3", title: "Tag 3")]
+  }
+
+  private var tagParts: [String] {
+    server.state.value.snapshot?.entities.first { $0.entity == "tag" }?.parts.map(\.url) ?? []
+  }
+
+  @Test
+  func aNewEntityIsCaughtUpWithoutBootstrappingAgain() async throws {
+    try await olderReleaseSyncedTo8()
+    server.append(tag("t4", "Tag 4"))
+    server.append(upsert("n4", "Note 4"))
+
+    try await engine().pull()
+
+    #expect(try storedTags() == tagsAt8 + [Tag(id: "t4", title: "Tag 4")])
+    #expect(try storedNotes() == notesAt8 + [Note(id: "n4", title: "Note 4")])
+    // Only the tags' parts were downloaded, then the changes from the snapshot to the cursor,
+    // never past it, then the pull carried on from the cursor.
+    #expect(server.state.downloads.sorted() == tagParts.sorted())
+    #expect(server.state.requests == [4, 6, 8])
+    #expect(server.state.limits == [4, 2, LilSyncEngine.pageSize])
+    let state = try #require(try state())
+    #expect(state.cursor == 10)
+    #expect(state.entities == "note,tag")
+    #expect(state.catchUpEntities == nil)
+    #expect(try temporaryTables(database).isEmpty)
+
+    // Caught up for good: the next pull asks for no snapshot.
+    try await engine().pull()
+    #expect(server.state.snapshotRequests == 1)
+  }
+
+  @Test
+  func theCatchUpsProgressShows() async throws {
+    try await olderReleaseSyncedTo8()
+    let engine = engine()
+    let statuses = LockIsolated<[SyncStatus]>([])
+    let updates = await engine.statusUpdates(bufferingPolicy: .unbounded)
+    let observing = Task {
+      for await status in updates { statuses.withValue { $0.append(status) } }
+    }
+    try await engine.pull()
+    try await eventually { statuses.value.last == .upToDate(at: syncedAt) }
+    observing.cancel()
+    #expect(statuses.value.contains(.bootstrapping(.finishing(2))))
+    #expect(
+      statuses.value.drop { $0 != .syncing(cursor: 4, head: 8) } == [
+        .syncing(cursor: 4, head: 8), .syncing(cursor: 6, head: 8), .upToDate(at: syncedAt),
+      ])
+  }
+
+  @Test
+  func aCatchUpInterruptedWhileLoadingTheSnapshotStartsOverWithoutDownloadingAgain() async throws {
+    try await olderReleaseSyncedTo8()
+    // Tags in two parts.
+    try server.publishSnapshot(
+      seq: 4, notes: [Note(id: "n1", title: "Note 1")],
+      tags: [1, 2, 3].map { Tag(id: "s\($0)", title: "Snapshot \($0)") })
+    let threeParts = tagParts
+    server.state.withValue { $0.interrupted = [threeParts[1]] }
+    let engine = engine()
+
+    await #expect(throws: URLError.self) { try await engine.pull() }
+    // Nothing changed: the tags aren't held yet, and the notes and cursor are as they were.
+    #expect(try storedTags().isEmpty)
+    #expect(try storedNotes() == notesAt8)
+    #expect(try state()?.entities == "note")
+    #expect(try state()?.catchUpEntities == nil)
+
+    try await engine.pull()
+    #expect(
+      try storedTags() == [
+        Tag(id: "s1", title: "Snapshot 1"), Tag(id: "s2", title: "Snapshot 2"),
+        Tag(id: "s3", title: "Snapshot 3"), Tag(id: "t1", title: "Tag 1, renamed"),
+        Tag(id: "t3", title: "Tag 3"),
+      ])
+    #expect(try storedNotes() == notesAt8)
+    // The part that downloaded the first time came from disk the second time.
+    let downloads = server.state.downloads
+    #expect(downloads.filter { $0 == threeParts[0] }.count == 1)
+    #expect(downloads.filter { $0 == threeParts[1] }.count == 2)
+    #expect(try state()?.entities == "note,tag")
+  }
+
+  @Test
+  func aCatchUpInterruptedWhilePullingResumesWhereItStopped() async throws {
+    try await olderReleaseSyncedTo8()
+    // The second page of the catch-up fails.
+    server.state.withValue { $0.failing = [2] }
+    let engine = engine()
+
+    await #expect(throws: SyncError.unexpectedStatus(500)) { try await engine.pull() }
+    // The snapshot and the first page are kept, with how far the catch-up got.
+    #expect(
+      try storedTags() == [Tag(id: "t1", title: "Tag 1, renamed"), Tag(id: "t2", title: "Tag 2")])
+    var state = try #require(try state())
+    #expect(state.cursor == 8)
+    #expect(state.entities == "note")
+    #expect([state.catchUpAfter, state.catchUpUntil] == [6, 8])
+    #expect(state.catchUpEntities == "tag")
+
+    server.state.withValue { $0.failing = [] }
+    try await engine.pull()
+    #expect(try storedTags() == tagsAt8)
+    #expect(try storedNotes() == notesAt8)
+    // Resumed after 6, without the snapshot again.
+    #expect(server.state.requests == [4, 6, 6, 8])
+    #expect(server.state.snapshotRequests == 1)
+    #expect(server.state.downloads.count == tagParts.count)
+    state = try #require(try self.state())
+    #expect(state.entities == "note,tag")
+    #expect(state.catchUpAfter == nil)
+  }
+
+  @Test
+  func changesWrittenDuringTheCatchUpArriveWithThePullAfterIt() async throws {
+    try await olderReleaseSyncedTo8()
+    // While the catch-up asks for its first page: t1 changes again, t3 goes and a note comes.
+    server.state.withValue {
+      $0.arriving[1] = [
+        tag("t1", "Tag 1, during")(0), delete("t3", entity: "tag")(0), upsert("n5", "Note 5")(0),
+      ]
+    }
+
+    try await engine().pull()
+
+    #expect(try storedTags() == [Tag(id: "t1", title: "Tag 1, during")])
+    #expect(try storedNotes() == notesAt8 + [Note(id: "n5", title: "Note 5")])
+    #expect(try state()?.cursor == 11)
+    // The catch-up stopped at the cursor it started at, 8, though the store had more.
+    #expect(server.state.requests == [4, 6, 8, 10])
+  }
+
+  @Test
+  func changesWrittenWhileACatchUpWasInterruptedArriveToo() async throws {
+    try await olderReleaseSyncedTo8()
+    server.state.withValue { $0.failing = [2] }
+    let engine = engine()
+    await #expect(throws: (any Error).self) { try await engine.pull() }
+
+    server.state.withValue { $0.failing = [] }
+    server.append(delete("t1", entity: "tag"))
+    server.append(tag("t5", "Tag 5"))
+    try await engine.pull()
+
+    #expect(try storedTags() == [Tag(id: "t3", title: "Tag 3"), Tag(id: "t5", title: "Tag 5")])
+    #expect(try state()?.cursor == 10)
+  }
+
+  @Test
+  func anOlderReleasePullingMeanwhileStartsTheCatchUpOver() async throws {
+    try await olderReleaseSyncedTo8()
+    server.state.withValue { $0.failing = [2] }
+    await #expect(throws: (any Error).self) { try await engine().pull() }
+    #expect(try state()?.catchUpUntil == 8)
+
+    // A downgrade: the older release moves the cursor, not knowing the catch-up's state.
+    server.state.withValue { $0.failing = [] }
+    server.append(delete("t1", entity: "tag"))
+    server.append(upsert("n6", "Note 6"))
+    try await older.pull()
+    #expect(try state()?.cursor == 10)
+
+    // Back on the newer release, the catch-up starts over, from the snapshot to 10.
+    try await engine().pull()
+    #expect(try storedTags() == [Tag(id: "t3", title: "Tag 3")])
+    #expect(try storedNotes() == notesAt8 + [Note(id: "n6", title: "Note 6")])
+    #expect(server.state.snapshotRequests == 2)
+    #expect(try state()?.entities == "note,tag")
+  }
+
+  @Test
+  func staleTagsFromAnEarlierReleaseAreReplaced() async throws {
+    try await olderReleaseSyncedTo8()
+    // Left by a release that stored tags before a downgrade: the catch-up replaces them.
+    try await database.write { db in
+      try Tag.insert { Tag(id: "gone", title: "Deleted while downgraded") }.execute(db)
+      try Tag.insert { Tag(id: "t3", title: "Stale") }.execute(db)
+    }
+    try await engine().pull()
+    #expect(try storedTags() == tagsAt8)
+  }
+
+  @Test
+  func aSnapshotNewerThanTheCursorNeedsNoChangesBeforeIt() async throws {
+    try await olderReleaseSyncedTo8()
+    server.append(tag("t3", "Tag 3, renamed"))
+    server.append(delete("t1", entity: "tag"))
+    try server.publishSnapshot(
+      id: "snp_2", seq: 10, notes: notesAt8, tags: [Tag(id: "t3", title: "Tag 3, renamed")])
+
+    try await engine().pull()
+
+    #expect(try storedTags() == [Tag(id: "t3", title: "Tag 3, renamed")])
+    #expect(try state()?.cursor == 10)
+    // Nothing to pull for the catch-up: the pull went on from the cursor, 8.
+    #expect(server.state.requests == [8])
+  }
+
+  @Test
+  func aStoreWithoutASnapshotCatchesUpFromTheStartOfTheLog() async throws {
+    server.append(upsert("n1", "Note 1"))
+    server.append(tag("t1", "Tag 1"))
+    server.append(tag("t2", "Tag 2"))
+    let older = older
+    try await older.bootstrap()
+    try await older.pull()
+    server.state.withValue { $0.requests = [] }
+
+    try await engine().pull()
+
+    #expect(try storedTags() == [Tag(id: "t1", title: "Tag 1"), Tag(id: "t2", title: "Tag 2")])
+    #expect(try storedNotes() == [Note(id: "n1", title: "Note 1")])
+    #expect(server.state.requests == [0, 2, 3])
+  }
+
+  @Test
+  func aNewEpochStillBootstraps() async throws {
+    try await olderReleaseSyncedTo8()
+    server.state.withValue { $0.epoch = 2 }
+    await #expect(throws: SyncError.needsBootstrap) { try await engine().pull() }
+    #expect(try state()?.entities == "note")
+  }
+
+  @Test
+  func changesCompactedDuringTheCatchUpBootstrap() async throws {
+    try await olderReleaseSyncedTo8()
+    server.state.withValue { $0.horizon = 6 }
+    let engine = engine()
+    await #expect(throws: SyncError.needsBootstrap) { try await engine.pull() }
+
+    // The fallback: a bootstrap, which takes everything from the snapshot, then the log.
+    server.state.withValue { $0.horizon = 0 }
+    try await engine.bootstrap()
+    try await engine.pull()
+    #expect(try storedTags() == tagsAt8)
+    #expect(try storedNotes() == notesAt8)
+    #expect(try state()?.entities == "note,tag")
+  }
+
+  @Test
+  func aSchemaBumpBootstrapsRatherThanCatchingUp() async throws {
+    try await olderReleaseSyncedTo8()
+    await #expect(throws: SyncError.needsBootstrap) { try await engine(syncSchema: 2).pull() }
+    #expect(server.state.snapshotRequests == 0)
+  }
+
+  @Test
+  func unsentWritesStayOverTheCaughtUpRecords() async throws {
+    try await olderReleaseSyncedTo8()
+    let engine = engine()
+    // Written before the first pull: the pull sends it (change 9), then catches tags up.
+    try await engine.push([
+      .upsert("tag", id: "t1", row: try OpenAPIObjectContainer(unvalidatedValue: ["title": "Mine"]))
+    ])
+    server.state.withValue { $0.failing = [2] }
+    await #expect(throws: (any Error).self) { try await engine.pull() }
+    // Loading the snapshot and the first page didn't undo it.
+    #expect(try storedTags().first { $0.id == "t1" }?.title == "Mine")
+
+    server.state.withValue { $0.failing = [] }
+    try await engine.pull()
+    #expect(try storedTags() == [Tag(id: "t1", title: "Mine"), Tag(id: "t3", title: "Tag 3")])
+    #expect(try await database.read { db in try PendingMutation.fetchAll(db) }.isEmpty)
+  }
+
+  @Test
+  func signingOutDuringACatchUpForgetsIt() async throws {
+    try await olderReleaseSyncedTo8()
+    server.state.withValue { $0.failing = [2] }
+    let engine = engine()
+    await #expect(throws: (any Error).self) { try await engine.pull() }
+    try await engine.removeLocalData()
+    #expect(try state() == nil)
+    #expect(try storedTags().isEmpty)
   }
 }
