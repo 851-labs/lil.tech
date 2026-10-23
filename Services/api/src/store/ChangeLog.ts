@@ -142,7 +142,8 @@ const readLoggedRows = (
  * - `head` is read and advanced inside the transaction, so `seq` values have no gaps even when
  *   calls interleave between transactions.
  * - Upserts merge: fields a row leaves out keep their stored values. A new record needs every
- *   non-nullable field.
+ *   non-nullable field, and an entity of whole rows (`Entity.wholeRows`) every field.
+ * - An upsert that would make one record more than an entity's limit (`Entity.maxRecords`) fails.
  * - An upsert that leaves the stored row unchanged, or a delete of a record that doesn't exist,
  *   appends nothing, so retries don't grow the log.
  * - An upsert's change keeps the record's key (`key`, and its ID), and a copy of its row while
@@ -169,6 +170,17 @@ export const applyMutations = (
     let tombstones: boolean | undefined;
     const hasTombstones = () =>
       (tombstones ??= sql.exec("SELECT 1 FROM tombstones LIMIT 1").length > 0);
+    // How many records entities with a limit (`Entity.maxRecords`) hold, counted once they're
+    // written and kept up to date through the transaction.
+    const recordCounts = new Map<Entity, number>();
+    const recordCount = (entity: Entity) => {
+      let count = recordCounts.get(entity);
+      if (count === undefined) {
+        count = Number(sql.exec(`SELECT count(*) AS count FROM "${entity.name}"`)[0]?.["count"]);
+        recordCounts.set(entity, count);
+      }
+      return count;
+    };
 
     const entityOf = (index: number, mutation: Mutation) => {
       const entity = entities.get(mutation.entity);
@@ -198,6 +210,8 @@ export const applyMutations = (
           entity.statements.delete !== undefined &&
           sql.exec(entity.statements.delete, mutation.id).length > 0;
       }
+      const counted = recordCounts.get(entity);
+      if (appended && counted !== undefined) recordCounts.set(entity, counted - 1);
       if (appended) {
         sql.exec(
           "INSERT INTO changes (seq, entity, id, op, row, at) VALUES (?, ?, ?, 'delete', NULL, ?)",
@@ -241,6 +255,16 @@ export const applyMutations = (
           break;
         }
         const set = fields.success;
+        const left = entity.wholeRows
+          ? entity.fields.find(({ field }) => !(field in set))
+          : undefined;
+        if (left !== undefined) {
+          failure = new InvalidMutation({
+            index,
+            message: `Missing ${left.field}: ${entity.name} upserts carry every field`,
+          });
+          break;
+        }
         const keyValues: Array<SqlValue> = [];
         for (const field of entity.key) {
           const value = set[field];
@@ -305,6 +329,16 @@ export const applyMutations = (
         if (entity.checkRow !== undefined) {
           const invalid = entity.checkRow(id, toRow(entity, id, values));
           if (invalid !== undefined) throw new InvalidMutation({ index, message: invalid });
+        }
+        if (before === undefined && entity.maxRecords !== undefined) {
+          const count = recordCount(entity) + 1;
+          if (count > entity.maxRecords) {
+            throw new InvalidMutation({
+              index,
+              message: `The store keeps at most ${entity.maxRecords} ${entity.name} records: delete one first`,
+            });
+          }
+          recordCounts.set(entity, count);
         }
         if (
           before !== undefined &&

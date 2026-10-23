@@ -5,7 +5,7 @@ How lil apps keep a local copy of a user's data in sync with `api.lil.tech`. The
 ## Terms
 
 - **Store:** one user's data on the server, in a SQLite-backed Durable Object addressed by `idFromName("user:<userId>")`.
-- **Entity:** a kind of record with its own table and schema, named in `snake_case` (e.g. `health_sample`, `health_workout`, `health_pin`).
+- **Entity:** a kind of record with its own table and schema, named in `snake_case` (e.g. `health_sample`, `health_workout`, `health_card`).
 - **Record:** one row of an entity, identified by a string `id` that's unique within the entity.
 - **Change:** one entry in the store's change log, recording that a record was upserted or deleted.
 - **Cursor:** the `seq` of the last change a client has applied.
@@ -184,7 +184,7 @@ POST /v1/sync/mutations
 {
   "mutationId": "c7a1…",
   "mutations": [
-    { "entity": "health_pin", "op": "upsert", "id": "pin_01J…", "row": { … } }
+    { "entity": "health_card", "op": "upsert", "id": "card_01J…", "row": { … } }
   ]
 }
 ```
@@ -193,7 +193,9 @@ POST /v1/sync/mutations
 - At most 500 mutations a push. One for an entity apps may not write, or with an invalid row, fails the whole push with 400 `MutationRejected` (its `index` and why).
 - Every mutation in a request is applied in one transaction, or none are. The response is `{ "seq": <n> }`, the `seq` of the last change it produced (or `head` if nothing changed).
 - **Client upserts merge:** fields missing from `row` keep their stored values, and `null` clears a field. An older app that doesn't know a field can't erase it. The change appended to the log still carries the full merged row.
-- Each entity declares whether clients may write it. Most synced data, such as health samples, can only be written by the server; app state such as settings can be written by clients. Today that's only `health_pin`, Summary's pins, which are retired (851-2990): the Mac no longer syncs them, and the server keeps taking them from older Macs.
+  - **Whole rows:** an entity can take whole rows only (`defineEntity`'s `wholeRows`), so a record is never a mix of two writers': an upsert must carry every field, `null` for none, or the push is refused (`Missing <field>`). `health_card` does (851-3202), since an edit and a move of the same card on two devices must not merge (`docs/decisions/cards.md`). A field added to such an entity later needs the rule relaxed for it, or writers from before it would be refused.
+  - **A limit:** an entity can cap its records (`maxRecords`): an upsert that would make one more is refused, counting the push's own deletes and creations in order. `health_card` keeps at most 200, a backstop behind the apps' 100.
+- Each entity declares whether clients may write it. Most synced data, such as health samples, can only be written by the server; app state such as settings can be written by clients: `health_card`, Summary's cards (851-3202), and `health_pin`, Summary's pins, which are retired (851-2990): the Mac no longer syncs them, and the server keeps taking them from older Macs.
 - **Optimistic local writes:**
   - The client writes to its local tables and adds the mutation to a pending queue, together with the record's previous local state.
   - Pulled changes overwrite local rows, and pending mutations are reapplied on top until the client's cursor reaches the `seq` returned for them.
