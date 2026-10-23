@@ -185,6 +185,8 @@ struct SleepDetailContent: View {
   let state: State
   /// Highlights about the last nights, the page's last section (851-3103).
   let highlights: SleepHighlightsSection.State
+  /// Whether the highlights' load has run long enough to show it (851-3086).
+  @SwiftUI.State private var highlightsProgress: DelayedProgress
   /// Today, as the page loads it, for the nights shown.
   let now: Date
   /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
@@ -199,6 +201,9 @@ struct SleepDetailContent: View {
     _selectedOffset = offset
     self.state = state
     self.highlights = highlights
+    // As they are, so a first render doesn't animate it away.
+    _highlightsProgress = SwiftUI.State(
+      initialValue: DelayedProgress(isLoading: highlights.isLoading))
     self.now = now
   }
 
@@ -236,9 +241,12 @@ struct SleepDetailContent: View {
         }
         .layoutAnchor("Data Sources")
       }
-      SleepHighlightsSection(state: highlights)
+      SleepHighlightsSection(state: highlights, showsProgress: highlightsProgress.isVisible)
     }
     .formStyle(.grouped)
+    .onChange(of: highlights.isLoading, initial: true) {
+      highlightsProgress.update(isLoading: highlights.isLoading)
+    }
     .navigationTitle(type.name)
     // The range and ‹ Today › in the toolbar, as on other metrics (851-2866).
     .periodControls(PagePeriod(range: $selectedRange, offset: $selectedOffset))

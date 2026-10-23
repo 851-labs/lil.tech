@@ -1,9 +1,10 @@
 import Foundation
-import HealthDatabase
 import SQLiteData
 import Testing
 
-// Sleep's highlights (851-3103). Synthetic data only (AGENTS.md): made-up nights and heart rates.
+@testable import HealthDatabase
+
+// Sleep's highlights (851-3103). Synthetic data only (AGENTS.md): made-up nights.
 
 @Suite
 struct SleepHighlightsTests {
@@ -45,13 +46,6 @@ struct SleepHighlightsTests {
       sourceBundleID: "com.apple.health.watch")
   }
 
-  private func heartRate(_ value: Double, at date: Date) -> HealthSample {
-    HealthSample(
-      id: UUID().uuidString, type: HealthDatabase.heartRateType, startDate: date.unixMilliseconds,
-      endDate: date.unixMilliseconds, value: value, unit: "count/min", sourceName: "Apple Watch",
-      sourceBundleID: "com.apple.health.watch")
-  }
-
   private func insert(_ samples: [HealthSample]) throws {
     try database.write { db in try HealthSample.insert { samples }.execute(db) }
   }
@@ -75,7 +69,7 @@ struct SleepHighlightsTests {
     // Bed at 11 PM most nights, at 10:30 last night, and nothing three nights ago.
     try insert(
       (-13...0).filter { $0 != -3 }.flatMap { night($0, bedtime: $0 == 0 ? -1.5 : -1) }
-        // Earlier than the two weeks: not part of them.
+        // The day before the two weeks: not part of them.
         + night(-14, bedtime: -4))
     let bedtime = try #require(try highlights().bedtime)
     #expect(bedtime.firstDay == day(-13))
@@ -108,20 +102,39 @@ struct SleepHighlightsTests {
   }
 
   @Test
-  func bedtimesAreClockTimesAcrossDaylightSaving() {
+  func bedtimeIsWhereItsNightsColumnStartsSleeping() {
     var losAngeles = Calendar(identifier: .gregorian)
     losAngeles.timeZone = TimeZone(identifier: "America/Los_Angeles")!
-    func date(_ day: Int, _ hour: Int) -> Date {
-      losAngeles.date(from: DateComponents(year: 2024, month: 11, day: day, hour: hour))!
+    func date(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+      losAngeles.date(
+        from: DateComponents(year: 2024, month: 3, day: day, hour: hour, minute: minute))!
     }
-    // Clocks went back at 2 AM on November 3, 2024: bed at 11 PM either side of it is -1, though
-    // the 4th's midnight is 25 hours after the 3rd's.
-    for night in [3, 4] {
-      let bedtime = date(night - 1, 23)
-      #expect(
-        HealthDatabase.clockHours(
-          bedtime, from: date(night, 0), start: bedtime, calendar: losAngeles)
-          == -1)
+    // Six nights at 11 PM, then, on March 10, when clocks went forward at 2 AM: awake from 1:30
+    // AM, asleep an hour later, at 3:30 by the clock. Sleep's W chart places the night from its
+    // first segment, so its sleep starts at 2.5 hours, and so does its bedtime.
+    let nights = (4...9).map { day in
+      SleepNight(
+        day: date(day, 0),
+        segments: [SleepSegment(stage: .core, start: date(day - 1, 23), end: date(day, 7))],
+        inBed: 8 * 3600)
     }
+    let lastNight = SleepNight(
+      day: date(10, 0),
+      segments: [
+        SleepSegment(stage: .awake, start: date(10, 1, 30), end: date(10, 3, 30)),
+        SleepSegment(stage: .core, start: date(10, 3, 30), end: date(10, 9)),
+      ],
+      inBed: 7 * 3600)
+    let bedtime = BedtimeConsistency(
+      nights: nights + [lastNight], today: date(10, 0), calendar: losAngeles)
+    #expect(bedtime?.lastNight.bedtime == 2.5)
+    #expect(bedtime?.nights.first?.bedtime == -1)
+  }
+
+  @Test
+  func aDaysSleepIsntABedtime() throws {
+    // Six nights, then no night but a nap at 2 PM today: no last night to compare.
+    try insert((-6 ... -1).flatMap { night($0) } + night(0, bedtime: 14, hours: 1))
+    #expect(try highlights().bedtime == nil)
   }
 }

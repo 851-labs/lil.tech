@@ -50,10 +50,11 @@ struct BedtimeHighlight: View {
   /// lower. A slot for each of the 14 days, by the page's calendar.
   private var chart: some View {
     let times = bedtime.nights.map(\.bedtime)
-    // Whole hours around the bedtimes, with room under the latest for its bar.
-    let earliest = ((times.min() ?? -1) - 0.25).rounded(.down)
-    let latest = max(((times.max() ?? 0) + 0.5).rounded(.up), earliest + 1)
-    let step: Double = latest - earliest > 4 ? 2 : 1
+    // Sleep's clock-time axis (851-3098), around the bedtimes, with room under the latest for
+    // its bar.
+    let axis = SleepClock.axis(
+      times.isEmpty ? [] : [(times.min() ?? 0) - 0.25, (times.max() ?? 0) + 0.5])
+    let bottom = axis.domain.upperBound
     let end =
       calendar.date(byAdding: .day, value: BedtimeConsistency.days, to: bedtime.firstDay)
       ?? bedtime.firstDay
@@ -62,7 +63,7 @@ struct BedtimeHighlight: View {
         let slot = SleepClock.slot(night.day, ratio: 0.6, unit: .day, calendar: calendar)
         RectangleMark(
           xStart: .value("Start", slot.start), xEnd: .value("End", slot.end),
-          yStart: .value("Bedtime", -night.bedtime), yEnd: .value("Bottom", -latest)
+          yStart: .value("Bedtime", -night.bedtime), yEnd: .value("Bottom", -bottom)
         )
         .foregroundStyle(
           night.day == bedtime.lastNight.day
@@ -76,12 +77,9 @@ struct BedtimeHighlight: View {
     }
     .chartXScale(domain: bedtime.firstDay...end)
     .chartXAxis(.hidden)
-    .chartYScale(domain: -latest ... -earliest)
+    .chartYScale(domain: -axis.domain.upperBound ... -axis.domain.lowerBound)
     .chartYAxis {
-      AxisMarks(
-        position: .trailing,
-        values: Array(stride(from: earliest, through: latest, by: step)).map { -$0 }
-      ) { value in
+      AxisMarks(position: .trailing, values: axis.marks.map { -$0 }) { value in
         AxisGridLine()
         AxisValueLabel {
           if let hours = value.as(Double.self) {

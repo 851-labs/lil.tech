@@ -17,11 +17,13 @@ public struct BedtimeConsistency: Equatable, Sendable {
   }
 
   /// The first of the two weeks' days.
-  public var firstDay: Date
+  public let firstDay: Date
   /// The nights with sleep in the two weeks, oldest first. The last is last night's.
-  public var nights: [Night]
+  public let nights: [Night]
 
+  /// `nights` can't be empty: the last is last night's.
   public init(firstDay: Date, nights: [Night]) {
+    precondition(!nights.isEmpty, "Bedtime consistency needs last night.")
     self.firstDay = firstDay
     self.nights = nights
   }
@@ -30,6 +32,10 @@ public struct BedtimeConsistency: Equatable, Sendable {
   public static let days = 14
   /// Nights with sleep it needs in them, last night's included: half, so "usual" means something.
   public static let minimumNights = 7
+  /// The latest a night's sleep can start, in hours from its day's midnight, to count: noon. Later
+  /// is a day's sleep, a nap when the night wasn't recorded, whose "bedtime" (2 PM, +14) would say
+  /// nothing about when bedtime is.
+  public static let latestBedtime: Double = 12
 
   /// From the nights ending `today`, if last night is one and there are `minimumNights`.
   init?(nights: [SleepNight], today: Date, calendar: Calendar) {
@@ -38,11 +44,14 @@ public struct BedtimeConsistency: Equatable, Sendable {
     }
     let recent = nights.filter { $0.day >= first && $0.day <= today }.compactMap {
       night -> Night? in
-      night.bedtime.map {
-        Night(
-          day: night.day,
-          bedtime: HealthDatabase.clockHours($0, from: night.day, start: $0, calendar: calendar))
+      // Placed as Sleep's W and M charts place the night, from its first segment, Awake
+      // included, so a bedtime is where its column starts sleeping (851-3098).
+      guard let bedtime = night.bedtime, let start = night.segments.map(\.start).min() else {
+        return nil
       }
+      let hours = HealthDatabase.clockHours(
+        bedtime, from: night.day, start: start, calendar: calendar)
+      return hours < Self.latestBedtime ? Night(day: night.day, bedtime: hours) : nil
     }
     guard recent.count >= Self.minimumNights, recent.last?.day == today else { return nil }
     self.init(firstDay: first, nights: recent)
@@ -53,7 +62,7 @@ public struct BedtimeConsistency: Equatable, Sendable {
 
   /// The average bedtime, in hours from midnight, last night's included.
   public var average: Double {
-    nights.reduce(0) { $0 + $1.bedtime } / Double(max(nights.count, 1))
+    nights.reduce(0) { $0 + $1.bedtime } / Double(nights.count)
   }
 
   /// How many minutes after the average last night's bedtime was (before, if negative), each

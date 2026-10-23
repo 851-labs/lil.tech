@@ -13,17 +13,25 @@ struct SleepHighlightsSection: View {
     case loading
     case loaded(SleepHighlights)
     case failed(String)
+
+    var isLoading: Bool { self == .loading }
   }
 
   let state: State
+  /// Whether a load has run long enough to show its spinner (`DelayedProgress`, 851-3086). Until
+  /// then there's no section: most pages have no highlights, so its header would flash on each
+  /// open, then go.
+  var showsProgress = true
 
   var body: some View {
     switch state {
     case .loading:
-      Section("Highlights") {
-        // A row its rows replace (851-3086).
-        DelayedProgressView()
-          .frame(maxWidth: .infinity)
+      if showsProgress {
+        Section("Highlights") {
+          // Already past the delay: the section only shows once the load has run that long.
+          ProgressView()
+            .frame(maxWidth: .infinity)
+        }
       }
     case .failed(let reason):
       Section("Highlights") {
