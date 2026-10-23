@@ -2,47 +2,81 @@ public import Foundation
 
 /// How the Mac's pages and browse write a metric's value and when it's from, the way Health does.
 public enum MetricFormat {
-  /// `value` (in `unit`, as stored) as Health shows it, e.g. ("8,214", "steps") or ("97", "%").
+  /// `value` (in `unit`, as stored) as Health shows it, e.g. ("8,214", "steps") or ("97", "%"),
+  /// in the type's display unit (`unit(_:typeID:)`).
   public static func value(_ value: Double, unit: String?, typeID: String) -> (
     number: String, unit: String
   ) {
-    let (shown, label) = converted(value, unit: unit, typeID: typeID)
-    // Whole numbers for counts and the like, as Health shows them (not breaths a minute).
-    let whole: Set = [
+    let shown = self.unit(unit, typeID: typeID)
+    return (shown.format(shown.convert(value)), shown.label)
+  }
+
+  /// The unit a type's values are shown in, as Health shows them: one per type, whatever the
+  /// value, so a chart's axis, its header and every row agree (851-3105). Walking + Running
+  /// Distance is in km even for 400 m, as in Health, and a range never reads "800 m–1.2 km".
+  public static func unit(_ unit: String?, typeID: String) -> DisplayUnit {
+    let name = typeID.components(separatedBy: "Identifier").last ?? typeID
+    switch unit {
+    case "count": return DisplayUnit(countLabels[name] ?? "")
+    case "count/min": return DisplayUnit(rateLabels[name] ?? "BPM")
+    // Stored as a fraction.
+    case "%": return DisplayUnit("%", scale: 100)
+    // Distances covered in km, except swimming, which Health keeps in metres. Lengths (height,
+    // a step, a six-minute walk) stay in metres.
+    case "m":
+      return name.hasPrefix("Distance") && name != "DistanceSwimming"
+        ? DisplayUnit("km", scale: 0.001) : DisplayUnit("m")
+    // Speeds in km/h, except stair speeds.
+    case "m/s":
+      return name.hasPrefix("Stair") ? DisplayUnit("m/s") : DisplayUnit("km/h", scale: 3.6)
+    case "degC": return DisplayUnit("°C")
+    case "dBASPL": return DisplayUnit("dB")
+    case "appleEffortScore": return DisplayUnit("")
+    // Cardio Fitness, as Health labels it.
+    case "ml/(kg*min)": return DisplayUnit("VO₂ max")
+    case let unit?: return DisplayUnit(unit)
+    case nil: return DisplayUnit("")
+    }
+  }
+
+  private static let countLabels = [
+    "StepCount": "steps", "FlightsClimbed": "floors", "PushCount": "pushes",
+    "SwimmingStrokeCount": "strokes", "NumberOfTimesFallen": "times",
+  ]
+  private static let rateLabels = ["RespiratoryRate": "breaths/min", "CyclingCadence": "RPM"]
+
+  /// What a type's values are shown in (`MetricFormat.unit(_:typeID:)`): the label after the
+  /// number, and the scale from the stored unit. Charts plot `convert`ed values, so their axes
+  /// read in the same unit as the header, with round ticks in it (851-3105).
+  public struct DisplayUnit: Equatable, Sendable {
+    /// As Health writes it after the number: "km/h", "%", or "" for none.
+    public let label: String
+    /// What a stored value is multiplied by.
+    public let scale: Double
+
+    init(_ label: String, scale: Double = 1) {
+      self.label = label
+      self.scale = scale
+    }
+
+    /// A stored value in this unit.
+    public func convert(_ stored: Double) -> Double { stored * scale }
+
+    /// A value already in this unit, as Health writes it: whole numbers for counts and the like
+    /// (not breaths a minute), otherwise fewer decimals the larger it is. A distance under 1 km
+    /// gets a third, to the metre, so a 4 m sample isn't "0 km".
+    public func format(_ shown: Double) -> String {
+      let size = abs(shown)
+      let digits =
+        Self.whole.contains(label) || size >= 100
+        ? 0 : size >= 10 ? 1 : size < 1 && label == "km" ? 3 : 2
+      return shown.formatted(.number.precision(.fractionLength(0...digits)))
+    }
+
+    private static let whole: Set = [
       "steps", "floors", "pushes", "strokes", "times", "BPM", "RPM", "kcal", "%", "ms", "mmHg",
       "mg/dL", "dB", "W",
     ]
-    let digits = whole.contains(label) || abs(shown) >= 100 ? 0 : abs(shown) >= 10 ? 1 : 2
-    return (shown.formatted(.number.precision(.fractionLength(0...digits))), label)
-  }
-
-  private static func converted(_ value: Double, unit: String?, typeID: String) -> (Double, String)
-  {
-    let name = typeID.components(separatedBy: "Identifier").last ?? typeID
-    switch unit {
-    case "count":
-      let labels = [
-        "StepCount": "steps", "FlightsClimbed": "floors", "PushCount": "pushes",
-        "SwimmingStrokeCount": "strokes", "NumberOfTimesFallen": "times",
-      ]
-      return (value, labels[name] ?? "")
-    case "count/min":
-      let labels = ["RespiratoryRate": "breaths/min", "CyclingCadence": "RPM"]
-      return (value, labels[name] ?? "BPM")
-    // Stored as a fraction.
-    case "%": return (value * 100, "%")
-    // Distances in km, except those Health keeps in metres.
-    case "m":
-      let metres: Set = ["DistanceSwimming", "SixMinuteWalkTestDistance"]
-      return value >= 1000 && !metres.contains(name) ? (value / 1000, "km") : (value, "m")
-    // Speeds in km/h, except stair speeds.
-    case "m/s": return name.hasPrefix("Stair") ? (value, "m/s") : (value * 3.6, "km/h")
-    case "degC": return (value, "°C")
-    case "dBASPL": return (value, "dB")
-    case "appleEffortScore": return (value, "")
-    case let unit?: return (value, unit)
-    case nil: return (value, "")
-    }
   }
 
   /// A length of time as Health writes a session's: ("24", "sec"), or ("2", "min") from a
