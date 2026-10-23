@@ -26,7 +26,8 @@
       $0.date.now = previewNow
       $0.calendar = previewCalendar
       $0.timeZone = previewCalendar.timeZone
-      $0.locale = previewCalendar.locale!
+      // Metric units, which states can change (`CatalogState`'s `locale`, 851-3116).
+      $0.locale = previewLocale
       // Loading states show their spinners in the image drawn at once (851-3086).
       $0.delayedProgressTiming = .immediate
     })

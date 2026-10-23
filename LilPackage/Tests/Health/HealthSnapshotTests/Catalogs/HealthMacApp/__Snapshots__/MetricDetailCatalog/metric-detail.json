@@ -249,6 +249,55 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.weight-month-us-dark.png",
+      "id" : "metric-detail.weight-month-us",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.weight-month-us-light.png",
+      "name" : "Weight, month, US",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.weight-month-uk-dark.png",
+      "id" : "metric-detail.weight-month-uk",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.weight-month-uk-light.png",
+      "name" : "Weight, month, UK",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.weight-no-data-us-dark.png",
+      "id" : "metric-detail.weight-no-data-us",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.weight-no-data-us-light.png",
+      "name" : "Weight, no data, US",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.walking-running-distance-week-us-dark.png",
+      "id" : "metric-detail.walking-running-distance-week-us",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.walking-running-distance-week-us-light.png",
+      "name" : "Walking + running distance, week, US",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.walking-speed-week-us-dark.png",
+      "id" : "metric-detail.walking-speed-week-us",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.walking-speed-week-us-light.png",
+      "name" : "Walking speed, week, US",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.body-temperature-week-us-dark.png",
+      "id" : "metric-detail.body-temperature-week-us",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.body-temperature-week-us-light.png",
+      "name" : "Body temperature, week, US",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.height-week-us-dark.png",
+      "id" : "metric-detail.height-week-us",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.height-week-us-light.png",
+      "name" : "Height, week, US",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/MetricDetailCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.stand-hours-day-dark.png",
       "id" : "metric-detail.stand-hours-day",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/MetricDetailCatalog/metric-detail.stand-hours-day-light.png",

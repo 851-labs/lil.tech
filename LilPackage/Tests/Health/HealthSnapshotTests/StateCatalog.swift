@@ -94,6 +94,9 @@ struct CatalogState: Sendable, Identifiable, CustomTestStringConvertible {
   fileprivate(set) var screen = ""
   /// Its catalog's manifest, for Pixelbook.
   fileprivate(set) var manifest: CatalogManifest?
+  /// The locale its views read (`@Dependency(\.locale)`), for the units values are shown in
+  /// (851-3116), if not its suite's: `Locale(identifier: "en_US")` for miles, pounds and °F.
+  let locale: Locale?
   let view: @MainActor () -> AnyView
   let fileID: StaticString
   let filePath: StaticString
@@ -101,13 +104,14 @@ struct CatalogState: Sendable, Identifiable, CustomTestStringConvertible {
   let column: UInt
 
   init(
-    _ name: String, width: CGFloat? = nil, minHeight: CGFloat? = nil,
+    _ name: String, width: CGFloat? = nil, minHeight: CGFloat? = nil, locale: Locale? = nil,
     fileID: StaticString = #fileID, filePath: StaticString = #filePath, line: UInt = #line,
     column: UInt = #column, @ViewBuilder view: @escaping @MainActor () -> some View
   ) {
     self.name = name
     self.width = width
     self.minHeight = minHeight
+    self.locale = locale
     self.view = { @MainActor in AnyView(view()) }
     self.fileID = fileID
     self.filePath = filePath
@@ -240,8 +244,21 @@ extension CatalogState {
 
 #if os(macOS)
   import AppKit
+  import Dependencies
 
   extension CatalogState {
+    /// Runs `body` with the state's locale, if it has one, as its views' dependency: while they're
+    /// drawn, since a view's `@Dependency` reads the values current then.
+    @MainActor
+    func withLocale<Result>(_ body: () -> Result) -> Result {
+      guard let locale else { return body() }
+      return withDependencies {
+        $0.locale = locale
+      } operation: {
+        body()
+      }
+    }
+
     /// Snapshots the state in light and dark (`assertMacSnapshot`), at its width and at least its
     /// height, against `__Snapshots__/<catalog file>/<screen>.<state>-<light|dark>.png` next to
     /// its catalog. A failure points at the state.
@@ -249,10 +266,12 @@ extension CatalogState {
     func assertMacSnapshots() {
       checkManifest(app: pixelbookApp)
       for appearance in [NSAppearance.Name.aqua, .darkAqua] {
-        assertMacSnapshot(
-          of: view().frame(width: width).frame(minHeight: minHeight, alignment: .top),
-          appearance: appearance, named: slug, screen: screenSlug, fileID: fileID, file: filePath,
-          line: line, column: column)
+        withLocale {
+          assertMacSnapshot(
+            of: view().frame(width: width).frame(minHeight: minHeight, alignment: .top),
+            appearance: appearance, named: slug, screen: screenSlug, fileID: fileID,
+            file: filePath, line: line, column: column)
+        }
       }
     }
   }

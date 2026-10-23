@@ -106,6 +106,8 @@ struct HeartbeatSeriesRow: View {
   let series: HealthHeartbeatSeries
   /// Worked out once, not on every render.
   private let analysis: HeartbeatAnalysis
+  /// Whose units values are in (851-3116).
+  @Dependency(\.locale) private var locale
 
   init(series: HealthHeartbeatSeries) {
     self.series = series
@@ -120,7 +122,7 @@ struct HeartbeatSeriesRow: View {
         .frame(width: 36, height: 36)
         .background(.red.opacity(0.15), in: Circle())
       VStack(alignment: .leading, spacing: 2) {
-        Text(HeartFormat.average(analysis))
+        Text(HeartFormat.average(analysis, locale: locale))
           .font(.headline)
         Text("\(analysis.beatCount.formatted()) beats")
           .foregroundStyle(.secondary)
@@ -138,6 +140,8 @@ struct HeartbeatSeriesRow: View {
 struct HeartbeatSeriesDetailView: View {
   let series: HealthHeartbeatSeries
   private let analysis: HeartbeatAnalysis
+  /// Whose units values are in (851-3116).
+  @Dependency(\.locale) private var locale
 
   init(series: HealthHeartbeatSeries) {
     self.series = series
@@ -151,7 +155,7 @@ struct HeartbeatSeriesDetailView: View {
       Section {
         VStack(alignment: .leading, spacing: 12) {
           VStack(alignment: .leading, spacing: 4) {
-            Text(HeartFormat.average(analysis))
+            Text(HeartFormat.average(analysis, locale: locale))
               .font(.largeTitle.bold())
             Text(
               Date(unixMilliseconds: series.startDate).formatted(date: .complete, time: .shortened)
@@ -191,8 +195,9 @@ struct HeartbeatSeriesDetailView: View {
         LabeledContent(
           "Duration",
           value: "\(analysis.duration.formatted(.number.precision(.fractionLength(0)))) s")
-        LabeledContent("HRV (SDNN)", value: HeartFormat.milliseconds(analysis.sdnn))
-        LabeledContent("HRV (RMSSD)", value: HeartFormat.milliseconds(analysis.rmssd))
+        LabeledContent("HRV (SDNN)", value: HeartFormat.milliseconds(analysis.sdnn, locale: locale))
+        LabeledContent(
+          "HRV (RMSSD)", value: HeartFormat.milliseconds(analysis.rmssd, locale: locale))
         LabeledContent("Recorded With", value: series.sourceName)
       }
     }
@@ -202,17 +207,18 @@ struct HeartbeatSeriesDetailView: View {
 }
 
 enum HeartFormat {
-  static func average(_ analysis: HeartbeatAnalysis) -> String {
+  static func average(_ analysis: HeartbeatAnalysis, locale: Locale) -> String {
     guard let bpm = analysis.averageBeatsPerMinute else { return "No Average" }
     let (number, unit) = MetricFormat.value(
-      bpm, unit: "count/min", typeID: HealthDatabase.heartRateType)
+      bpm, unit: "count/min", typeID: HealthDatabase.heartRateType, locale: locale)
     return "\(number) \(unit) Average"
   }
 
-  static func milliseconds(_ value: Double?) -> String {
+  static func milliseconds(_ value: Double?, locale: Locale) -> String {
     guard let value else { return "–" }
     let (number, unit) = MetricFormat.value(
-      value, unit: "ms", typeID: "HKQuantityTypeIdentifierHeartRateVariabilitySDNN")
+      value, unit: "ms", typeID: "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+      locale: locale)
     return "\(number) \(unit)"
   }
 }

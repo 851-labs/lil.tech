@@ -356,7 +356,16 @@ private struct PreviewData {
 
   /// Plausible values for a type: per sample, or per 30-minute bucket for cumulative types.
   static func range(for type: HealthDataType, perBucket: Bool) -> (Double, Double) {
-    switch type.unit {
+    // Lengths, in metres, which a distance's range would make hundreds of metres tall.
+    switch type.id.components(separatedBy: "Identifier").last {
+    case "Height": return (1.74, 1.76)
+    case "WaistCircumference": return (0.8, 0.84)
+    case "WalkingStepLength": return (0.68, 0.76)
+    case "RunningStrideLength": return (1.1, 1.3)
+    case "UnderwaterDepth": return (2, 12)
+    default: break
+    }
+    return switch type.unit {
     case "count": perBucket ? (0, 400) : (1, 10)
     case "m": perBucket ? (0, 600) : (300, 600)
     case "kcal": perBucket ? (5, 40) : (100, 300)
@@ -374,7 +383,7 @@ private struct PreviewData {
     case "dBASPL": (55, 80)
     case "ms": (30, 80)
     case "kg": (70, 72)
-    case "cm": (170, 171)
+    case "cm": (8, 10)
     case "mmHg": (70, 128)
     case "mg/dL": (80, 120)
     default: (1, 10)

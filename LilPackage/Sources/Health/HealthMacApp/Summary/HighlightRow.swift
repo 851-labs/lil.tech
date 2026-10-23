@@ -1,4 +1,5 @@
 import Charts
+import Dependencies
 import HealthCatalog
 import HealthDatabase
 import HealthPages
@@ -9,6 +10,8 @@ import SwiftUI
 struct HighlightRow: View {
   let highlight: Highlight
   let type: HealthDataType
+  /// Whose units values are in (851-3116).
+  @Dependency(\.locale) private var locale
 
   private var color: Color { type.color }
 
@@ -16,7 +19,7 @@ struct HighlightRow: View {
     VStack(alignment: .leading, spacing: 10) {
       HealthTypeLabel(type: type)
         .font(.headline)
-      Text(HighlightText.sentence(highlight, type: type))
+      Text(HighlightText.sentence(highlight, type: type, locale: locale))
         .font(.title3.weight(.semibold))
         .fixedSize(horizontal: false, vertical: true)
       switch highlight.kind {
@@ -30,14 +33,21 @@ struct HighlightRow: View {
 
   /// The two weeks' averages as bars, this week in the category's color.
   private var comparison: some View {
+    let shown = displayUnit
     // Rolling weeks ending yesterday, as the sentence says, not calendar weeks.
-    ComparisonBars(
+    return ComparisonBars(
       earlier: .init(
-        "7 Days Before", value: highlight.previous,
-        text: HighlightText.text(highlight.previous, type), color: Self.earlierColor),
+        "7 Days Before", value: shown.convert(highlight.previous),
+        text: HighlightText.text(highlight.previous, type, locale: locale),
+        color: Self.earlierColor),
       recent: .init(
-        "Last 7 Days", value: highlight.current,
-        text: HighlightText.text(highlight.current, type), color: color))
+        "Last 7 Days", value: shown.convert(highlight.current),
+        text: HighlightText.text(highlight.current, type, locale: locale), color: color))
+  }
+
+  /// What values are written in, and so what the trend plots, so its ticks are round in it.
+  private var displayUnit: MetricFormat.DisplayUnit {
+    MetricFormat.unit(type.unit, typeID: type.id, locale: locale)
   }
 
   /// The earlier period, in both kinds of highlight.
@@ -51,19 +61,24 @@ struct HighlightRow: View {
     // Around the values, not from zero, so the change shows.
     let values = highlight.points.map(\.value) + [highlight.current, highlight.previous]
     let (low, high) = (values.min() ?? 0, values.max() ?? 1)
-    let floor = max(0, low - (high - low) * 0.5 - 1)
+    // Plotted in the unit the sentence writes them in, so the axis's ticks are round in it
+    // (851-3116).
+    let shown = displayUnit
+    let (current, previous) = (shown.convert(highlight.current), shown.convert(highlight.previous))
+    let floor = shown.convert(max(0, low - (high - low) * 0.5 - 1))
+    let top = shown.convert(high + (high - low) * 0.2 + 1)
     return Chart {
       ForEach(highlight.points, id: \.day) { week in
         BarMark(
           x: .value("Week", String(index(week.day))), yStart: .value("Floor", floor),
-          yEnd: .value("Average", week.value), width: .ratio(0.7)
+          yEnd: .value("Average", shown.convert(week.value)), width: .ratio(0.7)
         )
         .foregroundStyle(week.day >= highlight.recentStart ? color : Self.earlierColor)
       }
-      RuleMark(y: .value("Before", highlight.previous))
+      RuleMark(y: .value("Before", previous))
         .foregroundStyle(Color.gray)
         .lineStyle(StrokeStyle(lineWidth: 1, dash: [3]))
-      RuleMark(y: .value("Lately", highlight.current))
+      RuleMark(y: .value("Lately", current))
         .foregroundStyle(color)
     }
     .chartXAxis(.hidden)
@@ -74,21 +89,21 @@ struct HighlightRow: View {
         AxisGridLine()
         AxisValueLabel {
           if let number = value.as(Double.self) {
-            Text(MetricFormat.value(number, unit: type.unit, typeID: type.id).number)
+            Text(shown.format(number))
           }
         }
       }
     }
-    .chartYScale(domain: floor...(high + (high - low) * 0.2 + 1))
+    .chartYScale(domain: floor...top)
     .frame(height: 120)
   }
 }
 
 /// How highlights read.
 enum HighlightText {
-  static func sentence(_ highlight: Highlight, type: HealthDataType) -> String {
-    let value = text(highlight.current, type)
-    let before = text(highlight.previous, type)
+  static func sentence(_ highlight: Highlight, type: HealthDataType, locale: Locale) -> String {
+    let value = text(highlight.current, type, locale: locale)
+    let before = text(highlight.previous, type, locale: locale)
     let perDay = type.aggregation?.isCumulative == true ? " a day" : ""
     switch highlight.kind {
     case .week:
@@ -106,9 +121,10 @@ enum HighlightText {
     }
   }
 
-  /// A value with its unit, if it has one.
-  static func text(_ value: Double, _ type: HealthDataType) -> String {
-    let (number, unit) = MetricFormat.value(value, unit: type.unit, typeID: type.id)
+  /// A value with its unit, if it has one, in `locale`'s units.
+  static func text(_ value: Double, _ type: HealthDataType, locale: Locale) -> String {
+    let (number, unit) = MetricFormat.value(
+      value, unit: type.unit, typeID: type.id, locale: locale)
     return unit.isEmpty ? number : "\(number) \(unit)"
   }
 }

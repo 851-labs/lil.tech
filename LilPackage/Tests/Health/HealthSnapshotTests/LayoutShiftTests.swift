@@ -80,13 +80,15 @@
     @MainActor
     func anchorFrames() -> [String: CGRect] {
       let frames = AnchorFrames()
-      let window = snapshotWindow(
-        of: view().frame(width: width).frame(minHeight: minHeight, alignment: .top)
-          .environment(
-            \.layoutAnchorRecorder,
-            LayoutAnchorRecorder { name, frame in frames.byName[name] = frame }),
-        appearance: .aqua, title: slug)
-      window.close()
+      withLocale {
+        let window = snapshotWindow(
+          of: view().frame(width: width).frame(minHeight: minHeight, alignment: .top)
+            .environment(
+              \.layoutAnchorRecorder,
+              LayoutAnchorRecorder { name, frame in frames.byName[name] = frame }),
+          appearance: .aqua, title: slug)
+        window.close()
+      }
       return frames.byName
     }
 

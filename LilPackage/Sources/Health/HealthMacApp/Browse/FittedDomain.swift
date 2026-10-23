@@ -1,3 +1,4 @@
+import Foundation
 import HealthCatalog
 import HealthPages
 
@@ -19,7 +20,7 @@ func fittedDomain(_ values: [Double]) -> ClosedRange<Double>? {
 /// chart keeps its gridlines and a scale that reads as the type's while the header says No Data,
 /// rather than an axis with no marks. In `unit`, what the values are stored in (the type's, or a
 /// category chart's): Metric Detail plots it `converted(by:)` the type's display unit (851-3105),
-/// so 5,000 m is 0–5 km.
+/// so 5,000 m is 0–5 km, or 0–3.2 mi (851-3116).
 func emptyDomain(for type: HealthDataType, unit: String?, hourly: Bool = false)
   -> ClosedRange<Double>
 {
@@ -36,6 +37,8 @@ private func typicalTop(_ type: HealthDataType, unit: String?) -> Double {
   case "SwimmingStrokeCount": return 2_000
   case "BodyMassIndex": return 40
   case "SixMinuteWalkTestDistance": return 600
+  case "WalkingStepLength": return 1
+  case "WaistCircumference": return 1.5
   case "UnderwaterDepth": return 40
   case "RunningGroundContactTime": return 300
   // 0.1%, over the stored fraction.
@@ -68,8 +71,18 @@ private func typicalTop(_ type: HealthDataType, unit: String?) -> Double {
 }
 
 extension ClosedRange<Double> {
-  /// Both ends in `unit`, as Metric Detail plots values (851-3105).
+  /// Both ends in `unit`, as Metric Detail plots values (851-3105), the top rounded up to two
+  /// significant digits, so a scale converted to another system ends near a tick: 0–5 km is
+  /// 0–3.2 mi, not 0–3.107, and 0–100 kg 0–230 lb (851-3116).
   func converted(by unit: MetricFormat.DisplayUnit) -> ClosedRange<Double> {
-    unit.convert(lowerBound)...unit.convert(upperBound)
+    unit.convert(lowerBound)...roundedUp(unit.convert(upperBound))
   }
+}
+
+/// `value` rounded up to two significant digits, ignoring a conversion's rounding error, so 25
+/// km/h stored as 6.94 m/s stays 25.
+private func roundedUp(_ value: Double) -> Double {
+  guard value > 0 else { return value }
+  let scale = pow(10, 1 - floor(log10(value)))
+  return (value * scale * (1 - 1e-9)).rounded(.up) / scale
 }

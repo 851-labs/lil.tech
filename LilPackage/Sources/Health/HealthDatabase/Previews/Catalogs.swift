@@ -20,6 +20,11 @@ public let previewCalendar: Calendar = {
   return calendar
 }()
 
+/// The locale snapshot catalogs show values' units in (`@Dependency(\.locale)`, 851-3116):
+/// `previewCalendar`'s `en_US`, with metric units (km, kg, °C), so they're the same on every Mac,
+/// whatever its region. A state shows the US's (mi, lb, °F) with `en_US` itself.
+public let previewLocale = Locale(identifier: "en_US@measure=metric")
+
 /// The synthetic database of snapshot catalogs: `makePreviewHealthDatabase`'s at `previewNow`, in
 /// `previewCalendar`, so the same rows on any day and any Mac. Built once per process. A catalog's
 /// suite makes it the `defaultDatabase`, with `previewNow` and `previewCalendar` the `date` and

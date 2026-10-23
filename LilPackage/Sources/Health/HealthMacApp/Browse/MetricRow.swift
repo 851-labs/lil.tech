@@ -1,4 +1,5 @@
 import Charts
+import Dependencies
 import HealthCatalog
 import HealthDatabase
 import HealthPages
@@ -19,6 +20,8 @@ struct MetricRow: View {
   let color: Color
   let now: Date
   let calendar: Calendar
+  /// Whose units the value is in (851-3116).
+  @Dependency(\.locale) private var locale
 
   /// In `color`, or the type's own (`HealthDataType.color`) without one. A category
   /// page passes its own, so a type listed under two categories takes the page's.
@@ -57,7 +60,8 @@ struct MetricRow: View {
         }
       } else if let summary, let value = summary.latestValue {
         HStack(alignment: .bottom) {
-          let (number, unit) = MetricFormat.value(value, unit: summary.unit, typeID: type.id)
+          let (number, unit) = MetricFormat.value(
+            value, unit: summary.unit, typeID: type.id, locale: locale)
           HStack(alignment: .firstTextBaseline, spacing: 3) {
             Text(number)
               .font(.system(.title, design: .rounded).bold())

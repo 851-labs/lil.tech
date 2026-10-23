@@ -7,6 +7,7 @@ import Testing
 // Synthetic data only (AGENTS.md).
 
 struct FoodFormatTests {
+  private let locale = Locale(identifier: "en_US")
   private let utc: Calendar = {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "UTC")!
@@ -28,10 +29,12 @@ struct FoodFormatTests {
   @Test
   func macronutrientsLeaveOutWhatAFoodLacks() {
     #expect(
-      FoodFormat.macronutrients(food(carbohydrates: 62, protein: 18, fat: 21))
+      FoodFormat.macronutrients(food(carbohydrates: 62, protein: 18, fat: 21), locale: locale)
         == "Carbs \(62.formatted()) g · Protein \(18.formatted()) g · Fat \(21.formatted()) g")
-    #expect(FoodFormat.macronutrients(food(protein: 9.5)) == "Protein \(9.5.formatted()) g")
-    #expect(FoodFormat.macronutrients(food(energy: 250)) == nil)
+    #expect(
+      FoodFormat.macronutrients(food(protein: 9.5), locale: locale)
+        == "Protein \(9.5.formatted()) g")
+    #expect(FoodFormat.macronutrients(food(energy: 250), locale: locale) == nil)
   }
 
   @Test
@@ -40,10 +43,14 @@ struct FoodFormatTests {
       day: utc.startOfDay(for: now), foods: [food(energy: 1_200), food(energy: 640)])
     let total = 1_840.formatted(.number.precision(.fractionLength(0)))
     #expect(
-      FoodFormat.dayHeader(day, isComplete: true, now: now, calendar: utc)
+      FoodFormat.dayHeader(day, isComplete: true, now: now, calendar: utc, locale: locale)
         == "Today · \(total) kcal")
-    #expect(FoodFormat.dayHeader(day, isComplete: false, now: now, calendar: utc) == "Today")
+    #expect(
+      FoodFormat.dayHeader(day, isComplete: false, now: now, calendar: utc, locale: locale)
+        == "Today")
     let noEnergy = FoodDay(day: utc.startOfDay(for: now), foods: [food(protein: 3)])
-    #expect(FoodFormat.dayHeader(noEnergy, isComplete: true, now: now, calendar: utc) == "Today")
+    #expect(
+      FoodFormat.dayHeader(noEnergy, isComplete: true, now: now, calendar: utc, locale: locale)
+        == "Today")
   }
 }
