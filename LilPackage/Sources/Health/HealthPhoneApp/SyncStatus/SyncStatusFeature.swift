@@ -380,8 +380,7 @@ extension AlertState where Action == SyncStatusFeature.Action.Alert {
       }
     } message: {
       TextState(
-        "This deletes your lil health account and everything uploaded to it, on every device. The data in Health on this iPhone stays."
-      )
+        "Everything in your account is deleted, on every device. Your data in Health stays.")
     }
   }
 
@@ -396,9 +395,7 @@ extension AlertState where Action == SyncStatusFeature.Action.Alert {
         TextState("Cancel")
       }
     } message: {
-      TextState(
-        "lil health sends all the Health data you share again, so your account gets what it's missing. It keeps one copy of each record. This can take a while and use a lot of data, so Wi-Fi is best."
-      )
+      TextState("This can take a while and use a lot of data, so Wi-Fi is best.")
     }
   }
 
@@ -437,9 +434,7 @@ extension AlertState where Action == SyncStatusFeature.Action.Alert {
         TextState("Cancel")
       }
     } message: {
-      TextState(
-        "lil health stops uploading your Health data. What's already uploaded stays in your account until you delete it."
-      )
+      TextState("lil health stops uploading. What's already uploaded stays in your account.")
     }
   }
 
@@ -455,8 +450,7 @@ extension AlertState where Action == SyncStatusFeature.Action.Alert {
       }
     } message: {
       TextState(
-        "Nothing more is uploaded. To remove what's already uploaded too, delete your account: that deletes everything in it, on every device. The data in Health on this iPhone stays."
-      )
+        "To remove what's already uploaded, delete your account. Your data in Health stays.")
     }
   }
 

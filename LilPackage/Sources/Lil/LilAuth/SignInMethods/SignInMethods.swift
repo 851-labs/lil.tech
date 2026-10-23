@@ -56,11 +56,11 @@ public enum SignInMethodError: Error, Equatable, Sendable {
   public var message: String {
     switch self {
     case .inUse(let provider):
-      "That \(provider.name) account already signs in to another lil account. Sign in with it to use that account, or delete that account first."
+      "That \(provider.name) account is already used by another lil account."
     case .lastMethod: "Your only sign-in method can't be removed."
     case .rejected: "Linking didn't work. Please try again."
     case .signedOut: "Your session ended. Sign in again."
-    case .unavailable: "It isn't possible right now. Please try again later."
+    case .unavailable: "That isn't possible right now. Please try again later."
     case .failed(let reason): "Something went wrong: \(reason)"
     }
   }

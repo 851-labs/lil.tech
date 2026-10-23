@@ -148,7 +148,7 @@ struct AccountSettingsView: View {
         ContentUnavailableView {
           Label("Not Signed In", systemImage: "person.crop.circle")
         } description: {
-          Text("Sign in to lil health to see how you sign in and to export your data.")
+          Text("Sign in to see your account.")
         }
       case true:
         let account = store.scope(\.account, action: \.account)
@@ -166,7 +166,7 @@ struct AccountSettingsView: View {
 }
 
 /// Signing out of lil health on this Mac (851-3096), last, as System Settings' Apple Account
-/// pane ends with its Sign Out…: what it removes, and what stays. It asks first.
+/// pane ends with its Sign Out…. It asks first, and its confirmation says what it removes.
 struct SignOutSection: View {
   @Bindable var store: StoreOf<AccountFeature>
 
@@ -174,10 +174,6 @@ struct SignOutSection: View {
     Section {
       Button("Sign Out…") { store.send(.signOutButtonTapped) }
         .alert($store.scope(\.alert, action: \.alert))
-    } footer: {
-      Text(
-        "Signing out removes your Health data from this Mac and turns off its command-line and agent access. Your account and the data your iPhone syncs to it stay, for when you sign in again."
-      )
     }
   }
 }
@@ -232,9 +228,7 @@ struct DataExportSection: View {
         Text(message)
           .foregroundStyle(.red)
       } else {
-        Text(
-          "A copy of everything in your account, as an archive: your account details, synced Health records and attachments. One export a day."
-        )
+        Text("Download a copy of everything in your account.")
       }
     }
   }

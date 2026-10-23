@@ -23,7 +23,7 @@ struct RecentAccessView: View {
             Button("Try Again") { store.send(.retryLogButtonTapped) }
           }
         } else if store.log.isEmpty {
-          Text("No agent has read your data yet.")
+          Text("No access yet.")
             .foregroundStyle(.secondary)
         } else {
           ForEach(store.log) { entry in
@@ -48,7 +48,7 @@ struct RecentAccessView: View {
           }
         }
       } footer: {
-        Text("Each read names the tool an agent used and what it asked for, never the values.")
+        Text("The data itself isn't logged.")
       }
     }
     .navigationTitle("Recent Access")

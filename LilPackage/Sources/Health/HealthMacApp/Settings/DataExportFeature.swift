@@ -391,7 +391,7 @@ public struct AccountFeature {
 }
 
 extension AlertState where Action == AccountFeature.Action.Alert {
-  /// Sign Out's confirmation: what leaves this Mac, and what stays.
+  /// Sign Out's confirmation: the account keeps its data, and this Mac's copy goes.
   static var confirmSignOut: Self {
     Self {
       TextState("Sign Out of lil health?")
@@ -399,9 +399,7 @@ extension AlertState where Action == AccountFeature.Action.Alert {
       ButtonState(action: .confirmSignOut) { TextState("Sign Out") }
       ButtonState(role: .cancel) { TextState("Cancel") }
     } message: {
-      TextState(
-        "Your Health data will be removed from this Mac, and its command-line and agent access turned off. Your account, and the data your iPhone syncs to it, stay."
-      )
+      TextState("Your data stays in your account. This Mac's copy is removed.")
     }
   }
 }

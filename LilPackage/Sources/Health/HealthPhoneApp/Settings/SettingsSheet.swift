@@ -34,9 +34,7 @@ struct SettingsSheet: View {
             }
             .disabled(store.isUploadingAgain)
           } footer: {
-            Text(
-              "If you let Health share more of your history, such as All Recorded Data rather than the past 30 days, this uploads the older data too."
-            )
+            Text("If you've let lil health read more of your history, this uploads it.")
           }
         }
         // Health doesn't let apps open its access settings, so the sheet says where they are, and
@@ -64,7 +62,7 @@ struct SettingsSheet: View {
               store: store.scope(\.connectedAgents, action: \.connectedAgents))
           }
         } footer: {
-          Text("AI agents you allowed to read your lil health data, and what they read.")
+          Text("AI agents you've allowed to read your lil health data.")
         }
         Section {
           Link("Privacy Policy", destination: privacyPolicy)

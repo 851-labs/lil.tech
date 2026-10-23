@@ -45,13 +45,10 @@ public struct SignInMethodsSection: View {
         .task { await store.send(.task).finish() }
         .alert($store.scope(\.alert, action: \.alert))
     } footer: {
+      // Only to say what went wrong: the rows say the rest.
       if let failure = store.failure {
         Text(failure)
           .foregroundStyle(.red)
-      } else {
-        Text(
-          "Sign in to this account with any of these. An account that already signs in to another lil account can't be linked."
-        )
       }
     }
   }

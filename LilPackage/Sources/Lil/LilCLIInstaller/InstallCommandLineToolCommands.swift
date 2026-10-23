@@ -19,10 +19,11 @@
   /// Whether an install is under way, so starting another meanwhile does nothing.
   @MainActor private var isInstalling = false
 
-  /// Asks where to install `lil`, installs it, and says how that went. Alerts rather than SwiftUI
+  /// Asks where to install `lil`, installs it, and says how that went: the menu item's action, and
+  /// a settings pane's Install Command Line Tool… button's. Alerts rather than SwiftUI
   /// presentation: a menu command has no view to present from.
   @MainActor
-  private func installCommandLineTool() async {
+  public func installCommandLineTool() async {
     // Before asking where: an install already under way would ignore the answer.
     guard !isInstalling else { return }
     guard let bundled = Bundle.main.url(forAuxiliaryExecutable: "lil") else {

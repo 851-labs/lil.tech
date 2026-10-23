@@ -64,12 +64,10 @@ struct ConnectedAgentsView: View {
             .foregroundStyle(.red)
         } else if !store.loadedAgents.isEmpty {
           Text(
-            "These read all of your lil health data from lil health's servers, from anywhere, until you revoke them. Swipe left on one to revoke it."
+            "Connected agents can read your Health data until you revoke them. Swipe left to revoke one."
           )
         } else {
-          Text(
-            "Agents you allow read all of your lil health data from lil health's servers, from anywhere, until you revoke them."
-          )
+          Text("Connected agents can read your Health data until you revoke them.")
         }
       }
 
@@ -78,7 +76,7 @@ struct ConnectedAgentsView: View {
           RecentAccessView(store: store)
         }
       } footer: {
-        Text("What connected agents read, and when.")
+        Text("What your connected agents read, and when.")
       }
 
       MCPServerSection(
@@ -94,8 +92,6 @@ struct ConnectedAgentsView: View {
               store.send(.turnOffButtonTapped)
             }
           }
-        } footer: {
-          Text("Every agent loses access, and none can connect again until you allow one.")
         }
       }
     }
@@ -208,9 +204,7 @@ struct MCPServerSection: View {
     } header: {
       Text("Connect an Agent")
     } footer: {
-      Text(
-        "Add the MCP server URL to your agent as a remote MCP server (a connector), then sign in to lil health when it asks, and allow it."
-      )
+      Text("Add this URL to your agent as a connector, then sign in when it asks.")
     }
   }
 }

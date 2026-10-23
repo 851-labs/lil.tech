@@ -160,7 +160,7 @@ public struct SignInMethodsFeature {
 
       case .unlinkButtonTapped(let method):
         state.alert = AlertState {
-          TextState("Unlink \(method.provider.name)?")
+          TextState("Unlink Your \(method.provider.name) Account?")
         } actions: {
           ButtonState(role: .destructive, action: .confirmUnlink(method.id)) {
             TextState("Unlink")
@@ -169,9 +169,7 @@ public struct SignInMethodsFeature {
             TextState("Cancel")
           }
         } message: {
-          TextState(
-            "You won't be able to sign in with this \(method.provider.name) account anymore. Devices signed in with it stay signed in."
-          )
+          TextState("You won't be able to sign in with it anymore.")
         }
         return .none
 

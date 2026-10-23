@@ -111,7 +111,7 @@ struct ConnectedAgentsFeatureTests {
       $0.alert = .confirmRevoke(self.combined)
     }
     let message = store.state.alert.map { String(state: $0.message ?? TextState("")) }
-    #expect(message?.contains("disconnects it from every lil app") == true)
+    #expect(message?.contains("every lil app it's connected to") == true)
     let perApp = AlertState.confirmRevoke(claude).message.map { String(state: $0) }
     #expect(perApp?.contains("your Health data") == true)
     await store.send(\.alert.confirmRevoke, "grant-4") {

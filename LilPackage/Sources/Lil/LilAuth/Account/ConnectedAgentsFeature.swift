@@ -277,11 +277,8 @@ extension AlertState where Action == ConnectedAgentsFeature.Action.Alert {
     let name = ConnectedAgentsFeature.name(agent)
     let message =
       agent.isCombined
-      ? TextState(
-        "Revoking it disconnects it from every lil app it's connected to, at once. To use it again, connect it again."
-      )
-      : TextState(
-        "It loses access to your Health data at once. To use it again, connect it again.")
+      ? TextState("It loses access to every lil app it's connected to.")
+      : TextState("It loses access to your Health data.")
     return Self {
       TextState("Revoke \(name)?")
     } actions: {
@@ -304,9 +301,7 @@ extension AlertState where Action == ConnectedAgentsFeature.Action.Alert {
       }
       ButtonState(role: .cancel) { TextState("Cancel") }
     } message: {
-      TextState(
-        "Every agent connected to lil health loses access at once, and agents can't connect again until you allow one."
-      )
+      TextState("Every connected agent loses access.")
     }
   }
 }

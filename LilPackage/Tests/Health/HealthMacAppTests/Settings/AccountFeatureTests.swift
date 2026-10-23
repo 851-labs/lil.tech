@@ -48,7 +48,7 @@ struct AccountFeatureTests {
     #expect(String(state: alert.title) == "Sign Out of lil health?")
     #expect(
       alert.message.map { String(state: $0) }
-        == "Your Health data will be removed from this Mac, and its command-line and agent access turned off. Your account, and the data your iPhone syncs to it, stay."
+        == "Your data stays in your account. This Mac's copy is removed."
     )
     #expect(alert.buttons.map { String(state: $0.label) } == ["Sign Out", "Cancel"])
   }

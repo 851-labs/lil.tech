@@ -4,6 +4,7 @@ import HealthAgentAccess
 import HealthCatalog
 import LilAPI
 import LilAuth
+import LilCLIInstaller
 import LilUI
 import SwiftUI
 
@@ -24,7 +25,7 @@ struct AgentAccessSettingsView: View {
         ContentUnavailableView {
           Label("Not Signed In", systemImage: "terminal")
         } description: {
-          Text("Sign in to lil health to let command-line tools and agents read your Health data.")
+          Text("Sign in to let agents read your Health data.")
         }
       case true:
         AgentAccessForm(
@@ -56,15 +57,12 @@ struct AgentAccessForm: View {
         }
       } footer: {
         VStack(alignment: .leading, spacing: 6) {
-          Text(
-            "Lets the lil-health command, and AI agents through its MCP server, read all of your Health data on this Mac."
-          )
-          // App actions (851-2892) check the same setting.
-          Text("Also lets Shortcuts, Siri and Spotlight open pages in lil health, sync and export.")
+          // App actions (851-2892), which Shortcuts, Siri and Spotlight run, check the same
+          // setting: they open pages, sync and export.
+          Text("Lets agents, the lil command and Shortcuts use your Health data on this Mac.")
+          // The disclosure the privacy policy and agents consent rely on (851-2840).
           Label {
-            Text(
-              "Agents usually send what they read to their AI provider, which handles it under its own terms, not lil health's privacy policy."
-            )
+            Text("Agents usually send what they read to their AI provider, under its own terms.")
           } icon: {
             Image(systemName: "exclamationmark.triangle.fill")
               .foregroundStyle(.yellow)
@@ -211,13 +209,12 @@ struct AgentAccessLogSheet: View {
   let store: StoreOf<AgentAccessFeature>
 
   /// What the sheet and its row say while the log is empty.
-  static let empty = "Nothing has read your Health data yet."
+  static let empty = "No access yet."
 
   var body: some View {
     AgentLogSheet(
       title: "Access Log",
-      description:
-        "What read your Health data on this Mac, the latest \(AgentAccessFeature.entryLimit): the command or tool with its arguments, and what ran it, never what it answered."
+      description: "What read your Health data on this Mac. The data itself isn't logged."
     ) {
       if store.entries.isEmpty, store.isLoadingLog {
         DelayedProgressView()
@@ -297,26 +294,22 @@ struct AgentSetupSection: View {
         CopyableRow(title: "Other agents: command", value: path)
         CopyableRow(title: "Other agents: arguments", value: Self.arguments)
       } else {
-        // A bare `lil` wouldn't start from an app, which doesn't get the shell's `PATH`.
+        // A bare `lil` wouldn't start from an app, which doesn't get the shell's `PATH`. The
+        // menu item's install: the pane finds `lil` within a few seconds of it.
         LabeledContent("Other agents") {
-          Text("Once lil is installed, its path appears here.")
-            .foregroundStyle(.secondary)
+          Button("Install Command Line Tool…") {
+            Task { await installCommandLineTool() }
+          }
         }
       }
     } header: {
       Text("Connect an Agent")
     } footer: {
-      Group {
-        if commandLineTool == nil {
-          Text(
-            "These need the lil command. Install it with lil health › Install Command Line Tool…, then add lil to your agent as a local (stdio) MCP server: one server for every lil app."
-          )
-        } else {
-          Text(
-            "Add lil to your agent as a local (stdio) MCP server: one server for every lil app. The agent starts it when it needs it, and it answers while access is on."
-          )
-        }
-      }
+      Text(
+        commandLineTool == nil
+          ? "These need the lil command."
+          : "Add lil to your agent as a local (stdio) MCP server."
+      )
       .foregroundStyle(.secondary)
     }
 
@@ -330,13 +323,6 @@ struct AgentSetupSection: View {
       }
     } header: {
       Text("Connect an Agent to lil health Only")
-    } footer: {
-      Text(
-        path == nil
-          ? "For an agent that should only see lil health, add lil-health instead, once lil is installed."
-          : "For an agent that should only see lil health, add lil-health instead: the same command, with these arguments."
-      )
-      .foregroundStyle(.secondary)
     }
   }
 }
@@ -420,10 +406,8 @@ struct ConnectedAgentsSections: View {
         Text(failure)
           .foregroundStyle(.red)
       } else {
-        Text(
-          "Agents you allow read all of your lil health data from lil health's servers, from anywhere, until you revoke them."
-        )
-        .foregroundStyle(.secondary)
+        Text("Connected agents can read your Health data until you revoke them.")
+          .foregroundStyle(.secondary)
       }
     }
 
@@ -435,10 +419,8 @@ struct ConnectedAgentsSections: View {
     } header: {
       Text("Connect a Remote Agent")
     } footer: {
-      Text(
-        "Add the MCP server URL to your agent as a remote MCP server (a connector), then sign in to lil health when it asks, and allow it."
-      )
-      .foregroundStyle(.secondary)
+      Text("Add this URL to your agent as a connector, then sign in when it asks.")
+        .foregroundStyle(.secondary)
     }
 
   }
@@ -462,13 +444,12 @@ struct RemoteAccessLogSheet: View {
   let store: StoreOf<ConnectedAgentsFeature>
 
   /// What the sheet and its row say while the log is empty.
-  static let empty = "No remote agent has read your data yet."
+  static let empty = "No access yet."
 
   var body: some View {
     AgentLogSheet(
       title: "Remote Access Log",
-      description:
-        "What agents connected to your account read from lil health's servers: the tool each used and what it asked for, never the values."
+      description: "What your connected agents read. The data itself isn't logged."
     ) {
       if store.log.isEmpty, store.isLoadingLog {
         DelayedProgressView()
@@ -525,13 +506,11 @@ struct ConnectedAgentRow: View {
             .truncationMode(.tail)
           if agent.isUnverified {
             AgentLabel(text: "Unverified", color: .orange)
-              .help("It registered itself, so lil health can't confirm who made it.")
+              .help("lil health can't confirm who made it.")
           }
           if agent.isCombined {
             AgentLabel(text: "All lil apps", color: .blue)
-              .help(
-                "It connected to every lil app at once. Revoking it disconnects it from all of them."
-              )
+              .help("Connected to every lil app. Revoking it disconnects it from all of them.")
           }
         }
         Text(agent.domain ?? "No verified website")
