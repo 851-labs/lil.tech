@@ -23,7 +23,7 @@ public struct AllDataView: View {
   }
 
   public var body: some View {
-    AllDataContent(type: type, state: state, moreFailed: moreFailed) {
+    AllDataContent(type: type, state: state, isLoadingMore: isLoadingMore, moreFailed: moreFailed) {
       Task { await loadMore() }
     }
     .task {
@@ -73,6 +73,8 @@ struct AllDataContent: View {
 
   let type: HealthDataType
   let state: State
+  /// Whether the next page is loading.
+  var isLoadingMore = false
   var moreFailed = false
   let loadMore: () -> Void
   /// From dependencies, so snapshot catalogs fix them (`previewCalendar`, `previewNow`).
@@ -113,7 +115,9 @@ struct AllDataContent: View {
     let days = sections(samples, by: .day, calendar: calendar, startDate: \.startDate)
     // Once, so every day's header is named against the same "now".
     let now = self.now
-    return LazyGroupedList(hasMore: hasMore, moreFailed: moreFailed, loadMore: loadMore) {
+    return LazyGroupedList(
+      hasMore: hasMore, isLoadingMore: isLoadingMore, moreFailed: moreFailed, loadMore: loadMore
+    ) {
       ForEach(days, id: \.start) { day in
         Section(MetricFormat.date(day.start, isDay: true, now: now, calendar: calendar)) {
           ForEach(day.records) { sample in

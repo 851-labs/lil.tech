@@ -21,8 +21,12 @@ public struct DelayedProgressTiming: Equatable, Sendable {
   public static let standard = Self(delay: .milliseconds(200), minimumVisible: .milliseconds(400))
 
   /// A spinner shows as soon as its load starts and goes as soon as it ends: state catalogs', so
-  /// their loading states show it in the image they draw at once.
+  /// their loading states show it in the image they draw at once, and tests' by default, so a
+  /// view in a test never sleeps on the test's unimplemented clock.
   public static let immediate = Self(delay: .zero, minimumVisible: .zero)
+
+  /// Whether a spinner simply follows its load, with no time of its own (`immediate`).
+  var followsLoad: Bool { delay <= .zero && minimumVisible <= .zero }
 
   /// How long a spinner takes to fade in, or out.
   static let fade: Double = 0.2
@@ -30,7 +34,7 @@ public struct DelayedProgressTiming: Equatable, Sendable {
 
 extension DelayedProgressTiming: DependencyKey {
   public static var liveValue: Self { .standard }
-  public static var testValue: Self { .standard }
+  public static var testValue: Self { .immediate }
 }
 
 extension DependencyValues {
@@ -59,14 +63,14 @@ public final class DelayedProgress {
   @ObservationIgnored private let clock: any Clock<Duration>
   @ObservationIgnored private let timing: DelayedProgressTiming
 
-  /// Starts with no load running, or, with no delay, already showing for one that is: a view
-  /// makes one each time it's rebuilt, and keeps the first, so this starts nothing (`update`).
+  /// Starts with no load running, or, with `immediate` timing, already showing for one that is.
+  /// It starts nothing until `update`.
   public init(isLoading: Bool = false) {
     @Dependency(\.continuousClock) var clock
     @Dependency(\.delayedProgressTiming) var timing
     self.clock = clock
     self.timing = timing
-    let showsAtOnce = isLoading && timing.delay <= .zero
+    let showsAtOnce = isLoading && timing.followsLoad
     self.isVisible = showsAtOnce
     self.isLoading = showsAtOnce
   }
@@ -87,7 +91,9 @@ public final class DelayedProgress {
       guard timing.delay > .zero else { return show() }
       task = Task { [weak self, clock, timing] in
         do { try await clock.sleep(for: timing.delay) } catch { return }
-        self?.show()
+        // Cancelled after the sleep ended but before this ran: the load ended in time.
+        guard !Task.isCancelled, let self, self.isLoading else { return }
+        self.show()
       }
     } else if isVisible {
       // In its minimum time, the end of that hides it.
@@ -106,7 +112,8 @@ public final class DelayedProgress {
     isHolding = true
     task = Task { [weak self, clock, timing] in
       do { try await clock.sleep(for: timing.minimumVisible) } catch { return }
-      self?.holdEnded()
+      guard !Task.isCancelled, let self else { return }
+      self.holdEnded()
     }
   }
 
@@ -140,16 +147,18 @@ public final class DelayedProgress {
 /// Agree), is a plain `ProgressView`, shown at once: it's how the press shows it was taken.
 public struct DelayedProgressView: View {
   let isLoading: Bool
-  @State private var progress: DelayedProgress
+  @State private var progress: DelayedProgress?
+  @Dependency(\.delayedProgressTiming) private var timing
 
   public init(isLoading: Bool = true) {
     self.isLoading = isLoading
-    _progress = State(wrappedValue: DelayedProgress(isLoading: isLoading))
   }
 
   public var body: some View {
-    DelayedSpinner(isVisible: progress.isVisible)
-      .onChange(of: isLoading, initial: true) { progress.update(isLoading: isLoading) }
+    DelayedSpinner(isVisible: progress?.isVisible ?? (isLoading && timing.followsLoad))
+      .onChange(of: isLoading, initial: true) {
+        progress.start(isLoading: isLoading)
+      }
   }
 }
 
@@ -166,34 +175,49 @@ extension View {
 
 private struct DelayedProgressModifier: ViewModifier {
   let isLoading: Bool
-  @State private var progress: DelayedProgress
-
-  init(isLoading: Bool) {
-    self.isLoading = isLoading
-    _progress = State(wrappedValue: DelayedProgress(isLoading: isLoading))
-  }
+  @State private var progress: DelayedProgress?
+  @Dependency(\.delayedProgressTiming) private var timing
 
   func body(content: Content) -> some View {
+    let isVisible = progress?.isVisible ?? (isLoading && timing.followsLoad)
     // Loaded, while the spinner finishes its minimum time.
-    let hidesContent = progress.isVisible && !isLoading
+    let hidesContent = isVisible && !isLoading
     content
       .opacity(hidesContent ? 0 : 1)
       .allowsHitTesting(!hidesContent)
       .accessibilityHidden(hidesContent)
       .overlay {
-        DelayedSpinner(isVisible: progress.isVisible)
+        DelayedSpinner(isVisible: isVisible)
       }
-      .onChange(of: isLoading, initial: true) { progress.update(isLoading: isLoading) }
+      .onChange(of: isLoading, initial: true) {
+        progress.start(isLoading: isLoading)
+      }
   }
 }
 
-/// A spinner, laid out whether it shows or not.
+extension DelayedProgress? {
+  /// Makes the view's state the first time, as it appears, rather than each time the view is
+  /// rebuilt, then says whether the load is running.
+  @MainActor
+  fileprivate mutating func start(isLoading: Bool) {
+    if self == nil { self = DelayedProgress(isLoading: isLoading) }
+    self?.update(isLoading: isLoading)
+  }
+}
+
+/// A spinner, laid out whether it shows or not: a hidden one gives it its size, and the one that
+/// shows is only there while it does, so a page doesn't keep a spinner turning out of sight.
 private struct DelayedSpinner: View {
   let isVisible: Bool
 
   var body: some View {
     ProgressView()
-      .opacity(isVisible ? 1 : 0)
-      .accessibilityHidden(!isVisible)
+      .hidden()
+      .overlay {
+        if isVisible {
+          ProgressView()
+            .transition(.opacity)
+        }
+      }
   }
 }

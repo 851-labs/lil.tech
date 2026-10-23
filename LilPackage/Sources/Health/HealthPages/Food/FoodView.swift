@@ -20,7 +20,7 @@ public struct FoodView: View {
   public init() {}
 
   public var body: some View {
-    FoodContent(state: state, moreFailed: moreFailed) {
+    FoodContent(state: state, isLoadingMore: isLoadingMore, moreFailed: moreFailed) {
       Task { await loadMore() }
     }
     .task {
@@ -69,6 +69,8 @@ struct FoodContent: View {
   }
 
   let state: State
+  /// Whether the next page is loading.
+  var isLoadingMore = false
   var moreFailed = false
   let loadMore: () -> Void
   /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
@@ -109,7 +111,9 @@ struct FoodContent: View {
     let now = now
     let calendar = calendar
     let days = HealthDatabase.foodDays(foods, calendar: calendar)
-    return LazyGroupedList(hasMore: hasMore, moreFailed: moreFailed, loadMore: loadMore) {
+    return LazyGroupedList(
+      hasMore: hasMore, isLoadingMore: isLoadingMore, moreFailed: moreFailed, loadMore: loadMore
+    ) {
       ForEach(days, id: \.day) { day in
         // The last day may go on in the next page. Its total, which would leave those foods out,
         // waits for them, even once loading more failed.

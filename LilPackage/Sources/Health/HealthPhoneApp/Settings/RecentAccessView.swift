@@ -30,8 +30,9 @@ struct RecentAccessView: View {
             RecentAccessRow(entry: entry)
           }
           if store.isLoadingLog {
-            // The next page, usually loaded as the end of the list comes into view.
-            DelayedProgressView()
+            // The next page, in Show More's place: at once, as the feedback of a tap on it, or
+            // of its end coming into view (851-3086).
+            ProgressView()
               .frame(maxWidth: .infinity)
           } else if let failure = store.logFailure {
             VStack(alignment: .leading, spacing: 8) {

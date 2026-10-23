@@ -21,8 +21,9 @@
   let allDataCatalog = StateCatalog(
     "All Data", width: 560, minHeight: 620,
     states: [
+      // The next page loading, as it does once the list's end is in view.
       CatalogState("All data") {
-        allData(heartRate, .loaded(samples(heartRate), hasMore: true))
+        allData(heartRate, .loaded(samples(heartRate), hasMore: true), isLoadingMore: true)
       },
       // A day with a reading every 5 minutes, as a Watch's heart rate during a workout can have:
       // one long section.
@@ -143,9 +144,11 @@
   }
 
   @MainActor
-  private func allData(_ type: HealthDataType, _ state: AllDataContent.State) -> some View {
+  private func allData(
+    _ type: HealthDataType, _ state: AllDataContent.State, isLoadingMore: Bool = false
+  ) -> some View {
     NavigationStack {
-      AllDataContent(type: type, state: state, loadMore: {})
+      AllDataContent(type: type, state: state, isLoadingMore: isLoadingMore, loadMore: {})
     }
   }
 

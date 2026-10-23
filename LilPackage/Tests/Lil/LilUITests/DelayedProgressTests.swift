@@ -162,3 +162,35 @@ import Testing
     #expect(!clock.isAsleep(dueWithin: .seconds(60)))
   }
 }
+
+extension DelayedProgressTests {
+  /// The delay's sleep has ended, but its task hasn't run yet when the load ends: it mustn't show
+  /// the spinner then.
+  @Test func aDelayEndingAsTheLoadEndsShowsNothing() async throws {
+    let progress = makeProgress()
+    progress.update(isLoading: true)
+    try await clock.waitUntilAsleep(endingIn: timing.delay)
+    clock.advance(by: timing.delay)
+    progress.update(isLoading: false)
+    await settle()
+    #expect(!progress.isVisible)
+    #expect(!clock.isAsleep(dueWithin: .seconds(60)))
+  }
+
+  /// With no delay but a minimum time, a spinner shows at once and still keeps its minimum.
+  @Test func noDelayStillKeepsTheMinimumTime() async throws {
+    let progress = makeProgress(
+      timing: DelayedProgressTiming(delay: .zero, minimumVisible: .milliseconds(400)))
+    progress.update(isLoading: true)
+    #expect(progress.isVisible)
+    progress.update(isLoading: false)
+    #expect(progress.isVisible)
+    try await clock.waitUntilAsleep(endingIn: .milliseconds(400))
+    clock.advance(by: .milliseconds(400))
+    try await eventually { !progress.isVisible }
+  }
+
+  @Test func testsDefaultToImmediateTiming() {
+    #expect(DelayedProgressTiming.testValue == .immediate)
+  }
+}
