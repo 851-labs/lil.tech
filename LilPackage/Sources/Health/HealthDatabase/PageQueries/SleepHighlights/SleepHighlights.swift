@@ -8,14 +8,20 @@ public struct SleepHighlights: Equatable, Sendable {
   public var bedtime: BedtimeConsistency?
   /// This month's average time asleep against last month's.
   public var months: SleepMonthComparison?
+  /// Heart rate while asleep last night.
+  public var heartRate: SleepHeartRate?
 
-  public init(bedtime: BedtimeConsistency? = nil, months: SleepMonthComparison? = nil) {
+  public init(
+    bedtime: BedtimeConsistency? = nil, months: SleepMonthComparison? = nil,
+    heartRate: SleepHeartRate? = nil
+  ) {
     self.bedtime = bedtime
     self.months = months
+    self.heartRate = heartRate
   }
 
   /// Whether there's nothing to show.
-  public var isEmpty: Bool { bedtime == nil && months == nil }
+  public var isEmpty: Bool { bedtime == nil && months == nil && heartRate == nil }
 }
 
 extension HealthDatabase {
@@ -33,9 +39,11 @@ extension HealthDatabase {
       ?? today
     let count = (calendar.dateComponents([.day], from: first, to: today).day ?? 0) + 1
     let nights = try sleepNights(endingOn: today, count: count, calendar: calendar, db)
+    let lastNight = SleepNight.lastNight(in: nights, today: today, calendar: calendar)
     return SleepHighlights(
       bedtime: BedtimeConsistency(nights: nights, today: today, calendar: calendar),
-      months: SleepMonthComparison(nights: nights, today: today, calendar: calendar))
+      months: SleepMonthComparison(nights: nights, today: today, calendar: calendar),
+      heartRate: try lastNight.flatMap { try sleepHeartRate(during: $0, db) })
   }
 
   /// Where `date` goes in the night that started at `start`, in hours from the start of `day`,
@@ -64,6 +72,12 @@ extension SleepNight {
   /// leave out: its "bedtime" (2 PM) says nothing about when bedtime is, and its hour asleep
   /// would pull an average of nights down.
   public static let latestBedtime: Double = 12
+
+  /// Last night among `nights` (by day, oldest first): the one ending `today`, if it's a night's
+  /// sleep, not a day's (`latestBedtime`). Every highlight about last night asks this.
+  static func lastNight(in nights: [SleepNight], today: Date, calendar: Calendar) -> SleepNight? {
+    nights.last.flatMap { $0.day == today && $0.nightBedtime(calendar: calendar) != nil ? $0 : nil }
+  }
 
   /// Its bedtime by the clock, placed as Sleep's W and M charts place it (from its first segment,
   /// 851-3098), if it's a night's sleep rather than a day's (`latestBedtime`).

@@ -4,7 +4,7 @@ import Testing
 
 @testable import HealthDatabase
 
-// Sleep's highlights (851-3103). Synthetic data only (AGENTS.md): made-up nights.
+// Sleep's highlights (851-3103). Synthetic data only (AGENTS.md): made-up nights and heart rates.
 
 @Suite
 struct SleepHighlightsTests {
@@ -43,6 +43,13 @@ struct SleepHighlightsTests {
       id: UUID().uuidString, type: HealthDatabase.sleepType, startDate: start.unixMilliseconds,
       endDate: start.addingTimeInterval(hours * 3600).unixMilliseconds,
       categoryValue: stage.rawValue, sourceName: "Apple Watch",
+      sourceBundleID: "com.apple.health.watch")
+  }
+
+  private func heartRate(_ value: Double, at date: Date) -> HealthSample {
+    HealthSample(
+      id: UUID().uuidString, type: HealthDatabase.heartRateType, startDate: date.unixMilliseconds,
+      endDate: date.unixMilliseconds, value: value, unit: "count/min", sourceName: "Apple Watch",
       sourceBundleID: "com.apple.health.watch")
   }
 
@@ -195,5 +202,74 @@ struct SleepHighlightsTests {
     #expect(months.thisMonthAverage == 8 * 3600)
     #expect(months.lastMonthAverage == 8 * 3600)
     #expect(months.direction == .same)
+  }
+
+  // MARK: Heart rate
+
+  @Test
+  func heartRateWhileAsleepEvery15Minutes() throws {
+    let asleep = today.addingTimeInterval(-3600)
+    try insert(
+      night(0, bedtime: -1, hours: 7)
+        // Every 5 minutes for the first hour: 4 ranges of 3 readings.
+        + (0..<12).map {
+          heartRate(Double(50 + $0), at: asleep.addingTimeInterval(Double($0) * 300))
+        }
+        // Before falling asleep, and after waking: not while asleep.
+        + [
+          heartRate(90, at: asleep.addingTimeInterval(-60)),
+          heartRate(95, at: asleep.addingTimeInterval(7 * 3600)),
+        ])
+    let heartRate = try #require(try highlights().heartRate)
+    #expect(heartRate.start == asleep)
+    #expect(heartRate.end == asleep.addingTimeInterval(7 * 3600))
+    #expect(
+      heartRate.ranges.map(\.start) == (0..<4).map { asleep.addingTimeInterval(Double($0) * 900) })
+    #expect(heartRate.ranges.first == SleepHeartRate.Range(start: asleep, minimum: 50, maximum: 52))
+    #expect(heartRate.minimum == 50)
+    #expect(heartRate.maximum == 61)
+  }
+
+  @Test
+  func heartRateNeedsTenReadingsLastNight() throws {
+    let asleep = today.addingTimeInterval(-3600)
+    try insert(
+      night(0) + (0..<9).map { heartRate(55, at: asleep.addingTimeInterval(Double($0) * 300)) })
+    #expect(try highlights().heartRate == nil)
+    // Ten more, but in the night before last night's.
+    let before = day(-1).addingTimeInterval(-3600)
+    try insert(
+      night(-1) + (0..<10).map { heartRate(55, at: before.addingTimeInterval(Double($0) * 300)) })
+    #expect(try highlights().heartRate == nil)
+  }
+
+  @Test
+  func heartRateNeedsANightNotADaysSleep() throws {
+    // No night, but a 2-hour nap at 2 PM with readings every 5 minutes.
+    let nap = today.addingTimeInterval(14 * 3600)
+    try insert(
+      night(0, bedtime: 14, hours: 2)
+        + (0..<24).map { heartRate(60, at: nap.addingTimeInterval(Double($0) * 300)) })
+    #expect(try highlights().heartRate == nil)
+  }
+
+  @Test
+  func heartRateLeavesOutTimeAwakeInTheNight() throws {
+    // Asleep from 11 PM to 1 AM, up for an hour, then asleep until 6.
+    let asleep = today.addingTimeInterval(-3600)
+    try insert([
+      sample(.core, asleep, 2), sample(.awake, asleep.addingTimeInterval(2 * 3600), 1),
+      sample(.core, asleep.addingTimeInterval(3 * 3600), 4),
+    ])
+    // Every 10 minutes from 11 PM to 6 AM, 100 while up, 55 asleep.
+    try insert(
+      (0..<42).map { index in
+        let time = asleep.addingTimeInterval(Double(index) * 600)
+        let up = (12..<18).contains(index)
+        return heartRate(up ? 100 : 55, at: time)
+      })
+    let heartRate = try #require(try highlights().heartRate)
+    #expect(heartRate.maximum == 55)
+    #expect(heartRate.ranges.count == 24)
   }
 }
