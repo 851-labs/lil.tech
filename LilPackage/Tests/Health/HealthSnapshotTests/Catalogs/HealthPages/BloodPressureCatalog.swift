@@ -18,30 +18,47 @@
   let bloodPressureCatalog = StateCatalog(
     "Blood Pressure", width: 760, minHeight: 900,
     states: [
-      CatalogState("Blood pressure, week") { bloodPressure(.week, .loaded(chart(.week))) },
-      CatalogState("Blood pressure, month") { bloodPressure(.month, .loaded(chart(.month))) },
-      CatalogState("Blood pressure, year") { bloodPressure(.year, .loaded(chart(.year))) },
+      CatalogState("Blood pressure, week") { bloodPressure(.week, .loaded(period(.week))) },
+      CatalogState("Blood pressure, month") { bloodPressure(.month, .loaded(period(.month))) },
+      CatalogState("Blood pressure, year") { bloodPressure(.year, .loaded(period(.year))) },
+      // M pressed: the week stays, with a spinner, until the month loads (851-3089).
+      CatalogState("Blood pressure, loading the month") {
+        bloodPressure(.month, .loaded(period(.week), isUpdating: true))
+      },
       // A reading without its diastolic: a point, and "–" in its place.
       CatalogState("A reading missing a value") { readingMissingAValue() },
       CatalogState("No blood pressure") {
         bloodPressure(
           .week,
           .loaded(
-            BloodPressureChart(
-              interval: ChartRange.week.interval(
-                offset: 0, now: previewNow, calendar: previewCalendar),
-              points: [], readings: [])))
+            BloodPressurePeriod(
+              range: .week,
+              chart: BloodPressureChart(
+                interval: ChartRange.week.interval(
+                  offset: 0, now: previewNow, calendar: previewCalendar),
+                points: [], readings: []))))
       },
       CatalogState("Blood pressure loading") { bloodPressure(.week, .loading) },
       CatalogState("Blood pressure failed") {
         bloodPressure(.week, .failed("The database couldn't be read."))
       },
+    ],
+    // The chart's section keeps its height, loading or not, so the readings below start at the
+    // same place (851-3089).
+    sameLayout: [
+      [
+        "Blood pressure, week", "Blood pressure loading", "Blood pressure, loading the month",
+        "Blood pressure, month", "Blood pressure, year", "A reading missing a value",
+        "No blood pressure", "Blood pressure failed",
+      ]
     ])
 
-  private func chart(_ range: ChartRange) -> BloodPressureChart {
+  private func period(_ range: ChartRange) -> BloodPressurePeriod {
     try! catalogDatabase.read { db in
-      try HealthDatabase.bloodPressureChart(
-        range: range, offset: 0, now: previewNow, calendar: previewCalendar, db)
+      BloodPressurePeriod(
+        range: range,
+        chart: try HealthDatabase.bloodPressureChart(
+          range: range, offset: 0, now: previewNow, calendar: previewCalendar, db))
     }
   }
 
@@ -63,12 +80,14 @@
     return bloodPressure(
       .week,
       .loaded(
-        BloodPressureChart(
-          interval: interval,
-          points: [
-            BloodPressurePoint(
-              start: reading.date, systolic: 133...133, diastolic: nil, readings: [reading])
-          ],
-          readings: [reading])))
+        BloodPressurePeriod(
+          range: .week,
+          chart: BloodPressureChart(
+            interval: interval,
+            points: [
+              BloodPressurePoint(
+                start: reading.date, systolic: 133...133, diastolic: nil, readings: [reading])
+            ],
+            readings: [reading]))))
   }
 #endif

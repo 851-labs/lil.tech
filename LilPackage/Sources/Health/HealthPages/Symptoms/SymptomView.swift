@@ -16,6 +16,7 @@ public struct SymptomView: View {
   @State private var offset = 0
   /// Moves at midnight, so the periods do.
   @State private var today = Date.now
+  /// The last period loaded. While another loads, the page keeps showing it (851-3089).
   @Fetch private var chart: SymptomChart? = nil
 
   public init(type: HealthDataType) {
@@ -23,26 +24,24 @@ public struct SymptomView: View {
   }
 
   public var body: some View {
+    SymptomContent(type: type, range: $range, offset: $offset, state: state, now: today)
+      .task(id: [type.id, range.rawValue, String(offset), today.formatted(.iso8601)]) {
+        _ = try? await $chart.load(
+          SymptomRequest(typeID: type.id, range: range, offset: offset, now: today),
+          scheduler: MainQueueScheduler())
+      }
+      .onReceive(calendarDayChanges()) {
+        today = .now
+      }
+  }
+
+  /// The chart loaded last, updating while it's another period's or a load is running.
+  private var state: SymptomContent.State {
+    if let error = $chart.loadError { return .failed(error.localizedDescription) }
+    guard let chart else { return .loading }
     let interval = range.interval(offset: offset, now: today, calendar: .current)
-    SymptomContent(
-      type: type, range: $range, offset: $offset,
-      state: $chart.loadError.map { .failed($0.localizedDescription) }
-        ?? {
-          // The period being loaded, not the one before it, drawn as the new range.
-          guard let chart, chart.range == range, chart.interval == interval else {
-            return .loading
-          }
-          return .loaded(chart)
-        }(), now: today
-    )
-    .task(id: [type.id, range.rawValue, String(offset), today.formatted(.iso8601)]) {
-      _ = try? await $chart.load(
-        SymptomRequest(typeID: type.id, range: range, offset: offset, now: today),
-        scheduler: MainQueueScheduler())
-    }
-    .onReceive(calendarDayChanges()) {
-      today = .now
-    }
+    return .loaded(
+      chart, isUpdating: $chart.isLoading || chart.range != range || chart.interval != interval)
   }
 }
 
@@ -62,14 +61,18 @@ struct SymptomRequest: FetchKeyRequest {
 /// What a symptom's page shows, however it got it.
 struct SymptomContent: View {
   enum State {
+    /// Nothing to show yet: placeholders take the loaded page's space (851-3089).
     case loading
-    case loaded(SymptomChart)
+    /// A period's chart. Updating while another period, or the same one again, loads: it stays
+    /// on screen, with a spinner, rather than the page blanking.
+    case loaded(SymptomChart, isUpdating: Bool = false)
     case failed(String)
   }
 
   let type: HealthDataType
-  @Binding var range: ChartRange
-  @Binding var offset: Int
+  /// The period chosen in the toolbar, which can be ahead of the one shown (`range`).
+  @Binding private var selectedRange: ChartRange
+  @Binding private var selectedOffset: Int
   let state: State
   /// Today, as the page loads it, for the period shown while it loads.
   let now: Date
@@ -84,13 +87,32 @@ struct SymptomContent: View {
 
   private var color: Color { type.color }
 
+  init(
+    type: HealthDataType, range: Binding<ChartRange>, offset: Binding<Int>, state: State, now: Date
+  ) {
+    self.type = type
+    _selectedRange = range
+    _selectedOffset = offset
+    self.state = state
+    self.now = now
+  }
+
   private var chart: SymptomChart? {
-    if case .loaded(let chart) = state { chart } else { nil }
+    if case .loaded(let chart, _) = state { chart } else { nil }
+  }
+
+  /// The range shown: the loaded chart's, which stays while another loads, or the one chosen
+  /// before any has loaded. Everything drawn uses it, never the selection.
+  private var range: ChartRange { chart?.range ?? selectedRange }
+
+  private var isUpdating: Bool {
+    if case .loaded(_, let isUpdating) = state { isUpdating } else { false }
   }
 
   var body: some View {
     // A grouped form on its own background, as Metric Detail is (851-2989, 851-3004): the summary
-    // and the chart, the period's entries, then the pages it opens.
+    // and the chart, the pages it opens, then the period's entries. The entries last, so the
+    // links don't move as a period's entries load, or with how many it has (851-3089).
     Form {
       Section {
         VStack(alignment: .leading, spacing: 12) {
@@ -100,21 +122,22 @@ struct SymptomContent: View {
         }
         .padding(.vertical, 6)
       }
-      if let chart, !chart.entries.isEmpty {
-        entries(chart.entries)
-      }
       Section {
         NavigationLink("Show All Data") {
           AllDataView(type: type)
         }
+        .layoutAnchor("Show All Data")
         NavigationLink("Data Sources") {
           DataSourcesView(type: type)
         }
       }
+      if let chart, !chart.entries.isEmpty {
+        entries(chart.entries)
+      }
     }
     .formStyle(.grouped)
     .navigationTitle(type.name)
-    .periodControls(PagePeriod(range: $range, offset: $offset))
+    .periodControls(PagePeriod(range: $selectedRange, offset: $selectedOffset))
   }
 
   // MARK: Header
@@ -147,7 +170,8 @@ struct SymptomContent: View {
           : ChartFormat.bucket(point.start, range: range, calendar: calendar)
       } else {
         ChartFormat.span(
-          chart?.interval ?? range.interval(offset: offset, now: now, calendar: calendar),
+          chart?.interval
+            ?? selectedRange.interval(offset: selectedOffset, now: now, calendar: calendar),
           range: range, calendar: calendar)
       }
     return VStack(alignment: .leading, spacing: 2) {
@@ -157,6 +181,9 @@ struct SymptomContent: View {
       Text(detail)
         .foregroundStyle(.secondary)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    // While another period loads, over the one shown.
+    .updatingIndicator(isUpdating)
   }
 
   // MARK: Chart
@@ -172,7 +199,7 @@ struct SymptomContent: View {
         description: Text(reason)
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-    case .loaded(let chart):
+    case .loaded(let chart, _):
       let hovered = hoveredPoints(in: chart)
       if isCategorical(chart) {
         decorated(
