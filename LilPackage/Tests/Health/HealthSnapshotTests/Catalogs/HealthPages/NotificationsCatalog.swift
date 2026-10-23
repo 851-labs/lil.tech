@@ -71,6 +71,14 @@
       CatalogState("Notification, unknown metadata", minHeight: 640) {
         detail(.lowCardioFitness, lowCardioFitness[2])
       },
+    ],
+    // The heart rate chart keeps its height, loading or not, so the source below stays put
+    // (851-3091).
+    sameLayout: [
+      [
+        "High heart rate notification", "Heart rate loading", "No heart rate readings",
+        "Heart rate failed",
+      ]
     ])
 
   /// 2025-10-14 00:00 UTC.

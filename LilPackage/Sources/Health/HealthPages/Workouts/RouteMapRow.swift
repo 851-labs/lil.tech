@@ -54,16 +54,32 @@ struct RouteMapRow: View {
   }
 
   var body: some View {
+    Group {
+      switch route {
+      // The map's own space, so nothing moves when it arrives (851-3091).
+      case .loading:
+        ProgressView()
+          .frame(maxWidth: .infinity)
+          .frame(height: height)
+          .padding(.vertical, 6)
+      case .failed(let reason):
+        ContentUnavailableView(
+          "Couldn't Load the Route", systemImage: "map", description: Text(reason)
+        )
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .padding(.vertical, 6)
+      default:
+        loaded
+      }
+    }
+    .layoutAnchor("Route")
+  }
+
+  @ViewBuilder private var loaded: some View {
     switch route {
-    case .loading:
-      ProgressView()
-        .frame(maxWidth: .infinity, minHeight: height * 0.8)
-    case .failed(let reason):
-      ContentUnavailableView(
-        "Couldn't Load the Route", systemImage: "map", description: Text(reason)
-      )
-      // A form's row would otherwise give it only its ideal width, off center.
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
+    case .loading, .failed:
+      EmptyView()
     case .loaded(let loaded) where loaded.hasMap:
       RouteMap(locations: loaded.locations)
         .frame(height: height)

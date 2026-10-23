@@ -35,6 +35,10 @@
       CatalogState("Route failed", width: 760) {
         detail { _ in .failed("The route couldn't be downloaded.") }
       },
+    ],
+    // A route's map keeps its place and height, loading or not (851-3091).
+    sameLayout: [
+      ["Run with route", "Route loading", "Route failed"]
     ])
 
   /// The catalog database's latest workouts, read once.

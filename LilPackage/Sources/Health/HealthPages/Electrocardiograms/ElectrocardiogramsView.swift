@@ -182,6 +182,7 @@ struct ElectrocardiogramDetailContent: View {
       }
       Section {
         LabeledContent("Symptoms", value: ECGFormat.symptoms(recording))
+          .layoutAnchor("Symptoms")
         LabeledContent("Recorded With", value: recording.sourceName)
         if let frequency = recording.samplingFrequency {
           LabeledContent(
@@ -194,12 +195,13 @@ struct ElectrocardiogramDetailContent: View {
     .navigationTitle("ECG")
   }
 
-  /// The trace, or a placeholder about as tall.
+  /// The trace, or what's in its place: while it loads, or if it fails, the recording's paper
+  /// without it, so nothing moves when it arrives (851-3091).
   @ViewBuilder private var traceView: some View {
     switch trace {
     case .loading:
-      ProgressView()
-        .frame(maxWidth: .infinity, minHeight: 270)
+      paper
+        .overlay { ProgressView() }
     case .none:
       ContentUnavailableView(
         "No Recording", systemImage: "waveform.path.ecg",
@@ -207,11 +209,13 @@ struct ElectrocardiogramDetailContent: View {
       )
       .frame(maxWidth: .infinity, minHeight: 270)
     case .failed(let reason):
-      ContentUnavailableView(
-        "Couldn't Load the Recording", systemImage: "exclamationmark.triangle",
-        description: Text(reason)
-      )
-      .frame(maxWidth: .infinity, minHeight: 270)
+      paper
+        .hidden()
+        .overlay {
+          ContentUnavailableView(
+            "Couldn't Load the Recording", systemImage: "exclamationmark.triangle",
+            description: Text(reason))
+        }
     case .loaded(let microvolts):
       let frequency = recording.measurementsPerSecond
       let range = ECGStrip.range(microvolts)
@@ -231,6 +235,28 @@ struct ElectrocardiogramDetailContent: View {
       }
       .frame(maxWidth: ECGStrip.maxWidth)
     }
+  }
+}
+
+extension ElectrocardiogramDetailContent {
+  /// The recording's strips of paper, with no trace, at the standard range: as many as its
+  /// measurements fill (30 seconds' worth if it doesn't say), with the caption under them.
+  fileprivate var paper: some View {
+    let frequency = recording.measurementsPerSecond
+    let perStrip = max(frequency * ECGStrip.seconds, 1)
+    let strips =
+      recording.voltageCount > 0 ? Int((Double(recording.voltageCount) / perStrip).rounded(.up)) : 3
+    return VStack(alignment: .leading, spacing: 8) {
+      ForEach(0..<strips, id: \.self) { _ in
+        ECGStrip(
+          microvolts: [], samplingFrequency: frequency, millivolts: ECGStrip.range([]))
+      }
+      Text("25 mm/s, 10 mm/mV, Lead I")
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+    }
+    .frame(maxWidth: ECGStrip.maxWidth)
+    .accessibilityHidden(true)
   }
 }
 

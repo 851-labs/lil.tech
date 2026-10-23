@@ -50,6 +50,11 @@
         DocumentXMLSheet(
           title: documents[0].displayTitle, id: documents[0].xml, xml: Data(visitSummary.utf8))
       },
+    ],
+    // The page starts in the same place, loading or not: the toolbar's button is always there
+    // (851-3091).
+    sameLayout: [
+      ["Visit summary", "Document loading", "Document failed"]
     ])
 
   private func document(

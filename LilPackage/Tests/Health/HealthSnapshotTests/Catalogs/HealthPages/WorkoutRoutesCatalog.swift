@@ -46,6 +46,10 @@
       CatalogState("Other route without locations", width: 760) {
         route { _ in .none }
       },
+    ],
+    // A route's map keeps its place and height, loading or not (851-3091).
+    sameLayout: [
+      ["Other route", "Other route loading", "Other route failed"]
     ])
 
   /// The catalog database's runs and walks, as if each had a route. Read once.

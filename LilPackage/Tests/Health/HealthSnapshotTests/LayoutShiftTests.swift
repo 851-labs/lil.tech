@@ -16,7 +16,8 @@
   /// `everyCatalogWithSameLayoutIsChecked` fails until you do.
   private let layoutCheckedCatalogs = [
     sleepCatalog, metricDetailCatalog, bloodPressureCatalog, symptomsCatalog,
-    activityRingsCatalog, cycleTrackingCatalog,
+    activityRingsCatalog, cycleTrackingCatalog, workoutsCatalog, workoutRoutesCatalog,
+    electrocardiogramsCatalog, notificationsCatalog, healthDocumentsCatalog,
   ]
 
   extension MacSnapshotTests {

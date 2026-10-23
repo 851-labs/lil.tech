@@ -244,10 +244,13 @@ struct NotificationDetailContent: View {
         } header: {
           Text("Heart Rate")
         } footer: {
-          if case .loaded(let samples) = heartRates, !samples.isEmpty {
-            Text(
-              "The shaded band is the notification's time. The chart shows 10 minutes either side.")
-          }
+          // Laid out loading or not, so the sections below stay put (851-3091), and shown while
+          // there's a chart, or one coming.
+          Text(
+            "The shaded band is the notification's time. The chart shows 10 minutes either side."
+          )
+          .opacity(drawsHeartRate ? 1 : 0)
+          .accessibilityHidden(!drawsHeartRate)
         }
       }
       if kind == .irregularRhythm {
@@ -261,6 +264,7 @@ struct NotificationDetailContent: View {
       }
       Section("Source") {
         LabeledContent("App", value: sample.sourceName)
+          .layoutAnchor("Source")
         if let device = sample.decodedDevice?.name {
           LabeledContent("Device", value: device)
         }
@@ -313,17 +317,33 @@ struct NotificationDetailContent: View {
       value: HealthNotificationSummary.duration(seconds, locale: calendar.locale ?? .current))
   }
 
+  /// Whether the heart rate chart is drawn, or loading.
+  private var drawsHeartRate: Bool {
+    switch heartRates {
+    case .loading: true
+    case .loaded(let samples): !samples.isEmpty
+    case .failed: false
+    }
+  }
+
+  /// The chart, or what's in its place, at its height either way, so nothing moves when it
+  /// loads (851-3091).
   @ViewBuilder private func heartRateChart(_ summary: HealthNotificationSummary?) -> some View {
     switch heartRates {
     case .loading:
       ProgressView()
-        .frame(maxWidth: .infinity, minHeight: 160)
+        .frame(maxWidth: .infinity)
+        .frame(height: 160)
     case .failed(let reason):
       Label("Couldn't load heart rate: \(reason)", systemImage: "exclamationmark.triangle")
         .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity)
+        .frame(height: 160)
     case .loaded(let samples) where samples.isEmpty:
       Text("No heart rate readings around this notification.")
         .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity)
+        .frame(height: 160)
     case .loaded(let samples):
       let threshold: Double? =
         switch summary {
