@@ -210,11 +210,11 @@ struct MetricDetailContent: View {
   /// charted like a total.
   private var style: HealthDataType.ChartStyle { Self.style(of: type) }
 
-  static func isCumulative(_ type: HealthDataType) -> Bool {
+  nonisolated static func isCumulative(_ type: HealthDataType) -> Bool {
     type.aggregation?.isCumulative == true || HealthDatabase.categoryChartTypes.contains(type.id)
   }
 
-  static func style(of type: HealthDataType) -> HealthDataType.ChartStyle {
+  nonisolated static func style(of type: HealthDataType) -> HealthDataType.ChartStyle {
     isCumulative(type) ? .bars : type.chartStyle ?? .ranges
   }
   /// What the values are in: the type's unit, or a category chart's (hours, minutes, times).
@@ -342,7 +342,7 @@ struct MetricDetailContent: View {
   /// The header's caption: what its value is, for the period or the hovered bar or point. A type
   /// that adds up has one caption per period, whether its chart is loading, empty or loaded, so
   /// it never changes as the chart arrives (851-3107).
-  static func caption(
+  nonisolated static func caption(
     for type: HealthDataType, range: ChartRange, summary: MetricChart.Summary?, point: ChartPoint?
   ) -> String {
     // A line's or dots' points and period are averages, as Health's weight is (851-3097).
@@ -372,7 +372,7 @@ struct MetricDetailContent: View {
   /// bars and a year's monthly ones, each the average day of its week or month. Either way the
   /// value is a total per day with data (`MetricChart.Summary.dailyAverage`), or a day's or an
   /// hour's total.
-  static func periodCaption(_ range: ChartRange, bar: Bool) -> String {
+  nonisolated static func periodCaption(_ range: ChartRange, bar: Bool) -> String {
     switch range {
     case .day: "TOTAL"
     case .week, .month: bar ? "TOTAL" : "AVERAGE"
