@@ -61,18 +61,11 @@
 
       // As the flaky snapshot had it: the symbol's first, smaller bitmap in its toolbar-sized
       // layer. The trailing image in the title bar: the window's buttons are images too.
-      var symbol: (layer: CALayer, x: CGFloat)?
-      func find(_ layer: CALayer) {
-        let frame = layer.convert(layer.bounds, to: frameView.layer!)
-        if "\(type(of: layer))" == "ImageLayer", frame.minY >= window.contentLayoutRect.maxY,
-          frame.minX > symbol?.x ?? 0
-        {
-          symbol = (layer, frame.minX)
-        }
-        layer.sublayers?.forEach(find)
-      }
-      find(try #require(frameView.layer))
-      let layer = try #require(symbol?.layer)
+      let layer = try #require(
+        titleBarImageLayers(in: window).max {
+          $0.convert(CGPoint.zero, to: frameView.layer!).x
+            < $1.convert(CGPoint.zero, to: frameView.layer!).x
+        })
       let size = (width: Int(layer.bounds.width * 2) - 4, height: Int(layer.bounds.height * 2) - 6)
       layer.contents = CGContext(
         data: nil, width: size.width, height: size.height, bitsPerComponent: 8, bytesPerRow: 0,
