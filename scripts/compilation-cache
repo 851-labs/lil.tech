@@ -1,0 +1,200 @@
+#!/bin/sh
+# Builds with compilation caching (851-3235): every compile's output is kept in one content-addressed
+# cache (CAS) per Mac, `~/Library/Caches/lil.tech/CompilationCache`, keyed by its inputs, so a
+# compile that any worktree, or this one before, already ran with the same inputs is replayed
+# rather than run again. `scripts/swift` and `scripts/xcodebuild` are links to this script, which
+# acts as the one it's run as.
+# Usage: scripts/swift <subcommand> [<arguments>…]     e.g. scripts/swift test --filter LilSyncTests
+#        scripts/xcodebuild [<arguments>…]              as `xcodebuild`, e.g. a Debug app build
+#   scripts/swift runs Xcode's `swift` in `LilPackage` (so relative paths in its arguments are
+#   relative to it), with caching for `build`, `test` and `run`; other subcommands run as they are.
+#   scripts/xcodebuild caches Debug builds, never a Release one, an archive or an install, and
+#   builds into the worktree's `.build/DerivedData` unless `-derivedDataPath` says otherwise.
+# Environment:
+#   LIL_COMPILATION_CACHE=0      Build without the cache.
+#   LIL_COMPILATION_CACHE_PATH   The cache's folder.
+#   LIL_COMPILATION_CACHE_LIMIT  Its size limit (10G). Once a build finds the cache bigger, it starts
+#                                a new generation, copying what later builds use from the old one,
+#                                and drops the old one the next time that happens, so the folder
+#                                stays under about twice the limit.
+#
+# How (docs/BENCHMARK.md, Compilation caching, has the measurements):
+# - Swift Build, which `swift build` uses since Swift 6.4 and Xcode always has, caches compiles in a
+#   CAS. `xcodebuild` turns it on with build settings (`COMPILATION_CACHE_ENABLE_CACHING`). SwiftPM
+#   passes no build settings to Swift Build, which reads its own defaults from the environment
+#   instead (`EnableSwiftCachingByDefault`, `CompilationCachingCASPath`,
+#   `CompilationCachingDiskSizeLimit`).
+# - A compile's key holds every path on its command line, so worktrees share compiles only through
+#   prefix maps: the worktree as `/^root`, its build folder as `/^build` (`/^derived` for
+#   `xcodebuild`), the SDK, toolchain and Xcode as theirs. Our own sources and tests keep their real
+#   paths (identity maps, the longest prefix winning): tests find their references and fixtures
+#   with `#filePath`, and debuggers and crash logs show where code is. So their compiles are this
+#   worktree's own, and what's shared across worktrees is the dependencies' (TCA, GRDB, …), SDK
+#   modules, and any module whose sources are the same.
+# - Replaying a cached warning whose note points into another module's printed declaration aborts
+#   the build inside the toolchain (Swift 6.4, `bad_optional_access`, 851-3238). Main has no
+#   warnings, but a branch can, so when a build aborts that way it's run again without the cache.
+# - A build with the cache is a different configuration from one without: switching between
+#   `scripts/swift` and plain `swift build` (or `xcodebuild`) in one build folder rebuilds it.
+set -eu
+
+tool=$(basename "$0")
+root=$(cd "$(dirname "$0")/.." && pwd -P)
+# The same folder as the shell names it, when that path has a link in it: Xcode keeps a path as
+# it's given.
+logical_root=$(cd "$(dirname "$0")/.." && pwd -L)
+package="$root/LilPackage"
+cache=${LIL_COMPILATION_CACHE_PATH:-$HOME/Library/Caches/lil.tech/CompilationCache}
+limit=${LIL_COMPILATION_CACHE_LIMIT:-10G}
+developer=${DEVELOPER_DIR:-$(xcode-select -p)}
+newline='
+'
+
+# The worktree's maps, a line each: our package's sources and each test target's folder map to
+# themselves, so they keep their paths, and the rest of the worktree to `/^root`. Swift's scanner
+# picks the longest prefix that matches. Not PhoneSnapshots, the iPhone's host app: an Xcode
+# project's folder inside one that maps to anything but `/^root`, itself included, breaks Clang's
+# dependency scan of its targets ("module-include.input: Operation not supported"), so each test
+# target's folder maps on its own (`Tests/<Product>/<Target>`, as `Package.swift` lays them out).
+worktree_maps() {
+  maps_for "$root"
+  [ "$logical_root" = "$root" ] || maps_for "$logical_root"
+}
+maps_for() {
+  echo "$1/LilPackage/Sources=$1/LilPackage/Sources"
+  for dir in "$1"/LilPackage/Tests/*/*/; do
+    dir=${dir%/}
+    [ "$(basename "$dir")" != PhoneSnapshots ] || continue
+    echo "$dir=$dir"
+  done
+  echo "$1=/^root"
+}
+
+# The absolute path of folder `$1`, made if missing.
+absolute() {
+  mkdir -p "$1" && (cd "$1" && pwd -P)
+}
+
+# The arguments as shell words, for `eval "set -- …"`.
+quote() {
+  for arg in "$@"; do
+    printf "'%s' " "$(printf '%s' "$arg" | sed "s/'/'\\\\''/g")"
+  done
+}
+original=$(quote "$@")
+
+# Runs the command, with its standard error also kept in a file, and exits with its status, unless
+# it aborted replaying a cached diagnostic (above): then this runs again, as it was run, without the
+# cache.
+run_or_fall_back() {
+  log=$(mktemp)
+  trap 'rm -f "$log" "$log.status"' EXIT
+  { {
+    status=0
+    "$@" 2>&1 1>&3 3>&- || status=$?
+    echo "$status" >"$log.status"
+  } | tee "$log" >&2; } 3>&1
+  # Missing when the command was killed before it could say.
+  status=$(cat "$log.status" 2>/dev/null || echo 1)
+  if [ "$status" != 0 ] && grep -q 'bad_optional_access was thrown' "$log"; then
+    echo "warning: the build aborted replaying a cached warning (a toolchain bug, 851-3238)," \
+      "so it runs again without the compilation cache. Once the warning is fixed, builds use the" \
+      "cache again." >&2
+    rm -f "$log" "$log.status"
+    trap - EXIT
+    eval "set -- $original"
+    unset EnableSwiftCachingByDefault EnableClangCachingByDefault CompilationCachingCASPath \
+      CompilationCachingDiskSizeLimit
+    LIL_COMPILATION_CACHE=0 exec "$root/scripts/$tool" "$@"
+  fi
+  exit "$status"
+}
+
+case "$tool" in
+  swift)
+    swift=$(xcrun --find swift)
+    cd "$package"
+    subcommand=${1:-}
+    case "$subcommand" in
+      build | test | run) ;;
+      *) exec "$swift" "$@" ;;
+    esac
+    [ "${LIL_COMPILATION_CACHE:-1}" != 0 ] || exec "$swift" "$@"
+    # The build folder, `--scratch-path`'s, which `scripts/check` sets.
+    scratch="$package/.build"
+    previous=""
+    for arg in "$@"; do
+      case "$previous" in
+        --scratch-path) scratch=$arg ;;
+      esac
+      case "$arg" in
+        --scratch-path=*) scratch=${arg#--scratch-path=} ;;
+      esac
+      previous=$arg
+    done
+    scratch=$(absolute "$scratch")
+    shift
+    # Right after the subcommand: after its arguments, `swift run` would pass them to the program.
+    flags=""
+    IFS=$newline
+    for map in $(worktree_maps) "$scratch=/^build" "$developer=/^xcode"; do
+      flags="$flags -Xswiftc -scanner-prefix-map -Xswiftc $(quote "$map")"
+    done
+    unset IFS
+    flags="$flags -Xswiftc -scanner-prefix-map-sdk -Xswiftc /^sdk"
+    flags="$flags -Xswiftc -scanner-prefix-map-toolchain -Xswiftc /^toolchain"
+    eval "set -- \"\$subcommand\" $flags $(quote "$@")"
+    export EnableSwiftCachingByDefault=YES EnableClangCachingByDefault=YES
+    export CompilationCachingCASPath="$cache" CompilationCachingDiskSizeLimit="$limit"
+    run_or_fall_back "$swift" "$@"
+    ;;
+  xcodebuild)
+    [ "${LIL_COMPILATION_CACHE:-1}" != 0 ] || exec xcodebuild "$@"
+    derived=""
+    previous=""
+    for arg in "$@"; do
+      case "$previous,$arg" in
+        -configuration,Debug) ;;
+        -configuration,*) exec xcodebuild "$@" ;;
+      esac
+      case "$arg" in
+        archive | install | -exportArchive | -list | -version | -showBuildSettings | -showsdks | \
+          -help | CONFIGURATION=*)
+          [ "$arg" = CONFIGURATION=Debug ] || exec xcodebuild "$@"
+          ;;
+      esac
+      case "$previous" in
+        -derivedDataPath) derived=$arg ;;
+      esac
+      previous=$arg
+    done
+    # Into the worktree, where `/^derived` maps it, unless told otherwise: Xcode's default folder
+    # is named after the workspace's path, so it differs in each worktree.
+    if [ -z "$derived" ]; then
+      derived="$root/.build/DerivedData"
+      set -- "$@" -derivedDataPath "$derived"
+    fi
+    derived=$(absolute "$derived")
+    case "$root$logical_root$derived" in
+      *' '*)
+        echo "warning: the worktree's or DerivedData's path has a space, which a list of prefix" \
+          "maps can't hold, so this builds without the compilation cache." >&2
+        exec xcodebuild "$@"
+        ;;
+    esac
+    maps="$derived=/^derived"
+    IFS=$newline
+    for map in $(worktree_maps); do
+      maps="$maps $map"
+    done
+    unset IFS
+    run_or_fall_back xcodebuild "$@" COMPILATION_CACHE_ENABLE_CACHING=YES \
+      COMPILATION_CACHE_CAS_PATH="$cache" COMPILATION_CACHE_LIMIT_SIZE="$limit" \
+      SWIFT_ENABLE_PREFIX_MAPPING=YES CLANG_ENABLE_PREFIX_MAPPING=YES \
+      SWIFT_OTHER_PREFIX_MAPPINGS="$maps" CLANG_OTHER_PREFIX_MAPPINGS="$maps"
+    ;;
+  *)
+    echo "error: run this as scripts/swift or scripts/xcodebuild." >&2
+    exit 2
+    ;;
+esac

@@ -1,8 +1,9 @@
 #!/bin/sh
 # Renders snapshot tests' images and compares them with their references, as fast as `swift test`
-# allows (851-2962): it builds what `swift test` builds, in the same `.build`, then runs the
-# snapshot tests' bundle directly, rather than every test bundle twice (XCTest's, then Swift
-# Testing's) as `swift test --filter` does. The images are the ones `swift test` takes.
+# allows (851-2962): it builds what `scripts/swift test` builds, in the same `.build`, with the
+# compilation cache (851-3235), then runs the snapshot tests' bundle directly, rather than every
+# test bundle twice (XCTest's, then Swift Testing's) as `swift test --filter` does. The images are
+# the ones `swift test` takes.
 # With `--iphone`, the iPhone's instead, in the simulator (851-2953).
 # Usage: scripts/snapshot [--messages] [--record] [--sheet] [--no-build] [<filter>…]
 #        scripts/snapshot --iphone [--record] [--sheet] [--no-build] [<test>…]
@@ -29,8 +30,9 @@
 #                  every Mac renders the same images. It's made when missing, booted while the
 #                  build runs, and left booted for the next run. A boot that fails or takes over
 #                  5 minutes is tried again, the third time on a new simulator.
-#                - It builds with `xcodebuild` (`Lil.xcworkspace`, scheme `HealthPhoneSnapshotTests`)
-#                  into `.build/DerivedData` (`LIL_SNAPSHOT_DERIVED_DATA`), then runs the tests.
+#                - It builds with `scripts/xcodebuild` (`Lil.xcworkspace`, scheme
+#                  `HealthPhoneSnapshotTests`), with the compilation cache, into
+#                  `.build/DerivedData` (`LIL_SNAPSHOT_DERIVED_DATA`), then runs the tests.
 #                - A run that hasn't finished after 10 minutes (`LIL_SNAPSHOT_TIMEOUT`, in seconds)
 #                  is stopped, and tried once more on a freshly booted simulator; a build, after 30
 #                  (`LIL_SNAPSHOT_BUILD_TIMEOUT`). One iPhone run at a time on a Mac: others wait.
@@ -261,8 +263,9 @@ for device in sorted(devices, key=lambda device: device["state"] != "Booted"):
   if $build; then
     log="$output/build.log"
     status=0
-    limit "$build_limit" xcodebuild build-for-testing -workspace "$root/Lil.xcworkspace" \
-      -scheme HealthPhoneSnapshotTests -destination "id=$device" -derivedDataPath "$derived" \
+    limit "$build_limit" "$root/scripts/xcodebuild" build-for-testing \
+      -workspace "$root/Lil.xcworkspace" -scheme HealthPhoneSnapshotTests \
+      -destination "id=$device" -derivedDataPath "$derived" \
       -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile -quiet >"$log" 2>&1 ||
       status=$?
     if [ "$status" = 124 ]; then
@@ -383,7 +386,7 @@ if $build; then
   log=$(mktemp)
   # What `swift test` builds, so the two share a build: building only the snapshot tests'
   # product (`--product`) is a different build, and switching between them rebuilds the package.
-  if ! "$swift" build --build-tests >"$log" 2>&1; then
+  if ! "$root/scripts/swift" build --build-tests >"$log" 2>&1; then
     # Without progress, or the compiler's command lines, which are pages long.
     awk '/^\[/ || /^Building for / || /^ *builtin-/ || /^(error: .*)?Command line:/ { next }
       /^Failed frontend command:/ { skip = 1; next } skip { skip = 0; next } { print }' "$log" >&2
