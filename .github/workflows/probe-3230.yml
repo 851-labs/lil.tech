@@ -26,7 +26,7 @@ jobs:
     env:
       SCRATCH: ${{ github.workspace }}/../lil.tech-check-pr/package
       LIL_SNAPSHOT_CI: "1"
-      PROBE_RUNS: "8"
+      PROBE_RUNS: "12"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -42,12 +42,12 @@ jobs:
           fails=0
           for run in $(seq "$PROBE_RUNS"); do
             start=$(date +%s)
-            LIL_PROBE_DUMP="$RUNNER_TEMP/out/dump-$run.txt" \
-              LIL_SNAPSHOT_OUTPUT="$RUNNER_TEMP/runs/$run" swift test --skip-build \
+            LIL_SNAPSHOT_OUTPUT="$RUNNER_TEMP/runs/$run" swift test --skip-build \
               --scratch-path "$SCRATCH" --filter 'HealthSnapshotTests\.MacSnapshotTests' \
-              --skip sleepToolbarProbe --skip sleepChevronTiming > "$RUNNER_TEMP/out/run-$run.log" 2>&1 || true
+              > "$RUNNER_TEMP/out/run-$run.log" 2>&1 || true
             failed=$(grep -c '^✘ Test .*recorded an issue' "$RUNNER_TEMP/out/run-$run.log" || true)
             echo "run $run: $(( $(date +%s) - start )) s, failures: $failed, load: $(sysctl -n vm.loadavg)"
+            grep 'Drew stale toolbar images' "$RUNNER_TEMP/out/run-$run.log" || true
             grep '^✘ Test .*recorded an issue' "$RUNNER_TEMP/out/run-$run.log" || true
             [ "$failed" -gt 0 ] && fails=$((fails + 1))
             find "$RUNNER_TEMP/runs/$run" -name '*.diff.png' | while IFS= read -r diff; do

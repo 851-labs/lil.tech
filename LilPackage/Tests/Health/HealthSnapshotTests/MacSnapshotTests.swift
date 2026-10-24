@@ -35,7 +35,6 @@
     init() {
       // Before any test builds its dates.
       prepareSnapshotEnvironment()
-      installContentsProbe()
     }
   }
 

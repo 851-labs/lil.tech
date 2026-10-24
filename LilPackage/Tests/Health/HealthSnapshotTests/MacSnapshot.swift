@@ -1,7 +1,6 @@
 #if os(macOS)
   import AppKit
   import CoreGraphics
-  import CryptoKit
   import Foundation
   import SnapshotTesting
   import SwiftUI
@@ -21,11 +20,8 @@
     fileID: StaticString = #fileID, file: StaticString = #filePath, testName: String = #function,
     line: UInt = #line, column: UInt = #column
   ) {
-    let suffix = appearance == .darkAqua ? "dark" : "light"
-    probeKey = "\(screen).\(name)-\(suffix)"
-    probeLog("START \(screen).\(name)-\(suffix)")
     let window = snapshotWindow(of: view, appearance: appearance, title: name)
-    probeLog("MADE \(screen).\(name)-\(suffix)")
+    let suffix = appearance == .darkAqua ? "dark" : "light"
     let output = SnapshotOutput(file: file, testName: screen, name: "\(name)-\(suffix)")
     // References come from CI (851-3070): off it, a new state is only shown.
     if isNewOffCI(file: file, testName: screen, name: "\(name)-\(suffix)") {
@@ -43,10 +39,6 @@
         column: column)
     }
     output?.report(failure: failure)
-    if screen == "sleep" || failure != nil {
-      probeDumpTitleBar(
-        window.contentView!.superview!, key: "\(screen).\(name)-\(suffix)", failed: failure != nil)
-    }
     if let failure {
       Issue.record(
         Comment(rawValue: failure),
@@ -84,12 +76,86 @@
     window.appearance = NSAppearance(named: appearance)
     window.setContentSize(controller.view.fittingSize)
     // Let SwiftUI lay out and draw, and charts settle.
-    probeLog("SIZED \(probeKey)")
     controller.view.layoutSubtreeIfNeeded()
-    probeLog("LAID OUT \(probeKey)")
-    RunLoop.main.run(until: Date().addingTimeInterval(probeSettle))
-    probeLog("SETTLED \(probeKey)")
+    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    redrawStaleToolbarImages(in: window)
     return window
+  }
+
+  /// Has SwiftUI draw a toolbar item again when its image was drawn for another size (851-3230).
+  /// A toolbar item's symbol is drawn first at the size it has before the toolbar sizes it
+  /// (Sleep's ‹ at 6.5 × 11.5 pt, 13 × 23 px), then again as the window first lays out, at its
+  /// toolbar size (8.5 × 14.5 pt, 17 × 29 px). On the minis, about one full run in four and only
+  /// after the catalogs before it, that second drawing skipped an item: its layer took the toolbar
+  /// size with the first bitmap in it, stretched and soft (Sleep › Week's ‹, the same 171 pixels
+  /// each time). Nothing draws it again by itself, not waiting 0.3 s or laying the window out
+  /// again: SwiftUI's display list hasn't changed. An appearance change changes it, so the item's
+  /// hosting view goes to the other appearance and back, and SwiftUI draws it at its final size,
+  /// byte for byte as when nothing was skipped. A toolbar image is stale when its bitmap isn't its
+  /// layer's size at its scale: toolbar images are symbols, drawn to fit.
+  @MainActor
+  func redrawStaleToolbarImages(in window: NSWindow) {
+    let stale = staleToolbarImages(in: window)
+    guard !stale.isEmpty else { return }
+    // The views hosting them: each toolbar item's own SwiftUI hosting view.
+    var views: [NSView] = []
+    for layer in stale.map(\.layer) {
+      var owner: CALayer? = layer
+      while let current = owner, !(current.delegate is NSView) { owner = current.superlayer }
+      if let view = owner?.delegate as? NSView, !views.contains(view) { views.append(view) }
+    }
+    let other = NSAppearance(
+      named: window.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        ? .aqua : .darkAqua)
+    for view in views {
+      let appearance = view.appearance
+      view.appearance = other
+      view.layoutSubtreeIfNeeded()
+      view.appearance = appearance
+      view.layoutSubtreeIfNeeded()
+    }
+    print(
+      "Drew stale toolbar images again in \(window.title): \(stale.map(\.description).joined(separator: ", "))"
+    )
+    let left = staleToolbarImages(in: window)
+    if !left.isEmpty {
+      Issue.record(
+        """
+        Toolbar images stayed drawn for another size after drawing them again: \
+        \(left.map(\.description).joined(separator: ", ")).
+        """)
+    }
+  }
+
+  /// SwiftUI's image layers in the window's title bar whose bitmap isn't the layer's size at its
+  /// scale (within a pixel), described for an issue.
+  @MainActor
+  func staleToolbarImages(in window: NSWindow) -> [(layer: CALayer, description: String)] {
+    let root = window.contentView!.superview!.layer!
+    let titleBar = window.contentLayoutRect.maxY
+    var stale: [(layer: CALayer, description: String)] = []
+    func visit(_ layer: CALayer) {
+      if "\(type(of: layer))" == "ImageLayer", let contents = layer.contents,
+        CFGetTypeID(contents as CFTypeRef) == CGImage.typeID
+      {
+        let image = contents as! CGImage
+        let frame = layer.convert(layer.bounds, to: root)
+        let scale = layer.contentsScale
+        if frame.minY >= titleBar,
+          abs(CGFloat(image.width) - layer.bounds.width * scale) > 1
+            || abs(CGFloat(image.height) - layer.bounds.height * scale) > 1
+        {
+          stale.append(
+            (
+              layer,
+              "\(image.width) × \(image.height) px in \(layer.bounds.width) × \(layer.bounds.height) pt at \(frame.minX), \(frame.minY)"
+            ))
+        }
+      }
+      layer.sublayers?.forEach(visit)
+    }
+    visit(root)
+    return stale
   }
 
   /// What every snapshot shares, set once in the target's test process (SwiftPM runs each test
@@ -168,60 +234,5 @@
     override var isMainWindow: Bool { true }
     override var canBecomeKey: Bool { true }
     override var backingScaleFactor: CGFloat { snapshotScale }
-  }
-
-  /// Appends the title bar's whole layer tree to `LIL_PROBE_DUMP`'s file (851-3230 probe).
-  @MainActor
-  func probeDumpTitleBar(_ frameView: NSView, key: String, failed: Bool) {
-    guard let path = ProcessInfo.processInfo.environment["LIL_PROBE_DUMP"] else { return }
-    let root = frameView.layer!
-    var lines = ["=== \(key) failed: \(failed) screen: \(frameView.window?.screen?.backingScaleFactor ?? -1) at \(Date().timeIntervalSince1970)"]
-    func walk(_ layer: CALayer, _ depth: Int, _ inTitleBar: Bool) {
-      let frame = layer.convert(layer.bounds, to: root)
-      let titleBar = inTitleBar || frame.minY >= root.bounds.height - 52 && frame.height <= 52
-      if titleBar {
-        var contents = "nil"
-        if let c = layer.contents {
-          let type = CFCopyTypeIDDescription(CFGetTypeID(c as CFTypeRef)) as String? ?? "?"
-          if type == "CGImage" {
-            let image = c as! CGImage
-            var hash = ""
-            if let data = image.dataProvider?.data as Data? {
-              hash = SHA256.hash(data: data).prefix(6).map { String(format: "%02x", $0) }.joined()
-            }
-            contents = "CGImage \(image.width)x\(image.height) #\(hash)"
-          } else {
-            contents = type
-          }
-        }
-        lines.append(
-          "\(String(repeating: " ", count: depth))\(type(of: layer)) d=\(layer.delegate.map { String("\(type(of: $0))".prefix(40)) } ?? "-") f=\(frame) b=\(layer.bounds.size) c=\(contents) s=\(layer.contentsScale) g=\(layer.contentsGravity.rawValue) o=\(layer.opacity) h=\(layer.isHidden) t=\(CATransform3DIsIdentity(layer.transform) ? "id" : "\(layer.transform)") filters=\(layer.filters ?? []) cf=\(String(describing: layer.compositingFilter)) mask=\(layer.mask != nil) anims=\(layer.animationKeys() ?? [])"
-        )
-      }
-      for sub in layer.sublayers ?? [] { walk(sub, depth + 1, titleBar) }
-    }
-    walk(root, 0, false)
-    let text = lines.joined(separator: "\n") + "\n"
-    if let handle = FileHandle(forWritingAtPath: path) {
-      handle.seekToEndOfFile()
-      handle.write(Data(text.utf8))
-      try? handle.close()
-    } else {
-      FileManager.default.createFile(atPath: path, contents: Data(text.utf8))
-    }
-  }
-  nonisolated(unsafe) var probeSettle = Double(ProcessInfo.processInfo.environment["LIL_PROBE_SETTLE"] ?? "") ?? 0.05
-  nonisolated(unsafe) var probeKey = ""
-
-  func probeLog(_ text: String) {
-    guard let path = ProcessInfo.processInfo.environment["LIL_PROBE_DUMP"] else { return }
-    let line = "@\(Date().timeIntervalSince1970) \(text)\n"
-    if let handle = FileHandle(forWritingAtPath: path) {
-      handle.seekToEndOfFile()
-      handle.write(Data(line.utf8))
-      try? handle.close()
-    } else {
-      FileManager.default.createFile(atPath: path, contents: Data(line.utf8))
-    }
   }
 #endif
