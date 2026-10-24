@@ -107,9 +107,7 @@ struct SnapshotOutput {
     let (image, diff, differed) = (image, diff, differed)
     return SnapshotTestingConfiguration.DiffTool { reference, _ in
       differed.set()
-      let summary = writeDiff(
-        reference: URL(filePath: reference), image: image, to: diff,
-        tolerance: snapshotChannelTolerance)
+      let summary = writeDiff(reference: URL(filePath: reference), image: image, to: diff)
       return """
         \(summary)
         reference: \(reference)
@@ -185,7 +183,8 @@ private final class Flag: Sendable {
 /// Writes `image`'s pixels that differ from `reference`'s by more than `tolerance` in a channel
 /// in red, over a faded copy of `image`, and describes how much
 /// changed and by how much. Through raw buffers: the tests build without optimization.
-private func writeDiff(reference: URL, image: URL, to output: URL, tolerance: Int) -> String {
+private func writeDiff(reference: URL, image: URL, to output: URL) -> String {
+  let tolerance = snapshotChannelTolerance
   guard let old = pixels(of: reference), let new = pixels(of: image) else {
     return "Couldn't read the images to compare them."
   }

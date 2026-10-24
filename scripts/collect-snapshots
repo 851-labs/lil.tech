@@ -112,8 +112,9 @@ summary=${GITHUB_STEP_SUMMARY:-/dev/stdout}
   cat <<EOF
 ### Snapshots changed: $what
 
-These images weren't recorded with the change (\`scripts/snapshot --record\`, 851-3242). If
-they're right, bring this run's images into the branch, look at them, then commit and push:
+These images differ from their references, or are new: usually a change that wasn't recorded with
+\`scripts/snapshot --record\` (851-3242), such as a catalog that embeds the view. If they're
+right, bring this run's images into the branch, look at them, then commit and push:
 
 \`\`\`sh
 scripts/fetch-snapshots

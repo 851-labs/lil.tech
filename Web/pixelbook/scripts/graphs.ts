@@ -236,8 +236,9 @@ const appProblems = (graph: Graph, file: string, apps: Map<string, string>) => {
 };
 
 // With `--allow-missing-references` (the pre-commit hook's), a missing reference is a warning: a
-// new state's references come from CI, which renders them on the Mac minis, after the push
-// (`scripts/fetch-snapshots`, 851-3070). The Swift check, on CI, still fails on one.
+// new state's references are recorded with `scripts/snapshot --record` (851-3242), or else CI
+// renders them after the push (`scripts/fetch-snapshots`, 851-3070). The Swift check, on CI, still
+// fails on one.
 if (import.meta.main) {
   const problems = await checkGraphs(await scanScreens());
   for (const [file, list] of problems) {
@@ -255,7 +256,7 @@ if (import.meta.main) {
     for (const problem of missing) console.warn(`warning: ${problem}`);
     if (missing.length > 0) {
       console.warn(
-        "CI renders new states' references: push, then bring them in with scripts/fetch-snapshots.",
+        "Record new states' references with scripts/snapshot --record <test>, and commit them, or CI fails on them.",
       );
     }
   }

@@ -125,7 +125,8 @@ print_report() {
   if [ "$changed" -gt 0 ] && [ "${LIL_SNAPSHOT_CI:-}" != 1 ]; then
     echo
     echo "New or changed images: $changed. If they're right, record them: run this again with"
-    echo "--record, then commit the references and manifests with the change (851-3242)."
+    echo "--record and their catalogs' tests, then commit the references and manifests with the"
+    echo "change (851-3242)."
   fi
 }
 
