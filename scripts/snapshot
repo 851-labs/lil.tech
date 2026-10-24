@@ -13,8 +13,9 @@
 #                so its name (`metricDetail`) or part of it. With several, each test that
 #                matches one. Every snapshot test when none is given.
 #   --record     Record new references for the images that changed or have none
-#                (`SNAPSHOT_TESTING_RECORD=failed`). Only where references are rendered, on CI
-#                (`LIL_SNAPSHOT_CI=1`, 851-3070): elsewhere, push, then `scripts/fetch-snapshots`.
+#                (`SNAPSHOT_TESTING_RECORD=failed`), and their manifests. On a laptop (851-3242),
+#                only for the catalogs named: the ones the change touches, and `window`, `summary`
+#                and `category` when its views appear there. Never the whole suite.
 #   --sheet      Then make the before/after sheet of the states that changed from the branch's
 #                merge base with `origin/main`, recorded or not, to attach to the PR and the ticket
 #                (`scripts/snapshot-sheet`, 851-3062): `<output>/sheet.jpg`, and `sheet.png` at
@@ -42,10 +43,10 @@
 # gets a `.diff.png` next to it, its pixels further apart in a color channel than match in red. It
 # prints each image's path and result (`SnapshotOutput`), with its reference's and its diff's, and
 # exits non-zero when an image differs or a test fails, except for what `--record` recorded.
-# The references are the Mac minis' (851-3070), so on a laptop the Mac's images match within 2
-# (`laptopChannelTolerance`; the minis' own within 1, `snapshotChannelTolerance`; the iPhone's
-# within 2 on both, `phoneChannelTolerance`), and a state with no reference yet is only rendered,
-# as `new`. CI sets `LIL_SNAPSHOT_CI=1`, where a new state is recorded, and fails.
+# Images match within 2 per color channel (`snapshotChannelTolerance`), on CI and laptops, the
+# Mac's and the iPhone's (851-3242): what a laptop records passes on the minis. Without --record, a
+# state with no reference yet is only rendered, as `new`. CI sets `LIL_SNAPSHOT_CI=1`, where a new
+# state is recorded, and fails, for `scripts/fetch-snapshots`.
 set -eu
 # Filters are regular expressions, not file patterns.
 set -f
@@ -74,10 +75,12 @@ for arg in "$@"; do
 " ;;
   esac
 done
-if $record && [ "${LIL_SNAPSHOT_CI:-}" != 1 ]; then
-  echo "error: references come from CI, which renders them on the Mac minis (851-3070): a laptop's" >&2
-  echo "GPU draws some images a level or two apart. Push the change; when its Swift check fails" >&2
-  echo "on the images that changed, run scripts/fetch-snapshots, look at them, and commit them." >&2
+# The whole suite costs a laptop minutes of CPU, beside other agents (851-3242): CI compares every
+# image anyway.
+if $record && [ -z "$filters" ] && [ "${LIL_SNAPSHOT_CI:-}" != 1 ]; then
+  echo "error: name the catalogs to record: the ones your change touches, and window, summary and" >&2
+  echo "category when its views appear there. Never the whole suite on a laptop: CI compares every" >&2
+  echo "image, and scripts/fetch-snapshots brings in any it renders that you didn't record." >&2
   exit 2
 fi
 if $delete_simulator && ! $iphone; then
@@ -101,8 +104,8 @@ since() {
 }
 
 # Prints each image in the run's report (`$output/report.tsv`) with its result, and its reference
-# and diff when it didn't match, counting the recorded ones in `recorded`. Off CI, says where new
-# references come from when an image differs or is new.
+# and diff when it didn't match, counting the recorded ones in `recorded`. Off CI, says how to
+# record them when an image differs or is new.
 print_report() {
   recorded=0
   changed=0
@@ -121,8 +124,8 @@ print_report() {
   done <"$output/report.tsv"
   if [ "$changed" -gt 0 ] && [ "${LIL_SNAPSHOT_CI:-}" != 1 ]; then
     echo
-    echo "New or changed images: $changed. If they're right, push: CI renders the references on"
-    echo "the Mac minis, and scripts/fetch-snapshots brings them into the branch (851-3070)."
+    echo "New or changed images: $changed. If they're right, record them: run this again with"
+    echo "--record, then commit the references and manifests with the change (851-3242)."
   fi
 }
 
@@ -306,7 +309,7 @@ for device in sorted(devices, key=lambda device: device["state"] != "Booted"):
   if [ -n "${LIL_SNAPSHOT_STATE:-}" ]; then
     export TEST_RUNNER_LIL_SNAPSHOT_STATE="$LIL_SNAPSHOT_STATE"
   fi
-  # Where references are rendered: CI (`snapshotsRenderReferences`, 851-3070).
+  # CI, where a missing reference is recorded, and fails (`snapshotsOnCI`, 851-3070).
   if [ -n "${LIL_SNAPSHOT_CI:-}" ]; then
     export TEST_RUNNER_LIL_SNAPSHOT_CI="$LIL_SNAPSHOT_CI"
   fi

@@ -34,8 +34,8 @@
         list(.lowCardioFitness, .loaded(lowCardioFitness))
       },
       // Its lungs symbol draws a few pixels 2 apart on the minis (M6) and on a laptop (M1 Pro),
-      // on the same macOS 27.0.1: past CI's tolerance (851-2985), within a laptop's. Its
-      // references are the minis', as every one is (851-3070).
+      // on the same macOS 27.0.1: the furthest apart of any image, which the tolerance of 2
+      // covers (`snapshotChannelTolerance`, 851-3242).
       CatalogState("Sleep apnea notifications") { list(.sleepApnea, .loaded(sleepApnea)) },
       CatalogState("No high heart rate notifications") { list(.highHeartRate, .loaded([])) },
       CatalogState("No walking steadiness notifications") {

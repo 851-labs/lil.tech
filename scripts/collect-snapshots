@@ -1,7 +1,6 @@
 #!/bin/bash
 # Collects what a CI run's snapshot tests changed, for `scripts/fetch-snapshots` to bring into a
-# branch (851-3070): the references come from the Mac minis, never from a laptop, whose GPU draws
-# some images a level or two apart.
+# branch (851-3070): the images a PR changed that weren't recorded on a laptop (851-3242).
 # Usage: scripts/collect-snapshots <references> <changes> <output>…
 #        scripts/collect-snapshots --check
 #   <output>      A run's folder (`LIL_SNAPSHOT_OUTPUT`, `scripts/snapshot`'s), with its `report.tsv`.
@@ -113,8 +112,8 @@ summary=${GITHUB_STEP_SUMMARY:-/dev/stdout}
   cat <<EOF
 ### Snapshots changed: $what
 
-The references are rendered on the Mac minis (851-3070). If these changes are right, bring this run's
-images into the branch, look at them, then commit and push:
+These images weren't recorded with the change (\`scripts/snapshot --record\`, 851-3242). If
+they're right, bring this run's images into the branch, look at them, then commit and push:
 
 \`\`\`sh
 scripts/fetch-snapshots

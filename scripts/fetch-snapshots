@@ -1,10 +1,10 @@
 #!/bin/bash
-# Brings the references a CI run rendered into the branch (851-3070). References come from the
-# Mac minis, never from a laptop, whose GPU draws some images a level or two apart: when a PR
-# changes how a state looks, or adds one, its Swift check fails and uploads the images it rendered
-# (`scripts/collect-snapshots`). This copies them over the references, with any manifest the tests
-# wrote, and makes the before/after sheet of the states that changed, to look at before committing
-# them (AGENTS.md › UI states).
+# Brings the references a CI run rendered into the branch (851-3070). Agents record the catalogs
+# they change on their laptop (`scripts/snapshot --record`, 851-3242); when a PR still changes how
+# a state looks, or adds one, that wasn't recorded (say a catalog that embeds the view), its Swift
+# check fails and uploads the images it rendered (`scripts/collect-snapshots`). This copies them
+# over the references, with any manifest the tests wrote, and makes the before/after sheet of the
+# states that changed, to look at before committing them (AGENTS.md › UI states).
 # Usage: scripts/fetch-snapshots [<run>]
 #   <run>  A workflow run's ID (`gh run list`), or its URL. By default, the latest PR run for the
 #          commit checked out, which must be pushed; it waits for the run to finish.

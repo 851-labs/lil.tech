@@ -18,23 +18,22 @@ import Synchronization
 // HealthPhoneSnapshotTests, which builds this file too, 851-2953) share: the images
 // `scripts/snapshot` gets, their diffs, and matching within a tolerance per color channel.
 
-/// Whether this process renders the references: `LIL_SNAPSHOT_CI=1`, which CI sets on the Mac minis
-/// (851-3070). References come only from the minis, whose GPUs draw some images a level or two apart
-/// from a laptop's (851-3033). There, images are compared within `snapshotChannelTolerance`, and a
+/// Whether this process is CI's check on the Mac minis: `LIL_SNAPSHOT_CI=1` (851-3070). There, a
 /// state with no reference is recorded, and fails, as SnapshotTesting does, so the run uploads it
-/// for `scripts/fetch-snapshots`. Elsewhere (a laptop), images are compared within
-/// `laptopChannelTolerance`, and a new state is only rendered (`isNewOffCI`).
-let snapshotsRenderReferences = ProcessInfo.processInfo.environment["LIL_SNAPSHOT_CI"] == "1"
+/// for `scripts/fetch-snapshots`. Elsewhere (a laptop), a new state is only rendered
+/// (`isNewOffCI`), unless `scripts/snapshot --record` records it (851-3242). Images are compared
+/// within `snapshotChannelTolerance` everywhere.
+let snapshotsOnCI = ProcessInfo.processInfo.environment["LIL_SNAPSHOT_CI"] == "1"
 
-/// Whether SnapshotTesting records references (`scripts/snapshot --record` on CI).
+/// Whether SnapshotTesting records references (`scripts/snapshot --record`).
 private let snapshotsRecord = ["all", "failed"].contains(
   ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"])
 
-/// Off CI, whether a state has no reference yet (851-3070), so is only rendered, for
-/// `scripts/snapshot` to show as `new`, and doesn't fail: its reference comes from CI, which
-/// records it, and fails, until `scripts/fetch-snapshots` brings it into the branch.
+/// Off CI and not recording, whether a state has no reference yet (851-3070), so is only rendered,
+/// for `scripts/snapshot` to show as `new`, and doesn't fail: `scripts/snapshot --record` records
+/// it (851-3242), or else CI does, and fails, until `scripts/fetch-snapshots` brings it in.
 func isNewOffCI(file: StaticString, testName: String, name: String) -> Bool {
-  guard !snapshotsRenderReferences, !snapshotsRecord else { return false }
+  guard !snapshotsOnCI, !snapshotsRecord else { return false }
   return !FileManager.default.fileExists(
     atPath: referenceURL(file: file, testName: testName, name: name).path)
 }
@@ -70,13 +69,8 @@ struct SnapshotOutput {
   let previousReference: Date?
   /// Whether SnapshotTesting called the diff tool: the image didn't match its reference.
   private let differed = Flag()
-  /// How far a pixel's channels may be from its reference's and still match.
-  let tolerance: Int
 
-  init?(
-    file: StaticString, testName: String, name: String,
-    tolerance: Int = macChannelTolerance
-  ) {
+  init?(file: StaticString, testName: String, name: String) {
     guard let output = ProcessInfo.processInfo.environment["LIL_SNAPSHOT_OUTPUT"] else {
       return nil
     }
@@ -86,7 +80,6 @@ struct SnapshotOutput {
     diff = image.deletingPathExtension().appendingPathExtension("diff.png")
     reportFile = URL(filePath: output).appending(component: "report.tsv")
     previousReference = modificationDate(of: reference)
-    self.tolerance = tolerance
     try? FileManager.default.createDirectory(
       at: image.deletingLastPathComponent(), withIntermediateDirectories: true)
     try? FileManager.default.removeItem(at: image)
@@ -111,11 +104,12 @@ struct SnapshotOutput {
   /// and says where the three are. It compares the image `writing(_:)` wrote, which has the same
   /// bytes as the failed image SnapshotTesting writes to its artifacts folder.
   var diffTool: SnapshotTestingConfiguration.DiffTool {
-    let (image, diff, differed, tolerance) = (image, diff, differed, tolerance)
+    let (image, diff, differed) = (image, diff, differed)
     return SnapshotTestingConfiguration.DiffTool { reference, _ in
       differed.set()
       let summary = writeDiff(
-        reference: URL(filePath: reference), image: image, to: diff, tolerance: tolerance)
+        reference: URL(filePath: reference), image: image, to: diff,
+        tolerance: snapshotChannelTolerance)
       return """
         \(summary)
         reference: \(reference)
@@ -309,23 +303,18 @@ private func pixels(of image: CGImage) -> Pixels? {
   return drawn ? Pixels(width: image.width, height: image.height, words: words) : nil
 }
 
-/// How far a pixel's channels may be from its reference's and still match on CI (851-2985), where
-/// the references are rendered (851-3070). The same screen rendered on macOS 27.0 and 27.0.1 came
-/// out 1 apart in gradients, symbols and the toolbar's search field, which no one can see. Anything
-/// that moves or recolors what's drawn is further apart. Both minis render every image byte for
-/// byte the same.
-let snapshotChannelTolerance = 1
-
-/// How far a pixel's channels may be from the minis' references and still match on a laptop
-/// (851-3070): of the Mac's 834 images, an M1 Pro laptop on macOS 27.0.1 drew 816 exactly as the
-/// minis (M6, the same macOS) do, 16 at most 1 apart, and two (Sleep apnea notifications' lungs) 2
-/// apart. Locally a comparison is only an early warning: CI's is the one that counts.
-let laptopChannelTolerance = 2
-
-/// What the Mac's snapshots are compared within in this process: CI's tolerance where references
-/// are rendered (`snapshotsRenderReferences`), a laptop's elsewhere.
-let macChannelTolerance =
-  snapshotsRenderReferences ? snapshotChannelTolerance : laptopChannelTolerance
+/// How far a pixel's channels may be from its reference's and still match, on CI and laptops, for
+/// the Mac's images and the iPhone's alike: one rule (851-3242).
+/// - The Mac's: both minis (M6) render every image byte for byte the same. Of the 834 images, an
+///   M1 Pro laptop on the same macOS 27.0.1 drew 816 exactly as the minis do, 16 at most 1 apart,
+///   and two (Sleep apnea notifications' lungs) 2 apart (851-3070), so references a laptop records
+///   pass on CI. macOS 27.0 and 27.0.1 drew gradients, symbols and the toolbar's search field 1
+///   apart (851-2985). CI compared within 1 until 851-3242, which kept laptops from recording.
+/// - The iPhone's: the glass Settings button's rim comes out up to 2 apart in about one image in
+///   ten, with nothing else changed (the window server's rounding), and a laptop's simulator drew
+///   the rest of 160 images at most 2 apart from a mini's.
+/// No one can see 2 levels. Anything that moves or recolors what's drawn is further apart.
+let snapshotChannelTolerance = 2
 
 extension Diffing where Value == PlatformImage {
   /// SnapshotTesting's exact comparison (`exact`), except that an image of the reference's size
