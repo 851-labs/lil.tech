@@ -182,7 +182,7 @@ struct SummaryContent<Row: View>: View {
       // don't move when the cards arrive: what a new account has, and an existing one most
       // likely.
       ForEach(Card.welcomeSeed) { card in
-        link(to: card.spec?.metricDetailType) {
+        NavigationLink(value: PushedPage.card(card.id)) {
           CardRow(card: card, headline: .loading, now: now, calendar: calendar)
         }
       }
@@ -194,23 +194,13 @@ struct SummaryContent<Row: View>: View {
       // A form's row would otherwise give it only its ideal width, off center.
       .frame(maxWidth: .infinity)
     case .loaded(let cards):
+      // Every card opens its page (851-3207), a later version's too, so every row has the
+      // form's chevron and their columns line up.
       ForEach(cards) { card in
-        link(to: card.spec?.metricDetailType) {
+        NavigationLink(value: PushedPage.card(card.id)) {
           row(card)
         }
       }
-    }
-  }
-
-  /// A row that opens its card's metric, if it has one (`CardSpec.metricDetailType`). Cards get a
-  /// page of their own in 851-3207.
-  @ViewBuilder private func link(
-    to typeID: String?, @ViewBuilder label: () -> some View
-  ) -> some View {
-    if let typeID {
-      NavigationLink(value: typeID, label: label)
-    } else {
-      label()
     }
   }
 
@@ -233,7 +223,7 @@ struct SummaryContent<Row: View>: View {
     case .loaded(let highlights):
       ForEach(highlights) { highlight in
         if let type = HealthCatalog.type(id: highlight.typeID) {
-          NavigationLink(value: highlight.typeID) {
+          NavigationLink(value: PushedPage.metric(highlight.typeID)) {
             HighlightRow(highlight: highlight, type: type)
           }
         }

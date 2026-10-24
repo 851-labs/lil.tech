@@ -5,6 +5,14 @@ public import HealthCatalog
 public import LilAuth
 public import LilSync
 
+/// A page pushed on a stack of the main window (`AppFeature.State.metricPath`).
+public enum PushedPage: Hashable, Sendable {
+  /// A data type's page, by its ID: Metric Detail, or the type's own page.
+  case metric(String)
+  /// One of the account's cards, by its ID: the full-page card (851-3207).
+  case card(String)
+}
+
 /// lil health on the Mac: sign in, then iPad Health's layout, a sidebar of Summary and the
 /// Health categories beside what's selected. While signed in, it syncs the account's health data
 /// into the local database; signing out deletes it.
@@ -16,10 +24,10 @@ public struct AppFeature {
     public var isSignedIn: Bool?
     public var signIn = SignInFeature.State()
     public var selection: SidebarItem? = .summary
-    /// The pages pushed on the selection's stack, as type IDs: metrics in Summary's or a
-    /// category's. Emptied when the selection changes, so one's metric doesn't show under another,
-    /// and when a page is opened (851-3030).
-    public var metricPath: [String] = []
+    /// The pages pushed on the selection's stack: metrics in Summary's or a category's, and
+    /// Summary's cards (851-3207). Emptied when the selection changes, so one's metric doesn't
+    /// show under another, and when a page is opened (851-3030).
+    public var metricPath: [PushedPage] = []
     /// Whether the sidebar's Health Categories is expanded. It collapses as a sidebar's sections
     /// do (851-3220), and expands again when something other than a click in the sidebar selects
     /// a category, so its row shows selected (`revealSelectedCategory`, 851-3225).
@@ -39,7 +47,7 @@ public struct AppFeature {
     /// The account's cards (851-3204), followed while signed in, which Summary shows and edits.
     public var cards = CardsFeature.State()
     public init(
-      isSignedIn: Bool? = nil, selection: SidebarItem? = .summary, metricPath: [String] = [],
+      isSignedIn: Bool? = nil, selection: SidebarItem? = .summary, metricPath: [PushedPage] = [],
       searchText: String = "", syncStatus: SyncStatus = .idle
     ) {
       self.isSignedIn = isSignedIn
@@ -96,7 +104,7 @@ public struct AppFeature {
     /// A stack's navigation changed its metrics: a row clicked, or Back. The stack says which
     /// selection it shows, so one that's going away (as the selection changes) can't empty the
     /// path the next one opens with.
-    case metricPathChanged([String], selection: SidebarItem?)
+    case metricPathChanged([PushedPage], selection: SidebarItem?)
     /// Shows a page, as the sidebar and a metric's row do: the window's part is the intent's.
     case pageOpened(HealthPage)
     case task
@@ -303,7 +311,7 @@ public struct AppFeature {
           // category are pages (`HealthPage.dataType`), so there's always one.
           guard let category = type.category else { return .none }
           state.selection = .category(category)
-          state.metricPath = [type.id]
+          state.metricPath = [.metric(type.id)]
         }
         // Also when the category was selected already, with its row hidden.
         state.revealSelectedCategory()

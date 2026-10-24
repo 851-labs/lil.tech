@@ -89,7 +89,7 @@ struct MetricsView: View {
       Section {
         ForEach(withData) { summary in
           if let type = HealthCatalog.type(id: summary.id) {
-            NavigationLink(value: summary.id) {
+            NavigationLink(value: PushedPage.metric(summary.id)) {
               // The page's color, for a type listed under two categories.
               MetricRow(
                 type: type, summary: summary, color: category.color, now: now, calendar: calendar)

@@ -542,7 +542,7 @@ struct AppFeatureTests {
     }
     await store.send(.pageOpened(steps)) {
       $0.selection = .category(.activity)
-      $0.metricPath = ["HKQuantityTypeIdentifierStepCount"]
+      $0.metricPath = [.metric("HKQuantityTypeIdentifierStepCount")]
       $0.$isCategoriesExpanded.withLock { $0 = true }
     }
   }

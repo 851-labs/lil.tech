@@ -1,0 +1,140 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthMacApp/CardDetailCatalog.swift",
+  "screen" : "Card Detail",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.steps-week-dark.png",
+      "id" : "card-detail.steps-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.steps-week-light.png",
+      "name" : "Steps, week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.steps-loading-dark.png",
+      "id" : "card-detail.steps-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.steps-loading-light.png",
+      "name" : "Steps, loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.steps-loading-the-month-dark.png",
+      "id" : "card-detail.steps-loading-the-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.steps-loading-the-month-light.png",
+      "name" : "Steps, loading the month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.steps-no-data-dark.png",
+      "id" : "card-detail.steps-no-data",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.steps-no-data-light.png",
+      "name" : "Steps, no data",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.steps-failed-dark.png",
+      "id" : "card-detail.steps-failed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.steps-failed-light.png",
+      "name" : "Steps, failed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.steps-with-a-goal-dark.png",
+      "id" : "card-detail.steps-with-a-goal",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.steps-with-a-goal-light.png",
+      "name" : "Steps with a goal",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.heart-rate-week-dark.png",
+      "id" : "card-detail.heart-rate-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.heart-rate-week-light.png",
+      "name" : "Heart rate, week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.body-temperature-week-dark.png",
+      "id" : "card-detail.body-temperature-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.body-temperature-week-light.png",
+      "name" : "Body temperature, week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.body-temperature-month-dark.png",
+      "id" : "card-detail.body-temperature-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.body-temperature-month-light.png",
+      "name" : "Body temperature, month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.sleeping-heart-rate-week-dark.png",
+      "id" : "card-detail.sleeping-heart-rate-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.sleeping-heart-rate-week-light.png",
+      "name" : "Sleeping heart rate, week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.sleeping-heart-rate-month-dark.png",
+      "id" : "card-detail.sleeping-heart-rate-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.sleeping-heart-rate-month-light.png",
+      "name" : "Sleeping heart rate, month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.hrv-week-dark.png",
+      "id" : "card-detail.hrv-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.hrv-week-light.png",
+      "name" : "HRV, week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.hrv-month-dark.png",
+      "id" : "card-detail.hrv-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.hrv-month-light.png",
+      "name" : "HRV, month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.heart-rate-before-sleep-week-dark.png",
+      "id" : "card-detail.heart-rate-before-sleep-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.heart-rate-before-sleep-week-light.png",
+      "name" : "Heart rate before sleep, week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.heart-rate-before-sleep-month-dark.png",
+      "id" : "card-detail.heart-rate-before-sleep-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.heart-rate-before-sleep-month-light.png",
+      "name" : "Heart rate before sleep, month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.morning-weight-week-dark.png",
+      "id" : "card-detail.morning-weight-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.morning-weight-week-light.png",
+      "name" : "Morning weight, week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.morning-weight-month-dark.png",
+      "id" : "card-detail.morning-weight-month",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.morning-weight-month-light.png",
+      "name" : "Morning weight, month",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.morning-weight-month-us-dark.png",
+      "id" : "card-detail.morning-weight-month-us",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.morning-weight-month-us-light.png",
+      "name" : "Morning weight, month, US",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.a-card-from-a-later-version-dark.png",
+      "id" : "card-detail.a-card-from-a-later-version",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.a-card-from-a-later-version-light.png",
+      "name" : "A card from a later version",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    }
+  ]
+}

@@ -18,6 +18,7 @@
     sleepCatalog, metricDetailCatalog, bloodPressureCatalog, symptomsCatalog,
     activityRingsCatalog, cycleTrackingCatalog, workoutsCatalog, workoutRoutesCatalog,
     electrocardiogramsCatalog, notificationsCatalog, healthDocumentsCatalog, summaryCatalog,
+    cardDetailCatalog,
   ]
 
   extension MacSnapshotTests {

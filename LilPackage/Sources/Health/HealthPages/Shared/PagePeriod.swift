@@ -120,11 +120,14 @@ public struct PagePeriod: Equatable {
   let rangeSelection: Binding<Int>
   private let liveOffset: Binding<Int>
 
-  /// `now` and `calendar` are what the page's periods are counted from.
+  /// `now` and `calendar` are what the page's periods are counted from. `ranges` are those the
+  /// page offers, in order: every one by default, or some, as a card offers its bucket's
+  /// (851-3207).
   public init<R: PeriodRange>(
-    range: Binding<R>, offset: Binding<Int>, now: Date, calendar: Calendar
+    range: Binding<R>, offset: Binding<Int>, ranges offered: [R]? = nil, now: Date,
+    calendar: Calendar
   ) {
-    let all = Array(R.allCases)
+    let all = offered ?? Array(R.allCases)
     ranges = all.map { Range(label: $0.rawValue, name: $0.periodName) }
     selected = all.firstIndex(of: range.wrappedValue) ?? 0
     self.offset = offset.wrappedValue

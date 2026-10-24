@@ -60,7 +60,7 @@
         window(
           AppFeature.State(
             isSignedIn: true, selection: .category(.bodyMeasurements),
-            metricPath: [HealthDatabase.visionPrescriptionType]))
+            metricPath: [.metric(HealthDatabase.visionPrescriptionType)]))
       },
       // A metric's range and periods are in the toolbar (851-2821).
       CatalogState("A metric") {

@@ -42,7 +42,7 @@ struct HealthAppIntentsTests {
     await store.send(.pageOpened(steps)) {
       $0.searchText = ""
       $0.selection = .category(.activity)
-      $0.metricPath = ["HKQuantityTypeIdentifierStepCount"]
+      $0.metricPath = [.metric("HKQuantityTypeIdentifierStepCount")]
     }
     await store.send(.pageOpened(.category(.heart))) {
       $0.selection = .category(.heart)
@@ -51,7 +51,7 @@ struct HealthAppIntentsTests {
     // In Body Measurements, as in Health (851-3187).
     await store.send(.pageOpened(visionPrescriptionsPage)) {
       $0.selection = .category(.bodyMeasurements)
-      $0.metricPath = [visionPrescriptions]
+      $0.metricPath = [.metric(visionPrescriptions)]
     }
     await store.send(\.binding.searchText, "sleep") {
       $0.searchText = "sleep"
@@ -70,7 +70,7 @@ struct HealthAppIntentsTests {
     let store = TestStore(
       initialState: AppFeature.State(
         isSignedIn: true, selection: .category(.bodyMeasurements),
-        metricPath: [visionPrescriptions])
+        metricPath: [.metric(visionPrescriptions)])
     ) {
       AppFeature()
     }
@@ -81,7 +81,7 @@ struct HealthAppIntentsTests {
     await store.send(.pageOpened(.category(.bodyMeasurements)))
     // A type opens on its category's stack.
     await store.send(.pageOpened(visionPrescriptionsPage)) {
-      $0.metricPath = [visionPrescriptions]
+      $0.metricPath = [.metric(visionPrescriptions)]
     }
   }
 
@@ -92,7 +92,7 @@ struct HealthAppIntentsTests {
     let (updates, session) = AsyncStream<Bool>.makeStream()
     let store = TestStore(
       initialState: AppFeature.State(
-        selection: .category(.bodyMeasurements), metricPath: [visionPrescriptions])
+        selection: .category(.bodyMeasurements), metricPath: [.metric(visionPrescriptions)])
     ) {
       AppFeature()
     } withDependencies: {
@@ -130,7 +130,7 @@ struct HealthAppIntentsTests {
     let store = TestStore(
       initialState: AppFeature.State(
         isSignedIn: true, selection: .category(.activity),
-        metricPath: ["HKQuantityTypeIdentifierStepCount"])
+        metricPath: [.metric("HKQuantityTypeIdentifierStepCount")])
     ) {
       AppFeature()
     }
@@ -147,7 +147,7 @@ struct HealthAppIntentsTests {
     }
     await store.send(.pageOpened(steps)) {
       $0.selection = .category(.activity)
-      $0.metricPath = ["HKQuantityTypeIdentifierStepCount"]
+      $0.metricPath = [.metric("HKQuantityTypeIdentifierStepCount")]
     }
     // Summary's stack, on its way out.
     await store.send(.metricPathChanged([], selection: .summary))
@@ -181,7 +181,7 @@ struct HealthAppIntentsTests {
     await store.receive(\.appActionRequested)
     await store.receive(\.pageOpened) {
       $0.selection = .category(.activity)
-      $0.metricPath = ["HKQuantityTypeIdentifierStepCount"]
+      $0.metricPath = [.metric("HKQuantityTypeIdentifierStepCount")]
     }
     #expect(try await opened.value == .done)
 
