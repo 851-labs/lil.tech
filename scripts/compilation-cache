@@ -50,19 +50,24 @@ developer=${DEVELOPER_DIR:-$(xcode-select -p)}
 newline='
 '
 
-# The worktree's maps, a line each: the worktree as `/^root`, and our package's sources and tests
-# mapped to themselves, so they keep their paths. Not PhoneSnapshots, the iPhone's host app, which
-# maps as the rest of the worktree does: an Xcode project's own folder mapped to itself breaks
-# Clang's dependency scan of its targets ("module-include.input: Operation not supported").
+# The worktree's maps, a line each: our package's sources and each test target's folder map to
+# themselves, so they keep their paths, and the rest of the worktree to `/^root`. Swift's scanner
+# picks the longest prefix that matches. Not PhoneSnapshots, the iPhone's host app: an Xcode
+# project's folder inside one that maps to anything but `/^root`, itself included, breaks Clang's
+# dependency scan of its targets ("module-include.input: Operation not supported"), so each test
+# target's folder maps on its own (`Tests/<Product>/<Target>`, as `Package.swift` lays them out).
 worktree_maps() {
   maps_for "$root"
   [ "$logical_root" = "$root" ] || maps_for "$logical_root"
 }
 maps_for() {
-  echo "$1=/^root"
   echo "$1/LilPackage/Sources=$1/LilPackage/Sources"
-  echo "$1/LilPackage/Tests=$1/LilPackage/Tests"
-  echo "$1/LilPackage/Tests/Health/PhoneSnapshots=/^root/LilPackage/Tests/Health/PhoneSnapshots"
+  for dir in "$1"/LilPackage/Tests/*/*/; do
+    dir=${dir%/}
+    [ "$(basename "$dir")" != PhoneSnapshots ] || continue
+    echo "$dir=$dir"
+  done
+  echo "$1=/^root"
 }
 
 # The absolute path of folder `$1`, made if missing.
