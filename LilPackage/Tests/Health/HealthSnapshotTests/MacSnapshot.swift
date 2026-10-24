@@ -9,7 +9,7 @@
   /// Renders `view` as a Mac window shows it, in a window with a title bar (so its toolbar
   /// renders) of the given appearance, and compares it with its reference image,
   /// `__Snapshots__/<test file>/<screen>.<name>-<light|dark>.png` (851-2931), the screen being a
-  /// catalog's (851-2949), within `macChannelTolerance`. References are rendered on CI (851-3070).
+  /// catalog's (851-2949), within `snapshotChannelTolerance`.
   ///
   /// The window is never on screen and the app never activates, so this needs no Xcode, no
   /// Screen Recording access and no display of a particular scale, and runs beside other agents.
@@ -23,7 +23,7 @@
     let window = snapshotWindow(of: view, appearance: appearance, title: name)
     let suffix = appearance == .darkAqua ? "dark" : "light"
     let output = SnapshotOutput(file: file, testName: screen, name: "\(name)-\(suffix)")
-    // References come from CI (851-3070): off it, a new state is only shown.
+    // Off CI, a new state is only shown, unless recording (851-3242).
     if isNewOffCI(file: file, testName: screen, name: "\(name)-\(suffix)") {
       renderNew(window.contentView!.superview!, as: .layerImage, to: output)
       window.close()
@@ -192,11 +192,11 @@
   extension Snapshotting where Value == NSView, Format == NSImage {
     /// The view's layer tree drawn with `CALayer.render(in:)` at 2x, in sRGB. SnapshotTesting's
     /// `.image` draws with `cacheDisplay(in:to:)`, which got Swift Charts' colors wrong. Compared
-    /// with `.image(channelTolerance: macChannelTolerance)`.
+    /// with `.image(channelTolerance: snapshotChannelTolerance)`.
     @MainActor
     static var layerImage: Snapshotting {
       SimplySnapshotting(
-        pathExtension: "png", diffing: .image(channelTolerance: macChannelTolerance)
+        pathExtension: "png", diffing: .image(channelTolerance: snapshotChannelTolerance)
       ).pullback { view in
         redrawAtSnapshotScale(view.layer!)
         let scale = snapshotScale
