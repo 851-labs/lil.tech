@@ -1,4 +1,5 @@
 public import Foundation
+import HealthCards
 public import SQLiteData
 
 /// HealthKit's sleep values (`HKCategoryValueSleepAnalysis`).
@@ -71,13 +72,9 @@ extension HealthDatabase {
       .fetchOne(db) != nil
   }
 
-  /// How far before midnight a night can start: sleep from 6 PM counts toward the next day, as
-  /// in Health, so a night that starts at 23:00 is the next day's and an afternoon nap is its
-  /// own day's.
-  static let nightStartOffset: TimeInterval = 6 * 3600
-
-  /// A gap this long between stretches of sleep starts a new session: a nap after the night.
-  static let sessionGap: TimeInterval = 3 * 3600
+  /// How far before midnight a night can start (`CardNights.startOffset`): sleep from 6 PM
+  /// counts toward the next day.
+  static let nightStartOffset: TimeInterval = CardNights.startOffset
 
   /// The `count` nights ending with `lastDay`'s, oldest first, leaving out nights without
   /// sleep.
@@ -95,10 +92,30 @@ extension HealthDatabase {
     guard let first = calendar.date(byAdding: .day, value: 1 - count, to: last),
       let end = calendar.date(byAdding: .day, value: 1, to: last)
     else { return [] }
-    let lower = first.addingTimeInterval(-nightStartOffset).unixMilliseconds
-    let upper = end.addingTimeInterval(-nightStartOffset).unixMilliseconds
-    // In-bed records can start well before the night: anything that ends inside the window.
-    let samples =
+    let days = first..<end
+    // Grouped by cards' core (851-3196), so cards' nights are these, on the Mac and the iPhone.
+    return CardNights.nights(
+      try sleepRecords(in: CardNights.recordRange(days: days), db), days: days, calendar: calendar
+    )
+    .map { night in
+      SleepNight(
+        day: night.day,
+        segments: night.records.compactMap { record in
+          SleepStage(rawValue: record.value).map {
+            SleepSegment(
+              stage: $0, start: Date(unixMilliseconds: record.start),
+              end: Date(unixMilliseconds: record.end))
+          }
+        },
+        inBed: Double(night.inBed) / 1000)
+    }
+  }
+
+  /// Sleep analysis records that end after `range` starts and start before it ends (Unix
+  /// milliseconds), by start: In Bed records can start well before a night.
+  static func sleepRecords(in range: Range<Int>, _ db: Database) throws -> [CardSleepRecord] {
+    let (lower, upper) = (range.lowerBound, range.upperBound)
+    return
       try HealthSample
       .where {
         $0.type.eq(sleepType) && $0.startDate < upper && $0.endDate > lower
@@ -107,73 +124,8 @@ extension HealthDatabase {
       .order(by: \.startDate)
       .select { ($0.startDate, $0.endDate, $0.categoryValue, $0.sourceBundleID) }
       .fetchAll(db)
-    let records = samples.compactMap { start, end, value, source in
-      value.flatMap(SleepStage.init(rawValue:)).map {
-        (
-          segment: SleepSegment(
-            stage: $0, start: Date(unixMilliseconds: start), end: Date(unixMilliseconds: end)),
-          source: source
-        )
+      .compactMap { start, end, value, source in
+        value.map { CardSleepRecord(start: start, end: end, value: $0, source: source) }
       }
-    }
-    let inBedRecords = records.filter { $0.segment.stage == .inBed }.map(\.segment)
-    let byNight = Dictionary(
-      grouping: records.filter {
-        $0.segment.stage != .inBed && $0.segment.start.unixMilliseconds >= lower
-      }
-    ) { record in
-      calendar.startOfDay(for: record.segment.start.addingTimeInterval(nightStartOffset))
-    }
-    return byNight.compactMap { day, records -> SleepNight? in
-      var asleepBySource: [String: TimeInterval] = [:]
-      for record in records where record.segment.stage.isAsleep {
-        asleepBySource[record.source, default: 0] += record.segment.duration
-      }
-      guard
-        let source = asleepBySource.max(by: { ($0.value, $1.key) < ($1.value, $0.key) })?.key
-      else { return nil }
-      let segments = mainSession(records.filter { $0.source == source }.map(\.segment))
-      guard let start = segments.map(\.start).min(), let end = segments.map(\.end).max()
-      else { return nil }
-      let inBed = union(inBedRecords.filter { $0.start < end && $0.end > start })
-      return SleepNight(
-        day: day, segments: segments, inBed: inBed > 0 ? inBed : end.timeIntervalSince(start))
-    }
-    .sorted { $0.day < $1.day }
-  }
-
-  /// The session with the most sleep among `segments` (by start), splitting where sleep stops
-  /// for `sessionGap` or more.
-  private static func mainSession(_ segments: [SleepSegment]) -> [SleepSegment] {
-    var sessions: [[SleepSegment]] = []
-    var lastEnd: Date?
-    for segment in segments.sorted(by: { $0.start < $1.start }) {
-      if let lastEnd, segment.start.timeIntervalSince(lastEnd) < sessionGap, !sessions.isEmpty {
-        sessions[sessions.count - 1].append(segment)
-      } else {
-        sessions.append([segment])
-      }
-      lastEnd = max(lastEnd ?? segment.end, segment.end)
-    }
-    let asleep = { (session: [SleepSegment]) in
-      session.filter(\.stage.isAsleep).reduce(0) { $0 + $1.duration }
-    }
-    return sessions.max { asleep($0) < asleep($1) } ?? []
-  }
-
-  /// The total time `segments` cover, counting overlaps once.
-  private static func union(_ segments: [SleepSegment]) -> TimeInterval {
-    var total: TimeInterval = 0
-    var current: (start: Date, end: Date)?
-    for segment in segments.sorted(by: { $0.start < $1.start }) {
-      if let open = current, segment.start <= open.end {
-        current = (open.start, max(open.end, segment.end))
-      } else {
-        if let open = current { total += open.end.timeIntervalSince(open.start) }
-        current = (segment.start, segment.end)
-      }
-    }
-    if let open = current { total += open.end.timeIntervalSince(open.start) }
-    return total
   }
 }

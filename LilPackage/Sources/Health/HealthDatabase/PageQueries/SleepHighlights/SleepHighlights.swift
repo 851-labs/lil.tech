@@ -1,4 +1,5 @@
 public import Foundation
+import HealthCards
 public import SQLiteData
 
 /// What Sleep's highlights show (851-3103), as iPad Health's do under its chart, each `nil`
@@ -70,9 +71,7 @@ extension HealthDatabase {
   public static func clockHours(
     _ date: Date, from day: Date, start: Date, calendar: Calendar
   ) -> Double {
-    let zone = calendar.timeZone
-    let shift = zone.secondsFromGMT(for: start) - zone.secondsFromGMT(for: day)
-    return (date.timeIntervalSince(day) + Double(shift)) / 3600
+    CardNights.clockHours(date, from: day, start: start, calendar: calendar)
   }
 }
 
@@ -84,7 +83,7 @@ extension SleepNight {
   /// noon. Later is a day's sleep, a nap on a day whose night wasn't recorded, which highlights
   /// leave out: its "bedtime" (2 PM) says nothing about when bedtime is, and its hour asleep
   /// would pull an average of nights down.
-  public static let latestBedtime: Double = 12
+  public static let latestBedtime: Double = CardNights.latestBedtime
 
   /// Last night among `nights` (by day, oldest first): the one ending `today`, if it's a night's
   /// sleep, not a day's (`latestBedtime`). Every highlight about last night asks this.
@@ -96,7 +95,7 @@ extension SleepNight {
   /// 851-3098), if it's a night's sleep rather than a day's (`latestBedtime`).
   func nightBedtime(calendar: Calendar) -> Double? {
     guard let bedtime, let start = segments.map(\.start).min() else { return nil }
-    let hours = HealthDatabase.clockHours(bedtime, from: day, start: start, calendar: calendar)
-    return hours < Self.latestBedtime ? hours : nil
+    return CardNights.nightBedtime(
+      fallingAsleep: bedtime, firstStart: start, day: day, calendar: calendar)
   }
 }

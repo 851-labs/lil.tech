@@ -189,6 +189,164 @@ struct CardQueriesTests {
     #expect(headline?.date == date(10, 3))
     #expect(headline?.kind == .bucket)
   }
+
+  // MARK: - Sleep and workout windows (851-3196)
+
+  private func sleep(
+    _ stage: SleepStage, _ start: Date, _ end: Date, source: String = "com.apple.health.watch"
+  ) -> HealthSample {
+    HealthSample(
+      id: UUID().uuidString.lowercased(), type: HealthDatabase.sleepType,
+      startDate: start.unixMilliseconds, endDate: end.unixMilliseconds,
+      categoryValue: stage.rawValue, sourceName: "Test", sourceBundleID: source)
+  }
+
+  /// A Watch's night ending on Oct `day`: Core from 23:00, awake 01:00 to 01:10, REM to 06:30;
+  /// an iPhone's shorter estimate of it; and a nap at 15:00 the next afternoon.
+  private func night(_ day: Int) -> [HealthSample] {
+    let midnight = date(10, day)
+    func at(_ hours: Double) -> Date { midnight.addingTimeInterval(hours * 3600) }
+    return [
+      sleep(.inBed, at(-1.5), at(7)),
+      sleep(.core, at(-1), at(1)),
+      sleep(.awake, at(1), at(1 + 10 / 60)),
+      sleep(.rem, at(1 + 10 / 60), at(6.5)),
+      sleep(.asleep, at(0), at(5), source: "com.apple.health.phone"),
+      sleep(.core, at(15), at(16)),
+    ]
+  }
+
+  /// Examples 2 and 4 from the database: heart rate while asleep, and in the 5 minutes before
+  /// falling asleep, per night, from Sleep's nights.
+  @Test
+  func sleepWindows() throws {
+    try database.write { db in
+      try HealthSample.insert {
+        night(20) + night(21)
+        // A reading a minute from 22:00 to 08:00: 50 asleep, 70 awake in the night, 80 up, and
+        // 60 to 64 in the 5 minutes before sleep.
+        for day in [20, 21] {
+          for minute in -120..<480 {
+            let value: Double =
+              switch minute {
+              case -65..<(-60): 60 + Double(minute + 65)
+              case -60..<60, 70..<390: 50 + Double(day - 20)
+              case 60..<70: 70
+              default: 80
+              }
+            sample(heartRate, date(10, day).addingTimeInterval(Double(minute) * 60), value)
+          }
+        }
+      }
+      .execute(db)
+    }
+    func data(_ series: String) throws -> CardData {
+      let card = try spec(
+        #"{"version": 1, "display": {"name": "Card"}, "series": [\#(series)], "bucket": "night", "range": "W"}"#
+      )
+      return try database.read { db in
+        try HealthDatabase.cardData(
+          card, range: .week, date: date(10, 20), now: date(10, 22), calendar: calendar, db)
+      }
+    }
+    let asleep = try data(#"{"type": "Heart Rate", "window": {"kind": "asleep"}}"#)
+    #expect(asleep.series[0].points.map(\.start) == [date(10, 20), date(10, 21)])
+    #expect(asleep.series[0].points.map(\.value) == [50, 51])
+    // 120 minutes of Core and 320 of REM a night.
+    #expect(asleep.series[0].points.map(\.readings) == [440, 440])
+    let before = try data(
+      #"{"type": "Heart Rate", "window": {"kind": "beforeSleep", "minutes": 5}}"#)
+    #expect(before.series[0].points.map(\.value) == [62, 62])
+    let after = try data(
+      #"{"type": "Heart Rate", "aggregation": "count", "window": {"kind": "afterWaking", "minutes": 20}}"#
+    )
+    #expect(after.series[0].points.map(\.value) == [20, 20])
+
+    // Its headline searches back from now for the latest night.
+    let card = try spec(
+      #"{"version": 1, "display": {"name": "Card"}, "series": [{"type": "Heart Rate", "window": {"kind": "asleep"}}], "bucket": "night", "range": "W"}"#
+    )
+    let headline = try database.read { db in
+      try HealthDatabase.cardHeadline(card, now: date(10, 23, 9), calendar: calendar, db)
+    }
+    #expect(headline?.value == 51)
+    #expect(headline?.date == date(10, 21))
+  }
+
+  /// Readings during workouts of the activities given, from the database's workouts.
+  @Test
+  func workoutWindows() throws {
+    func workout(_ activity: Int, _ start: Date, minutes: Double) -> HealthWorkout {
+      HealthWorkout(
+        id: UUID().uuidString.lowercased(), activityType: activity,
+        startDate: start.unixMilliseconds,
+        endDate: start.addingTimeInterval(minutes * 60).unixMilliseconds, duration: minutes * 60,
+        activities: "[]", events: "[]", statistics: "{}", sourceName: "Test",
+        sourceBundleID: "com.apple.health.watch")
+    }
+    try database.write { db in
+      try HealthWorkout.insert {
+        workout(37, date(10, 20, 7), minutes: 30)
+        workout(13, date(10, 20, 18), minutes: 60)
+        // Started the evening before the period.
+        workout(37, date(10, 18, 23.5), minutes: 60)
+      }
+      .execute(db)
+      try HealthSample.insert {
+        for minute in 0..<(60 * 60) {
+          sample(heartRate, date(10, 18, 12).addingTimeInterval(Double(minute) * 60), 100)
+        }
+      }
+      .execute(db)
+    }
+    func counts(_ activities: String) throws -> [Double] {
+      let card = try spec(
+        #"{"version": 1, "display": {"name": "Card"}, "series": [{"type": "Heart Rate", "aggregation": "count", "window": {"kind": "workout", "activities": \#(activities)}}], "bucket": "day", "range": "W"}"#
+      )
+      return try database.read { db in
+        try HealthDatabase.cardData(
+          card, range: .week, date: date(10, 20), now: date(10, 22), calendar: calendar, db)
+      }
+      .series[0].points.map(\.value)
+    }
+    // Monday Oct 19's 30 minutes past midnight, and Oct 20's run.
+    #expect(try counts("[37]") == [30, 30])
+    #expect(try counts("null") == [30, 90])
+  }
+
+  /// A night card's nights are Sleep's: on the catalogs' demo data, last night's heart rate while
+  /// asleep is the Sleep page's highlight's.
+  @Test
+  func nightCardsReadSleepsNights() throws {
+    func card(_ aggregation: String) throws -> CardSpec {
+      try spec(
+        #"{"version": 1, "display": {"name": "Card"}, "series": [{"type": "Heart Rate", "aggregation": "\#(aggregation)", "window": {"kind": "asleep"}}], "bucket": "night", "range": "M"}"#
+      )
+    }
+    let (highlights, nights, lowest, highest) = try catalogDatabase.read { db in
+      (
+        try HealthDatabase.sleepHighlights(today: previewNow, calendar: previewCalendar, db),
+        try HealthDatabase.sleepNights(
+          endingOn: previewNow, count: 31, calendar: previewCalendar, db),
+        try HealthDatabase.cardData(
+          card("min"), range: .month, date: previewNow, now: previewNow,
+          calendar: previewCalendar, db),
+        try HealthDatabase.cardData(
+          card("max"), range: .month, date: previewNow, now: previewNow,
+          calendar: previewCalendar, db)
+      )
+    }
+    let heartRate = try #require(highlights.heartRate)
+    let today = previewCalendar.startOfDay(for: previewNow)
+    #expect(lowest.series[0].points.last?.start == today)
+    #expect(lowest.series[0].points.last?.value == heartRate.minimum)
+    #expect(highest.series[0].points.last?.value == heartRate.maximum)
+    // Every night with a point is one of Sleep's nights' sleep.
+    let nightDays = Set(
+      nights.filter { $0.nightBedtime(calendar: previewCalendar) != nil }.map(\.day))
+    #expect(!lowest.series[0].points.isEmpty)
+    #expect(lowest.series[0].points.allSatisfy { nightDays.contains($0.start) })
+  }
 }
 
 /// A card over a year by the day, on a year of heart rate a minute (525,600 samples, far more than
@@ -282,6 +440,56 @@ struct CardQueriesBenchmark {
         #expect(data.series[0].points.count == 365)
       }
       print("A year by the day, \(name): \(total) ms, of which fetching \(fetch) ms")
+    }
+
+    // A year of a Watch's nights (10 records each, two awake in the night) and a 45-minute run
+    // every day, for sleep and workout windows (851-3196).
+    try database.write { db in
+      let stages: [(SleepStage, Double, Double)] = [
+        (.inBed, -1.5, 7.25), (.core, -1, 0.5), (.deep, 0.5, 1.5), (.core, 1.5, 2.5),
+        (.rem, 2.5, 3.25), (.awake, 3.25, 3.33), (.core, 3.33, 5), (.rem, 5, 6),
+        (.awake, 6, 6.08), (.core, 6.08, 7),
+      ]
+      for day in 0..<366 {
+        let midnight = start.addingTimeInterval(Double(day) * 86_400)
+        for (stage, from, to) in stages {
+          try upsert.execute(
+            HealthSample(
+              id: UUID().uuidString.lowercased(), type: HealthDatabase.sleepType,
+              startDate: midnight.addingTimeInterval(from * 3600).unixMilliseconds,
+              endDate: midnight.addingTimeInterval(to * 3600).unixMilliseconds,
+              categoryValue: stage.rawValue, sourceName: "Apple Watch",
+              sourceBundleID: "com.apple.health.81F3A2C4-5D6E-4F70-8A9B-0C1D2E3F4A5B"),
+            db)
+        }
+        let run = midnight.addingTimeInterval(18 * 3600)
+        try HealthWorkout.insert {
+          HealthWorkout(
+            id: UUID().uuidString.lowercased(), activityType: day % 2 == 0 ? 37 : 13,
+            startDate: run.unixMilliseconds, endDate: run.unixMilliseconds + 2_700_000,
+            duration: 2700, activities: "[]", events: "[]", statistics: "{}",
+            sourceName: "Apple Watch", sourceBundleID: "com.apple.health.watch")
+        }
+        .execute(db)
+      }
+    }
+    let windowed = [
+      ("asleep, by the night", #"{"kind": "asleep"}"#, "night"),
+      ("5 minutes before sleep, by the night", #"{"kind": "beforeSleep", "minutes": 5}"#, "night"),
+      ("during runs, by the day", #"{"kind": "workout", "activities": [37]}"#, "day"),
+    ]
+    for (name, window, bucket) in windowed {
+      let card = try CardSpec(
+        inputJSON: Data(
+          #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "Heart Rate", "window": \#(window)}], "formulas": [{"kind": "movingAverage", "of": "a"}], "bucket": "\#(bucket)", "range": "Y"}"#
+            .utf8))
+      let run = CardRun(spec: card, range: .year, date: start, now: start, calendar: calendar)
+      var points = 0
+      let total = try median(database) { db in
+        points = try HealthDatabase.cardData(run, now: start, db).series[0].points.count
+      }
+      #expect(points > 180)
+      print("A year, heart rate \(name): \(total) ms, \(points) points")
     }
   }
 }
