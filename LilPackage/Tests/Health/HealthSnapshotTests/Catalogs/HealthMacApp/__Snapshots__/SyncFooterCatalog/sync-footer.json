@@ -60,6 +60,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.saving-halfway-dark.png",
+      "id" : "sync-footer.saving-halfway",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.saving-halfway-light.png",
+      "name" : "Saving, halfway",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SyncFooterCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.saving-one-left-dark.png",
       "id" : "sync-footer.saving-one-left",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SyncFooterCatalog/sync-footer.saving-one-left-light.png",

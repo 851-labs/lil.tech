@@ -39,7 +39,10 @@
       CatalogState("Downloaded, saving starts") {
         footer(.bootstrapping(.loading(0, of: 2_000_000)))
       },
-      CatalogState("Saving") { footer(.bootstrapping(.loading(1_385_000, of: 2_000_000))) },
+      CatalogState("Saving") { footer(.bootstrapping(.loading(1_400_000, of: 2_000_000))) },
+      CatalogState("Saving, halfway") {
+        footer(.bootstrapping(.loading(1_000_000, of: 2_000_000)))
+      },
       CatalogState("Saving, one left") {
         footer(.bootstrapping(.loading(1_999_999, of: 2_000_000)))
       },
