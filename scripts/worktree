@@ -6,8 +6,11 @@
 #       Adds `../lil.tech-<number>` on a new branch from a freshly fetched origin/main (or on the
 #       branch, if it already exists), then warms it: resolves the Swift package, installs the
 #       TypeScript workspace, and checks the generated API client. Run again, it only warms.
-#       The package is resolved into `LilPackage/.build`, which `swift build`, `swift test` and
-#       `scripts/snapshot` use (`scripts/check` resolves its `.build-check` when it first runs).
+#       The package is resolved into `LilPackage/.build`, which `scripts/swift build`,
+#       `scripts/swift test` and `scripts/snapshot` use (`scripts/check` resolves its `.build-check`
+#       when it first runs). They compile with the cache every worktree shares
+#       (`scripts/compilation-cache`, 851-3235), so a new worktree's first build replays what
+#       another already compiled.
 #       A new worktree's `.build` starts as a copy (APFS clones, `cp -c`) of the last one's, kept
 #       in `~/Library/Caches/lil.tech/worktree-package`, so resolving it fetches only what changed,
 #       rather than every dependency (851-2973). It resolves holding

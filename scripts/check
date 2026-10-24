@@ -77,21 +77,21 @@ if $swift; then
   step scripts/format --lint --swift
   step scripts/test-snapshot-sheet
   step scripts/check-iphone-paths
-  step sh -c 'cd LilPackage && swift test --quiet --scratch-path "$1/package"' _ "$scratch"
+  step scripts/swift test --quiet --scratch-path "$scratch/package"
   # Unsigned: this only checks that the apps build.
-  step xcodebuild -workspace Lil.xcworkspace -scheme LilMessages -destination 'platform=macOS' \
+  step scripts/xcodebuild -workspace Lil.xcworkspace -scheme LilMessages -destination 'platform=macOS' \
     -derivedDataPath "$scratch/DerivedData" -skipMacroValidation \
     -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO build -quiet
-  step xcodebuild -workspace Lil.xcworkspace -scheme LilHealth -destination 'platform=macOS' \
+  step scripts/xcodebuild -workspace Lil.xcworkspace -scheme LilHealth -destination 'platform=macOS' \
     -derivedDataPath "$scratch/DerivedData" -skipMacroValidation \
     -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO build -quiet
-  step xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS \
+  step scripts/xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS \
     -destination 'generic/platform=iOS Simulator' -derivedDataPath "$scratch/DerivedData" \
     -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO \
     build -quiet
   # The iPhone's snapshot tests only compile here: they run in the simulator, in a job of their
   # own (`scripts/snapshot --iphone`, 851-2953).
-  step xcodebuild -workspace Lil.xcworkspace -scheme HealthPhoneSnapshotTests \
+  step scripts/xcodebuild -workspace Lil.xcworkspace -scheme HealthPhoneSnapshotTests \
     -destination 'generic/platform=iOS Simulator' -derivedDataPath "$scratch/DerivedData" \
     -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO \
     build-for-testing -quiet

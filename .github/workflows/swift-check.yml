@@ -57,7 +57,9 @@ jobs:
       - uses: ./.github/actions/select-xcode
 
       # The minis' disks are shared with Codevisor: builds kept from older Xcodes and branches are
-      # started over once they pass 40 GB.
+      # started over once they pass 40 GB. The builds also replay compiles from the runner's
+      # compilation cache (`scripts/compilation-cache`, 851-3235), which bounds itself at about
+      # 20 GB, in `~/Library/Caches/lil.tech/CompilationCache`.
       - name: Limit the kept builds
         run: |
           if [ -d "$LIL_CHECK_SCRATCH" ] &&

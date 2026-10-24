@@ -222,3 +222,39 @@ Where the 6.3 s of a `HealthPages` edit go, from `swift build -v`'s output on th
 - Splitting `HealthPages`: an edit in it costs about 1 s more than one in `HealthMacApp`, mostly the edited file's own compile (1.9 s against 0.7 s, with the module's interface emitted alongside), which a smaller module would hardly change. Not done.
 
 **What's left** is SwiftPM: about 3 s of every run on a quiet Mac before anything compiles, and most of it under load. Going below that, towards Xcode's canvas, needs a process that stays running and swaps in the edited code: watch mode, 851-2972.
+
+## Compilation caching
+
+What a new worktree's first build costs, and how much of it a compilation cache shared across worktrees saves (851-3235). `docs/decisions/distribution.md` (Compilation caching) has the decision; `scripts/compilation-cache` the details.
+
+**Measuring it:** builds in two worktrees of the same commit, each starting with its dependencies resolved (as `scripts/worktree new` leaves it) and no build output: **cold** with an empty cache, **warm** in the other worktree with the cache the first one filled. Times are wall clock and the build's CPU time (user), which depends less on what else runs; load averages are the 1-minute figure when the build started, then when it ended. MacBook Pro (M1 Pro, 10 cores, 16 GB), macOS 27, Xcode 27.0 (Swift 6.4, swiftlang-6.4.0.34.1), shared with two other agents' builds, so a few runs each rather than loops.
+
+### What the toolchain offers
+
+- **Swift Build's compilation caching** is the one that applies. Each compile's outputs go into an on-disk CAS (LLVM's) under a key of its inputs: its command line, its sources, and the modules it imports, by content. Explicitly built modules, which it needs, are already the default for both `swift build` and `xcodebuild`.
+  - `xcodebuild` turns it on with build settings: `COMPILATION_CACHE_ENABLE_CACHING`, `COMPILATION_CACHE_CAS_PATH`, `COMPILATION_CACHE_LIMIT_SIZE` (`10G` works), with `SWIFT_ENABLE_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING` and `SWIFT_OTHER_PREFIX_MAPPINGS`/`CLANG_OTHER_PREFIX_MAPPINGS` for paths. A remote cache (`COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_REMOTE_SERVICE_PATH`) needs a CAS service we'd have to run.
+  - **SwiftPM** (`swift build`, which builds with Swift Build since Swift 6.4) passes Swift Build only its own settings: neither the environment nor `XCODE_XCCONFIG_FILE` reaches it. Swift Build reads its defaults from the environment, though: `EnableSwiftCachingByDefault=YES`, `EnableClangCachingByDefault=YES`, `CompilationCachingCASPath` and `CompilationCachingDiskSizeLimit` (`10G`) turn caching on, which `swift build -v` shows as `-cache-compile-job -cas-path …` on every compile and `N hits / M cacheable tasks` at the end.
+  - The driver's flags through `-Xswiftc` (`-cache-compile-job -cas-path …`) alone don't work: Swift Build's SDK stat cache (`-ivfsstatcache`) isn't in the CAS, and every compile fails ("stat cache file … not found").
+- **A shared Clang module cache** doesn't apply: with explicit modules, SDK and Clang modules are built as compiles of their own (`SDKExplicitPrecompiledModules`), so the CAS caches them like any other.
+- **Prefix maps** decide whether worktrees share anything. Keys hold every path on a compile's command line: the build folder, the dependencies' checkouts, and `-file-compilation-dir`, the worktree. `-scanner-prefix-map <path>=<replacement>` (through `-Xswiftc` for SwiftPM) rewrites them; the longest prefix wins, so a folder mapped to itself keeps its path inside a mapped one. Mapped, a module's key in one worktree matched the other's exactly (`llvm-cas --diff-graphs` on the two keys: the command lines differed only in the package's name, the same for every worktree's `LilPackage`).
+- **What mapping costs:** a mapped source's `#filePath` is the mapped path (`/^root/…`). Tests find their references and fixtures by `#filePath` (snapshot references, `LayoutShiftTests`, the cards' and toolkit's files), so our sources and tests map to themselves, and their compiles are each worktree's own. Diagnostics are mapped back on replay.
+- **Macros:** modules that use a macro built in the package (TCA's, CasePaths', SwiftNavigation's, StructuredQueries') are never shared across worktrees: Swift Build passes each macro's path (`-load-plugin-executable …/Products/Debug/CasePathsMacros`) outside the maps, though the resolved one (`-load-resolved-plugin`) is mapped. The prebuilt swift-syntax doesn't change that.
+- **A toolchain crash:** with prefix maps, replaying a cached warning whose note points into another module's printed declaration aborted `swift build` (SIGABRT, `bad_optional_access` in `FileSpecificDiagnosticConsumer::subconsumerForLocation`, from `CachingDiagnosticsProcessor::replayCachedDiagnostics`), twice in a row on the same build. Without maps the same replay worked. The warning was `MetricDetailCaptionTests`' (851-3238), which Xcode 27.0 shows and 27.1 doesn't.
+
+### SwiftPM: `swift build --build-tests`, what `scripts/snapshot` and `swift test` build
+
+| Build | Wall | CPU | Cache hits | Load |
+| --- | ---: | ---: | ---: | --- |
+| No cache | 138 s | 596 s | | 10 → 79 |
+| Cold, no maps | 253 s | 645 s | 0 of 1,174 | 8 → 157 |
+| Cold, with maps | 203–236 s | 619–632 s | 0 of 1,174 | 67–284 → 153–560 |
+| Warm, other worktree, no maps | 125 s | 583 s | 307 of 1,087 (28%): SDK modules | 25 → 52 |
+| Warm, other worktree, our sources mapped too | 165 s | 441 s | 722 of 1,084 (67%) | 562 → 535 |
+| Warm, other worktree, dependencies mapped (shipped) | 107 s | 467 s | 646 of 1,088 (59%) | 259 → 188 |
+| Warm, same worktree, no maps (the floor) | 73 s | 182 s | 1,059 of 1,059 (100%) | 157 → 131 |
+
+- Caching costs a cold build 4–8% more CPU.
+- Without maps a new worktree shares only the SDK's modules, which are cheap: 2% less CPU.
+- With the dependencies mapped, a new worktree's first build takes about a quarter less CPU. What still compiles: our modules and tests (their paths are their own), and the modules that use the package's macros, with what depends on them only when their outputs differ.
+- Mapping our sources too gained another 5% of CPU, not worth breaking `#filePath`.
+- The cache grew by 1.3–2.3 GB per worktree's full build.
