@@ -43,15 +43,23 @@
     }
 
     @Test func toleranceEveryPixelOneApart() {
-      // Up in one channel and down in another, everywhere, as the minis' gradients are.
+      // Up in one channel and down in another, everywhere, as macOS 27.0's gradients were.
       let image = image { x, y in (UInt8(101 + x), UInt8(149 + y), 201) }
       #expect(diffing.diffV2(recorded(self.image()), image) == nil)
     }
 
-    @Test func toleranceOnePixelTwoApart() throws {
-      let image = image { x, y in (x == 0 && y == 0 ? 102 : UInt8(100 + x), UInt8(150 + y), 200) }
+    @Test func toleranceSomePixelsTwoApart() {
+      // As a laptop's GPU draws a few of the minis' pixels (851-3070, 851-3242).
+      let image = image { x, y in
+        (x < 4 && y == 0 ? UInt8(102 + x) : UInt8(100 + x), UInt8(150 + y), x < 4 ? 198 : 200)
+      }
+      #expect(diffing.diffV2(recorded(self.image()), image) == nil)
+    }
+
+    @Test func toleranceOnePixelThreeApart() throws {
+      let image = image { x, y in (x == 0 && y == 0 ? 103 : UInt8(100 + x), UInt8(150 + y), 200) }
       let failure = try #require(diffing.diffV2(recorded(self.image()), image))
-      #expect(failure.0.contains("differ by up to 2"))
+      #expect(failure.0.contains("differ by up to 3"))
     }
 
     @Test func toleranceSquareMovedOnePixel() throws {

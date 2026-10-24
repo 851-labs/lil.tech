@@ -8,11 +8,11 @@ name: Swift check
 # snapshot the iPhone's state catalogs in the simulator (`iphone-snapshots`, 851-2953), and so do
 # pull requests that touch what they're built from (851-3070), about 3 minutes on another mini.
 #
-# Snapshots are compared with references the minis rendered (851-3070): a laptop's GPU draws some
-# images a level or two apart (851-3033), so references never come from one. When a state's image
-# differs, or a state is new, the job fails and uploads what it rendered
-# (`scripts/collect-snapshots`): `snapshot-references`, which `scripts/fetch-snapshots` copies into
-# the branch, and `snapshot-changes`, the images with their diffs, to look at.
+# Snapshots are compared with their references within 2 per color channel (851-3242), so the
+# references an agent records on a laptop (`scripts/snapshot --record`) pass here. When a state's
+# image differs, or a state is new, the job fails and uploads what it rendered
+# (`scripts/collect-snapshots`, 851-3070): `snapshot-references`, which `scripts/fetch-snapshots`
+# copies into the branch, and `snapshot-changes`, the images with their diffs, to look at.
 #
 # The minis are self-hosted and this repo is public. What keeps a fork's code off them is that a
 # fork's pull request runs no workflow until a maintainer approves it (the repo's policy for every
@@ -44,8 +44,8 @@ jobs:
       # pull requests', so a branch's leftovers never reach main's check. (A called workflow sees
       # its caller's event.)
       LIL_CHECK_SCRATCH: ${{ github.workspace }}/../lil.tech-check-${{ github.event_name == 'pull_request' && 'pr' || 'main' }}
-      # The references are rendered here (851-3070): compared within 1, and a state without one is
-      # recorded, and fails, for `scripts/fetch-snapshots` (`snapshotsRenderReferences`).
+      # A state without a reference is recorded, and fails, for `scripts/fetch-snapshots`
+      # (`snapshotsOnCI`, 851-3070).
       LIL_SNAPSHOT_CI: "1"
     steps:
       - uses: actions/checkout@v7
