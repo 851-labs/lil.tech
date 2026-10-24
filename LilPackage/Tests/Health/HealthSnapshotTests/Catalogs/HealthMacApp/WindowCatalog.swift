@@ -141,9 +141,12 @@
 
   /// The window in a state: `EmptyReducer` never runs the window's task, which would replace the
   /// state with the real session's. Health Categories is expanded, in a value of the state's own,
-  /// so it's never read from defaults.
+  /// so it's never read from defaults. Signed in, the account has the welcome seed's cards, as
+  /// once synced, since the task that reads them doesn't run either.
   @MainActor
   private func window(_ state: AppFeature.State) -> some View {
+    var state = state
+    if state.isSignedIn == true { state.cards = CardsFeature.State(cards: seedCards) }
     state.$isCategoriesExpanded = Shared(value: true)
     return AppView(store: Store(initialState: state) { EmptyReducer() })
   }

@@ -32,6 +32,48 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SummaryCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.no-cards-dark.png",
+      "id" : "summary.no-cards",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.no-cards-light.png",
+      "name" : "No cards",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.a-card-that-fails-dark.png",
+      "id" : "summary.a-card-that-fails",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.a-card-that-fails-light.png",
+      "name" : "A card that fails",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.a-card-from-a-later-version-dark.png",
+      "id" : "summary.a-card-from-a-later-version",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.a-card-from-a-later-version-light.png",
+      "name" : "A card from a later version",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.example-cards-dark.png",
+      "id" : "summary.example-cards",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.example-cards-light.png",
+      "name" : "Example cards",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.example-cards-loading-dark.png",
+      "id" : "summary.example-cards-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.example-cards-loading-light.png",
+      "name" : "Example cards, loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.morning-weight-legend-narrow-dark.png",
+      "id" : "summary.morning-weight-legend-narrow",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.morning-weight-legend-narrow-light.png",
+      "name" : "Morning weight legend, narrow",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SummaryCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.week-comparisons-dark.png",
       "id" : "summary.week-comparisons",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SummaryCatalog/summary.week-comparisons-light.png",

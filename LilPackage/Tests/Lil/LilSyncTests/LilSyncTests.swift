@@ -533,6 +533,30 @@ struct LilSyncEngineTests {
     #expect(server.state.snapshotRequests == 2)
   }
 
+  /// Until it has pulled, and until a release that adds an entity has caught it up, the local
+  /// data doesn't hold it, so an app shows it loading rather than empty (851-3206).
+  @Test
+  func holdsAnEntityOnceItsRecordsArePulled() async throws {
+    func holds(_ entity: String, in database: any DatabaseWriter = database) throws -> Bool {
+      try database.read { try LilSyncEngine.holds(entity, $0) }
+    }
+    // Never pulled.
+    #expect(try !holds("note", in: makeDatabase(bootstrapped: false)))
+    // An epoch from before entities were recorded, but no change pulled yet.
+    #expect(try !holds("note"))
+
+    server.append(upsert("n1", "One"))
+    let older = engine(entities: [])
+    try await older.bootstrap()
+    try await older.pull()
+    // Pulled by a release that doesn't store notes.
+    #expect(try !holds("note"))
+
+    try await engine().pull()
+    #expect(try holds("note"))
+    #expect(try !holds("tag"))
+  }
+
   @Test
   func aHigherSyncSchemaBootstrapsAgain() async throws {
     server.append(upsert("n1", "One"))
