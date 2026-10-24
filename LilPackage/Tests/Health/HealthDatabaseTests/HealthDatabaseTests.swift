@@ -2,6 +2,7 @@ import Dependencies
 import DependenciesTestSupport
 import Foundation
 import HTTPTypes
+import HealthCards
 import HealthCatalog
 import LilAPI
 import LilSync
@@ -1231,7 +1232,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 21, head: 21, hasMore: false)))
+              epoch: 1, changes: changes, next: 22, head: 22, hasMore: false)))
       )
     }
     let engine = withDependencies {
@@ -1317,6 +1318,13 @@ struct HealthSyncTests {
     #expect(
       workouts.first?.statistics
         == #"{"HKQuantityTypeIdentifierActiveEnergyBurned":{"sum":312.5,"unit":"kcal"}}"#)
+    let cards = try await database.read { db in try HealthDatabase.cards(db) }
+    #expect(
+      cards == [
+        Card(
+          id: "card_seed_steps", spec: HealthCards.welcomeSeed[0].spec, position: "a0",
+          createdAt: 1_760_400_000_000, updatedAt: 1_760_400_000_000, seed: "steps")
+      ])
   }
 
   @Test
@@ -1341,7 +1349,7 @@ struct HealthSyncTests {
       writable(HealthWorkoutRoute.self), writable(HealthHeartbeatSeries.self),
       writable(HealthStatisticsDevice.self), writable(HealthVisionPrescription.self),
       writable(HealthMedication.self), writable(HealthMedicationDose.self),
-      writable(HealthDocument.self),
+      writable(HealthDocument.self), writable(HealthCard.self),
     ]
     #expect(Set(tables.map(\.0)).count == HealthDatabase.syncEntities.count)
     for (table, written) in tables {
@@ -1541,6 +1549,11 @@ struct HealthSyncTests {
         authorName: "a\(v)", custodianName: "c\(v)", xml: "x\(v)", sourceName: source.name,
         sourceBundleID: source.bundle, sourceRevision: source.revision, device: device,
         metadata: metadata, provenance: "p\(v)")
+    }
+    try roundTrip { v in
+      HealthCard(
+        id: "card", spec: "s\(v)", position: "p\(v)", createdAt: 10 + v, updatedAt: 20 + v,
+        seed: v == 1 ? "seed" : nil)
     }
   }
 
@@ -1742,6 +1755,12 @@ struct HealthSyncTests {
       Components.Schemas.Change(
         seq: 21, entity: "health_document", id: "6f1c2a40-0000-4000-8000-00000000000d",
         op: "delete", at: 1_760_400_000_000),
+      upsert(
+        22, "health_card", "card_seed_steps",
+        """
+        "spec": \(HealthCards.welcomeSeed[0].spec.jsonText), "position": "a0",
+        "createdAt": 1760400000000, "updatedAt": 1760400000000, "seed": "steps"
+        """),
     ]
   }
 

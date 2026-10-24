@@ -55,6 +55,13 @@ extension CardSpec {
     self = try CardSpecValidator.canonicalize(input, sizeLimit: HealthCards.maxSpecBytes).get()
   }
 
+  /// Reads a stored spec, as decoding one does: valid and at most the store's 16 KB, so a spec
+  /// another writer made just under it still reads. Throws every error, a later version's
+  /// included (`unsupportedVersion`).
+  public init(stored json: CardJSON) throws(CardSpecValidationError) {
+    self = try CardSpecValidator.canonicalize(json, sizeLimit: HealthCards.storeMaxSpecBytes).get()
+  }
+
   /// `init(input:)` for JSON text.
   public init(inputJSON data: Data) throws(CardSpecValidationError) {
     try self.init(input: try CardJSON(parsing: data))

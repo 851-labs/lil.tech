@@ -4,14 +4,14 @@ import LilAPI
 public import OpenAPIRuntime
 import SQLiteData
 
-/// One write an app makes to an entity apps may write (`docs/sync/protocol.md`). None writes any
-/// today: Summary's pins were the only ones, and are retired (851-2990).
+/// One write an app makes to an entity apps may write (`docs/sync/protocol.md`), such as a card
+/// of Summary's (`health_card`, 851-3204).
 public struct SyncMutation: Codable, Equatable, Sendable {
   public enum Operation: String, Codable, Sendable {
     case upsert, delete
   }
 
-  /// The server's entity name, e.g. `health_pin`.
+  /// The server's entity name, e.g. `health_card`.
   public var entity: String
   public var op: Operation
   public var id: String

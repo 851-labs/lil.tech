@@ -2,9 +2,11 @@ import ComposableArchitecture
 import DependenciesTestSupport
 import Foundation
 import HealthAgentAccess
+import HealthDatabase
 import LilAuth
 import LilSync
 import LilTestSupport
+import SQLiteData
 import Testing
 
 @testable import HealthMacApp
@@ -15,7 +17,8 @@ private let name = "lil-export-2026-10-21.tar"
 
 // Export lil health Data (851-2894). Synthetic data only: the archives are a line of text, in
 // temporary folders.
-@Suite(.dependencies)
+// Signing in follows the account's cards (851-3204), in a database of their own.
+@Suite(.dependencies { $0.defaultDatabase = try! HealthDatabase.make() })
 @MainActor
 struct ExportHealthDataIntentTests {
   private let directory = URL.temporaryDirectory.appending(

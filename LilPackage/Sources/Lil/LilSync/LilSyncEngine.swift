@@ -284,7 +284,7 @@ public actor LilSyncEngine {
 
   /// Writes `mutations` to the local tables, and queues them for the server, which gets them
   /// before the next pull, started now (`docs/sync/protocol.md`). Only for entities apps may write
-  /// (none since pins were retired, 851-2990). Until the server has them and the cursor passes
+  /// (`health_card`, 851-3204). Until the server has them and the cursor passes
   /// them, pulled changes don't undo them. Waits for a pull or bootstrap in progress, so it lands
   /// after it, and before signing out deletes the local data. A push the server refuses as invalid
   /// is dropped, and the local data is replaced from a snapshot, so it matches the server again.

@@ -3,9 +3,11 @@ import ComposableArchitecture
 import DependenciesTestSupport
 import Foundation
 import HealthAgentAccess
+import HealthDatabase
 import LilAuth
 import LilSync
 import LilTestSupport
+import SQLiteData
 import Testing
 
 @testable import HealthMacApp
@@ -15,7 +17,8 @@ private let synced = Date(timeIntervalSince1970: 1_792_003_600)
 
 // Sync lil health (851-2893). Synthetic data only, and temporary directories for the access
 // setting.
-@Suite(.dependencies)
+// Signing in follows the account's cards (851-3204), in a database of their own.
+@Suite(.dependencies { $0.defaultDatabase = try! HealthDatabase.make() })
 @MainActor
 struct SyncHealthDataIntentTests {
   private let directory = URL.temporaryDirectory.appending(

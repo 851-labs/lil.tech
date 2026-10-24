@@ -7,6 +7,7 @@ import HealthDatabase
 import LilAuth
 import LilSync
 import LilTestSupport
+import SQLiteData
 import Testing
 
 @testable import HealthMacApp
@@ -18,7 +19,8 @@ private let visionPrescriptionsPage = HealthPage.dataType(
   HealthCatalog.type(id: visionPrescriptions)!)!
 
 // App actions (851-2892). Synthetic data only, and temporary directories for the access setting.
-@Suite(.dependencies)
+// Signing in follows the account's cards (851-3204), in a database of their own.
+@Suite(.dependencies { $0.defaultDatabase = try! HealthDatabase.make() })
 @MainActor
 struct HealthAppIntentsTests {
   private let directory = URL.temporaryDirectory.appending(

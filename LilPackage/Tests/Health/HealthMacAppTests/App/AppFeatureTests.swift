@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import DependenciesTestSupport
 import Foundation
+import HealthCards
 import HealthCatalog
 import HealthDatabase
 import LilAuth
@@ -15,14 +16,18 @@ import Testing
 @MainActor
 struct AppFeatureTests {
   @Test
-  func followsTheSessionAndStartsAfreshAfterSigningOut() async {
+  func followsTheSessionAndStartsAfreshAfterSigningOut() async throws {
     let (updates, continuation) = AsyncStream<Bool>.makeStream()
+    let (statuses, status) = AsyncStream<SyncStatus>.makeStream()
+    let database = try HealthDatabase.make()
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     } withDependencies: {
       $0.agentAccess.reset = {}
       $0.auth.signedInUpdates = { updates }
       $0.sync = .constant(.idle)
+      $0.sync.status = { statuses }
+      $0.defaultDatabase = database
       // Never advanced: the first pull never shows the footer.
       $0.continuousClock = ManualClock()
     }
@@ -33,6 +38,12 @@ struct AppFeatureTests {
       $0.isSignedIn = true
       $0.syncFooter = .hidden
     }
+    // The account's cards are followed while it's signed in.
+    await store.receive(\.cards.task)
+    await store.receive(\.cards.cardsLoaded) {
+      $0.cards.isLoading = false
+    }
+    status.yield(.idle)
     await store.receive(\.syncStatusChanged) {
       $0.syncFooter = .delayed
     }
@@ -48,6 +59,7 @@ struct AppFeatureTests {
       $0.selection = .summary
       $0.searchText = ""
       $0.syncFooter = .hidden
+      $0.cards = CardsFeature.State()
     }
     await store.receive(\.signIn.readyToSignIn)
     await task.cancel()
@@ -56,16 +68,28 @@ struct AppFeatureTests {
   }
 
   @Test(.timeLimit(.minutes(1)))
-  func signingOutStopsTheAccountsWorkAndForgetsIt() async {
+  func signingOutStopsTheAccountsWorkAndForgetsIt() async throws {
     let (updates, session) = AsyncStream<Bool>.makeStream()
+    let (statuses, status) = AsyncStream<SyncStatus>.makeStream()
     // Never advanced: both requests are still waiting when the account signs out.
     let clock = ManualClock()
+    let database = try HealthDatabase.make()
+    let cards = HealthCards.welcomeSeed.map {
+      HealthCard(
+        id: $0.id, spec: $0.spec.jsonText, position: $0.position, createdAt: 1, updatedAt: 1,
+        seed: $0.seed)
+    }
+    try await database.write { db in try HealthCard.insert { cards }.execute(db) }
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     } withDependencies: {
       $0.agentAccess.reset = {}
       $0.auth.signedInUpdates = { updates }
       $0.sync = .constant(.idle)
+      $0.sync.status = { statuses }
+      // A card's write is still on its way to sync's queue when the account signs out.
+      $0.sync.push = { _ in try await clock.sleep(for: .seconds(3600)) }
+      $0.defaultDatabase = database
       $0.continuousClock = clock
       $0.dataExports.request = { () throws(DataExportError) in
         try? await clock.sleep(for: .seconds(3600))
@@ -91,6 +115,12 @@ struct AppFeatureTests {
       $0.isSignedIn = true
       $0.syncFooter = .hidden
     }
+    await store.receive(\.cards.task)
+    await store.receive(\.cards.cardsLoaded) {
+      $0.cards.cards = IdentifiedArray(uniqueElements: cards.map(Card.init))
+      $0.cards.isLoading = false
+    }
+    status.yield(.idle)
     await store.receive(\.syncStatusChanged) {
       $0.syncFooter = .delayed
     }
@@ -104,12 +134,18 @@ struct AppFeatureTests {
     await store.send(\.connectedAgents.appeared) {
       $0.connectedAgents.isLoadingLog = true
     }
+    // A card is deleted.
+    await store.send(.cards(.deleteCard(id: "card_seed_weight"))) {
+      _ = $0.cards.cards.remove(id: "card_seed_weight")
+      $0.cards.unsaved = [.init(mutations: [Card(cards[5]).delete], deleted: ["card_seed_weight"])]
+    }
     session.yield(false)
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = false
       $0.syncFooter = .hidden
       $0.account = AccountFeature.State()
       $0.connectedAgents = ConnectedAgentsFeature.State()
+      $0.cards = CardsFeature.State()
     }
     await store.receive(\.signIn.readyToSignIn)
     await task.cancel()
@@ -149,6 +185,7 @@ struct AppFeatureTests {
     let blobs = URL.temporaryDirectory.appending(path: "BlobCache-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: blobs, withIntermediateDirectories: true)
     try Data("synthetic".utf8).write(to: blobs.appending(path: "blob"))
+    let database = try HealthDatabase.make()
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     } withDependencies: {
@@ -169,6 +206,7 @@ struct AppFeatureTests {
         push: { _ in },
         status: { statuses },
         removeLocalData: { events.withValue { $0.append("removed") } })
+      $0.defaultDatabase = database
       $0.blobCache = BlobCache(
         directory: blobs, maxBytes: 1 << 20, url: { _ in throw CancellationError() },
         download: .testValue)
@@ -179,6 +217,10 @@ struct AppFeatureTests {
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = true
       $0.syncFooter = .hidden
+    }
+    await store.receive(\.cards.task)
+    await store.receive(\.cards.cardsLoaded) {
+      $0.cards.isLoading = false
     }
     let syncedAt = Date(timeIntervalSince1970: 1_760_400_000)
     status.yield(.upToDate(at: syncedAt))
@@ -199,6 +241,7 @@ struct AppFeatureTests {
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = false
       $0.syncStatus = .idle
+      $0.cards = CardsFeature.State()
     }
     await store.receive(\.signIn.readyToSignIn)
     session.finish()
@@ -220,6 +263,7 @@ struct AppFeatureTests {
     let (updates, session) = AsyncStream<Bool>.makeStream()
     let (statuses, status) = AsyncStream<SyncStatus>.makeStream()
     let clock = ManualClock()
+    let database = try HealthDatabase.make()
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     } withDependencies: {
@@ -233,6 +277,7 @@ struct AppFeatureTests {
         status: { statuses },
         removeLocalData: {})
       $0.continuousClock = clock
+      $0.defaultDatabase = database
     }
     let syncedAt = Date(timeIntervalSince1970: 1_760_400_000)
 
@@ -241,6 +286,10 @@ struct AppFeatureTests {
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = true
       $0.syncFooter = .hidden
+    }
+    await store.receive(\.cards.task)
+    await store.receive(\.cards.cardsLoaded) {
+      $0.cards.isLoading = false
     }
     // The pull at launch, one page: up to date before the footer would show.
     status.yield(.idle)
@@ -352,6 +401,7 @@ struct AppFeatureTests {
       $0.isSignedIn = false
       $0.syncStatus = .idle
       $0.syncFooter = .hidden
+      $0.cards = CardsFeature.State()
     }
     await store.receive(\.signIn.readyToSignIn)
     session.finish()

@@ -659,3 +659,33 @@ public struct HealthProvenance: Equatable, Identifiable, Sendable {
     self.device = device
   }
 }
+
+/// One of Summary's cards (851-3204), a `health_card` record: synced, so every Mac and iPhone
+/// shows the same cards, and written through ``SyncClient/push`` as whole rows. Features read
+/// them as ``Card``s.
+@Table
+public struct HealthCard: Equatable, Identifiable, Sendable {
+  /// `card_` and a ULID, or a seed card's fixed ID (`card_seed_steps`).
+  public let id: String
+  /// The card spec, as JSON text: canonical, of any version, since a later version's is kept
+  /// and written back as it is.
+  public var spec: String
+  /// Summary's order: a fractional index (`CardPosition`), ascending by its bytes, ties by ID.
+  public var position: String
+  public var createdAt: Int
+  public var updatedAt: Int
+  /// The seed card it started as (`steps`), else `nil`.
+  public var seed: String?
+
+  public init(
+    id: String, spec: String, position: String, createdAt: Int, updatedAt: Int,
+    seed: String? = nil
+  ) {
+    self.id = id
+    self.spec = spec
+    self.position = position
+    self.createdAt = createdAt
+    self.updatedAt = updatedAt
+    self.seed = seed
+  }
+}
