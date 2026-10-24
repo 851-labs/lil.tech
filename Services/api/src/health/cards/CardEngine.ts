@@ -654,6 +654,8 @@ export class CardRun {
   /** What sleep and workout windows need first. Empty when none has one, or once windowed. */
   readonly windowFetches: ReadonlyArray<CardWindowFetch>;
   private readonly windows: ReadonlyMap<number, Stretches>;
+  /** Each series' `history`, by ID, worked out once: it costs time-zone math. */
+  private readonly histories = new Map<string, CardInterval | undefined>();
 
   /** `windows`: each windowed series' stretches, or undefined before `windowed`. */
   private constructor(
@@ -720,6 +722,13 @@ export class CardRun {
    * have their full window; undefined when none does.
    */
   private history(series: CardSeries): CardInterval | undefined {
+    if (this.histories.has(series.id)) return this.histories.get(series.id);
+    const history = this.historyOf(series);
+    this.histories.set(series.id, history);
+    return history;
+  }
+
+  private historyOf(series: CardSeries): CardInterval | undefined {
     let points: number | undefined;
     for (const formula of this.spec.formulas) {
       if (formula.kind === "movingAverage" && formula.of === series.id) {

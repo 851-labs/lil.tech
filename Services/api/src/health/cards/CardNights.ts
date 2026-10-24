@@ -19,16 +19,22 @@ export interface CardSleepRecord {
   readonly source: string;
 }
 
-export const sleepInBed = 0;
-export const sleepAwake = 2;
+/** Sleep analysis' HealthKit identifier. */
+export const sleepAnalysisType = "HKCategoryTypeIdentifierSleepAnalysis";
+
+/** `HKCategoryValueSleepAnalysis`' raw values: the stages the engine knows. */
+export const sleepStages = { inBed: 0, asleep: 1, awake: 2, core: 3, deep: 4, rem: 5 } as const;
+export type SleepStage = (typeof sleepStages)[keyof typeof sleepStages];
 
 /** Whether it's a value the engine knows (In Bed, Asleep, Awake, Core, Deep or REM). */
 const isKnown = (record: CardSleepRecord) =>
-  Number.isInteger(record.value) && record.value >= 0 && record.value <= 5;
+  Number.isInteger(record.value) &&
+  record.value >= sleepStages.inBed &&
+  record.value <= sleepStages.rem;
 
 /** Whether it's time asleep: Asleep, Core, Deep or REM. */
 export const isAsleep = (record: CardSleepRecord) =>
-  isKnown(record) && record.value !== sleepInBed && record.value !== sleepAwake;
+  isKnown(record) && record.value !== sleepStages.inBed && record.value !== sleepStages.awake;
 
 const duration = (record: CardSleepRecord) => record.end - record.start;
 
@@ -50,6 +56,9 @@ export interface CardNight {
   readonly day: number;
   /** The chosen source's records in its main session, by start: its stages, not In Bed. */
   readonly records: ReadonlyArray<CardSleepRecord>;
+  /** When its records start and end: the earliest start, and the latest end. */
+  readonly start: number;
+  readonly end: number;
   /**
    * Time in bed, in milliseconds: every source's In Bed records that overlap the night, counted
    * once, wherever they start; without any, the night's span.
@@ -102,9 +111,8 @@ export const clockHours = (
  */
 export const nightBedtime = (night: CardNight, calendar: CardCalendar): number | undefined => {
   const asleepAt = fallingAsleep(night);
-  if (asleepAt === undefined || night.records.length === 0) return undefined;
-  const first = night.records.reduce((least, record) => Math.min(least, record.start), Infinity);
-  const hours = clockHours(asleepAt, night.day, first, calendar);
+  if (asleepAt === undefined) return undefined;
+  const hours = clockHours(asleepAt, night.day, night.start, calendar);
   return hours < latestBedtime ? hours : undefined;
 };
 
@@ -184,12 +192,16 @@ export const cardNights = (
 ): Array<CardNight> => {
   const range = nightRecordRange(days);
   const known = records.filter(isKnown);
-  const inBedRecords = known.filter((record) => record.value === sleepInBed);
+  const inBedRecords = known.filter((record) => record.value === sleepStages.inBed);
   // Each day's bounds once, as records come by start (851-2906).
   const bucketer = new CardBucketer(calendar, "day");
   const byDay = new Map<number, Array<CardSleepRecord>>();
   for (const record of known) {
-    if (record.value === sleepInBed || record.start < range.start || record.start >= range.end) {
+    if (
+      record.value === sleepStages.inBed ||
+      record.start < range.start ||
+      record.start >= range.end
+    ) {
       continue;
     }
     const day = bucketer.startOf(record.start + nightStartOffset);
@@ -230,6 +242,8 @@ export const cardNights = (
     nights.push({
       day,
       records: [...session].sort((a, b) => a.start - b.start),
+      start,
+      end,
       inBed: inBed > 0 ? inBed : end - start,
     });
   }

@@ -27,7 +27,7 @@ const maxSampleWeightMillis = hourMillis;
 
 /**
  * A cumulative type's totals per hour or day in the period (by when they start, in `zone`), as the
- * Mac's `HealthDatabase.cumulativeTotals` (`cumulativeTotals` in `HealthQueries.ts`). A D range's
+ * Mac's `HealthDatabase.cumulativeTotals` (`cumulativeTotalsBy` in `HealthQueries.ts`). A D range's
  * hours are a day of rows at most; days are worked out once a day, as rows come in order
  * (851-2906).
  */

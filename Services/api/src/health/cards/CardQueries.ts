@@ -3,6 +3,7 @@ import { healthCatalogType } from "../HealthCatalog.ts";
 import {
   cumulativeTotalsBy,
   latestSample,
+  liveSample,
   statisticsDevices,
   statisticsSource,
 } from "../tools/HealthQueries.ts";
@@ -22,20 +23,14 @@ import type {
   CardWindowFetchResult,
   CardWorkout,
 } from "./CardEngine.ts";
-import type { CardSleepRecord } from "./CardNights.ts";
+import { type CardSleepRecord, sleepAnalysisType } from "./CardNights.ts";
 import type { CardFilter } from "./CardSpec.ts";
 
 // The server engine's reads of the user's store (851-3197): the Mac's `CardQueries` over the
 // store's tables. Totals come from the statistics source's buckets and the samples past them
 // (`cumulativeTotalsBy`, as the `metric` tool's), readings from the samples' (type, start) key, as
-// arrays of values (851-2906), sleep windows' readings only from their stretches' ranges of it.
+// arrays of values (851-2906), and sleep windows' readings only from their stretches' ranges of it.
 // Deleted samples the store hasn't swept yet are skipped (tombstones).
-
-const sleepType = "HKCategoryTypeIdentifierSleepAnalysis";
-
-/** Skips samples deleted since the store last swept (tombstones), for a `health_sample s`. */
-const liveSample =
-  "NOT EXISTS (SELECT 1 FROM tombstones t WHERE t.entity = 'health_sample' AND t.id = s.id)";
 
 const placeholders = (count: number) => Array.from({ length: count }, () => "?").join(", ");
 
@@ -105,31 +100,18 @@ export const cardReadings = (
 };
 
 /**
- * Stretches this close together are read as one range of the key: a night's stretches asleep are
- * minutes apart, so a night is one query rather than one per stretch, and the run drops the
- * readings between them (`readingsInStretches`).
+ * A type's readings starting in one of `stretches` (in order and apart), oldest first: a range of
+ * the key for each. Reading a night's stretches as one range, and dropping the minutes awake
+ * between them, was no faster, on the server as on the Mac (851-3196).
  */
-const stretchMergeGap = 60 * 60 * 1000;
-
-/** A type's readings starting in one of `stretches` (in order and apart), oldest first, and some between them. */
 export const cardStretchReadings = (
   sql: StoreSql,
   type: string,
   stretches: ReadonlyArray<CardStretch>,
   filter: CardFilter | null,
   sampleIds: boolean,
-): Array<CardReading> => {
-  const ranges: Array<{ start: number; end: number }> = [];
-  for (const stretch of stretches) {
-    const last = ranges.at(-1);
-    if (last !== undefined && stretch.start - last.end < stretchMergeGap) {
-      last.end = Math.max(last.end, stretch.end);
-    } else {
-      ranges.push({ start: stretch.start, end: stretch.end });
-    }
-  }
-  return ranges.flatMap((range) => cardReadings(sql, type, range, filter, sampleIds));
-};
+): Array<CardReading> =>
+  stretches.flatMap((stretch) => cardReadings(sql, type, stretch, filter, sampleIds));
 
 /**
  * Sleep analysis records with a value that end after `range` starts and start before it ends, by
@@ -142,7 +124,7 @@ export const cardSleepRecords = (sql: StoreSql, range: CardInterval): Array<Card
       WHERE type = ? AND start_date < ? AND end_date > ? AND category_value IS NOT NULL
         AND ${liveSample}
       ORDER BY start_date, id`,
-      sleepType,
+      sleepAnalysisType,
       range.end,
       range.start,
     )

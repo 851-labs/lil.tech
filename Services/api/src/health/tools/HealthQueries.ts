@@ -150,7 +150,7 @@ export const workoutTotals = (sql: StoreSql, from: number, to: number) => {
 };
 
 /** Skips samples deleted since the store last swept (tombstones), for a `health_sample s`. */
-const liveSample =
+export const liveSample =
   "NOT EXISTS (SELECT 1 FROM tombstones t WHERE t.entity = 'health_sample' AND t.id = s.id)";
 
 /** A type's earliest and latest records, by when they start. */
@@ -447,28 +447,6 @@ export const samplePage = (
       range.to,
       ...(cursor === null ? [] : [cursor.startDate, cursor.startDate, cursor.id]),
       limit,
-    )
-    .map(sampleRow);
-
-/**
- * A type's samples that may overlap `[from, to)`: those that start before `to` and end after
- * `from`, oldest first. Without a lower bound on the start, so a long record (in bed) that
- * started well before counts.
- */
-export const samplesOverlapping = (
-  sql: StoreSql,
-  type: string,
-  from: number,
-  to: number,
-): ReadonlyArray<SampleRow> =>
-  sql
-    .exec(
-      `SELECT ${sampleColumns} FROM health_sample s
-      WHERE type = ? AND start_date < ? AND end_date > ? AND ${liveSample}
-      ORDER BY start_date, id`,
-      type,
-      to,
-      from,
     )
     .map(sampleRow);
 
