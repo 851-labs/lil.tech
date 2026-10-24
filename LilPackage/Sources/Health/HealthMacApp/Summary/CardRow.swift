@@ -105,22 +105,11 @@ struct CardRow: View {
   /// A card of a later version: what this version can read of how it looks, and that it can't
   /// show it, at a row's height.
   @ViewBuilder private var unreadable: some View {
-    let display = card.storedSpec["display"]
-    let name = display?["name"].flatMap { if case .string(let name) = $0 { name } else { nil } }
-    let symbol = display?["symbol"].flatMap {
-      if case .string(let symbol) = $0, HealthCards.cardSymbols.contains(symbol) {
-        symbol
-      } else {
-        nil
-      }
-    }
-    let color = display?["color"].flatMap {
-      if case .string(let color) = $0 { CardColor(rawValue: color) } else { nil }
-    }
+    let display = card.storedDisplay
     HStack {
-      Label(name ?? "Card", systemImage: symbol ?? "square.dashed")
+      Label(display.name, systemImage: display.symbol)
         .lineLimit(1)
-        .foregroundStyle(color.map { Color(paletteName: $0.rawValue) } ?? .secondary)
+        .foregroundStyle(display.color ?? .secondary)
         .font(.headline)
       Spacer()
     }
@@ -228,17 +217,25 @@ struct CardSeriesSymbol: Shape {
   }
 }
 
-extension CardSpec {
-  /// The data type whose Metric Detail shows what this card does, so Summary's row opens it until
-  /// cards have their own page (851-3207): a card of one series of the type's default aggregation,
-  /// without a window, filter, formula or goal, bucket `auto`, in the type's chart style and the
-  /// locale's unit. The welcome seed's are, renamed, recolored or not. Others open nothing yet.
-  var metricDetailType: String? {
-    guard series.count == 1, let series = series.first, !series.hidden, formulas.isEmpty,
-      series.window == nil, series.filter == nil, bucket == .auto, chart.goal == nil,
-      display.unit == nil, let type = series.dataType, let aggregation = type.aggregation,
-      series.aggregation == .defaultValue(for: aggregation), chart.style == type.chartStyle
-    else { return nil }
-    return type.id
+extension Card {
+  /// How a card of a later version looks, as far as this version can read its stored spec: its
+  /// name, else "Card"; its symbol if it's a curated one, else a dashed square; and its palette
+  /// color, if it's one this version knows. Its Summary row and its page show them.
+  var storedDisplay: (name: String, symbol: String, color: Color?) {
+    let display = storedSpec["display"]
+    let name = display?["name"].flatMap { if case .string(let name) = $0 { name } else { nil } }
+    let symbol = display?["symbol"].flatMap {
+      if case .string(let symbol) = $0, HealthCards.cardSymbols.contains(symbol) {
+        symbol
+      } else {
+        nil
+      }
+    }
+    let color = display?["color"].flatMap {
+      if case .string(let color) = $0 { CardColor(rawValue: color) } else { nil }
+    }
+    return (
+      name ?? "Card", symbol ?? "square.dashed", color.map { Color(paletteName: $0.rawValue) }
+    )
   }
 }

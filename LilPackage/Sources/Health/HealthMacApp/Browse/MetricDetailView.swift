@@ -479,27 +479,7 @@ struct MetricDetailContent: View {
       .chartYDomain(yDomain)
       .chartPlotStyle { $0.clipped() }
       .chartXSelection(value: $hovered)
-      .chartYAxis {
-        if shown.label == "%" {
-          // Plotted as percentages, 22 for 22%, as the header shows them.
-          AxisMarks(
-            format: FloatingPointFormatStyle<Double>.Percent().scale(1), position: .trailing)
-        } else if let yDomain,
-          let stride = shown.compoundTickStride(over: yDomain.upperBound - yDomain.lowerBound)
-        {
-          // Plotted in inches or pounds, and labeled as the header writes them, at whole ones,
-          // so no two ticks read the same: 5′ 9″, 5′ 10″.
-          AxisMarks(position: .trailing, values: .stride(by: stride)) { value in
-            AxisGridLine()
-            AxisTick()
-            AxisValueLabel {
-              if let number = value.as(Double.self) { Text(shown.format(number)) }
-            }
-          }
-        } else {
-          AxisMarks(position: .trailing)
-        }
-      }
+      .valueAxis(shown, domain: yDomain)
       .emptyChartAccessibility(
         chart.points.isEmpty,
         label: ChartFormat.noData(
@@ -569,16 +549,5 @@ struct MetricDetailContent: View {
     let end = calendar.dateInterval(
       of: range.barUnit, for: chart.interval.end.addingTimeInterval(-1))?.end
     return (start ?? chart.interval.start)...(end ?? chart.interval.end)
-  }
-}
-
-extension View {
-  /// The chart's y-axis over `domain`, or Swift Charts' own (from zero) without one.
-  @ViewBuilder fileprivate func chartYDomain(_ domain: ClosedRange<Double>?) -> some View {
-    if let domain {
-      chartYScale(domain: domain)
-    } else {
-      self
-    }
   }
 }

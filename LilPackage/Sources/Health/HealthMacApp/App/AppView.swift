@@ -106,8 +106,8 @@ struct SidebarList: View {
 }
 
 /// What's selected: Summary, a category's metrics, or a metric found by search. Each stack's
-/// pushed pages are type IDs in the store's `metricPath` (a metric's row opens its detail), so an
-/// intent can open one, and opening a page pops them (851-3030).
+/// pushed pages are in the store's `metricPath` (a metric's row opens its detail, a card's its
+/// page), so an intent can open one, and opening a page pops them (851-3030).
 struct DetailView: View {
   let store: StoreOf<AppFeature>
 
@@ -136,13 +136,20 @@ struct DetailView: View {
   ) -> some View {
     NavigationStack(path: metricPath(for: selection)) {
       root()
-        .navigationDestination(for: String.self) { MetricDetail(typeID: $0) }
+        .navigationDestination(for: PushedPage.self) { page in
+          switch page {
+          case .metric(let typeID):
+            MetricDetail(typeID: typeID)
+          case .card(let id):
+            CardPage(store: store.scope(\.cards, action: \.cards), id: id)
+          }
+        }
     }
   }
 
   /// The metrics a stack shows, for the selection it shows them in: a stack going away as the
   /// selection changes writes its path back, and that mustn't replace what the next one opens.
-  private func metricPath(for selection: SidebarItem?) -> Binding<[String]> {
+  private func metricPath(for selection: SidebarItem?) -> Binding<[PushedPage]> {
     Binding(
       get: { store.selection == selection ? store.metricPath : [] },
       set: { store.send(.metricPathChanged($0, selection: selection)) }

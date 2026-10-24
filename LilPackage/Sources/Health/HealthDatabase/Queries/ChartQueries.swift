@@ -43,6 +43,17 @@ public enum ChartRange: String, CaseIterable, Hashable, Sendable {
     }
   }
 
+  /// The chart range of a card's, so a card's page has Metric Detail's periods (851-3207).
+  public init(_ card: CardRange) {
+    switch card {
+    case .day: self = .day
+    case .week: self = .week
+    case .month: self = .month
+    case .sixMonths: self = .sixMonths
+    case .year: self = .year
+    }
+  }
+
   /// How many periods from the one containing `now` the one containing `date` is: 0 for the
   /// current one, -1 for the one before, positive for one after.
   public func offset(containing date: Date, now: Date, calendar: Calendar) -> Int {

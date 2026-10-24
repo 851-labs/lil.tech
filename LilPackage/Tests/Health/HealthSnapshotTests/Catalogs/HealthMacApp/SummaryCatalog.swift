@@ -119,15 +119,16 @@
 
   /// A card of spec version 2, which this version can't read: its name, symbol and color still
   /// show.
-  private let laterVersionCard = Card(
+  let laterVersionCard = Card(
     HealthCard(
       id: "card_01JB7Z0000000000000000000A",
       spec:
         #"{"version":2,"display":{"name":"Oxygen at Altitude","symbol":"lungs.fill","color":"teal","unit":null},"series":[]}"#,
       position: "a1V", createdAt: 0, updatedAt: 0))
 
-  /// The design's five example cards, in its order, as an agent would write them.
-  private let exampleCards: [Card] = [
+  /// The design's five example cards, in its order, as an agent would write them. The Card Detail
+  /// catalog shows their pages.
+  let exampleCards: [Card] = [
     #"{"version": 1, "display": {"name": "Body Temperature", "symbol": "thermometer.medium", "color": "red"}, "series": [{"type": "Body Temperature"}], "range": "M", "chart": {"style": "line"}}"#,
     #"{"version": 1, "display": {"name": "Sleeping Heart Rate", "symbol": "moon.zzz.fill", "color": "indigo"}, "series": [{"type": "Heart Rate", "window": {"kind": "asleep"}}], "bucket": "night", "range": "M", "chart": {"style": "line"}}"#,
     #"{"version": 1, "display": {"name": "HRV", "symbol": "waveform.path.ecg", "color": "pink"}, "series": [{"type": "HeartRateVariabilitySDNN"}], "formulas": [{"id": "trend", "kind": "movingAverage", "of": "a", "points": 7}], "range": "M", "chart": {"style": "dots"}}"#,
@@ -143,7 +144,7 @@
   /// The catalog database, and a heart rate reading 3 minutes before each night's sleep, which
   /// its readings every 30 minutes never are (it's asleep from 23:00): for the example of heart
   /// rate before falling asleep. Its own, so no other catalog's images change.
-  private let exampleCardsDatabase: any DatabaseWriter = {
+  let exampleCardsDatabase: any DatabaseWriter = {
     let database = makePreviewHealthDatabase(now: previewNow, calendar: previewCalendar)
     let today = previewCalendar.startOfDay(for: previewNow)
     try! database.write { db in

@@ -73,7 +73,7 @@ struct CommandLineActionsTests {
     #expect(try await finished(beforeLaunch) == .ok(.done))
     await store.receive(\.pageOpened) {
       $0.selection = .category(.activity)
-      $0.metricPath = ["HKQuantityTypeIdentifierStepCount"]
+      $0.metricPath = [.metric("HKQuantityTypeIdentifierStepCount")]
     }
 
     // The app is running: a command asks, then signals.
