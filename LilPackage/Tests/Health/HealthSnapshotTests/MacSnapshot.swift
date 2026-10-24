@@ -21,8 +21,11 @@
     fileID: StaticString = #fileID, file: StaticString = #filePath, testName: String = #function,
     line: UInt = #line, column: UInt = #column
   ) {
-    let window = snapshotWindow(of: view, appearance: appearance, title: name)
     let suffix = appearance == .darkAqua ? "dark" : "light"
+    probeKey = "\(screen).\(name)-\(suffix)"
+    probeLog("START \(screen).\(name)-\(suffix)")
+    let window = snapshotWindow(of: view, appearance: appearance, title: name)
+    probeLog("MADE \(screen).\(name)-\(suffix)")
     let output = SnapshotOutput(file: file, testName: screen, name: "\(name)-\(suffix)")
     // References come from CI (851-3070): off it, a new state is only shown.
     if isNewOffCI(file: file, testName: screen, name: "\(name)-\(suffix)") {
@@ -81,8 +84,11 @@
     window.appearance = NSAppearance(named: appearance)
     window.setContentSize(controller.view.fittingSize)
     // Let SwiftUI lay out and draw, and charts settle.
+    probeLog("SIZED \(probeKey)")
     controller.view.layoutSubtreeIfNeeded()
-    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    probeLog("LAID OUT \(probeKey)")
+    RunLoop.main.run(until: Date().addingTimeInterval(probeSettle))
+    probeLog("SETTLED \(probeKey)")
     return window
   }
 
@@ -202,6 +208,20 @@
       try? handle.close()
     } else {
       FileManager.default.createFile(atPath: path, contents: Data(text.utf8))
+    }
+  }
+  nonisolated(unsafe) var probeSettle = Double(ProcessInfo.processInfo.environment["LIL_PROBE_SETTLE"] ?? "") ?? 0.05
+  nonisolated(unsafe) var probeKey = ""
+
+  func probeLog(_ text: String) {
+    guard let path = ProcessInfo.processInfo.environment["LIL_PROBE_DUMP"] else { return }
+    let line = "@\(Date().timeIntervalSince1970) \(text)\n"
+    if let handle = FileHandle(forWritingAtPath: path) {
+      handle.seekToEndOfFile()
+      handle.write(Data(line.utf8))
+      try? handle.close()
+    } else {
+      FileManager.default.createFile(atPath: path, contents: Data(line.utf8))
     }
   }
 #endif

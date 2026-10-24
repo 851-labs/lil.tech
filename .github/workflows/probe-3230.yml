@@ -45,7 +45,7 @@ jobs:
             LIL_PROBE_DUMP="$RUNNER_TEMP/out/dump-$run.txt" \
               LIL_SNAPSHOT_OUTPUT="$RUNNER_TEMP/runs/$run" swift test --skip-build \
               --scratch-path "$SCRATCH" --filter 'HealthSnapshotTests\.MacSnapshotTests' \
-              --skip sleepToolbarProbe > "$RUNNER_TEMP/out/run-$run.log" 2>&1 || true
+              --skip sleepToolbarProbe --skip sleepChevronTiming > "$RUNNER_TEMP/out/run-$run.log" 2>&1 || true
             failed=$(grep -c '^✘ Test .*recorded an issue' "$RUNNER_TEMP/out/run-$run.log" || true)
             echo "run $run: $(( $(date +%s) - start )) s, failures: $failed, load: $(sysctl -n vm.loadavg)"
             grep '^✘ Test .*recorded an issue' "$RUNNER_TEMP/out/run-$run.log" || true
