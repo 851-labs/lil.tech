@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import DependenciesTestSupport
 import Foundation
+import HealthCards
 import HealthCatalog
 import HealthDatabase
 import LilAuth
@@ -56,16 +57,26 @@ struct AppFeatureTests {
   }
 
   @Test(.timeLimit(.minutes(1)))
-  func signingOutStopsTheAccountsWorkAndForgetsIt() async {
+  func signingOutStopsTheAccountsWorkAndForgetsIt() async throws {
     let (updates, session) = AsyncStream<Bool>.makeStream()
     // Never advanced: both requests are still waiting when the account signs out.
     let clock = ManualClock()
+    let database = try HealthDatabase.make()
+    let cards = HealthCards.welcomeSeed.map {
+      HealthCard(
+        id: $0.id, spec: $0.spec.jsonText, position: $0.position, createdAt: 1, updatedAt: 1,
+        seed: $0.seed)
+    }
+    try await database.write { db in try HealthCard.insert { cards }.execute(db) }
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     } withDependencies: {
       $0.agentAccess.reset = {}
       $0.auth.signedInUpdates = { updates }
       $0.sync = .constant(.idle)
+      // A card's write is still on its way to sync's queue when the account signs out.
+      $0.sync.push = { _ in try await clock.sleep(for: .seconds(3600)) }
+      $0.defaultDatabase = database
       $0.continuousClock = clock
       $0.dataExports.request = { () throws(DataExportError) in
         try? await clock.sleep(for: .seconds(3600))
@@ -104,12 +115,22 @@ struct AppFeatureTests {
     await store.send(\.connectedAgents.appeared) {
       $0.connectedAgents.isLoadingLog = true
     }
+    // Summary reads the account's cards, and one is deleted.
+    await store.send(\.cards.task)
+    await store.receive(\.cards.cardsLoaded) {
+      $0.cards.cards = IdentifiedArray(uniqueElements: cards.map(Card.init))
+      $0.cards.isLoading = false
+    }
+    await store.send(.cards(.deleteCard(id: "card_seed_weight"))) {
+      _ = $0.cards.cards.remove(id: "card_seed_weight")
+    }
     session.yield(false)
     await store.receive(\.signedInChanged) {
       $0.isSignedIn = false
       $0.syncFooter = .hidden
       $0.account = AccountFeature.State()
       $0.connectedAgents = ConnectedAgentsFeature.State()
+      $0.cards = CardsFeature.State()
     }
     await store.receive(\.signIn.readyToSignIn)
     await task.cancel()
