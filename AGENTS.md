@@ -60,7 +60,7 @@ Building, running and inspecting the apps all work from the command line (851-29
   ```
   - The simulator's: `-scheme LilHealthiOS -destination 'generic/platform=iOS Simulator'`, into `Debug-iphonesimulator/`. A device's: `-destination 'generic/platform=iOS'`, into `Debug-iphoneos/`.
   - **A Debug Mac build is `tech.lil.health.debug`** (851-3027), so it never shares anything kept by bundle ID with the installed app. If a build fails with "No profiles for 'tech.lil.health.debug' were found", run it once with `-allowProvisioningUpdates`, so automatic signing fetches a profile (a build in Xcode does that by itself). Earlier Debug builds' caches and settings, `~/Library/Caches/tech.lil.health/Servers` and `~/Library/Preferences/tech.lil.health.Servers.*.plist`, are no longer used and can be deleted. Release builds, and every iPhone build, stay `tech.lil.health`.
-  - Without `-derivedDataPath`, builds go to `~/Library/Developer/Xcode/DerivedData/Lil-<hash>`. `platform=macOS` alone warns that two destinations match (arm64 and x86_64). `-onlyUsePackageVersionsFromResolvedFile` keeps a fresh folder's resolve from changing `Package.resolved`, as `scripts/check` does.
+  - Without `-derivedDataPath`, `scripts/xcodebuild` builds into `.build/DerivedData` too, where the compilation cache can share it, and plain `xcodebuild` into `~/Library/Developer/Xcode/DerivedData/Lil-<hash>`. `platform=macOS` alone warns that two destinations match (arm64 and x86_64). `-onlyUsePackageVersionsFromResolvedFile` keeps a fresh folder's resolve from changing `Package.resolved`, as `scripts/check` does.
 - **Run the Mac app** in a temporary home against a PR preview, signed in to its test account (synthetic data only):
   ```sh
   home=$(mktemp -d)

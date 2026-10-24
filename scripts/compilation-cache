@@ -8,7 +8,8 @@
 #        scripts/xcodebuild [<arguments>…]              as `xcodebuild`, e.g. a Debug app build
 #   scripts/swift runs Xcode's `swift` in `LilPackage` (so relative paths in its arguments are
 #   relative to it), with caching for `build`, `test` and `run`; other subcommands run as they are.
-#   scripts/xcodebuild caches Debug builds, never a Release one or an archive.
+#   scripts/xcodebuild caches Debug builds, never a Release one, an archive or an install, and
+#   builds into the worktree's `.build/DerivedData` unless `-derivedDataPath` says otherwise.
 # Environment:
 #   LIL_COMPILATION_CACHE=0      Build without the cache.
 #   LIL_COMPILATION_CACHE_PATH   The cache's folder.
@@ -39,6 +40,9 @@ set -eu
 
 tool=$(basename "$0")
 root=$(cd "$(dirname "$0")/.." && pwd -P)
+# The same folder as the shell names it, when that path has a link in it: Xcode keeps a path as
+# it's given.
+logical_root=$(cd "$(dirname "$0")/.." && pwd -L)
 package="$root/LilPackage"
 cache=${LIL_COMPILATION_CACHE_PATH:-$HOME/Library/Caches/lil.tech/CompilationCache}
 limit=${LIL_COMPILATION_CACHE_LIMIT:-10G}
@@ -46,16 +50,19 @@ developer=${DEVELOPER_DIR:-$(xcode-select -p)}
 newline='
 '
 
-# Our sources and tests, each mapped to itself so they keep their paths. Not PhoneSnapshots, the
-# iPhone's host app: an Xcode project's own folder mapped to itself breaks Clang's dependency scan
-# of its targets ("module-include.input: Operation not supported").
-identity_maps() {
-  echo "$package/Sources=$package/Sources"
-  for dir in "$package"/Tests/*/*/; do
-    dir=${dir%/}
-    [ "$(basename "$dir")" != PhoneSnapshots ] || continue
-    echo "$dir=$dir"
-  done
+# The worktree's maps, a line each: the worktree as `/^root`, and our package's sources and tests
+# mapped to themselves, so they keep their paths. Not PhoneSnapshots, the iPhone's host app, which
+# maps as the rest of the worktree does: an Xcode project's own folder mapped to itself breaks
+# Clang's dependency scan of its targets ("module-include.input: Operation not supported").
+worktree_maps() {
+  maps_for "$root"
+  [ "$logical_root" = "$root" ] || maps_for "$logical_root"
+}
+maps_for() {
+  echo "$1=/^root"
+  echo "$1/LilPackage/Sources=$1/LilPackage/Sources"
+  echo "$1/LilPackage/Tests=$1/LilPackage/Tests"
+  echo "$1/LilPackage/Tests/Health/PhoneSnapshots=/^root/LilPackage/Tests/Health/PhoneSnapshots"
 }
 
 # The absolute path of folder `$1`, made if missing.
@@ -82,7 +89,8 @@ run_or_fall_back() {
     "$@" 2>&1 1>&3 3>&- || status=$?
     echo "$status" >"$log.status"
   } | tee "$log" >&2; } 3>&1
-  status=$(cat "$log.status")
+  # Missing when the command was killed before it could say.
+  status=$(cat "$log.status" 2>/dev/null || echo 1)
   if [ "$status" != 0 ] && grep -q 'bad_optional_access was thrown' "$log"; then
     echo "warning: the build aborted replaying a cached warning (a toolchain bug, 851-3238)," \
       "so it runs again without the compilation cache. Once the warning is fixed, builds use the" \
@@ -121,14 +129,16 @@ case "$tool" in
     done
     scratch=$(absolute "$scratch")
     shift
-    set -- "$subcommand" "$@"
+    # Right after the subcommand: after its arguments, `swift run` would pass them to the program.
+    flags=""
     IFS=$newline
-    for map in "$root=/^root" "$scratch=/^build" "$developer=/^xcode" $(identity_maps); do
-      set -- "$@" -Xswiftc -scanner-prefix-map -Xswiftc "$map"
+    for map in $(worktree_maps) "$scratch=/^build" "$developer=/^xcode"; do
+      flags="$flags -Xswiftc -scanner-prefix-map -Xswiftc $(quote "$map")"
     done
     unset IFS
-    set -- "$@" -Xswiftc -scanner-prefix-map-sdk -Xswiftc /^sdk \
-      -Xswiftc -scanner-prefix-map-toolchain -Xswiftc /^toolchain
+    flags="$flags -Xswiftc -scanner-prefix-map-sdk -Xswiftc /^sdk"
+    flags="$flags -Xswiftc -scanner-prefix-map-toolchain -Xswiftc /^toolchain"
+    eval "set -- \"\$subcommand\" $flags $(quote "$@")"
     export EnableSwiftCachingByDefault=YES EnableClangCachingByDefault=YES
     export CompilationCachingCASPath="$cache" CompilationCachingDiskSizeLimit="$limit"
     run_or_fall_back "$swift" "$@"
@@ -143,8 +153,9 @@ case "$tool" in
         -configuration,*) exec xcodebuild "$@" ;;
       esac
       case "$arg" in
-        archive | -exportArchive | -list | -version | -showBuildSettings | -showsdks | -help)
-          exec xcodebuild "$@"
+        archive | install | -exportArchive | -list | -version | -showBuildSettings | -showsdks | \
+          -help | CONFIGURATION=*)
+          [ "$arg" = CONFIGURATION=Debug ] || exec xcodebuild "$@"
           ;;
       esac
       case "$previous" in
@@ -152,19 +163,23 @@ case "$tool" in
       esac
       previous=$arg
     done
-    case "$root" in
+    # Into the worktree, where `/^derived` maps it, unless told otherwise: Xcode's default folder
+    # is named after the workspace's path, so it differs in each worktree.
+    if [ -z "$derived" ]; then
+      derived="$root/.build/DerivedData"
+      set -- "$@" -derivedDataPath "$derived"
+    fi
+    derived=$(absolute "$derived")
+    case "$root$logical_root$derived" in
       *' '*)
-        echo "warning: $root has a space, which a list of prefix maps can't hold, so this builds" \
-          "without the compilation cache." >&2
+        echo "warning: the worktree's or DerivedData's path has a space, which a list of prefix" \
+          "maps can't hold, so this builds without the compilation cache." >&2
         exec xcodebuild "$@"
         ;;
     esac
-    maps="$root=/^root"
-    if [ -n "$derived" ]; then
-      maps="$maps $(absolute "$derived")=/^derived"
-    fi
+    maps="$derived=/^derived"
     IFS=$newline
-    for map in $(identity_maps); do
+    for map in $(worktree_maps); do
       maps="$maps $map"
     done
     unset IFS
