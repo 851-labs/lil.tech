@@ -18,12 +18,39 @@ import Synchronization
 // HealthPhoneSnapshotTests, which builds this file too, 851-2953) share: the images
 // `scripts/snapshot` gets, their diffs, and matching within a tolerance per color channel.
 
-/// Whether snapshots are only rendered, never compared with their references:
-/// `LIL_SNAPSHOT_RENDER_ONLY=1`, which CI sets (851-3071). References recorded on a laptop don't
-/// match the minis' renders pixel for pixel, since their GPUs differ (851-3033), so until CI renders
-/// the references itself (851-3070) it only checks that every state renders without an issue, and
-/// that its catalog's manifest is up to date. `scripts/snapshot` and `swift test` compare.
-let snapshotsRenderOnly = ProcessInfo.processInfo.environment["LIL_SNAPSHOT_RENDER_ONLY"] == "1"
+/// Whether this process renders the references: `LIL_SNAPSHOT_CI=1`, which CI sets on the Mac minis
+/// (851-3070). References come only from the minis, whose GPUs draw some images a level or two apart
+/// from a laptop's (851-3033). There, images are compared within `snapshotChannelTolerance`, and a
+/// state with no reference is recorded, and fails, as SnapshotTesting does, so the run uploads it
+/// for `scripts/fetch-snapshots`. Elsewhere (a laptop), images are compared within
+/// `laptopChannelTolerance`, and a new state is only rendered (`isNewOffCI`).
+let snapshotsRenderReferences = ProcessInfo.processInfo.environment["LIL_SNAPSHOT_CI"] == "1"
+
+/// Whether SnapshotTesting records references (`scripts/snapshot --record` on CI).
+private let snapshotsRecord = ["all", "failed"].contains(
+  ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"])
+
+/// Off CI, whether a state has no reference yet (851-3070), so is only rendered, for
+/// `scripts/snapshot` to show as `new`, and doesn't fail: its reference comes from CI, which
+/// records it, and fails, until `scripts/fetch-snapshots` brings it into the branch.
+func isNewOffCI(file: StaticString, testName: String, name: String) -> Bool {
+  guard !snapshotsRenderReferences, !snapshotsRecord else { return false }
+  return !FileManager.default.fileExists(
+    atPath: referenceURL(file: file, testName: testName, name: name).path)
+}
+
+/// Draws a new state's image (`isNewOffCI`) without comparing it, so a view that crashes or
+/// reports an issue still does, and writes it to `output` as `new` when `scripts/snapshot` asked.
+@MainActor
+func renderNew<Value, Format>(
+  _ value: Value, as strategy: Snapshotting<Value, Format>, to output: SnapshotOutput?
+) {
+  if let output {
+    output.renderNew(value, as: strategy)
+  } else {
+    strategy.snapshot(value).run { _ in }
+  }
+}
 
 /// Where `scripts/snapshot` wants every image this process takes, `LIL_SNAPSHOT_OUTPUT` (851-2962):
 /// `<output>/<test file>/<test>.<name>.png`, encoded as SnapshotTesting encodes references. A
@@ -31,8 +58,8 @@ let snapshotsRenderOnly = ProcessInfo.processInfo.environment["LIL_SNAPSHOT_REND
 /// of it. Each snapshot adds a line to `<output>/report.tsv`: its result, the image, the reference
 /// and the diff. The result is `matches`, `differs`, `recorded` (a new reference, or record mode),
 /// `rerecorded` (it differed, and record mode replaced the reference), `failed` (anything else
-/// SnapshotTesting reported, such as a timeout) or `rendered` (not compared, on CI:
-/// `snapshotsRenderOnly`). `swift test` sets none of this and writes nothing.
+/// SnapshotTesting reported, such as a timeout) or `new` (no reference yet, off CI: `isNewOffCI`).
+/// `swift test` sets none of this and writes nothing.
 @MainActor
 struct SnapshotOutput {
   let image: URL
@@ -48,7 +75,7 @@ struct SnapshotOutput {
 
   init?(
     file: StaticString, testName: String, name: String,
-    tolerance: Int = snapshotChannelTolerance
+    tolerance: Int = macChannelTolerance
   ) {
     guard let output = ProcessInfo.processInfo.environment["LIL_SNAPSHOT_OUTPUT"] else {
       return nil
@@ -111,11 +138,12 @@ struct SnapshotOutput {
     report(result: result)
   }
 
-  /// Writes `value`'s image, taken with `strategy`, without comparing it (`snapshotsRenderOnly`),
-  /// and reports it as `rendered`.
-  func render<Value, Format>(_ value: Value, as strategy: Snapshotting<Value, Format>) {
+  /// Writes `value`'s image, taken with `strategy`, without comparing it, and reports it as `new`.
+  fileprivate func renderNew<Value, Format>(
+    _ value: Value, as strategy: Snapshotting<Value, Format>
+  ) {
     writing(strategy).snapshot(value).run { _ in }
-    report(result: "rendered")
+    report(result: "new")
   }
 
   private func report(result: String) {
@@ -281,11 +309,23 @@ private func pixels(of image: CGImage) -> Pixels? {
   return drawn ? Pixels(width: image.width, height: image.height, words: words) : nil
 }
 
-/// How far a pixel's channels may be from its reference's and still match (851-2985). The same
-/// screen rendered on macOS 27.0 (the Mac minis) and 27.0.1 (a laptop) comes out 1 apart in
-/// gradients, symbols and the toolbar's search field, which no one can see. Anything that moves
-/// or recolors what's drawn is further apart.
+/// How far a pixel's channels may be from its reference's and still match on CI (851-2985), where
+/// the references are rendered (851-3070). The same screen rendered on macOS 27.0 and 27.0.1 came
+/// out 1 apart in gradients, symbols and the toolbar's search field, which no one can see. Anything
+/// that moves or recolors what's drawn is further apart. Both minis render every image byte for
+/// byte the same.
 let snapshotChannelTolerance = 1
+
+/// How far a pixel's channels may be from the minis' references and still match on a laptop
+/// (851-3070): of the Mac's 834 images, an M1 Pro laptop on macOS 27.0.1 drew 816 exactly as the
+/// minis (M6, the same macOS) do, 16 at most 1 apart, and two (Sleep apnea notifications' lungs) 2
+/// apart. Locally a comparison is only an early warning: CI's is the one that counts.
+let laptopChannelTolerance = 2
+
+/// What the Mac's snapshots are compared within in this process: CI's tolerance where references
+/// are rendered (`snapshotsRenderReferences`), a laptop's elsewhere.
+let macChannelTolerance =
+  snapshotsRenderReferences ? snapshotChannelTolerance : laptopChannelTolerance
 
 extension Diffing where Value == PlatformImage {
   /// SnapshotTesting's exact comparison (`exact`), except that an image of the reference's size

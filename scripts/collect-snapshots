@@ -1,0 +1,130 @@
+#!/bin/bash
+# Collects what a CI run's snapshot tests changed, for `scripts/fetch-snapshots` to bring into a
+# branch (851-3070): the references come from the Mac minis, never from a laptop, whose GPU draws
+# some images a level or two apart.
+# Usage: scripts/collect-snapshots <references> <changes> <output>…
+#        scripts/collect-snapshots --check
+#   <output>      A run's folder (`LIL_SNAPSHOT_OUTPUT`, `scripts/snapshot`'s), with its `report.tsv`.
+#   <references>  Where the new references go, at their paths in the repository: each image that
+#                 differs from its reference (the run's), and each reference or manifest the
+#                 tests wrote into the checkout (a new state's, a stale manifest). CI uploads it as
+#                 an artifact, which `scripts/fetch-snapshots` copies into the branch.
+#   <changes>     The same images to look at, by catalog, each with its `.diff.png` when it differs.
+# Adds a Markdown summary of them to the job's (`GITHUB_STEP_SUMMARY`; printed elsewhere), and on
+# GitHub prints an error annotation saying how to update the references. Nothing when nothing
+# changed.
+#   --check  Fails if the tests wrote any reference or manifest into the checkout, which a passing
+#            run can't have done but one that was tried again can: an iPhone run that timed out
+#            after recording, whose second try then matched what the first recorded.
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+physical=$(cd "$root" && pwd -P)
+
+# What the tests wrote into the checkout, `<status>\t<path>`: a missing reference, which
+# SnapshotTesting records (and fails), or a manifest that was missing or out of date.
+written() {
+  git -C "$root" status --porcelain --untracked-files=all -- LilPackage/Tests |
+    sed -nE 's/^(\?\?| M|M |A ) (.*__Snapshots__\/.*\.(png|json))$/\1\t\2/p'
+}
+
+if [ "${1:-}" = --check ]; then
+  files=$(written)
+  [ -z "$files" ] && exit 0
+  echo "::error title=Snapshots recorded::The tests wrote references or manifests the branch doesn't have, so its snapshots are out of date. The next steps upload them for scripts/fetch-snapshots."
+  echo "$files" | cut -f 2 >&2
+  exit 1
+fi
+if [ $# -lt 3 ]; then
+  echo "usage: scripts/collect-snapshots <references> <changes> <output>… | --check" >&2
+  exit 64
+fi
+references=$1
+changes=$2
+shift 2
+mkdir -p "$references" "$changes"
+
+# A path in the checkout, from the repository's top.
+relative() {
+  case "$1" in
+    "$root"/*) echo "${1#"$root"/}" ;;
+    "$physical"/*) echo "${1#"$physical"/}" ;;
+    *) return 1 ;;
+  esac
+}
+
+list=$(mktemp)
+trap 'rm -f "$list"' EXIT
+
+# Images that differ from their references: the run's image is the new reference. Images are
+# named by catalog file, so two test targets' catalogs of one name, run together, could write the
+# same image: copying either would be wrong.
+for output in "$@"; do
+  report="$output/report.tsv"
+  [ -f "$report" ] || continue
+  shared=$(cut -f 2,3 "$report" | sort -u | cut -f 1 | uniq -d)
+  if [ -n "$shared" ]; then
+    echo "::error::Two catalogs' states write the same image, so neither is collected. Rename one: $shared" >&2
+    exit 1
+  fi
+  while IFS=$'\t' read -r result image reference diff; do
+    [ "$result" = differs ] || continue
+    path=$(relative "$reference") || continue
+    [ -f "$image" ] || continue
+    mkdir -p "$references/$(dirname "$path")"
+    cp "$image" "$references/$path"
+    folder="$changes/$(basename "$(dirname "$path")")"
+    mkdir -p "$folder"
+    cp "$image" "$folder/"
+    if [ -n "$diff" ] && [ -f "$diff" ]; then cp "$diff" "$folder/"; fi
+    printf 'changed\t%s\n' "$path" >>"$list"
+  done <"$report"
+done
+
+# What the tests wrote into the checkout.
+written |
+  while IFS=$'\t' read -r status path; do
+    mkdir -p "$references/$(dirname "$path")"
+    cp "$root/$path" "$references/$path"
+    case "$path" in
+      *.png)
+        mkdir -p "$changes/$(basename "$(dirname "$path")")"
+        cp "$root/$path" "$changes/$(basename "$(dirname "$path")")/"
+        kind=new
+        [ "$status" = "??" ] || kind=changed
+        ;;
+      *) kind=manifest ;;
+    esac
+    printf '%s\t%s\n' "$kind" "$path" >>"$list"
+  done
+
+[ -s "$list" ] || exit 0
+count() { awk -F '\t' -v kind="$1" '$1 == kind' "$list" | wc -l | tr -d ' '; }
+changed=$(count changed)
+new=$(count new)
+manifests=$(count manifest)
+what="$changed changed, $new new, $manifests manifests"
+if [ -n "${GITHUB_ACTIONS:-}" ]; then
+  # Commas separate an annotation's properties, so none in its title.
+  echo "::error title=Snapshots changed::$what. If the changes are right, run scripts/fetch-snapshots in the branch, look at the images it prints, then commit and push them. The changed images and their diffs are in this run's snapshot-changes artifacts."
+fi
+summary=${GITHUB_STEP_SUMMARY:-/dev/stdout}
+{
+  cat <<EOF
+### Snapshots changed: $what
+
+The references are rendered on the Mac minis (851-3070). If these changes are right, bring this run's
+images into the branch, look at them, then commit and push:
+
+\`\`\`sh
+scripts/fetch-snapshots
+\`\`\`
+
+The images, with a \`.diff.png\` beside each one that changed, are in this run's
+\`snapshot-changes\` artifacts.
+
+| | Path |
+| --- | --- |
+EOF
+  sort -u "$list" | awk -F '\t' '{ printf "| %s | `%s` |\n", $1, $2 }'
+} >>"$summary"

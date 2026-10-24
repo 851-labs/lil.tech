@@ -1,0 +1,102 @@
+#!/bin/bash
+# Brings the references a CI run rendered into the branch (851-3070). References come from the
+# Mac minis, never from a laptop, whose GPU draws some images a level or two apart: when a PR
+# changes how a state looks, or adds one, its Swift check fails and uploads the images it rendered
+# (`scripts/collect-snapshots`). This copies them over the references, with any manifest the tests
+# wrote, and makes the before/after sheet of the states that changed, to look at before committing
+# them (AGENTS.md › UI states).
+# Usage: scripts/fetch-snapshots [<run>]
+#   <run>  A workflow run's ID (`gh run list`), or its URL. By default, the latest PR run for the
+#          commit checked out, which must be pushed; it waits for the run to finish.
+# Needs the GitHub CLI (`gh`), signed in.
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+cd "$root"
+
+run=${1:-}
+run=${run##*/runs/}
+run=${run%%[/?#]*}
+head=$(git rev-parse HEAD)
+if [ -z "$run" ]; then
+  # The newest of the commit's PR runs whose Swift check ran: not one for closing the PR.
+  run=""
+  for candidate in $(gh run list --commit "$head" --workflow pr.yml --limit 10 --json databaseId \
+    --jq '.[].databaseId'); do
+    if [ -n "$(gh run view "$candidate" --json jobs \
+      --jq '.jobs[] | select(.name == "check / check" and .conclusion != "skipped") | .name')" ]; then
+      run=$candidate
+      break
+    fi
+  done
+  if [ -z "$run" ]; then
+    echo "error: no PR run for $(git rev-parse --short HEAD). Push the branch, open its PR, and" >&2
+    echo "wait for its Swift check, or pass a run's ID." >&2
+    exit 1
+  fi
+else
+  sha=$(gh run view "$run" --json headSha --jq .headSha)
+  if [ "$sha" != "$head" ]; then
+    echo "warning: run $run is for ${sha:0:9}, not the commit checked out, $(git rev-parse --short HEAD)." >&2
+  fi
+fi
+
+# The run's snapshot jobs finish long before its others can (a preview deploy), but the artifacts
+# are only listed once a job has uploaded them, so wait for the whole run.
+while [ "$(gh run view "$run" --json status --jq .status)" != completed ]; do
+  echo "Waiting for run $run to finish…"
+  sleep 30
+done
+
+download=$(mktemp -d)
+trap 'rm -rf "$download"' EXIT
+# Each one's newest upload: a job run again uploads its own.
+artifacts=$(gh api "repos/{owner}/{repo}/actions/runs/$run/artifacts" --jq '
+  [.artifacts[] | select(.name == "snapshot-references" or .name == "iphone-snapshot-references")]
+  | group_by(.name)[] | max_by(.id) | "\(.id) \(.name) \(.expired)"')
+if [ -z "$artifacts" ]; then
+  conclusion=$(gh run view "$run" --json conclusion --jq .conclusion)
+  echo "Run $run ($conclusion) has no new references: its snapshots matched, or didn't run."
+  exit 0
+fi
+while read -r id artifact expired; do
+  if [ "$expired" = true ]; then
+    echo "error: run $run's $artifact has expired (14 days). Push again for a new run." >&2
+    exit 1
+  fi
+  gh api "repos/{owner}/{repo}/actions/artifacts/$id/zip" >"$download/$artifact.zip"
+  mkdir "$download/$artifact"
+  unzip -q "$download/$artifact.zip" -d "$download/$artifact"
+  rm "$download/$artifact.zip"
+done <<<"$artifacts"
+
+# Only references and manifests, at the paths the tests keep them.
+fetched="$root/LilPackage/.build/snapshots-ci"
+rm -rf "$fetched"
+mkdir -p "$fetched"
+: >"$fetched/report.tsv"
+count=0
+while IFS= read -r -d '' file; do
+  path=${file#"$download"/*/}
+  if ! [[ "$path" =~ ^LilPackage/Tests/[A-Za-z]+/[A-Za-z]+/([A-Za-z0-9_/-]+/)?__Snapshots__/[A-Za-z0-9_-]+/[A-Za-z0-9._-]+\.(png|json)$ ]] ||
+    [[ "$path" == *..* ]]; then
+    echo "warning: skipped $path, which isn't a reference or manifest." >&2
+    continue
+  fi
+  mkdir -p "$(dirname "$path")"
+  cp "$file" "$path"
+  echo "  $path"
+  count=$((count + 1))
+  # For the sheet, as `scripts/snapshot`'s report names a recorded image.
+  case "$path" in
+    *.png) printf 'recorded\t%s\t%s\t\n' "$root/$path" "$root/$path" >>"$fetched/report.tsv" ;;
+  esac
+done < <(find "$download" -type f -print0 | sort -z)
+echo "Copied $count references and manifests from run $run."
+
+if [ -s "$fetched/report.tsv" ]; then
+  echo
+  "$root/scripts/snapshot-sheet" "$fetched"
+fi
+echo
+echo "Look at every image (the sheet, or the files above), then commit them with the change."

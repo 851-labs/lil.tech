@@ -2,7 +2,10 @@ name: PR
 
 # Everything GitHub runs for a pull request (851-2826). main.yml runs what follows a merge.
 # - changes: which parts the PR touches (`.github/actions/changes`). The jobs below skip the rest.
-# - check: the Swift checks on our Mac minis (`swift-check.yml`), for PRs from this repo.
+# - check: the Swift checks on our Mac minis (`swift-check.yml`), for PRs from this repo, with
+#   the iPhone's state catalogs when the PR touches what they're built from. A snapshot that
+#   differs from its reference fails it: `scripts/fetch-snapshots` brings the run's images into
+#   the branch (851-3070).
 # - preview: deploys the TypeScript workspace to a preview stage (pr-<number>) on workers.dev and
 #   comments its URL. Its checks run before every commit instead (`lefthook.yml`).
 # - destroy-preview: when the PR closes, destroys its preview stage, if there is one.
@@ -42,6 +45,7 @@ jobs:
     outputs:
       swift: ${{ steps.changes.outputs.swift }}
       services: ${{ steps.changes.outputs.services }}
+      iphone: ${{ steps.changes.outputs.iphone }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -61,6 +65,9 @@ jobs:
       group: pr-swift-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     uses: ./.github/workflows/swift-check.yml
+    with:
+      # The iPhone's state catalogs too, when what they're built from changed (851-3070).
+      iphone: ${{ needs.changes.outputs.iphone == 'true' }}
 
   preview:
     needs: changes

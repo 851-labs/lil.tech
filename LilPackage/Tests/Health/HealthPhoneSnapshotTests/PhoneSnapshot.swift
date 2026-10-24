@@ -45,9 +45,9 @@
       diffing: .image(
         channelTolerance: phoneChannelTolerance,
         exact: .image(precision: 1, perceptualPrecision: 1, scale: 3)))
-    // On CI, only drawn (851-3071).
-    if snapshotsRenderOnly {
-      output?.render(image, as: strategy)
+    // References come from CI (851-3070): off it, a new state is only shown.
+    if isNewOffCI(file: file, testName: screen, name: "\(name)-\(suffix)") {
+      renderNew(image, as: strategy, to: output)
       return
     }
     let failure = withSnapshotTesting(diffTool: output?.diffTool) {
@@ -141,7 +141,9 @@
   /// How far a pixel's channels may be from its reference's and still match on the iPhone: one
   /// more than the Mac's (`snapshotChannelTolerance`). The glass Settings button's rim comes out up
   /// to 2 apart in about one image in ten, with nothing else changed: the window server's rounding.
-  /// Anything that moves or recolors what's drawn is further apart.
+  /// Anything that moves or recolors what's drawn is further apart. The same on a laptop
+  /// (851-3070): of 160 images, a laptop's simulator drew 113 as a mini's did, and the rest at most
+  /// 2 apart.
   let phoneChannelTolerance = 2
 
   /// An iPhone 17 Pro's and 18 Pro's screen, in points (at 3x).
