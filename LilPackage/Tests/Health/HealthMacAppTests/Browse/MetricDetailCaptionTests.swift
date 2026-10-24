@@ -7,6 +7,7 @@ import Testing
 
 /// Metric Detail's header captions (851-3099, 851-3107). Hovering can't be snapshotted, so its
 /// captions are checked here.
+@MainActor
 struct MetricDetailCaptionTests {
   private let steps = HealthCatalog.type(id: "HKQuantityTypeIdentifierStepCount")!
   private let weight = HealthCatalog.type(id: "HKQuantityTypeIdentifierBodyMass")!
