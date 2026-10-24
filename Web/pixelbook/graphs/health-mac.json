@@ -109,6 +109,11 @@
       "states": ["Loaded", "No data", "Loading", "Failed", "Week comparisons"]
     },
     {
+      "id": "card",
+      "screen": "HealthMacApp/CardDetailCatalog.swift",
+      "title": "Card"
+    },
+    {
       "id": "category",
       "screen": "HealthMacApp/CategoryCatalog.swift"
     },
@@ -515,8 +520,13 @@
     },
     {
       "from": "summary",
+      "to": "card",
+      "label": "Choose a card"
+    },
+    {
+      "from": "summary",
       "to": "metric",
-      "label": "Choose a metric"
+      "label": "Choose a highlight"
     },
     {
       "from": "category",
