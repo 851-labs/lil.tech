@@ -1,6 +1,7 @@
 import type { DateTime } from "effect";
 import type { SqlRow, SqlValue, StoreSql } from "../../store/StoreSql.ts";
 import { type HealthCatalogType, healthCatalogTypes } from "../HealthCatalog.ts";
+import { statisticsBucketMillis } from "../HealthEntities.ts";
 import { startOfLocalDay } from "./ToolTime.ts";
 
 // Reads of the user's store for the Health tools. They follow the Mac's `HealthDatabase` queries,
@@ -287,6 +288,48 @@ export const statisticBuckets = (
       to,
     )
     .map(([bucketStart, sum]) => ({ bucketStart: Number(bucketStart), sum: Number(sum) }));
+
+/** A cumulative type's total over one bucket (an hour, a day…), by when the bucket starts. */
+export interface BucketTotal {
+  readonly start: number;
+  readonly sum: number;
+}
+
+/**
+ * A cumulative type's totals per bucket in `[from, to)` (each placed by `startOf`, which rows reach
+ * in time order), from the statistics source's 30-minute buckets and, past the last of them (no
+ * statistics at all, or samples synced before their buckets), the samples' own values, oldest
+ * first, as the Mac's `HealthDatabase.cumulativeTotals`. Buckets without data are left out, and so
+ * are empty statistics. Each bucket adds its statistics, then its samples, in order, as the Mac
+ * does.
+ */
+export const cumulativeTotalsBy = (
+  sql: StoreSql,
+  type: string,
+  range: { readonly start: number; readonly end: number },
+  startOf: (millis: number) => number,
+  now: number,
+): Array<BucketTotal> => {
+  const source = statisticsSource(statisticsDevices(sql), now);
+  const buckets =
+    source === null ? [] : statisticBuckets(sql, source, type, range.start, range.end);
+  const sums = new Map<number, number>();
+  const add = (millis: number, value: number) => {
+    const start = startOf(millis);
+    sums.set(start, (sums.get(start) ?? 0) + value);
+  };
+  for (const { bucketStart, sum } of buckets) add(bucketStart, sum);
+  // Empty buckets don't count as covered: samples that arrived before their sums still show.
+  const lastBucket = buckets.at(-1);
+  const covered =
+    lastBucket === undefined ? range.start : lastBucket.bucketStart + statisticsBucketMillis;
+  for (const sample of sampleSums(sql, type, covered, range.end)) {
+    add(sample.start, sample.value ?? 0);
+  }
+  return [...sums.entries()]
+    .map(([start, sum]) => ({ start, sum }))
+    .sort((a, b) => a.start - b.start);
+};
 
 export interface SampleRow {
   readonly id: string;

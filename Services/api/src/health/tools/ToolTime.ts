@@ -81,7 +81,7 @@ export const startOfHour = (millis: number, zone: DateTime.TimeZone): number => 
 };
 
 /** When the month `millis` falls in starts in `zone`, moved by `months` months. */
-const startOfMonth = (millis: number, zone: DateTime.TimeZone, months = 0): number =>
+export const startOfMonth = (millis: number, zone: DateTime.TimeZone, months = 0): number =>
   DateTime.toEpochMillis(
     DateTime.startOf(
       DateTime.add(DateTime.startOf(zoned(millis, zone), "month"), { months }),

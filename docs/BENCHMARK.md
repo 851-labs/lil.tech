@@ -146,6 +146,32 @@ LIL_BENCHMARKS=1 swift test -c release --filter CardQueriesBenchmark
 - **Reading by column** from the statement, with one string per run of a source's rows, took fetching from 73 ms over SQLite's floor (a GRDB `Row` each, and a string each) to 42 ms. Computing the points from the readings takes the rest, 35–60 ms: the weights number each reading's source rather than hashing its bundle ID, and only `first` and `latest` keep readings in their buckets.
 - **A covering index** of `(type, startDate, endDate, value, sourceBundleID)` took SQLite's part from 97 ms to 57 ms, but would store every sample's type and bundle ID a second time, hundreds of MB on a real Mac's millions of samples, so there's none.
 
+## Cards on the server
+
+What a card costs the server's engine (851-3197, `docs/decisions/cards.md`, The server), on the Mac's benchmark data (above) in a `node:sqlite` store: a year of heart rate a minute (525,600 samples) and as many of active energy, a year of a Watch's nights and a 45-minute workout a day. `CardEngineBenchmark` (`Services/api/test/health/cards`) runs each card over Y, with a 7-day moving average, five times, and prints the median's CPU time (the process's):
+
+```sh
+cd Services/api
+LIL_BENCHMARKS=1 vp test --reporter=verbose --silent=false test/health/cards/CardEngineBenchmark.test.ts
+```
+
+**2026-10-23**, Apple M1 Pro, very busy with other agents' builds (load 430–650, so every figure is high). CPU ms:
+
+| Card | Total |
+| --- | ---: |
+| SQLite alone reading the year's rows as arrays (the floor) | 693 |
+| Heart rate, `avg`, by the day | 925 |
+| Heart rate, `avg`, `auto` (by the month) | 766 |
+| Heart rate, `max`, `deviceModels: ["Watch"]`, by the day | 748 |
+| Heart rate, `first`, `00:00` to `12:00`, by the day | 996 |
+| Heart rate, `asleep`, by the night | 285 |
+| Heart rate, `beforeSleep` 5 minutes, by the night | 121 |
+| Heart rate, `workout` of running, by the day | 59 |
+| Active energy from its samples, by the day | 577 |
+
+- **Reading the rows is most of it,** as for the Health tools (above): the engine adds 50–300 ms over the floor for half a million readings. Time-zone math is per bucket and night, not per reading.
+- **A real account** has about 105,000 heart rate samples a year (Agent tool calls, above), a fifth of these, so a year's card costs about what a year of `metric` does, well under the store's 30 s limit and inside the tools' 0.7 s.
+
 ## Snapshot tests: from an edit to an image
 
 How long an agent or a person waits between saving a one-line change to a view and seeing its snapshot compared with the reference (851-2962). Snapshot tests replace `RenderPreview` only if this loop is no slower than `RenderPreview`'s.

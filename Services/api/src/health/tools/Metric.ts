@@ -1,14 +1,7 @@
 import { Clock, type DateTime, Effect } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import type { HealthAggregation } from "../HealthCatalog.ts";
-import { statisticsBucketMillis } from "../HealthEntities.ts";
-import {
-  sampleReadings,
-  sampleSums,
-  statisticBuckets,
-  statisticsDevices,
-  statisticsSource,
-} from "./HealthQueries.ts";
+import { cumulativeTotalsBy, sampleReadings } from "./HealthQueries.ts";
 import { HealthToolError, type HealthToolkit } from "./HealthToolkit.ts";
 import {
   bucketIndex,
@@ -32,50 +25,27 @@ type Statistic = "sum" | "average" | "minimum" | "maximum";
 /** The longest a sample counts for in a time-weighted average. */
 const maxSampleWeightMillis = hourMillis;
 
-/** A cumulative type's total over one hour or day. */
-interface Total {
-  readonly start: number;
-  readonly sum: number;
-}
-
 /**
- * A cumulative type's totals per hour or day in the period (by when they start, in `zone`), from
- * the statistics source's 30-minute buckets and, past the last of them (no statistics at all, or
- * samples synced before their buckets), the samples' own values, oldest first, as the Mac's
- * `HealthDatabase.cumulativeTotals`. Hours or days without data are left out, and so are empty
- * buckets.
+ * A cumulative type's totals per hour or day in the period (by when they start, in `zone`), as the
+ * Mac's `HealthDatabase.cumulativeTotals` (`cumulativeTotals` in `HealthQueries.ts`). A D range's
+ * hours are a day of rows at most; days are worked out once a day, as rows come in order
+ * (851-2906).
  */
-const cumulativeTotals = (
+const periodTotals = (
   sql: StoreSql,
   type: string,
   period: ToolPeriod,
   by: "hour" | "day",
   now: number,
   zone: DateTime.TimeZone,
-): ReadonlyArray<Total> => {
-  // Days from their bounds, worked out once a day, as rows come in order (851-2906). A D range's
-  // hours are a day of rows at most.
-  const startOf = by === "hour" ? (millis: number) => startOfHour(millis, zone) : dayStarts(zone);
-  const source = statisticsSource(statisticsDevices(sql), now);
-  const buckets =
-    source === null ? [] : statisticBuckets(sql, source, type, period.start, period.end);
-  const sums = new Map<number, number>();
-  const add = (millis: number, value: number) => {
-    const start = startOf(millis);
-    sums.set(start, (sums.get(start) ?? 0) + value);
-  };
-  for (const { bucketStart, sum } of buckets) add(bucketStart, sum);
-  // Empty buckets don't count as covered: samples that arrived before their sums still show.
-  const lastBucket = buckets.at(-1);
-  const covered =
-    lastBucket === undefined ? period.start : lastBucket.bucketStart + statisticsBucketMillis;
-  for (const sample of sampleSums(sql, type, covered, period.end)) {
-    add(sample.start, sample.value ?? 0);
-  }
-  return [...sums.entries()]
-    .map(([start, sum]) => ({ start, sum }))
-    .sort((a, b) => a.start - b.start);
-};
+) =>
+  cumulativeTotalsBy(
+    sql,
+    type,
+    period,
+    by === "hour" ? (millis: number) => startOfHour(millis, zone) : dayStarts(zone),
+    now,
+  );
 
 // Not `Math.min(...values)`, which runs out of stack for a year of heart rate.
 const minimum = (values: ReadonlyArray<number>) =>
@@ -254,7 +224,7 @@ export const healthMetric = Effect.fn("healthMetric")(function* (
   let value: number | null;
   if (cumulative) {
     // Days' totals, or a D range's hours'.
-    const totals = cumulativeTotals(
+    const totals = periodTotals(
       sql,
       type.id,
       period,

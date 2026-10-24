@@ -225,7 +225,7 @@ An engine runs a canonical spec over one period: `run(spec, range, date, calenda
 ```json
 {
   "range": "W", "start": "2026-10-19", "end": "2026-10-25",
-  "timeZone": "Europe/London", "firstWeekday": "monday", "bucket": "night",
+  "timeZone": "Europe/London", "firstWeekday": "monday", "bucket": "night", "grain": "day",
   "series": [
     {
       "id": "a", "label": "Heart Rate", "type": "HKQuantityTypeIdentifierHeartRate",
@@ -236,7 +236,7 @@ An engine runs a canonical spec over one period: `run(spec, range, date, calenda
     }
   ],
   "formulas": [
-    { "id": "trend", "kind": "movingAverage", "unit": "count/min", "hidden": false,
+    { "id": "trend", "kind": "movingAverage", "label": null, "unit": "count/min", "hidden": false,
       "points": [{ "start": "2026-10-20T00:00:00+01:00", "value": 55.0 }] }
   ],
   "summary": { "kind": "average", "value": 55.1, "minimum": null, "maximum": null },
@@ -244,6 +244,7 @@ An engine runs a canonical spec over one period: `run(spec, range, date, calenda
 }
 ```
 
+- `grain` is what each point covers once `auto` is resolved: `hour`, `day` (a `night` bucket's too), `week` or `month` (851-3197).
 - `start` and `end` are the period's first and last days. Each point's `start` is its bucket's start in local time with its offset, to the second, as the tools write times. A night's is its day's midnight.
 - Buckets without a value are left out, as Metric Detail leaves them out. `readings` is `null` for `sum` points, and `minimum` and `maximum` equal `value` there.
 - Values are in the series' catalog unit. The apps convert for display.
@@ -318,6 +319,17 @@ A period without readings has `summary: null`, which the header shows as No Data
 - **For remote agents only:** `preview_card` and `get_card` run it. It never feeds an app.
 - **A port of the core, rule for rule,** as `StoreHealthTools` ported `HealthTools` (851-2868): Effect code in `src/health/cards/`, over the store's tables (`health_sample`, `health_statistic` with the statistics source chosen as the Mac does, `health_workout`, `health_provenance`), tombstones skipped.
 - **CPU:** a call stays under the tools' budget (about 0.7 s for a year on 1,000,000 records, `docs/BENCHMARK.md`). Time-zone math happens once per bucket and night, not per reading, and readings are read as arrays (851-2906). Sleep windows read only the stretches' ranges of the index.
+
+### Details 851-3197 settled
+
+- **The entry point** is `runCard(sql, spec, range, date, calendar, now)` in `src/health/cards/RunCard.ts`: a canonical spec (`CardSpec`'s type) over the period of `range` containing `date` (Unix milliseconds), returning `CardData` in the tools' JSON shape above. The cards' conformance cases (851-3198) call it directly; the tools (851-3215) call `cardData(sql, spec, { range?, date?, timeZone?, firstWeekday? })`, an Effect that takes them as the tools do (`date` a `YYYY-MM-DD` in the zone, default today; the spec's range by default; `now` from the `Clock`), and fails with a `HealthToolError` on an unknown time zone, like the Health tools. `cardHeadline(sql, spec, calendar, now)` is a Summary row's headline, for completeness: no tool returns one in v1.
+- **The core is a port of `HealthCards`' engine,** file for file: `CardEngine.ts` (`CardRun.forRange` and `forHeadline`, `windowFetches`, `windowed`, `fetches` and `compute`, the weights, aggregations, windows, formulas and summary), `CardNights.ts` and `CardCalendar.ts` (periods, buckets, `CardBucketer`, time-of-day stretches). Its unit tests are the Swift core's `CardEngineTests` and `CardWindowsTests`, case for case, with the same data and answers. The store's reads are `CardQueries.ts`.
+- **The calendar** is the call's time zone (Effect's `DateTime`) and first weekday. Time-zone math happens once per bucket (`CardBucketer`), never per reading. JavaScript has no list of a zone's transitions, so time-of-day stretches find them by comparing offsets a day apart, then bisecting to the millisecond: the same segments `nextDaylightSavingTimeTransition` gives the Mac, and a test checks the stretches against the clock rule every 7 minutes over both of London's changes, as the Mac's does.
+- **The `sleep` tool's nights** are grouped by `CardNights.ts` too, as the Mac's Sleep page moved onto the core in 851-3196, so the server has one copy of the night rules. Its answers are unchanged (the tools' conformance cases).
+- **Totals** share `cumulativeTotalsBy` (`HealthQueries.ts`) with the `metric` tool: the statistics source's buckets, then the samples past its last one, each bucket adding its statistics, then its samples, in order, as the Mac does.
+- **Readings** come by `(start_date, id)`, as the Health tools read them; the Mac reads by start alone, so two readings from one source starting in the same millisecond may weigh differently (they never do in the cases).
+- **Stretches less than an hour apart are read as one range** of the (type, start) key, so a night asleep is one query rather than one per stretch, and the run drops the readings between them (`readingsInStretches`): the Mac reads a range per stretch, with the same result.
+- **Speed** (`CardEngineBenchmark`, `docs/BENCHMARK.md`): on the Mac's benchmark data (a year of heart rate a minute, 525,600 samples, five times a Watch's year), a year by the day takes 0.75–1 s of Node's CPU on a heavily loaded M1 Pro, of which reading the rows is 0.7 s; windows take 60–290 ms. A real year of heart rate (about 105,000 samples) is a fifth of that, inside the tools' 0.7 s.
 
 ### The iPhone (HealthKit, 851-3199 to 851-3201)
 
