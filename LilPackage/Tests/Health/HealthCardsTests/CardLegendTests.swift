@@ -53,6 +53,20 @@ struct CardLegendTests {
       ])
   }
 
+  /// With more than one series, an unlabeled moving average says which it averages, so two never
+  /// read the same.
+  @Test
+  func movingAveragesOfSeveralSeriesSayWhich() throws {
+    let two = try spec(
+      #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "Heart Rate"}, {"type": "Resting Heart Rate"}], "formulas": [{"id": "t1", "kind": "movingAverage", "of": "a", "points": 7}, {"id": "t2", "kind": "movingAverage", "of": "b", "points": 7}], "chart": {"style": "line"}}"#
+    )
+    #expect(
+      two.legend.map(\.label) == [
+        "Heart Rate", "Resting Heart Rate", "7-point moving average of Heart Rate",
+        "7-point moving average of Resting Heart Rate",
+      ])
+  }
+
   @Test
   func seriesMarksFadeByPlace() {
     #expect(CardSeriesMark.allCases.map(\.opacity) == [1, 0.6, 0.4, 0.25])

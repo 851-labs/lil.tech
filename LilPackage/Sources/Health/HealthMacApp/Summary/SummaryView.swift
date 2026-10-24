@@ -20,10 +20,15 @@ struct SummaryView: View {
   /// seed).
   @Fetch private var holdsCards = false
   /// Today, so headlines and highlights move at midnight, even if nothing syncs.
-  @State private var day = Calendar.current.startOfDay(for: .now)
+  @State private var day: Date
+  @Dependency(\.date) private var date
+  @Dependency(\.calendar) private var calendar
 
   init(store: StoreOf<CardsFeature>) {
     self.store = store
+    @Dependency(\.date.now) var now
+    @Dependency(\.calendar) var calendar
+    _day = State(initialValue: calendar.startOfDay(for: now))
     _highlights = Fetch(wrappedValue: [], HighlightsRequest(), scheduler: MainQueueScheduler())
     _holdsCards = Fetch(wrappedValue: false, HoldsCardsRequest(), scheduler: MainQueueScheduler())
   }
@@ -37,17 +42,20 @@ struct SummaryView: View {
       CardPreview(card: card, day: day)
     }
     .onReceive(calendarDayChanges()) {
-      day = Calendar.current.startOfDay(for: .now)
+      day = calendar.startOfDay(for: date.now)
       Task { @MainActor in
         _ = try? await $highlights.load(
-          HighlightsRequest(day: .now), scheduler: MainQueueScheduler())
+          HighlightsRequest(day: date.now), scheduler: MainQueueScheduler())
       }
     }
   }
 
   private var cards: SummaryLoad<[Card]> {
     if let failure = store.loadFailure { return .failed(failure) }
-    if store.isLoading || store.cards.isEmpty && !holdsCards { return .loading }
+    // Not if it can't tell: an account without cards would load for ever.
+    if store.isLoading || store.cards.isEmpty && !holdsCards && $holdsCards.loadError == nil {
+      return .loading
+    }
     return .loaded(Array(store.cards))
   }
 }
@@ -173,7 +181,7 @@ struct SummaryContent<Row: View>: View {
       // The welcome seed's rows, as tall as they'll be with data (851-3092), so the highlights
       // don't move when the cards arrive: what a new account has, and an existing one most
       // likely.
-      ForEach(Self.seedPlaceholders) { card in
+      ForEach(Card.welcomeSeed) { card in
         link(to: card.spec?.metricDetailType) {
           CardRow(card: card, headline: .loading, now: now, calendar: calendar)
         }
@@ -206,15 +214,6 @@ struct SummaryContent<Row: View>: View {
     }
   }
 
-  /// The welcome seed's cards, shown loading.
-  static var seedPlaceholders: [Card] {
-    HealthCards.welcomeSeed.map {
-      Card(
-        id: $0.id, spec: $0.spec, position: $0.position, createdAt: 0, updatedAt: 0,
-        seed: $0.seed)
-    }
-  }
-
   @ViewBuilder private var highlightsSection: some View {
     switch highlights {
     case .loading:
@@ -240,5 +239,14 @@ struct SummaryContent<Row: View>: View {
         }
       }
     }
+  }
+}
+
+extension Card {
+  /// The welcome seed's cards, as an account has them once synced: Summary's rows while its cards
+  /// load.
+  static let welcomeSeed: [Card] = HealthCards.welcomeSeed.map {
+    Card(
+      id: $0.id, spec: $0.spec, position: $0.position, createdAt: 0, updatedAt: 0, seed: $0.seed)
   }
 }

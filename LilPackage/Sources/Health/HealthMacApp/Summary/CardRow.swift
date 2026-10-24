@@ -119,6 +119,7 @@ struct CardRow: View {
     }
     HStack {
       Label(name ?? "Card", systemImage: symbol ?? "square.dashed")
+        .lineLimit(1)
         .foregroundStyle(color.map { Color(paletteName: $0.rawValue) } ?? .secondary)
         .font(.headline)
       Spacer()
@@ -134,7 +135,8 @@ struct CardRow: View {
   }
 
   /// The headline's buckets: the first visible series as a metric's days, the others and the
-  /// formulas over them. A card showing only formulas draws its first as the lead, as a line.
+  /// formulas over them. A card showing only formulas draws them as it always does, lines in its
+  /// color, as its legend marks them.
   private func sparkline(_ data: CardData, spec: CardSpec, color: Color) -> Sparkline {
     func points(_ series: CardData.Series) -> [SparklinePoint] {
       series.points.map {
@@ -146,22 +148,14 @@ struct CardRow: View {
       formula.points.map { SparklinePoint(start: $0.start, value: $0.value) }
     }
     let series = data.series.filter { !$0.hidden }
-    var formulas = data.formulas.filter { !$0.hidden }.map(points)
-    let lead: [SparklinePoint]
-    var style = spec.chart.style
-    if let first = series.first {
-      lead = points(first)
-    } else {
-      lead = formulas.isEmpty ? [] : formulas.removeFirst()
-      style = .line
-    }
     return Sparkline(
-      points: lead,
+      points: series.first.map(points) ?? [],
       otherSeries: series.dropFirst().enumerated().map { index, series in
         SparklineSeries(
           id: series.id, mark: CardSeriesMark(index: index + 1), points: points(series))
       },
-      formulas: formulas, style: style, color: color,
+      formulas: data.formulas.filter { !$0.hidden }.map(points), style: spec.chart.style,
+      color: color,
       domain: data.interval.start...data.interval.end, unit: data.grain.component)
   }
 }
@@ -174,7 +168,9 @@ struct CardLegend: View {
 
   var body: some View {
     HStack(spacing: 12) {
-      ForEach(lines, id: \.self) { line in
+      // By place: two unlabeled formulas can read the same.
+      ForEach(lines.indices, id: \.self) { index in
+        let line = lines[index]
         HStack(spacing: 4) {
           mark(line.mark)
             .frame(width: 12, height: 8)

@@ -45,7 +45,8 @@ extension CardSpec {
   /// The legend: a line for each visible series and formula, in the spec's order (series, then
   /// formulas), or none for a card with one visible line, as Summary's rows had none. A series is
   /// its `label`, or else its type's name; a formula its `label`, or else what it computes
-  /// ("7-point moving average", "Heart Rate − Resting Heart Rate").
+  /// ("7-point moving average", "7-point moving average of Heart Rate" with more than one series,
+  /// "Heart Rate − Resting Heart Rate").
   public var legend: [CardLegendLine] {
     let visibleSeries = series.filter { !$0.hidden }
     let visibleFormulas = formulas.filter { !$0.hidden }
@@ -69,8 +70,10 @@ extension CardSpec {
       series.first { $0.id == id }.map { self.name(of: $0) } ?? id
     }
     switch formula.operation {
-    case .movingAverage(_, let points):
-      return "\(points)-point moving average"
+    case .movingAverage(let of, let points):
+      // Of which series, when there's more than one to average.
+      return series.count > 1
+        ? "\(points)-point moving average of \(name(of))" : "\(points)-point moving average"
     case .difference(let minuend, let subtrahend):
       return "\(name(minuend)) − \(name(subtrahend))"
     }

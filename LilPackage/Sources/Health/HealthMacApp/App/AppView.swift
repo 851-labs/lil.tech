@@ -115,7 +115,7 @@ struct DetailView: View {
     switch store.selection {
     case .summary, nil:
       stack(for: store.selection) {
-        SummaryView(store: store.scope(state: \.cards, action: \.cards))
+        SummaryView(store: store.scope(\.cards, action: \.cards))
       }
     case .category(let category):
       stack(for: .category(category)) {

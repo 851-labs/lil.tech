@@ -305,22 +305,31 @@ struct MetricFormatTests {
     }
     let day = 86_400.0
     let today = utc.startOfDay(for: now)
-    // Times are in the Mac's own format, 12- or 24-hour.
+    // Times and dates are in the Mac's own formats (12- or 24-hour, its months' names).
     let time = Date.FormatStyle(calendar: utc, timeZone: utc.timeZone)
+    let monthDay = time.month(.abbreviated).day()
     #expect(
       date(now.addingTimeInterval(-3600), kind: .reading)
         == now.addingTimeInterval(-3600).formatted(time.hour().minute()))
     #expect(date(today) == "Today")
     #expect(date(today - day) == "Yesterday")
     #expect(date(today, bucket: .night) == "Last Night")
-    #expect(date(today - day, bucket: .night) == "Night of Oct 14")
+    #expect(date(today - day, bucket: .night) == "Night of \((today - day).formatted(monthDay))")
     #expect(date(today - 2 * day, grain: .week, bucket: .week) == "This Week")
-    #expect(date(today - 9 * day, grain: .week, bucket: .week) == "Week of Oct 6")
+    #expect(
+      date(today - 9 * day, grain: .week, bucket: .week)
+        == "Week of \((today - 9 * day).formatted(monthDay))")
     #expect(date(today - 14 * day, grain: .month, bucket: .month) == "This Month")
-    #expect(date(today - 30 * day, grain: .month, bucket: .month) == "September")
-    #expect(date(today - 400 * day, grain: .month, bucket: .month) == "September 2024")
+    #expect(
+      date(today - 30 * day, grain: .month, bucket: .month)
+        == (today - 30 * day).formatted(time.month(.wide)))
+    #expect(
+      date(today - 400 * day, grain: .month, bucket: .month)
+        == (today - 400 * day).formatted(time.month(.wide).year()))
     let nine = (today + 9 * 3600).formatted(time.hour())
     #expect(date(today + 9 * 3600, grain: .hour, bucket: .hour) == nine)
-    #expect(date(today - day + 9 * 3600, grain: .hour, bucket: .hour) == "Oct 14, \(nine)")
+    #expect(
+      date(today - day + 9 * 3600, grain: .hour, bucket: .hour)
+        == "\((today - day).formatted(monthDay)), \(nine)")
   }
 }

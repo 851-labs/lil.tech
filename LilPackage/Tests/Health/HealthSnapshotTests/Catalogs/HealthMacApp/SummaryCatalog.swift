@@ -104,10 +104,7 @@
   }
 
   /// The welcome seed, as an account has it once synced.
-  let seedCards: [Card] = HealthCards.welcomeSeed.map {
-    Card(
-      id: $0.id, spec: $0.spec, position: $0.position, createdAt: 0, updatedAt: 0, seed: $0.seed)
-  }
+  let seedCards = Card.welcomeSeed
 
   /// A card's headline from the catalog database, or another, by the app's request.
   private func headline(

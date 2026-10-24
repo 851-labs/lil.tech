@@ -187,14 +187,12 @@ struct Sparkline: View {
 
   var body: some View {
     Chart {
+      // Under the lead's capsules, dots and line, so they never hide its latest; over its bars.
+      if style != .bars { otherSeriesMarks }
       ForEach(points, id: \.start) { point in
         leadMarks(point, isLatest: point.start == points.last?.start)
       }
-      ForEach(otherSeries) { series in
-        ForEach(series.points, id: \.start) { point in
-          otherMarks(point, of: series)
-        }
-      }
+      if style == .bars { otherSeriesMarks }
       ForEach(formulas.indices, id: \.self) { index in
         ForEach(formulas[index], id: \.start) { point in
           LineMark(
@@ -253,15 +251,21 @@ struct Sparkline: View {
     }
   }
 
-  /// Another series' point: a dot of its shape, or its bar or capsule, in gray at its opacity.
+  private var otherSeriesMarks: some ChartContent {
+    ForEach(otherSeries) { series in
+      ForEach(series.points, id: \.start) { point in
+        otherMarks(point, of: series)
+      }
+    }
+  }
+
+  /// Another series' point, in gray at its opacity: a thinner capsule for ranges, else a dot of
+  /// its shape. Bars get dots too, at each total, since bars at the same place would stack.
   @ChartContentBuilder
   private func otherMarks(_ point: SparklinePoint, of series: SparklineSeries) -> some ChartContent
   {
     let gray = Color.gray.opacity(0.55 * series.mark.opacity)
     switch style {
-    case .bars:
-      BarMark(x: .value("Day", point.start, unit: unit), y: .value("Value", point.value))
-        .foregroundStyle(gray)
     case .ranges:
       RuleMark(
         x: .value("Day", point.start, unit: unit),
@@ -270,7 +274,7 @@ struct Sparkline: View {
       )
       .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
       .foregroundStyle(gray)
-    case .dots, .line:
+    case .bars, .dots, .line:
       PointMark(x: .value("Day", point.start, unit: unit), y: .value("Value", point.value))
         .symbol { CardSeriesSymbol(mark: series.mark).fill(gray).frame(width: 5, height: 5) }
     }
