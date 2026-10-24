@@ -1,3 +1,4 @@
+import Dependencies
 public import Foundation
 import GRDB
 public import LilAPI
@@ -32,11 +33,26 @@ public enum HealthDatabase {
       allowsOverride: allowsOverride)
   }
 
-  /// Opens (or creates) the database at `url`, or SQLiteData's default location, and migrates
-  /// it.
+  /// Opens and migrates the database at `url`. Without a URL, tests and snapshot catalogs get
+  /// an isolated in-memory database, and the live app uses SQLiteData's default location.
   public static func make(at url: URL? = nil) throws -> any DatabaseWriter {
-    // A temporary database in tests and snapshot catalogs.
-    let database = try SQLiteData.defaultDatabase(path: url?.path(percentEncoded: false))
+    var configuration = Configuration()
+    configuration.prepareDatabase { db in
+      db.add(collation: .canonical)
+    }
+    let database: any DatabaseWriter
+    if let url {
+      database = try DatabasePool(
+        path: url.path(percentEncoded: false), configuration: configuration)
+    } else {
+      @Dependency(\.context) var context
+      switch context {
+      case .live:
+        database = try SQLiteData.defaultDatabase()
+      case .preview, .test:
+        database = try DatabaseQueue(configuration: configuration)
+      }
+    }
     try migrator.migrate(database)
     return database
   }
