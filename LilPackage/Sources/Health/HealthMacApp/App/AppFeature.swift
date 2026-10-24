@@ -36,7 +36,7 @@ public struct AppFeature {
     public var agentAccess = AgentAccessFeature.State()
     /// Remote agents connected to the account, in the Agents pane. Kept here, like `account`.
     public var connectedAgents = ConnectedAgentsFeature.State()
-    /// The account's cards (851-3204), which Summary shows and edits.
+    /// The account's cards (851-3204), followed while signed in, which Summary shows and edits.
     public var cards = CardsFeature.State()
     public init(
       isSignedIn: Bool? = nil, selection: SidebarItem? = .summary, metricPath: [String] = [],
@@ -220,7 +220,8 @@ public struct AppFeature {
           // What the Settings window started for the account stops with it.
           AccountFeature.cancel(),
           ConnectedAgentsFeature.cancel(),
-          // So no card write lands after the local data is deleted.
+          // So no card write lands after the local data is deleted. Signing in follows the next
+          // account's.
           CardsFeature.cancel(),
           .run {
             [agentAccess, sync, blobCache, defaults = UncheckedSendable(defaultAppStorage)] send in
@@ -325,10 +326,12 @@ public struct AppFeature {
     }
   }
 
-  /// Pulls, follows live notices of new changes, and reports the status, until signed out.
+  /// Pulls, follows live notices of new changes, and reports the status, until signed out. Follows
+  /// the account's cards too, as sync brings them.
   private func startSync() -> Effect<Action> {
     .merge(
       pull(),
+      .send(.cards(.task)),
       .run { [sync, authSessions] _ in
         await sync.listen(authSessions.apiAuthentication)
       }

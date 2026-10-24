@@ -109,12 +109,17 @@ struct CardsFeatureTests {
     let new = Card(
       id: id, spec: spec("Resting"), position: "a6", createdAt: nowMilliseconds,
       updatedAt: nowMilliseconds)
+    let write = CardsFeature.State.Write(mutations: [try new.upsert()], upserted: [new])
 
     await store.send(.createCard(spec("Resting"))) {
       $0.cards.append(new)
+      $0.unsaved = [write]
+    }
+    await store.receive(\.pushFinished) {
+      $0.unsaved = []
     }
     #expect(id.hasPrefix("card_") && CardID.isValid(id))
-    #expect(pushed.value == [[try new.upsert()]])
+    #expect(pushed.value == [write.mutations])
   }
 
   @Test
@@ -149,6 +154,10 @@ struct CardsFeatureTests {
     await store.send(.deleteCard(id: "card_seed_weight")) {
       $0.cards.remove(id: "card_seed_weight")
       $0.writeError = nil
+      $0.unsaved = [.init(mutations: [seedCards[5].delete], deleted: ["card_seed_weight"])]
+    }
+    await store.receive(\.pushFinished) {
+      $0.unsaved = []
     }
     #expect(pushed.value == [[seedCards[5].delete]])
   }
@@ -160,6 +169,10 @@ struct CardsFeatureTests {
 
     await store.send(.updateCard(id: "card_seed_heart_rate", spec: spec("Heart, asleep"))) {
       $0.cards[id: "card_seed_heart_rate"] = edited
+      $0.unsaved = [.init(mutations: [try edited.upsert()], upserted: [edited])]
+    }
+    await store.receive(\.pushFinished) {
+      $0.unsaved = []
     }
     #expect(edited.seed == "heart_rate")
     #expect(edited.position == "a1")
@@ -181,6 +194,10 @@ struct CardsFeatureTests {
     steps.updatedAt = nowMilliseconds
     await store.receive(\.moveCards) {
       $0.cards = IdentifiedArray(uniqueElements: [seedCards[1], steps] + seedCards[2...])
+      $0.unsaved = [.init(mutations: [try steps.upsert()], upserted: [steps])]
+    }
+    await store.receive(\.pushFinished) {
+      $0.unsaved = []
     }
     #expect(pushed.value == [[try steps.upsert()]])
 
@@ -189,14 +206,91 @@ struct CardsFeatureTests {
     await store.send(.moveCardDown(id: "card_seed_weight"))
 
     // Dragged to the top, before Heart Rate's a1.
+    var weight = seedCards[5]
+    weight.position = "a0"
+    weight.updatedAt = nowMilliseconds
     await store.send(.moveCards(fromOffsets: [5], toOffset: 0)) {
-      var weight = seedCards[5]
-      weight.position = "a0"
-      weight.updatedAt = nowMilliseconds
       $0.cards.remove(id: "card_seed_weight")
       $0.cards.insert(weight, at: 0)
+      $0.unsaved = [.init(mutations: [try weight.upsert()], upserted: [weight])]
+    }
+    await store.receive(\.pushFinished) {
+      $0.unsaved = []
     }
     #expect(pushed.value.count == 2)
+  }
+
+  /// The server keeps the write that arrives last, so writes go to sync one at a time, in the
+  /// order they were made, each shown over what's read until it's stored.
+  @Test(.timeLimit(.minutes(1)))
+  func writesArePushedInOrderAndShownUntilStored() async throws {
+    let clock = ManualClock()
+    let store = TestStore(initialState: CardsFeature.State(cards: seedCards)) {
+      CardsFeature()
+    } withDependencies: { [database, pushed] in
+      $0.defaultDatabase = database
+      // Each push waits, as behind a pull in progress.
+      $0.sync.push = { mutations in
+        pushed.withValue { $0.append(mutations) }
+        try await clock.sleep(for: .seconds(1))
+      }
+    }
+
+    // Weight up twice, quickly.
+    var first = seedCards[5]
+    first.position = "a3V"
+    first.updatedAt = nowMilliseconds
+    await store.send(.moveCardUp(id: "card_seed_weight"))
+    await store.receive(\.moveCards) {
+      $0.cards = IdentifiedArray(uniqueElements: Array(seedCards[0..<4]) + [first, seedCards[4]])
+      $0.unsaved = [.init(mutations: [try first.upsert()], upserted: [first])]
+    }
+    var second = first
+    second.position = "a2V"
+    await store.send(.moveCardUp(id: "card_seed_weight"))
+    await store.receive(\.moveCards) {
+      $0.cards = IdentifiedArray(
+        uniqueElements: Array(seedCards[0..<3]) + [second, seedCards[3], seedCards[4]])
+      $0.unsaved.append(.init(mutations: [try second.upsert()], upserted: [second]))
+    }
+    // Only the first is on its way.
+    try await clock.waitUntilAsleep(endingIn: .seconds(1))
+    #expect(pushed.value == [[try first.upsert()]])
+
+    // Cards read meanwhile, from before either is stored, don't undo them.
+    await store.send(.cardsLoaded(seedCards))
+
+    clock.advance(by: .seconds(1))
+    await store.receive(\.pushFinished) {
+      $0.unsaved.removeFirst()
+    }
+    try await clock.waitUntilAsleep(endingIn: .seconds(1))
+    #expect(pushed.value == [[try first.upsert()], [try second.upsert()]])
+    clock.advance(by: .seconds(1))
+    await store.receive(\.pushFinished) {
+      $0.unsaved = []
+    }
+  }
+
+  /// Cards that couldn't be read can't be written: there'd be no end to add one at, nor a limit.
+  @Test
+  func writesWaitForTheCardsToBeRead() async throws {
+    var state = CardsFeature.State()
+    state.isLoading = false
+    state.loadFailure = "The cards couldn't be read."
+    let store = TestStore(initialState: state) {
+      CardsFeature()
+    }
+    #expect(!store.state.canCreateCard)
+    await store.send(.createCard(spec("New")))
+    await store.send(.updateCard(id: "card_seed_steps", spec: spec("Steps")))
+    await store.send(.moveCards(fromOffsets: [0], toOffset: 2))
+
+    let loading = TestStore(initialState: CardsFeature.State()) {
+      CardsFeature()
+    }
+    await loading.send(.createCard(spec("New")))
+    await loading.send(.updateCard(id: "card_seed_steps", spec: spec("Steps")))
   }
 
   /// With the real sync engine and the API's client: a write is in the local table at once, and
@@ -245,13 +339,16 @@ struct CardsFeatureTests {
     }
 
     await store.send(.moveCardDown(id: "card_seed_steps"))
+    var steps = seedCards[0]
+    steps.position = "a1V"
+    steps.updatedAt = nowMilliseconds
     await store.receive(\.moveCards) {
-      var steps = seedCards[0]
-      steps.position = "a1V"
-      steps.updatedAt = nowMilliseconds
       $0.cards = IdentifiedArray(uniqueElements: [seedCards[1], steps] + seedCards[2...])
+      $0.unsaved = [.init(mutations: [try steps.upsert()], upserted: [steps])]
     }
-    await store.finish()
+    await store.receive(\.pushFinished) {
+      $0.unsaved = []
+    }
     let stored = try await database.read { try HealthDatabase.cards($0) }
     #expect(stored == Array(store.state.cards))
 

@@ -115,6 +115,12 @@ struct CardWritesTests {
       CardJSON.self,
       from: JSONEncoder().encode(OpenAPIValueContainer(unvalidatedValue: row.value["spec"] ?? nil)))
     #expect(stored == (try CardJSON(parsing: Data(later.utf8))))
+
+    // A row without a spec, which the store never keeps, isn't written back.
+    let empty = Card(
+      HealthCard(id: "card_seed_weight", spec: "null", position: "a5", createdAt: 1, updatedAt: 1))
+    #expect(empty.spec == nil)
+    #expect(throws: CardWriteError.unreadable) { try empty.upsert() }
   }
 
   @Test

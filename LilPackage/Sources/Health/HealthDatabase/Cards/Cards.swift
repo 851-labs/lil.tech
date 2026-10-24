@@ -45,10 +45,9 @@ public struct Card: Equatable, Identifiable, Sendable {
   /// A stored card. A spec this version can't read (a later version's, or one it can't parse)
   /// leaves `spec` `nil`.
   public init(_ record: HealthCard) {
-    let text = Data(record.spec.utf8)
     id = record.id
-    spec = try? JSONDecoder().decode(CardSpec.self, from: text)
-    storedSpec = (try? CardJSON(parsing: text)) ?? .null
+    storedSpec = (try? CardJSON(parsing: Data(record.spec.utf8))) ?? .null
+    spec = try? CardSpec(stored: storedSpec)
     position = record.position
     createdAt = record.createdAt
     updatedAt = record.updatedAt
@@ -56,8 +55,11 @@ public struct Card: Equatable, Identifiable, Sendable {
   }
 
   /// The card's whole row, as ``HealthDatabase/syncEntities`` stores it and the server takes it:
-  /// every field, `seed` included as `null`, since `health_card` takes whole rows only.
+  /// every field, `seed` included as `null`, since `health_card` takes whole rows only. Throws
+  /// ``CardWriteError/unreadable`` for a card without a spec to write back, which the store would
+  /// refuse.
   public func upsert() throws -> SyncMutation {
+    guard storedSpec != .null else { throw CardWriteError.unreadable }
     let spec = try JSONDecoder().decode(
       OpenAPIValueContainer.self, from: Data(storedSpec.text().utf8))
     let row = try OpenAPIObjectContainer(unvalidatedValue: [

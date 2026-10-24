@@ -2,7 +2,9 @@ import ConcurrencyExtras
 import Foundation
 import HTTPTypes
 import HealthCards
+import HealthDatabase
 import LilAPI
+import LilSync
 import OpenAPIRuntime
 import Testing
 
@@ -69,14 +71,15 @@ final class CardSyncServer: Sendable {
     }
   }
 
+  /// A card's whole row, as apps write it.
   static func row(
     spec: CardSpec, position: String, createdAt: Int, updatedAt: Int, seed: String?
-  ) throws -> OpenAPIObjectContainer {
-    let spec = try JSONDecoder().decode(OpenAPIValueContainer.self, from: Data(spec.jsonText.utf8))
-    return try OpenAPIObjectContainer(unvalidatedValue: [
-      "spec": spec.value, "position": position, "createdAt": createdAt, "updatedAt": updatedAt,
-      "seed": seed,
-    ])
+  ) throws -> OpenAPIObjectContainer? {
+    try Card(
+      id: "", spec: spec, position: position, createdAt: createdAt, updatedAt: updatedAt,
+      seed: seed
+    )
+    .upsert().row
   }
 
   var client: Client {
