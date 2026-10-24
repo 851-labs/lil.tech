@@ -7,12 +7,17 @@ import HealthCatalog
 /// compute identically.
 ///
 /// ```swift
-/// let run = CardRun(spec: spec, range: .month, date: date, now: now, calendar: calendar)
+/// var run = CardRun(spec: spec, range: .month, date: date, now: now, calendar: calendar)
+/// if !run.windowFetches.isEmpty {
+///   run = run.windowed(try run.windowFetches.map { try fetchWindow($0) })
+/// }
 /// let data = run.compute(try run.fetches.map { try fetch($0) })
 /// ```
 ///
-/// Sleep and workout windows, and nights, come with 851-3196: until then a series with one has no
-/// points, and nothing is fetched for it.
+/// Sleep and workout windows take two steps (851-3196): their nights' sleep records and their
+/// workouts first (`windowFetches`), which `windowed(_:)` turns into stretches, then only the
+/// readings in those stretches (`CardFetch.Kind.stretchReadings`). Until it's windowed, a series
+/// with one fetches nothing and has no points.
 public struct CardRun: Sendable {
   public let spec: CardSpec
   /// The range it's for, or `nil` for a headline's buckets.
@@ -24,6 +29,18 @@ public struct CardRun: Sendable {
   public let calendar: Calendar
   /// What to fetch, in the spec's series order. `compute(_:)` takes a result for each.
   public let fetches: [CardFetch]
+  /// What sleep and workout windows need first: their nights' sleep records and workouts, at most
+  /// one of each. Empty when no series has one, or once `windowed(_:)`.
+  public let windowFetches: [CardWindowFetch]
+  /// Each windowed series' stretches, by its index, once `windowed(_:)`.
+  let windows: [Int: Stretches]
+
+  /// A sleep or workout window's stretches for one series, in order and apart.
+  struct Stretches: Sendable {
+    var stretches: [CardStretch]
+    /// For a sleep window, the night (its day) each stretch belongs to, where its readings go.
+    var nights: [Date]?
+  }
 
   /// The period of `range` containing `date`, as a card's page shows it. `now` places 6M's
   /// periods: the six months ending with its month, then the six before them.
@@ -31,7 +48,7 @@ public struct CardRun: Sendable {
     self.init(
       spec: spec, range: range,
       interval: range.interval(containing: date, now: now, calendar: calendar),
-      grain: spec.bucket.grain(at: range), calendar: calendar)
+      grain: spec.bucket.grain(at: range), calendar: calendar, windows: nil)
   }
 
   /// The `buckets` buckets ending with the one containing `date`, as a Summary row's sparkline
@@ -45,32 +62,137 @@ public struct CardRun: Sendable {
     let end = calendar.dateInterval(of: grain.component, for: date)?.end ?? date
     self.init(
       spec: spec, range: nil, interval: DateInterval(start: start, end: end), grain: grain,
-      calendar: calendar)
+      calendar: calendar, windows: nil)
   }
 
+  /// `windows`: each windowed series' stretches, or `nil` before `windowed(_:)`.
   private init(
     spec: CardSpec, range: CardRange?, interval: DateInterval, grain: CardGrain,
-    calendar: Calendar
+    calendar: Calendar, windows: [Int: Stretches]?
   ) {
     self.spec = spec
     self.range = range
     self.interval = interval
     self.grain = grain
     self.calendar = calendar
+    self.windows = windows ?? [:]
     var fetches: [CardFetch] = []
     for (index, series) in spec.series.enumerated() {
       fetches += Self.fetches(
         for: series, at: index, spec: spec, range: range, interval: interval, grain: grain,
-        calendar: calendar)
+        calendar: calendar, stretches: windows?[index])
     }
     self.fetches = fetches
+    windowFetches =
+      windows == nil
+      ? Self.windowFetches(spec: spec, interval: interval, grain: grain, calendar: calendar) : []
+  }
+
+  // MARK: - Windows
+
+  /// Where a windowed series' readings can come from: its period, and the whole buckets before
+  /// it its moving average needs. For a sleep window, the days whose nights count.
+  private static func windowSpan(
+    of series: CardSpec.Series, spec: CardSpec, interval: DateInterval, grain: CardGrain,
+    calendar: Calendar
+  ) -> Range<Date> {
+    let history = history(of: series, spec: spec, interval: interval, grain: grain, calendar)
+    return (history?.lowerBound ?? interval.start)..<interval.end
+  }
+
+  /// The days whose nights the sleep windows need, and the span the workout windows do: each
+  /// the union of its series' spans.
+  private static func windowSpans(
+    spec: CardSpec, interval: DateInterval, grain: CardGrain, calendar: Calendar
+  ) -> (nights: Range<Date>?, workouts: Range<Date>?) {
+    var nights: Range<Date>?
+    var workouts: Range<Date>?
+    for series in spec.series where series.aggregation != .sum {
+      func widen(_ span: inout Range<Date>?) {
+        let own = windowSpan(
+          of: series, spec: spec, interval: interval, grain: grain, calendar: calendar)
+        span =
+          span.map { min($0.lowerBound, own.lowerBound)..<max($0.upperBound, own.upperBound) }
+          ?? own
+      }
+      switch series.window {
+      case .asleep, .beforeSleep, .afterWaking: widen(&nights)
+      case .workout: widen(&workouts)
+      case nil, .timeOfDay: break
+      }
+    }
+    return (nights, workouts)
+  }
+
+  private static func windowFetches(
+    spec: CardSpec, interval: DateInterval, grain: CardGrain, calendar: Calendar
+  ) -> [CardWindowFetch] {
+    let spans = windowSpans(spec: spec, interval: interval, grain: grain, calendar: calendar)
+    var fetches: [CardWindowFetch] = []
+    if let nights = spans.nights { fetches.append(.sleep(CardNights.recordRange(days: nights))) }
+    if let workouts = spans.workouts {
+      fetches.append(
+        .workouts(workouts.lowerBound.unixMilliseconds..<workouts.upperBound.unixMilliseconds))
+    }
+    return fetches
+  }
+
+  /// The run with its sleep and workout windows' stretches, from a result for each of
+  /// `windowFetches`, in their order: its `fetches` then read each windowed series' readings in
+  /// its stretches. A run without window fetches, or windowed already, is returned as it is.
+  public func windowed(_ results: [CardWindowFetchResult]) -> CardRun {
+    guard !windowFetches.isEmpty else { return self }
+    precondition(results.count == windowFetches.count, "A result for each window fetch.")
+    var records: [CardSleepRecord] = []
+    var workouts: [CardWorkout] = []
+    for (fetch, result) in zip(windowFetches, results) {
+      switch (fetch, result) {
+      case (.sleep, .sleep(let fetched)): records = fetched
+      case (.workouts, .workouts(let fetched)): workouts = fetched
+      default: preconditionFailure("A result of each window fetch's kind.")
+      }
+    }
+    let days = Self.windowSpans(spec: spec, interval: interval, grain: grain, calendar: calendar)
+      .nights
+    let nights = days.map { CardNights.nights(records, days: $0, calendar: calendar) } ?? []
+    // A bucket that starts before the period counts only the period's nights (6M's first week),
+    // and a moving average's buckets are whole ones before it.
+    let firstBucket = calendar.bucketStart(grain, 0, before: interval.start)
+    var windows: [Int: Stretches] = [:]
+    for (index, series) in spec.series.enumerated() where series.aggregation != .sum {
+      guard let window = series.window else { continue }
+      let span = Self.windowSpan(
+        of: series, spec: spec, interval: interval, grain: grain, calendar: calendar)
+      switch window {
+      case .asleep, .beforeSleep, .afterWaking:
+        let (stretches, days) = CardWindows.sleepStretches(
+          window,
+          nights: nights.filter {
+            span.contains($0.day) && ($0.day >= interval.start || $0.day < firstBucket)
+          }, calendar: calendar)
+        windows[index] = Stretches(stretches: stretches, nights: days)
+      case .workout(let activities):
+        // Up to the longest weight past the period, which is all its last readings' weights need.
+        let end = interval.end.unixMilliseconds + Int(CardWeights.maxSampleWeight * 1000)
+        windows[index] = Stretches(
+          stretches: CardWindows.workoutStretches(
+            activities: activities, workouts: workouts,
+            in: span.lowerBound.unixMilliseconds..<end),
+          nights: nil)
+      case .timeOfDay:
+        break
+      }
+    }
+    return CardRun(
+      spec: spec, range: range, interval: interval, grain: grain, calendar: calendar,
+      windows: windows)
   }
 
   // MARK: - What to fetch
 
   private static func fetches(
     for series: CardSpec.Series, at index: Int, spec: CardSpec, range: CardRange?,
-    interval: DateInterval, grain: CardGrain, calendar: Calendar
+    interval: DateInterval, grain: CardGrain, calendar: Calendar, stretches: Stretches?
   ) -> [CardFetch] {
     let history = history(of: series, spec: spec, interval: interval, grain: grain, calendar)
     if series.aggregation == .sum {
@@ -88,10 +210,18 @@ public struct CardRun: Sendable {
       }
       return fetches
     }
+    let needsSampleIDs = series.aggregation == .first || series.aggregation == .latest
     switch series.window {
     case nil, .timeOfDay: break
-    // 851-3196.
-    case .asleep, .beforeSleep, .afterWaking, .workout: return []
+    case .asleep, .beforeSleep, .afterWaking, .workout:
+      // Only once windowed: the readings in its stretches.
+      guard let stretches else { return [] }
+      return [
+        CardFetch(
+          series: index, type: series.type, purpose: .period,
+          kind: .stretchReadings(
+            stretches.stretches, filter: series.filter, needsSampleIDs: needsSampleIDs))
+      ]
     }
     let lower = (history?.lowerBound ?? interval.start).unixMilliseconds
     var upper = interval.end.unixMilliseconds
@@ -102,9 +232,7 @@ public struct CardRun: Sendable {
     return [
       CardFetch(
         series: index, type: series.type, purpose: .period,
-        kind: .readings(
-          lower..<upper, filter: series.filter,
-          needsSampleIDs: series.aggregation == .first || series.aggregation == .latest))
+        kind: .readings(lower..<upper, filter: series.filter, needsSampleIDs: needsSampleIDs))
     ]
   }
 
@@ -150,7 +278,8 @@ public struct CardRun: Sendable {
           averagesDays: Self.averagesDays(series, spec: spec, range: range),
           grain: grain, calendar: calendar)
       case .readings(let readings):
-        computed[fetch.series].addReadings(readings, of: series, run: self)
+        computed[fetch.series].addReadings(
+          readings, of: series, stretches: windows[fetch.series], run: self)
       }
     }
     let seriesData = zip(spec.series, computed).map { series, computed in
@@ -200,12 +329,26 @@ public struct CardRun: Sendable {
       }
     }
 
-    mutating func addReadings(_ readings: [CardReading], of series: CardSpec.Series, run: CardRun) {
+    /// `stretches`: a sleep or workout window's.
+    mutating func addReadings(
+      _ readings: [CardReading], of series: CardSpec.Series, stretches: Stretches?, run: CardRun
+    ) {
       let aggregation = series.dataType?.aggregation ?? .discreteArithmetic
       let keepsOrder = series.aggregation == .first || series.aggregation == .latest
       var readings = readings
       let weights: [Double]
-      if case .timeOfDay(let window) = series.window, let first = readings.first,
+      // Where each reading goes, in Unix milliseconds, when it isn't its start: its night's day.
+      var places: [Int]?
+      if let stretches {
+        let kept = CardWindows.readings(readings, in: stretches.stretches)
+        readings = kept.readings
+        weights = CardWeights.weights(
+          of: readings, stretches: stretches.stretches, stretchIndices: kept.stretchIndices,
+          aggregation)
+        if let nights = stretches.nights {
+          places = kept.stretchIndices.map { nights[$0].unixMilliseconds }
+        }
+      } else if case .timeOfDay(let window) = series.window, let first = readings.first,
         let last = readings.last
       {
         // A stretch past the last reading only matters up to the longest weight.
@@ -225,30 +368,29 @@ public struct CardRun: Sendable {
       let firstBucket = run.calendar.bucketStart(run.grain, 0, before: run.interval.start)
         .unixMilliseconds
       var bucketer = CardBucketer(run.grain, calendar: run.calendar)
-      var buckets: [(start: Date, bucket: CardBucket)] = []
-      var earlier: [(start: Date, bucket: CardBucket)] = []
+      var buckets = Buckets()
+      var earlier = Buckets()
       var period = CardBucket(aggregation, keepsOrder: keepsOrder)
-      func add(
-        _ reading: CardReading, _ weight: Double,
-        to buckets: inout [(start: Date, bucket: CardBucket)]
-      ) {
-        let start = bucketer.start(ofMilliseconds: reading.start)
-        if buckets.last?.start != start {
-          buckets.append((start, CardBucket(aggregation, keepsOrder: keepsOrder)))
-        }
-        buckets[buckets.count - 1].bucket.add(reading, weight: weight)
+      func add(_ reading: CardReading, _ weight: Double, at place: Int, to buckets: inout Buckets) {
+        buckets.add(
+          reading, weight: weight, at: bucketer.start(ofMilliseconds: place),
+          new: CardBucket(aggregation, keepsOrder: keepsOrder))
       }
-      for (reading, weight) in zip(readings, weights) {
-        if reading.start >= periodEnd { break }
-        if reading.start >= periodStart {
-          add(reading, weight, to: &buckets)
+      for (index, (reading, weight)) in zip(readings, weights).enumerated() {
+        let place = places?[index] ?? reading.start
+        if place >= periodEnd {
+          // Readings come by start, and so do their places, but nights' days needn't.
+          if places == nil { break } else { continue }
+        }
+        if place >= periodStart {
+          add(reading, weight, at: place, to: &buckets)
           period.add(reading, weight: weight)
-        } else if reading.start < firstBucket {
-          add(reading, weight, to: &earlier)
+        } else if place < firstBucket {
+          add(reading, weight, at: place, to: &earlier)
         }
       }
       let value = { (bucket: CardBucket) in bucket.value(series.aggregation) }
-      points = buckets.compactMap { start, bucket in
+      points = buckets.sorted.compactMap { start, bucket in
         guard let value = value(bucket) else { return nil }
         return series.aggregation == .count
           ? CardPoint(start: start, value: value, readings: bucket.count)
@@ -256,10 +398,37 @@ public struct CardRun: Sendable {
             start: start, value: value, minimum: bucket.minimum, maximum: bucket.maximum,
             readings: bucket.count)
       }
-      for (start, bucket) in earlier {
+      for (start, bucket) in earlier.sorted {
         history[start] = value(bucket)
       }
       self.period = period.count > 0 ? period : nil
+    }
+  }
+
+  /// Buckets by start, added to as readings come: in order but for nights whose stretches
+  /// overlap, whose readings can come back to a bucket.
+  struct Buckets {
+    private var list: [(start: Date, bucket: CardBucket)] = []
+    private var index: [Date: Int] = [:]
+    private var inOrder = true
+
+    mutating func add(
+      _ reading: CardReading, weight: Double, at start: Date, new: @autoclosure () -> CardBucket
+    ) {
+      if list.last?.start != start {
+        if let existing = index[start] {
+          list[existing].bucket.add(reading, weight: weight)
+          return
+        }
+        if let last = list.last?.start, start < last { inOrder = false }
+        index[start] = list.count
+        list.append((start, new()))
+      }
+      list[list.count - 1].bucket.add(reading, weight: weight)
+    }
+
+    var sorted: [(start: Date, bucket: CardBucket)] {
+      inOrder ? list : list.sorted { $0.start < $1.start }
     }
   }
 
@@ -382,6 +551,11 @@ public struct CardFetch: Hashable, Sendable {
     /// the filter. `needsSampleIDs`: whether `CardReading.sampleID` is used (`first` and
     /// `latest`'s ties); otherwise it may be left empty.
     case readings(Range<Int>, filter: CardSpec.Filter?, needsSampleIDs: Bool)
+    /// The same, for a sleep or workout window, once windowed: the readings starting in one of the
+    /// stretches (in order and apart, Unix milliseconds), oldest first. Readings outside them may
+    /// be included (the run keeps those in a stretch), such as a fetch over a stretch's
+    /// neighbours.
+    case stretchReadings([CardStretch], filter: CardSpec.Filter?, needsSampleIDs: Bool)
   }
 }
 

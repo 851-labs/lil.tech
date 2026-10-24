@@ -133,6 +133,16 @@ LIL_BENCHMARKS=1 swift test -c release --filter CardQueriesBenchmark
 | Heart rate, `max`, `deviceModels: ["Watch"]` (each row's device through `json_extract`) | 278 | 215 |
 | Heart rate, `first`, `00:00` to `12:00` (sample IDs read) | 231 | 185 |
 
+**Windows** (851-3196), with a year of a Watch's nights (10 records each) and a 45-minute workout a day, alternately running and cycling, in the same database. Rerun **2026-10-23** on the same Mac (load 20–100); the rows above came out within 10 ms of their first run. CPU ms, fetching included:
+
+| Card | Total |
+| --- | ---: |
+| Heart rate, `asleep`, by the night (about 150,000 readings, 365 points) | 85 |
+| Heart rate, `beforeSleep` 5 minutes, by the night | 8 |
+| Heart rate, `workout` of running, by the day | 5 |
+
+- **Only the stretches are read:** the nights' records first (about 3,700 rows), then a range of the index per stretch. Reading each night's stretches asleep as one range, and dropping the minutes awake between them, took 88 ms against 85, within the noise, so it's a range per stretch.
+
 - **Reading by column** from the statement, with one string per run of a source's rows, took fetching from 73 ms over SQLite's floor (a GRDB `Row` each, and a string each) to 42 ms. Computing the points from the readings takes the rest, 35–60 ms: the weights number each reading's source rather than hashing its bundle ID, and only `first` and `latest` keep readings in their buckets.
 - **A covering index** of `(type, startDate, endDate, value, sourceBundleID)` took SQLite's part from 97 ms to 57 ms, but would store every sample's type and bundle ID a second time, hundreds of MB on a real Mac's millions of samples, so there's none.
 

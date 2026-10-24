@@ -7,7 +7,9 @@ public import SQLiteData
 
 // The Mac's card engine (docs/decisions/cards.md, The Mac): cards' shared core (`CardRun`) over
 // this database. Totals come from `cumulativeTotals`, as Metric Detail's do, and readings from the
-// samples' (type, startDate) index.
+// samples' (type, startDate) index. Sleep windows read the period's sleep records (grouped into
+// nights as Sleep's page groups them) and workout windows its workouts, then the readings in their
+// stretches only (851-3196).
 
 extension HealthDatabase {
   /// A card over the period of `range` containing `date`.
@@ -21,7 +23,17 @@ extension HealthDatabase {
 
   /// A run's data, fetched from this database.
   public static func cardData(_ run: CardRun, now: Date, _ db: Database) throws -> CardData {
-    run.compute(
+    var run = run
+    if !run.windowFetches.isEmpty {
+      run = run.windowed(
+        try run.windowFetches.map { fetch in
+          switch fetch {
+          case .sleep(let range): .sleep(try sleepRecords(in: range, db))
+          case .workouts(let range): .workouts(try cardWorkouts(in: range, db))
+          }
+        })
+    }
+    return run.compute(
       try run.fetches.map { fetch in
         switch fetch.kind {
         case .totals(let range, let grain):
@@ -33,8 +45,38 @@ extension HealthDatabase {
           return .readings(
             try cardReadings(
               of: fetch.type, in: range, filter: filter, sampleIDs: needsSampleIDs, db))
+        case .stretchReadings(let stretches, let filter, let needsSampleIDs):
+          return .readings(
+            try cardReadings(
+              of: fetch.type, in: stretches, filter: filter, sampleIDs: needsSampleIDs, db))
         }
       })
+  }
+
+  /// Workouts of every activity that end after `range` starts and start before it ends (Unix
+  /// milliseconds), from every source.
+  static func cardWorkouts(in range: Range<Int>, _ db: Database) throws -> [CardWorkout] {
+    let (lower, upper) = (range.lowerBound, range.upperBound)
+    return
+      try HealthWorkout
+      .where { $0.startDate < upper && $0.endDate > lower }
+      .order(by: \.startDate)
+      .select { ($0.startDate, $0.endDate, $0.activityType) }
+      .fetchAll(db)
+      .map { CardWorkout(start: $0, end: $1, activityType: $2) }
+  }
+
+  /// A type's readings starting in one of `stretches` (in order and apart), oldest first, that
+  /// match `filter`: a range of the index for each. Reading a night's stretches asleep as one
+  /// range, and dropping the minutes awake between them, was no faster (851-3196).
+  static func cardReadings(
+    of type: String, in stretches: [CardStretch], filter: CardSpec.Filter?, sampleIDs: Bool,
+    _ db: Database
+  ) throws -> [CardReading] {
+    try stretches.flatMap { stretch in
+      try cardReadings(
+        of: type, in: stretch.start..<stretch.end, filter: filter, sampleIDs: sampleIDs, db)
+    }
   }
 
   /// What a card's Summary row shows (`CardHeadline`), from data started by `now`; `nil` for No

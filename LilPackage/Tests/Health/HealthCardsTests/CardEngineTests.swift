@@ -7,69 +7,6 @@ import Testing
 // The engine's shared core on synthetic readings (docs/decisions/cards.md, What an engine
 // computes). The Mac's fetching is tested in HealthDatabaseTests (CardQueriesTests).
 
-private let heartRate = "HKQuantityTypeIdentifierHeartRate"
-private let bodyMass = "HKQuantityTypeIdentifierBodyMass"
-private let steps = "HKQuantityTypeIdentifierStepCount"
-private let bodyTemperature = "HKQuantityTypeIdentifierBodyTemperature"
-private let hrv = "HKQuantityTypeIdentifierHeartRateVariabilitySDNN"
-
-/// London, weeks from Monday: a time zone with daylight saving.
-private let london: Calendar = {
-  var calendar = Calendar(identifier: .gregorian)
-  calendar.timeZone = TimeZone(identifier: "Europe/London")!
-  calendar.firstWeekday = 2
-  return calendar
-}()
-
-private func date(_ month: Int, _ day: Int, _ hour: Int = 0, _ minute: Int = 0, year: Int = 2026)
-  -> Date
-{
-  london.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
-}
-
-private func ms(_ date: Date) -> Int { Int((date.timeIntervalSince1970 * 1000).rounded()) }
-
-private func reading(
-  _ date: Date, _ value: Double, minutes: Double = 1, source: String = "com.example",
-  id: String = ""
-) -> CardReading {
-  CardReading(
-    start: ms(date), end: ms(date) + Int(minutes * 60_000), value: value, source: source,
-    sampleID: id)
-}
-
-private func spec(_ json: String) throws -> CardSpec {
-  try CardSpec(inputJSON: Data(json.utf8))
-}
-
-/// Runs a spec as an engine would, over in-memory data: readings by type, and cumulative types'
-/// hourly totals, added up into the fetch's buckets as `cumulativeTotals` does.
-private func run(
-  _ spec: CardSpec, _ range: CardRange, on day: Date, readings: [String: [CardReading]] = [:],
-  hourlyTotals: [String: [CardTotal]] = [:]
-) -> CardData {
-  let run = CardRun(spec: spec, range: range, date: day, now: day, calendar: london)
-  return run.compute(fetch(run, readings: readings, hourlyTotals: hourlyTotals))
-}
-
-private func fetch(
-  _ run: CardRun, readings: [String: [CardReading]], hourlyTotals: [String: [CardTotal]]
-) -> [CardFetchResult] {
-  run.fetches.map { fetch in
-    switch fetch.kind {
-    case .readings(let range, _, _):
-      return .readings((readings[fetch.type] ?? []).filter { range.contains($0.start) })
-    case .totals(let range, let grain):
-      var sums: [Date: Double] = [:]
-      for total in hourlyTotals[fetch.type] ?? [] where range.contains(total.start) {
-        let start = london.dateInterval(of: grain.component, for: total.start)!.start
-        sums[start, default: 0] += total.sum
-      }
-      return .totals(sums.map { CardTotal(start: $0.key, sum: $0.value) })
-    }
-  }
-}
-
 struct CardEngineTests {
   // MARK: - Weights
 
@@ -400,17 +337,6 @@ struct CardEngineTests {
     #expect(data.formulas[0].points == [CardFormulaPoint(start: date(10, 20), value: 15)])
     #expect(data.summary == CardSummary(kind: .average, value: 15))
     #expect(data.leadPoints == data.formulas[0].points)
-  }
-
-  @Test
-  func sleepAndWorkoutWindowsComeLater() throws {
-    let card = try spec(
-      #"{"version": 1, "display": {"name": "Sleeping HR"}, "series": [{"type": "Heart Rate", "window": {"kind": "asleep"}}], "bucket": "night", "range": "W"}"#
-    )
-    let run = CardRun(
-      spec: card, range: .week, date: date(10, 20), now: date(10, 20), calendar: london)
-    #expect(run.fetches.isEmpty)
-    #expect(run.compute([]).series[0].points.isEmpty)
   }
 
   // MARK: - Fetches

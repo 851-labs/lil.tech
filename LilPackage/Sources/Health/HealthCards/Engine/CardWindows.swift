@@ -1,9 +1,42 @@
 public import Foundation
 
 // Windows as stretches of time (docs/decisions/cards.md, Event windows and Times of day). A
-// reading is in a window when its start is in one of its stretches, half-open. Times of day are
-// here; sleep and workout windows (851-3196) make their stretches from nights and workouts, and
-// keep readings with `CardWindows.readings(_:in:)` the same way.
+// reading is in a window when its start is in one of its stretches, half-open. Times of day make
+// theirs from the clock; sleep windows from nights (`CardNights`), and workout windows from
+// workouts (851-3196). Every kind keeps readings with `CardWindows.readings(_:in:)`.
+
+/// A workout, as every engine reads it.
+public struct CardWorkout: Hashable, Sendable {
+  /// Unix milliseconds.
+  public var start: Int
+  public var end: Int
+  /// `HKWorkoutActivityType`'s raw value, the workout's overall activity.
+  public var activityType: Int
+
+  public init(start: Int, end: Int, activityType: Int) {
+    self.start = start
+    self.end = end
+    self.activityType = activityType
+  }
+}
+
+/// What a run with sleep or workout windows fetches before their readings
+/// (`CardRun.windowFetches`): nights and workouts, whose stretches say which readings to fetch.
+public enum CardWindowFetch: Hashable, Sendable {
+  /// Sleep analysis records (`CardSleepRecord`) that end after the range starts and start before
+  /// it ends (Unix milliseconds), by start: what `CardNights.nights` groups. Every value and
+  /// source, In Bed included.
+  case sleep(Range<Int>)
+  /// Workouts (`CardWorkout`) of every activity that end after the range starts and start before
+  /// it ends (Unix milliseconds).
+  case workouts(Range<Int>)
+}
+
+/// What was fetched for a `CardWindowFetch`.
+public enum CardWindowFetchResult: Hashable, Sendable {
+  case sleep([CardSleepRecord])
+  case workouts([CardWorkout])
+}
 
 extension CardTimeOfDay {
   /// The window's stretches that overlap `span` (Unix milliseconds), in order, clipped to it:
@@ -72,5 +105,104 @@ public enum CardWindows {
       }
     }
     return (kept, indices)
+  }
+}
+
+extension CardWindows {
+  /// A sleep window's stretches over `nights` (by day), in order and apart, each with the night it
+  /// belongs to. Only nights' sleep: a day's (`CardNight.nightBedtime(calendar:)`) has none.
+  /// - `asleep`: each night's stretches asleep.
+  /// - `beforeSleep`: `[F − minutes, F)`.
+  /// - `afterWaking`: `[W, W + minutes)`.
+  ///
+  /// Where two nights' stretches overlap, the later night's keeps the overlap, so a reading in
+  /// both counts for the later night, and the earlier's stretch ends (or pauses) where the later's
+  /// starts.
+  static func sleepStretches(
+    _ window: CardSpec.Window, nights: [CardNight], calendar: Calendar
+  ) -> (stretches: [CardStretch], nights: [Date]) {
+    var owned: [(stretch: CardStretch, night: Int)] = []
+    for (index, night) in nights.enumerated() where night.nightBedtime(calendar: calendar) != nil {
+      switch window {
+      case .asleep:
+        owned += night.asleepStretches.map { ($0, index) }
+      case .beforeSleep(let minutes):
+        if let start = night.fallingAsleep {
+          owned.append((CardStretch(start: start - minutes * 60_000, end: start), index))
+        }
+      case .afterWaking(let minutes):
+        if let end = night.waking {
+          owned.append((CardStretch(start: end, end: end + minutes * 60_000), index))
+        }
+      case .workout, .timeOfDay:
+        break
+      }
+    }
+    let resolved = latestOwnerWins(owned)
+    return (resolved.map(\.stretch), resolved.map { nights[$0.night].day })
+  }
+
+  /// Stretches made apart, by start: where several overlap, the one with the greatest owner keeps
+  /// the overlap. One owner's stretches are apart already.
+  static func latestOwnerWins(
+    _ stretches: [(stretch: CardStretch, night: Int)]
+  ) -> [(stretch: CardStretch, night: Int)] {
+    // Nothing overlaps, as almost always: sorted, they're the answer.
+    let sorted = stretches.filter { $0.stretch.start < $0.stretch.end }
+      .sorted { ($0.stretch.start, $0.night) < ($1.stretch.start, $1.night) }
+    guard zip(sorted, sorted.dropFirst()).contains(where: { $0.stretch.end > $1.stretch.start })
+    else { return sorted }
+    // A sweep over every start and end: between two of them, the greatest owner among the
+    // stretches open there keeps the time.
+    var events: [(time: Int, opens: Bool, night: Int)] = []
+    for (stretch, night) in sorted {
+      events.append((stretch.start, true, night))
+      events.append((stretch.end, false, night))
+    }
+    events.sort { $0.time < $1.time }
+    var open: [Int: Int] = [:]
+    var resolved: [(stretch: CardStretch, night: Int)] = []
+    var index = 0
+    var previous: Int?
+    while index < events.count {
+      let time = events[index].time
+      if let previous, let owner = open.keys.max(), previous < time {
+        if let last = resolved.last, last.night == owner, last.stretch.end == previous {
+          resolved[resolved.count - 1].stretch.end = time
+        } else {
+          resolved.append((CardStretch(start: previous, end: time), owner))
+        }
+      }
+      while index < events.count, events[index].time == time {
+        let event = events[index]
+        open[event.night, default: 0] += event.opens ? 1 : -1
+        if open[event.night] == 0 { open[event.night] = nil }
+        index += 1
+      }
+      previous = time
+    }
+    return resolved
+  }
+
+  /// A workout window's stretches: each matching workout's `[start, end)` (of `activities`, or
+  /// every one), merged where they overlap or touch, and clipped to `span`.
+  static func workoutStretches(
+    activities: [Int]?, workouts: [CardWorkout], in span: Range<Int>
+  ) -> [CardStretch] {
+    let matching = workouts.filter { workout in
+      activities.map { $0.contains(workout.activityType) } ?? true
+    }
+    var stretches: [CardStretch] = []
+    for workout in matching.sorted(by: { ($0.start, $0.end) < ($1.start, $1.end) }) {
+      let start = max(workout.start, span.lowerBound)
+      let end = min(workout.end, span.upperBound)
+      guard start < end else { continue }
+      if let last = stretches.last, start <= last.end {
+        stretches[stretches.count - 1].end = max(last.end, end)
+      } else {
+        stretches.append(CardStretch(start: start, end: end))
+      }
+    }
+    return stretches
   }
 }
