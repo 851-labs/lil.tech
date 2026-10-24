@@ -303,6 +303,8 @@ struct CardWindowsTests {
     #expect(run.compute([]).series[0].points.isEmpty)
     let windowed = run.windowed([.sleep(watchNight(18) + watchNight(19))])
     #expect(windowed.windowFetches.isEmpty)
+    // Windowing it again changes nothing.
+    #expect(windowed.windowed([]).fetches == windowed.fetches)
     #expect(
       windowed.fetches.map(\.kind) == [
         .stretchReadings(

@@ -44,9 +44,10 @@ public struct CardNight: Hashable, Sendable {
   /// once, wherever they start; without any, the night's span.
   public var inBed: Int
 
+  /// `records` are sorted by start (ties keep their order), as F, W and the stretches need.
   public init(day: Date, records: [CardSleepRecord], inBed: Int) {
     self.day = day
-    self.records = records
+    self.records = records.sorted { $0.start < $1.start }
     self.inBed = inBed
   }
 
