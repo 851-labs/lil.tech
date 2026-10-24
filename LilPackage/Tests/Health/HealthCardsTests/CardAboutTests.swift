@@ -57,6 +57,11 @@ struct CardAboutTests {
       #"{"version": 1, "display": {"name": "Evenings"}, "series": [{"type": "Heart Rate", "aggregation": "count", "window": {"kind": "timeOfDay", "from": "18:30", "to": "00:00"}}], "chart": {"style": "bars"}}"#
     )
     #expect(evenings.about == "Number of heart rate readings from 18:30 to midnight.")
+    let both = try spec(
+      #"{"version": 1, "display": {"name": "Watch"}, "series": [{"type": "Heart Rate", "filter": {"deviceModels": ["Watch"], "sources": ["a", "b"]}}], "chart": {"style": "dots"}}"#
+    )
+    #expect(both.about == "Average heart rate from Watch in 2 sources.")
+    #expect(CardSpec.lowercased("Six-Minute Walk Test Distance") == "six-minute walk test distance")
     #expect(CardSpec.lowercased("VO₂ Max") == "VO₂ max")
     #expect(CardSpec.lowercased("HRV Trend") == "HRV trend")
   }

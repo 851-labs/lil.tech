@@ -17,6 +17,20 @@ import SwiftUI
 struct CardPage: View {
   let store: StoreOf<CardsFeature>
   let id: Card.ID
+  /// Whether the local data holds the cards, as Summary asks (`SummaryView`): until it does, no
+  /// cards is loading, not a deleted card.
+  @Fetch private var holdsCards = false
+
+  init(store: StoreOf<CardsFeature>, id: Card.ID) {
+    self.store = store
+    self.id = id
+    _holdsCards = Fetch(wrappedValue: false, HoldsCardsRequest(), scheduler: MainQueueScheduler())
+  }
+
+  /// Whether the cards are still loading, as Summary's section decides it.
+  private var isLoading: Bool {
+    store.isLoading || store.cards.isEmpty && !holdsCards && $holdsCards.loadError == nil
+  }
 
   var body: some View {
     if let card = store.cards[id: id] {
@@ -25,7 +39,7 @@ struct CardPage: View {
       ContentUnavailableView(
         "Couldn't Load This Card", systemImage: "exclamationmark.triangle",
         description: Text(failure))
-    } else if store.isLoading {
+    } else if isLoading {
       // Summary's rows link to the welcome seed's cards while they load.
       Color.clear
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -282,8 +296,9 @@ struct CardDetailContent: View {
   private func valueText(point: LeadPoint?) -> some View {
     let values: [Double]? =
       if let point {
-        point.minimum == point.maximum || shownSpec.chart.style != .ranges
-          ? [point.value] : [point.minimum, point.maximum]
+        // A range only where the caption says RANGE: an average drawn as ranges.
+        Self.caption(for: shownSpec, range: range, summary: nil, point: point) == "RANGE"
+          ? [point.minimum, point.maximum] : [point.value]
       } else if let summary = loaded?.data.summary {
         if summary.kind == .range, let minimum = summary.minimum, let maximum = summary.maximum {
           [minimum, maximum]
@@ -413,7 +428,6 @@ struct CardDetailContent: View {
     let goal = data.goal.map { shown.convert($0) }
     let yDomain = yDomain(
       data, spec: spec, series: series, formulas: formulas, isEmpty: isEmpty, unit: shown)
-    let lead = leadPoints(data)
     let hoveredStart = hoveredPoint(in: data)?.start
     // Bars and capsules of several series sit side by side in each bucket.
     let isPositioned = (style == .bars || style == .ranges) && series.count > 1
@@ -424,7 +438,7 @@ struct CardDetailContent: View {
           seriesMarks(
             point, of: series, mark: mark, isPositioned: isPositioned,
             style: style, unit: unit, shown: shown,
-            isHovered: index == 0 && point.start == hoveredStart && lead.isFromSeries)
+            isHovered: index == 0 && point.start == hoveredStart)
         }
       }
       ForEach(formulas) { formula in
@@ -558,28 +572,18 @@ struct CardDetailContent: View {
 
   // MARK: Hover
 
-  /// The lead's points: its first visible series', or with every series hidden, its first
-  /// visible formula's.
-  private func leadPoints(_ data: CardData) -> (points: [LeadPoint], isFromSeries: Bool) {
-    if let series = data.series.first(where: { !$0.hidden }) {
-      return (
-        series.points.map {
-          LeadPoint(start: $0.start, value: $0.value, minimum: $0.minimum, maximum: $0.maximum)
-        }, true
-      )
-    }
-    return (
-      data.leadPoints.map {
-        LeadPoint(start: $0.start, value: $0.value, minimum: $0.value, maximum: $0.value)
-      }, false
-    )
-  }
-
   /// The lead's point in the bucket under the pointer, if it has one.
   private func hoveredPoint(in data: CardData) -> LeadPoint? {
     guard let hovered, let bucket = calendar.dateInterval(of: data.grain.component, for: hovered)
     else { return nil }
-    return leadPoints(data).points.first { $0.start == bucket.start }
+    if let series = data.series.first(where: { !$0.hidden }) {
+      return series.points.first { $0.start == bucket.start }.map {
+        LeadPoint(start: $0.start, value: $0.value, minimum: $0.minimum, maximum: $0.maximum)
+      }
+    }
+    return data.leadPoints.first { $0.start == bucket.start }.map {
+      LeadPoint(start: $0.start, value: $0.value, minimum: $0.value, maximum: $0.value)
+    }
   }
 }
 

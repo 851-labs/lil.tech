@@ -103,15 +103,12 @@ extension CardSpec {
     }
   }
 
+  /// "from Watch", "from 2 sources", "from Watch in one source".
   private static func describe(_ filter: Filter) -> String {
-    var parts: [String] = []
-    if let models = filter.deviceModels {
-      parts.append("from \(list(models, joinedBy: "or"))")
-    }
-    if let sources = filter.sources {
-      parts.append(sources.count == 1 ? "from one source" : "from \(sources.count) sources")
-    }
-    return parts.joined(separator: " ")
+    let sources = filter.sources.map { $0.count == 1 ? "one source" : "\($0.count) sources" }
+    guard let models = filter.deviceModels else { return "from \(sources ?? "")" }
+    let devices = "from \(list(models, joinedBy: "or"))"
+    return sources.map { "\(devices) in \($0)" } ?? devices
   }
 
   /// "a", "a or b", "a, b or c".
@@ -123,11 +120,16 @@ extension CardSpec {
   /// A name as it reads mid-sentence: its capitalized words lowercased ("Heart Rate" is "heart
   /// rate"), abbreviations and symbols kept ("VO₂ Max" is "VO₂ max", "HRV" stays).
   static func lowercased(_ name: String) -> String {
-    name.split(separator: " ", omittingEmptySubsequences: false).map { word in
+    func lowercased(_ word: Substring) -> String {
       guard let first = word.first, first.isUppercase,
         word.dropFirst().allSatisfy({ $0.isLowercase })
       else { return String(word) }
       return word.lowercased()
+    }
+    // Each part of a hyphenated word too: "Six-Minute" is "six-minute".
+    return name.split(separator: " ", omittingEmptySubsequences: false).map { word in
+      word.split(separator: "-", omittingEmptySubsequences: false).map(lowercased)
+        .joined(separator: "-")
     }
     .joined(separator: " ")
   }
