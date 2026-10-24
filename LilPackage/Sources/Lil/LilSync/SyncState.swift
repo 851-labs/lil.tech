@@ -69,3 +69,17 @@ extension SyncState {
     try SyncState.upsert { self }.execute(db)
   }
 }
+
+extension LilSyncEngine {
+  /// Whether the local data holds `entity`'s records: it has pulled a change, and `entity` isn't
+  /// one this release added that a catch-up hasn't loaded yet (851-3222). Until then, an entity
+  /// without local records may have records on the server, so an app shows it loading rather
+  /// than empty. (A new account's store has changes from the start: its welcome cards.)
+  public static func holds(_ entity: String, _ db: Database) throws -> Bool {
+    let state = try SyncState.fetch(db)
+    guard state.epoch != nil, state.cursor > 0 else { return false }
+    // Unrecorded, from before entities were: the app's current ones, as pulling takes them.
+    guard let entities = state.entities else { return true }
+    return entities.split(separator: ",").contains { $0 == entity }
+  }
+}

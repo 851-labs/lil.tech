@@ -288,4 +288,39 @@ struct MetricFormatTests {
     #expect(MetricFormat.unit(of: count, locale: us).label == "readings")
     #expect(MetricFormat.unit(of: count, locale: us).convert(3) == 3)
   }
+
+  /// A card's headline is dated by what it is (851-3206): a reading's time, a day's relative
+  /// name, and other buckets by what they cover.
+  @Test
+  func cardHeadlineDates() {
+    func date(
+      _ start: Date, kind: CardHeadline.Kind = .bucket, grain: CardGrain = .day,
+      bucket: CardSpec.Bucket = .auto
+    ) -> String {
+      let data = CardData(
+        range: nil, interval: DateInterval(start: start, duration: 0), bucket: bucket,
+        grain: grain, series: [], formulas: [], summary: nil, goal: nil)
+      return MetricFormat.date(
+        of: CardHeadline(value: 1, date: start, kind: kind, data: data), now: now, calendar: utc)
+    }
+    let day = 86_400.0
+    let today = utc.startOfDay(for: now)
+    // Times are in the Mac's own format, 12- or 24-hour.
+    let time = Date.FormatStyle(calendar: utc, timeZone: utc.timeZone)
+    #expect(
+      date(now.addingTimeInterval(-3600), kind: .reading)
+        == now.addingTimeInterval(-3600).formatted(time.hour().minute()))
+    #expect(date(today) == "Today")
+    #expect(date(today - day) == "Yesterday")
+    #expect(date(today, bucket: .night) == "Last Night")
+    #expect(date(today - day, bucket: .night) == "Night of Oct 14")
+    #expect(date(today - 2 * day, grain: .week, bucket: .week) == "This Week")
+    #expect(date(today - 9 * day, grain: .week, bucket: .week) == "Week of Oct 6")
+    #expect(date(today - 14 * day, grain: .month, bucket: .month) == "This Month")
+    #expect(date(today - 30 * day, grain: .month, bucket: .month) == "September")
+    #expect(date(today - 400 * day, grain: .month, bucket: .month) == "September 2024")
+    let nine = (today + 9 * 3600).formatted(time.hour())
+    #expect(date(today + 9 * 3600, grain: .hour, bucket: .hour) == nine)
+    #expect(date(today - day + 9 * 3600, grain: .hour, bucket: .hour) == "Oct 14, \(nine)")
+  }
 }

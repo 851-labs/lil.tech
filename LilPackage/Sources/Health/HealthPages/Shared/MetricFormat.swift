@@ -290,3 +290,41 @@ extension MetricFormat {
     "degC": "°C", "degF": "°F", "km/hr": "km/h", "mi/hr": "mph", "fl_oz_us": "fl oz",
   ]
 }
+
+extension MetricFormat {
+  /// When a card's headline is from, as its Summary row says (docs/decisions/cards.md, Summary and
+  /// headline): a reading as Summary's rows date one ("2:30 PM", "Yesterday"), a day as they date
+  /// a day's total ("Today"), and other buckets by what they cover: "Last Night" or "Night of Aug
+  /// 11" (a night is named by the day it ends on), "This Week" or "Week of Aug 4", "This Month" or
+  /// "July", and an hour's time, after its day unless it's today's.
+  public static func date(
+    of headline: CardHeadline, now: Date, calendar: Calendar
+  ) -> String {
+    let date = headline.date
+    guard headline.kind == .bucket else {
+      return self.date(date, isDay: false, now: now, calendar: calendar)
+    }
+    let style = Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone)
+    let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+    let day = sameYear ? style.month(.abbreviated).day() : style.month(.abbreviated).day().year()
+    func isCurrent(_ component: Calendar.Component) -> Bool {
+      calendar.isDate(date, equalTo: now, toGranularity: component)
+    }
+    switch (headline.data.grain, headline.data.bucket) {
+    case (.day, .night):
+      return isCurrent(.day) ? "Last Night" : "Night of \(date.formatted(day))"
+    case (.day, _):
+      return self.date(date, isDay: true, now: now, calendar: calendar)
+    case (.hour, _):
+      let hour = style.hour()
+      return isCurrent(.day)
+        ? date.formatted(hour) : "\(date.formatted(day)), \(date.formatted(hour))"
+    case (.week, _):
+      return isCurrent(.weekOfYear) ? "This Week" : "Week of \(date.formatted(day))"
+    case (.month, _):
+      return isCurrent(.month)
+        ? "This Month"
+        : date.formatted(sameYear ? style.month(.wide) : style.month(.wide).year())
+    }
+  }
+}
