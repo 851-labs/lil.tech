@@ -1,6 +1,7 @@
 import type { DateTime } from "effect";
 import type { SqlRow, SqlValue, StoreSql } from "../../store/StoreSql.ts";
 import { type HealthCatalogType, healthCatalogTypes } from "../HealthCatalog.ts";
+import { statisticsBucketMillis } from "../HealthEntities.ts";
 import { startOfLocalDay } from "./ToolTime.ts";
 
 // Reads of the user's store for the Health tools. They follow the Mac's `HealthDatabase` queries,
@@ -149,7 +150,7 @@ export const workoutTotals = (sql: StoreSql, from: number, to: number) => {
 };
 
 /** Skips samples deleted since the store last swept (tombstones), for a `health_sample s`. */
-const liveSample =
+export const liveSample =
   "NOT EXISTS (SELECT 1 FROM tombstones t WHERE t.entity = 'health_sample' AND t.id = s.id)";
 
 /** A type's earliest and latest records, by when they start. */
@@ -288,6 +289,48 @@ export const statisticBuckets = (
     )
     .map(([bucketStart, sum]) => ({ bucketStart: Number(bucketStart), sum: Number(sum) }));
 
+/** A cumulative type's total over one bucket (an hour, a day…), by when the bucket starts. */
+export interface BucketTotal {
+  readonly start: number;
+  readonly sum: number;
+}
+
+/**
+ * A cumulative type's totals per bucket in `[from, to)` (each placed by `startOf`, which rows reach
+ * in time order), from the statistics source's 30-minute buckets and, past the last of them (no
+ * statistics at all, or samples synced before their buckets), the samples' own values, oldest
+ * first, as the Mac's `HealthDatabase.cumulativeTotals`. Buckets without data are left out, and so
+ * are empty statistics. Each bucket adds its statistics, then its samples, in order, as the Mac
+ * does.
+ */
+export const cumulativeTotalsBy = (
+  sql: StoreSql,
+  type: string,
+  range: { readonly start: number; readonly end: number },
+  startOf: (millis: number) => number,
+  now: number,
+): Array<BucketTotal> => {
+  const source = statisticsSource(statisticsDevices(sql), now);
+  const buckets =
+    source === null ? [] : statisticBuckets(sql, source, type, range.start, range.end);
+  const sums = new Map<number, number>();
+  const add = (millis: number, value: number) => {
+    const start = startOf(millis);
+    sums.set(start, (sums.get(start) ?? 0) + value);
+  };
+  for (const { bucketStart, sum } of buckets) add(bucketStart, sum);
+  // Empty buckets don't count as covered: samples that arrived before their sums still show.
+  const lastBucket = buckets.at(-1);
+  const covered =
+    lastBucket === undefined ? range.start : lastBucket.bucketStart + statisticsBucketMillis;
+  for (const sample of sampleSums(sql, type, covered, range.end)) {
+    add(sample.start, sample.value ?? 0);
+  }
+  return [...sums.entries()]
+    .map(([start, sum]) => ({ start, sum }))
+    .sort((a, b) => a.start - b.start);
+};
+
 export interface SampleRow {
   readonly id: string;
   readonly startDate: number;
@@ -404,28 +447,6 @@ export const samplePage = (
       range.to,
       ...(cursor === null ? [] : [cursor.startDate, cursor.startDate, cursor.id]),
       limit,
-    )
-    .map(sampleRow);
-
-/**
- * A type's samples that may overlap `[from, to)`: those that start before `to` and end after
- * `from`, oldest first. Without a lower bound on the start, so a long record (in bed) that
- * started well before counts.
- */
-export const samplesOverlapping = (
-  sql: StoreSql,
-  type: string,
-  from: number,
-  to: number,
-): ReadonlyArray<SampleRow> =>
-  sql
-    .exec(
-      `SELECT ${sampleColumns} FROM health_sample s
-      WHERE type = ? AND start_date < ? AND end_date > ? AND ${liveSample}
-      ORDER BY start_date, id`,
-      type,
-      to,
-      from,
     )
     .map(sampleRow);
 

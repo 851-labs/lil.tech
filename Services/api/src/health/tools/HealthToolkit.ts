@@ -36,7 +36,7 @@ const range = Schema.Literals(["D", "W", "M", "6M", "Y"]).annotate({
 });
 
 /** Whether a `YYYY-MM-DD` string is a day that exists (not 2026-02-31). */
-const isDay = (day: string) => {
+export const isDay = (day: string) => {
   const parsed = new Date(`${day}T00:00:00Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(day);
 };
