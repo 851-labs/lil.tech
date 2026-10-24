@@ -325,7 +325,7 @@ struct CardDetailContent: View {
   /// The header's caption: what its value is, for the period or the hovered point. Before the
   /// period loads, and without data, the one its summary would have, so it doesn't change as the
   /// chart arrives (851-3107).
-  static func caption(
+  nonisolated static func caption(
     for spec: CardSpec, range: ChartRange, summary: CardSummary?, point: LeadPoint?
   ) -> String {
     guard let lead = spec.lead else { return "" }
@@ -345,7 +345,7 @@ struct CardDetailContent: View {
     return caption(of: summary?.kind ?? expectedKind(of: spec, range: range))
   }
 
-  private static func caption(of kind: CardSummary.Kind) -> String {
+  nonisolated private static func caption(of kind: CardSummary.Kind) -> String {
     switch kind {
     case .total, .count: "TOTAL"
     case .average: "AVERAGE"
@@ -361,7 +361,7 @@ struct CardDetailContent: View {
   /// The summary a period of `range` has when it has data (docs/decisions/cards.md, Summary and
   /// headline): a range of readings for an average drawn as ranges, which may turn out to be an
   /// average.
-  static func expectedKind(of spec: CardSpec, range: ChartRange) -> CardSummary.Kind {
+  nonisolated static func expectedKind(of spec: CardSpec, range: ChartRange) -> CardSummary.Kind {
     guard case .series(let series) = spec.lead else { return .average }
     switch series.aggregation {
     case .sum:
@@ -384,7 +384,7 @@ struct CardDetailContent: View {
 
   /// A point's bucket, as the header dates it: "Aug 13, 3 PM", "Tue, Aug 13", "Night of Aug 13"
   /// (a night is named by the day it ends on), "Week of Aug 4", "August 2024".
-  static func bucket(
+  nonisolated static func bucket(
     _ start: Date, grain: CardGrain?, spec: CardSpec, calendar: Calendar
   ) -> String {
     let style = Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone)
