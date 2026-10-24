@@ -76,4 +76,5 @@
     }
     for sub in layer.sublayers ?? [] { collectToolbarLayers(sub, root: root, into: &result) }
   }
+
 #endif

@@ -1,6 +1,7 @@
 #if os(macOS)
   import AppKit
   import CoreGraphics
+  import CryptoKit
   import Foundation
   import SnapshotTesting
   import SwiftUI
@@ -39,6 +40,10 @@
         column: column)
     }
     output?.report(failure: failure)
+    if screen == "sleep" || failure != nil {
+      probeDumpTitleBar(
+        window.contentView!.superview!, key: "\(screen).\(name)-\(suffix)", failed: failure != nil)
+    }
     if let failure {
       Issue.record(
         Comment(rawValue: failure),
@@ -157,5 +162,46 @@
     override var isMainWindow: Bool { true }
     override var canBecomeKey: Bool { true }
     override var backingScaleFactor: CGFloat { snapshotScale }
+  }
+
+  /// Appends the title bar's whole layer tree to `LIL_PROBE_DUMP`'s file (851-3230 probe).
+  @MainActor
+  func probeDumpTitleBar(_ frameView: NSView, key: String, failed: Bool) {
+    guard let path = ProcessInfo.processInfo.environment["LIL_PROBE_DUMP"] else { return }
+    let root = frameView.layer!
+    var lines = ["=== \(key) failed: \(failed) screen: \(frameView.window?.screen?.backingScaleFactor ?? -1) at \(Date().timeIntervalSince1970)"]
+    func walk(_ layer: CALayer, _ depth: Int, _ inTitleBar: Bool) {
+      let frame = layer.convert(layer.bounds, to: root)
+      let titleBar = inTitleBar || frame.minY >= root.bounds.height - 52 && frame.height <= 52
+      if titleBar {
+        var contents = "nil"
+        if let c = layer.contents {
+          let type = CFCopyTypeIDDescription(CFGetTypeID(c as CFTypeRef)) as String? ?? "?"
+          if type == "CGImage" {
+            let image = c as! CGImage
+            var hash = ""
+            if let data = image.dataProvider?.data as Data? {
+              hash = SHA256.hash(data: data).prefix(6).map { String(format: "%02x", $0) }.joined()
+            }
+            contents = "CGImage \(image.width)x\(image.height) #\(hash)"
+          } else {
+            contents = type
+          }
+        }
+        lines.append(
+          "\(String(repeating: " ", count: depth))\(type(of: layer)) d=\(layer.delegate.map { String("\(type(of: $0))".prefix(40)) } ?? "-") f=\(frame) b=\(layer.bounds.size) c=\(contents) s=\(layer.contentsScale) g=\(layer.contentsGravity.rawValue) o=\(layer.opacity) h=\(layer.isHidden) t=\(CATransform3DIsIdentity(layer.transform) ? "id" : "\(layer.transform)") filters=\(layer.filters ?? []) cf=\(String(describing: layer.compositingFilter)) mask=\(layer.mask != nil) anims=\(layer.animationKeys() ?? [])"
+        )
+      }
+      for sub in layer.sublayers ?? [] { walk(sub, depth + 1, titleBar) }
+    }
+    walk(root, 0, false)
+    let text = lines.joined(separator: "\n") + "\n"
+    if let handle = FileHandle(forWritingAtPath: path) {
+      handle.seekToEndOfFile()
+      handle.write(Data(text.utf8))
+      try? handle.close()
+    } else {
+      FileManager.default.createFile(atPath: path, contents: Data(text.utf8))
+    }
   }
 #endif

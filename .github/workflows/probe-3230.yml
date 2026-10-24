@@ -1,7 +1,7 @@
 name: Probe 851-3230 (temporary)
 
-# TEMPORARY, removed before merging: renders Sleep's state catalog many times on a mini, to catch
-# the toolbar's chevron drawn apart (851-3230).
+# TEMPORARY, removed before merging: runs the Mac snapshot suite several times on a mini, to catch
+# Sleep's toolbar chevron drawn apart (851-3230), dumping the title bar's layers.
 
 on:
   push:
@@ -22,12 +22,11 @@ concurrency:
 jobs:
   probe:
     runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       SCRATCH: ${{ github.workspace }}/../lil.tech-check-pr/package
       LIL_SNAPSHOT_CI: "1"
       PROBE_RUNS: "8"
-      PROBE_LOOPS: "6"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -35,43 +34,32 @@ jobs:
       - uses: ./.github/actions/select-xcode
       - name: Build
         run: cd LilPackage && swift build --build-tests --quiet --scratch-path "$SCRATCH"
-      - name: Sleep's test, in fresh processes
+      - name: The Mac snapshot suite, in fresh processes
         run: |
           cd LilPackage
+          mkdir -p "$RUNNER_TEMP/out"
+          rm -rf "$RUNNER_TEMP/out"/* "$RUNNER_TEMP/runs"
           fails=0
           for run in $(seq "$PROBE_RUNS"); do
-            echo "::group::run $run"
-            LIL_SNAPSHOT_OUTPUT="$RUNNER_TEMP/runs/$run" swift test --skip-build \
-              --scratch-path "$SCRATCH" --filter 'MacSnapshotTests/sleep\(' 2>&1 |
-              tee "$RUNNER_TEMP/run-$run.log" | grep -E 'failed|differs|passed after' | tail -20 ||
-              true
-            echo "::endgroup::"
-            grep -q 'differs\|✘' "$RUNNER_TEMP/run-$run.log" && fails=$((fails + 1))
-          done
-          echo "Runs with a differing image: $fails of $PROBE_RUNS"
-          mkdir -p "$RUNNER_TEMP/differing"
-          find "$RUNNER_TEMP/runs" -name '*.diff.png' | while IFS= read -r diff; do
-            run=$(echo "$diff" | sed -E 's|.*/runs/([0-9]+)/.*|\1|')
-            cp "$diff" "${diff%.diff.png}.png" "$RUNNER_TEMP/differing/" 2>/dev/null || true
-            for f in "$RUNNER_TEMP/differing/$(basename "${diff%.diff.png}")"*; do
-              mv "$f" "$(dirname "$f")/run$run-$(basename "$f")"
+            start=$(date +%s)
+            LIL_PROBE_DUMP="$RUNNER_TEMP/out/dump-$run.txt" \
+              LIL_SNAPSHOT_OUTPUT="$RUNNER_TEMP/runs/$run" swift test --skip-build \
+              --scratch-path "$SCRATCH" --filter 'HealthSnapshotTests\.MacSnapshotTests' \
+              --skip sleepToolbarProbe > "$RUNNER_TEMP/out/run-$run.log" 2>&1 || true
+            failed=$(grep -c '^✘ Test .*recorded an issue' "$RUNNER_TEMP/out/run-$run.log" || true)
+            echo "run $run: $(( $(date +%s) - start )) s, failures: $failed, load: $(sysctl -n vm.loadavg)"
+            grep '^✘ Test .*recorded an issue' "$RUNNER_TEMP/out/run-$run.log" || true
+            [ "$failed" -gt 0 ] && fails=$((fails + 1))
+            find "$RUNNER_TEMP/runs/$run" -name '*.diff.png' | while IFS= read -r diff; do
+              cp "$diff" "$RUNNER_TEMP/out/run$run-$(basename "$diff")"
+              cp "${diff%.diff.png}.png" "$RUNNER_TEMP/out/run$run-$(basename "${diff%.diff.png}").png"
             done
           done
-      - name: Probe, in one process
-        if: always()
-        run: |
-          cd LilPackage
-          LIL_PROBE_COUNT="$PROBE_LOOPS" LIL_PROBE_OUTPUT="$RUNNER_TEMP/probe" swift test --skip-build \
-            --scratch-path "$SCRATCH" --filter sleepToolbarProbe 2>&1 |
-            tee "$RUNNER_TEMP/probe.log" | grep -E 'PROBE (summary|flaky)|passed after|failed'
+          echo "Runs with a failure: $fails of $PROBE_RUNS"
       - name: Upload
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: probe
-          path: |
-            ${{ runner.temp }}/probe
-            ${{ runner.temp }}/differing
-            ${{ runner.temp }}/probe.log
-            ${{ runner.temp }}/run-*.log
+          path: ${{ runner.temp }}/out
           retention-days: 3
