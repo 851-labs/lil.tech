@@ -78,7 +78,99 @@
     // Let SwiftUI lay out and draw, and charts settle.
     controller.view.layoutSubtreeIfNeeded()
     RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    redrawStaleToolbarImages(in: window)
     return window
+  }
+
+  /// Has SwiftUI draw a toolbar item again when its image was drawn for another size (851-3230).
+  /// A toolbar item's symbol is drawn first at the size it has before the toolbar sizes it
+  /// (Sleep's ‹ at 6.5 × 11.5 pt, 13 × 23 px), then again as the window first lays out, at its
+  /// toolbar size (8.5 × 14.5 pt, 17 × 29 px). On the minis, about one full run in four and only
+  /// after the catalogs before it, that second drawing skipped an item: its layer took the toolbar
+  /// size with the first bitmap in it, stretched and soft (Sleep › Week's ‹, the same 171 pixels
+  /// each time). Nothing draws it again by itself, not waiting 0.3 s or laying the window out
+  /// again: SwiftUI's display list hasn't changed. An appearance change changes it, so the item's
+  /// hosting view goes to the other appearance and back, and SwiftUI draws it at its final size,
+  /// byte for byte as when nothing was skipped. A toolbar image is stale when its bitmap isn't its
+  /// layer's size at `snapshotScale`: toolbar images are symbols, drawn to fit.
+  @MainActor
+  func redrawStaleToolbarImages(in window: NSWindow) {
+    let stale = staleToolbarImages(in: window)
+    guard !stale.isEmpty else { return }
+    // Each toolbar item's own SwiftUI hosting view, the nearest view above its image.
+    var views: [NSView] = []
+    for layer in stale.map(\.layer) {
+      var owner: CALayer? = layer
+      while let current = owner, !(current.delegate is NSView) { owner = current.superlayer }
+      if let view = owner?.delegate as? NSView, "\(type(of: view))".contains("HostingView"),
+        !views.contains(view)
+      {
+        views.append(view)
+      }
+    }
+    let other = NSAppearance(
+      named: window.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        ? .aqua : .darkAqua)
+    for view in views {
+      let appearance = view.appearance
+      view.appearance = other
+      view.layoutSubtreeIfNeeded()
+      view.appearance = appearance
+      view.layoutSubtreeIfNeeded()
+    }
+    print(
+      "Drew stale toolbar images again in \(window.title): \(stale.map(\.description).joined(separator: ", "))"
+    )
+    let left = staleToolbarImages(in: window)
+    if !left.isEmpty {
+      Issue.record(
+        """
+        \(window.title)'s toolbar images stayed drawn for another size after drawing them again: \
+        \(left.map(\.description).joined(separator: ", ")). A bitmap image in a toolbar (not a \
+        symbol) would need `staleToolbarImages` to leave it out.
+        """)
+    }
+  }
+
+  /// The title bar's image layers whose bitmap isn't their size at `snapshotScale`, a pixel or
+  /// more apart, described for an issue.
+  @MainActor
+  func staleToolbarImages(in window: NSWindow) -> [(layer: CALayer, description: String)] {
+    titleBarImageLayers(in: window).compactMap { layer in
+      guard let contents = layer.contents, CFGetTypeID(contents as CFTypeRef) == CGImage.typeID
+      else { return nil }
+      let image = contents as! CGImage
+      let expected = (
+        width: layer.bounds.width * snapshotScale, height: layer.bounds.height * snapshotScale
+      )
+      guard
+        abs(CGFloat(image.width) - expected.width) >= 1
+          || abs(CGFloat(image.height) - expected.height) >= 1
+      else { return nil }
+      let origin = layer.convert(CGPoint.zero, to: window.contentView!.superview!.layer!)
+      return (
+        layer,
+        "\(image.width) × \(image.height) px in \(layer.bounds.width) × \(layer.bounds.height) pt at \(origin.x), \(origin.y)"
+      )
+    }
+  }
+
+  /// SwiftUI's image layers in the window's title bar (its toolbar's and its buttons'), and none
+  /// of the content's, even under the title bar.
+  @MainActor
+  func titleBarImageLayers(in window: NSWindow) -> [CALayer] {
+    guard
+      let titleBar = window.contentView?.superview?.subviews.first(where: {
+        "\(type(of: $0))" == "NSTitlebarContainerView"
+      })?.layer
+    else { return [] }
+    var layers: [CALayer] = []
+    func visit(_ layer: CALayer) {
+      if "\(type(of: layer))" == "ImageLayer" { layers.append(layer) }
+      layer.sublayers?.forEach(visit)
+    }
+    visit(titleBar)
+    return layers
   }
 
   /// What every snapshot shares, set once in the target's test process (SwiftPM runs each test
