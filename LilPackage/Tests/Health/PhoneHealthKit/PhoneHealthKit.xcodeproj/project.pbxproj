@@ -9,9 +9,14 @@
 /* Begin PBXBuildFile section */
 		4C0000000000000000000002 /* TestHealthTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000001 /* TestHealthTypes.swift */; };
 		4C0000000000000000000003 /* TestHealthTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000001 /* TestHealthTypes.swift */; };
+		4C0000000000000000000007 /* ConformanceSourceApps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000006 /* ConformanceSourceApps.swift */; };
+		4C0000000000000000000008 /* ConformanceSourceApps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000006 /* ConformanceSourceApps.swift */; };
+		4C000000000000000000000A /* ConformanceDataset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000009 /* ConformanceDataset.swift */; };
+		4C000000000000000000000C /* ConformanceSamples.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C000000000000000000000B /* ConformanceSamples.swift */; };
 		4D000000000000000000000B /* HealthKitAccess in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0000000000000000000001 /* HealthKitAccess */; };
 		4D000000000000000000000C /* HealthCards in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0000000000000000000002 /* HealthCards */; };
 		4D000000000000000000000D /* HealthCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0000000000000000000003 /* HealthCatalog */; };
+		4D000000000000000000000E /* HealthConformance in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0000000000000000000004 /* HealthConformance */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,6 +41,9 @@
 		4A0000000000000000000012 /* HealthKitTestHost.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HealthKitTestHost.entitlements; sourceTree = "<group>"; };
 		4B0000000000000000000004 /* HealthKitPhoneTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HealthKitPhoneTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C0000000000000000000001 /* TestHealthTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestHealthTypes.swift; sourceTree = "<group>"; };
+		4C0000000000000000000006 /* ConformanceSourceApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConformanceSourceApps.swift; sourceTree = "<group>"; };
+		4C0000000000000000000009 /* ConformanceDataset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ConformanceDataset.swift; path = ../HealthConformance/ConformanceDataset.swift; sourceTree = SOURCE_ROOT; };
+		4C000000000000000000000B /* ConformanceSamples.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ConformanceSamples.swift; path = ../HealthConformance/ConformanceSamples.swift; sourceTree = SOURCE_ROOT; };
 		4E0000000000000000000004 /* HealthKitAuthorizationUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HealthKitAuthorizationUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -73,6 +81,7 @@
 				4D000000000000000000000B /* HealthKitAccess in Frameworks */,
 				4D000000000000000000000C /* HealthCards in Frameworks */,
 				4D000000000000000000000D /* HealthCatalog in Frameworks */,
+				4D000000000000000000000E /* HealthConformance in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +121,9 @@
 			isa = PBXGroup;
 			children = (
 				4C0000000000000000000001 /* TestHealthTypes.swift */,
+				4C0000000000000000000006 /* ConformanceSourceApps.swift */,
+				4C0000000000000000000009 /* ConformanceDataset.swift */,
+				4C000000000000000000000B /* ConformanceSamples.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -160,6 +172,7 @@
 				4D0000000000000000000001 /* HealthKitAccess */,
 				4D0000000000000000000002 /* HealthCards */,
 				4D0000000000000000000003 /* HealthCatalog */,
+				4D0000000000000000000004 /* HealthConformance */,
 			);
 			productName = HealthKitPhoneTests;
 			productReference = 4B0000000000000000000004 /* HealthKitPhoneTests.xctest */;
@@ -260,6 +273,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				4C0000000000000000000002 /* TestHealthTypes.swift in Sources */,
+				4C0000000000000000000007 /* ConformanceSourceApps.swift in Sources */,
+				4C000000000000000000000A /* ConformanceDataset.swift in Sources */,
+				4C000000000000000000000C /* ConformanceSamples.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -268,6 +284,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4C0000000000000000000003 /* TestHealthTypes.swift in Sources */,
+				4C0000000000000000000008 /* ConformanceSourceApps.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -460,6 +477,10 @@
 		4D0000000000000000000003 /* HealthCatalog */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HealthCatalog;
+		};
+		4D0000000000000000000004 /* HealthConformance */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthConformance;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

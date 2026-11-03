@@ -15,12 +15,18 @@
 # - `simctl privacy` can't grant Health, so a UI test (`GrantHealthAccess`) first turns on access
 #   for the tests' host app (`HealthKitTestHost`) in the sheet, as a person would.
 # - It builds with `scripts/xcodebuild` (`Lil.xcworkspace`, scheme `HealthKitPhoneTests`) into
-#   `.build/DerivedData`. Logs and the result bundle go to `LilPackage/.build/healthkit-tests/`.
+#   `.build/DerivedData`, or `LIL_HEALTHKIT_DERIVED_DATA` (CI's, kept outside the checkout). Logs and the result bundle go to `LilPackage/.build/healthkit-tests/`.
+# - The cards' conformance cases (`HealthKitConformanceTests`, 851-3201) need each of the dataset's
+#   sources to be an app of its own, since HealthKit gives a sample the source of the app that
+#   saves it. So it installs copies of the host with the bundle IDs `ConformanceSourceApps` names,
+#   one per source, which `GrantHealthAccess` gives access too. After the other suites, whose tests
+#   need HealthKit to hold only their own samples, each copy writes its source's samples
+#   (`ConformanceWriter`), then the conformance suite runs on its own, and the copies delete them.
 set -eu
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 output="$root/LilPackage/.build/healthkit-tests"
-derived="$root/.build/DerivedData"
+derived=${LIL_HEALTHKIT_DERIVED_DATA:-$root/.build/DerivedData}
 device_type=${LIL_HEALTHKIT_DEVICE_TYPE:-com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro}
 
 for argument in "$@"; do
@@ -66,6 +72,28 @@ if ! wait "$booting"; then
   exit 1
 fi
 
+# Which tests run: the conformance suite on its own, after the others.
+conformance_suite=HealthKitConformanceTests
+others=""
+conformance=""
+if [ $# = 0 ]; then
+  others="-only-testing:HealthKitPhoneTests -skip-testing:HealthKitPhoneTests/$conformance_suite"
+  conformance="-only-testing:HealthKitPhoneTests/$conformance_suite"
+fi
+for filter in "$@"; do
+  # Swift Testing's identifiers: a test, `Suite/test`, is `Suite/test()`. Names have no spaces.
+  case "$filter" in
+    */*")") ;;
+    */*) filter="$filter()" ;;
+  esac
+  case "$filter" in
+    "$conformance_suite" | "$conformance_suite"/*)
+      conformance="$conformance -only-testing:HealthKitPhoneTests/$filter"
+      ;;
+    *) others="$others -only-testing:HealthKitPhoneTests/$filter" ;;
+  esac
+done
+
 xctestrun=$(find "$derived/Build/Products" -maxdepth 1 -name 'HealthKitPhoneTests_*.xctestrun' \
   -print0 | xargs -0 ls -t 2>/dev/null | head -n 1)
 case "$xctestrun" in
@@ -97,17 +125,79 @@ test() {
   fi
 }
 
-# Swift Testing's identifiers: a test, `Suite/test`, is `Suite/test()`. Names have no spaces.
-filters=""
-for filter in "$@"; do
-  case "$filter" in
-    */*")") ;;
-    */*) filter="$filter()" ;;
-  esac
-  filters="$filters -only-testing:HealthKitPhoneTests/$filter"
-done
+# The conformance source apps: a copy of the host for each of the dataset's sources (samples' and
+# workouts', as `ConformanceSamples` reads them), with the next of `ConformanceSourceApps`' bundle
+# IDs, installed beside it.
+apps=""
+if [ -n "$conformance" ]; then
+  source_count=$(python3 -I - "$root/Services/api/test/health/cards/conformance/dataset.json" <<'EOF'
+import json, os, sys
 
+def batches(path):
+    dataset = json.load(open(path))
+    base = dataset.get("extends")
+    return (batches(os.path.join(os.path.dirname(path), base)) if base else []) + dataset["batches"]
+
+print(len({line["row"]["sourceBundleId"] for batch in batches(sys.argv[1]) for line in batch["lines"]
+           if line["entity"] in ("health_sample", "health_workout") and line["op"] == "upsert"}))
+EOF
+  )
+  host="$derived/Build/Products/Debug-iphonesimulator/HealthKitTestHost.app"
+  host_id=tech.lil.healthkit-test-host
+  mkdir -p "$output/sources"
+  number=1
+  while [ "$number" -le "$source_count" ]; do
+    id=$(printf 'tech.lil.healthkit-source-%02d' "$number")
+    copy="$output/sources/$id.app"
+    cp -R "$host" "$copy"
+    rm -rf "$copy/PlugIns"
+    plutil -replace CFBundleIdentifier -string "$id" "$copy/Info.plist"
+    # The simulator takes an app's identity, and so the source HealthKit gives its samples, from
+    # the `application-identifier` its executable embeds (the build's simulated entitlements), not
+    # from its Info.plist. The source apps' bundle IDs are as long as the host's, so it's replaced
+    # in place.
+    LC_ALL=C perl -0777 -pi -e "s/\\Q$host_id\\E/$id/g" "$copy/HealthKitTestHost"
+    if [ "${#id}" != "${#host_id}" ] || ! grep -q "$id" "$copy/HealthKitTestHost"; then
+      echo "error: couldn't make $id's entitlements from the host's." >&2
+      exit 1
+    fi
+    codesign --force --sign - "$copy" 2>>"$output/sources.log"
+    xcrun simctl install "$device" "$copy"
+    apps="$apps $id"
+    number=$((number + 1))
+  done
+  echo "Installed $source_count conformance source apps."
+fi
+
+# sources <write|delete>: has each source app write its part of the dataset, or delete it.
+sources() {
+  for id in $apps; do
+    said=$(xcrun simctl launch --console-pty --terminate-running-process "$device" "$id" \
+      "-$1Conformance" 2>&1 | tr -d '\r' | tee -a "$output/sources.log" | grep -E "^(Wrote|Deleted|error:)" || true)
+    case "$said" in
+      Wrote* | Deleted*) ;;
+      *)
+        echo "${said:-error: $id said nothing.} See $output/sources.log." >&2
+        exit 1
+        ;;
+    esac
+  done
+}
+
+# For `GrantHealthAccess` (xcodebuild passes `TEST_RUNNER_` variables to tests, without it).
+export TEST_RUNNER_LIL_HEALTHKIT_SOURCE_APPS="${apps# }"
 test grant -only-testing:HealthKitAuthorizationUITests
-# shellcheck disable=SC2086
-test tests ${filters:--only-testing:HealthKitPhoneTests}
+if [ -n "$others" ]; then
+  # A simulator used before may still hold the source apps' samples.
+  sources delete
+  # shellcheck disable=SC2086
+  test tests $others
+fi
+if [ -n "$conformance" ]; then
+  sources write
+  echo "The source apps wrote the conformance dataset."
+  # shellcheck disable=SC2086
+  test conformance $conformance
+  sources delete
+fi
 echo "Passed."

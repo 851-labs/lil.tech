@@ -2,7 +2,9 @@ public import Foundation
 
 // The conformance datasets (851-2841, 851-3198), shared with the server's harnesses: a synthetic
 // account in upload form, each iPhone's batches. The Mac syncs them into a database with its sync
-// engine (`HealthCLITests`' `Conformance.sync`); the iPhone (851-3201) writes them into HealthKit.
+// engine (`HealthCLITests`' `Conformance.sync`); the iPhone (851-3201) writes them into HealthKit
+// (`ConformanceSamples`). Foundation only: the iPhone's HealthKit test host builds this file and
+// `ConformanceSamples.swift` by reference (`PhoneHealthKit.xcodeproj`).
 
 public enum ConformanceFiles {
   /// The API's tests, where the conformance files are.
@@ -48,4 +50,9 @@ public struct ConformanceBatch {
     }
     return batches
   }
+}
+
+public struct ConformanceError: Error, CustomStringConvertible {
+  public var description: String
+  init(_ description: String) { self.description = description }
 }

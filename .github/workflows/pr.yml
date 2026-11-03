@@ -46,6 +46,7 @@ jobs:
       swift: ${{ steps.changes.outputs.swift }}
       services: ${{ steps.changes.outputs.services }}
       iphone: ${{ steps.changes.outputs.iphone }}
+      healthkit: ${{ steps.changes.outputs.healthkit }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -68,6 +69,8 @@ jobs:
     with:
       # The iPhone's state catalogs too, when what they're built from changed (851-3070).
       iphone: ${{ needs.changes.outputs.iphone == 'true' }}
+      # The iPhone's HealthKit tests too, when what they're built from or read changed (851-3201).
+      healthkit: ${{ needs.changes.outputs.healthkit == 'true' }}
 
   preview:
     needs: changes
