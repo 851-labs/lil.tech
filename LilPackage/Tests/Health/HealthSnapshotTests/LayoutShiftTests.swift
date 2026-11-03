@@ -39,8 +39,10 @@
           sourceLocation: state.sourceLocation)
         for (name, frame) in frames.sorted(by: { $0.key < $1.key }) {
           guard let other = expected[name] else { continue }
+          // On the pixel grid the images are drawn at: windows of other heights place a row a
+          // fraction of a pixel apart (0.125 pt, 851-3209), which nothing shows.
           #expect(
-            frame == other,
+            frame.onPixels == other.onPixels,
             """
             \(name) moved: at \(frame) in \(state.name), \(other) in \(first.name) \
             (\(frame.minY - other.minY) pt down). A page's loading state takes its loaded \
@@ -95,6 +97,14 @@
     var sourceLocation: SourceLocation {
       SourceLocation(
         fileID: "\(fileID)", filePath: "\(filePath)", line: Int(line), column: Int(column))
+    }
+  }
+
+  extension CGRect {
+    /// The rectangle rounded to the snapshots' pixels (`snapshotScale` to a point).
+    fileprivate var onPixels: CGRect {
+      func round(_ value: CGFloat) -> CGFloat { (value * snapshotScale).rounded() / snapshotScale }
+      return CGRect(x: round(minX), y: round(minY), width: round(width), height: round(height))
     }
   }
 
