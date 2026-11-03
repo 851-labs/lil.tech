@@ -192,6 +192,8 @@ let package = Package(
     .target(
       name: "HealthKitAccess",
       dependencies: [
+        // The iPhone's card engine runs cards' shared core (851-3199).
+        "HealthCards",
         "HealthCatalog",
         .product(name: "Dependencies", package: "swift-dependencies"),
       ],

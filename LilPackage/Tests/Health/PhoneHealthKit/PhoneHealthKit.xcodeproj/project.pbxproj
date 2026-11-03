@@ -1,0 +1,467 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4C0000000000000000000002 /* TestHealthTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000001 /* TestHealthTypes.swift */; };
+		4C0000000000000000000003 /* TestHealthTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0000000000000000000001 /* TestHealthTypes.swift */; };
+		4D000000000000000000000B /* HealthKitAccess in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0000000000000000000001 /* HealthKitAccess */; };
+		4D000000000000000000000C /* HealthCards in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0000000000000000000002 /* HealthCards */; };
+		4D000000000000000000000D /* HealthCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0000000000000000000003 /* HealthCatalog */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4B0000000000000000000010 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4A0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4A0000000000000000000006;
+			remoteInfo = HealthKitTestHost;
+		};
+		4E0000000000000000000010 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4A0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4A0000000000000000000006;
+			remoteInfo = HealthKitTestHost;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		4A0000000000000000000004 /* HealthKitTestHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HealthKitTestHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A0000000000000000000012 /* HealthKitTestHost.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HealthKitTestHost.entitlements; sourceTree = "<group>"; };
+		4B0000000000000000000004 /* HealthKitPhoneTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HealthKitPhoneTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4C0000000000000000000001 /* TestHealthTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestHealthTypes.swift; sourceTree = "<group>"; };
+		4E0000000000000000000004 /* HealthKitAuthorizationUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HealthKitAuthorizationUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		4A0000000000000000000005 /* HealthKitTestHost */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = HealthKitTestHost;
+			sourceTree = "<group>";
+		};
+		4B0000000000000000000005 /* HealthKitPhoneTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			name = HealthKitPhoneTests;
+			path = ../HealthKitPhoneTests;
+			sourceTree = SOURCE_ROOT;
+		};
+		4E0000000000000000000005 /* HealthKitAuthorizationUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = HealthKitAuthorizationUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4A0000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4B0000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4D000000000000000000000B /* HealthKitAccess in Frameworks */,
+				4D000000000000000000000C /* HealthCards in Frameworks */,
+				4D000000000000000000000D /* HealthCatalog in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4E0000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		4A0000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				4A0000000000000000000005 /* HealthKitTestHost */,
+				4B0000000000000000000005 /* HealthKitPhoneTests */,
+				4E0000000000000000000005 /* HealthKitAuthorizationUITests */,
+				4C0000000000000000000005 /* Shared */,
+				4A0000000000000000000012 /* HealthKitTestHost.entitlements */,
+				4A0000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4A0000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				4A0000000000000000000004 /* HealthKitTestHost.app */,
+				4B0000000000000000000004 /* HealthKitPhoneTests.xctest */,
+				4E0000000000000000000004 /* HealthKitAuthorizationUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		4C0000000000000000000005 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				4C0000000000000000000001 /* TestHealthTypes.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4A0000000000000000000006 /* HealthKitTestHost */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4A000000000000000000000F /* Build configuration list for PBXNativeTarget "HealthKitTestHost" */;
+			buildPhases = (
+				4A0000000000000000000007 /* Sources */,
+				4A0000000000000000000008 /* Frameworks */,
+				4A0000000000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				4A0000000000000000000005 /* HealthKitTestHost */,
+			);
+			name = HealthKitTestHost;
+			productName = HealthKitTestHost;
+			productReference = 4A0000000000000000000004 /* HealthKitTestHost.app */;
+			productType = "com.apple.product-type.application";
+		};
+		4B0000000000000000000006 /* HealthKitPhoneTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4B000000000000000000000F /* Build configuration list for PBXNativeTarget "HealthKitPhoneTests" */;
+			buildPhases = (
+				4B0000000000000000000007 /* Sources */,
+				4B0000000000000000000008 /* Frameworks */,
+				4B0000000000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4B0000000000000000000011 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				4B0000000000000000000005 /* HealthKitPhoneTests */,
+			);
+			name = HealthKitPhoneTests;
+			packageProductDependencies = (
+				4D0000000000000000000001 /* HealthKitAccess */,
+				4D0000000000000000000002 /* HealthCards */,
+				4D0000000000000000000003 /* HealthCatalog */,
+			);
+			productName = HealthKitPhoneTests;
+			productReference = 4B0000000000000000000004 /* HealthKitPhoneTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		4E0000000000000000000006 /* HealthKitAuthorizationUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4E000000000000000000000F /* Build configuration list for PBXNativeTarget "HealthKitAuthorizationUITests" */;
+			buildPhases = (
+				4E0000000000000000000007 /* Sources */,
+				4E0000000000000000000008 /* Frameworks */,
+				4E0000000000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4E0000000000000000000011 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				4E0000000000000000000005 /* HealthKitAuthorizationUITests */,
+			);
+			name = HealthKitAuthorizationUITests;
+			productName = HealthKitAuthorizationUITests;
+			productReference = 4E0000000000000000000004 /* HealthKitAuthorizationUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4A0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					4A0000000000000000000006 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					4B0000000000000000000006 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = 4A0000000000000000000006;
+					};
+					4E0000000000000000000006 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = 4A0000000000000000000006;
+					};
+				};
+			};
+			buildConfigurationList = 4A000000000000000000000C /* Build configuration list for PBXProject "PhoneHealthKit" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 4A0000000000000000000002;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 4A0000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				4A0000000000000000000006 /* HealthKitTestHost */,
+				4B0000000000000000000006 /* HealthKitPhoneTests */,
+				4E0000000000000000000006 /* HealthKitAuthorizationUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		4A0000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4B0000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4E0000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4A0000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4C0000000000000000000002 /* TestHealthTypes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4B0000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4C0000000000000000000003 /* TestHealthTypes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4E0000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		4B0000000000000000000011 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4A0000000000000000000006 /* HealthKitTestHost */;
+			targetProxy = 4B0000000000000000000010 /* PBXContainerItemProxy */;
+		};
+		4E0000000000000000000011 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4A0000000000000000000006 /* HealthKitTestHost */;
+			targetProxy = 4E0000000000000000000010 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		4A000000000000000000000D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -enable-upcoming-feature ExistentialAny -enable-upcoming-feature ImmutableWeakCaptures -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature InternalImportsByDefault -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature NonisolatedNonsendingByDefault";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		4A000000000000000000000E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -enable-upcoming-feature ExistentialAny -enable-upcoming-feature ImmutableWeakCaptures -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature InternalImportsByDefault -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature NonisolatedNonsendingByDefault";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		4A0000000000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = HealthKitTestHost.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Reads the synthetic samples the HealthKit tests write.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Writes synthetic samples for the HealthKit tests.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.healthkit-test-host;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		4A0000000000000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = HealthKitTestHost.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Reads the synthetic samples the HealthKit tests write.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Writes synthetic samples for the HealthKit tests.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.healthkit-test-host;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		4B0000000000000000000014 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.healthkit-phone-tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HealthKitTestHost.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HealthKitTestHost";
+			};
+			name = Debug;
+		};
+		4B0000000000000000000015 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.healthkit-phone-tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HealthKitTestHost.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HealthKitTestHost";
+			};
+			name = Release;
+		};
+		4E0000000000000000000014 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.healthkit-authorization-ui-tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_TARGET_NAME = HealthKitTestHost;
+			};
+			name = Debug;
+		};
+		4E0000000000000000000015 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.lil.healthkit-authorization-ui-tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_TARGET_NAME = HealthKitTestHost;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4A000000000000000000000C /* Build configuration list for PBXProject "PhoneHealthKit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4A000000000000000000000D /* Debug */,
+				4A000000000000000000000E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4A000000000000000000000F /* Build configuration list for PBXNativeTarget "HealthKitTestHost" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4A0000000000000000000010 /* Debug */,
+				4A0000000000000000000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4B000000000000000000000F /* Build configuration list for PBXNativeTarget "HealthKitPhoneTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4B0000000000000000000014 /* Debug */,
+				4B0000000000000000000015 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4E000000000000000000000F /* Build configuration list for PBXNativeTarget "HealthKitAuthorizationUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4E0000000000000000000014 /* Debug */,
+				4E0000000000000000000015 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4D0000000000000000000001 /* HealthKitAccess */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthKitAccess;
+		};
+		4D0000000000000000000002 /* HealthCards */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthCards;
+		};
+		4D0000000000000000000003 /* HealthCatalog */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthCatalog;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 4A0000000000000000000001 /* Project object */;
+}

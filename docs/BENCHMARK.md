@@ -172,6 +172,33 @@ LIL_BENCHMARKS=1 vp test --reporter=verbose --silent=false test/health/cards/Car
 - **Reading the rows is most of it,** as for the Health tools (above): the engine adds 50–300 ms over the floor for half a million readings. Time-zone math is per bucket and night, not per reading.
 - **A real account** has about 105,000 heart rate samples a year (Agent tool calls, above), a fifth of these, so a year's card costs about what a year of `metric` does, well under the store's 30 s limit and inside the tools' 0.7 s.
 
+## Cards on the iPhone
+
+What a card costs the iPhone's engine (851-3199, `docs/decisions/cards.md`, The iPhone), from a simulator's HealthKit: a year of heart rate every 5 minutes (105,120 samples, about a real account's year), and a year of steps every 10 minutes while awake. `HealthKitCardsBenchmark` (`LilPackage/Tests/Health/HealthKitPhoneTests`) writes the year, then runs each card three times, wall-clock:
+
+```sh
+TEST_RUNNER_LIL_HEALTHKIT_BENCHMARK=1 scripts/test-iphone-healthkit HealthKitCardsBenchmark
+```
+
+**2026-11-03**, iPhone 18 Pro simulator (iOS 27.2) on an Apple M1 Pro, beside other agents' work. Seconds:
+
+| Card | Each run |
+| --- | ---: |
+| Heart rate, `avg`, `auto` (by the month), Y | 1.47–1.48 |
+| Heart rate, `max`, by the day, with a 7-day moving average, Y | 1.46–1.49 |
+| Heart rate, `first`, `00:00` to `12:00`, by the day, Y | 1.48–1.49 |
+| Heart rate, `deviceModels: ["Watch"]` (none match), by the day, Y | 0.04 |
+| Heart rate, `avg`, `auto` (by the day), W | 0.03 |
+| HealthKit reading the year's samples as readings (the floor) | 1.39 |
+| A Y run cancelled 50 ms in, until it throws | 0.05 |
+| Steps (35,040 samples, summed by HealthKit by the hour), `auto` (average days by the month), Y | 0.24–0.25 |
+| Steps, by the day, Y | 0.23–0.26 |
+| Steps, `auto` (by the day), W | 0.01 |
+
+- **HealthKit reading the samples is nearly all of it:** the core adds about 0.1 s for the year. Under the design's 2 s, so there's no cache; a device may be slower.
+- **Totals** cost HealthKit 8,760 hourly statistics for a year, a quarter of a second: cheap enough not to ask HealthKit for days, which would step by its calendar rather than the run's.
+- Writing the year of heart rate takes about 10 s (`HKHealthStore.save`, 10,000 a time).
+
 ## Snapshot tests: from an edit to an image
 
 How long an agent or a person waits between saving a one-line change to a view and seeing its snapshot compared with the reference (851-2962). Snapshot tests replace `RenderPreview` only if this loop is no slower than `RenderPreview`'s.

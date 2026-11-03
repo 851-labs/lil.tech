@@ -13,4 +13,7 @@
    <FileRef
       location = "group:LilPackage/Tests/Health/PhoneSnapshots/PhoneSnapshots.xcodeproj">
    </FileRef>
+   <FileRef
+      location = "group:LilPackage/Tests/Health/PhoneHealthKit/PhoneHealthKit.xcodeproj">
+   </FileRef>
 </Workspace>
