@@ -95,6 +95,11 @@ if $swift; then
     -destination 'generic/platform=iOS Simulator' -derivedDataPath "$scratch/DerivedData" \
     -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO \
     build-for-testing -quiet
+  # So do the iPhone's HealthKit tests, which `scripts/test-iphone-healthkit` runs (851-3199).
+  step scripts/xcodebuild -workspace Lil.xcworkspace -scheme HealthKitPhoneTests \
+    -destination 'generic/platform=iOS Simulator' -derivedDataPath "$scratch/DerivedData" \
+    -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO \
+    build-for-testing -quiet
 fi
 
 if $services; then

@@ -1,0 +1,106 @@
+#!/bin/sh
+# Runs the iPhone's HealthKit tests (`HealthKitPhoneTests`, 851-3199) in a simulator of their own:
+# they write synthetic samples into its HealthKit and read them back through the iPhone's code,
+# such as its card engine (`HealthKitCardEngine`).
+#
+# usage: scripts/test-iphone-healthkit [<test>…]
+#
+#   <test>  A suite, or a suite's test, e.g. `HealthKitCardsTests` or
+#           `HealthKitCardsTests/aSampleAcrossMidnightIsShared`. Every test without one.
+#
+# - It makes a new iPhone simulator (`LIL_HEALTHKIT_DEVICE_TYPE`, default iPhone 18 Pro, on the
+#   newest iOS installed), boots it while the tests build, and deletes it when it exits, however
+#   it ends: an idle simulator runs about 130 processes. To run again and again in one, make it
+#   yourself and pass its UDID in `LIL_HEALTHKIT_SIMULATOR`; it's left for you to delete.
+# - `simctl privacy` can't grant Health, so a UI test (`GrantHealthAccess`) first turns on access
+#   for the tests' host app (`HealthKitTestHost`) in the sheet, as a person would.
+# - It builds with `scripts/xcodebuild` (`Lil.xcworkspace`, scheme `HealthKitPhoneTests`) into
+#   `.build/DerivedData`. Logs and the result bundle go to `LilPackage/.build/healthkit-tests/`.
+set -eu
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+output="$root/LilPackage/.build/healthkit-tests"
+derived="$root/.build/DerivedData"
+device_type=${LIL_HEALTHKIT_DEVICE_TYPE:-com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro}
+
+for argument in "$@"; do
+  case "$argument" in
+    -*)
+      echo "usage: scripts/test-iphone-healthkit [<test>…]" >&2
+      exit 64
+      ;;
+  esac
+done
+
+rm -rf "$output"
+mkdir -p "$output"
+
+device=${LIL_HEALTHKIT_SIMULATOR:-}
+if [ -z "$device" ]; then
+  device=$(xcrun simctl create "lil-healthkit-$$" "$device_type")
+  echo "Made the simulator lil-healthkit-$$ ($device)."
+  # Never left behind, booted or not.
+  trap 'xcrun simctl shutdown "$device" >/dev/null 2>&1 || true
+    xcrun simctl delete "$device" >/dev/null 2>&1 && echo "Deleted the simulator ($device)."' EXIT
+  trap 'exit 130' INT TERM
+fi
+
+# While the build runs.
+xcrun simctl bootstatus "$device" -b >"$output/boot.log" 2>&1 &
+booting=$!
+
+status=0
+"$root/scripts/xcodebuild" build-for-testing \
+  -workspace "$root/Lil.xcworkspace" -scheme HealthKitPhoneTests \
+  -destination "id=$device" -derivedDataPath "$derived" \
+  -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile -quiet >"$output/build.log" 2>&1 ||
+  status=$?
+if [ "$status" != 0 ]; then
+  grep -E "error:|BUILD FAILED|xcodebuild: error" "$output/build.log" | sort -u >&2 || true
+  echo "error: the build failed. See $output/build.log." >&2
+  exit 1
+fi
+if ! wait "$booting"; then
+  tail -n 5 "$output/boot.log" >&2
+  echo "error: the simulator didn't boot. See $output/boot.log." >&2
+  exit 1
+fi
+
+xctestrun=$(find "$derived/Build/Products" -maxdepth 1 -name 'HealthKitPhoneTests_*.xctestrun' \
+  -print0 | xargs -0 ls -t | head -n 1)
+# Screenshots rather than a screen recording: ending the recording holds up each run for 5
+# minutes after its tests finish.
+for target in HealthKitAuthorizationUITests HealthKitPhoneTests; do
+  plutil -replace "$target.PreferredScreenCaptureFormat" -string screenshots "$xctestrun"
+done
+
+# test <name> <xcodebuild options…>: runs tests from the build, with a result bundle and log of
+# that name.
+test() {
+  name=$1
+  shift
+  status=0
+  xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$device" \
+    -resultBundlePath "$output/$name.xcresult" -collect-test-diagnostics never \
+    -parallel-testing-enabled NO "$@" >"$output/$name.log" 2>&1 || status=$?
+  grep -E "^(Test|✔|✘|􀢄|􁁛)|error:|passed|failed" "$output/$name.log" | grep -v "^Test session" || true
+  if [ "$status" != 0 ]; then
+    echo "error: $name failed. See $output/$name.log and $output/$name.xcresult." >&2
+    exit 1
+  fi
+}
+
+# Swift Testing's identifiers: a test, `Suite/test`, is `Suite/test()`. Names have no spaces.
+filters=""
+for filter in "$@"; do
+  case "$filter" in
+    */*")") ;;
+    */*) filter="$filter()" ;;
+  esac
+  filters="$filters -only-testing:HealthKitPhoneTests/$filter"
+done
+
+test grant -only-testing:HealthKitAuthorizationUITests
+# shellcheck disable=SC2086
+test tests ${filters:--only-testing:HealthKitPhoneTests}
+echo "Passed."
