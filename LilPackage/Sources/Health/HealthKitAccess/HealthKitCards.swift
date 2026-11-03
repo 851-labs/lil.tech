@@ -8,7 +8,8 @@ public import HealthKit
 // fed from HealthKit, local-first and offline. Totals come from HealthKit's statistics, which
 // de-duplicate sources as Health does, and readings from sample queries, in catalog units, which
 // the core weighs and aggregates exactly as the Mac's engine does (851-3199). Sleep and workout
-// windows come with 851-3200.
+// windows read sleep analysis records and workouts, which the core turns into nights and
+// stretches, then the readings in those stretches (851-3200).
 
 extension DependencyValues {
   /// Cards computed from this iPhone's HealthKit.
@@ -75,36 +76,36 @@ public struct HealthKitCardEngine: Sendable {
     self.store = store
   }
 
-  /// What HealthKit can't give a card yet.
-  public enum Unsupported: Error, Equatable {
-    /// Sleep and workout windows (851-3200).
-    case eventWindows
-  }
-
   /// A run's data, fetched from HealthKit: its window fetches first, then its fetches, all at
   /// once, as the core asks for them.
   public func data(_ run: CardRun) async throws -> CardData {
     var run = run
     if !run.windowFetches.isEmpty {
-      var results: [CardWindowFetchResult] = []
-      for fetch in run.windowFetches {
-        results.append(try await window(fetch))
-      }
-      run = run.windowed(results)
+      run = run.windowed(try await all(run.windowFetches) { try await window($0) })
     }
-    let fetches = run.fetches
-    let results = try await withThrowingTaskGroup(of: (Int, CardFetchResult).self) { group in
+    let calendar = run.calendar
+    let results = try await all(run.fetches) { try await fetch($0, calendar: calendar) }
+    try Task.checkCancellation()
+    return run.compute(results)
+  }
+
+  /// `body` of every fetch, `width` at a time (all at once by default), its results in the
+  /// fetches' order.
+  private func all<Fetch: Sendable, Result: Sendable>(
+    _ fetches: [Fetch], width: Int = .max,
+    _ body: @escaping @Sendable (Fetch) async throws -> Result
+  ) async throws -> [Result] {
+    try await withThrowingTaskGroup(of: (Int, Result).self) { group in
+      var results = [Result?](repeating: nil, count: fetches.count)
       for (index, fetch) in fetches.enumerated() {
-        group.addTask { [calendar = run.calendar] in
-          (index, try await self.fetch(fetch, calendar: calendar))
+        if index >= width, let done = try await group.next() {
+          results[done.0] = done.1
         }
+        group.addTask { (index, try await body(fetch)) }
       }
-      var results = [CardFetchResult?](repeating: nil, count: fetches.count)
       for try await (index, result) in group { results[index] = result }
       return results.map { $0! }
     }
-    try Task.checkCancellation()
-    return run.compute(results)
   }
 
   /// What a card's Summary row shows (`CardHeadline`), from data started by `now`; `nil` for No
@@ -150,14 +151,77 @@ public struct HealthKitCardEngine: Sendable {
       return .readings(
         try await readings(
           of: fetch.type, in: range, filter: filter, needsSampleIDs: needsSampleIDs))
-    case .stretchReadings:
-      throw Unsupported.eventWindows
+    case .stretchReadings(let stretches, let filter, let needsSampleIDs):
+      return .readings(
+        try await readings(
+          of: fetch.type, in: stretches, filter: filter, needsSampleIDs: needsSampleIDs))
     }
   }
 
-  /// One of a run's window fetches: sleep records or workouts (851-3200).
+  /// One of a run's window fetches: the sleep records its nights are grouped from, or the
+  /// workouts its workout windows keep.
   public func window(_ fetch: CardWindowFetch) async throws -> CardWindowFetchResult {
-    throw Unsupported.eventWindows
+    switch fetch {
+    case .sleep(let range): .sleep(try await sleepRecords(overlapping: range))
+    case .workouts(let range): .workouts(try await workouts(overlapping: range))
+    }
+  }
+
+  /// Sleep analysis records that end after `range` starts and start before it ends (Unix
+  /// milliseconds), by start: every value (In Bed included) from every source, as `CardNights`
+  /// groups them. In Bed records can start well before a night.
+  public func sleepRecords(overlapping range: Range<Int>) async throws -> [CardSleepRecord] {
+    try await samples(of: HKCategoryType(.sleepAnalysis), overlapping: range) { sample in
+      (sample as? HKCategorySample).map {
+        CardSleepRecord(
+          start: $0.startDate.milliseconds, end: $0.endDate.milliseconds, value: $0.value,
+          source: $0.sourceRevision.source.bundleIdentifier)
+      }
+    }
+  }
+
+  /// Workouts of every activity that end after `range` starts and start before it ends (Unix
+  /// milliseconds), from every source, by start, with their overall activity.
+  public func workouts(overlapping range: Range<Int>) async throws -> [CardWorkout] {
+    try await samples(of: HKWorkoutType.workoutType(), overlapping: range) { sample in
+      (sample as? HKWorkout).map {
+        CardWorkout(
+          start: $0.startDate.milliseconds, end: $0.endDate.milliseconds,
+          activityType: Int($0.workoutActivityType.rawValue))
+      }
+    }
+  }
+
+  /// Samples of `type` that end after `range` starts and start before it ends, by start, made
+  /// into `Value`s on HealthKit's queue. The predicate compares HealthKit's dates; the range is
+  /// applied again to the milliseconds every engine reads, so a sample a fraction of one past an
+  /// end is placed as the Mac places it.
+  private func samples<Value: Sendable>(
+    of type: HKSampleType, overlapping range: Range<Int>,
+    _ transform: @escaping @Sendable (HKSample) -> Value?
+  ) async throws -> [Value] {
+    let predicate = NSPredicate(
+      format: "%K < %@ AND %K > %@", HKPredicateKeyPathStartDate,
+      Date(milliseconds: range.upperBound) as NSDate, HKPredicateKeyPathEndDate,
+      Date(milliseconds: range.lowerBound) as NSDate)
+    return try await run { finish in
+      HKSampleQuery(
+        sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit,
+        sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+      ) { _, samples, error in
+        guard let samples else {
+          return finish(.failure(error ?? HKError(.errorHealthDataUnavailable)))
+        }
+        finish(
+          .success(
+            samples.compactMap { sample in
+              guard sample.startDate.milliseconds < range.upperBound,
+                sample.endDate.milliseconds > range.lowerBound
+              else { return nil }
+              return transform(sample)
+            }))
+      }
+    }
   }
 
   /// A cumulative type's totals per bucket of `grain`, from the buckets starting in `range`:
@@ -209,14 +273,67 @@ public struct HealthKitCardEngine: Sendable {
   public func readings(
     of typeID: String, in range: Range<Int>, filter: CardSpec.Filter?, needsSampleIDs: Bool
   ) async throws -> [CardReading] {
+    guard let query = try await readingQuery(of: typeID, filter: filter) else { return [] }
+    return try await readings(query, in: range, needsSampleIDs: needsSampleIDs)
+  }
+
+  /// A type's readings starting in one of `stretches` (in order and apart, Unix milliseconds),
+  /// oldest first, as `readings(of:in:filter:needsSampleIDs:)` reads them, for a sleep or workout
+  /// window.
+  ///
+  /// Stretches less than `stretchGap` apart are read as one range (a night's stretches asleep,
+  /// with the minutes awake between them, which the core leaves out), and the ranges are read
+  /// `stretchConcurrency` at a time. A year of nights asleep takes 0.42 s so, against 1.9 s for a
+  /// query per stretch one after another, and 1.4 s for the year's span in one query
+  /// (`HealthKitCardsBenchmark`).
+  public func readings(
+    of typeID: String, in stretches: [CardStretch], filter: CardSpec.Filter?,
+    needsSampleIDs: Bool
+  ) async throws -> [CardReading] {
+    guard !stretches.isEmpty,
+      let query = try await readingQuery(of: typeID, filter: filter)
+    else { return [] }
+    return try await all(Self.queryRanges(stretches), width: Self.stretchConcurrency) {
+      try await readings(query, in: $0, needsSampleIDs: needsSampleIDs)
+    }
+    .flatMap(\.self)
+  }
+
+  /// The ranges `readings(of:in:filter:needsSampleIDs:)` queries for `stretches` (in order and
+  /// apart): stretches less than `stretchGap` apart as one.
+  public static func queryRanges(_ stretches: [CardStretch]) -> [Range<Int>] {
+    var ranges: [Range<Int>] = []
+    for stretch in stretches {
+      if let last = ranges.last, stretch.start - last.upperBound < stretchGap {
+        ranges[ranges.count - 1] = last.lowerBound..<max(last.upperBound, stretch.end)
+      } else {
+        ranges.append(stretch.start..<stretch.end)
+      }
+    }
+    return ranges
+  }
+
+  /// Stretches closer than this (in milliseconds) are read in one query.
+  public static let stretchGap = 3_600_000
+  /// How many of a window's queries run at once.
+  public static let stretchConcurrency = 8
+
+  /// What a type's reading queries share: its type, catalog unit and the filter's predicates.
+  /// `nil` when no reading can match: a type HealthKit doesn't know, or none of the type's
+  /// sources being the filter's.
+  private struct ReadingQuery: @unchecked Sendable {
+    let type: HKQuantityType
+    let unit: HKUnit
+    let predicates: [NSPredicate]
+  }
+
+  private func readingQuery(of typeID: String, filter: CardSpec.Filter?) async throws
+    -> ReadingQuery?
+  {
     guard let type = HKObjectType.quantityType(forIdentifier: .init(rawValue: typeID)),
       let unit = HealthCatalog.type(id: typeID)?.unit.map(HKUnit.init(from:))
-    else { return [] }
-    var predicates = [
-      HKQuery.predicateForSamples(
-        withStart: Date(milliseconds: range.lowerBound),
-        end: Date(milliseconds: range.upperBound), options: .strictStartDate)
-    ]
+    else { return nil }
+    var predicates: [NSPredicate] = []
     if let bundleIDs = filter?.sources {
       let wanted = Set(bundleIDs)
       let sources: Set<HKSource> = try await run { finish in
@@ -228,7 +345,7 @@ public struct HealthKitCardEngine: Sendable {
         }
       }
       // No source of that type matches, so no reading can.
-      guard !sources.isEmpty else { return [] }
+      guard !sources.isEmpty else { return nil }
       predicates.append(HKQuery.predicateForObjects(from: Set(sources)))
     }
     if let models = filter?.deviceModels {
@@ -236,10 +353,26 @@ public struct HealthKitCardEngine: Sendable {
         HKQuery.predicateForObjects(
           withDeviceProperty: HKDevicePropertyKeyModel, allowedValues: Set(models)))
     }
-    let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+    return ReadingQuery(type: type, unit: unit, predicates: predicates)
+  }
+
+  /// The query's readings starting in `range`.
+  private func readings(_ query: ReadingQuery, in range: Range<Int>, needsSampleIDs: Bool)
+    async throws -> [CardReading]
+  {
+    let predicate = NSCompoundPredicate(
+      andPredicateWithSubpredicates: [
+        // A millisecond early: a sample starting a fraction of one before the range is in it,
+        // in the milliseconds every engine reads (`readings(_:unit:in:needsSampleIDs:)` keeps
+        // the range exactly).
+        HKQuery.predicateForSamples(
+          withStart: Date(milliseconds: range.lowerBound - 1),
+          end: Date(milliseconds: range.upperBound), options: .strictStartDate)
+      ] + query.predicates)
+    let unit = query.unit
     return try await run { finish in
       HKSampleQuery(
-        sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit,
+        sampleType: query.type, predicate: predicate, limit: HKObjectQueryNoLimit,
         sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
       ) { _, samples, error in
         guard let samples else {

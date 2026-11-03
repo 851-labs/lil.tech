@@ -117,6 +117,99 @@ struct HealthKitCardsBenchmark {
       print("Benchmark: \(name): \(durations.map(\.description).joined(separator: ", "))")
     }
 
+    // Windows (851-3200): a Watch's night ending on every day of the year (in bed, Core, awake
+    // twice, Deep, REM), falling asleep between 22:00 and 01:00, and a run at 07:00 every other
+    // day.
+    var nights: [HKSample] = []
+    day = date(1, 1)
+    for index in 0..<365 {
+      let bed = day.addingTimeInterval((-2 + Double((index * 5) % 7) / 2) * 3600)
+      func at(_ hours: Double) -> Date { bed.addingTimeInterval(hours * 3600) }
+      nights += [
+        SyntheticHealthKit.sleep(.inBed, at(-0.4), at(8.2)),
+        SyntheticHealthKit.sleep(.asleepCore, at(0), at(2)),
+        SyntheticHealthKit.sleep(.awake, at(2), at(2 + 1 / 6)),
+        SyntheticHealthKit.sleep(.asleepDeep, at(2 + 1 / 6), at(4)),
+        SyntheticHealthKit.sleep(.asleepREM, at(4), at(7.5)),
+        SyntheticHealthKit.sleep(.awake, at(7.5), at(7.75)),
+      ]
+      day = london.date(byAdding: .day, value: 1, to: day)!
+    }
+    try await health.save(nights)
+    day = date(1, 1)
+    for index in 0..<365 {
+      if index % 2 == 0 {
+        _ = try await health.workout(.running, at: day.addingTimeInterval(7 * 3600), minutes: 45)
+      }
+      day = london.date(byAdding: .day, value: 1, to: day)!
+    }
+    let windowCards: [(String, String)] = [
+      (
+        "heart rate asleep, by the night, with a 7-night average, Y",
+        #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "HeartRate", "window": {"kind": "asleep"}}], "formulas": [{"id": "t", "kind": "movingAverage", "of": "a", "points": 7}], "bucket": "night", "range": "Y"}"#
+      ),
+      (
+        "heart rate in the 5 minutes before sleep, by the night, Y",
+        #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "HeartRate", "window": {"kind": "beforeSleep", "minutes": 5}}], "bucket": "night", "range": "Y"}"#
+      ),
+      (
+        "heart rate while running, by the day, Y",
+        #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "HeartRate", "window": {"kind": "workout", "activities": [37]}}], "bucket": "day", "range": "Y"}"#
+      ),
+      (
+        "heart rate asleep, by the night, W",
+        #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "HeartRate", "window": {"kind": "asleep"}}], "bucket": "night", "range": "W"}"#
+      ),
+    ]
+    for (name, json) in windowCards {
+      let card = try CardSpec(inputJSON: Data(json.utf8))
+      let run = CardRun(
+        spec: card, range: card.range, date: date(10, 20), now: now, calendar: london)
+      var durations: [Duration] = []
+      for _ in 0..<3 {
+        let start = clock.now
+        _ = try await engine.data(run)
+        durations.append(clock.now - start)
+      }
+      print("Benchmark: \(name): \(durations.map(\.description).joined(separator: ", "))")
+
+      // How else its stretches could be read: a query each, one after another or several at
+      // once; stretches less than an hour apart as one, one after another or 8 at once; or the
+      // whole span in one query.
+      var windowed = run
+      var results: [CardWindowFetchResult] = []
+      for fetch in run.windowFetches { results.append(try await engine.window(fetch)) }
+      windowed = windowed.windowed(results)
+      guard case .stretchReadings(let stretches, _, _) = windowed.fetches[0].kind else { continue }
+      let each = stretches.map { $0.start..<$0.end }
+      let grouped = HealthKitCardEngine.queryRanges(stretches)
+      let span = [each.first!.lowerBound..<each.last!.upperBound]
+      for (strategy, ranges, width) in [
+        ("a query a stretch, one at a time", each, 1),
+        ("a query a stretch, 4 at once", each, 4),
+        ("stretches an hour apart as one, one at a time", grouped, 1),
+        (
+          "stretches an hour apart as one, \(HealthKitCardEngine.stretchConcurrency) at once",
+          grouped, HealthKitCardEngine.stretchConcurrency
+        ),
+        ("the whole span", span, 1),
+      ] {
+        let start = clock.now
+        try await withThrowingTaskGroup(of: Void.self) { group in
+          for (index, range) in ranges.enumerated() {
+            if index >= width { try await group.next() }
+            group.addTask {
+              _ = try await engine.readings(
+                of: heartRate, in: range, filter: nil, needsSampleIDs: false)
+            }
+          }
+          try await group.waitForAll()
+        }
+        print(
+          "Benchmark:   \(strategy) (\(ranges.count) queries): \(clock.now - start)")
+      }
+    }
+
     // Cancelled 50 ms in, a year's run stops rather than reading the year.
     let card = try CardSpec(
       inputJSON: Data(

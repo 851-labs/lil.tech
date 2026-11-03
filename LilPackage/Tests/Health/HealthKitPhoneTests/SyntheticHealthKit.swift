@@ -56,6 +56,27 @@ struct SyntheticHealthKit {
       end: start.addingTimeInterval(minutes * 60), device: device, metadata: nil)
   }
 
+  /// A sleep analysis record: `HKCategoryValueSleepAnalysis`' raw value from `start` to `end`.
+  static func sleep(_ value: HKCategoryValueSleepAnalysis, _ start: Date, _ end: Date)
+    -> HKCategorySample
+  {
+    HKCategorySample(
+      type: HKCategoryType(.sleepAnalysis), value: value.rawValue, start: start, end: end)
+  }
+
+  /// Saves a workout of `activity` from `start` for `minutes`, as an app records one (with a
+  /// builder: `HKWorkout`'s initializers are deprecated).
+  func workout(_ activity: HKWorkoutActivityType, at start: Date, minutes: Double) async throws
+    -> HKWorkout
+  {
+    let configuration = HKWorkoutConfiguration()
+    configuration.activityType = activity
+    let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: nil)
+    try await builder.beginCollection(at: start)
+    try await builder.endCollection(at: start.addingTimeInterval(minutes * 60))
+    return try #require(try await builder.finishWorkout())
+  }
+
   /// The samples as the core's readings, by type and oldest first, for the in-memory engine the
   /// HealthKit engine is compared with (`reference(_:samples:)`).
   static func readings(_ samples: [HKQuantitySample]) -> [String: [CardReading]] {
