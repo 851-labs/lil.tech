@@ -40,7 +40,7 @@
           .failed("The database couldn't be read."),
           highlights: .failed("The database couldn't be read."))
       },
-      // Every card deleted.
+      // Every card deleted: New Card… (851-3208).
       CatalogState("No cards") {
         summary(.loaded([]), highlights: .loaded(highlights()))
       },
@@ -97,7 +97,10 @@
     headline: @escaping (Card) -> CardRow.Headline = { headline(of: $0) }
   ) -> some View {
     NavigationStack {
-      SummaryContent(cards: cards, highlights: highlights) { card in
+      SummaryContent(
+        cards: cards, highlights: highlights,
+        actions: SummaryCardActions(newCard: {}, edit: { _ in }, delete: { _ in })
+      ) { card in
         CardRow(card: card, headline: headline(card), now: previewNow, calendar: previewCalendar)
       }
     }

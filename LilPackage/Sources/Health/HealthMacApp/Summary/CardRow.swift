@@ -223,7 +223,6 @@ extension Card {
   /// color, if it's one this version knows. Its Summary row and its page show them.
   var storedDisplay: (name: String, symbol: String, color: Color?) {
     let display = storedSpec["display"]
-    let name = display?["name"].flatMap { if case .string(let name) = $0 { name } else { nil } }
     let symbol = display?["symbol"].flatMap {
       if case .string(let symbol) = $0, HealthCards.cardSymbols.contains(symbol) {
         symbol
@@ -234,8 +233,6 @@ extension Card {
     let color = display?["color"].flatMap {
       if case .string(let color) = $0 { CardColor(rawValue: color) } else { nil }
     }
-    return (
-      name ?? "Card", symbol ?? "square.dashed", color.map { Color(paletteName: $0.rawValue) }
-    )
+    return (storedName, symbol ?? "square.dashed", color.map { Color(paletteName: $0.rawValue) })
   }
 }

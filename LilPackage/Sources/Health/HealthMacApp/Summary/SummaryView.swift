@@ -37,9 +37,24 @@ struct SummaryView: View {
     SummaryContent(
       cards: cards,
       highlights: $highlights.loadError.map { .failed($0.localizedDescription) }
-        ?? ($highlights.isLoading && highlights.isEmpty ? .loading : .loaded(highlights))
+        ?? ($highlights.isLoading && highlights.isEmpty ? .loading : .loaded(highlights)),
+      actions: SummaryCardActions(
+        newCard: { store.send(.newCardButtonTapped) },
+        edit: { store.send(.editCardButtonTapped(id: $0.id)) },
+        delete: { store.send(.deleteCardButtonTapped(id: $0.id)) })
     ) { card in
       CardPreview(card: card, day: day)
+    }
+    // New Card… (⌘N), while Summary shows (851-3208).
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Button("New Card…", systemImage: "plus") {
+          store.send(.newCardButtonTapped)
+        }
+        .keyboardShortcut("n")
+        .help("New Card")
+        .disabled(!store.canCreateCard)
+      }
     }
     .onReceive(calendarDayChanges()) {
       day = calendar.startOfDay(for: date.now)
@@ -143,10 +158,20 @@ enum SummaryLoad<Value> {
   case failed(String)
 }
 
+/// What Summary's New Card… and a row's context menu do (851-3208).
+struct SummaryCardActions {
+  var newCard: () -> Void
+  var edit: (Card) -> Void
+  var delete: (Card) -> Void
+}
+
 /// What Summary shows, however it got it: the cards, a row each from `row`, then the highlights.
 struct SummaryContent<Row: View>: View {
   let cards: SummaryLoad<[Card]>
   var highlights: SummaryLoad<[Highlight]> = .loaded([])
+  /// New Card… in the empty section, and each row's Edit… and Delete…. Without them, neither
+  /// shows.
+  var actions: SummaryCardActions?
   /// A card's row, with its headline.
   @ViewBuilder let row: (Card) -> Row
   /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
@@ -187,10 +212,15 @@ struct SummaryContent<Row: View>: View {
         }
       }
     case .loaded(let cards) where cards.isEmpty:
-      ContentUnavailableView(
-        "No Cards", systemImage: "rectangle.stack",
-        description: Text("Cards you add show here.")
-      )
+      ContentUnavailableView {
+        Label("No Cards", systemImage: "rectangle.stack")
+      } description: {
+        Text("Cards you add show here.")
+      } actions: {
+        if let actions {
+          Button("New Card…", action: actions.newCard)
+        }
+      }
       // A form's row would otherwise give it only its ideal width, off center.
       .frame(maxWidth: .infinity)
     case .loaded(let cards):
@@ -199,6 +229,15 @@ struct SummaryContent<Row: View>: View {
       ForEach(cards) { card in
         NavigationLink(value: PushedPage.card(card.id)) {
           row(card)
+        }
+        .contextMenu {
+          if let actions {
+            // A later version's card can't be edited here, only deleted.
+            Button("Edit…") { actions.edit(card) }
+              .disabled(card.spec == nil)
+            Divider()
+            Button("Delete…", role: .destructive) { actions.delete(card) }
+          }
         }
       }
     }

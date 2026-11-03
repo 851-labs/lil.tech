@@ -37,6 +37,12 @@ public struct AppView: View {
         } detail: {
           DetailView(store: store)
         }
+        // The card editor and Delete…'s confirmation, from Summary or a card's page (851-3208).
+        .sheet(item: $store.scope(\.cards.editor, action: \.cards.editor)) { editor in
+          CardEditorView(store: editor) { CardEditorPreview(spec: $0) }
+            .frame(width: CardEditorView<EmptyView>.width, height: CardEditorView<EmptyView>.height)
+        }
+        .alert($store.scope(\.cards.alert, action: \.cards.alert))
       }
     }
     .delayedProgress(isLoading: store.isSignedIn == nil)

@@ -264,6 +264,13 @@ public struct AppFeature {
       case .connectedAgents:
         return .none
 
+      case .cards(.deleteCard(let id)) where state.cards.isLoaded:
+        // Deleted here, from its page's editor or a Summary row: its page goes with it. One
+        // another device or an agent deletes stays, saying so (`CardPage`). Cards that aren't
+        // read can't be deleted, so their pages stay.
+        state.metricPath.removeAll { $0 == .card(id) }
+        return .none
+
       case .cards:
         return .none
 

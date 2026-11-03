@@ -35,6 +35,16 @@ struct CardPage: View {
   var body: some View {
     if let card = store.cards[id: id] {
       CardDetailView(card: card)
+        .toolbar {
+          // The editor (851-3208). A later version's card can't be edited here.
+          ToolbarItem(placement: .primaryAction) {
+            Button("Edit…", systemImage: "pencil") {
+              store.send(.editCardButtonTapped(id: id))
+            }
+            .help("Edit Card")
+            .disabled(card.spec == nil)
+          }
+        }
     } else if let failure = store.loadFailure {
       ContentUnavailableView(
         "Couldn't Load This Card", systemImage: "exclamationmark.triangle",
@@ -159,6 +169,66 @@ struct CardDataRequest: FetchKeyRequest {
 /// legend when it draws more than one line, About This Card, and for a card of one series, its
 /// type's Show All Data and Data Sources.
 struct CardDetailContent: View {
+  typealias State = CardChart.State
+
+  let spec: CardSpec
+  /// The period chosen in the toolbar, which can be ahead of the one shown.
+  @Binding private var selectedRange: ChartRange
+  @Binding private var selectedOffset: Int
+  let state: State
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
+  @Dependency(\.calendar) private var calendar
+  @Dependency(\.date.now) private var now
+
+  init(spec: CardSpec, range: Binding<ChartRange>, offset: Binding<Int>, state: State) {
+    self.spec = spec
+    _selectedRange = range
+    _selectedOffset = offset
+    self.state = state
+  }
+
+  /// The one type a card of one series charts, whose data it can show.
+  private var singleType: HealthDataType? {
+    spec.series.count == 1 ? spec.series.first?.dataType : nil
+  }
+
+  var body: some View {
+    Form {
+      Section {
+        CardChart(spec: spec, range: selectedRange, offset: selectedOffset, state: state)
+          .padding(.vertical, 6)
+      }
+      Section("About This Card") {
+        Text(spec.about)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .layoutAnchor("About This Card")
+      }
+      if let type = singleType {
+        Section {
+          NavigationLink("Show All Data") {
+            AllDataView(type: type)
+          }
+          NavigationLink("Data Sources") {
+            DataSourcesView(type: type)
+          }
+        }
+      }
+    }
+    .formStyle(.grouped)
+    .navigationTitle(spec.display.name)
+    // Only the bucket's ranges, in the toolbar, with ‹ Today › and the View menu's commands.
+    .periodControls(
+      PagePeriod(
+        range: $selectedRange, offset: $selectedOffset,
+        ranges: spec.bucket.ranges.map(ChartRange.init), now: now, calendar: calendar))
+  }
+}
+
+/// A card over a period, as its page draws it at the top: the header (its symbol and name, the
+/// caption, the value and the period's dates, or a hovered point's), the chart in the card's style,
+/// and the legend when it draws more than one line. The page shows it, and the editor's live
+/// preview (851-3208).
+struct CardChart: View {
   enum State {
     /// Nothing to show yet: placeholders take the loaded page's space (851-3084).
     case loading
@@ -173,10 +243,12 @@ struct CardDetailContent: View {
   }
 
   let spec: CardSpec
-  /// The period chosen in the toolbar, which can be ahead of the one shown.
-  @Binding private var selectedRange: ChartRange
-  @Binding private var selectedOffset: Int
+  /// The period chosen, which can be ahead of the one shown.
+  let selectedRange: ChartRange
+  let selectedOffset: Int
   let state: State
+  /// The chart's own height, under the header: the page's is Metric Detail's.
+  var chartHeight: CGFloat = 280
   /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
   @Dependency(\.calendar) private var calendar
   @Dependency(\.date.now) private var now
@@ -184,11 +256,14 @@ struct CardDetailContent: View {
   @Dependency(\.locale) private var locale
   @SwiftUI.State private var hovered: Date?
 
-  init(spec: CardSpec, range: Binding<ChartRange>, offset: Binding<Int>, state: State) {
+  init(
+    spec: CardSpec, range: ChartRange, offset: Int, state: State, chartHeight: CGFloat = 280
+  ) {
     self.spec = spec
-    _selectedRange = range
-    _selectedOffset = offset
+    self.selectedRange = range
+    self.selectedOffset = offset
     self.state = state
+    self.chartHeight = chartHeight
   }
 
   /// The loaded period, which stays while another loads.
@@ -214,50 +289,18 @@ struct CardDetailContent: View {
     MetricFormat.unit(of: shownSpec, locale: locale)
   }
 
-  /// The one type a card of one series charts, whose data it can show.
-  private var singleType: HealthDataType? {
-    spec.series.count == 1 ? spec.series.first?.dataType : nil
-  }
-
   var body: some View {
-    Form {
-      Section {
-        VStack(alignment: .leading, spacing: 12) {
-          header
-          chartArea
-            .delayedProgress(isLoading: state.isLoading)
-            .frame(height: 280)
-          // The spec's, not the loaded data's, so it's there while the chart loads.
-          let legend = spec.legend
-          if !legend.isEmpty {
-            CardLegend(lines: legend, color: Color(paletteName: spec.display.color.rawValue))
-          }
-        }
-        .padding(.vertical, 6)
-      }
-      Section("About This Card") {
-        Text(spec.about)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .layoutAnchor("About This Card")
-      }
-      if let type = singleType {
-        Section {
-          NavigationLink("Show All Data") {
-            AllDataView(type: type)
-          }
-          NavigationLink("Data Sources") {
-            DataSourcesView(type: type)
-          }
-        }
+    VStack(alignment: .leading, spacing: 12) {
+      header
+      chartArea
+        .delayedProgress(isLoading: state.isLoading)
+        .frame(height: chartHeight)
+      // The spec's, not the loaded data's, so it's there while the chart loads.
+      let legend = spec.legend
+      if !legend.isEmpty {
+        CardLegend(lines: legend, color: Color(paletteName: spec.display.color.rawValue))
       }
     }
-    .formStyle(.grouped)
-    .navigationTitle(spec.display.name)
-    // Only the bucket's ranges, in the toolbar, with ‹ Today › and the View menu's commands.
-    .periodControls(
-      PagePeriod(
-        range: $selectedRange, offset: $selectedOffset,
-        ranges: spec.bucket.ranges.map(ChartRange.init), now: now, calendar: calendar))
   }
 
   // MARK: Header
