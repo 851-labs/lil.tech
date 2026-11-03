@@ -5,6 +5,7 @@ import HealthKitAccess
 import HealthPhoneApp
 import HealthUpload
 import LilAuth
+import LilSync
 import Testing
 
 /// Consent was given on this iPhone, as after tapping Agree.
@@ -29,9 +30,10 @@ private func heldConsentChecks() -> (
   )
 }
 
-// Each test has its own app storage, for the consent flag.
+// Each test has its own app storage, for the consent flag. Card sync runs while signed in, and
+// does nothing here (`AppFeatureCardSyncTests` covers it).
 @MainActor
-@Suite(.dependencies)
+@Suite(.dependencies { $0.sync = .constant(.idle) })
 struct AppFeatureTests {
   @Test
   func anAlertOfTheAppsClosesSettings() async {

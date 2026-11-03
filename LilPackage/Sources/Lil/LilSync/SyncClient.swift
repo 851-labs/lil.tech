@@ -4,7 +4,7 @@ public import LilAPI
 
 extension DependencyValues {
   /// The app's sync engine. Apps set it once at launch with
-  /// ``SyncClient/live(entities:syncSchema:)``.
+  /// ``SyncClient/live(entities:syncSchema:filtersChanges:)``.
   public var sync: SyncClient {
     get { self[SyncClient.self] }
     set { self[SyncClient.self] = newValue }
@@ -45,13 +45,17 @@ public struct SyncClient: Sendable {
 
   /// A client backed by a ``LilSyncEngine`` for the app's entities. The engine is made on first
   /// use, so it picks up the `defaultDatabase` and `api` that `prepareDependencies` sets
-  /// alongside this client.
-  public static func live(entities: [SyncEntity], syncSchema: Int) -> Self {
+  /// alongside this client. `filtersChanges` pulls only the entities' changes, as the iPhone
+  /// does (``LilSyncEngine/init(entities:syncSchema:partsDirectory:filtersChanges:)``).
+  public static func live(
+    entities: [SyncEntity], syncSchema: Int, filtersChanges: Bool = false
+  ) -> Self {
     let engine = LockIsolated<LilSyncEngine?>(nil)
     let resolve: @Sendable () -> LilSyncEngine = {
       engine.withValue { engine in
         if let engine { return engine }
-        let made = LilSyncEngine(entities: entities, syncSchema: syncSchema)
+        let made = LilSyncEngine(
+          entities: entities, syncSchema: syncSchema, filtersChanges: filtersChanges)
         engine = made
         return made
       }
