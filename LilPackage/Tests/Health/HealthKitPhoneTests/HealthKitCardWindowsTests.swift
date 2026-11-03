@@ -162,6 +162,7 @@ extension HealthKitCardsTests {
     try await health.save(samples)
     samples += try await Self.saveWindowWorkouts(health)
     let engine = HealthKitCardEngine(store: health.store)
+    let mac = Reference(samples: samples)
     for (name, json) in Self.windowCards(bundleID: Bundle.main.bundleIdentifier!) {
       let card = try CardSpec(inputJSON: Data(json.utf8))
       for range in CardRange.allCases where card.bucket.ranges.contains(range) {
@@ -169,7 +170,7 @@ extension HealthKitCardsTests {
         for day in [date(10, 20), date(10, 26), date(3, 29), date(9, 3)] {
           let run = CardRun(spec: card, range: range, date: day, now: now, calendar: london)
           let data = try await engine.data(run)
-          let expected = reference(run, samples: samples)
+          let expected = mac(run)
           #expect(
             data.rounded == expected.rounded,
             "\(name), \(range) containing \(day): \(differences(data.rounded, expected.rounded))")

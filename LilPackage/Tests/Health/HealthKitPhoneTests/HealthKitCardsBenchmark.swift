@@ -182,20 +182,16 @@ struct HealthKitCardsBenchmark {
       windowed = windowed.windowed(results)
       guard case .stretchReadings(let stretches, _, _) = windowed.fetches[0].kind else { continue }
       let each = stretches.map { $0.start..<$0.end }
-      var grouped: [Range<Int>] = []
-      for range in each {
-        if let last = grouped.last, range.lowerBound - last.upperBound < 3_600_000 {
-          grouped[grouped.count - 1] = last.lowerBound..<range.upperBound
-        } else {
-          grouped.append(range)
-        }
-      }
+      let grouped = HealthKitCardEngine.queryRanges(stretches)
       let span = [each.first!.lowerBound..<each.last!.upperBound]
       for (strategy, ranges, width) in [
         ("a query a stretch, one at a time", each, 1),
         ("a query a stretch, 4 at once", each, 4),
         ("stretches an hour apart as one, one at a time", grouped, 1),
-        ("stretches an hour apart as one, 8 at once", grouped, 8),
+        (
+          "stretches an hour apart as one, \(HealthKitCardEngine.stretchConcurrency) at once",
+          grouped, HealthKitCardEngine.stretchConcurrency
+        ),
         ("the whole span", span, 1),
       ] {
         let start = clock.now

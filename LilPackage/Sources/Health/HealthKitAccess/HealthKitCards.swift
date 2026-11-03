@@ -89,15 +89,20 @@ public struct HealthKitCardEngine: Sendable {
     return run.compute(results)
   }
 
-  /// `body` of every fetch at once, its results in the fetches' order.
+  /// `body` of every fetch, `width` at a time (all at once by default), its results in the
+  /// fetches' order.
   private func all<Fetch: Sendable, Result: Sendable>(
-    _ fetches: [Fetch], _ body: @escaping @Sendable (Fetch) async throws -> Result
+    _ fetches: [Fetch], width: Int = .max,
+    _ body: @escaping @Sendable (Fetch) async throws -> Result
   ) async throws -> [Result] {
     try await withThrowingTaskGroup(of: (Int, Result).self) { group in
+      var results = [Result?](repeating: nil, count: fetches.count)
       for (index, fetch) in fetches.enumerated() {
+        if index >= width, let done = try await group.next() {
+          results[done.0] = done.1
+        }
         group.addTask { (index, try await body(fetch)) }
       }
-      var results = [Result?](repeating: nil, count: fetches.count)
       for try await (index, result) in group { results[index] = result }
       return results.map { $0! }
     }
@@ -288,33 +293,30 @@ public struct HealthKitCardEngine: Sendable {
     guard !stretches.isEmpty,
       let query = try await readingQuery(of: typeID, filter: filter)
     else { return [] }
+    return try await all(Self.queryRanges(stretches), width: Self.stretchConcurrency) {
+      try await readings(query, in: $0, needsSampleIDs: needsSampleIDs)
+    }
+    .flatMap(\.self)
+  }
+
+  /// The ranges `readings(of:in:filter:needsSampleIDs:)` queries for `stretches` (in order and
+  /// apart): stretches less than `stretchGap` apart as one.
+  public static func queryRanges(_ stretches: [CardStretch]) -> [Range<Int>] {
     var ranges: [Range<Int>] = []
     for stretch in stretches {
-      if let last = ranges.last, stretch.start - last.upperBound < Self.stretchGap {
+      if let last = ranges.last, stretch.start - last.upperBound < stretchGap {
         ranges[ranges.count - 1] = last.lowerBound..<max(last.upperBound, stretch.end)
       } else {
         ranges.append(stretch.start..<stretch.end)
       }
     }
-    return try await withThrowingTaskGroup(of: (Int, [CardReading]).self) { group in
-      var results = [[CardReading]](repeating: [], count: ranges.count)
-      for (index, range) in ranges.enumerated() {
-        if index >= Self.stretchConcurrency, let done = try await group.next() {
-          results[done.0] = done.1
-        }
-        group.addTask {
-          (index, try await self.readings(query, in: range, needsSampleIDs: needsSampleIDs))
-        }
-      }
-      for try await (done, readings) in group { results[done] = readings }
-      return results.flatMap(\.self)
-    }
+    return ranges
   }
 
   /// Stretches closer than this (in milliseconds) are read in one query.
-  static let stretchGap = 3_600_000
+  public static let stretchGap = 3_600_000
   /// How many of a window's queries run at once.
-  static let stretchConcurrency = 8
+  public static let stretchConcurrency = 8
 
   /// What a type's reading queries share: its type, catalog unit and the filter's predicates.
   /// `nil` when no reading can match: a type HealthKit doesn't know, or none of the type's
@@ -360,8 +362,11 @@ public struct HealthKitCardEngine: Sendable {
   {
     let predicate = NSCompoundPredicate(
       andPredicateWithSubpredicates: [
+        // A millisecond early: a sample starting a fraction of one before the range is in it,
+        // in the milliseconds every engine reads (`readings(_:unit:in:needsSampleIDs:)` keeps
+        // the range exactly).
         HKQuery.predicateForSamples(
-          withStart: Date(milliseconds: range.lowerBound),
+          withStart: Date(milliseconds: range.lowerBound - 1),
           end: Date(milliseconds: range.upperBound), options: .strictStartDate)
       ] + query.predicates)
     let unit = query.unit
