@@ -8,8 +8,8 @@ import SQLiteData
 import SwiftUI
 
 // The card editor (851-3208, docs/decisions/cards.md, UI › Mac): a sheet, a grouped form with the
-// card's live preview at the top, then its name, symbol and color, what it charts, and Delete
-// Card… for one of the account's cards. Cancel and Save are in the toolbar.
+// card's live preview at the top, then its name, symbol and color, the query builder's sections
+// (851-3209), and Delete Card… for one of the account's cards. Cancel and Save are in the toolbar.
 
 /// The card editor's sheet, with `preview` drawing the card for the spec the preview shows: the
 /// app's runs it on the local database (`CardEditorPreview`), a catalog's gives its state.
@@ -49,18 +49,14 @@ struct CardEditorView<Preview: View>: View {
       } footer: {
         errors(store.state.errors(for: .symbol) + store.state.errors(for: .color))
       }
-      Section {
-        if store.isNew {
-          typePicker
-        } else if let original = store.original {
-          // What it charts, which the query builder (851-3209) edits.
-          Text(original.about)
+      // The query builder (851-3209): the series, the chart and the formulas.
+      CardQueryBuilderSections(store: store)
+      if let message = store.saveError {
+        Section {
+          Text(message)
+            .foregroundStyle(.red)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-      } header: {
-        Text("Data")
-      } footer: {
-        errors(store.state.errors(for: .query) + (store.saveError.map { [$0] } ?? []))
       }
       if !store.isNew {
         Section {
@@ -100,27 +96,6 @@ struct CardEditorView<Preview: View>: View {
     }
   }
 
-  /// A new card's one series' type: the chartable types by category, as the sidebar lists them.
-  private var typePicker: some View {
-    Picker(
-      "Type",
-      selection: Binding(
-        get: { store.typeID },
-        set: { id in if let id { store.send(.typeChosen(id)) } })
-    ) {
-      if store.typeID == nil {
-        Text("Choose…").tag(String?.none)
-      }
-      ForEach(CardTypeGroup.all, id: \.name) { group in
-        Section(group.name) {
-          ForEach(group.types) { type in
-            Text(type.name).tag(String?.some(type.id))
-          }
-        }
-      }
-    }
-  }
-
   /// A field's errors, under its section, or nothing.
   @ViewBuilder private func errors(_ messages: [String]) -> some View {
     if !messages.isEmpty {
@@ -135,24 +110,25 @@ struct CardEditorView<Preview: View>: View {
   }
 }
 
-/// The types a card's series can chart, by category in the sidebar's order, each category's by
-/// name.
-struct CardTypeGroup {
+/// Types by category in the sidebar's order, each category's by name.
+struct CardTypeGroup: Identifiable {
   let name: String
   let types: [HealthDataType]
 
-  static let all: [CardTypeGroup] = {
+  var id: String { name }
+
+  static func grouping(_ types: [HealthDataType]) -> [CardTypeGroup] {
     let byName: ([HealthDataType]) -> [HealthDataType] = {
       $0.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
     var groups = HealthCategory.allCases.compactMap { category -> CardTypeGroup? in
-      let types = HealthCards.chartableTypes.filter { $0.category == category }
+      let types = types.filter { $0.category == category }
       return types.isEmpty ? nil : CardTypeGroup(name: category.name, types: byName(types))
     }
-    let other = HealthCards.chartableTypes.filter { $0.category == nil }
+    let other = types.filter { $0.category == nil }
     if !other.isEmpty { groups.append(CardTypeGroup(name: "Other", types: byName(other))) }
     return groups
-  }()
+  }
 }
 
 /// The curated symbols (`HealthCards.cardSymbols`) in a grid, the card's in its color, the chosen
@@ -262,13 +238,23 @@ struct CardEditorPreview: View {
 }
 
 extension CardSpec {
-  /// The spec with a fixed name, symbol and color: what a card's data depends on.
+  /// The spec with a fixed name, symbol and color, and no labels: what a card's data depends on.
   var withoutAppearance: CardSpec {
     var spec = self
     spec.display.name = ""
     spec.display.symbol = ""
     spec.display.color = .gray
+    for index in spec.series.indices { spec.series[index].label = nil }
+    for index in spec.formulas.indices { spec.formulas[index].label = nil }
     return spec
+  }
+
+  /// Whether the two specs chart the same, however they're named and drawn in color: whether an
+  /// edit changed only the card's name, symbol or color.
+  func hasQuery(of other: CardSpec) -> Bool {
+    var mine = self
+    mine.display = other.display
+    return mine == other
   }
 }
 
