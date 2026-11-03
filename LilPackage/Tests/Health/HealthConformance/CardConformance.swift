@@ -11,7 +11,7 @@ public struct CardConformanceCase: Decodable, Sendable, CustomStringConvertible 
   /// How the expected values come about.
   public var note: String?
   /// An input spec, as apps and tools write it.
-  public var spec: JSONValue
+  public var spec: ConformanceJSON
   public var range: String
   /// A day, `YYYY-MM-DD`, in the time zone.
   public var date: String
@@ -22,7 +22,7 @@ public struct CardConformanceCase: Decodable, Sendable, CustomStringConvertible 
   public var now: String
   /// Why the iPhone's engine can't match it, if it can't.
   public var iphone: IPhone?
-  public var expected: JSONValue
+  public var expected: ConformanceJSON
 
   public struct IPhone: Decodable, Sendable {
     public var skip: String
@@ -90,7 +90,7 @@ public struct CardConformanceCase: Decodable, Sendable, CustomStringConvertible 
 
   /// `data` as the tools write it (docs/decisions/cards.md, Inputs and outputs): the period's
   /// first and last days, and each point's start in local time with its offset, to the second.
-  public func json(_ data: CardData, calendar: Calendar) -> JSONValue {
+  public func json(_ data: CardData, calendar: Calendar) -> ConformanceJSON {
     let time = DateFormatter()
     time.calendar = Calendar(identifier: .gregorian)
     time.locale = Locale(identifier: "en_US_POSIX")
@@ -101,8 +101,10 @@ public struct CardConformanceCase: Decodable, Sendable, CustomStringConvertible 
     day.locale = time.locale
     day.timeZone = calendar.timeZone
     day.dateFormat = "yyyy-MM-dd"
-    func optional(_ value: Double?) -> JSONValue { value.map(JSONValue.number) ?? .null }
-    func string(_ value: String?) -> JSONValue { value.map(JSONValue.string) ?? .null }
+    func optional(_ value: Double?) -> ConformanceJSON {
+      value.map(ConformanceJSON.number) ?? .null
+    }
+    func string(_ value: String?) -> ConformanceJSON { value.map(ConformanceJSON.string) ?? .null }
     return .object([
       "range": string(data.range?.rawValue),
       "start": .string(day.string(from: data.interval.start)),

@@ -31,8 +31,8 @@ enum Conformance {
     var tool: String
     var now: String
     var pins: [Pin]?
-    var arguments: JSONValue
-    var expected: JSONValue?
+    var arguments: ConformanceJSON
+    var expected: ConformanceJSON?
     var expectedError: Bool?
   }
 

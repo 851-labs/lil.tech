@@ -35,7 +35,7 @@ struct HealthToolkitConformanceTests {
     }
     #expect(result.isError == false, "\(result.text)")
     let output = try JSONDecoder().decode(
-      JSONValue.self, from: JSONEncoder().encode(result.structuredContent))
+      ConformanceJSON.self, from: JSONEncoder().encode(result.structuredContent))
     let expected = try #require(testCase.expected)
     #expect(output.matches(expected), "\(output)\nexpected:\n\(expected)")
   }
@@ -47,7 +47,7 @@ extension Conformance.Case: CustomTestStringConvertible {
 
 extension Value {
   /// `json` as an MCP value: whole numbers as integers, as they come over the wire.
-  init(_ json: JSONValue) {
+  init(_ json: ConformanceJSON) {
     switch json {
     case .null: self = .null
     case .bool(let value): self = .bool(value)

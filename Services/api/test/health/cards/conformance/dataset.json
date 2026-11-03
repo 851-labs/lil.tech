@@ -10,7 +10,7 @@
   "batches": [
     {
       "device": "dev_00000000000000000000000ph1",
-      "receivedAt": "2026-10-27T09:00:00Z",
+      "receivedAt": "2026-10-28T10:00:00Z",
       "lines": [
         {
           "entity": "health_provenance",

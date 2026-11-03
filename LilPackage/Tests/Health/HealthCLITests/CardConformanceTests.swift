@@ -12,11 +12,17 @@ import Testing
 /// pass, as on the server (`Services/api/test/health/cards/CardConformance.test.ts`).
 @Suite
 struct CardConformanceTests {
-  @Test(arguments: try CardConformanceCase.cases())
-  func conformanceCase(_ testCase: CardConformanceCase) async throws {
+  /// The dataset, synced once: the cases only read it.
+  static let database = Task {
     let database = try DatabaseQueue()
     try HealthDatabase.migrator.migrate(database)
     try await Conformance.sync(try CardConformanceCase.dataset(), into: database)
+    return database
+  }
+
+  @Test(arguments: try CardConformanceCase.cases())
+  func conformanceCase(_ testCase: CardConformanceCase) async throws {
+    let database = try await Self.database.value
 
     let calendar = try testCase.calendar()
     let spec = try testCase.cardSpec()

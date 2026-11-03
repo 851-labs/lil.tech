@@ -5,6 +5,7 @@ import { cardRanges, CardSpec } from "../../../src/health/cards/CardSpec.ts";
 import { canonicalCardSpec } from "../../../src/health/cards/CardSpecValidator.ts";
 import { runCard } from "../../../src/health/cards/RunCard.ts";
 import { startOfLocalDay } from "../../../src/health/tools/ToolTime.ts";
+import type { StoreSql } from "../../../src/store/StoreSql.ts";
 import type { Json } from "../../../src/health/cards/CardJson.ts";
 import { matches, millis, readDataset, readJson, storeWithBatches } from "../HealthConformance.ts";
 
@@ -36,6 +37,8 @@ const { cases } = readJson(
   Schema.Struct({ cases: Schema.Array(Case) }),
 );
 
+let store: StoreSql | undefined;
+
 /** A case's spec, canonicalized as apps and tools write it. It must be valid. */
 const canonicalSpec = (testCase: typeof Case.Type): CardSpec => {
   const result = canonicalCardSpec(testCase.spec as Json);
@@ -56,7 +59,9 @@ describe("card conformance cases", () => {
   for (const testCase of cases) {
     it.effect(`the server: ${testCase.name}`, () =>
       Effect.gen(function* () {
-        const sql = yield* storeWithBatches(batches);
+        // The dataset, ingested once: the cases only read it.
+        store ??= yield* storeWithBatches(batches);
+        const sql = store;
         const calendar = yield* cardCalendar(testCase.timeZone, testCase.firstWeekday);
         const date = startOfLocalDay(testCase.date, calendar.zone);
         const output = runCard(

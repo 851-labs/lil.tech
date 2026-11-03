@@ -18,7 +18,7 @@ public enum ConformanceFiles {
 }
 
 /// One iPhone's upload, as the server received it.
-public struct ConformanceBatch: @unchecked Sendable {
+public struct ConformanceBatch {
   /// The iPhone's device ID.
   public var device: String
   /// When the server received it.
@@ -33,12 +33,18 @@ public struct ConformanceBatch: @unchecked Sendable {
     if let base = object?["extends"] as? String {
       batches = try read(url.deletingLastPathComponent().appending(path: base).standardized)
     }
-    for case let batch as [String: Any] in object?["batches"] as? [Any] ?? [] {
+    guard let list = object?["batches"] as? [Any] else {
+      throw ConformanceError("\(url.lastPathComponent) has no batches")
+    }
+    for item in list {
+      // A malformed batch or line is an error, rather than data the Mac quietly skips.
+      guard let batch = item as? [String: Any], let device = batch["device"] as? String,
+        let receivedAt = batch["receivedAt"] as? String,
+        let lines = batch["lines"] as? [[String: Any]]
+      else { throw ConformanceError("\(url.lastPathComponent): a malformed batch") }
       batches.append(
         ConformanceBatch(
-          device: batch["device"] as? String ?? "",
-          receivedAt: try Date(batch["receivedAt"] as? String ?? "", strategy: .iso8601),
-          lines: batch["lines"] as? [[String: Any]] ?? []))
+          device: device, receivedAt: try Date(receivedAt, strategy: .iso8601), lines: lines))
     }
     return batches
   }
