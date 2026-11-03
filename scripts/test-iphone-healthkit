@@ -67,7 +67,14 @@ if ! wait "$booting"; then
 fi
 
 xctestrun=$(find "$derived/Build/Products" -maxdepth 1 -name 'HealthKitPhoneTests_*.xctestrun' \
-  -print0 | xargs -0 ls -t | head -n 1)
+  -print0 | xargs -0 ls -t 2>/dev/null | head -n 1)
+case "$xctestrun" in
+  */HealthKitPhoneTests_*.xctestrun) ;;
+  *)
+    echo "error: the build made no HealthKitPhoneTests_*.xctestrun in $derived/Build/Products." >&2
+    exit 1
+    ;;
+esac
 # Screenshots rather than a screen recording: ending the recording holds up each run for 5
 # minutes after its tests finish.
 for target in HealthKitAuthorizationUITests HealthKitPhoneTests; do

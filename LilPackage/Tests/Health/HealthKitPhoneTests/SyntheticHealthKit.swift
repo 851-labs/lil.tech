@@ -7,6 +7,7 @@ import Testing
 /// Synthetic samples in the simulator's HealthKit, for the iPhone's HealthKit tests (851-3199):
 /// each test starts from none, writes its own, and reads them back through the engine. Only this
 /// app's samples are deleted, and only in the simulator `scripts/test-iphone-healthkit` makes.
+/// Make new samples for each test: HealthKit ignores a sample saved again after it was deleted.
 struct SyntheticHealthKit {
   let store = HKHealthStore()
 

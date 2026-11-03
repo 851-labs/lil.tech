@@ -174,7 +174,7 @@ LIL_BENCHMARKS=1 vp test --reporter=verbose --silent=false test/health/cards/Car
 
 ## Cards on the iPhone
 
-What a card costs the iPhone's engine (851-3199, `docs/decisions/cards.md`, The iPhone), from a simulator's HealthKit: a year of heart rate every 5 minutes (105,120 samples, about a real account's year). `HealthKitCardsBenchmark` (`LilPackage/Tests/Health/HealthKitPhoneTests`) writes the year, then runs each card three times, wall-clock:
+What a card costs the iPhone's engine (851-3199, `docs/decisions/cards.md`, The iPhone), from a simulator's HealthKit: a year of heart rate every 5 minutes (105,120 samples, about a real account's year), and a year of steps every 10 minutes while awake. `HealthKitCardsBenchmark` (`LilPackage/Tests/Health/HealthKitPhoneTests`) writes the year, then runs each card three times, wall-clock:
 
 ```sh
 TEST_RUNNER_LIL_HEALTHKIT_BENCHMARK=1 scripts/test-iphone-healthkit HealthKitCardsBenchmark
@@ -191,9 +191,13 @@ TEST_RUNNER_LIL_HEALTHKIT_BENCHMARK=1 scripts/test-iphone-healthkit HealthKitCar
 | Heart rate, `avg`, `auto` (by the day), W | 0.03 |
 | HealthKit reading the year's samples as readings (the floor) | 1.39 |
 | A Y run cancelled 50 ms in, until it throws | 0.05 |
+| Steps (35,040 samples, summed by HealthKit by the hour), `auto` (average days by the month), Y | 0.24–0.25 |
+| Steps, by the day, Y | 0.23–0.26 |
+| Steps, `auto` (by the day), W | 0.01 |
 
 - **HealthKit reading the samples is nearly all of it:** the core adds about 0.1 s for the year. Under the design's 2 s, so there's no cache; a device may be slower.
-- Writing the year takes about 10 s (`HKHealthStore.save`, 10,000 a time).
+- **Totals** cost HealthKit 8,760 hourly statistics for a year, a quarter of a second: cheap enough not to ask HealthKit for days, which would step by its calendar rather than the run's.
+- Writing the year of heart rate takes about 10 s (`HKHealthStore.save`, 10,000 a time).
 
 ## Snapshot tests: from an edit to an image
 

@@ -12,9 +12,12 @@ import Testing
 struct HealthKitCardsTests {
   // MARK: - Readings
 
+  /// New samples each time: HealthKit ignores a sample saved again after it was deleted, as
+  /// each test deletes the one before's.
+  ///
   /// Heart rate every 7 minutes in October (over London's change back to GMT) and September, with
   /// resting heart rate each morning, weight morning and evening, and sound levels.
-  static let readingSamples: [HKQuantitySample] = {
+  static var readingSamples: [HKQuantitySample] {
     var samples: [HKQuantitySample] = []
     var time = date(9, 1)
     var index = 0
@@ -46,7 +49,7 @@ struct HealthKitCardsTests {
       }
     }
     return samples
-  }()
+  }
 
   static let readingCards: [(String, String)] = [
     (
@@ -90,7 +93,8 @@ struct HealthKitCardsTests {
   @Test
   func readingsComputeAsTheCoreComputesThem() async throws {
     let health = try await SyntheticHealthKit.empty()
-    try await health.save(Self.readingSamples)
+    let samples = Self.readingSamples
+    try await health.save(samples)
     let engine = HealthKitCardEngine(store: health.store)
     for (name, json) in Self.readingCards {
       let card = try CardSpec(inputJSON: Data(json.utf8))
@@ -98,7 +102,7 @@ struct HealthKitCardsTests {
         for day in [date(10, 20), date(10, 25), date(9, 3)] {
           let run = CardRun(spec: card, range: range, date: day, now: now, calendar: london)
           let data = try await engine.data(run)
-          let expected = reference(run, samples: Self.readingSamples)
+          let expected = reference(run, samples: samples)
           #expect(
             data.rounded == expected.rounded, "\(name), \(range) containing \(day)")
           #expect(expected.series.contains { !$0.points.isEmpty }, "\(name), \(range)")
@@ -153,7 +157,7 @@ struct HealthKitCardsTests {
 
   /// Steps every 10 minutes from 7:00 to 23:00, each within its hour, over the year to Nov 1,
   /// and a walk across one midnight.
-  static let stepSamples: [HKQuantitySample] = {
+  static var stepSamples: [HKQuantitySample] {
     var samples: [HKQuantitySample] = []
     var day = date(1, 1)
     var index = 0
@@ -168,7 +172,7 @@ struct HealthKitCardsTests {
       index += 1
     }
     return samples
-  }()
+  }
 
   static let totalCards: [(String, String)] = [
     (
@@ -188,7 +192,8 @@ struct HealthKitCardsTests {
   @Test
   func totalsComputeAsTheCoreComputesThem() async throws {
     let health = try await SyntheticHealthKit.empty()
-    try await health.save(Self.stepSamples)
+    let samples = Self.stepSamples
+    try await health.save(samples)
     let engine = HealthKitCardEngine(store: health.store)
     for (name, json) in Self.totalCards {
       let card = try CardSpec(inputJSON: Data(json.utf8))
@@ -196,7 +201,7 @@ struct HealthKitCardsTests {
         for day in [date(10, 20), date(10, 25), date(3, 29)] {
           let run = CardRun(spec: card, range: range, date: day, now: now, calendar: london)
           let data = try await engine.data(run)
-          let expected = reference(run, samples: Self.stepSamples)
+          let expected = reference(run, samples: samples)
           #expect(data.rounded == expected.rounded, "\(name), \(range) containing \(day)")
           #expect(!expected.series[0].points.isEmpty, "\(name), \(range)")
         }
@@ -353,12 +358,22 @@ struct HealthKitCardsTests {
         #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "HeartRate"}], "range": "Y"}"#
           .utf8))
     let engine = HealthKitCardEngine(store: health.store)
-    let task = Task {
-      try await engine.data(
-        CardRun(spec: card, range: .year, date: date(10, 20), now: now, calendar: london))
-    }
-    task.cancel()
-    await #expect(throws: CancellationError.self) { try await task.value }
+    let run = CardRun(spec: card, range: .year, date: date(10, 20), now: now, calendar: london)
+    // Before it starts.
+    let early = Task { try await engine.data(run) }
+    early.cancel()
+    await #expect(throws: CancellationError.self) { try await early.value }
+    // While HealthKit reads the year's samples: the query stops and the run throws, rather than
+    // returning the card. A tenth of the way through an uncancelled run.
+    let clock = ContinuousClock()
+    let start = clock.now
+    let whole = try await engine.data(run)
+    let took = clock.now - start
+    #expect(whole.series[0].points.count == 2, "September's and October's")
+    let late = Task { try await engine.data(run) }
+    try await Task.sleep(for: took / 10)
+    late.cancel()
+    await #expect(throws: CancellationError.self) { try await late.value }
   }
 }
 

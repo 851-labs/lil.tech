@@ -219,9 +219,14 @@ public struct HealthKitCardEngine: Sendable {
     ]
     if let bundleIDs = filter?.sources {
       let wanted = Set(bundleIDs)
-      let sources = try await HKSourceQueryDescriptor(predicate: .quantitySample(type: type))
-        .result(for: store)
-        .filter { wanted.contains($0.bundleIdentifier) }
+      let sources: Set<HKSource> = try await run { finish in
+        HKSourceQuery(sampleType: type, samplePredicate: nil) { _, sources, error in
+          guard let sources else {
+            return finish(.failure(error ?? HKError(.errorHealthDataUnavailable)))
+          }
+          finish(.success(sources.filter { wanted.contains($0.bundleIdentifier) }))
+        }
+      }
       // No source of that type matches, so no reading can.
       guard !sources.isEmpty else { return [] }
       predicates.append(HKQuery.predicateForObjects(from: Set(sources)))
@@ -297,6 +302,7 @@ public struct HealthKitCardEngine: Sendable {
   /// the task is cancelled, throwing `CancellationError` at once rather than waiting for a
   /// stopped query's handler, which HealthKit may never call. The async query descriptors don't
   /// stop theirs: a year of heart rate cancelled 50 ms in still read for 1.3 s.
+  /// Every query here runs through it.
   private func run<Value: Sendable>(
     _ make: (_ finish: @escaping @Sendable (Result<Value, any Error>) -> Void) -> HKQuery
   ) async throws -> Value {
@@ -316,7 +322,9 @@ public struct HealthKitCardEngine: Sendable {
         store.execute(query)
       }
     } onCancel: {
-      let (continuation, query) = running.withValue { ($0.finish(), $0.query) }
+      let (query, continuation) = running.withValue { running in
+        (running.query, running.finish())
+      }
       if let query { store.stop(query) }
       continuation?.resume(throwing: CancellationError())
     }
@@ -324,7 +332,8 @@ public struct HealthKitCardEngine: Sendable {
 }
 
 /// A query `HealthKitCardEngine.run` is waiting on: answered or cancelled, whichever is first,
-/// resumes its continuation, once.
+/// resumes its continuation, once. It lets go of the query then: the query's handler holds this,
+/// so keeping it would keep both.
 private struct Running<Value: Sendable>: @unchecked Sendable {
   var continuation: CheckedContinuation<Value, any Error>?
   var query: HKQuery?
@@ -334,6 +343,7 @@ private struct Running<Value: Sendable>: @unchecked Sendable {
   mutating func finish() -> CheckedContinuation<Value, any Error>? {
     defer {
       continuation = nil
+      query = nil
       isFinished = true
     }
     return continuation

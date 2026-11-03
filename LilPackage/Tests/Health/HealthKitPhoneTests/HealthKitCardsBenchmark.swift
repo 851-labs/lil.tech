@@ -75,6 +75,48 @@ struct HealthKitCardsBenchmark {
       of: heartRate, in: year, filter: nil, needsSampleIDs: false)
     print("Benchmark: reading \(readings.count) readings: \(clock.now - reading)")
 
+    // Totals: steps every 10 minutes from 7:00 to 23:00 (35,040 samples), which HealthKit sums
+    // by the hour.
+    var stepSamples: [HKQuantitySample] = []
+    var day = date(1, 1)
+    for _ in 0..<365 {
+      for minute in stride(from: 7 * 60, to: 23 * 60, by: 10) {
+        stepSamples.append(
+          SyntheticHealthKit.sample(
+            steps, Double(minute % 400),
+            at: day.addingTimeInterval(Double(minute) * 60), minutes: 10))
+      }
+      day = london.date(byAdding: .day, value: 1, to: day)!
+    }
+    try await health.save(stepSamples)
+    for (name, json, range) in [
+      (
+        "steps, Y (average days by the month)",
+        #"{"version": 1, "display": {"name": "S"}, "series": [{"type": "Steps"}], "range": "Y"}"#,
+        CardRange.year
+      ),
+      (
+        "steps by the day, Y",
+        #"{"version": 1, "display": {"name": "S"}, "series": [{"type": "Steps"}], "bucket": "day", "range": "Y"}"#,
+        .year
+      ),
+      (
+        "steps, W",
+        #"{"version": 1, "display": {"name": "S"}, "series": [{"type": "Steps"}], "range": "W"}"#,
+        .week
+      ),
+    ] {
+      let card = try CardSpec(inputJSON: Data(json.utf8))
+      let run = CardRun(spec: card, range: range, date: date(10, 20), now: now, calendar: london)
+      var durations: [Duration] = []
+      for _ in 0..<3 {
+        let start = clock.now
+        _ = try await engine.data(run)
+        durations.append(clock.now - start)
+      }
+      print("Benchmark: \(name): \(durations.map(\.description).joined(separator: ", "))")
+    }
+
     // Cancelled 50 ms in, a year's run stops rather than reading the year.
     let card = try CardSpec(
       inputJSON: Data(

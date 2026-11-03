@@ -15,12 +15,15 @@ final class GrantHealthAccess: XCTestCase {
     let sheet = XCUIApplication(bundleIdentifier: "com.apple.HealthPrivacyService")
     let topics = sheet.navigationBars["Health Access"]
     var shown = false
-    for _ in 0..<3 {
+    for attempt in 1...3 {
       app.launch()
       XCTAssertTrue(status.waitForExistence(timeout: 30))
-      guard status.label == "Requesting" else { break }
-      shown = topics.waitForExistence(timeout: 60)
-      if shown { break }
+      // The host starts idle, then asks: the sheet comes, or the request ends without one.
+      let deadline = Date.now.addingTimeInterval(60)
+      while Date.now < deadline, !shown, !isFinished(status.label) {
+        shown = topics.waitForExistence(timeout: 1)
+      }
+      if shown || isFinished(status.label) || attempt == 3 { break }
       app.terminate()
     }
     if shown {
@@ -49,6 +52,11 @@ final class GrantHealthAccess: XCTestCase {
     wait(for: [expectation(for: finished, evaluatedWith: status)], timeout: 30)
     XCTAssertEqual(status.label, "Requested")
     app.terminate()
+  }
+
+  /// Whether the host's request ended, granted or not.
+  private func isFinished(_ label: String) -> Bool {
+    label == "Requested" || label.hasPrefix("Failed")
   }
 
   /// The screen, kept in the result bundle when the test fails, to see what the sheet showed.
