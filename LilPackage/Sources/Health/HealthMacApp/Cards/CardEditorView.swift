@@ -249,11 +249,13 @@ extension CardSpec {
     return spec
   }
 
-  /// Whether the two specs chart the same, however they're named and drawn in color: whether an
-  /// edit changed only the card's name, symbol or color.
+  /// Whether the two specs are the same but for their name, symbol and color: whether an edit
+  /// changed only those. A unit is part of what a card shows.
   func hasQuery(of other: CardSpec) -> Bool {
     var mine = self
-    mine.display = other.display
+    mine.display.name = other.display.name
+    mine.display.symbol = other.display.symbol
+    mine.display.color = other.display.color
     return mine == other
   }
 }

@@ -38,6 +38,8 @@ public struct CardEditorFeature {
     var isSymbolChosen = false
     var isColorChosen = false
     var isStyleChosen = false
+    /// The lead's value unit the goal is in, so a change of unit clears it.
+    var goalUnit: CardValueUnit?
     /// The spec the fields make, when it's valid: what Save writes.
     public var spec: CardSpec?
     /// Why the fields don't make a valid spec, from `CardSpec(input:)`.
@@ -62,6 +64,7 @@ public struct CardEditorFeature {
         display: CardSpec.Display(name: "", symbol: Self.newCardSymbol, color: Self.newCardColor),
         series: [CardSpec.Series(id: "a", type: "", aggregation: .avg)], range: .week,
         chart: CardSpec.Chart(style: .line))
+      goalUnit = draft.valueUnit
       if let typeID { typeChosen(typeID, series: "a") }
       validate()
       preview = spec
@@ -73,6 +76,7 @@ public struct CardEditorFeature {
       cardID = card.id
       original = spec
       draft = spec
+      goalUnit = spec.valueUnit
       isStyleChosen = true
       validate()
       preview = self.spec
@@ -278,6 +282,7 @@ public struct CardEditorFeature {
 
       case .goalChanged(let value):
         state.draft.chart.goal = value.map(CardSpec.Goal.init(value:))
+        state.goalUnit = state.draft.valueUnit
         return updatePreview(&state)
 
       case .addFormulaButtonTapped(let kind):

@@ -113,14 +113,14 @@ struct CardSeriesSection: View {
           CardFilterRows(store: store, series: series, change: change)
           errors(.filter)
         }
+        TextField(
+          "Label",
+          text: Binding(
+            get: { series.label ?? "" },
+            set: { text in change { $0.label = text.isEmpty ? nil : text } }),
+          prompt: Text(type.name))
+        errors(.label)
         if store.state.hasSeveralLines {
-          TextField(
-            "Label",
-            text: Binding(
-              get: { series.label ?? "" },
-              set: { text in change { $0.label = text.isEmpty ? nil : text } }),
-            prompt: Text(type.name))
-          errors(.label)
           Toggle(
             "Show in Chart",
             isOn: Binding(get: { !series.hidden }, set: { shown in change { $0.hidden = !shown } }))
@@ -373,13 +373,19 @@ struct CardFilterRows: View {
         CardChoicesMenu(
           every: "Every App", chosen: series.filter?.sources ?? [],
           choices: (sources?.apps ?? []).map { ($0.id, $0.name) }
-        ) { sources in change { $0.filter = Self.filter(sources: sources, of: $0.filter) } }
+        ) { sources in
+          change {
+            $0.filter = Self.filter(sources: sources, deviceModels: $0.filter?.deviceModels)
+          }
+        }
       }
       LabeledContent("Devices") {
         CardChoicesMenu(
           every: "Every Device", chosen: series.filter?.deviceModels ?? [],
           choices: Self.models(of: sources?.devices ?? []).map { ($0, $0) }
-        ) { models in change { $0.filter = Self.filter(models: models, of: $0.filter) } }
+        ) { models in
+          change { $0.filter = Self.filter(sources: $0.filter?.sources, deviceModels: models) }
+        }
       }
       .task(id: series.type) { store.send(.sourcesNeeded(type: series.type)) }
     }
@@ -391,16 +397,12 @@ struct CardFilterRows: View {
     return devices.compactMap(\.device.model).filter { seen.insert($0).inserted }
   }
 
-  static func filter(sources: [String], of filter: CardSpec.Filter?) -> CardSpec.Filter? {
-    let filter = CardSpec.Filter(
-      sources: sources.isEmpty ? nil : sources, deviceModels: filter?.deviceModels)
-    return filter.sources == nil && filter.deviceModels == nil ? nil : filter
-  }
-
-  static func filter(models: [String], of filter: CardSpec.Filter?) -> CardSpec.Filter? {
-    let filter = CardSpec.Filter(
-      sources: filter?.sources, deviceModels: models.isEmpty ? nil : models)
-    return filter.sources == nil && filter.deviceModels == nil ? nil : filter
+  /// A filter of these lists, `nil` for an empty one; no filter when both are.
+  static func filter(sources: [String]?, deviceModels: [String]?) -> CardSpec.Filter? {
+    let sources = sources?.isEmpty == false ? sources : nil
+    let deviceModels = deviceModels?.isEmpty == false ? deviceModels : nil
+    guard sources != nil || deviceModels != nil else { return nil }
+    return CardSpec.Filter(sources: sources, deviceModels: deviceModels)
   }
 }
 
@@ -512,7 +514,7 @@ struct CardChartSection: View {
       Picker(
         "Opens On", selection: Binding(get: { draft.range }, set: { store.send(.rangeChosen($0)) })
       ) {
-        ForEach(draft.bucket.ranges, id: \.self) { Text($0.label).tag($0) }
+        ForEach(draft.bucket.ranges, id: \.self) { Text(ChartRange($0).periodName).tag($0) }
       }
       errors(.range)
       Picker(
@@ -686,18 +688,6 @@ extension CardSpec.Bucket {
     case .night: "Night"
     case .week: "Week"
     case .month: "Month"
-    }
-  }
-}
-
-extension CardRange {
-  var label: String {
-    switch self {
-    case .day: "Day"
-    case .week: "Week"
-    case .month: "Month"
-    case .sixMonths: "6 Months"
-    case .year: "Year"
     }
   }
 }

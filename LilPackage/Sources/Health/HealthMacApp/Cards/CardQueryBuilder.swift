@@ -55,9 +55,11 @@ extension CardEditorFeature.State {
           id: unusedID(among: ["trend", "trend2"]), operation: .movingAverage(of: ids[0], points: 7)
         ))
     case .difference:
+      guard let (minuend, subtrahend) = differencePair else { return }
       draft.formulas.append(
         CardSpec.Formula(
-          id: unusedID(among: ["gap", "gap2"]), operation: .difference(of: ids[0], minus: ids[1])))
+          id: unusedID(among: ["gap", "gap2"]),
+          operation: .difference(of: minuend, minus: subtrahend)))
     }
   }
 
@@ -97,17 +99,42 @@ extension CardEditorFeature.State {
     if let unit = draft.display.unit, !units.contains(unit) {
       draft.display.unit = nil
     }
+    // A card's only line has no Show in Chart to turn it back on.
+    if !hasSeveralLines {
+      for index in draft.series.indices { draft.series[index].hidden = false }
+      for index in draft.formulas.indices { draft.formulas[index].hidden = false }
+    }
+    // A goal is a number in the lead's unit: another unit makes it another goal.
+    if draft.valueUnit != goalUnit {
+      draft.chart.goal = nil
+      goalUnit = draft.valueUnit
+    }
   }
 
   // MARK: - What's offered
 
-  public var canAddSeries: Bool { draft.series.count < HealthCards.maxSeries && !needsType }
+  /// Another series fits: fewer than 4, and fewer than 4 visible lines, since it's added visible.
+  public var canAddSeries: Bool {
+    !needsType && draft.series.count < HealthCards.maxSeries
+      && visibleLineCount < HealthCards.maxVisibleLines
+  }
 
   public func canAddFormula(_ kind: CardSpec.Formula.Kind) -> Bool {
     guard !needsType, draft.formulas.count < HealthCards.maxFormulas,
       visibleLineCount < HealthCards.maxVisibleLines
     else { return false }
-    return kind == .movingAverage || draft.series.count > 1
+    return kind == .movingAverage || differencePair != nil
+  }
+
+  /// The first two series a difference can subtract: the first pair in one unit.
+  private var differencePair: (String, String)? {
+    for (index, first) in draft.series.enumerated() {
+      if let second = draft.series[(index + 1)...].first(where: { $0.valueUnit == first.valueUnit })
+      {
+        return (first.id, second.id)
+      }
+    }
+    return nil
   }
 
   private var visibleLineCount: Int {

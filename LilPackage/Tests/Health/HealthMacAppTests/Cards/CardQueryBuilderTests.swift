@@ -290,6 +290,47 @@ struct CardQueryBuilderTests {
     await store.skipInFlightEffects(strict: false)
   }
 
+  /// A card's only line can't stay hidden, since it has no Show in Chart.
+  @Test
+  func aLoneLineIsShown() {
+    var state = CardEditorFeature.State(typeID: heartRate)
+    state.addSeries()
+    state.draft.series[0].hidden = true
+    state.removeSeries(id: "b")
+    #expect(state.draft.series.map(\.hidden) == [false])
+  }
+
+  /// A goal is in the lead's unit: a type of another unit, or a count, clears it.
+  @Test
+  func aGoalClearsWithItsUnit() async {
+    let store = newCard()
+    await store.send(.typeChosen(series: "a", type: weight))
+    await store.send(.goalChanged(70))
+    await store.send(.typeChosen(series: "a", type: "HKQuantityTypeIdentifierLeanBodyMass"))
+    #expect(store.state.draft.chart.goal == CardSpec.Goal(value: 70))
+    await change(store) { $0.aggregation = .count }
+    #expect(store.state.draft.chart.goal == nil)
+    await store.skipInFlightEffects(strict: false)
+  }
+
+  /// No series past 4 visible lines, and a difference only of two series in one unit.
+  @Test
+  func seriesAndDifferencesFitTheRules() {
+    var state = CardEditorFeature.State(typeID: heartRate)
+    state.addSeries()
+    state.addSeries()
+    state.addFormula(.movingAverage)
+    #expect(!state.canAddSeries)
+
+    state = CardEditorFeature.State(typeID: heartRate)
+    state.addSeries()
+    state.draft.series[1].aggregation = .count
+    #expect(!state.canAddFormula(.difference))
+    state.addSeries()
+    state.addFormula(.difference)
+    #expect(state.draft.formulas.map(\.operation) == [.difference(of: "a", minus: "c")])
+  }
+
   // MARK: - Errors
 
   /// What the controls can't rule out shows under the field it's about, in the editor's words.

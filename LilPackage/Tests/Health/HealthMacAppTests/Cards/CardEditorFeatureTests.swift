@@ -210,6 +210,19 @@ struct CardEditorFeatureTests {
     await store.receive(\.pushFinished)
   }
 
+  /// A unit is part of what a card shows: changing only it writes it.
+  @Test
+  func savingAUnitWritesIt() async throws {
+    let store = try cardsStore()
+    let weight = try #require(seedCards.last)
+    await store.send(.editCardButtonTapped(id: weight.id))
+    await store.send(\.editor.unitChosen, "lb")
+    await store.send(\.editor.saveButtonTapped)
+    await store.receive(\.editor.delegate.save)
+    #expect(store.state.cards[id: weight.id]?.spec?.display.unit == "lb")
+    await store.receive(\.pushFinished)
+  }
+
   /// A write that's refused leaves the editor open, saying why: here another device brought the
   /// account to 100 cards while it was open.
   @Test
