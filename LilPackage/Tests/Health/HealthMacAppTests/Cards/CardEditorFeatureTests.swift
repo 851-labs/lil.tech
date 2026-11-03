@@ -53,7 +53,7 @@ struct CardEditorFeatureTests {
   /// A new card has no spec until its type is picked, then the type's name, symbol and color,
   /// until the person changes them.
   @Test
-  func aNewCardFollowsItsTypeUntilChanged() {
+  func aNewCardFollowsItsTypeUntilChanged() throws {
     var state = CardEditorFeature.State()
     #expect(state.spec == nil && state.errors.isEmpty && state.preview == nil && !state.canSave)
 
@@ -61,7 +61,7 @@ struct CardEditorFeatureTests {
     state.validate()
     #expect(state.name == "Heart Rate")
     #expect(state.symbol == "heart.fill" && state.color == .red)
-    let spec = try! #require(state.spec)
+    let spec = try #require(state.spec)
     #expect(spec.series.map(\.type) == [heartRate] && spec.series[0].aggregation == .avg)
     #expect(spec.chart.style == .ranges && spec.bucket == .auto && spec.range == .week)
     #expect(state.canSave)
@@ -193,6 +193,23 @@ struct CardEditorFeatureTests {
     await store.receive(\.pushFinished)
   }
 
+  /// An agent changes the card's query while its editor is open: saving keeps the agent's query
+  /// and writes only the name, symbol and color.
+  @Test
+  func savingKeepsAQueryChangedMeanwhile() async throws {
+    let store = try cardsStore()
+    await store.send(.editCardButtonTapped(id: seedCards[0].id))
+    var changed = seedCards[0]
+    changed.spec?.chart.goal = CardSpec.Goal(value: 10_000)
+    await store.send(.cardsLoaded([changed] + seedCards.dropFirst()))
+    await store.send(\.editor.colorChosen, .mint)
+    await store.send(\.editor.saveButtonTapped)
+    await store.receive(\.editor.delegate.save)
+    let saved = try #require(store.state.cards[id: seedCards[0].id]?.spec)
+    #expect(saved.chart.goal == CardSpec.Goal(value: 10_000) && saved.display.color == .mint)
+    await store.receive(\.pushFinished)
+  }
+
   /// A write that's refused leaves the editor open, saying why: here another device brought the
   /// account to 100 cards while it was open.
   @Test
@@ -235,7 +252,8 @@ struct CardEditorFeatureTests {
     let store = try cardsStore()
     await store.send(.editCardButtonTapped(id: seedCards[0].id))
     await store.send(\.editor.deleteButtonTapped)
-    #expect(store.state.editor?.alert == .confirmDelete(name: "Steps"))
+    #expect(
+      store.state.editor?.alert == .confirmDeleteCard(named: "Steps", .confirmDelete))
     await store.send(\.editor.alert.presented.confirmDelete)
     await store.receive(\.editor.delegate.delete)
     await store.receive(\.deleteCard)
@@ -249,7 +267,9 @@ struct CardEditorFeatureTests {
   func deletingARowAsksFirst() async throws {
     let store = try cardsStore()
     await store.send(.deleteCardButtonTapped(id: seedCards[1].id))
-    #expect(store.state.alert == .confirmDelete(seedCards[1]))
+    #expect(
+      store.state.alert
+        == .confirmDeleteCard(named: "Heart Rate", .confirmDelete(id: seedCards[1].id)))
     await store.send(\.alert.dismiss)
     #expect(store.state.cards.count == seedCards.count)
 

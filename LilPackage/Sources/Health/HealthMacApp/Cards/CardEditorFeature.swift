@@ -98,7 +98,10 @@ public struct CardEditorFeature {
       ]
     }
 
+    /// The spec the fields make now, and its errors. A save's refusal was about the fields as
+    /// they were.
     mutating func validate() {
+      saveError = nil
       guard let input else {
         spec = nil
         errors = []
@@ -237,7 +240,7 @@ public struct CardEditorFeature {
 
       case .deleteButtonTapped:
         guard let original = state.original else { return .none }
-        state.alert = .confirmDelete(name: original.display.name)
+        state.alert = .confirmDeleteCard(named: original.display.name, .confirmDelete)
         return .none
 
       case .alert(.presented(.confirmDelete)):
@@ -280,19 +283,5 @@ extension CardJSON {
       members.append((key, value))
     }
     return .object(members)
-  }
-}
-
-extension AlertState where Action == CardEditorFeature.Action.Alert {
-  /// Delete Card…'s confirmation, in the editor.
-  static func confirmDelete(name: String) -> Self {
-    Self {
-      TextState("Delete “\(name)”?")
-    } actions: {
-      ButtonState(role: .destructive, action: .confirmDelete) { TextState("Delete") }
-      ButtonState(role: .cancel) { TextState("Cancel") }
-    } message: {
-      TextState("It's deleted on all your devices.")
-    }
   }
 }

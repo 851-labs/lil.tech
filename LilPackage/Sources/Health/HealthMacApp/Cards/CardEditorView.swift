@@ -237,18 +237,38 @@ struct CardEditorPreview: View {
   let spec: CardSpec?
   @Fetch private var chart: CardPeriod? = nil
 
+  /// What the data depends on: the spec without its name, symbol and color, so choosing those
+  /// runs nothing again.
+  private var query: CardSpec? { spec?.withoutAppearance }
+
   var body: some View {
-    CardPreviewContent(spec: spec, state: state)
-      .task(id: spec) {
-        guard let spec else { return }
-        _ = try? await $chart.load(CardPreviewRequest(spec: spec), scheduler: MainQueueScheduler())
+    CardPreviewContent(spec: spec, state: state, offset: chart?.offset ?? 0)
+      .task(id: query) {
+        guard let query else { return }
+        _ = try? await $chart.load(
+          CardPreviewRequest(spec: query), scheduler: MainQueueScheduler())
       }
   }
 
   private var state: CardChart.State {
     if let error = $chart.loadError { return .failed(error.localizedDescription) }
-    guard let chart else { return .loading }
-    return .loaded(chart, isUpdating: $chart.isLoading || chart.spec != spec)
+    guard let chart, let spec else { return .loading }
+    // The data drawn as the spec looks now.
+    let period = CardPeriod(
+      range: chart.range, offset: chart.offset,
+      spec: chart.spec == query ? spec : chart.spec, data: chart.data)
+    return .loaded(period, isUpdating: $chart.isLoading || chart.spec != query)
+  }
+}
+
+extension CardSpec {
+  /// The spec with a fixed name, symbol and color: what a card's data depends on.
+  var withoutAppearance: CardSpec {
+    var spec = self
+    spec.display.name = ""
+    spec.display.symbol = ""
+    spec.display.color = .gray
+    return spec
   }
 }
 
@@ -257,18 +277,20 @@ struct CardEditorPreview: View {
 struct CardPreviewContent: View {
   let spec: CardSpec?
   let state: CardChart.State
+  /// The period shown before its data loads.
+  var offset = 0
 
   static let chartHeight: CGFloat = 200
 
   var body: some View {
     if let spec {
       CardChart(
-        spec: spec, range: ChartRange(spec.range), offset: 0, state: state,
+        spec: spec, range: ChartRange(spec.range), offset: offset, state: state,
         chartHeight: Self.chartHeight)
     } else {
       // The space a card of one series takes, so nothing moves once a type is picked.
       CardChart(
-        spec: Card.welcomeSeed[0].spec!, range: .week, offset: 0, state: .loading,
+        spec: HealthCards.welcomeSeed[0].spec, range: .week, offset: 0, state: .loading,
         chartHeight: Self.chartHeight
       )
       .hidden()

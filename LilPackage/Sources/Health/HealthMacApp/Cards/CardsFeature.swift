@@ -210,7 +210,7 @@ public struct CardsFeature {
 
       case .deleteCardButtonTapped(let id):
         guard let card = state.cards[id: id] else { return .none }
-        state.alert = .confirmDelete(card)
+        state.alert = .confirmDeleteCard(named: card.storedName, .confirmDelete(id: card.id))
         return .none
 
       case .alert(.presented(.confirmDelete(let id))):
@@ -222,12 +222,26 @@ public struct CardsFeature {
           state.editor?.saveError = "Your cards haven't loaded yet. Try again in a moment."
           return .none
         }
-        let effect =
-          if let id = editor.cardID { update(id, spec, &state) } else { create(spec, &state) }
-        // A write that's refused leaves the editor open, saying why.
+        let writes = state.unsaved.count
+        let effect: Effect<Action>
+        if let id = editor.cardID {
+          // The card's query as it is now, which another device or an agent may have changed
+          // while the editor was open: the editor only changes how it looks.
+          var edited = state.cards[id: id]?.spec ?? spec
+          edited.display.name = spec.display.name
+          edited.display.symbol = spec.display.symbol
+          edited.display.color = spec.display.color
+          effect = update(id, edited, &state)
+        } else {
+          effect = create(spec, &state)
+        }
+        // A write that's refused, or that failed some other way (reported), leaves the editor
+        // open, saying why.
         if let error = state.writeError {
           state.editor?.saveError = error.localizedDescription
           state.writeError = nil
+        } else if state.unsaved.count == writes {
+          state.editor?.saveError = "The card couldn't be saved."
         } else {
           state.editor = nil
         }
@@ -325,15 +339,13 @@ extension Card {
   }
 }
 
-extension AlertState where Action == CardsFeature.Action.Alert {
-  /// Delete…'s confirmation: the editor's (`CardEditorFeature`), for a Summary row.
-  static func confirmDelete(_ card: Card) -> Self {
+extension AlertState {
+  /// Delete…'s confirmation, from the editor or a Summary row, which `delete` answers.
+  static func confirmDeleteCard(named name: String, _ delete: Action) -> Self {
     Self {
-      TextState("Delete “\(card.storedName)”?")
+      TextState("Delete “\(name)”?")
     } actions: {
-      ButtonState(role: .destructive, action: .confirmDelete(id: card.id)) {
-        TextState("Delete")
-      }
+      ButtonState(role: .destructive, action: delete) { TextState("Delete") }
       ButtonState(role: .cancel) { TextState("Cancel") }
     } message: {
       TextState("It's deleted on all your devices.")
