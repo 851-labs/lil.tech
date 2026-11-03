@@ -1,5 +1,6 @@
 public import Dependencies
 import Foundation
+import GRDB
 import HealthCardStore
 import LilAPI
 public import LilSync
@@ -31,27 +32,48 @@ public enum PhoneCards {
       allowsOverride: allowsOverride)
   }
 
-  /// Opens the database in `directory`. One that's damaged, or from a newer release, is only a
-  /// copy of the server's cards, so it starts over and syncs again; if even that fails, the cards
-  /// are kept in memory until the app quits, so uploading still works.
+  /// Opens the database in `directory`. One that's damaged, or from a newer release (after a
+  /// downgrade), is only a copy of the server's cards, so it's deleted and synced again. Other
+  /// failures (a full disk, say) leave the file, and the writes it may have queued, for the next
+  /// launch: the cards are kept in memory until the app quits, so uploading still works.
   static func open(in directory: URL) -> any DatabaseWriter {
     let file = directory.appending(path: "Cards.sqlite")
     do {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
       do {
-        return try HealthCardStore.make(at: file)
-      } catch {
+        return try openChecked(file)
+      } catch let error where startsOver(after: error) {
         for suffix in ["", "-wal", "-shm"] {
           try? FileManager.default.removeItem(
             at: directory.appending(path: "Cards.sqlite\(suffix)"))
         }
-        return try HealthCardStore.make(at: file)
+        return try openChecked(file)
       }
     } catch {
       reportIssue(error)
       // An in-memory database always opens.
       return try! HealthCardStore.make()
     }
+  }
+
+  /// A newer release migrated the database: GRDB leaves migrations it doesn't know alone, which
+  /// would leave this release on a schema it doesn't know.
+  struct NewerSchema: Error {}
+
+  private static func openChecked(_ file: URL) throws -> any DatabaseWriter {
+    let database = try HealthCardStore.make(at: file)
+    if try database.read({ try HealthCardStore.migrator.hasBeenSuperseded($0) }) {
+      throw NewerSchema()
+    }
+    return database
+  }
+
+  /// Whether the database must start over after `error`: it's not a database, it's damaged, or
+  /// it's a newer release's.
+  static func startsOver(after error: any Error) -> Bool {
+    if error is NewerSchema { return true }
+    guard let error = error as? DatabaseError else { return false }
+    return [.SQLITE_CORRUPT, .SQLITE_NOTADB].contains(error.resultCode)
   }
 }
 

@@ -1,5 +1,6 @@
 import Dependencies
 import Foundation
+import GRDB
 import HealthCardStore
 import HealthCards
 import LilAPI
@@ -288,6 +289,30 @@ struct PhoneCardSyncTests {
     }
     #expect(path(.prod, allowsOverride: false) == "/support/Cards/")
     #expect(path(.staging, allowsOverride: true) == "/support/Cards/Servers/api.staging.lil.tech/")
+  }
+
+  /// A newer release's database (after a downgrade) starts over too, since GRDB would leave its
+  /// migrations alone; a failure that isn't the file's fault doesn't delete it.
+  @Test
+  func aNewerReleasesDatabaseStartsOver() throws {
+    let directory = URL.temporaryDirectory.appending(path: "cards-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let newer = try HealthCardStore.make(at: directory.appending(path: "Cards.sqlite"))
+    var migrator = HealthCardStore.migrator
+    migrator.registerMigration("From a later release") { db in
+      try db.execute(sql: #"CREATE TABLE "later" ("id" INTEGER PRIMARY KEY)"#)
+    }
+    try migrator.migrate(newer)
+    try newer.close()
+
+    let database = PhoneCards.open(in: directory)
+    #expect(
+      try database.read { try String.fetchAll($0, sql: "SELECT identifier FROM grdb_migrations") }
+        .contains("From a later release") == false)
+    #expect(PhoneCards.startsOver(after: PhoneCards.NewerSchema()))
+    #expect(!PhoneCards.startsOver(after: DatabaseError(resultCode: .SQLITE_FULL)))
+    #expect(PhoneCards.startsOver(after: DatabaseError(resultCode: .SQLITE_NOTADB)))
   }
 
   /// A damaged database is only a copy of the server's cards: it starts over.

@@ -335,6 +335,7 @@ let package = Package(
         "LilSync",
         "LilUI",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "GRDB", package: "GRDB.swift"),
         .product(name: "SQLiteData", package: "sqlite-data"),
       ],
       path: "Sources/Health/HealthPhoneApp"
@@ -355,6 +356,7 @@ let package = Package(
         "LilSync",
         "LilTestSupport",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+        .product(name: "GRDB", package: "GRDB.swift"),
         .product(name: "HTTPTypes", package: "swift-http-types"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
         .product(name: "SQLiteData", package: "sqlite-data"),

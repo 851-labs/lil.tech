@@ -2,7 +2,7 @@ public import Foundation
 import GRDB
 import LilAPI
 public import LilSync
-import OpenAPIRuntime
+package import OpenAPIRuntime
 public import SQLiteData
 
 // The account's cards as both apps keep them (851-3204, 851-3205, docs/decisions/cards.md): the
@@ -93,7 +93,8 @@ public enum HealthCardStore {
     Card.entity, as: Components.Schemas.HealthCard.self,
     upsert: { row, db in
       let card = HealthCard(
-        id: row.id, spec: try json(row.spec), position: row.position, createdAt: row.createdAt,
+        id: row.id, spec: try json(row.spec) ?? "null", position: row.position,
+        createdAt: row.createdAt,
         updatedAt: row.updatedAt, seed: row.seed)
       try HealthCard.upsert { card }.execute(db)
     },
@@ -107,9 +108,10 @@ public enum HealthCardStore {
     return encoder
   }()
 
-  /// A spec as JSON text, keys sorted, as the Mac stores JSON fields: `null` when it's missing.
-  static func json(_ value: OpenAPIValueContainer?) throws -> String {
-    guard let value, value.value != nil else { return "null" }
+  /// A JSON field as JSON text, keys sorted, as the Mac stores JSON fields, or `nil` when it's
+  /// missing or null. `HealthDatabase`'s entities store theirs with it too.
+  package static func json(_ value: OpenAPIValueContainer?) throws -> String? {
+    guard let value, value.value != nil else { return nil }
     return String(decoding: try encoder.encode(value), as: UTF8.self)
   }
 

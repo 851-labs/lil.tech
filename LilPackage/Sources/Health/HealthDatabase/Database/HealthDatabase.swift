@@ -747,15 +747,8 @@ public enum HealthDatabase {
     { db in try Record.delete().execute(db) }
   }
 
-  private static let encoder = {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    return encoder
-  }()
-
-  /// A JSON field as JSON text, or `nil` when it's missing or null.
+  /// A JSON field as JSON text, or `nil` when it's missing or null: as the cards' (`HealthCardStore`).
   static func json(_ value: OpenAPIValueContainer?) throws -> String? {
-    guard let value, value.value != nil else { return nil }
-    return String(decoding: try encoder.encode(value), as: UTF8.self)
+    try HealthCardStore.json(value)
   }
 }

@@ -93,7 +93,7 @@ public struct AppFeature {
   @Dependency(\.backgroundUpload) var backgroundUpload
   @Dependency(\.sync) var sync
 
-  enum CancelID { case backfill, cardSync, consentCheck, signedInChecks }
+  enum CancelID { case backfill, cardPull, cardSync, consentCheck, signedInChecks }
 
   public init() {}
 
@@ -120,8 +120,10 @@ public struct AppFeature {
 
       case .returnedToForeground:
         guard state.isSignedIn == true else { return .none }
-        // Cards changed elsewhere meanwhile come now, rather than at the next interval.
-        let pull = Effect<Action>.run { [sync] _ in await sync.syncNow() }
+        // Cards changed elsewhere meanwhile come now, rather than at the next interval: a new
+        // pull, since asking the running one (`syncNow`) wouldn't cut short its backoff after
+        // failures (e.g. while offline in the background).
+        let pull = pullCards()
         guard state.healthConsent == nil, state.healthAccess == nil else { return pull }
         return .merge(pull, .send(.startUpload))
 
@@ -214,6 +216,7 @@ public struct AppFeature {
           return .merge(
             .cancel(id: CancelID.backfill),
             .cancel(id: CancelID.signedInChecks),
+            .cancel(id: CancelID.cardPull),
             .cancel(id: CancelID.cardSync),
             // So no card write lands after the local cards are deleted.
             CardsFeature.cancel(),
@@ -367,10 +370,17 @@ extension AppFeature {
   /// (851-3205). The iPhone syncs only `health_card` (`PhoneCards`).
   func syncCards() -> Effect<Action> {
     .merge(
-      .run { [sync] _ in await sync.run() },
+      pullCards(),
       .run { [sync, authSessions] _ in await sync.listen(authSessions.apiAuthentication) }
+        .cancellable(id: CancelID.cardSync, cancelInFlight: true)
     )
-    .cancellable(id: CancelID.cardSync, cancelInFlight: true)
+  }
+
+  /// Pulls now, then at intervals, until signed out (`LilSyncEngine.run()`), replacing a pull
+  /// loop already running.
+  func pullCards() -> Effect<Action> {
+    .run { [sync] _ in await sync.run() }
+      .cancellable(id: CancelID.cardPull, cancelInFlight: true)
   }
 
   /// Without consent: stops the backfill and its background work.

@@ -225,7 +225,6 @@ struct AppFeatureCardSyncTests {
         try? await Task.never()
         events.withValue { $0.append("listen stopped") }
       }
-      $0.sync.syncNow = { events.withValue { $0.append("sync now") } }
       $0.sync.removeLocalData = { events.withValue { $0.append("removed") } }
     }
     // Only what's about cards: consent and the other checks have their own tests.
@@ -236,9 +235,13 @@ struct AppFeatureCardSyncTests {
     // Signed in again (the session's updates repeat it): sync carries on, rather than starting
     // over.
     await store.send(.signedInChanged(true))
-    await store.send(.returnedToForeground)
-    try await eventually { events.value.contains("sync now") }
     #expect(events.value.count(where: { $0 == "run" }) == 1)
+    // Back in front: a new pull, which a failure's backoff in the last one can't hold up.
+    await store.send(.returnedToForeground)
+    try await eventually {
+      events.value.count(where: { $0 == "run" }) == 2 && events.value.contains("run stopped")
+    }
+    #expect(events.value.count(where: { $0 == "listen" }) == 1)
 
     await store.send(.cards(.cardsLoaded(SyncedCards(cards: seedCards, isSynced: true)))) {
       $0.cards.cards = IdentifiedArray(uniqueElements: seedCards)
