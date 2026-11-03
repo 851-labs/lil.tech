@@ -21,6 +21,9 @@ import SQLiteData
 /// refused (`HealthCards.maxCards`). A write that's refused sets ``State/writeError``. Writes wait
 /// for the cards to be read: before then, there's no end to add a card at. Apps never seed cards:
 /// the server does, once per account.
+///
+/// It presents the card editor (851-3208): New Card…, Edit… and Delete…, from Summary and a
+/// card's page, write through it.
 @Reducer
 public struct CardsFeature {
   @ObservableState
@@ -35,6 +38,10 @@ public struct CardsFeature {
     public var writeError: CardWriteError?
     /// Writes not yet in the local table, oldest first. The first is being pushed.
     var unsaved: [Write] = []
+    /// The card editor, for a new card or one of these.
+    @Presents public var editor: CardEditorFeature.State?
+    /// Delete…'s confirmation, from a Summary row.
+    @Presents public var alert: AlertState<Action.Alert>?
 
     /// Cards given, e.g. in catalogs, are shown at once; otherwise they're read (``Action/task``).
     public init(cards: [Card]? = nil) {
@@ -85,10 +92,23 @@ public struct CardsFeature {
     case moveCardUp(id: Card.ID)
     case moveCardDown(id: Card.ID)
     case writeErrorDismissed
+    /// New Card…: the editor, for a new card.
+    case newCardButtonTapped
+    /// Edit…: the editor, for the card.
+    case editCardButtonTapped(id: Card.ID)
+    /// Delete…: asks first.
+    case deleteCardButtonTapped(id: Card.ID)
+    case editor(PresentationAction<CardEditorFeature.Action>)
+    case alert(PresentationAction<Alert>)
     /// The first unsaved write is in the local table and sync's queue.
     case pushFinished
     /// The first unsaved write failed locally: the cards as stored, read again.
     case pushFailed([Card]?)
+
+    @CasePathable
+    public enum Alert: Equatable, Sendable {
+      case confirmDelete(id: Card.ID)
+    }
   }
 
   enum CancelID {
@@ -136,21 +156,10 @@ public struct CardsFeature {
         return .none
 
       case .createCard(let spec):
-        guard state.isLoaded else { return .none }
-        let now = now
-        let id = withRandomNumberGenerator { CardID.make(at: now, using: &$0) }
-        let cards = Array(state.cards)
-        return write(&state) { () throws(CardWriteError) in
-          [try Card.new(spec, after: cards, id: id, now: now)]
-        }
+        return create(spec, &state)
 
       case .updateCard(let id, let spec):
-        guard state.isLoaded else { return .none }
-        let card = state.cards[id: id]
-        return write(&state) { () throws(CardWriteError) in
-          guard let card else { throw .notFound }
-          return [try card.edited(spec, now: now)]
-        }
+        return update(id, spec, &state)
 
       case .deleteCard(let id):
         guard state.isLoaded, let card = state.cards[id: id] else { return .none }
@@ -188,7 +197,75 @@ public struct CardsFeature {
         state.unsaved.removeFirst()
         if let stored { state.cards = State.merged(stored, state.unsaved) }
         return pushNext(state)
+
+      case .newCardButtonTapped:
+        guard state.canCreateCard else { return .none }
+        state.editor = CardEditorFeature.State()
+        return .none
+
+      case .editCardButtonTapped(let id):
+        guard let card = state.cards[id: id] else { return .none }
+        state.editor = CardEditorFeature.State(editing: card)
+        return .none
+
+      case .deleteCardButtonTapped(let id):
+        guard let card = state.cards[id: id] else { return .none }
+        state.alert = .confirmDelete(card)
+        return .none
+
+      case .alert(.presented(.confirmDelete(let id))):
+        return .send(.deleteCard(id: id))
+
+      case .editor(.presented(.delegate(.save(let spec)))):
+        guard let editor = state.editor else { return .none }
+        guard state.isLoaded else {
+          state.editor?.saveError = "Your cards haven't loaded yet. Try again in a moment."
+          return .none
+        }
+        let effect =
+          if let id = editor.cardID { update(id, spec, &state) } else { create(spec, &state) }
+        // A write that's refused leaves the editor open, saying why.
+        if let error = state.writeError {
+          state.editor?.saveError = error.localizedDescription
+          state.writeError = nil
+        } else {
+          state.editor = nil
+        }
+        return effect
+
+      case .editor(.presented(.delegate(.delete))):
+        guard let id = state.editor?.cardID else { return .none }
+        state.editor = nil
+        return .send(.deleteCard(id: id))
+
+      case .editor, .alert:
+        return .none
       }
+    }
+    .ifLet(\.$editor, action: \.editor) {
+      CardEditorFeature()
+    }
+    .ifLet(\.$alert, action: \.alert)
+  }
+
+  /// Adds a card with `spec` at the end.
+  private func create(_ spec: CardSpec, _ state: inout State) -> Effect<Action> {
+    guard state.isLoaded else { return .none }
+    let now = now
+    let id = withRandomNumberGenerator { CardID.make(at: now, using: &$0) }
+    let cards = Array(state.cards)
+    return write(&state) { () throws(CardWriteError) in
+      [try Card.new(spec, after: cards, id: id, now: now)]
+    }
+  }
+
+  /// Replaces a card's spec, keeping its place.
+  private func update(_ id: Card.ID, _ spec: CardSpec, _ state: inout State) -> Effect<Action> {
+    guard state.isLoaded else { return .none }
+    let card = state.cards[id: id]
+    return write(&state) { () throws(CardWriteError) in
+      guard let card else { throw .notFound }
+      return [try card.edited(spec, now: now)]
     }
   }
 
@@ -235,5 +312,31 @@ public struct CardsFeature {
       await send(.pushFailed(try? await database.read { try HealthDatabase.cards($0) }))
     }
     .cancellable(id: CancelID.write)
+  }
+}
+
+extension Card {
+  /// The card's name, as far as this version can read its stored spec, else "Card": a card of a
+  /// later version's too.
+  var storedName: String {
+    if let spec { return spec.display.name }
+    if case .string(let name)? = storedSpec["display"]?["name"] { return name }
+    return "Card"
+  }
+}
+
+extension AlertState where Action == CardsFeature.Action.Alert {
+  /// Delete…'s confirmation: the editor's (`CardEditorFeature`), for a Summary row.
+  static func confirmDelete(_ card: Card) -> Self {
+    Self {
+      TextState("Delete “\(card.storedName)”?")
+    } actions: {
+      ButtonState(role: .destructive, action: .confirmDelete(id: card.id)) {
+        TextState("Delete")
+      }
+      ButtonState(role: .cancel) { TextState("Cancel") }
+    } message: {
+      TextState("It's deleted on all your devices.")
+    }
   }
 }

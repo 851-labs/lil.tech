@@ -114,6 +114,11 @@
       "title": "Card"
     },
     {
+      "id": "card-editor",
+      "screen": "HealthMacApp/CardEditorCatalog.swift",
+      "title": "Card Editor"
+    },
+    {
       "id": "category",
       "screen": "HealthMacApp/CategoryCatalog.swift"
     },
@@ -522,6 +527,16 @@
       "from": "summary",
       "to": "card",
       "label": "Choose a card"
+    },
+    {
+      "from": "summary",
+      "to": "card-editor",
+      "label": "New Card… (⌘N), or a card's Edit…"
+    },
+    {
+      "from": "card",
+      "to": "card-editor",
+      "label": "Edit…"
     },
     {
       "from": "summary",

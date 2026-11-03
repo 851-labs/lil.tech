@@ -1,0 +1,84 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthMacApp/CardEditorCatalog.swift",
+  "screen" : "Card Editor",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.new-card-dark.png",
+      "id" : "card-editor.new-card",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.new-card-light.png",
+      "name" : "New card",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.new-card-heart-rate-dark.png",
+      "id" : "card-editor.new-card-heart-rate",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.new-card-heart-rate-light.png",
+      "name" : "New card, heart rate",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.new-card-heart-rate-loading-dark.png",
+      "id" : "card-editor.new-card-heart-rate-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.new-card-heart-rate-loading-light.png",
+      "name" : "New card, heart rate, loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.editing-steps-dark.png",
+      "id" : "card-editor.editing-steps",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.editing-steps-light.png",
+      "name" : "Editing steps",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.editing-steps-loading-dark.png",
+      "id" : "card-editor.editing-steps-loading",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.editing-steps-loading-light.png",
+      "name" : "Editing steps, loading",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.editing-morning-weight-dark.png",
+      "id" : "card-editor.editing-morning-weight",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.editing-morning-weight-light.png",
+      "name" : "Editing morning weight",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.another-symbol-and-color-dark.png",
+      "id" : "card-editor.another-symbol-and-color",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.another-symbol-and-color-light.png",
+      "name" : "Another symbol and color",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.no-name-dark.png",
+      "id" : "card-editor.no-name",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.no-name-light.png",
+      "name" : "No name",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.name-too-long-dark.png",
+      "id" : "card-editor.name-too-long",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.name-too-long-light.png",
+      "name" : "Name too long",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.too-many-cards-dark.png",
+      "id" : "card-editor.too-many-cards",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.too-many-cards-light.png",
+      "name" : "Too many cards",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.symbol-picker-dark.png",
+      "id" : "card-editor.symbol-picker",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.symbol-picker-light.png",
+      "name" : "Symbol picker",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
+    }
+  ]
+}
