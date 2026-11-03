@@ -194,10 +194,15 @@ TEST_RUNNER_LIL_HEALTHKIT_BENCHMARK=1 scripts/test-iphone-healthkit HealthKitCar
 | Steps (35,040 samples, summed by HealthKit by the hour), `auto` (average days by the month), Y | 0.24–0.25 |
 | Steps, by the day, Y | 0.23–0.26 |
 | Steps, `auto` (by the day), W | 0.01 |
+| Heart rate while asleep, by the night, with a 7-night moving average, Y (365 nights, 730 stretches) | 0.42 |
+| Heart rate in the 5 minutes before falling asleep, by the night, Y | 0.30–0.33 |
+| Heart rate while running, by the day, Y (183 runs) | 0.16 |
+| Heart rate while asleep, by the night, W | 0.01–0.03 |
 
 - **HealthKit reading the samples is nearly all of it:** the core adds about 0.1 s for the year. Under the design's 2 s, so there's no cache; a device may be slower.
 - **Totals** cost HealthKit 8,760 hourly statistics for a year, a quarter of a second: cheap enough not to ask HealthKit for days, which would step by its calendar rather than the run's.
 - Writing the year of heart rate takes about 10 s (`HKHealthStore.save`, 10,000 a time).
+- **Windows** (851-3200, 2026-11-03, the same simulator) add a Watch's night ending on every day of the year and a 45-minute run every other day. Reading a window's stretches, a year asleep: a query per stretch one after another 1.92 s, 4 at once 0.58 s; stretches less than an hour apart as one query (a night's), one after another 1.32 s, 8 at once 0.32 s; the year's span in one query 1.37 s. Before sleep, 365 five-minute stretches: 0.66 s one after another, 0.25–0.29 s 4 or 8 at once. So the engine reads a night's stretches as one, 8 queries at once (0.50 s for the whole card with 4).
 
 ## Snapshot tests: from an edit to an image
 

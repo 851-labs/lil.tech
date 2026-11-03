@@ -334,20 +334,7 @@ struct HealthKitCardsTests {
     #expect(try await engine.headline(weight, now: now, calendar: london) == nil)
   }
 
-  // MARK: - Windows and cancelling
-
-  @Test
-  func sleepAndWorkoutWindowsComeLater() async throws {
-    let health = try await SyntheticHealthKit.empty()
-    let card = try CardSpec(
-      inputJSON: Data(
-        #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "HeartRate", "window": {"kind": "asleep"}}], "bucket": "night", "range": "W"}"#
-          .utf8))
-    await #expect(throws: HealthKitCardEngine.Unsupported.eventWindows) {
-      try await HealthKitCardEngine(store: health.store).data(
-        CardRun(spec: card, range: .week, date: date(10, 20), now: now, calendar: london))
-    }
-  }
+  // MARK: - Cancelling
 
   @Test
   func cancellingStopsARun() async throws {
@@ -402,35 +389,72 @@ func date(_ month: Int, _ day: Int, _ hour: Int = 0, _ minute: Int = 0) -> Date 
 
 /// What the core computes from `samples` read as the Mac reads them: readings by start, filtered
 /// by source and device, and totals added up by the start of each sample (which the tests keep
-/// within an hour, so HealthKit's sharing doesn't matter).
-func reference(_ run: CardRun, samples: [HKQuantitySample]) -> CardData {
+/// within an hour, so HealthKit's sharing doesn't matter). Sleep analysis records and workouts
+/// that overlap a window fetch's range, by start, and each stretch's readings, one after another,
+/// as the Mac's `cardData` reads them (851-3200).
+func reference(_ run: CardRun, samples: [HKSample]) -> CardData {
   let bundleID = Bundle.main.bundleIdentifier!
-  let readings = SyntheticHealthKit.readings(samples)
+  let quantities = samples.compactMap { $0 as? HKQuantitySample }
+  let byType = SyntheticHealthKit.readings(quantities)
   let devices = Dictionary(
-    uniqueKeysWithValues: samples.map { ($0.uuid.uuidString.lowercased(), $0.device?.model) })
+    uniqueKeysWithValues: quantities.map { ($0.uuid.uuidString.lowercased(), $0.device?.model) })
+  var run = run
+  if !run.windowFetches.isEmpty {
+    func overlapping(_ range: Range<Int>) -> [HKSample] {
+      samples.filter { ms($0.startDate) < range.upperBound && ms($0.endDate) > range.lowerBound }
+        .sorted { $0.startDate < $1.startDate }
+    }
+    run = run.windowed(
+      run.windowFetches.map { fetch in
+        switch fetch {
+        case .sleep(let range):
+          .sleep(
+            overlapping(range).compactMap { $0 as? HKCategorySample }.map {
+              CardSleepRecord(
+                start: ms($0.startDate), end: ms($0.endDate), value: $0.value, source: bundleID)
+            })
+        case .workouts(let range):
+          .workouts(
+            overlapping(range).compactMap { $0 as? HKWorkout }.map {
+              CardWorkout(
+                start: ms($0.startDate), end: ms($0.endDate),
+                activityType: Int($0.workoutActivityType.rawValue))
+            })
+        }
+      })
+  }
+  func readings(
+    of type: String, in range: Range<Int>, filter: CardSpec.Filter?, needsSampleIDs: Bool
+  ) -> [CardReading] {
+    (byType[type] ?? []).filter { reading in
+      range.contains(reading.start)
+        && filter?.sources.map { $0.contains(bundleID) } ?? true
+        && filter?.deviceModels.map { models in
+          devices[reading.sampleID].flatMap { $0 }.map(models.contains) ?? false
+        } ?? true
+    }
+    .map { reading in
+      var reading = reading
+      if !needsSampleIDs { reading.sampleID = "" }
+      return reading
+    }
+  }
   return run.compute(
     run.fetches.map { fetch in
       switch fetch.kind {
       case .readings(let range, let filter, let needsSampleIDs):
         return .readings(
-          (readings[fetch.type] ?? []).filter { reading in
-            range.contains(reading.start)
-              && filter?.sources.map { $0.contains(bundleID) } ?? true
-              && filter?.deviceModels.map { models in
-                devices[reading.sampleID].flatMap { $0 }.map(models.contains) ?? false
-              } ?? true
-          }
-          .map { reading in
-            var reading = reading
-            if !needsSampleIDs { reading.sampleID = "" }
-            return reading
+          readings(of: fetch.type, in: range, filter: filter, needsSampleIDs: needsSampleIDs))
+      case .stretchReadings(let stretches, let filter, let needsSampleIDs):
+        return .readings(
+          stretches.flatMap {
+            readings(
+              of: fetch.type, in: $0.start..<$0.end, filter: filter,
+              needsSampleIDs: needsSampleIDs)
           })
-      case .stretchReadings:
-        Issue.record("No event windows yet.")
-        return .readings([])
       case .totals(let range, let grain):
         var sums: [Date: Double] = [:]
-        for reading in readings[fetch.type] ?? [] {
+        for reading in byType[fetch.type] ?? [] {
           let start = Date(timeIntervalSince1970: Double(reading.start) / 1000)
           guard range.contains(start) else { continue }
           sums[london.dateInterval(of: grain.component, for: start)!.start, default: 0] +=
