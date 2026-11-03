@@ -130,12 +130,22 @@ let package = Package(
       dependencies: ["HealthCLI"],
       path: "Sources/Health/lil-health"
     ),
+    // The conformance cases shared with the server (`Services/api/test/health`): reading the
+    // datasets and cases, and comparing outputs as its harnesses do. Depends on `HealthCards`
+    // only, so the iPhone's tests can run the cards' cases too (851-3198, 851-3201).
+    .target(
+      name: "HealthConformance",
+      dependencies: ["HealthCards"],
+      path: "Tests/Health/HealthConformance"
+    ),
     .testTarget(
       name: "HealthCLITests",
       dependencies: [
         "HealthAgentAccess",
+        "HealthCards",
         "HealthCatalog",
         "HealthCLI",
+        "HealthConformance",
         "HealthDatabase",
         "HealthTools",
         "LilAPI",

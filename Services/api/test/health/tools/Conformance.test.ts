@@ -1,10 +1,6 @@
-import { readFileSync } from "node:fs";
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Layer, Option, Schema, Stream } from "effect";
-import { SqlClient } from "effect/sql";
+import { Effect, Option, Schema, Stream } from "effect";
 import { TestClock } from "effect/testing";
-import type { DeviceId, UserId } from "../../../src/core/Ids.ts";
-import { healthBatchKey, ingestHealthBatch } from "../../../src/health/HealthIngestion.ts";
 import { HealthToolError, HealthToolkit } from "../../../src/health/tools/HealthToolkit.ts";
 import {
   healthMcpApp,
@@ -18,11 +14,16 @@ import { agentResources } from "../../../src/oauth/Hosts.ts";
 import { type AgentAccess, appendAgentAccess } from "../../../src/store/AgentAccessLog.ts";
 import type { StoreSql } from "../../../src/store/StoreSql.ts";
 import { UserStores } from "../../../src/store/UserStores.ts";
-import { TestCore } from "../../core/TestCoreDatabase.ts";
 import { storeMcpSessions } from "../../../src/store/McpSessions.ts";
-import { TestStores, TestUserStores } from "../../store/TestUserStores.ts";
 import { postMcp, sessionless, viaStore } from "../../mcp/TestMcp.ts";
-import { batchFile, TestHealthIngestion, TestHealthOutbox } from "../TestHealthIngestion.ts";
+import {
+  conformanceUserId,
+  matches,
+  millis,
+  readDataset,
+  readJson,
+  storeWithBatches,
+} from "../HealthConformance.ts";
 
 // The Health toolkit's conformance harness (851-2841). `conformance/dataset.json` is a synthetic
 // account and `conformance/cases.json` tool calls on it with the answers both MCP servers must
@@ -32,23 +33,10 @@ import { batchFile, TestHealthIngestion, TestHealthOutbox } from "../TestHealthI
 // cases on the same dataset after a sync. The remote MCP server (851-2851) and the combined one
 // (851-2900) run them too, over Streamable HTTP.
 
-const Iso = Schema.String.annotate({ description: "An ISO 8601 time" });
-const millis = (iso: string) => Date.parse(iso);
-
-const Dataset = Schema.Struct({
-  batches: Schema.Array(
-    Schema.Struct({
-      device: Schema.String,
-      receivedAt: Iso,
-      lines: Schema.Array(Schema.Unknown),
-    }),
-  ),
-});
-
 const Case = Schema.Struct({
   name: Schema.String,
   tool: Schema.String,
-  now: Iso,
+  now: Schema.String,
   pins: Schema.optionalKey(
     Schema.Array(Schema.Struct({ id: Schema.String, position: Schema.Finite })),
   ),
@@ -58,58 +46,34 @@ const Case = Schema.Struct({
 });
 type Case = typeof Case.Type;
 
-const read = <S extends Schema.Top & { readonly DecodingServices: never }>(
-  file: string,
-  schema: S,
-) =>
-  Schema.decodeUnknownSync(schema)(
-    JSON.parse(readFileSync(new URL(`conformance/${file}`, import.meta.url), "utf8")),
-  );
-
-const dataset = read("dataset.json", Dataset);
-const { cases } = read("cases.json", Schema.Struct({ cases: Schema.Array(Case) }));
+const batches = readDataset(new URL("conformance/dataset.json", import.meta.url));
+const { cases } = readJson(
+  new URL("conformance/cases.json", import.meta.url),
+  Schema.Struct({ cases: Schema.Array(Case) }),
+);
 
 type ToolName = keyof typeof HealthToolkit.tools;
 
-// Synthetic data only (AGENTS.md).
-const userId = "usr_000000000000000000000000c0" as UserId;
-
-/** `userId` in the core database: ingestion drops batches for users it doesn't know. */
-const KnownUser = Layer.effectDiscard(
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    yield* sql`INSERT INTO users (id, display_name, created_at) VALUES (${userId}, NULL, 0)`;
-  }),
-).pipe(Layer.orDie, Layer.provideMerge(TestCore));
-
 /** A fresh store with the dataset ingested batch by batch, at each batch's time, and `pins`. */
 const storeWithDataset = (pins: Case["pins"]) =>
-  Effect.gen(function* () {
-    const { files } = yield* TestHealthOutbox;
-    for (const [index, batch] of dataset.batches.entries()) {
-      yield* TestClock.setTime(millis(batch.receivedAt));
-      const batchId = `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`;
-      files.set(healthBatchKey(userId, batchId), batchFile(batch.lines));
-      yield* ingestHealthBatch({ userId, batchId, deviceId: batch.device as DeviceId });
-      const status = yield* (yield* UserStores).forUser(userId).healthBatch(batchId);
-      assert.deepInclude(status, { status: "applied", rejected: 0 }, `batch ${index + 1}`);
-    }
-    if (pins !== undefined) {
-      // As a Mac from before pins were retired (851-2990) writes them (`POST /v1/sync/mutations`).
-      yield* (yield* UserStores).forUser(userId).pushMutations(
-        "conformance-pins",
-        pins.map(({ id, position }) => ({
-          entity: "health_pin",
-          op: "upsert",
-          id,
-          row: { position },
-        })),
-      );
-    }
-    const sql = (yield* TestStores).sqlFor(userId);
-    assert.isDefined(sql);
-    return sql!;
-  }).pipe(Effect.provide(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser)));
+  storeWithBatches(
+    batches,
+    pins === undefined
+      ? Effect.void
+      : Effect.gen(function* () {
+          // As a Mac from before pins were retired (851-2990) writes them
+          // (`POST /v1/sync/mutations`).
+          yield* (yield* UserStores).forUser(conformanceUserId).pushMutations(
+            "conformance-pins",
+            pins.map(({ id, position }) => ({
+              entity: "health_pin",
+              op: "upsert",
+              id,
+              row: { position },
+            })),
+          );
+        }),
+  );
 
 /**
  * Calls a tool as an MCP server would, arguments decoded and the output encoded, giving the
@@ -133,40 +97,6 @@ const callTool = (
     ),
     Effect.provide(HealthToolkit.toLayer(storeHealthTools(sql))),
   );
-
-/** Whether two JSON values match, numbers within a relative 1e-9. */
-const matches = (actual: unknown, expected: unknown): boolean => {
-  if (typeof actual === "number" && typeof expected === "number") {
-    return Math.abs(actual - expected) <= 1e-9 * Math.max(1, Math.abs(expected));
-  }
-  if (Array.isArray(actual) && Array.isArray(expected)) {
-    return (
-      actual.length === expected.length && actual.every((value, i) => matches(value, expected[i]))
-    );
-  }
-  if (
-    typeof actual === "object" &&
-    actual !== null &&
-    typeof expected === "object" &&
-    expected !== null &&
-    !Array.isArray(actual) &&
-    !Array.isArray(expected)
-  ) {
-    const keys = Object.keys(expected);
-    return (
-      Object.keys(actual).length === keys.length &&
-      keys.every(
-        (key) =>
-          key in actual &&
-          matches(
-            (actual as Record<string, unknown>)[key],
-            (expected as Record<string, unknown>)[key],
-          ),
-      )
-    );
-  }
-  return actual === expected;
-};
 
 describe("Health toolkit conformance cases", () => {
   it("are well formed: known tools, valid arguments and expected outputs", () => {

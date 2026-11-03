@@ -2,6 +2,7 @@ import Foundation
 import GRDB
 import HealthAgentAccess
 import HealthCatalog
+import HealthConformance
 import HealthDatabase
 import HealthTools
 import MCP
@@ -66,8 +67,10 @@ struct HealthMCPServerTests {
     let connection = try await MCPConnection(folder.directory)
     let listed = try await connection.client.listTools().tools
     // As typed JSON, so a boolean that became a number shows.
-    let roundTrip = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(listed))
-    #expect(roundTrip == (try JSONDecoder().decode(JSONValue.self, from: Data(committed.utf8))))
+    let roundTrip = try JSONDecoder().decode(
+      ConformanceJSON.self, from: JSONEncoder().encode(listed))
+    #expect(
+      roundTrip == (try JSONDecoder().decode(ConformanceJSON.self, from: Data(committed.utf8))))
     #expect(listed.map(\.name).count == 10)
     await connection.close()
   }
