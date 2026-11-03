@@ -1,5 +1,6 @@
 import Foundation
 import HealthAgentAccess
+import HealthConformance
 import HealthDatabase
 import MCP
 import Testing

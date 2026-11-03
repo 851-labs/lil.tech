@@ -1,0 +1,1349 @@
+{
+  "notes": [
+    "Synthetic data only (AGENTS.md). The cards' conformance dataset (851-3198): the Health tools' dataset (`extends`, applied first), then these batches, in the same upload form.",
+    "Times in lines are Unix milliseconds. Most cases are in Europe/London, which is UTC+1 (BST) until 01:00Z on Sunday 25 October 2026, when its clocks go back to UTC+0 (GMT). The cases are in cases.json.",
+    "Nights: 20 October's is the tools' (the Watch's stages and the iPhone's estimate). 21 October has the Watch's stages, a wake and the iPhone's shorter estimate; 22 October the iPhone's estimate, longer than the Watch's; 23 October only an afternoon nap (a day's sleep, no night); 24 October a night and a nap after it; 25 October the night the clocks go back; 26 October a night in the next week.",
+    "Heart rate comes from the Watch (its device through its provenance record, model Watch; the tools' dataset's Watch samples have no device), and twice from a chest strap (org.example.strap, model Strap, a sample's own device): the filtered source. Around each night: readings before sleep, asleep, awake in the night and after waking; in workouts (runs, and a strength workout overlapping a run).",
+    "Weight comes from a scale (org.example.scale): weigh-ins before and after noon, one at noon exactly, on both sides of the clock change, and ties for first and latest. HRV, resting heart rate and body temperature have a few readings each, and environmental sound two readings of different lengths."
+  ],
+  "extends": "../../tools/conformance/dataset.json",
+  "batches": [
+    {
+      "device": "dev_00000000000000000000000ph1",
+      "receivedAt": "2026-10-27T09:00:00Z",
+      "lines": [
+        {
+          "entity": "health_provenance",
+          "op": "upsert",
+          "id": "0ca7d000000000000000000000000001",
+          "row": {
+            "sourceRevision": {
+              "version": "11.0",
+              "productType": "Watch7,1",
+              "operatingSystemVersion": "11.0.0"
+            },
+            "device": {
+              "name": "Apple Watch",
+              "manufacturer": "Apple Inc.",
+              "model": "Watch",
+              "hardwareVersion": "Watch7,1",
+              "softwareVersion": "11.0"
+            }
+          }
+        },
+        {
+          "entity": "health_provenance",
+          "op": "upsert",
+          "id": "0ca7d000000000000000000000000002",
+          "row": {
+            "sourceRevision": {
+              "version": "26.0",
+              "productType": "iPhone17,1",
+              "operatingSystemVersion": "26.0.0"
+            },
+            "device": {
+              "name": "iPhone",
+              "manufacturer": "Apple Inc.",
+              "model": "iPhone",
+              "hardwareVersion": "iPhone17,1",
+              "softwareVersion": "26.0"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000001",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792532700000,
+            "endDate": 1792559700000,
+            "categoryValue": 0,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000002",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792533600000,
+            "endDate": 1792537200000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000003",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792537200000,
+            "endDate": 1792537800000,
+            "categoryValue": 2,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000004",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792537800000,
+            "endDate": 1792541400000,
+            "categoryValue": 4,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000005",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792541400000,
+            "endDate": 1792544400000,
+            "categoryValue": 5,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000006",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792544400000,
+            "endDate": 1792558800000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000007",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792535400000,
+            "endDate": 1792557000000,
+            "categoryValue": 1,
+            "sourceName": "Test iPhone",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000002",
+            "provenance": "0ca7d000000000000000000000000002"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000008",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792616400000,
+            "endDate": 1792645200000,
+            "categoryValue": 1,
+            "sourceName": "Test iPhone",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000002",
+            "provenance": "0ca7d000000000000000000000000002"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000009",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792623600000,
+            "endDate": 1792630800000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000010",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792764000000,
+            "endDate": 1792767600000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000011",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792792800000,
+            "endDate": 1792821600000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000012",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792846800000,
+            "endDate": 1792849200000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000013",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792881000000,
+            "endDate": 1792911600000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000014",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1792969200000,
+            "endDate": 1792998000000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000015",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792449360000,
+            "endDate": 1792449360000,
+            "value": 70,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000016",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792452000000,
+            "endDate": 1792452000000,
+            "value": 56,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000017",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792533000000,
+            "endDate": 1792533000000,
+            "value": 72,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000018",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792533300000,
+            "endDate": 1792533300000,
+            "value": 68,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000019",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792533480000,
+            "endDate": 1792533480000,
+            "value": 64,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000020",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792535400000,
+            "endDate": 1792535400000,
+            "value": 58,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000021",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792537500000,
+            "endDate": 1792537500000,
+            "value": 70,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000022",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792539000000,
+            "endDate": 1792539000000,
+            "value": 54,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000023",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792548000000,
+            "endDate": 1792548000000,
+            "value": 50,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000024",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792551600000,
+            "endDate": 1792551660000,
+            "value": 80,
+            "unit": "count/min",
+            "sourceName": "Test Chest Strap",
+            "sourceBundleId": "org.example.strap",
+            "device": {
+              "name": "Test Chest Strap",
+              "manufacturer": "Example",
+              "model": "Strap"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000025",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792557000000,
+            "endDate": 1792557000000,
+            "value": 52,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000026",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792559400000,
+            "endDate": 1792559400000,
+            "value": 62,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000027",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792560000000,
+            "endDate": 1792560000000,
+            "value": 66,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000028",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792616220000,
+            "endDate": 1792616220000,
+            "value": 75,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000029",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792620000000,
+            "endDate": 1792620000000,
+            "value": 60,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000030",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792625400000,
+            "endDate": 1792625400000,
+            "value": 56,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000031",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792645500000,
+            "endDate": 1792645500000,
+            "value": 70,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000032",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792765800000,
+            "endDate": 1792765800000,
+            "value": 55,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000033",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792803600000,
+            "endDate": 1792803600000,
+            "value": 52,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000034",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792848000000,
+            "endDate": 1792848000000,
+            "value": 57,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000035",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792880880000,
+            "endDate": 1792880880000,
+            "value": 66,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000036",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792881900000,
+            "endDate": 1792881900000,
+            "value": 54,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000037",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792888200000,
+            "endDate": 1792888200000,
+            "value": 50,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000038",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792891800000,
+            "endDate": 1792891800000,
+            "value": 48,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000039",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792969020000,
+            "endDate": 1792969020000,
+            "value": 64,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000040",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792983600000,
+            "endDate": 1792983600000,
+            "value": 50,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000041",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792514400000,
+            "endDate": 1792514400000,
+            "value": 150,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000042",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792515000000,
+            "endDate": 1792515000000,
+            "value": 160,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000043",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792689000000,
+            "endDate": 1792689000000,
+            "value": 140,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000044",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792690800000,
+            "endDate": 1792690800000,
+            "value": 100,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000045",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792836900000,
+            "endDate": 1792836900000,
+            "value": 120,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000046",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1792839000000,
+            "endDate": 1792839000000,
+            "value": 130,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000047",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1793016000000,
+            "endDate": 1793016000000,
+            "value": 70,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000048",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1793017200000,
+            "endDate": 1793017200000,
+            "value": 80,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000049",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1793017200000,
+            "endDate": 1793017260000,
+            "value": 90,
+            "unit": "count/min",
+            "sourceName": "Test Chest Strap",
+            "sourceBundleId": "org.example.strap",
+            "device": {
+              "name": "Test Chest Strap",
+              "manufacturer": "Example",
+              "model": "Strap"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000050",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1793178000000,
+            "endDate": 1793178000000,
+            "value": 66,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000051",
+          "row": {
+            "activityType": 37,
+            "startDate": 1792688400000,
+            "endDate": 1792690200000,
+            "duration": 1800,
+            "activities": [],
+            "events": [],
+            "statistics": {},
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000052",
+          "row": {
+            "activityType": 50,
+            "startDate": 1792836000000,
+            "endDate": 1792838700000,
+            "duration": 2700,
+            "activities": [],
+            "events": [],
+            "statistics": {},
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000053",
+          "row": {
+            "activityType": 37,
+            "startDate": 1792837800000,
+            "endDate": 1792839600000,
+            "duration": 1800,
+            "activities": [],
+            "events": [],
+            "statistics": {},
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000054",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "startDate": 1792389600000,
+            "endDate": 1792389600000,
+            "value": 42,
+            "unit": "ms",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000055",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "startDate": 1792476000000,
+            "endDate": 1792476000000,
+            "value": 48,
+            "unit": "ms",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000056",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "startDate": 1792533600000,
+            "endDate": 1792533600000,
+            "value": 40,
+            "unit": "ms",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000057",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "startDate": 1792629000000,
+            "endDate": 1792629000000,
+            "value": 60,
+            "unit": "ms",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000058",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "startDate": 1792731600000,
+            "endDate": 1792731600000,
+            "value": 55,
+            "unit": "ms",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000059",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "startDate": 1792908000000,
+            "endDate": 1792908000000,
+            "value": 50,
+            "unit": "ms",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000060",
+          "row": {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "startDate": 1792569600000,
+            "endDate": 1792569600000,
+            "value": 55,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000061",
+          "row": {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "startDate": 1792656000000,
+            "endDate": 1792656000000,
+            "value": 54,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000062",
+          "row": {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "startDate": 1792915200000,
+            "endDate": 1792915200000,
+            "value": 52,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000063",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyTemperature",
+            "startDate": 1792393200000,
+            "endDate": 1792393200000,
+            "value": 36.6,
+            "unit": "degC",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000064",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyTemperature",
+            "startDate": 1792436400000,
+            "endDate": 1792436400000,
+            "value": 36.8,
+            "unit": "degC",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000065",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyTemperature",
+            "startDate": 1792566000000,
+            "endDate": 1792566000000,
+            "value": 37.2,
+            "unit": "degC",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000066",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyTemperature",
+            "startDate": 1792828800000,
+            "endDate": 1792828800000,
+            "value": 36.5,
+            "unit": "degC",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000067",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyTemperature",
+            "startDate": 1793084400000,
+            "endDate": 1793084400000,
+            "value": 36.7,
+            "unit": "degC",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000068",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1790578800000,
+            "endDate": 1790578800000,
+            "value": 71,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000069",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1790836200000,
+            "endDate": 1790836200000,
+            "value": 70.8,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000070",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1790877600000,
+            "endDate": 1790877600000,
+            "value": 71.4,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000071",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1792562400000,
+            "endDate": 1792562400000,
+            "value": 70.2,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000072",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1792564200000,
+            "endDate": 1792564200000,
+            "value": 70,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000073",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1792666740000,
+            "endDate": 1792666740000,
+            "value": 70.3,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000074",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1792666800000,
+            "endDate": 1792666800000,
+            "value": 70.9,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000075",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1792823400000,
+            "endDate": 1792823400000,
+            "value": 69.9,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000076",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1792913400000,
+            "endDate": 1792913400000,
+            "value": 69.8,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000077",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1792927800000,
+            "endDate": 1792927800000,
+            "value": 70.6,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-0000000000f2",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1792998000000,
+            "endDate": 1792998000000,
+            "value": 69.4,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-0000000000f1",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1792998000000,
+            "endDate": 1792998030000,
+            "value": 69.6,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-0000000000f3",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1793084400000,
+            "endDate": 1793084400000,
+            "value": 69.3,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-0000000000f4",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1793084400000,
+            "endDate": 1793084400000,
+            "value": 69.1,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000078",
+          "row": {
+            "type": "HKQuantityTypeIdentifierEnvironmentalAudioExposure",
+            "startDate": 1792576800000,
+            "endDate": 1792576860000,
+            "value": 60,
+            "unit": "dBASPL",
+            "sourceName": "Test iPhone",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000002",
+            "provenance": "0ca7d000000000000000000000000002"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000079",
+          "row": {
+            "type": "HKQuantityTypeIdentifierEnvironmentalAudioExposure",
+            "startDate": 1792584000000,
+            "endDate": 1792584180000,
+            "value": 70,
+            "unit": "dBASPL",
+            "sourceName": "Test iPhone",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000002",
+            "provenance": "0ca7d000000000000000000000000002"
+          }
+        }
+      ]
+    }
+  ]
+}

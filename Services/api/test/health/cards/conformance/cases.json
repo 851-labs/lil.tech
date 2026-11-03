@@ -1,0 +1,2970 @@
+{
+  "notes": [
+    "The cards' conformance cases (851-3198, docs/decisions/cards.md › Conformance and tolerance): each runs a card spec over the period of `range` containing `date` (a day in `timeZone`, default UTC, with weeks from `firstWeekday`, default monday), with the clock at `now`, on dataset.json (the Health tools' dataset, then the cards' batches). Every engine must give `expected`, the card's data as the tools write it.",
+    "`spec` is an input, as apps and tools write it: each engine canonicalizes it first, and it must be valid.",
+    "Outputs match as JSON, except that numbers may differ by a relative 1e-9 (sums added in another order).",
+    "Write expected outputs by hand, from the dataset and docs/decisions/cards.md, not by copying what an engine returns. `note` says how a case's values come about where it isn't obvious.",
+    "`iphone.skip` says why the iPhone's engine (851-3201), which reads HealthKit, can't match a case: it runs every other one."
+  ],
+  "cases": [
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "example: body temperature, a line over a month",
+      "timeZone": "Europe/London",
+      "range": "M",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Body Temperature"
+        },
+        "series": [
+          {
+            "type": "BodyTemperature"
+          }
+        ],
+        "range": "M"
+      },
+      "expected": {
+        "range": "M",
+        "start": "2026-10-01",
+        "end": "2026-10-31",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Body Temperature",
+            "type": "HKQuantityTypeIdentifierBodyTemperature",
+            "aggregation": "avg",
+            "unit": "degC",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-19T00:00:00+01:00",
+                "value": 36.7,
+                "minimum": 36.6,
+                "maximum": 36.8,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 37.2,
+                "minimum": 37.2,
+                "maximum": 37.2,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 36.5,
+                "minimum": 36.5,
+                "maximum": 36.5,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-27T00:00:00+00:00",
+                "value": 36.7,
+                "minimum": 36.7,
+                "maximum": 36.7,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 36.760000000000005,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "example: sleeping heart rate, heart rate while asleep per night, from whichever source slept most",
+      "note": "Nights: 21 Oct is the Watch's (410 min asleep against the iPhone's 360), and its 10-minute wake isn't asleep; 22 Oct is the iPhone's (480 min against the Watch's 120), with the Watch's readings; 23 Oct is a day's sleep (a nap starting at 15:00), so no night; 24 Oct's nap after the night is another session; 25 Oct runs across the clock change. Heart rate is time-weighted: a reading counts until its source's next one in the same stretch, else the stretch's end, at most an hour. Drawn as ranges, the header is the period's lowest and highest.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-21",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Sleeping Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            }
+          }
+        ],
+        "bucket": "night"
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 56,
+                "minimum": 56,
+                "maximum": 56,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 59.75,
+                "minimum": 50,
+                "maximum": 80,
+                "readings": 5
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 58,
+                "minimum": 56,
+                "maximum": 60,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 52,
+                "minimum": 52,
+                "maximum": 52,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 50.666666666666664,
+                "minimum": 48,
+                "maximum": 54,
+                "readings": 3
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "range",
+          "value": null,
+          "minimum": 48,
+          "maximum": 80
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "example: HRV as dots, each day's average",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-25",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "HRV"
+        },
+        "series": [
+          {
+            "type": "Heart Rate Variability"
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate Variability",
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "aggregation": "avg",
+            "unit": "ms",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-19T00:00:00+01:00",
+                "value": 42,
+                "minimum": 42,
+                "maximum": 42,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 44,
+                "minimum": 40,
+                "maximum": 48,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 60,
+                "minimum": 60,
+                "maximum": 60,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-23T00:00:00+01:00",
+                "value": 55,
+                "minimum": 55,
+                "maximum": 55,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 50,
+                "minimum": 50,
+                "maximum": 50,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 49.166666666666664,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "example: heart rate in the 5 minutes before falling asleep, per night",
+      "note": "F is the night's first asleep segment's start: 20 Oct 22:40Z (not the in-bed record at 22:30Z), 21 Oct 22:00Z (not the in-bed record at 21:45Z), 22 Oct 21:00Z (the iPhone's night), 24 Oct 22:00Z (no reading), 25 Oct 22:30Z. In a 5-minute stretch a reading counts until the next one in it, or its end: 21 Oct's 68 at 21:55 for 180 s and 64 at 21:58 for 120 s; the lone readings 240 s (22:36), 180 s (20:57) and 120 s (22:28). 21:50's 72 is before the window.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-19",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Before Sleep"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "beforeSleep",
+              "minutes": 5
+            }
+          }
+        ],
+        "bucket": "night",
+        "chart": {
+          "style": "dots"
+        }
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 70,
+                "minimum": 70,
+                "maximum": 70,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 66.4,
+                "minimum": 64,
+                "maximum": 68,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 75,
+                "minimum": 75,
+                "maximum": 75,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 66,
+                "minimum": 66,
+                "maximum": 66,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 69.21428571428571,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "example: morning weight, the first weigh-in before noon each day and its 7-day rolling average",
+      "note": "The moving average's first point reaches back to 28 September, before the period. Its window is 7 days, empty ones included in the count. The clock changes on 25 October, and 07:30 and 11:30 GMT are still before noon. The header is the period's first reading.",
+      "timeZone": "Europe/London",
+      "range": "M",
+      "date": "2026-10-01",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Morning Weight"
+        },
+        "series": [
+          {
+            "type": "Weight",
+            "aggregation": "first",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "00:00",
+              "to": "12:00"
+            },
+            "label": "First weigh-in before noon"
+          }
+        ],
+        "formulas": [
+          {
+            "id": "trend",
+            "kind": "movingAverage",
+            "of": "a",
+            "points": 7,
+            "label": "7-day rolling average"
+          }
+        ],
+        "range": "M",
+        "chart": {
+          "style": "dots"
+        }
+      },
+      "expected": {
+        "range": "M",
+        "start": "2026-10-01",
+        "end": "2026-10-31",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "First weigh-in before noon",
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "aggregation": "first",
+            "unit": "kg",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-01T00:00:00+01:00",
+                "value": 70.8,
+                "minimum": 70.8,
+                "maximum": 70.8,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-17T00:00:00+01:00",
+                "value": 70.5,
+                "minimum": 70.5,
+                "maximum": 70.5,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 70.2,
+                "minimum": 70,
+                "maximum": 70.2,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 70.3,
+                "minimum": 70.3,
+                "maximum": 70.3,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 69.9,
+                "minimum": 69.9,
+                "maximum": 69.9,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 69.8,
+                "minimum": 69.8,
+                "maximum": 70.6,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-26T00:00:00+00:00",
+                "value": 69.4,
+                "minimum": 69.4,
+                "maximum": 69.6,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-27T00:00:00+00:00",
+                "value": 69.3,
+                "minimum": 69.1,
+                "maximum": 69.3,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [
+          {
+            "id": "trend",
+            "kind": "movingAverage",
+            "label": "7-day rolling average",
+            "unit": "kg",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-01T00:00:00+01:00",
+                "value": 70.9
+              },
+              {
+                "start": "2026-10-17T00:00:00+01:00",
+                "value": 70.5
+              },
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 70.35
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 70.33333333333333
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 70.13333333333334
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 70.05
+              },
+              {
+                "start": "2026-10-26T00:00:00+00:00",
+                "value": 69.92
+              },
+              {
+                "start": "2026-10-27T00:00:00+00:00",
+                "value": 69.81666666666668
+              }
+            ]
+          }
+        ],
+        "summary": {
+          "kind": "first",
+          "value": 70.8,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "min and max of HRV as two series; the header is the lead's lowest",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "HRV Range"
+        },
+        "series": [
+          {
+            "type": "HeartRateVariabilitySDNN",
+            "aggregation": "min"
+          },
+          {
+            "type": "HeartRateVariabilitySDNN",
+            "aggregation": "max"
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate Variability",
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "aggregation": "min",
+            "unit": "ms",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-19T00:00:00+01:00",
+                "value": 42,
+                "minimum": 42,
+                "maximum": 42,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 40,
+                "minimum": 40,
+                "maximum": 48,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 60,
+                "minimum": 60,
+                "maximum": 60,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-23T00:00:00+01:00",
+                "value": 55,
+                "minimum": 55,
+                "maximum": 55,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 50,
+                "minimum": 50,
+                "maximum": 50,
+                "readings": 1
+              }
+            ]
+          },
+          {
+            "id": "b",
+            "label": "Heart Rate Variability",
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "aggregation": "max",
+            "unit": "ms",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-19T00:00:00+01:00",
+                "value": 42,
+                "minimum": 42,
+                "maximum": 42,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 48,
+                "minimum": 40,
+                "maximum": 48,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 60,
+                "minimum": 60,
+                "maximum": 60,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-23T00:00:00+01:00",
+                "value": 55,
+                "minimum": 55,
+                "maximum": 55,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 50,
+                "minimum": 50,
+                "maximum": 50,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "lowest",
+          "value": 40,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "first HRV reading of each day; the header is the period's first",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "HRV"
+        },
+        "series": [
+          {
+            "type": "HeartRateVariabilitySDNN",
+            "aggregation": "first"
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate Variability",
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "aggregation": "first",
+            "unit": "ms",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-19T00:00:00+01:00",
+                "value": 42,
+                "minimum": 42,
+                "maximum": 42,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 48,
+                "minimum": 40,
+                "maximum": 48,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 60,
+                "minimum": 60,
+                "maximum": 60,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-23T00:00:00+01:00",
+                "value": 55,
+                "minimum": 55,
+                "maximum": 55,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 50,
+                "minimum": 50,
+                "maximum": 50,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "first",
+          "value": 42,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "latest HRV reading of each day; the header is the period's latest",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "HRV"
+        },
+        "series": [
+          {
+            "type": "HeartRateVariabilitySDNN",
+            "aggregation": "latest"
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate Variability",
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "aggregation": "latest",
+            "unit": "ms",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-19T00:00:00+01:00",
+                "value": 42,
+                "minimum": 42,
+                "maximum": 42,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 40,
+                "minimum": 40,
+                "maximum": 48,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 60,
+                "minimum": 60,
+                "maximum": 60,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-23T00:00:00+01:00",
+                "value": 55,
+                "minimum": 55,
+                "maximum": 55,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 50,
+                "minimum": 50,
+                "maximum": 50,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "latest",
+          "value": 50,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "a count of HRV readings: its unit is count, and its points' lowest and highest are the count",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "HRV Readings"
+        },
+        "series": [
+          {
+            "type": "HeartRateVariabilitySDNN",
+            "aggregation": "count"
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate Variability",
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "aggregation": "count",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-19T00:00:00+01:00",
+                "value": 1,
+                "minimum": 1,
+                "maximum": 1,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 2,
+                "minimum": 2,
+                "maximum": 2,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 1,
+                "minimum": 1,
+                "maximum": 1,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-23T00:00:00+01:00",
+                "value": 1,
+                "minimum": 1,
+                "maximum": 1,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 1,
+                "minimum": 1,
+                "maximum": 1,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "count",
+          "value": 6,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "latest weight of each day over a year, with ties on start broken by end, then sample ID",
+      "note": "26 Oct: two weigh-ins start at 07:00; the one ending later (69.6) is latest, though its ID is smaller. 27 Oct: same start and end, so the greater ID (69.1) is latest.",
+      "timeZone": "Europe/London",
+      "range": "Y",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Weight"
+        },
+        "series": [
+          {
+            "type": "BodyMass",
+            "aggregation": "latest"
+          }
+        ],
+        "bucket": "day",
+        "range": "Y"
+      },
+      "expected": {
+        "range": "Y",
+        "start": "2026-01-01",
+        "end": "2026-12-31",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "day",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Weight",
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "aggregation": "latest",
+            "unit": "kg",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-09-28T00:00:00+01:00",
+                "value": 71,
+                "minimum": 71,
+                "maximum": 71,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-01T00:00:00+01:00",
+                "value": 71.4,
+                "minimum": 70.8,
+                "maximum": 71.4,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-17T00:00:00+01:00",
+                "value": 70.5,
+                "minimum": 70.5,
+                "maximum": 70.5,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 70,
+                "minimum": 70,
+                "maximum": 70.2,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 70.9,
+                "minimum": 70.3,
+                "maximum": 70.9,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 69.9,
+                "minimum": 69.9,
+                "maximum": 69.9,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 70.6,
+                "minimum": 69.8,
+                "maximum": 70.6,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-26T00:00:00+00:00",
+                "value": 69.6,
+                "minimum": 69.4,
+                "maximum": 69.6,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-27T00:00:00+00:00",
+                "value": 69.1,
+                "minimum": 69.1,
+                "maximum": 69.3,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "latest",
+          "value": 69.1,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "environmental sound averages as energy, weighted by each reading's duration",
+      "note": "In UTC, the default. 60 dB for 60 s and 70 dB for 180 s: 10·log10((60·10^6 + 180·10^7) / 240).",
+      "range": "W",
+      "date": "2026-10-21",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Noise"
+        },
+        "series": [
+          {
+            "type": "EnvironmentalAudioExposure"
+          }
+        ],
+        "chart": {
+          "style": "dots"
+        }
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "UTC",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Environmental Sound Levels",
+            "type": "HKQuantityTypeIdentifierEnvironmentalAudioExposure",
+            "aggregation": "avg",
+            "unit": "dBASPL",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-21T00:00:00+00:00",
+                "value": 68.8930170250631,
+                "minimum": 60,
+                "maximum": 70,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 68.8930170250631,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "the steps seed card with a goal: the week's days from the statistics source, then the samples past its last bucket",
+      "note": "ph1 (paired with a Watch, reported within 14 days) is the statistics source, so ph2's 1,800 don't count. 20 Oct in London: 300 (23:30Z on the 19th is 00:30 BST), 2,500, 0, 700, then the 50 at 16:00Z past the last bucket (the 99 at 14:30Z was deleted). The header is the average day with data.",
+      "iphone": {
+        "skip": "Totals from several sources and the statistics' tail: the uploaded statistics are one iPhone's (ph1's, chosen over ph2's), with samples past its last bucket added; HealthKit de-duplicates and totals its own samples."
+      },
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-22",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Steps"
+        },
+        "series": [
+          {
+            "type": "Steps"
+          }
+        ],
+        "chart": {
+          "goal": {
+            "value": 10000
+          }
+        }
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Steps",
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "aggregation": "sum",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 3550,
+                "minimum": 3550,
+                "maximum": 3550,
+                "readings": null
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 3550,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": 10000
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "a day of steps by the hour; the header is the day's total",
+      "iphone": {
+        "skip": "Totals from several sources and the statistics' tail: the uploaded statistics are one iPhone's (ph1's, chosen over ph2's), with samples past its last bucket added; HealthKit de-duplicates and totals its own samples."
+      },
+      "timeZone": "Europe/London",
+      "range": "D",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Steps"
+        },
+        "series": [
+          {
+            "type": "Steps"
+          }
+        ],
+        "range": "D"
+      },
+      "expected": {
+        "range": "D",
+        "start": "2026-10-20",
+        "end": "2026-10-20",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Steps",
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "aggregation": "sum",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 300,
+                "minimum": 300,
+                "maximum": 300,
+                "readings": null
+              },
+              {
+                "start": "2026-10-20T09:00:00+01:00",
+                "value": 2500,
+                "minimum": 2500,
+                "maximum": 2500,
+                "readings": null
+              },
+              {
+                "start": "2026-10-20T15:00:00+01:00",
+                "value": 700,
+                "minimum": 700,
+                "maximum": 700,
+                "readings": null
+              },
+              {
+                "start": "2026-10-20T17:00:00+01:00",
+                "value": 50,
+                "minimum": 50,
+                "maximum": 50,
+                "readings": null
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "total",
+          "value": 3550,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "a day of steps by the hour in Kathmandu, whose hours start at a quarter to in UTC",
+      "note": "UTC+05:45: the 30-minute buckets start at 05:15, 13:45, 14:45 (0) and 20:15, and the sample at 21:45.",
+      "iphone": {
+        "skip": "Time zones on :45 offsets: uploaded 30-minute buckets are placed by their start, up to 15 minutes off a local hour; HealthKit's statistics are exact. Totals from several sources and the statistics' tail too."
+      },
+      "timeZone": "Asia/Kathmandu",
+      "range": "D",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Steps"
+        },
+        "series": [
+          {
+            "type": "Steps"
+          }
+        ],
+        "range": "D"
+      },
+      "expected": {
+        "range": "D",
+        "start": "2026-10-20",
+        "end": "2026-10-20",
+        "timeZone": "Asia/Kathmandu",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Steps",
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "aggregation": "sum",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-20T05:00:00+05:45",
+                "value": 300,
+                "minimum": 300,
+                "maximum": 300,
+                "readings": null
+              },
+              {
+                "start": "2026-10-20T13:00:00+05:45",
+                "value": 2500,
+                "minimum": 2500,
+                "maximum": 2500,
+                "readings": null
+              },
+              {
+                "start": "2026-10-20T20:00:00+05:45",
+                "value": 700,
+                "minimum": 700,
+                "maximum": 700,
+                "readings": null
+              },
+              {
+                "start": "2026-10-20T21:00:00+05:45",
+                "value": 50,
+                "minimum": 50,
+                "maximum": 50,
+                "readings": null
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "total",
+          "value": 3550,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "a year of steps as the average day of each month, captioned DAILY AVERAGE",
+      "note": "March: one day of 6,000. October: 13, 14, 18 and 20 October, 13,550 over 4 days. The header: 19,550 over the 5 days with data.",
+      "iphone": {
+        "skip": "Totals from several sources and the statistics' tail: the uploaded statistics are one iPhone's (ph1's, chosen over ph2's), with samples past its last bucket added; HealthKit de-duplicates and totals its own samples."
+      },
+      "timeZone": "Europe/London",
+      "range": "Y",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Steps"
+        },
+        "series": [
+          {
+            "type": "Steps"
+          }
+        ],
+        "range": "Y"
+      },
+      "expected": {
+        "range": "Y",
+        "start": "2026-01-01",
+        "end": "2026-12-31",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "month",
+        "series": [
+          {
+            "id": "a",
+            "label": "Steps",
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "aggregation": "sum",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-03-01T00:00:00+00:00",
+                "value": 6000,
+                "minimum": 6000,
+                "maximum": 6000,
+                "readings": null
+              },
+              {
+                "start": "2026-10-01T00:00:00+01:00",
+                "value": 3387.5,
+                "minimum": 3387.5,
+                "maximum": 3387.5,
+                "readings": null
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "dailyAverage",
+          "value": 3910,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "six months of steps as the average day of each week, the months ending with now's",
+      "iphone": {
+        "skip": "Totals from several sources and the statistics' tail: the uploaded statistics are one iPhone's (ph1's, chosen over ph2's), with samples past its last bucket added; HealthKit de-duplicates and totals its own samples."
+      },
+      "timeZone": "Europe/London",
+      "range": "6M",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Steps"
+        },
+        "series": [
+          {
+            "type": "Steps"
+          }
+        ],
+        "range": "6M"
+      },
+      "expected": {
+        "range": "6M",
+        "start": "2026-05-01",
+        "end": "2026-10-31",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "week",
+        "series": [
+          {
+            "id": "a",
+            "label": "Steps",
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "aggregation": "sum",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-12T00:00:00+01:00",
+                "value": 3333.3333333333335,
+                "minimum": 3333.3333333333335,
+                "maximum": 3333.3333333333335,
+                "readings": null
+              },
+              {
+                "start": "2026-10-19T00:00:00+01:00",
+                "value": 3550,
+                "minimum": 3550,
+                "maximum": 3550,
+                "readings": null
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "dailyAverage",
+          "value": 3387.5,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "steps by the week over a month: each week's total, and the header the average week with data",
+      "iphone": {
+        "skip": "Totals from several sources and the statistics' tail: the uploaded statistics are one iPhone's (ph1's, chosen over ph2's), with samples past its last bucket added; HealthKit de-duplicates and totals its own samples."
+      },
+      "timeZone": "Europe/London",
+      "range": "M",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Steps"
+        },
+        "series": [
+          {
+            "type": "Steps"
+          }
+        ],
+        "bucket": "week",
+        "range": "M"
+      },
+      "expected": {
+        "range": "M",
+        "start": "2026-10-01",
+        "end": "2026-10-31",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "week",
+        "grain": "week",
+        "series": [
+          {
+            "id": "a",
+            "label": "Steps",
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "aggregation": "sum",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-12T00:00:00+01:00",
+                "value": 10000,
+                "minimum": 10000,
+                "maximum": 10000,
+                "readings": null
+              },
+              {
+                "start": "2026-10-19T00:00:00+01:00",
+                "value": 3550,
+                "minimum": 3550,
+                "maximum": 3550,
+                "readings": null
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 6775,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "steps by the month over six months",
+      "iphone": {
+        "skip": "Totals from several sources and the statistics' tail: the uploaded statistics are one iPhone's (ph1's, chosen over ph2's), with samples past its last bucket added; HealthKit de-duplicates and totals its own samples."
+      },
+      "timeZone": "Europe/London",
+      "range": "6M",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Steps"
+        },
+        "series": [
+          {
+            "type": "Steps"
+          }
+        ],
+        "bucket": "month",
+        "range": "6M"
+      },
+      "expected": {
+        "range": "6M",
+        "start": "2026-05-01",
+        "end": "2026-10-31",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "month",
+        "grain": "month",
+        "series": [
+          {
+            "id": "a",
+            "label": "Steps",
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "aggregation": "sum",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-01T00:00:00+01:00",
+                "value": 13550,
+                "minimum": 13550,
+                "maximum": 13550,
+                "readings": null
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 13550,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "the heart rate seed card: each reading weighted until its source's next, up to an hour",
+      "note": "26 Oct (GMT): the Watch's 50 at 03:00 (until 12:00, capped: 3600 s), 70 at 12:00 (until 12:20: 1200 s), 80 at 12:20 (until 28 Oct, capped: 3600 s); the strap's 90 at 12:20, its last, for its own minute (60 s). 28 Oct: the Watch's 66, its last, lasting no time: 1 s. Drawn as ranges, the header is the lowest and highest.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-28",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate"
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-26",
+        "end": "2026-11-01",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-26T00:00:00+00:00",
+                "value": 65.88652482269504,
+                "minimum": 50,
+                "maximum": 90,
+                "readings": 4
+              },
+              {
+                "start": "2026-10-28T00:00:00+00:00",
+                "value": 66,
+                "minimum": 66,
+                "maximum": 66,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "range",
+          "value": null,
+          "minimum": 50,
+          "maximum": 90
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "heart rate on the day the clocks go back, by the hour: 01:00 comes twice",
+      "note": "25 Oct in London is 25 hours. 00:30Z is 01:30 BST and 01:30Z is 01:30 GMT, two hours that start at 01:00. Weights: 50 until 48 (3600 s), 48 until 22:57 (capped: 3600 s), and 22:57's 64, whose next reading (03:00Z) is more than an hour past the period, for its own duration: 1 s.",
+      "timeZone": "Europe/London",
+      "range": "D",
+      "date": "2026-10-25",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate"
+          }
+        ],
+        "range": "D",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "D",
+        "start": "2026-10-25",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-25T01:00:00+01:00",
+                "value": 50,
+                "minimum": 50,
+                "maximum": 50,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T01:00:00+00:00",
+                "value": 48,
+                "minimum": 48,
+                "maximum": 48,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T22:00:00+00:00",
+                "value": 64,
+                "minimum": 64,
+                "maximum": 64,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 49.00208304402167,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "heart rate from 22:00 to 06:00 on the day the clocks go back: a reading counts until its next one in the stretch, or the stretch's end",
+      "note": "The stretches: from midnight to 06:00 GMT (7 hours, 01:00 twice) and from 22:00 GMT. 50 counts until 48 (3600 s), 48 until 06:00 (capped: 3600 s), and 64 at 22:57 until its stretch ends, past the period (capped: 3600 s), not 1 s as without a window.",
+      "timeZone": "Europe/London",
+      "range": "D",
+      "date": "2026-10-25",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Night Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "22:00",
+              "to": "06:00"
+            }
+          }
+        ],
+        "range": "D",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "D",
+        "start": "2026-10-25",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-25T01:00:00+01:00",
+                "value": 50,
+                "minimum": 50,
+                "maximum": 50,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T01:00:00+00:00",
+                "value": 48,
+                "minimum": 48,
+                "maximum": 48,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T22:00:00+00:00",
+                "value": 64,
+                "minimum": 64,
+                "maximum": 64,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 54,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "HRV from 22:00 to 06:00, crossing midnight: each reading in the day its start falls in, 06:00 itself outside",
+      "note": "In: 20 Oct 23:00 BST (40) and 22 Oct 01:30 BST (60). Out: 23 Oct 05:00Z, 06:00 BST, and 25 Oct 06:00Z, 06:00 GMT (the window ends at 06:00), and the readings at 07:00 BST.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "HRV at Night"
+        },
+        "series": [
+          {
+            "type": "HeartRateVariabilitySDNN",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "22:00",
+              "to": "06:00"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate Variability",
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "aggregation": "avg",
+            "unit": "ms",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 40,
+                "minimum": 40,
+                "maximum": 40,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 60,
+                "minimum": 60,
+                "maximum": 60,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 50,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "a count of weigh-ins before noon on the local clock, either side of the clock change",
+      "note": "21 Oct: 07:00 and 07:30 BST. 22 Oct: 11:59 BST, but not 12:00. 24 Oct: 07:30 BST. 25 Oct: 07:30 and 11:30 GMT (12:30 by BST's offset, but the clock is GMT then).",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Weigh-ins"
+        },
+        "series": [
+          {
+            "type": "BodyMass",
+            "aggregation": "count",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "00:00",
+              "to": "12:00"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Weight",
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "aggregation": "count",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 2,
+                "minimum": 2,
+                "maximum": 2,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 1,
+                "minimum": 1,
+                "maximum": 1,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 1,
+                "minimum": 1,
+                "maximum": 1,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 2,
+                "minimum": 2,
+                "maximum": 2,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "count",
+          "value": 6,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "sleeping heart rate on one day: the night of the clock change, starting the evening before",
+      "timeZone": "Europe/London",
+      "range": "D",
+      "date": "2026-10-25",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Sleeping Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            }
+          }
+        ],
+        "bucket": "night",
+        "range": "D"
+      },
+      "expected": {
+        "range": "D",
+        "start": "2026-10-25",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 50.666666666666664,
+                "minimum": 48,
+                "maximum": 54,
+                "readings": 3
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "range",
+          "value": null,
+          "minimum": 48,
+          "maximum": 54
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "sleeping heart rate by the week over a month, as a line: each week's nights, by the day they end on",
+      "timeZone": "Europe/London",
+      "range": "M",
+      "date": "2026-10-31",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Sleeping Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            }
+          }
+        ],
+        "bucket": "week",
+        "range": "M",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "M",
+        "start": "2026-10-01",
+        "end": "2026-10-31",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "week",
+        "grain": "week",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-19T00:00:00+01:00",
+                "value": 55.904761904761905,
+                "minimum": 48,
+                "maximum": 80,
+                "readings": 12
+              },
+              {
+                "start": "2026-10-26T00:00:00+00:00",
+                "value": 50,
+                "minimum": 50,
+                "maximum": 50,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 55.391304347826086,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "sleeping heart rate from one source: only the chest strap; a range whose ends are equal is an average",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-21",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Strap While Asleep"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            },
+            "filter": {
+              "sources": ["org.example.strap"]
+            }
+          }
+        ],
+        "bucket": "night"
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 80,
+                "minimum": 80,
+                "maximum": 80,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 80,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "sleeping heart rate from the Watch's device model, through its provenance record",
+      "note": "The tools' dataset's Watch samples have no device, so they don't match; neither does the strap (model Strap). 21 Oct without the strap's 80.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-21",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Watch While Asleep"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            },
+            "filter": {
+              "deviceModels": ["Watch"]
+            }
+          }
+        ],
+        "bucket": "night",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 56,
+                "minimum": 56,
+                "maximum": 56,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 53,
+                "minimum": 50,
+                "maximum": 58,
+                "readings": 4
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 58,
+                "minimum": 56,
+                "maximum": 60,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 52,
+                "minimum": 52,
+                "maximum": 52,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 50.666666666666664,
+                "minimum": 48,
+                "maximum": 54,
+                "readings": 3
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 53.36842105263158,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "the highest heart rate in the 30 minutes after waking, per night",
+      "note": "W is the latest end of the night's asleep segments: 21 Oct 05:00Z (not the in-bed record's 05:15Z), 22 Oct 05:00Z (the iPhone's night). 20, 24 and 25 Oct have no readings after waking.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-21",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "After Waking"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "aggregation": "max",
+            "window": {
+              "kind": "afterWaking",
+              "minutes": 30
+            }
+          }
+        ],
+        "bucket": "night"
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "max",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 66,
+                "minimum": 62,
+                "maximum": 66,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 70,
+                "minimum": 70,
+                "maximum": 70,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "highest",
+          "value": 70,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "sleeping heart rate minus resting heart rate, one line: both series hidden, resting heart rate by the night's day",
+      "note": "Resting heart rate has no window, so in a night card it's bucketed by calendar day (19 Oct's 58 has no night to subtract from). The difference is where both have a value; with every series hidden, the header is the average of its points.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-21",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Above Resting"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            },
+            "hidden": true
+          },
+          {
+            "type": "RestingHeartRate",
+            "hidden": true
+          }
+        ],
+        "formulas": [
+          {
+            "id": "gap",
+            "kind": "difference",
+            "of": ["a", "b"],
+            "label": "Above resting"
+          }
+        ],
+        "bucket": "night"
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": true,
+            "points": [
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 56,
+                "minimum": 56,
+                "maximum": 56,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 59.75,
+                "minimum": 50,
+                "maximum": 80,
+                "readings": 5
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 58,
+                "minimum": 56,
+                "maximum": 60,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 52,
+                "minimum": 52,
+                "maximum": 52,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 50.666666666666664,
+                "minimum": 48,
+                "maximum": 54,
+                "readings": 3
+              }
+            ]
+          },
+          {
+            "id": "b",
+            "label": "Resting Heart Rate",
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": true,
+            "points": [
+              {
+                "start": "2026-10-19T00:00:00+01:00",
+                "value": 58,
+                "minimum": 58,
+                "maximum": 58,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 55,
+                "minimum": 55,
+                "maximum": 55,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 54,
+                "minimum": 54,
+                "maximum": 54,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 52,
+                "minimum": 52,
+                "maximum": 52,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [
+          {
+            "id": "gap",
+            "kind": "difference",
+            "label": "Above resting",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 4.75
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 4
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": -1.3333333333333357
+              }
+            ]
+          }
+        ],
+        "summary": {
+          "kind": "average",
+          "value": 2.4722222222222214,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "the highest heart rate during runs, by name",
+      "note": "Runs: 20 Oct 16:30–17:00Z (the tools' dataset's, dated later that day), 22 Oct 17:00–17:30Z (17:40's 100 is after it), 24 Oct 10:30–11:00Z (10:15's 120 is in the strength workout before it).",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-21",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Running HR"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "aggregation": "max",
+            "window": {
+              "kind": "workout",
+              "activities": ["Running"]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "max",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 160,
+                "minimum": 150,
+                "maximum": 160,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 140,
+                "minimum": 140,
+                "maximum": 140,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 130,
+                "minimum": 130,
+                "maximum": 130,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "highest",
+          "value": 160,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "heart rate during every workout, overlapping ones merged",
+      "note": "24 Oct's strength workout (10:00–10:45Z) and run (10:30–11:00Z) are one stretch, so 120 at 10:15 counts until 130 at 10:50 (2100 s), and 130 until 11:00 (600 s). 20 Oct: 600 s each; 22 Oct: until 17:30 (1200 s).",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-21",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Workout HR"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "workout",
+              "activities": null
+            }
+          }
+        ],
+        "chart": {
+          "style": "dots"
+        }
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 155,
+                "minimum": 150,
+                "maximum": 160,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 140,
+                "minimum": 140,
+                "maximum": 140,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 122.22222222222223,
+                "minimum": 120,
+                "maximum": 130,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 134.11764705882354,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "body temperature by the hour over a week",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Body Temperature"
+        },
+        "series": [
+          {
+            "type": "BodyTemperature"
+          }
+        ],
+        "bucket": "hour"
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "hour",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Body Temperature",
+            "type": "HKQuantityTypeIdentifierBodyTemperature",
+            "aggregation": "avg",
+            "unit": "degC",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-19T08:00:00+01:00",
+                "value": 36.6,
+                "minimum": 36.6,
+                "maximum": 36.6,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-19T20:00:00+01:00",
+                "value": 36.8,
+                "minimum": 36.8,
+                "maximum": 36.8,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-21T08:00:00+01:00",
+                "value": 37.2,
+                "minimum": 37.2,
+                "maximum": 37.2,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-24T09:00:00+01:00",
+                "value": 36.5,
+                "minimum": 36.5,
+                "maximum": 36.5,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 36.775000000000006,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "the weight seed card: each day's average",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Weight"
+        },
+        "series": [
+          {
+            "type": "BodyMass"
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Weight",
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "aggregation": "avg",
+            "unit": "kg",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 70.1,
+                "minimum": 70,
+                "maximum": 70.2,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 70.6,
+                "minimum": 70.3,
+                "maximum": 70.9,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 69.9,
+                "minimum": 69.9,
+                "maximum": 69.9,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 70.19999999999999,
+                "minimum": 69.8,
+                "maximum": 70.6,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 70.24285714285713,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "HRV in New York, with weeks from Sunday",
+      "note": "The week of 20 October is Sunday 18 to Saturday 24. 22 Oct 00:30Z is 21 Oct 20:30 EDT; 25 Oct 06:00Z is the next week.",
+      "timeZone": "America/New_York",
+      "firstWeekday": "sunday",
+      "range": "W",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "HRV"
+        },
+        "series": [
+          {
+            "type": "HeartRateVariabilitySDNN"
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-18",
+        "end": "2026-10-24",
+        "timeZone": "America/New_York",
+        "firstWeekday": "sunday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate Variability",
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "aggregation": "avg",
+            "unit": "ms",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-19T00:00:00-04:00",
+                "value": 42,
+                "minimum": 42,
+                "maximum": 42,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-20T00:00:00-04:00",
+                "value": 44,
+                "minimum": 40,
+                "maximum": 48,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-21T00:00:00-04:00",
+                "value": 60,
+                "minimum": 60,
+                "maximum": 60,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-23T00:00:00-04:00",
+                "value": 55,
+                "minimum": 55,
+                "maximum": 55,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 49,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "a period without readings: no points, and no header (No Data)",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-07",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Body Temperature"
+        },
+        "series": [
+          {
+            "type": "BodyTemperature"
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-05",
+        "end": "2026-10-11",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Body Temperature",
+            "type": "HKQuantityTypeIdentifierBodyTemperature",
+            "aggregation": "avg",
+            "unit": "degC",
+            "hidden": false,
+            "points": []
+          }
+        ],
+        "formulas": [],
+        "summary": null,
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "six months of HRV by the week: a week's value is the average of all its readings, not of its days'",
+      "note": "The week of 19 October has six readings averaging 295/6; its days' averages (42, 44, 60, 55, 50) would average 50.2.",
+      "timeZone": "Europe/London",
+      "range": "6M",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "HRV"
+        },
+        "series": [
+          {
+            "type": "HeartRateVariabilitySDNN"
+          }
+        ],
+        "range": "6M"
+      },
+      "expected": {
+        "range": "6M",
+        "start": "2026-05-01",
+        "end": "2026-10-31",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "week",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate Variability",
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "aggregation": "avg",
+            "unit": "ms",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-19T00:00:00+01:00",
+                "value": 49.166666666666664,
+                "minimum": 40,
+                "maximum": 60,
+                "readings": 6
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 49.166666666666664,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "a count of heart rate readings while asleep, per night: dots by default, since a count has no range",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-21",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Readings Asleep"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "aggregation": "count",
+            "window": {
+              "kind": "asleep"
+            }
+          }
+        ],
+        "bucket": "night"
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "count",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 1,
+                "minimum": 1,
+                "maximum": 1,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-21T00:00:00+01:00",
+                "value": 5,
+                "minimum": 5,
+                "maximum": 5,
+                "readings": 5
+              },
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 2,
+                "minimum": 2,
+                "maximum": 2,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 1,
+                "minimum": 1,
+                "maximum": 1,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 3,
+                "minimum": 3,
+                "maximum": 3,
+                "readings": 3
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "count",
+          "value": 12,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    }
+  ]
+}

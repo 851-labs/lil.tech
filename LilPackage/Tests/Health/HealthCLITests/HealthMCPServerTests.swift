@@ -2,6 +2,7 @@ import Foundation
 import GRDB
 import HealthAgentAccess
 import HealthCatalog
+import HealthConformance
 import HealthDatabase
 import HealthTools
 import MCP
