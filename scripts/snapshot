@@ -147,12 +147,12 @@ if $iphone; then
   device_type=com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro
   # The runtime by identifier and build, so a later 27.2 build installed under the same identifier
   # can't change the images. Another identifier is checked for its build only when given one.
-  if [ -n "${LIL_SNAPSHOT_RUNTIME:-}" ]; then
-    runtime=$LIL_SNAPSHOT_RUNTIME
-    runtime_build=${LIL_SNAPSHOT_RUNTIME_BUILD:-}
-  else
-    runtime=com.apple.CoreSimulator.SimRuntime.iOS-27-2
+  default_runtime=com.apple.CoreSimulator.SimRuntime.iOS-27-2
+  runtime=${LIL_SNAPSHOT_RUNTIME:-$default_runtime}
+  if [ "$runtime" = "$default_runtime" ]; then
     runtime_build=${LIL_SNAPSHOT_RUNTIME_BUILD:-24B8117}
+  else
+    runtime_build=${LIL_SNAPSHOT_RUNTIME_BUILD:-}
   fi
   derived=${LIL_SNAPSHOT_DERIVED_DATA:-$root/.build/DerivedData}
   test_limit=${LIL_SNAPSHOT_TIMEOUT:-600}
@@ -214,26 +214,50 @@ for device, current in sorted(devices, key=lambda pair: (not pair[1], pair[0]["s
     exit 1
   }
 
-  # Stops unless the runtime is installed, and is the build it's pinned to: a later build under
-  # the same identifier (which CoreSimulator would boot instead) draws other images.
+  # Stops unless the runtime is installed and available, and is the build it's pinned to: a
+  # later build under the same identifier draws other images. Before the build, to fail fast;
+  # `check_booted_build` checks what the simulator actually booted.
   check_runtime() {
     installed=$(python3 -I -c '
 import json, sys
 runtime, path = sys.argv[1:]
-for entry in json.load(open(path))["runtimes"]:
-    if entry["identifier"] == runtime and entry.get("isAvailable", True):
-        print(entry.get("buildversion") or "unknown")
-        break
+entries = [entry for entry in json.load(open(path))["runtimes"] if entry["identifier"] == runtime]
+for entry in sorted(entries, key=lambda entry: not entry.get("isAvailable", True)):
+    print(entry.get("buildversion") or "unknown", entry.get("version") or "unknown",
+        "" if entry.get("isAvailable", True) else entry.get("availabilityError") or "unavailable",
+        sep="\t")
+    break
 ' "$runtime" "$listing")
+    installed_build=$(printf '%s' "$installed" | cut -f 1)
+    installed_version=$(printf '%s' "$installed" | cut -f 2)
+    unavailable=$(printf '%s' "$installed" | cut -f 3)
     if [ -z "$installed" ]; then
       echo "error: the runtime $runtime isn't installed (xcrun simctl list runtimes). Install it" >&2
       echo "with Xcode, or set LIL_SNAPSHOT_RUNTIME to pick another." >&2
       exit 1
-    elif [ -n "$runtime_build" ] && [ "$installed" != "$runtime_build" ]; then
-      echo "error: $runtime is build $installed, not $runtime_build, which the references are" >&2
-      echo "rendered with. Install that build and choose it (xcrun simctl runtime match set" >&2
-      echo "iphoneos27.2 $runtime_build), or set LIL_SNAPSHOT_RUNTIME_BUILD." >&2
+    elif [ -n "$unavailable" ]; then
+      echo "error: the runtime $runtime is installed, but unavailable: $unavailable" >&2
       exit 1
+    elif [ -n "$runtime_build" ] && [ "$installed_build" != "$runtime_build" ]; then
+      runtime_build_error "$installed_build"
+    fi
+  }
+
+  runtime_build_error() {
+    echo "error: $runtime is build $1, not $runtime_build, which the references are rendered" >&2
+    echo "with. Install that build and choose it (xcrun simctl runtime match set" >&2
+    echo "iphoneos$installed_version $runtime_build), or set LIL_SNAPSHOT_RUNTIME_BUILD." >&2
+    exit 1
+  }
+
+  # The build the booted simulator runs, which CoreSimulator chose among the identifier's images.
+  check_booted_build() {
+    if [ -n "$runtime_build" ]; then
+      booted_build=$(limit 60 xcrun simctl getenv "$device" SIMULATOR_RUNTIME_BUILD_VERSION 2>/dev/null) ||
+        booted_build=unknown
+      if [ "$booted_build" != "$runtime_build" ]; then
+        runtime_build_error "$booted_build"
+      fi
     fi
   }
 
@@ -248,11 +272,17 @@ for entry in json.load(open(path))["runtimes"]:
       echo "No simulator named $simulator."
       exit 0
     fi
+    # Every one, even when deleting another fails.
+    status=0
     for device in $(echo "$devices" | cut -d " " -f 1); do
-      delete_device "$device"
-      echo "Deleted the simulator $simulator ($device)."
+      if delete_device "$device"; then
+        echo "Deleted the simulator $simulator ($device)."
+      else
+        echo "error: couldn't delete the simulator $simulator ($device)." >&2
+        status=1
+      fi
     done
-    exit 0
+    exit "$status"
   fi
   check_runtime
   # One on another runtime is deleted, and made again on this one.
@@ -295,7 +325,7 @@ for entry in json.load(open(path))["runtimes"]:
       limit 120 xcrun simctl shutdown "$device" >/dev/null 2>&1 || true
       case $boot_attempt in
         2)
-          limit 120 xcrun simctl delete "$device" || true
+          delete_device "$device" || true
           create_device
           ;;
         3)
@@ -337,6 +367,7 @@ for entry in json.load(open(path))["runtimes"]:
   if ! { { [ -z "$booting" ] || wait "$booting"; } && responds; }; then
     boot
   fi
+  check_booted_build
   # What the build made: running it rather than the scheme skips resolving the packages again.
   xctestrun=$(find "$derived/Build/Products" -maxdepth 1 -name 'HealthPhoneSnapshotTests_*.xctestrun' \
     -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -n 1)
