@@ -1,0 +1,167 @@
+import Foundation
+public import SQLiteData
+
+/// What a workout's or one of its activities' metadata says of it, by HealthKit's keys, read as
+/// the server's Health tools read it (`Services/api/src/health/tools/Workouts.ts`), so the two
+/// `workouts` tools agree (the conformance cases, 851-4015).
+public struct WorkoutMetadata: Equatable, Sendable {
+  /// `HKMetadataKeyIndoorWorkout`: a Boolean, or 0 or 1 from apps that write it as a number.
+  public var indoor: Bool?
+  /// `HKMetadataKeySwimmingLocationType`: `pool` (1) or `openWater` (2).
+  public var swimmingLocation: String?
+  /// `HKMetadataKeyWorkoutBrandName`, unless it's blank. Apple's Workout app doesn't name
+  /// workouts.
+  public var brandName: String?
+  /// `HKMetadataKeyElevationAscended`, in meters.
+  public var elevationAscended: Double?
+
+  public init(
+    indoor: Bool? = nil, swimmingLocation: String? = nil, brandName: String? = nil,
+    elevationAscended: Double? = nil
+  ) {
+    self.indoor = indoor
+    self.swimmingLocation = swimmingLocation
+    self.brandName = brandName
+    self.elevationAscended = elevationAscended
+  }
+
+  /// From metadata as the iPhone encodes it (`HealthEncoder.json`), or nothing if it isn't an
+  /// object.
+  init(_ metadata: Any?) {
+    guard let metadata = metadata as? [String: Any] else {
+      self.init()
+      return
+    }
+    let indoor = metadata["HKIndoorWorkout"]
+    self.init(
+      indoor: Self.isBoolean(indoor)
+        ? (indoor as? Bool)
+        : Self.number(indoor).flatMap { $0 == 1 ? true : $0 == 0 ? false : nil },
+      swimmingLocation: Self.number(metadata["HKSwimmingLocationType"]).flatMap {
+        $0 == 1 ? "pool" : $0 == 2 ? "openWater" : nil
+      },
+      brandName: (metadata["HKWorkoutBrandName"] as? String).flatMap {
+        $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0
+      },
+      elevationAscended: Self.meters(metadata["HKElevationAscended"] as? String))
+  }
+
+  /// Meters in each length unit HealthKit writes a quantity in (`HKUnit`'s unit strings).
+  static let meters: [String: Double] = [
+    "mm": 0.001, "cm": 0.01, "m": 1, "km": 1000, "in": 0.0254, "ft": 0.3048, "yd": 0.9144,
+    "mi": 1609.344,
+  ]
+
+  /// A length the iPhone wrote as its quantity's description, a number and a unit ("4250 cm"),
+  /// in meters, or nil for anything else or another unit.
+  static func meters(_ description: String?) -> Double? {
+    guard let description,
+      let match = description.wholeMatch(
+        of: /([+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?) (\S+)/),
+      let number = Double(match.1), let factor = meters[String(match.2)]
+    else { return nil }
+    let length = number * factor
+    return length.isFinite ? length : nil
+  }
+
+  static func isBoolean(_ value: Any?) -> Bool {
+    guard let number = value as? NSNumber else { return false }
+    return CFGetTypeID(number) == CFBooleanGetTypeID()
+  }
+
+  /// A JSON number, not a Boolean.
+  static func number(_ value: Any?) -> Double? {
+    guard let number = value as? NSNumber, !isBoolean(number), number.doubleValue.isFinite
+    else { return nil }
+    return number.doubleValue
+  }
+}
+
+/// One of a workout's activities (`HKWorkoutActivity`), the legs of a multisport workout.
+public struct WorkoutActivityRecord: Equatable, Sendable {
+  /// `HKWorkoutActivityType`'s raw value.
+  public var activityType: Int
+  public var startDate: Double
+  /// `nil` while it was still going.
+  public var endDate: Double?
+  /// Seconds of activity, excluding pauses.
+  public var duration: Double
+  public var metadata: WorkoutMetadata
+
+  public init(
+    activityType: Int, startDate: Double, endDate: Double?, duration: Double,
+    metadata: WorkoutMetadata
+  ) {
+    self.activityType = activityType
+    self.startDate = startDate
+    self.endDate = endDate
+    self.duration = duration
+    self.metadata = metadata
+  }
+}
+
+extension HealthWorkout {
+  /// What its metadata says (``WorkoutMetadata``).
+  public var decodedMetadata: WorkoutMetadata {
+    WorkoutMetadata(
+      metadata.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) })
+  }
+
+  /// Its activities, often none (`HealthWorkout` on the server). Read like its statistics: all
+  /// of them or, if one can't be read, none.
+  public var decodedActivities: [WorkoutActivityRecord] {
+    guard
+      let array = (try? JSONSerialization.jsonObject(with: Data(activities.utf8))) as? [Any]
+    else { return [] }
+    var records: [WorkoutActivityRecord] = []
+    for element in array {
+      guard let object = element as? [String: Any],
+        let activityType = WorkoutMetadata.number(object["activityType"]),
+        activityType.rounded() == activityType, activityType.magnitude < 1e15,
+        let startDate = WorkoutMetadata.number(object["startDate"]),
+        let duration = WorkoutMetadata.number(object["duration"])
+      else { return [] }
+      let endDate: Double?
+      switch object["endDate"] {
+      case is NSNull: endDate = nil
+      case let value:
+        guard let value = WorkoutMetadata.number(value) else { return [] }
+        endDate = value
+      }
+      let metadata = object["metadata"]
+      if let metadata, !(metadata is NSNull), !(metadata is [String: Any]) { return [] }
+      records.append(
+        WorkoutActivityRecord(
+          activityType: Int(activityType), startDate: startDate, endDate: endDate,
+          duration: duration, metadata: WorkoutMetadata(metadata)))
+    }
+    return records
+  }
+
+  /// Where it was, indoors or not, and in a pool or open water: as its metadata says or, if it
+  /// doesn't, as its activities say, if they agree. A workout of one activity may only say on
+  /// its activity, and a multisport workout's transitions don't say.
+  public func location(activities: [WorkoutActivityRecord]) -> (
+    indoor: Bool?, swimmingLocation: String?
+  ) {
+    let metadata = decodedMetadata
+    return (
+      metadata.indoor ?? Self.agreed(activities.map(\.metadata.indoor)),
+      metadata.swimmingLocation ?? Self.agreed(activities.map(\.metadata.swimmingLocation))
+    )
+  }
+
+  /// The value of those that have one, if they agree; else nil.
+  static func agreed<Value: Equatable>(_ values: [Value?]) -> Value? {
+    let given = values.compactMap(\.self)
+    guard let first = given.first, given.allSatisfy({ $0 == first }) else { return nil }
+    return first
+  }
+}
+
+extension HealthDatabase {
+  /// Whether `workout` has a route with locations (``route(of:_:)``).
+  public static func hasRoute(_ workout: HealthWorkout, _ db: Database) throws -> Bool {
+    try route(of: workout, db) != nil
+  }
+}

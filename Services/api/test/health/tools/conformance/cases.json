@@ -427,13 +427,23 @@
             "last": "2026-10-20T16:00:00+00:00"
           },
           {
+            "type": "HKWorkoutRouteTypeIdentifier",
+            "name": "Workout Routes",
+            "category": "Activity",
+            "kind": "workoutRoute",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-09-12T07:00:00+00:00",
+            "last": "2026-10-18T07:00:00+00:00"
+          },
+          {
             "type": "HKWorkoutTypeIdentifier",
             "name": "Workouts",
             "category": "Activity",
             "kind": "workout",
             "unit": null,
             "cumulative": false,
-            "first": "2026-10-02T17:00:00+00:00",
+            "first": "2026-09-08T06:30:00+00:00",
             "last": "2026-10-20T16:30:00+00:00"
           },
           {
@@ -550,13 +560,23 @@
             "last": "2026-10-20T09:00:00-07:00"
           },
           {
+            "type": "HKWorkoutRouteTypeIdentifier",
+            "name": "Workout Routes",
+            "category": "Activity",
+            "kind": "workoutRoute",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-09-12T00:00:00-07:00",
+            "last": "2026-10-18T00:00:00-07:00"
+          },
+          {
             "type": "HKWorkoutTypeIdentifier",
             "name": "Workouts",
             "category": "Activity",
             "kind": "workout",
             "unit": null,
             "cumulative": false,
-            "first": "2026-10-02T10:00:00-07:00",
+            "first": "2026-09-07T23:30:00-07:00",
             "last": "2026-10-20T09:30:00-07:00"
           },
           {
@@ -1222,37 +1242,55 @@
             "id": "0c0f0000-0000-4000-8000-000000000099",
             "activityType": 37,
             "activity": "Running",
+            "name": "Test Tempo Run",
             "start": "2026-10-20T16:30:00+00:00",
             "end": "2026-10-20T17:00:00+00:00",
             "duration": 1800,
             "activeEnergy": null,
             "distance": null,
             "averageHeartRate": null,
-            "source": "Test Apple Watch"
+            "elevationAscended": null,
+            "indoor": false,
+            "swimmingLocation": null,
+            "hasRoute": false,
+            "source": "Test Apple Watch",
+            "activities": []
           },
           {
             "id": "0c0f0000-0000-4000-8000-000000000013",
             "activityType": 37,
             "activity": "Running",
+            "name": null,
             "start": "2026-10-18T07:00:00+00:00",
             "end": "2026-10-18T07:30:00+00:00",
             "duration": 1800,
             "activeEnergy": 310.5,
             "distance": 5000,
             "averageHeartRate": 152.5,
-            "source": "Test Apple Watch"
+            "elevationAscended": 42.5,
+            "indoor": false,
+            "swimmingLocation": null,
+            "hasRoute": true,
+            "source": "Test Apple Watch",
+            "activities": []
           },
           {
             "id": "0c0f0000-0000-4000-8000-000000000012",
             "activityType": 37,
             "activity": "Running",
+            "name": null,
             "start": "2026-10-14T03:00:00+00:00",
             "end": "2026-10-14T03:45:00+00:00",
             "duration": 2700,
             "activeEnergy": null,
             "distance": null,
             "averageHeartRate": null,
-            "source": "Test Apple Watch"
+            "elevationAscended": null,
+            "indoor": true,
+            "swimmingLocation": null,
+            "hasRoute": false,
+            "source": "Test Apple Watch",
+            "activities": []
           }
         ]
       }
@@ -1278,61 +1316,183 @@
             "id": "0c0f0000-0000-4000-8000-000000000099",
             "activityType": 37,
             "activity": "Running",
+            "name": "Test Tempo Run",
             "start": "2026-10-20T09:30:00-07:00",
             "end": "2026-10-20T10:00:00-07:00",
             "duration": 1800,
             "activeEnergy": null,
             "distance": null,
             "averageHeartRate": null,
-            "source": "Test Apple Watch"
+            "elevationAscended": null,
+            "indoor": false,
+            "swimmingLocation": null,
+            "hasRoute": false,
+            "source": "Test Apple Watch",
+            "activities": []
           },
           {
             "id": "0c0f0000-0000-4000-8000-000000000013",
             "activityType": 37,
             "activity": "Running",
+            "name": null,
             "start": "2026-10-18T00:00:00-07:00",
             "end": "2026-10-18T00:30:00-07:00",
             "duration": 1800,
             "activeEnergy": 310.5,
             "distance": 5000,
             "averageHeartRate": 152.5,
-            "source": "Test Apple Watch"
+            "elevationAscended": 42.5,
+            "indoor": false,
+            "swimmingLocation": null,
+            "hasRoute": true,
+            "source": "Test Apple Watch",
+            "activities": []
           },
           {
             "id": "0c0f0000-0000-4000-8000-000000000012",
             "activityType": 37,
             "activity": "Running",
+            "name": null,
             "start": "2026-10-13T20:00:00-07:00",
             "end": "2026-10-13T20:45:00-07:00",
             "duration": 2700,
             "activeEnergy": null,
             "distance": null,
             "averageHeartRate": null,
-            "source": "Test Apple Watch"
+            "elevationAscended": null,
+            "indoor": true,
+            "swimmingLocation": null,
+            "hasRoute": false,
+            "source": "Test Apple Watch",
+            "activities": []
           },
           {
             "id": "0c0f0000-0000-4000-8000-000000000011",
             "activityType": 37,
             "activity": "Running",
+            "name": null,
             "start": "2026-10-13T11:00:00-07:00",
             "end": "2026-10-13T11:40:00-07:00",
             "duration": 2400,
             "activeEnergy": null,
             "distance": null,
             "averageHeartRate": null,
-            "source": "Test Apple Watch"
+            "elevationAscended": null,
+            "indoor": null,
+            "swimmingLocation": null,
+            "hasRoute": true,
+            "source": "Test Apple Watch",
+            "activities": []
           },
           {
             "id": "0c0f0000-0000-4000-8000-000000000014",
             "activityType": 13,
             "activity": "Cycling",
+            "name": null,
             "start": "2026-10-02T10:00:00-07:00",
             "end": "2026-10-02T11:10:00-07:00",
             "duration": 3900,
             "activeEnergy": 450,
             "distance": 20000.5,
             "averageHeartRate": null,
-            "source": "Test Apple Watch"
+            "elevationAscended": null,
+            "indoor": true,
+            "swimmingLocation": null,
+            "hasRoute": false,
+            "source": "Test Apple Watch",
+            "activities": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "workouts of a week in September: a pool swim, and a multisport race's activities",
+      "tool": "workouts",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "date": "2026-09-13"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-09-07T00:00:00+00:00",
+        "end": "2026-09-14T00:00:00+00:00",
+        "count": 2,
+        "duration": 9900,
+        "workouts": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000016",
+            "activityType": 82,
+            "activity": "Multisport",
+            "name": null,
+            "start": "2026-09-12T07:00:00+00:00",
+            "end": "2026-09-12T09:00:00+00:00",
+            "duration": 7200,
+            "activeEnergy": null,
+            "distance": null,
+            "averageHeartRate": null,
+            "elevationAscended": 36.576,
+            "indoor": false,
+            "swimmingLocation": "openWater",
+            "hasRoute": true,
+            "source": "Test Apple Watch",
+            "activities": [
+              {
+                "activityType": 46,
+                "activity": "Swimming",
+                "start": "2026-09-12T07:00:00+00:00",
+                "end": "2026-09-12T07:30:00+00:00",
+                "duration": 1800,
+                "indoor": false,
+                "swimmingLocation": "openWater"
+              },
+              {
+                "activityType": 83,
+                "activity": "Transition",
+                "start": "2026-09-12T07:30:00+00:00",
+                "end": "2026-09-12T07:35:00+00:00",
+                "duration": 300,
+                "indoor": null,
+                "swimmingLocation": null
+              },
+              {
+                "activityType": 13,
+                "activity": "Cycling",
+                "start": "2026-09-12T07:35:00+00:00",
+                "end": "2026-09-12T08:35:00+00:00",
+                "duration": 3600,
+                "indoor": false,
+                "swimmingLocation": null
+              },
+              {
+                "activityType": 37,
+                "activity": "Running",
+                "start": "2026-09-12T08:35:00+00:00",
+                "end": "2026-09-12T09:00:00+00:00",
+                "duration": 1500,
+                "indoor": false,
+                "swimmingLocation": null
+              }
+            ]
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000015",
+            "activityType": 46,
+            "activity": "Swimming",
+            "name": null,
+            "start": "2026-09-08T06:30:00+00:00",
+            "end": "2026-09-08T07:15:00+00:00",
+            "duration": 2700,
+            "activeEnergy": null,
+            "distance": 1500,
+            "averageHeartRate": null,
+            "elevationAscended": null,
+            "indoor": null,
+            "swimmingLocation": "pool",
+            "hasRoute": false,
+            "source": "Test Apple Watch",
+            "activities": []
           }
         ]
       }

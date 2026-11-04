@@ -458,8 +458,23 @@ export interface WorkoutRow {
   readonly duration: number;
   /** As stored: JSON. */
   readonly statistics: string;
+  /** As stored: JSON. */
+  readonly activities: string;
+  /** As stored: JSON, or null. */
+  readonly metadata: string | null;
   readonly sourceName: string;
+  /** Whether it has a route with locations (`routeOfWorkout`). */
+  readonly hasRoute: boolean;
 }
+
+/**
+ * Whether the workout `w` has a route with locations, as the Mac's workout page finds its route
+ * (`HealthDatabase.route(of:)`): one HealthKit linked to it, or else one linked to no workout
+ * that was recorded during it.
+ */
+const routeOfWorkout = `EXISTS (SELECT 1 FROM health_workout_route r
+  WHERE r.locations IS NOT NULL AND (r.workout = w.id
+    OR (r.workout IS NULL AND r.start_date < w.end_date AND r.end_date > w.start_date)))`;
 
 /** Up to `limit` of the workouts that start in `[from, to)`, newest first. */
 export const workoutsStarting = (
@@ -470,8 +485,9 @@ export const workoutsStarting = (
 ): ReadonlyArray<WorkoutRow> =>
   sql
     .exec(
-      `SELECT id, activity_type, start_date, end_date, duration, statistics, source_name
-      FROM health_workout WHERE start_date >= ? AND start_date < ?
+      `SELECT id, activity_type, start_date, end_date, duration, statistics, activities,
+        metadata, source_name, ${routeOfWorkout} AS has_route
+      FROM health_workout w WHERE start_date >= ? AND start_date < ?
       ORDER BY start_date DESC, id DESC LIMIT ?`,
       from,
       to,
@@ -484,7 +500,10 @@ export const workoutsStarting = (
       endDate: Number(row["end_date"]),
       duration: Number(row["duration"]),
       statistics: row["statistics"] as string,
+      activities: row["activities"] as string,
+      metadata: row["metadata"] as string | null,
       sourceName: row["source_name"] as string,
+      hasRoute: Number(row["has_route"]) === 1,
     }));
 
 export interface MedicationRow {

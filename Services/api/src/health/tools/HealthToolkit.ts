@@ -338,12 +338,40 @@ export const Samples = readOnly(
 /** The most workouts one call returns. */
 export const workoutsLimit = 100;
 
+const workoutIndoor = Schema.NullOr(Schema.Boolean).annotate({
+  description:
+    "Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than " +
+    "outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or null if it " +
+    "doesn't say.",
+});
+
+const swimmingLocation = Schema.NullOr(Schema.String).annotate({
+  description:
+    "For swims: pool or openWater (HKMetadataKeySwimmingLocationType), or null if it " +
+    "doesn't say.",
+});
+
+export const HealthWorkoutActivityItem = Schema.Struct({
+  activityType: Schema.Int.annotate({ description: "HKWorkoutActivityType's raw value." }),
+  activity: Schema.String.annotate({ description: "The activity's name, e.g. Swimming." }),
+  start: LocalTime,
+  end: Schema.NullOr(LocalTime),
+  duration: Schema.Finite.annotate({ description: "Seconds of activity, excluding pauses." }),
+  indoor: workoutIndoor,
+  swimmingLocation,
+}).annotate({ identifier: "HealthWorkoutActivityItem" });
+
 export const HealthWorkoutItem = Schema.Struct({
   id: Schema.String.annotate({ description: "HealthKit's UUID for the workout." }),
   activityType: Schema.Int.annotate({
     description: "HKWorkoutActivityType's raw value, e.g. 37 for running.",
   }),
   activity: Schema.String.annotate({ description: "The activity's name, e.g. Running." }),
+  name: Schema.NullOr(Schema.String).annotate({
+    description:
+      "The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName). " +
+      "Apple's Workout app doesn't name workouts, so it's usually null.",
+  }),
   start: LocalTime,
   end: LocalTime,
   duration: Schema.Finite.annotate({ description: "Seconds of activity, excluding pauses." }),
@@ -352,7 +380,32 @@ export const HealthWorkoutItem = Schema.Struct({
   averageHeartRate: Schema.NullOr(Schema.Finite).annotate({
     description: "Beats per minute.",
   }),
+  elevationAscended: Schema.NullOr(Schema.Finite).annotate({
+    description:
+      "Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended).",
+  }),
+  indoor: workoutIndoor.annotate({
+    description:
+      "Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than " +
+      "outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its " +
+      "activities say, if they agree. Null if it doesn't say: then hasRoute is the best hint.",
+  }),
+  swimmingLocation: swimmingLocation.annotate({
+    description:
+      "For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or " +
+      "its activities say, if they agree, or null if they don't say.",
+  }),
+  hasRoute: Schema.Boolean.annotate({
+    description:
+      "Whether a GPS route was recorded with it. Outdoor runs, walks and rides recorded on an " +
+      "iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.",
+  }),
   source: Schema.String.annotate({ description: "The app or device that recorded it." }),
+  activities: Schema.Array(HealthWorkoutActivityItem).annotate({
+    description:
+      "A multisport workout's activities (e.g. swim, transition, bike, run), in order. Empty " +
+      "for a workout of one activity.",
+  }),
 }).annotate({ identifier: "HealthWorkoutItem" });
 
 export const HealthWorkoutsResult = Schema.Struct({
@@ -367,8 +420,10 @@ export const HealthWorkoutsResult = Schema.Struct({
 export const Workouts = readOnly(
   Tool.make("workouts", {
     description:
-      "Workouts that started in a period, newest first, with their activity, duration, " +
-      "energy, distance and average heart rate, and the period's count and total time.",
+      "Workouts that started in a period, newest first, with their activity and name, " +
+      "duration, energy, distance, average heart rate and elevation, whether they were " +
+      "indoors and had a GPS route (to tell a treadmill run from an outdoor one), and the " +
+      "period's count and total time.",
     parameters: Schema.Struct({ range, date, timeZone }),
     success: HealthWorkoutsResult,
     failure: HealthToolError,
