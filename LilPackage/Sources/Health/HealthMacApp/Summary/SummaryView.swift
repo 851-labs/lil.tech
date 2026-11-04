@@ -18,7 +18,8 @@ struct SummaryView: View {
   /// The cards' headlines, as of the last fetch: every card's at once, at most once a second while
   /// sync writes (`CardHeadlinesRequest`, 851-3237).
   @State private var headlines: CardHeadlines
-  @Fetch private var highlights: [Highlight]
+  /// At most once a second while sync writes (851-4045).
+  @ThrottledFetch private var highlights: [Highlight]
   /// Whether the local data holds the cards: until a first pull, or an upgraded Mac's catch-up of
   /// them, brings them, no cards isn't an empty Summary (docs/decisions/cards.md, The welcome
   /// seed).
@@ -45,7 +46,7 @@ struct SummaryView: View {
           CardHeadlinesRequest(cards: store.cards, day: day).fetch(
             now: now, calendar: calendar, $0)
         }) ?? CardHeadlines() : CardHeadlines())
-    _highlights = Fetch(wrappedValue: [], HighlightsRequest(), scheduler: MainQueueScheduler())
+    _highlights = ThrottledFetch(wrappedValue: [], HighlightsRequest())
     _holdsCards = Fetch(wrappedValue: false, HoldsCardsRequest(), scheduler: MainQueueScheduler())
   }
 
@@ -93,8 +94,7 @@ struct SummaryView: View {
     .onReceive(calendarDayChanges()) {
       day = calendar.startOfDay(for: date.now)
       Task { @MainActor in
-        _ = try? await $highlights.load(
-          HighlightsRequest(day: date.now), scheduler: MainQueueScheduler())
+        await $highlights.load(HighlightsRequest(day: date.now))
       }
     }
   }

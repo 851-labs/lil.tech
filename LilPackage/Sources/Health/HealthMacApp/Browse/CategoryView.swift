@@ -10,14 +10,13 @@ import SwiftUI
 /// data. Follows the local database as sync changes it.
 struct CategoryView: View {
   let category: HealthCategory
-  @Fetch var summaries: [MetricSummary]
+  @ThrottledFetch var summaries: [MetricSummary]
 
   init(category: HealthCategory) {
     self.category = category
-    // Off the main thread: a category runs a few queries per type, again after each sync write.
-    _summaries = Fetch(
-      wrappedValue: [], CategorySummaries(category: category),
-      scheduler: MainQueueScheduler())
+    // Off the main thread: a category runs a few queries per type, again as sync writes, at most
+    // once a second (851-4045).
+    _summaries = ThrottledFetch(wrappedValue: [], CategorySummaries(category: category))
   }
 
   var body: some View {

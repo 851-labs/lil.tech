@@ -17,8 +17,8 @@ struct MetricDetailView: View {
   @State private var offset: Int
   /// Loaded by the view's task, for quantity types and the category types charted like them, with
   /// the period it's for and the lines over it. While another period loads, the page keeps showing
-  /// it (851-3084).
-  @Fetch private var chart: PeriodChart? = nil
+  /// it (851-3084). Again as sync writes, at most once a second (851-4045).
+  @ThrottledFetch private var chart: PeriodChart? = nil
 
   init(type: HealthDataType) {
     self.type = type
@@ -87,9 +87,7 @@ struct MetricDetailView: View {
     }
     .task(id: [range.rawValue, String(offset)]) {
       guard Self.hasChart(type) else { return }
-      _ = try? await $chart.load(
-        MetricChartRequest(typeID: type.id, range: range, offset: offset),
-        scheduler: MainQueueScheduler())
+      await $chart.load(MetricChartRequest(typeID: type.id, range: range, offset: offset))
     }
   }
 

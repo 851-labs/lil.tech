@@ -86,8 +86,9 @@ struct CardChartPage: View {
   @State private var range: CardRange
   /// The period shown, 0 the current one: `nil` while the page looks for the period it opens on.
   @State private var offset: Int? = nil
-  /// Loaded by the view's task, with the period and spec it's for.
-  @Fetch private var chart: CardPeriod? = nil
+  /// Loaded by the view's task, with the period and spec it's for, and again as sync writes, at
+  /// most once a second (851-4045).
+  @ThrottledFetch private var chart: CardPeriod? = nil
   @Dependency(\.defaultDatabase) private var database
   /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
   @Dependency(\.date.now) private var now
@@ -132,9 +133,7 @@ struct CardChartPage: View {
           self.offset = opening ?? 0
           return
         }
-        _ = try? await $chart.load(
-          CardDataRequest(spec: spec, range: range, offset: offset),
-          scheduler: MainQueueScheduler())
+        await $chart.load(CardDataRequest(spec: spec, range: range, offset: offset))
       }
   }
 
