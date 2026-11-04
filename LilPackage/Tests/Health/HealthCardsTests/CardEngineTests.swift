@@ -177,21 +177,25 @@ struct CardEngineTests {
       reading(date(10, 20, 8), 72),
       reading(date(10, 20, 8, 30), 74),
       reading(date(10, 20, 20), 80),
+      reading(date(10, 21, 8), 90),
+      reading(date(10, 21, 20), 96),
     ]
     func header(_ aggregation: String, _ bucket: String, _ range: CardRange) throws
       -> CardSummary?
     {
-      run(
-        try weightCard(aggregation, bucket: bucket, range: range.rawValue), range, on: date(10, 20),
-        readings: [bodyMass: readings]
-      ).summary
+      let card = try weightCard(aggregation, bucket: bucket, range: range.rawValue)
+      let summary = run(card, range, on: date(10, 20), readings: [bodyMass: readings]).summary
+      // A page captions its header before it loads with the kind it will have.
+      #expect(summary.map(\.kind) == card.expectedSummaryKind(at: range))
+      return summary
     }
     // At D by the hour, the day's first and latest, not the average of the hours'.
     #expect(try header("first", "auto", .day) == CardSummary(kind: .first, value: 72))
     #expect(try header("latest", "auto", .day) == CardSummary(kind: .latest, value: 80))
-    // More buckets: the average of the points, each once.
+    // More buckets: the average of the points, each once, neither the first nor the latest.
     #expect(try header("first", "hour", .day) == CardSummary(kind: .average, value: 76))
-    #expect(try header("latest", "day", .week) == CardSummary(kind: .average, value: 80))
+    #expect(try header("first", "day", .week) == CardSummary(kind: .average, value: 81))
+    #expect(try header("latest", "day", .week) == CardSummary(kind: .average, value: 88))
   }
 
   @Test

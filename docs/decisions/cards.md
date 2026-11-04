@@ -272,7 +272,7 @@ An engine runs a canonical spec over one period: `run(spec, range, date, calenda
 | `avg`, other styles | `average` | the weighted average of every reading in the period (not of its points) |
 | `min` | `lowest` | the lowest reading |
 | `max` | `highest` | the highest reading |
-| `first` or `latest`, `auto`, D, or a fixed bucket with one bucket in the period (a night at D) | `first` or `latest` | the day's or bucket's first or latest reading |
+| `first` or `latest`, `auto` at D, or a fixed bucket as long as the period (`night` at D) | `first` or `latest` | the day's or bucket's first or latest reading |
 | `first` or `latest`, otherwise | `average` | the average of its points' values in the period, each point once |
 | `count` | `count` | how many readings |
 | a formula (every series hidden) | `average` | the average of its points' values in the period, each point once |
@@ -280,6 +280,7 @@ An engine runs a canonical spec over one period: `run(spec, range, date, calenda
 A period without readings has `summary: null`, which the header shows as No Data (851-3102).
 
 - **A series that picks one reading per bucket** (`first`, `latest`) is summarized by the buckets it shows, as a formula is (851-3244): a month of morning weigh-ins is headed AVERAGE, the average of its days' first weigh-ins, since the month's first weigh-in ("FIRST 70.5 kg, Aug 2024") says nothing about the month. Its points' average, not its readings': each day counts once, however many readings it had. Where the header speaks for one bucket, it stays that bucket's reading, under the same rule as a total's: at D with `auto` the day's (the hours' first is the day's first), and with a fixed bucket when the period holds one (`night` at D). `latest` is averaged too, rather than headed by the latest point: the Summary row's headline already shows the latest, and Metric Detail heads a month of weight with its AVERAGE.
+- **One rule for one bucket,** in the core: `CardSpec.Bucket.headsOneBucket(at:)` (`auto`, `day` or `night` at D, `week` at W, `month` at M; the server's `headsOneBucket`), which a total's header and `first`'s and `latest`'s use. `CardSpec.expectedSummaryKind(at:)` is the kind a period will have once it has data, which a page captions its header with while it loads and with No Data (851-3107), so the Mac's (and the iPhone's) caption never changes as the period arrives. A hovered point of a `first` or `latest` series is still captioned FIRST or LATEST: it's its bucket's reading.
 
 **The headline** is what a Summary row shows: the lead's latest value and a sparkline (851-3101) of the 7 buckets ending on it, in the card's style, as today's rows show the week ending on the latest day with data. Its buckets are the card's, with `auto` as `day`.
 

@@ -1,4 +1,5 @@
 public import Foundation
+import HealthCatalog
 
 /// A card run over one period: what its page and Summary row draw, and the tools return
 /// (docs/decisions/cards.md, Inputs and outputs). Values are in each series' catalog unit; the apps
@@ -147,7 +148,8 @@ public struct CardSummary: Equatable, Sendable {
     /// A day's total, or a fixed bucket's when the period is one bucket.
     case total
     /// The average of the period's readings, or a total's average day (or bucket) with data, or
-    /// of a formula's points.
+    /// of a formula's points, or of a `first` or `latest` series' points over more than one bucket
+    /// (851-3244).
     case average
     /// A total's average day at 6M or Y, captioned DAILY AVERAGE.
     case dailyAverage
@@ -155,8 +157,31 @@ public struct CardSummary: Equatable, Sendable {
     case range
     case lowest
     case highest
+    /// A `first` or `latest` series' reading, when the header speaks for one bucket
+    /// (`CardSpec.Bucket.headsOneBucket(at:)`).
     case first
     case latest
     case count
+  }
+}
+
+extension CardSpec {
+  /// The summary a period of `range` has when it has data, so a page captions its header before
+  /// the period loads, and with No Data, as it will once loaded (851-3107): a range of readings
+  /// for an average drawn as ranges may turn out to be an average.
+  public func expectedSummaryKind(at range: CardRange) -> CardSummary.Kind {
+    guard case .series(let series) = lead else { return .average }
+    let one = bucket.headsOneBucket(at: range)
+    switch series.aggregation {
+    case .sum:
+      if one { return .total }
+      return bucket == .auto && (range == .sixMonths || range == .year) ? .dailyAverage : .average
+    case .avg: return chart.style == .ranges ? .range : .average
+    case .min: return .lowest
+    case .max: return .highest
+    case .first: return one ? .first : .average
+    case .latest: return one ? .latest : .average
+    case .count: return .count
+    }
   }
 }

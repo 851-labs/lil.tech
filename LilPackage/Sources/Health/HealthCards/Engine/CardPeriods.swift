@@ -107,6 +107,17 @@ extension CardSpec.Bucket {
     case .month: .month
     }
   }
+
+  /// Whether the header of a period of `range` speaks for one bucket, so a total shows its total
+  /// and `first` or `latest` its reading (docs/decisions/cards.md, Summary and headline): `auto` at
+  /// D, the day (though its points are hours), or a fixed bucket as long as the period, as a
+  /// night at D.
+  public func headsOneBucket(at range: CardRange) -> Bool {
+    switch (self, range) {
+    case (.auto, .day), (.day, .day), (.night, .day), (.week, .week), (.month, .month): true
+    default: false
+    }
+  }
 }
 
 /// Finds the bucket a moment falls in, asking the calendar only when a moment leaves the last

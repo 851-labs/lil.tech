@@ -8,6 +8,7 @@ import {
   cardWindowWeights,
   headlineLookup,
   headlineSearchEnds,
+  headsOneBucket,
   leadPoints,
   readingsInStretches,
 } from "../../../src/health/cards/CardEngine.ts";
@@ -181,14 +182,21 @@ describe("aggregations and buckets", () => {
 
   it("heads first and latest with their reading only for one bucket, or a day at D", () => {
     const readings = [
-      reading(date(10, 20, 8), 72, { minutes: 1 }),
-      reading(date(10, 20, 8, 30), 74, { minutes: 1 }),
-      reading(date(10, 20, 20), 80, { minutes: 1 }),
+      reading(date(10, 20, 8), 72),
+      reading(date(10, 20, 8, 30), 74),
+      reading(date(10, 20, 20), 80),
+      reading(date(10, 21, 8), 90),
+      reading(date(10, 21, 20), 96),
     ];
-    const header = (aggregation: string, bucket: string, range: CardRange) =>
-      run(weightCard(aggregation, bucket, range), range, date(10, 20), {
+    const header = (aggregation: string, bucket: string, range: CardRange) => {
+      const card = weightCard(aggregation, bucket, range);
+      const summary = run(card, range, date(10, 20), {
         readings: { [bodyMass]: readings },
       }).summary;
+      // The rule a page uses to caption its header before it loads.
+      assert.strictEqual(headsOneBucket(card.bucket, range), summary?.kind !== "average");
+      return summary;
+    };
     const summary = (kind: CardSummaryKind, value: number) => ({
       kind,
       value,
@@ -198,9 +206,10 @@ describe("aggregations and buckets", () => {
     // At D by the hour, the day's first and latest, not the average of the hours'.
     assert.deepStrictEqual(header("first", "auto", "D"), summary("first", 72));
     assert.deepStrictEqual(header("latest", "auto", "D"), summary("latest", 80));
-    // More buckets: the average of the points, each once.
+    // More buckets: the average of the points, each once, neither the first nor the latest.
     assert.deepStrictEqual(header("first", "hour", "D"), summary("average", 76));
-    assert.deepStrictEqual(header("latest", "day", "W"), summary("average", 80));
+    assert.deepStrictEqual(header("first", "day", "W"), summary("average", 81));
+    assert.deepStrictEqual(header("latest", "day", "W"), summary("average", 88));
   });
 
   it("follows the calendar", () => {

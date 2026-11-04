@@ -381,11 +381,14 @@ struct CardChart: View {
           ? "DAILY AVERAGE" : "TOTAL"
       case .avg:
         return spec.chart.style == .ranges && point.minimum != point.maximum ? "RANGE" : "AVERAGE"
+      // A point is its bucket's reading, though the period's header may be their average.
+      case .first: return "FIRST"
+      case .latest: return "LATEST"
       default:
-        return caption(of: expectedKind(of: spec, range: range))
+        return caption(of: spec.expectedSummaryKind(at: range.card))
       }
     }
-    return caption(of: summary?.kind ?? expectedKind(of: spec, range: range))
+    return caption(of: summary?.kind ?? spec.expectedSummaryKind(at: range.card))
   }
 
   nonisolated private static func caption(of kind: CardSummary.Kind) -> String {
@@ -398,30 +401,6 @@ struct CardChart: View {
     case .highest: "HIGHEST"
     case .first: "FIRST"
     case .latest: "LATEST"
-    }
-  }
-
-  /// The summary a period of `range` has when it has data (docs/decisions/cards.md, Summary and
-  /// headline): a range of readings for an average drawn as ranges, which may turn out to be an
-  /// average.
-  nonisolated static func expectedKind(of spec: CardSpec, range: ChartRange) -> CardSummary.Kind {
-    guard case .series(let series) = spec.lead else { return .average }
-    switch series.aggregation {
-    case .sum:
-      switch (spec.bucket, range) {
-      case (.auto, .day): return .total
-      case (.auto, .sixMonths), (.auto, .year): return .dailyAverage
-      case (.auto, _): return .average
-      // A night is the only fixed bucket a period can hold one of.
-      case (.night, .day): return .total
-      default: return .average
-      }
-    case .avg: return spec.chart.style == .ranges ? .range : .average
-    case .min: return .lowest
-    case .max: return .highest
-    case .first: return .first
-    case .latest: return .latest
-    case .count: return .count
     }
   }
 

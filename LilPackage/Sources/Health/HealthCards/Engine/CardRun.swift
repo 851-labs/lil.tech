@@ -491,7 +491,7 @@ public struct CardRun: Sendable {
       case .avg: return CardSummary(kind: .average, value: period.average.average)
       case .min: return CardSummary(kind: .lowest, value: period.minimum)
       case .max: return CardSummary(kind: .highest, value: period.maximum)
-      case .first, .latest: return pickedSummary(lead.aggregation, computed)
+      case .first, .latest: return pickedSummary(lead.aggregation, period, computed.points)
       case .count: return CardSummary(kind: .count, value: Double(period.count))
       case .sum: return nil
       }
@@ -500,26 +500,25 @@ public struct CardRun: Sendable {
 
   /// The header of a series that picks one reading per bucket: that reading when the period is
   /// one bucket (or a day, at D, as a total's), else the average of the points shown, each once,
-  /// since a month's first weigh-in says nothing about the month's mornings (851-3244).
+  /// since a month's first weigh-in says nothing about the month's mornings (851-3244). Every
+  /// reading in the period is in a point, so a period with readings has points.
   private func pickedSummary(
-    _ aggregation: CardSpec.Aggregation, _ computed: Computed
+    _ aggregation: CardSpec.Aggregation, _ period: CardBucket, _ points: [CardPoint]
   ) -> CardSummary? {
-    guard let period = computed.period, !computed.points.isEmpty else { return nil }
     if isOneBucket {
       return aggregation == .first
         ? CardSummary(kind: .first, value: period.first?.value)
         : CardSummary(kind: .latest, value: period.latest?.value)
     }
-    let points = computed.points
+    guard !points.isEmpty else { return nil }
     return CardSummary(
       kind: .average, value: points.reduce(0) { $0 + $1.value } / Double(points.count))
   }
 
-  /// Whether the header speaks for a single bucket: `auto` at D (the day), or a period of one of
-  /// the spec's buckets.
+  /// Whether the header speaks for a single bucket (`CardSpec.Bucket.headsOneBucket(at:)`). A
+  /// headline's run, of several buckets, never does.
   private var isOneBucket: Bool {
-    if spec.bucket == .auto, let range { return range == .day }
-    return calendar.bucketStarts(grain, from: interval.start, to: interval.end).count == 1
+    range.map { spec.bucket.headsOneBucket(at: $0) } ?? false
   }
 
   /// A total's header: a day's total at D, else its average day (or bucket) with data, as Metric
